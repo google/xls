@@ -801,8 +801,8 @@ static absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg,
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.
 static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
-    absl::string_view name_prefix, const ResetInfo& reset_info, Node* node,
-    Block* block) {
+    absl::string_view name_prefix, const ResetInfo& reset_info,
+    absl::optional<Node*> load_enable, Node* node, Block* block) {
   Type* node_type = node->GetType();
 
   xls::Reset reset_behavior = reset_info.behavior.value();
@@ -826,7 +826,7 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
                           ->MakeNode<RegisterWrite>(
                               /*loc=*/node->loc(),
                               /*data=*/node,
-                              /*load_enable=*/absl::nullopt,
+                              /*load_enable=*/load_enable,
                               /*reset=*/reset_node,
                               /*reg=*/reg)
                           .status());
@@ -834,23 +834,202 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
   return reg_read;
 }
 
+// Add a skid buffer after the a set of data/valid/ready signal.
+//
+// Logic will be inserted immediately after from_data and from node.
+// Logic will be inserted immediately before from_rdy,
+//   from_rdy must be a node with a single operand.
+//
+// Updates valid_nodes with the additional nodes associated with valid
+// registers.
+static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
+    Node* from_data, Node* from_valid, Node* from_rdy,
+    absl::string_view name_prefix, const ResetInfo& reset_info, Block* block,
+    std::vector<Node*>& valid_nodes) {
+  XLS_CHECK_EQ(from_rdy->operand_count(), 1);
+
+  // Add a node for load_enables (will be removed later).
+  XLS_ASSIGN_OR_RETURN(
+      Node * literal_1,
+      block->MakeNode<xls::Literal>(absl::nullopt, Value(UBits(1, 1))));
+
+  // Create data/valid and their skid counterparts.
+  XLS_ASSIGN_OR_RETURN(RegisterRead * data_reg_read,
+                       AddRegisterAfterNode(name_prefix, reset_info, literal_1,
+                                            from_data, block));
+
+  XLS_ASSIGN_OR_RETURN(
+      RegisterRead * data_skid_reg_read,
+      AddRegisterAfterNode(absl::StrCat(name_prefix, "_skid"), reset_info,
+                           literal_1, data_reg_read, block));
+
+  XLS_ASSIGN_OR_RETURN(
+      RegisterRead * data_valid_reg_read,
+      AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid"), reset_info,
+                           literal_1, from_valid, block));
+
+  XLS_ASSIGN_OR_RETURN(
+      RegisterRead * data_valid_skid_reg_read,
+      AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid_skid"), reset_info,
+                           literal_1, data_valid_reg_read, block));
+
+  // If data_valid_skid_reg_read is 1, then data/valid outputs should
+  // be selected from the skid set.
+  XLS_ASSIGN_OR_RETURN(
+      Node * to_valid,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/from_data->loc(),
+          std::vector<Node*>{data_valid_reg_read, data_valid_skid_reg_read},
+          Op::kOr, absl::StrCat(name_prefix, "_valid_or")));
+  XLS_RETURN_IF_ERROR(data_valid_skid_reg_read->ReplaceUsesWith(to_valid));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * to_data,
+      block->MakeNodeWithName<Select>(
+          /*loc=*/from_data->loc(),
+          /*selector=*/data_valid_skid_reg_read,
+          /*cases=*/std::vector<Node*>{data_reg_read, data_skid_reg_read},
+          /*default_value=*/absl::nullopt,
+          /*name=*/absl::StrCat(name_prefix, "_select")));
+  XLS_RETURN_IF_ERROR(data_skid_reg_read->ReplaceUsesWith(to_data));
+
+  // With a skid buffer, input can be accepted whenever the skid registers
+  // are empty/invalid.
+  Node* to_is_ready = from_rdy->operand(0);
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * from_skid_rdy,
+      block->MakeNodeWithName<UnOp>(
+          /*loc=*/absl::nullopt, data_valid_skid_reg_read, Op::kNot,
+          absl::StrCat(name_prefix, "_from_skid_rdy")));
+  XLS_RETURN_IF_ERROR(from_rdy->ReplaceOperandNumber(0, from_skid_rdy));
+
+  // A. Data is set when
+  //    input is read, i.e. from_valid and from_skid_rdy (skid is not valid)
+  //
+  // B. Valid is set when
+  //     a) input is read or
+  //     b) data is sent to output (valid and to_ready) and skid is not valid
+  //
+  // In the case of A, valid is set to 1,
+  XLS_ASSIGN_OR_RETURN(
+      Node * input_ready_and_valid,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/absl::nullopt, std::vector<Node*>{from_valid, from_skid_rdy},
+          Op::kAnd, absl::StrCat(name_prefix, "_data_valid_load_en")));
+
+  XLS_ASSIGN_OR_RETURN(RegisterWrite * data_reg_write,
+                       block->GetRegisterWrite(data_reg_read->GetRegister()));
+  XLS_RETURN_IF_ERROR(
+      data_reg_write->ReplaceExistingLoadEnable(input_ready_and_valid));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * data_is_sent_to,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/absl::nullopt,
+          std::vector<Node*>{data_valid_reg_read, to_is_ready, from_skid_rdy},
+          Op::kAnd, absl::StrCat(name_prefix, "_data_is_sent_to")));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * valid_load_en,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/absl::nullopt,
+          std::vector<Node*>{data_is_sent_to, input_ready_and_valid}, Op::kOr,
+          absl::StrCat(name_prefix, "_data_valid_load_en")));
+
+  XLS_ASSIGN_OR_RETURN(
+      RegisterWrite * data_valid_reg_write,
+      block->GetRegisterWrite(data_valid_reg_read->GetRegister()));
+  XLS_RETURN_IF_ERROR(
+      data_valid_reg_write->ReplaceExistingLoadEnable(valid_load_en));
+
+  // Skid is loaded from 1st stage whenever
+  //   a) the input is being read (input_ready_and_valid == 1) and
+  //       --> which implies that the skid is invalid
+  //   b) the output is not ready (from_rdy_original_src == 0) and
+  //   c) there is data in the 1st stage (data_valid_reg_read == 1)
+  XLS_ASSIGN_OR_RETURN(Node * to_is_not_rdy,
+                       block->MakeNodeWithName<UnOp>(
+                           /*loc=*/absl::nullopt, to_is_ready, Op::kNot,
+                           absl::StrCat(name_prefix, "_to_is_not_rdy")));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * skid_data_load_en,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/absl::nullopt,
+          std::vector<Node*>{data_valid_reg_read, input_ready_and_valid,
+                             to_is_not_rdy},
+          Op::kAnd, absl::StrCat(name_prefix, "_skid_data_load_en")));
+
+  // Skid is reset (valid set to zero) to invalid whenever
+  //   a) skid is valid and
+  //   b) output is ready
+  XLS_ASSIGN_OR_RETURN(
+      Node * skid_valid_set_zero,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/absl::nullopt,
+          std::vector<Node*>{data_valid_skid_reg_read, to_is_ready}, Op::kAnd,
+          absl::StrCat(name_prefix, "_skid_valid_set_zero")));
+
+  // Skid valid changes from 0 to 1 (load), or 1 to 0 (set zero).
+  XLS_ASSIGN_OR_RETURN(
+      Node * skid_valid_load_en,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/absl::nullopt,
+          std::vector<Node*>{skid_data_load_en, skid_valid_set_zero}, Op::kOr,
+          absl::StrCat(name_prefix, "_skid_valid_load_en")));
+
+  XLS_ASSIGN_OR_RETURN(
+      RegisterWrite * data_skid_reg_write,
+      block->GetRegisterWrite(data_skid_reg_read->GetRegister()));
+  XLS_RETURN_IF_ERROR(
+      data_skid_reg_write->ReplaceExistingLoadEnable(skid_data_load_en));
+
+  XLS_ASSIGN_OR_RETURN(
+      RegisterWrite * data_valid_skid_reg_write,
+      block->GetRegisterWrite(data_valid_skid_reg_read->GetRegister()));
+
+  // If the skid valid is being set
+  //   - If it's being set to 1, then the input is being read,
+  //     and the prior data is being stored into the skid
+  //   - If it's being set to 0, then the input is not being read
+  //     and we are clearing the skid and sending the data to the output
+  // this implies that
+  //   skid_valid := skid_valid_load_en ? !skid_valid : skid_valid
+  XLS_RETURN_IF_ERROR(
+      data_valid_skid_reg_write->ReplaceExistingLoadEnable(skid_valid_load_en));
+  XLS_RETURN_IF_ERROR(
+      data_valid_skid_reg_write->ReplaceOperandNumber(0, from_skid_rdy));
+
+  valid_nodes.push_back(to_valid);
+
+  return to_data;
+}
+
 // Add flops after the data/valid of a set of three data, valid, and ready
 // nodes.
 //
 // Updates valid_nodes with the additional nodes associated with valid
 // registers.
+//<
+// Logic will be inserted immediately after from_data and from node.
+// Logic will be inserted immediately before from_rdy,
+//   from_rdy must be a node with a single operand.
 //
 // Returns the node for the register_read of the data.
 static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
     absl::string_view name_prefix, const ResetInfo& reset_info, Block* block,
     std::vector<Node*>& valid_nodes) {
+  XLS_CHECK_EQ(from_rdy->operand_count(), 1);
+
+  XLS_ASSIGN_OR_RETURN(RegisterRead * data_reg_read,
+                       AddRegisterAfterNode(name_prefix, reset_info,
+                                            absl::nullopt, from_data, block));
   XLS_ASSIGN_OR_RETURN(
-      RegisterRead * data_reg_read,
-      AddRegisterAfterNode(name_prefix, reset_info, from_data, block));
-  XLS_ASSIGN_OR_RETURN(RegisterRead * valid_reg_read,
-                       AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid"),
-                                            reset_info, from_valid, block));
+      RegisterRead * valid_reg_read,
+      AddRegisterAfterNode(absl::StrCat(name_prefix, "_valid"), reset_info,
+                           absl::nullopt, from_valid, block));
 
   // 2. Construct and update the ready signal.
   Node* from_rdy_src = from_rdy->operand(0);
@@ -889,7 +1068,7 @@ static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
 }
 
 // Adds a register after the input streaming channel's data and valid.
-static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
+static absl::StatusOr<Node*> AddRegisterAfterStreamingInput(
     StreamingInput& input, const ResetInfo& reset_info, Block* block,
     std::vector<Node*>& valid_nodes) {
   return AddRegisterToRDVNodes(input.port, input.port_valid, input.port_ready,
@@ -899,8 +1078,9 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterStreamingInput(
 
 // Adds a register after the input streaming channel's data and valid.
 // Returns the node for the register_read of the data.
-static absl::StatusOr<RegisterRead*> AddRegisterBeforeStreamingOutput(
-    StreamingOutput& output, const ResetInfo& reset_info, Block* block,
+static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
+    StreamingOutput& output, const ResetInfo& reset_info,
+    const CodegenOptions& options, Block* block,
     std::vector<Node*>& valid_nodes) {
   // Add an buffers before the data/valid output ports and after
   // the ready input port to serve as points where the
@@ -934,9 +1114,21 @@ static absl::StatusOr<RegisterRead*> AddRegisterBeforeStreamingOutput(
   XLS_RETURN_IF_ERROR(
       output.port_ready->ReplaceUsesWith(output_port_ready_buf));
 
-  return AddRegisterToRDVNodes(output_port_data_buf, output_port_valid_buf,
-                               output_port_ready_buf, output.port->name(),
-                               reset_info, block, valid_nodes);
+  if (options.flop_outputs_kind() == CodegenOptions::IOKind::kSkidBuffer) {
+    return AddSkidBufferToRDVNodes(output_port_data_buf, output_port_valid_buf,
+                                   output_port_ready_buf, output.port->name(),
+                                   reset_info, block, valid_nodes);
+  }
+
+  if (options.flop_outputs_kind() == CodegenOptions::IOKind::kFlop) {
+    return AddRegisterToRDVNodes(output_port_data_buf, output_port_valid_buf,
+                                 output_port_ready_buf, output.port->name(),
+                                 reset_info, block, valid_nodes);
+  }
+
+  return absl::UnimplementedError(absl::StrFormat(
+      "Block conversion does not registering output with kind %d",
+      options.flop_outputs_kind()));
 }
 
 // Adds an input and/or output flop and related signals.
@@ -972,8 +1164,8 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
   // Flop streaming outputs.
   for (StreamingOutput& output : streaming_io.outputs) {
     if (options.flop_outputs()) {
-      XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(output, reset_info,
-                                                           block, valid_nodes)
+      XLS_RETURN_IF_ERROR(AddRegisterBeforeStreamingOutput(
+                              output, reset_info, options, block, valid_nodes)
                               .status());
 
       handled_io_nodes.insert(output.port);
@@ -996,9 +1188,9 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
         continue;
       }
 
-      XLS_RETURN_IF_ERROR(
-          AddRegisterAfterNode(port->GetName(), reset_info, port, block)
-              .status());
+      XLS_RETURN_IF_ERROR(AddRegisterAfterNode(port->GetName(), reset_info,
+                                               absl::nullopt, port, block)
+                              .status());
 
       handled_io_nodes.insert(port);
     }
@@ -1013,7 +1205,8 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
       }
 
       XLS_RETURN_IF_ERROR(AddRegisterAfterNode(port->GetName(), reset_info,
-                                               port->operand(0), block)
+                                               absl::nullopt, port->operand(0),
+                                               block)
                               .status());
 
       handled_io_nodes.insert(port);

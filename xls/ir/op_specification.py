@@ -75,17 +75,20 @@ class Method(object):
     expression: The expression to produce the value returned by the method.
     params: Optional string of C++ parameters that gets inserted into the method
       signature between "()"s.
+    is_const: The method is a const method.
   """
 
   def __init__(self,
                name: str,
                return_cpp_type: str,
                expression: Optional[str],
-               params: str = ''):
+               params: str = '',
+               is_const: bool = True):
     self.name = name
     self.return_cpp_type = return_cpp_type
     self.expression = expression
     self.params = params
+    self.is_const = is_const
 
 
 class Attribute(object):
@@ -941,7 +944,14 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           expression='has_reset_ ? absl::optional<Node*>(operand(has_load_enable_ ? 2 : 1)) : absl::nullopt'),
                    Method(name='GetRegister',
                           return_cpp_type='Register*',
-                          expression='reg_')],
+                          expression='reg_'),
+                   Method(name='ReplaceExistingLoadEnable',
+                          is_const=False,
+                          return_cpp_type='absl::Status',
+                          params='Node* new_operand',
+                          expression='has_load_enable_ ? ReplaceOperandNumber(1, new_operand) : '
+                          + 'absl::InternalError("Unable to replace load enable on RegisterWrite -- '
+                          + 'register does not have an existing load enable operand.")')],
 )
 
 OpClass.kinds['INSTANTIATION_OUTPUT'] = OpClass(

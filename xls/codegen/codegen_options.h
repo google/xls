@@ -23,7 +23,23 @@
 namespace xls::verilog {
 
 // Options describing how codegen should be performed.
-struct CodegenOptions {
+class CodegenOptions {
+ public:
+  // Enum to describe how IO should be registered.
+  enum class IOKind { kFlop = 0, kSkidBuffer };
+
+  // Convert IOKind enum to a string.
+  static absl::string_view IOKindToString(IOKind kind) {
+    switch (kind) {
+      case IOKind::kFlop:
+        return "kFlop";
+      case IOKind::kSkidBuffer:
+        return "kSkidBuffer";
+      default:
+        return "UnknownKind";
+    }
+  }
+
   // The name of the top-level function or proc to generate a Verilog module
   // for. Required.
   // TODO(meheff): 2021/04/21 As this is required, perhaps this should be made a
@@ -76,6 +92,10 @@ struct CodegenOptions {
   // true, adds a single cycle to the latency of the pipline.
   CodegenOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
+
+  // When flop_outputs() is true, determins the type of flop to add.
+  CodegenOptions& flop_outputs_kind(IOKind value);
+  IOKind flop_outputs_kind() const { return flop_outputs_kind_; }
 
   // If the output is tuple-typed, generate an output port for each element of
   // the output tuple.
@@ -189,6 +209,7 @@ struct CodegenOptions {
   bool use_system_verilog_ = true;
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
+  IOKind flop_outputs_kind_ = IOKind::kFlop;
   bool split_outputs_ = false;
   bool add_idle_output_ = false;
   absl::optional<std::string> assert_format_;

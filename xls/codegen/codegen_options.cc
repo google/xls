@@ -95,6 +95,11 @@ CodegenOptions& CodegenOptions::flop_outputs(bool value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::flop_outputs_kind(IOKind value) {
+  flop_outputs_kind_ = value;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::split_outputs(bool value) {
   split_outputs_ = value;
   return *this;

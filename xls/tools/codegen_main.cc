@@ -93,6 +93,8 @@ ABSL_FLAG(bool, flop_inputs, true,
 ABSL_FLAG(bool, flop_outputs, true,
           "If true, the module outputs are flopped into registers before "
           "leaving module. Only used with pipeline generator.");
+ABSL_FLAG(std::string, flop_outputs_kind, "flop",
+          "Kind of output register to add.  Valid values: flop, skid");
 ABSL_FLAG(bool, add_idle_output, false,
           "If true, an additional idle signal tied to valids of input and "
           "flops is added to the block. This output signal is not registered, "
@@ -189,7 +191,17 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
       options.manual_control(absl::GetFlag(FLAGS_manual_load_enable_signal));
     }
     options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
+
     options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
+    if (absl::GetFlag(FLAGS_flop_outputs_kind) == "flop") {
+      options.flop_outputs_kind(verilog::CodegenOptions::IOKind::kFlop);
+    } else if (absl::GetFlag(FLAGS_flop_outputs_kind) == "skid") {
+      options.flop_outputs_kind(verilog::CodegenOptions::IOKind::kSkidBuffer);
+    } else {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("--flop_output_kind supports only flop or skid"));
+    }
+
     options.add_idle_output(absl::GetFlag(FLAGS_add_idle_output));
 
     if (!absl::GetFlag(FLAGS_reset).empty()) {

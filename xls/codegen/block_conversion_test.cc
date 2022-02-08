@@ -1244,19 +1244,35 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
 }
 
 // Fixture to sweep SimplePipelinedProcTest
-//
-// Sweep parameters are (state_count, flop_inputs, flop_outputs).
 class SimplePipelinedProcTestSweepFixture
     : public SimplePipelinedProcTest,
-      public testing::WithParamInterface<std::tuple<int64_t, bool, bool>> {};
+      public testing::WithParamInterface<
+          std::tuple<int64_t, bool, bool, CodegenOptions::IOKind>> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = std::get<0>(info.param);
+    bool flop_inputs = std::get<1>(info.param);
+    bool flop_outputs = std::get<2>(info.param);
+    CodegenOptions::IOKind flop_outputs_kind = std::get<3>(info.param);
+
+    return absl::StrFormat(
+        "stage_count_%d_flop_inputs_%d_flop_outputs_%d_"
+        "flop_outputs_kind_%s",
+        stage_count, flop_inputs, flop_outputs,
+        CodegenOptions::IOKindToString(flop_outputs_kind));
+  }
+};
 
 TEST_P(SimplePipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
+  CodegenOptions::IOKind flop_outputs_kind = std::get<3>(GetParam());
 
   CodegenOptions options;
   options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.flop_outputs_kind(flop_outputs_kind);
   options.valid_control("input_valid", "output_valid");
   options.reset("rst", false, false, false);
 
@@ -1368,18 +1384,40 @@ TEST_P(SimplePipelinedProcTestSweepFixture, RandomStalling) {
   EXPECT_EQ(input_value_sequence, output_value_sequence);
 }
 
-INSTANTIATE_TEST_SUITE_P(SimplePipelinedProcTestSweep,
-                         SimplePipelinedProcTestSweepFixture,
-                         testing::Combine(testing::Values(1, 2, 3, 4),
-                                          testing::Values(false, true),
-                                          testing::Values(false, true)));
+INSTANTIATE_TEST_SUITE_P(
+    SimplePipelinedProcTestSweep, SimplePipelinedProcTestSweepFixture,
+    testing::Combine(testing::Values(1, 2, 3, 4), testing::Values(false, true),
+                     testing::Values(false, true),
+                     testing::Values(CodegenOptions::IOKind::kFlop,
+                                     CodegenOptions::IOKind::kSkidBuffer)),
+    SimplePipelinedProcTestSweepFixture::PrintToStringParamName);
 
 // Fixture used to test pipelined BlockConversion on a simple
 // block with a running counter
+//
+// Sweep parameters are (state_count, active_low_reset, flop_inputs,
+// flop_outputs, flop_outputs_kind).
 class SimpleRunningCounterProcTestSweepFixture
     : public ProcConversionTestFixture,
       public testing::WithParamInterface<
-          std::tuple<int64_t, bool, bool, bool>> {
+          std::tuple<int64_t, bool, bool, bool, CodegenOptions::IOKind>> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = std::get<0>(info.param);
+    bool active_low_reset = std::get<1>(info.param);
+    bool flop_inputs = std::get<2>(info.param);
+    bool flop_outputs = std::get<3>(info.param);
+    CodegenOptions::IOKind flop_outputs_kind = std::get<4>(info.param);
+
+    return absl::StrFormat(
+        "stage_count_%d_active_low_reset_%d_"
+        "flop_inputs_%d_flop_outputs_%d_"
+        "flop_outputs_kind_%s",
+        stage_count, active_low_reset, flop_inputs, flop_outputs,
+        CodegenOptions::IOKindToString(flop_outputs_kind));
+  }
+
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
       int64_t stage_count, const CodegenOptions& options) override {
@@ -1432,9 +1470,11 @@ TEST_P(SimpleRunningCounterProcTestSweepFixture, RandomStalling) {
   bool active_low_reset = std::get<1>(GetParam());
   bool flop_inputs = std::get<2>(GetParam());
   bool flop_outputs = std::get<3>(GetParam());
+  CodegenOptions::IOKind flop_outputs_kind = std::get<4>(GetParam());
 
   CodegenOptions options;
   options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.flop_outputs_kind(flop_outputs_kind);
   options.valid_control("input_valid", "output_valid");
   options.reset(active_low_reset ? "rst_n" : "rst", false,
                 /*active_low=*/active_low_reset, false);
@@ -1557,12 +1597,13 @@ TEST_P(SimpleRunningCounterProcTestSweepFixture, RandomStalling) {
   EXPECT_EQ(in_sum, output_sequence.back().value);
 }
 
-INSTANTIATE_TEST_SUITE_P(SimpleRunningCounterProcTestSweep,
-                         SimpleRunningCounterProcTestSweepFixture,
-                         testing::Combine(testing::Values(1, 2, 3),
-                                          testing::Values(false, true),
-                                          testing::Values(false, true),
-                                          testing::Values(false, true)));
+INSTANTIATE_TEST_SUITE_P(
+    SimpleRunningCounterProcTestSweep, SimpleRunningCounterProcTestSweepFixture,
+    testing::Combine(testing::Values(1, 2, 3), testing::Values(false, true),
+                     testing::Values(false, true), testing::Values(false, true),
+                     testing::Values(CodegenOptions::IOKind::kFlop,
+                                     CodegenOptions::IOKind::kSkidBuffer)),
+    SimpleRunningCounterProcTestSweepFixture::PrintToStringParamName);
 
 // Fixture used to test pipelined BlockConversion on a multi input  block.
 class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
@@ -1613,20 +1654,36 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
 };
 
 // Fixture to sweep MultiInputProcPipelinedTest
-//
-// Sweep parameters are (state_count, flop_inputs, flop_outputs).
 class MultiInputPipelinedProcTestSweepFixture
     : public MultiInputPipelinedProcTest,
-      public testing::WithParamInterface<std::tuple<int64_t, bool, bool>> {};
+      public testing::WithParamInterface<
+          std::tuple<int64_t, bool, bool, CodegenOptions::IOKind>> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = std::get<0>(info.param);
+    bool flop_inputs = std::get<1>(info.param);
+    bool flop_outputs = std::get<2>(info.param);
+    CodegenOptions::IOKind flop_outputs_kind = std::get<3>(info.param);
+
+    return absl::StrFormat(
+        "stage_count_%d_flop_inputs_%d_flop_outputs_%d_"
+        "flop_outputs_kind_%s",
+        stage_count, flop_inputs, flop_outputs,
+        CodegenOptions::IOKindToString(flop_outputs_kind));
+  }
+};
 
 TEST_P(MultiInputPipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
+  CodegenOptions::IOKind flop_outputs_kind = std::get<3>(GetParam());
   bool active_low_reset = true;
 
   CodegenOptions options;
   options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.flop_outputs_kind(flop_outputs_kind);
   options.valid_control("input_valid", "output_valid");
   options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
 
@@ -1744,11 +1801,13 @@ TEST_P(MultiInputPipelinedProcTestSweepFixture, RandomStalling) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(MultiInputPipelinedProcTestSweep,
-                         MultiInputPipelinedProcTestSweepFixture,
-                         testing::Combine(testing::Values(1, 2, 3),
-                                          testing::Values(false, true),
-                                          testing::Values(false, true)));
+INSTANTIATE_TEST_SUITE_P(
+    MultiInputPipelinedProcTestSweep, MultiInputPipelinedProcTestSweepFixture,
+    testing::Combine(testing::Values(1, 2, 3), testing::Values(false, true),
+                     testing::Values(false, true),
+                     testing::Values(CodegenOptions::IOKind::kFlop,
+                                     CodegenOptions::IOKind::kSkidBuffer)),
+    MultiInputPipelinedProcTestSweepFixture::PrintToStringParamName);
 
 TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
   int64_t stage_count = 4;
@@ -2025,21 +2084,37 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
 };
 
 // Fixture to sweep MultiInputWithStatePipelinedProcTest
-//
-// Sweep parameters are (state_count, flop_inputs, flop_outputs).
 class MultiInputWithStatePipelinedProcTestSweepFixture
     : public MultiInputWithStatePipelinedProcTest,
-      public testing::WithParamInterface<std::tuple<int64_t, bool, bool>> {};
+      public testing::WithParamInterface<
+          std::tuple<int64_t, bool, bool, CodegenOptions::IOKind>> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = std::get<0>(info.param);
+    bool flop_inputs = std::get<1>(info.param);
+    bool flop_outputs = std::get<2>(info.param);
+    CodegenOptions::IOKind flop_outputs_kind = std::get<3>(info.param);
+
+    return absl::StrFormat(
+        "stage_count_%d_flop_inputs_%d_flop_outputs_%d_"
+        "flop_outputs_kind_%s",
+        stage_count, flop_inputs, flop_outputs,
+        CodegenOptions::IOKindToString(flop_outputs_kind));
+  }
+};
 
 TEST_P(MultiInputWithStatePipelinedProcTestSweepFixture, RandomStalling) {
   int64_t stage_count = std::get<0>(GetParam());
   bool flop_inputs = std::get<1>(GetParam());
   bool flop_outputs = std::get<2>(GetParam());
+  CodegenOptions::IOKind flop_outputs_kind = std::get<3>(GetParam());
   bool add_idle_output = true;
   bool active_low_reset = true;
 
   CodegenOptions options;
   options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.flop_outputs_kind(flop_outputs_kind);
   options.add_idle_output(add_idle_output);
   options.valid_control("input_valid", "output_valid");
   options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
@@ -2154,11 +2229,14 @@ TEST_P(MultiInputWithStatePipelinedProcTestSweepFixture, RandomStalling) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(MultiInputWithStatePipelinedProcTestSweep,
-                         MultiInputWithStatePipelinedProcTestSweepFixture,
-                         testing::Combine(testing::Values(1, 2, 3),
-                                          testing::Values(false, true),
-                                          testing::Values(false, true)));
+INSTANTIATE_TEST_SUITE_P(
+    MultiInputWithStatePipelinedProcTestSweep,
+    MultiInputWithStatePipelinedProcTestSweepFixture,
+    testing::Combine(testing::Values(1, 2, 3), testing::Values(false, true),
+                     testing::Values(false, true),
+                     testing::Values(CodegenOptions::IOKind::kFlop,
+                                     CodegenOptions::IOKind::kSkidBuffer)),
+    MultiInputWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
 }  // namespace
 }  // namespace verilog

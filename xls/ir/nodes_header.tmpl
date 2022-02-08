@@ -34,7 +34,7 @@ class {{ op_class.name }} : public Node {
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const override;
 {% for method in op_class.methods() -%}
-{{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) const{% if method.expression %} { return {{ method.expression }}; }{% else %};{% endif %}
+{{ method.return_cpp_type }} {{ method.name }}({{ method.params }}) {%if method.is_const %} const{% endif %} {% if method.expression %} { return {{ method.expression }}; }{% else %};{% endif %}
 {% endfor -%}
 {%- if op_class.data_members() %}
   bool IsDefinitelyEqualTo(const Node* other) const override;
