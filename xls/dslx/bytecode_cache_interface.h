@@ -17,6 +17,7 @@
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -31,7 +32,8 @@ class BytecodeCacheInterface {
   // constants are held inside the given TypeInfo - different instances of a
   // parametric function will have different TypeInfos associated with them.
   virtual absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
-      Function* f, TypeInfo* type_info) = 0;
+      const Function* f, const TypeInfo* type_info,
+      absl::optional<const SymbolicBindings*> caller_bindings) = 0;
 };
 
 }  // namespace xls::dslx

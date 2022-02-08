@@ -199,12 +199,21 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
 }
 
 absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
-  if (!absl::holds_alternative<InterpValue>(value_)) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Expected concrete type dimension to be integral; got: ",
-                     absl::get<OwnedParametric>(value_)->ToString()));
+  if (absl::holds_alternative<InterpValue>(value_)) {
+    return absl::get<InterpValue>(value_).GetBitValueInt64();
   }
-  return absl::get<InterpValue>(value_).GetBitValueInt64();
+
+  absl::optional<InterpValue> maybe_value = parametric().const_value();
+  if (maybe_value.has_value()) {
+    InterpValue value = maybe_value.value();
+    if (value.IsBits()) {
+      return value.GetBitValueInt64();
+    }
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Expected concrete type dimension to be integral; got: ",
+                   absl::get<OwnedParametric>(value_)->ToString()));
 }
 
 // -- ConcreteType

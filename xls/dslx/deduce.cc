@@ -1768,20 +1768,25 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
   }
 
   // If it's a name reference (and not a const reference), make it symbolic.
-  //
-  // TODO(leary): 2021-06-21 this is not a reasonable thing to assume. We need
-  // to make something like a "ParametricRef" to reflect the fact there are
-  // values that are constant when instantiated, but not fully constant (i.e.
-  // before instantiation) and not runtime values. Right now if we refer to a
-  // parameter in an array dimension it becomes a parametric symbol, which is no
-  // good.
-  //
-  //    fn main(x: u32) -> () { u32[x]:[0, ...] }
-  //                                ^-- becomes parametric symbol "x"
   if (auto* name_ref = dynamic_cast<NameRef*>(dim_expr);
       name_ref != nullptr && dynamic_cast<ConstRef*>(dim_expr) == nullptr) {
-    return ConcreteTypeDim(std::make_unique<ParametricSymbol>(
-        name_ref->identifier(), dim_expr->span()));
+    std::unique_ptr<ParametricSymbol> sym;
+    absl::flat_hash_map<std::string, InterpValue> bindings =
+        ctx->fn_stack().back().symbolic_bindings().ToMap();
+    if (bindings.contains(name_ref->identifier())) {
+      InterpValue dim_value = bindings.at(name_ref->identifier());
+      XLS_RET_CHECK(dim_value.IsBits());
+      sym = std::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                               dim_expr->span(), dim_value);
+    } else {
+      sym = std::make_unique<ParametricSymbol>(name_ref->identifier(),
+                                               dim_expr->span());
+    }
+
+    // We should have a value for all parametric symbols we encounter. We still
+    // need to record the symbol, though, so we can emit a properly mangled
+    // name. Thus, we attach the resolved size to the symbol.
+    return ConcreteTypeDim(std::move(sym));
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> dim_type,

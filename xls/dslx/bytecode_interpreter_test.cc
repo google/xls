@@ -38,8 +38,9 @@ absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
       ParseAndTypecheck(program, "test.x", "test", import_data));
 
   XLS_ASSIGN_OR_RETURN(Function * f, tm.module->GetFunctionOrError(entry));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
-                       BytecodeEmitter::Emit(import_data, tm.type_info, f));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(import_data, tm.type_info, f, absl::nullopt));
 
   return BytecodeInterpreter::Interpret(import_data, bf.get(), {});
 }
@@ -147,7 +148,6 @@ fn do_and() -> u32 {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            Interpret(&import_data, kProgram, "do_and"));
-
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 0xa5a5a5a5ll);
@@ -586,15 +586,15 @@ fn cast_bits_to_enum() -> MyEnum {
                            tm.module->GetFunctionOrError("cast_bits_to_enum"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
 
   // Get a modifiable copy of the bytecodes.
   std::vector<Bytecode> bytecodes = bf->CloneBytecodes();
 
   // Clear out the data element of the last bytecode, the cast op.
   bytecodes[bytecodes.size() - 1] = Bytecode(Span::Fake(), Bytecode::Op::kCast);
-  XLS_ASSERT_OK_AND_ASSIGN(bf,
-                           BytecodeFunction::Create(f, std::move(bytecodes)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bf, BytecodeFunction::Create(f, tm.type_info, std::move(bytecodes)));
   absl::StatusOr<InterpValue> value =
       BytecodeInterpreter::Interpret(&import_data, bf.get(), {});
   EXPECT_THAT(value.status(),
@@ -620,7 +620,7 @@ fn has_params(x: u32, y: u64) -> u48 {
                            tm.module->GetFunctionOrError("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
 
   std::vector<InterpValue> params;
   params.push_back(InterpValue::MakeU32(1));
@@ -678,7 +678,7 @@ fn caller(a: u32) -> u32{
                            tm.module->GetFunctionOrError("caller"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
   std::vector<InterpValue> params;
   params.push_back(InterpValue::MakeU32(100));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -688,6 +688,70 @@ fn caller(a: u32) -> u32{
   XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
   EXPECT_EQ(int_val, 400);
+}
+
+TEST(BytecodeInterpreterTest, SimpleParametric) {
+  constexpr absl::string_view kProgram = R"(
+fn foo<N: u32>(x: uN[N]) -> uN[N] {
+  x * x
+}
+
+fn main() -> u32 {
+  let a = foo<u32:16>(u16:4);
+  let b = foo(u32:8);
+  a as u32 + b
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  EXPECT_EQ(int_value, 80);
+}
+
+TEST(BytecodeInterpreterTest, NestedParametric) {
+  constexpr absl::string_view kProgram = R"(
+fn second<N: u32, M: u32, O: u32>(x: uN[N], y: uN[M]) -> uN[O] {
+  x as uN[O] + y as uN[O]
+}
+
+fn first<N:u32>(x: uN[N]) -> uN[N] {
+  second<N, u32:48, u32:64>(x, u48:7) as uN[N]
+}
+
+fn main() -> u32 {
+  first(u32:5)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  EXPECT_EQ(int_value, 12);
+}
+
+TEST(BytecodeInterpreterTest, ParametricStruct) {
+  constexpr absl::string_view kProgram = R"(
+struct MyStruct<N: u32, M: u32 = N * u32:2> {
+  x: uN[N],
+  y: uN[M]
+}
+
+fn foo<N: u32, M: u32>(x: MyStruct<N, M>) -> u32 {
+  x.x as u32 + x.y as u32
+}
+
+fn main() -> u32 {
+  foo(MyStruct { x: u16:100, y: u32:200 })
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueInt64());
+  EXPECT_EQ(int_value, 300);
 }
 
 }  // namespace

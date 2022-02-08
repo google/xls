@@ -46,6 +46,8 @@ class ParametricExpression {
   using EnvValue = absl::variant<const ParametricExpression*, InterpValue>;
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 
+  ParametricExpression(absl::optional<InterpValue> const_value = absl::nullopt)
+      : const_value_(const_value) {}
   virtual ~ParametricExpression() = default;
 
   virtual std::string ToRepr() const = 0;
@@ -56,7 +58,10 @@ class ParametricExpression {
   bool operator!=(const ParametricExpression& other) const {
     return !(*this == other);
   }
+
   virtual std::unique_ptr<ParametricExpression> Clone() const = 0;
+
+  absl::optional<InterpValue> const_value() const { return const_value_; }
 
   // Adds together two parametric expression environment values.
   static std::unique_ptr<ParametricExpression> Add(const EnvValue& lhs,
@@ -81,6 +86,9 @@ class ParametricExpression {
   // If e is a constant, unwraps it into an integral value, otherwise returns
   // the parametric expression as-is.
   static Evaluated TryUnwrapConstant(std::unique_ptr<ParametricExpression> e);
+
+ private:
+  absl::optional<InterpValue> const_value_;
 };
 
 // Represents a constant value in a parametric dimension expression.
@@ -96,40 +104,46 @@ class ParametricExpression {
 // Where the '1' is a parametric constant.
 class ParametricConstant : public ParametricExpression {
  public:
-  explicit ParametricConstant(InterpValue value) : value_(value) {}
+  explicit ParametricConstant(InterpValue value)
+      : ParametricExpression(value) {}
 
-  std::string ToString() const override { return value_.ToString(); }
+  std::string ToString() const override {
+    return const_value().value().ToString();
+  }
   std::string ToRepr() const override {
-    return absl::StrFormat("ParametricConstant(%s)", value_.ToString());
+    return absl::StrFormat("ParametricConstant(%s)",
+                           const_value().value().ToString());
   }
   bool operator==(const ParametricExpression& other) const override {
     if (auto* o = dynamic_cast<const ParametricConstant*>(&other)) {
-      return value_ == o->value_;
+      return const_value().value() == o->const_value().value();
     }
     return false;
   }
 
-  Evaluated Evaluate(const Env& env) const override { return value_; }
+  Evaluated Evaluate(const Env& env) const override {
+    return const_value().value();
+  }
   absl::flat_hash_set<std::string> GetFreeVariables() const override {
     return {};
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return std::make_unique<ParametricConstant>(value_);
+    return std::make_unique<ParametricConstant>(const_value().value());
   }
 
-  InterpValue value() const { return value_; }
-
- private:
-  InterpValue value_;
+  InterpValue value() const { return const_value().value(); }
 };
 
 // Represents an add in a parametric dimension expression.
 class ParametricAdd : public ParametricExpression {
  public:
   ParametricAdd(std::unique_ptr<ParametricExpression> lhs,
-                std::unique_ptr<ParametricExpression> rhs)
-      : lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
+                std::unique_ptr<ParametricExpression> rhs,
+                absl::optional<InterpValue> const_value = absl::nullopt)
+      : ParametricExpression(const_value),
+        lhs_(std::move(lhs)),
+        rhs_(std::move(rhs)) {}
 
   std::string ToString() const override {
     return absl::StrFormat("(%s+%s)", lhs_->ToString(), rhs_->ToString());
@@ -162,7 +176,8 @@ class ParametricAdd : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return std::make_unique<ParametricAdd>(lhs_->Clone(), rhs_->Clone());
+    return std::make_unique<ParametricAdd>(lhs_->Clone(), rhs_->Clone(),
+                                           const_value());
   }
 
  private:
@@ -174,8 +189,11 @@ class ParametricAdd : public ParametricExpression {
 class ParametricMul : public ParametricExpression {
  public:
   ParametricMul(std::unique_ptr<ParametricExpression> lhs,
-                std::unique_ptr<ParametricExpression> rhs)
-      : lhs_(std::move(lhs)), rhs_(std::move(rhs)) {}
+                std::unique_ptr<ParametricExpression> rhs,
+                absl::optional<InterpValue> const_value = absl::nullopt)
+      : ParametricExpression(const_value),
+        lhs_(std::move(lhs)),
+        rhs_(std::move(rhs)) {}
 
   Evaluated Evaluate(const Env& env) const override {
     Evaluated lhs = lhs_->Evaluate(env);
@@ -193,7 +211,8 @@ class ParametricMul : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return std::make_unique<ParametricMul>(lhs_->Clone(), rhs_->Clone());
+    return std::make_unique<ParametricMul>(lhs_->Clone(), rhs_->Clone(),
+                                           const_value());
   }
 
   bool operator==(const ParametricExpression& other) const override {
@@ -225,8 +244,11 @@ class ParametricMul : public ParametricExpression {
 // Both M and N are parametric symbols.
 class ParametricSymbol : public ParametricExpression {
  public:
-  ParametricSymbol(std::string identifier, Span span)
-      : identifier_(std::move(identifier)), span_(std::move(span)) {}
+  ParametricSymbol(std::string identifier, Span span,
+                   absl::optional<InterpValue> const_value = absl::nullopt)
+      : ParametricExpression(const_value),
+        identifier_(std::move(identifier)),
+        span_(std::move(span)) {}
 
   std::string ToString() const override { return identifier_; }
   std::string ToRepr() const override {
@@ -252,7 +274,8 @@ class ParametricSymbol : public ParametricExpression {
   }
 
   std::unique_ptr<ParametricExpression> Clone() const override {
-    return std::make_unique<ParametricSymbol>(identifier_, span_);
+    return std::make_unique<ParametricSymbol>(identifier_, span_,
+                                              const_value());
   }
 
   const std::string& identifier() const { return identifier_; }

@@ -360,9 +360,10 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
       auto cache = std::make_unique<BytecodeCache>(&import_data);
       import_data.SetBytecodeCache(std::move(cache));
       XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
-      XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
-                           BytecodeEmitter::Emit(
-                               &import_data, tm_or.value().type_info, f->fn()));
+      XLS_ASSIGN_OR_RETURN(
+          std::unique_ptr<BytecodeFunction> bf,
+          BytecodeEmitter::Emit(&import_data, tm_or.value().type_info, f->fn(),
+                                absl::nullopt));
       status =
           BytecodeInterpreter::Interpret(&import_data, bf.get(), /*params=*/{})
               .status();

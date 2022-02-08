@@ -19,6 +19,7 @@
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {
 
@@ -41,18 +42,28 @@ class BytecodeInterpreter {
   // storage, and instructions to execute.
   class Frame {
    public:
-    Frame(BytecodeFunction* bf, std::vector<InterpValue> args);
+    // `bindings` will hold the bindings used to instantiate the
+    // BytecodeFunction's source Function, if it is parametric.
+    Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
+          const TypeInfo* type_info,
+          absl::optional<const SymbolicBindings*> bindings);
 
-    int64_t pc() { return pc_; }
+    int64_t pc() const { return pc_; }
     void set_pc(int64_t pc) { pc_ = pc; }
     void IncrementPc() { pc_++; }
     std::vector<InterpValue>& slots() { return slots_; }
-    BytecodeFunction* bf() { return bf_; }
+    BytecodeFunction* bf() const { return bf_; }
+    const TypeInfo* type_info() const { return type_info_; }
+    absl::optional<const SymbolicBindings*> bindings() const {
+      return bindings_;
+    }
 
    private:
     int64_t pc_;
     std::vector<InterpValue> slots_;
     BytecodeFunction* bf_;
+    const TypeInfo* type_info_;
+    absl::optional<const SymbolicBindings*> bindings_;
   };
 
   BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
@@ -99,8 +110,9 @@ class BytecodeInterpreter {
   absl::Status EvalBinop(const std::function<absl::StatusOr<InterpValue>(
                              const InterpValue& lhs, const InterpValue& rhs)>
                              op);
-  absl::StatusOr<BytecodeFunction*> GetBytecodeFn(Module* module,
-                                                  Function* function);
+  absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
+      Function* function, Invocation* invocation,
+      absl::optional<const SymbolicBindings*> caller_bindings);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);

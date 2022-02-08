@@ -77,42 +77,28 @@ dslx_lang_test(name = "constexpr_types_via_invocations_inline")
 
 dslx_lang_test(name = "constexpr_types_via_stdlib_invocation")
 
-# TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of parametrics
-# support.
-dslx_lang_test(
-    name = "constexpr_slice",
-    bytecode = False,
-)
+dslx_lang_test(name = "constexpr_slice")
 
 dslx_lang_test(
     name = "explicit_parametric",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
     dslx_entry = "instantiates_indirect_foo",
     ir_entry = get_mangled_ir_symbol("explicit_parametric", "instantiates_indirect_foo"),
 )
 
 dslx_lang_test(
     name = "explicit_parametric_simple",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
     # No meaningful entry point to convert.
     convert_to_ir = False,
 )
 
-# TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-# parametrics support.
 dslx_lang_test(
     name = "explicit_parametric_reduced",
-    bytecode = False,
     # No meaningful entry point to convert.
     convert_to_ir = False,
 )
 
 # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-# parametrics support.
+# `for` node support.
 dslx_lang_test(
     name = "parametric_dot_product",
     bytecode = False,
@@ -132,12 +118,7 @@ dslx_lang_test(
     bytecode = False,
 )
 
-dslx_lang_test(
-    name = "multiplies",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # ColonRef invocations.
-    bytecode = False,
-)
+dslx_lang_test(name = "multiplies")
 
 dslx_lang_test(
     name = "match_sample",
@@ -183,8 +164,8 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_call_parametric",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing parametric
-    # support.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing `for`
+    # node support.
     bytecode = False,
     # No meaningful entry function to convert.
     convert_to_ir = False,
@@ -197,9 +178,6 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "parametric_importer",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing parametric
-    # support.
-    bytecode = False,
     # No meaningful entry function to convert.
     convert_to_ir = False,
     dslx_deps = [":parametric_import_dslx"],
@@ -319,10 +297,9 @@ xls_dslx_test(
     name = "bit_slice_syntax_dslx_test",
     srcs = ["bit_slice_syntax.x"],
     dslx_test_args = {
+        "bytecode": "true",
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing parametrics
-    # support.
 )
 
 # Note: no meaningful function to convert.
@@ -450,10 +427,9 @@ xls_dslx_test(
     name = "parametric_with_comparison_dslx_test",
     srcs = ["parametric_with_comparison.x"],
     dslx_test_args = {
+        "bytecode": "true",
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing parametrics
-    # support.
 )
 
 # Note: no meaningful function to convert.
@@ -461,10 +437,9 @@ xls_dslx_test(
     name = "parametric_smul_dslx_test",
     srcs = ["parametric_smul.x"],
     dslx_test_args = {
+        "bytecode": "true",
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing parametrics
-    # support.
 )
 
 dslx_lang_test(name = "basic_struct")
@@ -497,19 +472,9 @@ dslx_lang_test(name = "basic_enum_array")
 
 dslx_lang_test(name = "basic_array")
 
-dslx_lang_test(
-    name = "std_lsb",
-    # TODO(rspringer): 2022-02-03 Gives error: INTERNAL: Could not find type
-    # for cast "from" arg: x
-    bytecode = False,
-)
+dslx_lang_test(name = "std_lsb")
 
-dslx_lang_test(
-    name = "std_alias",
-    # TODO(rspringer): 2022-02-03 Gives error: INTERNAL: Could not find type
-    # for cast "from" arg: x
-    bytecode = False,
-)
+dslx_lang_test(name = "std_alias")
 
 filegroup(
     name = "mod_imported_file",
@@ -525,8 +490,6 @@ xls_dslx_library(
 dslx_lang_test(
     name = "mod_importer",
     # TODO(rspringer): 2022-02-03 shows error: UNIMPLEMENTED: Unimplemented
-    # binary operator: LOGICAL_OR
-    bytecode = False,
     dslx_deps = [":mod_imported_dslx"],
 )
 
@@ -579,9 +542,6 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "mod_parametric_id_user",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of parametrics
-    # support.
-    bytecode = False,
     dslx_deps = [":mod_parametric_id_dslx"],
 )
 
@@ -604,9 +564,6 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "parametric_id_with_default_user",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of parametrics
-    # support.
-    bytecode = False,
     dslx_deps = [":mod_parametric_id_with_default"],
 )
 
@@ -617,9 +574,6 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "call_imported_fn_simple",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of ColonRef
-    # invocation support.
-    bytecode = False,
     dslx_deps = [":mod_imported_lsb_dslx"],
 )
 
@@ -644,12 +598,7 @@ dslx_lang_test(
     bytecode = False,
 )
 
-dslx_lang_test(
-    name = "local_const_value_in_parametric",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
-)
+dslx_lang_test(name = "local_const_value_in_parametric")
 
 dslx_lang_test(name = "constant_array_unannotated_type")
 
@@ -663,9 +612,6 @@ dslx_lang_test(name = "typedef_multidim_array")
 
 dslx_lang_test(
     name = "parametric_multidim_array",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
     ir_entry = get_mangled_ir_symbol(
         "parametric_multidim_array",
         "id",
@@ -682,31 +628,28 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "derived_parametrics",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `map`
+    # node support.
     bytecode = False,
 )
 
 dslx_lang_test(
     name = "parametric_struct",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `for`
+    # node support.
     bytecode = False,
 )
 
 dslx_lang_test(
     name = "parametric_struct_simple",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
     # No meaningful entry point to convert.
     convert_to_ir = False,
 )
 
 dslx_lang_test(
     name = "test_f_calls_parametric_f",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `match`
+    # node support.
     bytecode = False,
     ir_entry = get_mangled_ir_symbol("test_f_calls_parametric_f", "f"),
 )
@@ -728,8 +671,8 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "map_of_stdlib_parametric",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `map`
+    # node support.
     bytecode = False,
 )
 
@@ -741,8 +684,8 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "map_multi_module",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # ColonRef invocation support.
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `map`
+    # node support.
     bytecode = False,
     dslx_deps = [
         ":mod_imported_array_dslx",
@@ -752,9 +695,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_const_ref",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
     # Only a parametric entry point, so no IR conversion.
     convert_to_ir = False,
 )
@@ -905,48 +845,25 @@ dslx_lang_test(
 dslx_lang_test(
     name = "update_within_parametric",
     # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
+    # support for the `update` builtin.
     bytecode = False,
     # Only a parametric entry point, so nothing meaningful to convert.
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "width_slice_to_parametric",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
-)
+dslx_lang_test(name = "width_slice_to_parametric")
 
 dslx_lang_test(
     name = "mask_bits",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
     # Only a parametric entry point, so nothing meaningful to convert.
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "function_called_in_derived_parametric_simple",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
-)
+dslx_lang_test(name = "function_called_in_derived_parametric_simple")
 
-dslx_lang_test(
-    name = "parametric_enum_value",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
-)
+dslx_lang_test(name = "parametric_enum_value")
 
-dslx_lang_test(
-    name = "non_parametric_called_solely_from_parametric",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
-)
+dslx_lang_test(name = "non_parametric_called_solely_from_parametric")
 
 dslx_lang_test(name = "function_called_in_derived_parametric_struct_simple")
 
@@ -985,17 +902,12 @@ dslx_lang_test(name = "nest_alias_const_array")
 
 dslx_lang_test(
     name = "parametric_used_in_for",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-    # parametrics support.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing `for`
+    # node support.
     bytecode = False,
 )
 
-dslx_lang_test(
-    name = "parametric_to_value",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-    # parametrics support.
-    bytecode = False,
-)
+dslx_lang_test(name = "parametric_to_value")
 
 dslx_lang_test(name = "constexpr_with_typed_stuff_after")
 
@@ -1011,13 +923,14 @@ xls_dslx_test(
     name = "bits_concat_dslx_test",
     srcs = ["bits_concat.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
 
 dslx_lang_test(
     name = "local_const_value_in_parametric_match",
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "Match"
+    # node support.
     bytecode = False,
 )
 
@@ -1034,7 +947,7 @@ dslx_lang_test(
 dslx_lang_test(
     name = "map_parametric_with_default",
     # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-    # parametrics support.
+    # `map` node support.
     bytecode = False,
     # TODO(https://github.com/google/xls/issues/400): Unable to convert to Z3
     # due to zero-bit value.

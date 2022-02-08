@@ -25,9 +25,14 @@
 
 namespace xls::dslx {
 
-BytecodeInterpreter::Frame::Frame(BytecodeFunction* bf,
-                                  std::vector<InterpValue> args)
-    : pc_(0), slots_(std::move(args)), bf_(bf) {}
+BytecodeInterpreter::Frame::Frame(
+    BytecodeFunction* bf, std::vector<InterpValue> args,
+    const TypeInfo* type_info, absl::optional<const SymbolicBindings*> bindings)
+    : pc_(0),
+      slots_(std::move(args)),
+      bf_(bf),
+      type_info_(type_info),
+      bindings_(bindings) {}
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
@@ -41,7 +46,10 @@ BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
                                          BytecodeFunction* bf,
                                          std::vector<InterpValue> args)
     : import_data_(import_data) {
-  frames_.push_back(Frame(bf, std::move(args)));
+  Module* module = bf->source()->owner();
+  frames_.push_back(Frame(bf, std::move(args),
+                          import_data_->GetRootTypeInfo(module).value(),
+                          absl::nullopt));
 }
 
 absl::Status BytecodeInterpreter::Run() {
@@ -262,17 +270,33 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 }
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
-    Module* module, Function* f) {
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data_->GetRootTypeInfo(module));
+    Function* f, Invocation* invocation,
+    absl::optional<const SymbolicBindings*> caller_bindings) {
+  const Frame& frame = frames_.back();
+  const TypeInfo* type_info = frame.type_info();
 
   BytecodeCacheInterface* cache = import_data_->bytecode_cache();
   if (cache == nullptr) {
     return absl::InvalidArgumentError("Bytecode cache is NULL.");
   }
 
-  // TODO(rspringer): 2022-01-04: Handle parametric invocations.
-  return cache->GetOrCreateBytecodeFunction(f, type_info);
+  if (f->IsParametric()) {
+    absl::optional<TypeInfo*> maybe_type_info =
+        type_info->GetInstantiationTypeInfo(
+            invocation, caller_bindings.has_value() ? *caller_bindings.value()
+                                                    : SymbolicBindings());
+    if (!maybe_type_info.has_value()) {
+      return absl::InternalError(absl::StrCat(
+          "Could not find type info for invocation ", invocation->ToString()));
+    }
+    type_info = maybe_type_info.value();
+  } else if (f->owner() != type_info->module()) {
+    // If the new function is in a different module and it's NOT parametric,
+    // then we need the root TypeInfo for the new module.
+    XLS_ASSIGN_OR_RETURN(type_info, import_data_->GetRootTypeInfo(f->owner()));
+  }
+
+  return cache->GetOrCreateBytecodeFunction(f, type_info, caller_bindings);
 }
 
 absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
@@ -287,9 +311,12 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
                        callee.GetFunction());
   InterpValue::UserFnData user_fn_data =
       absl::get<InterpValue::UserFnData>(*fn_data);
+  XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData data,
+                       bytecode.invocation_data());
+
   XLS_ASSIGN_OR_RETURN(
       BytecodeFunction * bf,
-      GetBytecodeFn(user_fn_data.module, user_fn_data.function));
+      GetBytecodeFn(user_fn_data.function, data.invocation, data.bindings));
 
   // Store the _return_ PC.
   frames_.back().IncrementPc();
@@ -301,9 +328,7 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
     args[num_args - i - 1] = arg;
   }
 
-  // TODO(rspringer): 2022-01-24: We'll need the right type info for parametric
-  // invocations.
-  frames_.push_back(Frame{bf, std::move(args)});
+  frames_.push_back(Frame(bf, std::move(args), bf->type_info(), data.bindings));
 
   return absl::OkStatus();
 }
@@ -716,11 +741,10 @@ absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(int64_t basis_bit_count, basis.GetBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t start_bit_count, start.GetBitCount());
 
-  XLS_ASSIGN_OR_RETURN(ConcreteType * type, bytecode.type_data());
-  BitsType* bits_type = dynamic_cast<BitsType*>(type);
+  XLS_ASSIGN_OR_RETURN(const ConcreteType* type, bytecode.type_data());
+  const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
   XLS_RET_CHECK_NE(bits_type, nullptr);
-  ConcreteTypeDim length_dim = bits_type->size();
-  XLS_ASSIGN_OR_RETURN(int64_t length_value, length_dim.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t length_value, bits_type->size().GetAsInt64());
   InterpValue length = InterpValue::MakeUBits(start_bit_count, length_value);
 
   // If start + length > basis length, then we need to truncate.

@@ -21,11 +21,13 @@ BytecodeCache::BytecodeCache(ImportData* import_data)
     : import_data_(import_data) {}
 
 absl::StatusOr<BytecodeFunction*> BytecodeCache::GetOrCreateBytecodeFunction(
-    Function* f, TypeInfo* type_info) {
-  Key key = std::make_pair(f, type_info);
+    const Function* f, const TypeInfo* type_info,
+    absl::optional<const SymbolicBindings*> caller_bindings) {
+  Key key = std::make_tuple(f, type_info, caller_bindings);
   if (!cache_.contains(key)) {
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
-                         BytecodeEmitter::Emit(import_data_, type_info, f));
+    XLS_ASSIGN_OR_RETURN(
+        std::unique_ptr<BytecodeFunction> bf,
+        BytecodeEmitter::Emit(import_data_, type_info, f, caller_bindings));
     cache_.emplace(key, std::move(bf));
   }
 

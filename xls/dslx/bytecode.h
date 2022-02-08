@@ -26,6 +26,7 @@
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/pos.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -134,8 +135,16 @@ class Bytecode {
   // Indicates the index into which to store or from which to load a value. Used
   // by kLoad and kStore opcodes.
   DEFINE_STRONG_INT_TYPE(SlotIndex, int64_t);
+
+  // Data needed to resolve a potentially parametric Function invocation to
+  // its concrete implementation.
+  struct InvocationData {
+    Invocation* invocation;
+    absl::optional<const SymbolicBindings*> bindings;
+  };
+
   using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
-                             std::unique_ptr<ConcreteType>>;
+                             std::unique_ptr<ConcreteType>, InvocationData>;
 
   // Creates an operation w/o any accessory data. The span is present for
   // reporting error source location.
@@ -152,11 +161,12 @@ class Bytecode {
 
   bool has_data() const { return data_.has_value(); }
 
+  absl::StatusOr<const ConcreteType*> type_data() const;
   absl::StatusOr<JumpTarget> jump_target() const;
-  absl::StatusOr<NumElements> num_elements() const;
+  absl::StatusOr<InvocationData> invocation_data() const;
   absl::StatusOr<InterpValue> value_data() const;
+  absl::StatusOr<NumElements> num_elements() const;
   absl::StatusOr<SlotIndex> slot_index() const;
-  absl::StatusOr<ConcreteType*> type_data() const;
 
   std::string ToString(bool source_locs = true) const;
 
@@ -192,9 +202,11 @@ class BytecodeFunction {
   // Note: this is an O(N) operation where N is the number of ops in the
   // bytecode.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Create(
-      Function* source, std::vector<Bytecode> bytecode);
+      const Function* source, const TypeInfo* type_info,
+      std::vector<Bytecode> bytecode);
 
-  Function* source() const { return source_; }
+  const Function* source() const { return source_; }
+  const TypeInfo* type_info() const { return type_info_; }
   const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
   // Returns the total number of binding "slots" used by the bytecodes.
   int64_t num_slots() const { return num_slots_; }
@@ -203,10 +215,12 @@ class BytecodeFunction {
   std::vector<Bytecode> CloneBytecodes() const;
 
  private:
-  BytecodeFunction(Function* source, std::vector<Bytecode> bytecode);
+  BytecodeFunction(const Function* source, const TypeInfo* type_info,
+                   std::vector<Bytecode> bytecode);
   absl::Status Init();
 
-  Function* source_;
+  const Function* source_;
+  const TypeInfo* type_info_;
   std::vector<Bytecode> bytecodes_;
   int64_t num_slots_;
 };

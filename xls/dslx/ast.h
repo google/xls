@@ -1511,7 +1511,7 @@ class Instantiation : public Expr {
 
   Expr* callee() const { return callee_; }
 
-  // Any parametric expressions given in this invocation; e.g. in:
+  // Any explicit parametric expressions given in this invocation; e.g. in:
   //
   //    f<a, b, c>()
   //

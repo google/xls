@@ -36,7 +36,8 @@ absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
 
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
 
-  return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn());
+  return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn(),
+                               /*caller_bindings=*/absl::nullopt);
 }
 
 // Verifies that a baseline translation - of a nearly-minimal test case -
@@ -56,7 +57,8 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
                            tm.module->GetFunctionOrError("one_plus_one"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f,
+                            /*caller_bindings=*/absl::nullopt));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
@@ -136,7 +138,17 @@ fn expect_fail() -> u32{
 
   bc = &bytecodes[5];
   ASSERT_EQ(bc->op(), Bytecode::Op::kCall);
-  ASSERT_FALSE(bc->has_data());
+  ASSERT_TRUE(bc->has_data());
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::InvocationData invocation_data,
+                           bc->invocation_data());
+  EXPECT_NE(invocation_data.bindings, absl::nullopt);
+  NameRef* name_ref =
+      dynamic_cast<NameRef*>(invocation_data.invocation->callee());
+  ASSERT_NE(name_ref, nullptr);
+  ASSERT_TRUE(absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def()));
+  BuiltinNameDef* builtin_name_def =
+      absl::get<BuiltinNameDef*>(name_ref->name_def());
+  EXPECT_EQ(builtin_name_def->identifier(), "assert_eq");
 
   bc = &bytecodes[6];
   ASSERT_EQ(bc->op(), Bytecode::Op::kStore);
@@ -643,9 +655,9 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), absl::nullopt));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -679,9 +691,9 @@ fn imported_enum_ref() -> u3 {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf,
                            tm.module->GetTest("imported_enum_ref"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), absl::nullopt));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -915,7 +927,7 @@ fn has_params(x: u32, y: u64) -> u48 {
                            tm.module->GetFunctionOrError("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 15);
@@ -968,6 +980,40 @@ fn main() -> u8[13] {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, bc->value_data());
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t char_value, value.GetBitValueUint64());
   EXPECT_EQ(char_value, 't');
+}
+
+TEST(BytecodeEmitterTest, SimpleParametric) {
+  constexpr absl::string_view kProgram = R"(
+fn foo<N: u32>(x: uN[N]) -> uN[N] {
+  x * x
+}
+
+#![test]
+fn main() -> u32 {
+  let a = foo<u32:16>(u16:4);
+  let b = foo(u32:8);
+  a as u32 + b
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 12);
+  const Bytecode* bc = &bytecodes[2];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kCall);
+  XLS_ASSERT_OK_AND_ASSIGN(Bytecode::InvocationData id, bc->invocation_data());
+  NameRef* name_ref = dynamic_cast<NameRef*>(id.invocation->callee());
+  ASSERT_NE(name_ref, nullptr);
+  EXPECT_EQ(name_ref->identifier(), "foo");
+
+  bc = &bytecodes[6];
+  EXPECT_EQ(bc->op(), Bytecode::Op::kCall);
+  XLS_ASSERT_OK_AND_ASSIGN(id, bc->invocation_data());
+  name_ref = dynamic_cast<NameRef*>(id.invocation->callee());
+  ASSERT_NE(name_ref, nullptr);
+  EXPECT_EQ(name_ref->identifier(), "foo");
 }
 
 }  // namespace

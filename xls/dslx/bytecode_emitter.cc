@@ -25,12 +25,16 @@
 
 namespace xls::dslx {
 
-BytecodeEmitter::BytecodeEmitter(ImportData* import_data, TypeInfo* type_info)
-    : import_data_(import_data), type_info_(type_info) {}
+BytecodeEmitter::BytecodeEmitter(
+    ImportData* import_data, const TypeInfo* type_info,
+    absl::optional<const SymbolicBindings*> caller_bindings)
+    : import_data_(import_data),
+      type_info_(type_info),
+      caller_bindings_(caller_bindings) {}
 
 BytecodeEmitter::~BytecodeEmitter() = default;
 
-absl::Status BytecodeEmitter::Init(Function* f) {
+absl::Status BytecodeEmitter::Init(const Function* f) {
   for (const auto* param : f->params()) {
     namedef_to_slot_[param->name_def()] = namedef_to_slot_.size();
   }
@@ -39,9 +43,10 @@ absl::Status BytecodeEmitter::Init(Function* f) {
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
-BytecodeEmitter::Emit(ImportData* import_data, TypeInfo* type_info,
-                      Function* f) {
-  BytecodeEmitter emitter(import_data, type_info);
+BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
+                      const Function* f,
+                      absl::optional<const SymbolicBindings*> caller_bindings) {
+  BytecodeEmitter emitter(import_data, type_info, caller_bindings);
   XLS_RETURN_IF_ERROR(emitter.Init(f));
 
   f->body()->AcceptExpr(&emitter);
@@ -50,7 +55,7 @@ BytecodeEmitter::Emit(ImportData* import_data, TypeInfo* type_info,
     return emitter.status_;
   }
 
-  return BytecodeFunction::Create(f, std::move(emitter.bytecode_));
+  return BytecodeFunction::Create(f, type_info, std::move(emitter.bytecode_));
 }
 
 void BytecodeEmitter::HandleArray(Array* node) {
@@ -150,6 +155,12 @@ void BytecodeEmitter::HandleBinop(Binop* node) {
       return;
     case BinopKind::kLe:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLe));
+      return;
+    case BinopKind::kLogicalAnd:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLogicalAnd));
+      return;
+    case BinopKind::kLogicalOr:
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLogicalOr));
       return;
     case BinopKind::kLt:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLt));
@@ -477,7 +488,7 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
 
 void BytecodeEmitter::HandleConstRef(ConstRef* node) { HandleNameRef(node); }
 
-absl::StatusOr<int64_t> GetValueWidth(TypeInfo* type_info, Expr* expr) {
+absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
     return absl::InternalError(
@@ -593,7 +604,14 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
   }
 
   node->callee()->AcceptExpr(this);
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCall));
+
+  absl::optional<const SymbolicBindings*> maybe_callee_bindings =
+      type_info_->GetInstantiationCalleeBindings(
+          node, caller_bindings_.has_value() ? *caller_bindings_.value()
+                                             : SymbolicBindings());
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kCall,
+               Bytecode::InvocationData{node, maybe_callee_bindings}));
 }
 
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
@@ -673,9 +691,27 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
     return;
   }
 
-  int64_t slot = namedef_to_slot_.at(name_def);
-  bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
+  // The value is either a local name or a symbolic binding.
+  if (namedef_to_slot_.contains(name_def)) {
+    int64_t slot = namedef_to_slot_.at(name_def);
+    bytecode_.push_back(
+        Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
+    return;
+  }
+
+  if (caller_bindings_.has_value()) {
+    absl::flat_hash_map<std::string, InterpValue> bindings_map =
+        caller_bindings_.value()->ToMap();
+    if (bindings_map.contains(name_def->identifier())) {
+      bytecode_.push_back(Bytecode(
+          node->span(), Bytecode::Op::kLiteral,
+          caller_bindings_.value()->ToMap().at(name_def->identifier())));
+      return;
+    }
+  }
+
+  status_ = absl::InternalError(absl::StrCat(
+      "Could not find slot or binding for name: ", name_def->ToString()));
 }
 
 void BytecodeEmitter::HandleNumber(Number* node) {

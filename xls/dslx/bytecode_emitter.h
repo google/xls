@@ -22,6 +22,7 @@
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -31,13 +32,18 @@ namespace xls::dslx {
 // TODO(rspringer): Handle the rest of the Expr node types.
 class BytecodeEmitter : public ExprVisitor {
  public:
+  // `caller_bindings` contains the symbolic bindings associated with the
+  // _caller_ of `f`, if any, and is used to determine the symbolic bindings for
+  // `f` itself. It will be nullopt for non-parametric functions.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
-      ImportData* import_data, TypeInfo* type_info, Function* f);
+      ImportData* import_data, const TypeInfo* type_info, const Function* f,
+      absl::optional<const SymbolicBindings*> caller_bindings);
 
  private:
-  BytecodeEmitter(ImportData* import_data, TypeInfo* type_info);
+  BytecodeEmitter(ImportData* import_data, const TypeInfo* type_info,
+                  absl::optional<const SymbolicBindings*> caller_bindings);
   ~BytecodeEmitter();
-  absl::Status Init(Function* f);
+  absl::Status Init(const Function* f);
 
   void HandleArray(Array* node) override;
   void HandleAttr(Attr* node) override;
@@ -97,7 +103,8 @@ class BytecodeEmitter : public ExprVisitor {
   void DestructureLet(NameDefTree* tree);
 
   ImportData* import_data_;
-  TypeInfo* type_info_;
+  const TypeInfo* type_info_;
+  absl::optional<const SymbolicBindings*> caller_bindings_;
 
   absl::Status status_;
   std::vector<Bytecode> bytecode_;
