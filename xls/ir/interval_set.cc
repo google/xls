@@ -230,6 +230,29 @@ absl::optional<int64_t> IntervalSet::Size() const {
   return total_size;
 }
 
+absl::optional<Bits> IntervalSet::Index(const Bits& index) const {
+  XLS_CHECK(is_normalized_);
+  XLS_CHECK_EQ(index.bit_count(), BitCount());
+  Bits so_far = bits_ops::ZeroExtend(index, BitCount() + 1);
+  std::optional<Interval> to_index;
+  for (const Interval& interval : Intervals()) {
+    Bits size = interval.SizeBits();
+    if (bits_ops::ULessThan(so_far, size)) {
+      to_index = interval;
+      break;
+    }
+    so_far = bits_ops::Sub(so_far, size);
+  }
+  if (!to_index.has_value()) {
+    return std::nullopt;
+  }
+  Bits result = bits_ops::Add(
+      so_far,
+      bits_ops::ZeroExtend(to_index.value().LowerBound(), BitCount() + 1));
+  XLS_CHECK(!result.msb());
+  return result.Slice(0, BitCount());
+}
+
 bool IntervalSet::Covers(const Bits& bits) const {
   XLS_CHECK_EQ(bits.bit_count(), BitCount());
   for (const Interval& interval : intervals_) {

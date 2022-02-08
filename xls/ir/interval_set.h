@@ -132,6 +132,19 @@ class IntervalSet {
   // CHECK fails if the interval set is not normalized.
   absl::optional<int64_t> Size() const;
 
+  // If all the intervals in this interval set were put next to each other and
+  // treated as a map from `[0, Size() - 1]` to `Bits`, apply this mapping to
+  // the given integer. Returns `std::nullopt` iff the given integer is out of
+  // range for this mapping. The returned `Bits` has bitwidth equal to that of
+  // this interval set.
+  //
+  // CHECK fails if this interval set is not normalized, or if the given `index`
+  // has bitwidth not equal to the bitwidth of this interval set.
+  //
+  // For example, if the interval set was `{[2, 3], [5, 7]}`, then this method
+  // would be like indexing the array `[2, 3, 5, 6, 7]`.
+  absl::optional<Bits> Index(const Bits& index) const;
+
   // Do any of the intervals cover the given point?
   bool Covers(const Bits& bits) const;
 

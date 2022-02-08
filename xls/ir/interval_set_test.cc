@@ -302,5 +302,26 @@ TEST(IntervalTest, IsEmpty) {
   EXPECT_FALSE(set1.IsEmpty());
 }
 
+TEST(IntervalTest, Index) {
+  IntervalSet set(32);
+  set.AddInterval(MakeInterval(100, 150, 32));
+  set.AddInterval(MakeInterval(200, 220, 32));
+  set.AddInterval(MakeInterval(300, 370, 32));
+  set.Normalize();
+  EXPECT_EQ(set.Index(UBits(0, 32)), UBits(100, 32));
+  EXPECT_EQ(set.Index(UBits(1, 32)), UBits(101, 32));
+  EXPECT_EQ(set.Index(UBits(10, 32)), UBits(110, 32));
+  EXPECT_EQ(set.Index(UBits(49, 32)), UBits(149, 32));
+  EXPECT_EQ(set.Index(UBits(50, 32)), UBits(150, 32));
+  EXPECT_EQ(set.Index(UBits(51, 32)), UBits(200, 32));
+  EXPECT_EQ(set.Index(UBits(60, 32)), UBits(209, 32));
+  EXPECT_EQ(set.Index(UBits(71, 32)), UBits(220, 32));
+  EXPECT_EQ(set.Index(UBits(72, 32)), UBits(300, 32));
+  EXPECT_EQ(set.Index(UBits(112, 32)), UBits(340, 32));
+  EXPECT_EQ(set.Index(UBits(142, 32)), UBits(370, 32));
+  EXPECT_EQ(set.Index(UBits(143, 32)), std::nullopt);
+  EXPECT_EQ(set.Index(UBits(200, 32)), std::nullopt);
+}
+
 }  // namespace
 }  // namespace xls
