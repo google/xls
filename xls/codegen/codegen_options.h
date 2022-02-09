@@ -26,7 +26,7 @@ namespace xls::verilog {
 class CodegenOptions {
  public:
   // Enum to describe how IO should be registered.
-  enum class IOKind { kFlop = 0, kSkidBuffer };
+  enum class IOKind { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
 
   // Convert IOKind enum to a string.
   static absl::string_view IOKindToString(IOKind kind) {
@@ -35,8 +35,24 @@ class CodegenOptions {
         return "kFlop";
       case IOKind::kSkidBuffer:
         return "kSkidBuffer";
+      case IOKind::kZeroLatencyBuffer:
+        return "kZeroLatencyBuffer";
       default:
         return "UnknownKind";
+    }
+  }
+
+  // Added latency for each IOKind.
+  static int64_t IOKindLatency(IOKind kind) {
+    switch (kind) {
+      case IOKind::kFlop:
+        return 1;
+      case IOKind::kSkidBuffer:
+        return 1;
+      case IOKind::kZeroLatencyBuffer:
+        return 0;
+      default:
+        return 9999;
     }
   }
 
@@ -93,9 +109,23 @@ class CodegenOptions {
   CodegenOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
 
+  // When flop_inputs() is true, determins the type of flop to add.
+  CodegenOptions& flop_inputs_kind(IOKind value);
+  IOKind flop_inputs_kind() const { return flop_inputs_kind_; }
+
   // When flop_outputs() is true, determins the type of flop to add.
   CodegenOptions& flop_outputs_kind(IOKind value);
   IOKind flop_outputs_kind() const { return flop_outputs_kind_; }
+
+  // Returns the input latency, if any, associated with registring the input.
+  int64_t GetInputLatency() const {
+    return flop_inputs() ? IOKindLatency(flop_inputs_kind_) : 0;
+  }
+
+  // Returns the output latency, if any, associated with registring the input.
+  int64_t GetOutputLatency() const {
+    return flop_outputs() ? IOKindLatency(flop_outputs_kind_) : 0;
+  }
 
   // If the output is tuple-typed, generate an output port for each element of
   // the output tuple.
@@ -209,6 +239,7 @@ class CodegenOptions {
   bool use_system_verilog_ = true;
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
+  IOKind flop_inputs_kind_ = IOKind::kFlop;
   IOKind flop_outputs_kind_ = IOKind::kFlop;
   bool split_outputs_ = false;
   bool add_idle_output_ = false;

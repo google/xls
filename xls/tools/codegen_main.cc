@@ -93,8 +93,12 @@ ABSL_FLAG(bool, flop_inputs, true,
 ABSL_FLAG(bool, flop_outputs, true,
           "If true, the module outputs are flopped into registers before "
           "leaving module. Only used with pipeline generator.");
+ABSL_FLAG(std::string, flop_inputs_kind, "flop",
+          "Kind of inputs register to add.  "
+          "Valid values: flop, skid, zerolatency");
 ABSL_FLAG(std::string, flop_outputs_kind, "flop",
-          "Kind of output register to add.  Valid values: flop, skid");
+          "Kind of output register to add.  "
+          "Valid values: flop, skid, zerolatency");
 ABSL_FLAG(bool, add_idle_output, false,
           "If true, an additional idle signal tied to valids of input and "
           "flops is added to the block. This output signal is not registered, "
@@ -178,6 +182,24 @@ absl::StatusOr<DelayEstimator*> SetupDelayEstimator() {
   return GetDelayEstimator(absl::GetFlag(FLAGS_delay_model));
 }
 
+absl::StatusOr<verilog::CodegenOptions::IOKind> StrToIOKind(
+    absl::string_view str) {
+  if (str == "flop") {
+    return verilog::CodegenOptions::IOKind::kFlop;
+  }
+
+  if (str == "skid") {
+    return verilog::CodegenOptions::IOKind::kSkidBuffer;
+  }
+
+  if (str == "zerolatency") {
+    return verilog::CodegenOptions::IOKind::kZeroLatencyBuffer;
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrFormat("I/O flop kind does not support %s", str));
+}
+
 absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
   verilog::CodegenOptions options;
 
@@ -191,16 +213,17 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
       options.manual_control(absl::GetFlag(FLAGS_manual_load_enable_signal));
     }
     options.flop_inputs(absl::GetFlag(FLAGS_flop_inputs));
-
     options.flop_outputs(absl::GetFlag(FLAGS_flop_outputs));
-    if (absl::GetFlag(FLAGS_flop_outputs_kind) == "flop") {
-      options.flop_outputs_kind(verilog::CodegenOptions::IOKind::kFlop);
-    } else if (absl::GetFlag(FLAGS_flop_outputs_kind) == "skid") {
-      options.flop_outputs_kind(verilog::CodegenOptions::IOKind::kSkidBuffer);
-    } else {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("--flop_output_kind supports only flop or skid"));
-    }
+
+    std::string flop_inputs_kind_str = absl::GetFlag(FLAGS_flop_inputs_kind);
+    XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions::IOKind inputs_kind,
+                         StrToIOKind(flop_inputs_kind_str));
+    options.flop_inputs_kind(inputs_kind);
+
+    std::string flop_outputs_kind_str = absl::GetFlag(FLAGS_flop_outputs_kind);
+    XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions::IOKind outputs_kind,
+                         StrToIOKind(flop_outputs_kind_str));
+    options.flop_outputs_kind(outputs_kind);
 
     options.add_idle_output(absl::GetFlag(FLAGS_add_idle_output));
 

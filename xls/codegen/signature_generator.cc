@@ -99,10 +99,10 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
 
   int64_t register_levels = 0;
   if (options.flop_inputs()) {
-    register_levels++;
+    register_levels += options.GetInputLatency();
   }
   if (options.flop_outputs()) {
-    register_levels++;
+    register_levels += options.GetOutputLatency();
   }
   if (schedule.has_value()) {
     register_levels += schedule.value().length() - 1;

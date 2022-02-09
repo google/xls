@@ -154,6 +154,39 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 5);
   }
+
+  {
+    // Switching input to a zero latency buffer should reduce latency by one.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleSignature sig,
+        GenerateSignature(
+            CodegenOptions()
+                .module_name("foobar")
+                .clock_name("the_clock")
+                .flop_inputs(true)
+                .flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer)
+                .flop_outputs(true),
+            f, schedule));
+    ASSERT_TRUE(sig.proto().has_pipeline());
+    EXPECT_EQ(sig.proto().pipeline().latency(), 4);
+  }
+
+  {
+    // Switching output to a zero latency buffer should reduce latency by one.
+    XLS_ASSERT_OK_AND_ASSIGN(
+        ModuleSignature sig,
+        GenerateSignature(
+            CodegenOptions()
+                .module_name("foobar")
+                .clock_name("the_clock")
+                .flop_inputs(true)
+                .flop_inputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer)
+                .flop_outputs(true)
+                .flop_outputs_kind(CodegenOptions::IOKind::kZeroLatencyBuffer),
+            f, schedule));
+    ASSERT_TRUE(sig.proto().has_pipeline());
+    EXPECT_EQ(sig.proto().pipeline().latency(), 3);
+  }
 }
 
 }  // namespace
