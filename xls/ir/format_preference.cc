@@ -32,9 +32,9 @@ absl::string_view FormatPreferenceToString(FormatPreference preference) {
       return "plain_binary";
     case FormatPreference::kPlainHex:
       return "plain_hex";
-    default:
-      return "<invalid format preference>";
   }
+
+  return "<invalid format preference>";
 }
 
 absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
@@ -52,6 +52,8 @@ absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
     case FormatPreference::kPlainHex:
       return "{:x}";
   }
+
+  return "<invalid format preference>";
 }
 
 absl::string_view FormatPreferenceToVerilogSpecifier(
@@ -79,6 +81,8 @@ absl::string_view FormatPreferenceToVerilogSpecifier(
     case FormatPreference::kPlainHex:
       return "%h";
   }
+
+  return "<invalid format preference>";
 }
 
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(

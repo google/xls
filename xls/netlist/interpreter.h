@@ -457,7 +457,6 @@ AbstractInterpreter<EvalT>::InterpretCell(
 
   const auto& pins = entry->output_pin_to_function();
   for (int i = 0; i < cell->outputs().size(); i++) {
-    const auto& pins = entry->output_pin_to_function();
     if (cell->outputs()[i].eval != nullptr) {
       // The order of values in cell->inputs() is the same as the order of
       // inputs in the cell declaration.  Extract the values from that list and

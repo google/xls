@@ -175,7 +175,7 @@ class AbstractNetDef {
   // Called to note that a cell is connected to this net.
   void NoteConnectedCell(AbstractCell<EvalT>* cell) {
     connected_cells_.push_back(cell);
-    for (const auto input_pin : cell->inputs()) {
+    for (const auto& input_pin : cell->inputs()) {
       if (input_pin.netref == this) {
         connected_input_cells_.push_back(cell);
       }

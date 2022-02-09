@@ -37,7 +37,7 @@ $2
 
 // Prints the complete type for structs and enums which interpreter can run. For
 // the rest of the types invokes the InterpValue inherent method ToString.
-std::string InterpValueToString(InterpValue value) {
+absl::StatusOr<std::string> InterpValueToString(InterpValue value) {
   auto make_guts = [&](bool is_struct = false) {
     int64_t struct_member_count = 0;
     std::vector<std::string> struct_members = value.GetStructMembers();
@@ -82,6 +82,9 @@ std::string InterpValueToString(InterpValue value) {
       }
       return absl::StrFormat("%s:%s", value.type()->identifier(), bits_string);
     }
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrCat("Unknown InterpValueTag: ", value.tag()));
   }
 }
 
@@ -226,9 +229,9 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
   int64_t input_ctr = 0;
   std::string inputs_string;
   for (const auto& param : function_params_values_[test_no]) {
+    XLS_ASSIGN_OR_RETURN(std::string value_string, InterpValueToString(param));
     absl::StrAppend(&inputs_string, "  let ", "in_",
-                    std::to_string(input_ctr++), " = ",
-                    InterpValueToString(param), ";\n");
+                    std::to_string(input_ctr++), " = ", value_string, ";\n");
   }
   test_string = absl::StrReplaceAll(test_string, {{"$2", inputs_string}});
 
@@ -238,11 +241,12 @@ absl::Status ConcolicTestGenerator::GenerateTest(InterpValue expected_value,
     absl::StrAppend(&params_string, "in_", std::to_string(input_ctr++), ", ");
   }
   absl::StrAppend(&params_string, "in_", std::to_string(input_ctr));
-  test_string = absl::StrReplaceAll(
-      test_string, {
-                       {"$3", params_string},
-                       {"$4", InterpValueToString(expected_value)},
-                   });
+  XLS_ASSIGN_OR_RETURN(std::string expected_string,
+                       InterpValueToString(expected_value));
+  test_string = absl::StrReplaceAll(test_string, {
+                                                     {"$3", params_string},
+                                                     {"$4", expected_string},
+                                                 });
   // TODO(akalan): dump the test case to a file.
   std::cerr << test_string << std::endl;
   generated_test_cases_.push_back(test_string);

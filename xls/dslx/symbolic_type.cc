@@ -14,6 +14,7 @@
 
 #include "xls/dslx/symbolic_type.h"
 
+#include "absl/status/status.h"
 #include "absl/strings/str_cat.h"
 #include "xls/common/status/ret_check.h"
 
@@ -127,6 +128,9 @@ absl::StatusOr<std::string> SymbolicType::ToString() {
       return absl::StrCat(absl::StrFormat("(%s)", guts), op_string);
     }
   }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown SymbolicNodeTag: ", static_cast<int>(tag_)));
 }
 
 absl::Status SymbolicType::DoPostorder(

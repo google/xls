@@ -432,7 +432,7 @@ bool RegisterMatcher::MatchAndExplain(
   if (q_matcher_.has_value()) {
     const std::string& register_name =
         node->As<::xls::RegisterRead>()->GetRegister()->name();
-    xls::RegisterWrite* reg_write;
+    xls::RegisterWrite* reg_write = nullptr;
     for (Node* node : node->function_base()->nodes()) {
       if (node->Is<::xls::RegisterWrite>() &&
           node->As<::xls::RegisterWrite>()->GetRegister()->name() ==

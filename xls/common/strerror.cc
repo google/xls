@@ -26,7 +26,12 @@ std::string Strerror(int error_num) {
   // and a GNU-specific version. The GNU-specific version in glibc returns an
   // char* pointing to the error string. The XSI-compliant version returns an
   // int where 0 indicates success.
-  using strerror_r_type = decltype(strerror_r(0, nullptr, 0));
+  // The second argument to strerror_r may be declared 'nonnull' in some
+  // implementations, which can cause certain compilers to raise a warning,
+  // even in a decltype() specifier. To avoid this, we pass in a non-null dummy
+  // arg.
+  using strerror_r_type =
+      decltype(strerror_r(0, reinterpret_cast<char*>(1), 0));
   constexpr bool kXsiCompliant = std::is_same<strerror_r_type, int>::value;
   constexpr bool kGnuSpecific = std::is_same<strerror_r_type, char*>::value;
   static_assert(kXsiCompliant != kGnuSpecific,

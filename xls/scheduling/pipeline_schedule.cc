@@ -105,7 +105,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
 
   // Try a number of different orderings of cycle boundary at which the min-cut
   // is performed and keep the best one.
-  int64_t best_register_count;
+  int64_t best_register_count = std::numeric_limits<int64_t>::max();
   absl::optional<sched::ScheduleBounds> best_bounds;
   for (const std::vector<int64_t>& cut_order :
        GetMinCutCycleOrders(pipeline_stages - 1)) {

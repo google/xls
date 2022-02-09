@@ -224,9 +224,9 @@ class FlattenedMultiDimensionalArray {
                              const DimensionBounds& space,
                              absl::Span<const int64_t> dimension_index_order)
         : dimensions_(space),
-          data_(data),
           coordinate_(space.GetDimensionCount(), 0),
           dimension_index_order_(dimension_index_order.size(), 0),
+          data_(data),
           traversed_zero_dimension_(false) {
       XLS_QCHECK_EQ(space.GetDimensionCount(), dimension_index_order.size())
           << "The size of space and dimension_index_order must be equivalent.";
@@ -268,9 +268,11 @@ class FlattenedMultiDimensionalArray {
           }
         }
         if (carry) {
-          for (int index = 0; index < dimensions_.GetDimensionCount(); index++)
+          for (int index = 0; index < dimensions_.GetDimensionCount();
+               index++) {
             coordinate_.SetCoordinate(index,
                                       dimensions_.GetDimensionBound(index));
+          }
         }
       }
     }

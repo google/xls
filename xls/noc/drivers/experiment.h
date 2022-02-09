@@ -212,6 +212,9 @@ struct ExperimentData {
 // including the setup and initialization of the traffic model.
 class ExperimentRunner {
  public:
+  ExperimentRunner()
+      : total_simulation_cycle_count_(0), cycle_time_in_ps_(0), seed_(0) {}
+
   absl::StatusOr<ExperimentData> RunExperiment(
       const ExperimentConfig& experiment_config,
       DistributedRoutingTableBuilderBase&& distributed_routing_table_builder =

@@ -147,7 +147,7 @@ absl::StatusOr<CountedFor*> RollIntoProcPass::UnrollCountedForBody(
                              old_to_cloned.at(loop_induction_variable),
                              stride_literal, Op::kAdd));
     old_to_cloned[loop_induction_variable] = induction_value_next;
-    Node* new_return_val;
+    Node* new_return_val = nullptr;
     for (Node* original_node : loopbody_nodes) {
       std::vector<Node*> new_operands;
       for (Node* operand : original_node->operands()) {

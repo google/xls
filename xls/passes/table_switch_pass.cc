@@ -158,9 +158,10 @@ absl::StatusOr<absl::optional<Value>> LinksToTable(
   // consider the index space size to be infinitely large for the purposes of
   // this transformation.
   int64_t index_width = links.front().index->GetType()->GetFlatBitCount();
-  absl::optional<uint64_t> index_space_size =
-      index_width >= 63 ? absl::nullopt
-                        : absl::optional<uint64_t>(uint64_t{1} << index_width);
+  absl::optional<uint64_t> index_space_size = absl::nullopt;
+  if (index_width < 63) {
+    index_space_size = uint64_t{1} << index_width;
+  }
 
   // Gather all selectable Values in a map indexed by the uint64_t index
   // associated with the Value.

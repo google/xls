@@ -79,15 +79,14 @@ NetworkTopologyView::ConnectThroughChannel(NetworkComponent& source,
 
 absl::StatusOr<RouterTopologyComponent*> NetworkTopologyView::AddRouter(
     int64_t send_port_count, int64_t recv_port_count) {
-  ChannelTopologyComponent* channel;
   RouterTopologyComponent& router = this->AddRouter();
   for (int64_t count = 0; count < send_port_count; count++) {
-    XLS_ASSIGN_OR_RETURN(
-        channel, this->ConnectThroughChannel(this->AddSendPort(), router));
+    XLS_RETURN_IF_ERROR(
+        this->ConnectThroughChannel(this->AddSendPort(), router).status());
   }
   for (int64_t count = 0; count < recv_port_count; count++) {
-    XLS_ASSIGN_OR_RETURN(
-        channel, this->ConnectThroughChannel(router, this->AddReceivePort()));
+    XLS_RETURN_IF_ERROR(
+        this->ConnectThroughChannel(router, this->AddReceivePort()).status());
   }
   return &router;
 }
@@ -97,10 +96,9 @@ absl::Status NetworkTopologyView::ConnectSendPortsToComponent(
   if (&component.GetNetworkView() != this) {
     return absl::FailedPreconditionError("component is from a different view.");
   }
-  ChannelTopologyComponent* channel;
   for (int64_t count = 0; count < send_port_count; count++) {
-    XLS_ASSIGN_OR_RETURN(
-        channel, this->ConnectThroughChannel(this->AddSendPort(), component));
+    XLS_RETURN_IF_ERROR(
+        this->ConnectThroughChannel(this->AddSendPort(), component).status());
   }
   return absl::OkStatus();
 }
@@ -110,10 +108,10 @@ absl::Status NetworkTopologyView::ConnectComponentToReceivePort(
   if (&component.GetNetworkView() != this) {
     return absl::FailedPreconditionError("component is from a different view.");
   }
-  ChannelTopologyComponent* channel;
   for (int64_t count = 0; count < recv_port_count; count++) {
-    XLS_ASSIGN_OR_RETURN(channel, this->ConnectThroughChannel(
-                                      component, this->AddReceivePort()));
+    XLS_RETURN_IF_ERROR(
+        this->ConnectThroughChannel(component, this->AddReceivePort())
+            .status());
   }
   return absl::OkStatus();
 }

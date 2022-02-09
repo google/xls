@@ -1255,6 +1255,7 @@ cc_library(
     deps = [
         ":ast",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:variant",
     ],
