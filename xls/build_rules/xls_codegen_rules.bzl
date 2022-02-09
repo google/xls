@@ -161,6 +161,7 @@ def xls_ir_verilog_impl(ctx, src):
         "flop_inputs_kind",
         "flop_outputs",
         "flop_outputs_kind",
+        "flop_single_value_channels",
         "add_idle_output",
         "module_name",
         "clock_margin_percent",

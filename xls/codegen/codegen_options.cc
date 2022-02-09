@@ -105,6 +105,11 @@ CodegenOptions& CodegenOptions::flop_outputs_kind(IOKind value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::flop_single_value_channels(bool value) {
+  flop_single_value_channels_ = value;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::split_outputs(bool value) {
   split_outputs_ = value;
   return *this;

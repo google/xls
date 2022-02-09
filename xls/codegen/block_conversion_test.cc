@@ -883,6 +883,63 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
                                         Pair("b", 123))));
 }
 
+TEST_F(BlockConversionTest, FlopSingleValueChannelProc) {
+  const std::string ir_text = R"(package test
+chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
+chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="")
+
+proc my_proc(tkn: token, st: (), init=()) {
+  receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
+  tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
+  tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
+  send.20: token = send(tuple_index.14, tuple_index.15, channel_id=1, id=20) next (send.20, st)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                           Parser::ParsePackage(ir_text));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.module_name("my_proc");
+  options.flop_inputs(true).flop_outputs(true).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst_n", false, /*active_low=*/true, false);
+
+  {
+    options.flop_single_value_channels(true);
+
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                             ProcToPipelinedBlock(schedule, options, proc));
+
+    XLS_VLOG_LINES(2, block->DumpIr());
+
+    EXPECT_TRUE(HasNode("__out_reg", block));
+    EXPECT_TRUE(HasNode("__in_reg", block));
+    EXPECT_THAT(FindNode("out", block),
+                m::OutputPort("out", m::RegisterRead("__out_reg")));
+    EXPECT_THAT(FindNode("__in_reg", block), m::RegisterRead("__in_reg"));
+  }
+
+  {
+    options.flop_single_value_channels(false);
+
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                             ProcToPipelinedBlock(schedule, options, proc));
+
+    XLS_VLOG_LINES(2, block->DumpIr());
+
+    EXPECT_FALSE(HasNode("__out_reg", block));
+    EXPECT_FALSE(HasNode("__in_reg", block));
+  }
+}
+
 // Fixture used to test pipelined BlockConversion on a simple
 // identity block.
 class SimplePipelinedProcTest : public ProcConversionTestFixture {
@@ -2148,6 +2205,8 @@ TEST_P(MultiInputWithStatePipelinedProcTestSweepFixture, RandomStalling) {
   options.flop_inputs_kind(flop_inputs_kind);
   options.flop_outputs_kind(flop_outputs_kind);
   options.add_idle_output(add_idle_output);
+  // This block has no single_value_channels so this is simply testing a NOP.
+  options.flop_single_value_channels(false);
   options.valid_control("input_valid", "output_valid");
   options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
 

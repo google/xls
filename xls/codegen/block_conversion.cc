@@ -1327,7 +1327,7 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
   }
 
   // Flop other inputs.
-  if (options.flop_inputs()) {
+  if (options.flop_inputs() && options.flop_single_value_channels()) {
     for (InputPort* port : block->GetInputPorts()) {
       // Skip input ports that
       //  a) Belong to streaming input or output channels.
@@ -1346,7 +1346,7 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
   }
 
   // Flop other outputs
-  if (options.flop_outputs()) {
+  if (options.flop_outputs() && options.flop_single_value_channels()) {
     for (OutputPort* port : block->GetOutputPorts()) {
       // Skip output ports that belong to streaming input or output channels.
       if (handled_io_nodes.contains(port)) {

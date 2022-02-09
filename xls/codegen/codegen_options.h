@@ -109,11 +109,11 @@ class CodegenOptions {
   CodegenOptions& flop_outputs(bool value);
   bool flop_outputs() const { return flop_outputs_; }
 
-  // When flop_inputs() is true, determins the type of flop to add.
+  // When flop_inputs() is true, determines the type of flop to add.
   CodegenOptions& flop_inputs_kind(IOKind value);
   IOKind flop_inputs_kind() const { return flop_inputs_kind_; }
 
-  // When flop_outputs() is true, determins the type of flop to add.
+  // When flop_outputs() is true, determines the type of flop to add.
   CodegenOptions& flop_outputs_kind(IOKind value);
   IOKind flop_outputs_kind() const { return flop_outputs_kind_; }
 
@@ -125,6 +125,13 @@ class CodegenOptions {
   // Returns the output latency, if any, associated with registring the input.
   int64_t GetOutputLatency() const {
     return flop_outputs() ? IOKindLatency(flop_outputs_kind_) : 0;
+  }
+
+  // When false, single value channels are not registered even if
+  // flop_inputs() or flop_outputs() is true.
+  CodegenOptions& flop_single_value_channels(bool value);
+  bool flop_single_value_channels() const {
+    return flop_single_value_channels_;
   }
 
   // If the output is tuple-typed, generate an output port for each element of
@@ -243,6 +250,7 @@ class CodegenOptions {
   IOKind flop_outputs_kind_ = IOKind::kFlop;
   bool split_outputs_ = false;
   bool add_idle_output_ = false;
+  bool flop_single_value_channels_ = false;
   absl::optional<std::string> assert_format_;
   absl::optional<std::string> gate_format_;
   bool emit_as_pipeline_ = false;

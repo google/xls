@@ -99,6 +99,9 @@ ABSL_FLAG(std::string, flop_inputs_kind, "flop",
 ABSL_FLAG(std::string, flop_outputs_kind, "flop",
           "Kind of output register to add.  "
           "Valid values: flop, skid, zerolatency");
+ABSL_FLAG(bool, flop_single_value_channels, true,
+          "If false, flop_inputs() and flop_outputs() will not flop"
+          "single value channels");
 ABSL_FLAG(bool, add_idle_output, false,
           "If true, an additional idle signal tied to valids of input and "
           "flops is added to the block. This output signal is not registered, "
@@ -225,6 +228,8 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
                          StrToIOKind(flop_outputs_kind_str));
     options.flop_outputs_kind(outputs_kind);
 
+    options.flop_single_value_channels(
+        absl::GetFlag(FLAGS_flop_single_value_channels));
     options.add_idle_output(absl::GetFlag(FLAGS_add_idle_output));
 
     if (!absl::GetFlag(FLAGS_reset).empty()) {
