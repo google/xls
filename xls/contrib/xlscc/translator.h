@@ -859,6 +859,7 @@ class Translator {
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
           variable_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
+      std::vector<const clang::NamedDecl*>& vars_changed_in_body,
       const xls::SourceLocation& loc);
 
   struct ResolvedInheritance {
@@ -893,8 +894,9 @@ class Translator {
   absl::Status Assign(const clang::Expr* lvalue, const CValue& rvalue,
                       const xls::SourceLocation& loc);
   absl::Status AssignThis(const CValue& rvalue, const xls::SourceLocation& loc);
-  absl::StatusOr<CValue> PrepareRValueForAssignment(const CValue& lvalue,
-                                                    const CValue& rvalue);
+  absl::StatusOr<CValue> PrepareRValueForAssignment(
+      const CValue& lvalue, const CValue& rvalue,
+      const xls::SourceLocation& loc);
 
   absl::Status DeclareVariable(const clang::NamedDecl* lvalue,
                                const CValue& rvalue,

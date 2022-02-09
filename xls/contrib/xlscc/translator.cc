@@ -612,8 +612,9 @@ absl::Status Translator::AssignThis(const CValue& rvalue,
         string(*context().this_val.type()), string(*rvalue.type()),
         LocString(loc)));
   }
-  XLS_ASSIGN_OR_RETURN(context().this_val,
-                       PrepareRValueForAssignment(context().this_val, rvalue));
+  XLS_ASSIGN_OR_RETURN(
+      context().this_val,
+      PrepareRValueForAssignment(context().this_val, rvalue, loc));
 
   return absl::OkStatus();
 }
@@ -1477,26 +1478,19 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
     context().sf->global_values[name] = value;
     return value;
   }
-  if (!for_lvalue) {
-    if (context().forbidden_rvalues.contains(decl)) {
-      return absl::UnimplementedError(
-          absl::StrFormat("Declref to variable %s assigned in same context "
-                          "(unsequenced in an expression?) at %s",
-                          decl->getNameAsString(), LocString(loc)));
-    }
-  }
   return found->second;
 }
 
 absl::StatusOr<CValue> Translator::PrepareRValueForAssignment(
-    const CValue& lvalue, const CValue& rvalue) {
+    const CValue& lvalue, const CValue& rvalue,
+    const xls::SourceLocation& loc) {
   CValue rvalue_to_use = lvalue;
   if (!context().mask_assignments) {
     rvalue_to_use = rvalue;
 
     if (context().condition.valid() && (!context().unconditional_assignment)) {
       auto cond_sel = context().fb->Select(context().condition, rvalue.value(),
-                                           lvalue.value());
+                                           lvalue.value(), loc);
 
       rvalue_to_use = CValue(cond_sel, rvalue_to_use.type());
     }
@@ -1538,7 +1532,7 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
   }
 
   XLS_ASSIGN_OR_RETURN(context().variables.at(lvalue),
-                       PrepareRValueForAssignment(found, rvalue));
+                       PrepareRValueForAssignment(found, rvalue, loc));
 
   return absl::OkStatus();
 }
@@ -3036,7 +3030,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
             xls::BValue sel_prev_ret_cond = context().fb->Or(
                 context().last_return_condition, context().fb->Not(this_cond));
             context().return_val = context().fb->Select(
-                sel_prev_ret_cond, context().return_val, crv);
+                sel_prev_ret_cond, context().return_val, crv, loc);
           } else {
             // In the case of multiple unconditional returns, take the first one
             // (no-op)
@@ -3565,10 +3559,12 @@ absl::Status Translator::GenerateIR_PipelinedFor(
   }
 
   // Create loop body proc
+  std::vector<const clang::NamedDecl*> vars_changed_in_body;
   XLS_RETURN_IF_ERROR(GenerateIR_PipelinedForBody(
       stmt, ctx, name_prefix, context_out_channel, ctrl_out_channel,
       context_in_channel, ctrl_in_channel, context_xls_type,
-      context_struct_type, variable_field_indices, variable_fields_order, loc));
+      context_struct_type, variable_field_indices, variable_fields_order,
+      vars_changed_in_body, loc));
 
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.value();
@@ -3581,7 +3577,9 @@ absl::Status Translator::GenerateIR_PipelinedFor(
                      loc));
     }
 
-    for (const clang::NamedDecl* decl : variable_fields_order) {
+    // Don't assign to variables that aren't changed in the loop body,
+    // as this creates extra state
+    for (const clang::NamedDecl* decl : vars_changed_in_body) {
       const uint64_t field_idx = variable_field_indices.at(decl);
       const CValue cval(GetStructFieldXLS(context_tuple_recvd, field_idx,
                                           *context_struct_type, loc),
@@ -3602,12 +3600,12 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
     const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
         variable_field_indices,
     const std::vector<const clang::NamedDecl*>& variable_fields_order,
+    std::vector<const clang::NamedDecl*>& vars_changed_in_body,
     const xls::SourceLocation& loc) {
   const uint64_t total_context_values = context_ctype->fields().size();
 
   // Generate body function
   GeneratedFunction generated_func;
-  std::vector<const clang::NamedDecl*> vars_changed_in_body;
   uint64_t extra_return_count = 0;
   {
     // Inherit explicit channels
@@ -3750,7 +3748,6 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
   // Construct initial state
   std::vector<xls::Value> init_values = {// First tick is the first iteration
                                          xls::Value(xls::UBits(1, 1))};
-
   for (const clang::NamedDecl* decl : vars_changed_in_body) {
     const CValue& prev_value = context().variables.at(decl);
     XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
