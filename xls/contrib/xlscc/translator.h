@@ -364,6 +364,11 @@ struct SideEffectingParameter {
 struct GeneratedFunction {
   xls::Function* xls_func = nullptr;
 
+  int64_t declaration_count_ = 0;
+
+  absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
+      declaration_order_by_name_;
+
   std::list<IOChannel> io_channels;
 
   // Not all IO channels will be in these maps
@@ -388,6 +393,10 @@ struct GeneratedFunction {
 
   // Static declarations with initializers
   absl::flat_hash_map<const clang::NamedDecl*, ConstValue> static_values;
+
+  void SortNamesDeterministically(std::vector<const clang::NamedDecl*>& names);
+  std::vector<const clang::NamedDecl*>
+  GetDeterministicallyOrderedStaticValues();
 };
 
 // Encapsulates a context for translating Clang AST to XLS IR.
@@ -849,6 +858,7 @@ class Translator {
       std::shared_ptr<CStructType> context_ctype,
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
           variable_field_indices,
+      const std::vector<const clang::NamedDecl*>& variable_fields_order,
       const xls::SourceLocation& loc);
 
   struct ResolvedInheritance {

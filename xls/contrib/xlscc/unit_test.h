@@ -68,9 +68,6 @@ class XlsccTestBase : public xls::IrTestBase {
       absl::string_view cpp_src, std::vector<absl::string_view> argv,
       xlscc::CCParser* translator);
 
-  absl::Status ScanString(absl::string_view cpp_src,
-                          std::vector<absl::string_view> argv);
-
   absl::StatusOr<std::string> SourceToIr(
       absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,
       std::vector<absl::string_view> clang_argv = {});

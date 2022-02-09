@@ -27,6 +27,8 @@
 
 using xls::status_testing::IsOkAndHolds;
 
+const int determinism_test_repeat_count = 3;
+
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                         uint64_t expected, absl::string_view cpp_source,
                         xabsl::SourceLocation loc,
@@ -87,7 +89,8 @@ void XlsccTestBase::RunWithStatics(
   for (const xls::Value& expected_output : expected_outputs) {
     absl::flat_hash_map<std::string, xls::Value> args_with_statics = args;
 
-    for (const auto& [decl, _] : pfunc->static_values) {
+    for (const clang::NamedDecl* decl :
+         pfunc->GetDeterministicallyOrderedStaticValues()) {
       args_with_statics[static_param_names.at(decl)] = static_state.at(decl);
     }
 
@@ -100,7 +103,8 @@ void XlsccTestBase::RunWithStatics(
 
     {
       int i = 0;
-      for (const auto& [decl, _] : pfunc->static_values) {
+      for (const clang::NamedDecl* decl :
+           pfunc->GetDeterministicallyOrderedStaticValues()) {
         XLS_CHECK(static_state.contains(decl));
         static_state[decl] = returns[i++];
       }
@@ -112,16 +116,6 @@ void XlsccTestBase::RunWithStatics(
 
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
                                      std::vector<absl::string_view> argv) {
-  auto parser = std::make_unique<xlscc::CCParser>();
-  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(cpp_src, argv, parser.get()));
-
-  translator_.reset(new xlscc::Translator(1000, std::move(parser)));
-
-  return absl::OkStatus();
-}
-
-absl::Status XlsccTestBase::ScanString(absl::string_view cpp_src,
-                                       std::vector<absl::string_view> argv) {
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(ScanTempFileWithContent(cpp_src, argv, parser.get()));
   translator_.reset(new xlscc::Translator(1000, std::move(parser)));
@@ -152,15 +146,26 @@ absl::Status XlsccTestBase::ScanString(absl::string_view cpp_src,
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
     std::vector<absl::string_view> clang_argv) {
-  XLS_RETURN_IF_ERROR(ScanFile(cpp_src, clang_argv));
+  std::list<std::string> ir_texts;
+  std::string ret_text;
 
-  package_.reset(new xls::Package("my_package"));
-  XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
-                       translator_->GenerateIR_Top_Function(package_.get()));
-  if (pfunc) {
-    *pfunc = func;
+  for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
+    XLS_RETURN_IF_ERROR(ScanFile(cpp_src, clang_argv));
+    package_.reset(new xls::Package("my_package"));
+    XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
+                         translator_->GenerateIR_Top_Function(package_.get()));
+    if (pfunc) {
+      *pfunc = func;
+    }
+    ret_text = package_->DumpIr();
+    ir_texts.push_back(ret_text);
   }
-  return package_->DumpIr();
+
+  // Determinism test
+  for (const std::string& text : ir_texts) {
+    EXPECT_EQ(text, ret_text);
+  }
+  return ret_text;
 }
 
 void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
@@ -275,14 +280,25 @@ void XlsccTestBase::ProcTest(
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
         outputs_by_channel,
     const int min_ticks, const int max_ticks) {
-  XLS_ASSERT_OK(ScanFile(content));
+  std::list<std::string> ir_texts;
+  std::string package_text;
 
-  package_.reset(new xls::Package("my_package"));
-  XLS_ASSERT_OK(
-      translator_->GenerateIR_Block(package_.get(), block_spec).status());
+  for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
+    XLS_ASSERT_OK(ScanFile(content));
+    package_.reset(new xls::Package("my_package"));
+    XLS_ASSERT_OK(
+        translator_->GenerateIR_Block(package_.get(), block_spec).status());
+    package_text = package_->DumpIr();
+    ir_texts.push_back(package_text);
+  }
+
+  // Determinism test
+  for (const std::string& text : ir_texts) {
+    EXPECT_EQ(package_text, text);
+  }
 
   XLS_LOG(INFO) << "Package IR: ";
-  XLS_LOG(INFO) << package_->DumpIr();
+  XLS_LOG(INFO) << package_text;
 
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 

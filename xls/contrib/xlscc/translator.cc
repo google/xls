@@ -14,6 +14,7 @@
 
 #include "xls/contrib/xlscc/translator.h"
 
+#include <cstdint>
 #include <memory>
 #include <regex>  // NOLINT
 #include <sstream>
@@ -1138,7 +1139,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   vector<xls::BValue> return_bvals;
 
   // First static returns
-  for (const auto& [decl, _] : context().sf->static_values) {
+  for (const clang::NamedDecl* decl :
+       context().sf->GetDeterministicallyOrderedStaticValues()) {
     XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, body_loc));
     return_bvals.push_back(value.value());
   }
@@ -1535,7 +1537,7 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
         lvalue->getNameAsString(), LocString(loc)));
   }
 
-  XLS_ASSIGN_OR_RETURN(context().variables[lvalue],
+  XLS_ASSIGN_OR_RETURN(context().variables.at(lvalue),
                        PrepareRValueForAssignment(found, rvalue));
 
   return absl::OkStatus();
@@ -1723,6 +1725,8 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
   }
   check_unique_ids_.insert(lvalue);
 
+  context().sf->declaration_order_by_name_[lvalue] =
+      ++context().sf->declaration_count_;
   context().variables[lvalue] = rvalue;
   return absl::OkStatus();
 }
@@ -1733,6 +1737,9 @@ absl::Status Translator::DeclareStatic(const clang::NamedDecl* lvalue,
                                        bool check_unique_ids) {
   XLS_CHECK(!context().sf->static_values.contains(lvalue) ||
             context().sf->static_values.at(lvalue) == init);
+
+  context().sf->declaration_order_by_name_[lvalue] =
+      ++context().sf->declaration_count_;
 
   context().sf->static_values[lvalue] = init;
 
@@ -2369,15 +2376,16 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   CValue retval;
 
   // First static outputs from callee
-  for (const auto& iter : func->static_values) {
-    const clang::NamedDecl* decl = iter.first;
-    const ConstValue init = iter.second;
+  for (const clang::NamedDecl* namedecl :
+       func->GetDeterministicallyOrderedStaticValues()) {
+    const ConstValue& initval = func->static_values.at(namedecl);
 
     XLS_CHECK(!unpacked_returns.empty());
     xls::BValue static_output = unpacked_returns.front();
     unpacked_returns.pop_front();
 
-    XLS_RETURN_IF_ERROR(Assign(decl, CValue(static_output, init.type()), loc));
+    XLS_RETURN_IF_ERROR(
+        Assign(namedecl, CValue(static_output, initval.type()), loc));
   }
 
   // Then this return
@@ -3358,6 +3366,25 @@ absl::Status Translator::GenerateIR_UnrolledFor(
   return absl::OkStatus();
 }
 
+void GeneratedFunction::SortNamesDeterministically(
+    std::vector<const clang::NamedDecl*>& names) {
+  std::sort(names.begin(), names.end(),
+            [this](const clang::NamedDecl* a, const clang::NamedDecl* b) {
+              return declaration_order_by_name_.at(a) <
+                     declaration_order_by_name_.at(b);
+            });
+}
+
+std::vector<const clang::NamedDecl*>
+GeneratedFunction::GetDeterministicallyOrderedStaticValues() {
+  std::vector<const clang::NamedDecl*> ret;
+  for (const auto& [decl, _] : static_values) {
+    ret.push_back(decl);
+  }
+  SortNamesDeterministically(ret);
+  return ret;
+}
+
 absl::Status Translator::GenerateIR_PipelinedFor(
     const clang::ForStmt* stmt, int64_t initiation_interval_arg,
     clang::ASTContext& ctx, const xls::SourceLocation& loc) {
@@ -3393,6 +3420,7 @@ absl::Status Translator::GenerateIR_PipelinedFor(
   CValue context_tuple_out;
   std::shared_ptr<CStructType> context_struct_type;
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t> variable_field_indices;
+  std::vector<const clang::NamedDecl*> variable_fields_order;
   {
     std::vector<std::shared_ptr<CField>> fields;
     std::vector<xls::BValue> tuple_values;
@@ -3405,7 +3433,16 @@ absl::Status Translator::GenerateIR_PipelinedFor(
       fields.push_back(field_ptr);
     }
 
-    for (const auto& [decl, cvalue] : context().variables) {
+    // Create a deterministic field order
+    for (const auto& [decl, _] : context().variables) {
+      XLS_CHECK(context().sf->declaration_order_by_name_.contains(decl));
+      variable_fields_order.push_back(decl);
+    }
+
+    context().sf->SortNamesDeterministically(variable_fields_order);
+
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      const CValue& cvalue = context().variables.at(decl);
       XLS_CHECK(cvalue.value().valid());
       const uint64_t field_idx = tuple_values.size();
       variable_field_indices[decl] = field_idx;
@@ -3413,6 +3450,7 @@ absl::Status Translator::GenerateIR_PipelinedFor(
       auto field_ptr = std::make_shared<CField>(decl, field_idx, cvalue.type());
       fields.push_back(field_ptr);
     }
+
     context_struct_type = std::make_shared<CStructType>(fields, false);
     context_tuple_out =
         CValue(MakeStructXLS(tuple_values, *context_struct_type, loc),
@@ -3530,7 +3568,7 @@ absl::Status Translator::GenerateIR_PipelinedFor(
   XLS_RETURN_IF_ERROR(GenerateIR_PipelinedForBody(
       stmt, ctx, name_prefix, context_out_channel, ctrl_out_channel,
       context_in_channel, ctrl_in_channel, context_xls_type,
-      context_struct_type, variable_field_indices, loc));
+      context_struct_type, variable_field_indices, variable_fields_order, loc));
 
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.value();
@@ -3543,7 +3581,8 @@ absl::Status Translator::GenerateIR_PipelinedFor(
                      loc));
     }
 
-    for (const auto& [decl, field_idx] : variable_field_indices) {
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      const uint64_t field_idx = variable_field_indices.at(decl);
       const CValue cval(GetStructFieldXLS(context_tuple_recvd, field_idx,
                                           *context_struct_type, loc),
                         context().variables.at(decl).type());
@@ -3562,12 +3601,13 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
     std::shared_ptr<CStructType> context_ctype,
     const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
         variable_field_indices,
+    const std::vector<const clang::NamedDecl*>& variable_fields_order,
     const xls::SourceLocation& loc) {
   const uint64_t total_context_values = context_ctype->fields().size();
 
   // Generate body function
   GeneratedFunction generated_func;
-  absl::flat_hash_set<const clang::NamedDecl*> vars_changed_in_body;
+  std::vector<const clang::NamedDecl*> vars_changed_in_body;
   uint64_t extra_return_count = 0;
   {
     // Inherit explicit channels
@@ -3607,12 +3647,16 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
     absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> prev_vars;
 
     XLS_CHECK(!prev_context.this_val.value().valid());
-    for (const auto& [decl, field_idx] : variable_field_indices) {
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      const uint64_t field_idx = variable_field_indices.at(decl);
       const CValue& outer_value = prev_context.variables.at(decl);
       xls::BValue param_bval =
           GetStructFieldXLS(context_param, field_idx, *context_ctype, loc);
 
-      context().variables[decl] = CValue(param_bval, outer_value.type());
+      XLS_RETURN_IF_ERROR(
+          DeclareVariable(decl, CValue(param_bval, outer_value.type()), loc,
+                          /*check_unique_ids=*/false));
+
       prev_vars[decl] = param_bval;
     }
 
@@ -3660,7 +3704,8 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
     XLS_CHECK(!prev_context.this_val.value().valid());
     std::vector<xls::BValue> tuple_values;
     tuple_values.resize(total_context_values);
-    for (const auto& [decl, field_idx] : variable_field_indices) {
+    for (const clang::NamedDecl* decl : variable_fields_order) {
+      const uint64_t field_idx = variable_field_indices.at(decl);
       tuple_values[field_idx] = context().variables.at(decl).value();
     }
 
@@ -3689,13 +3734,15 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
                          body_builder.BuildWithReturnValue(ret_val));
 
     // Analyze context variables changed
-    for (const auto& [decl, field_idx] : variable_field_indices) {
+    for (const clang::NamedDecl* decl : variable_fields_order) {
       const xls::BValue& prev_bval = prev_vars.at(decl);
       const xls::BValue& curr_bval = context().variables.at(decl).value();
       if (prev_bval.node() != curr_bval.node()) {
-        vars_changed_in_body.insert(decl);
+        vars_changed_in_body.push_back(decl);
       }
     }
+
+    context().sf->SortNamesDeterministically(vars_changed_in_body);
   }
 
   // Generate body proc
@@ -4250,7 +4297,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
                        GenerateIR_Top_Function(package, true));
 
   std::vector<xls::Value> static_init_values;
-  for (const auto& [namedecl, initval] : prepared.xls_func->static_values) {
+  for (const clang::NamedDecl* namedecl :
+       prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
+    const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
     static_init_values.push_back(initval.value());
   }
 
@@ -4270,7 +4319,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   // Create next state value
   std::vector<xls::BValue> static_next_values;
   int static_idx = 0;
-  for (auto [namedecl, initval] : prepared.xls_func->static_values) {
+  for (const clang::NamedDecl* namedecl :
+       prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     static_next_values.push_back(pb.TupleIndex(
         last_ret_val, prepared.return_index_for_static[namedecl], body_loc));
     ++static_idx;
@@ -4393,7 +4443,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t> static_value_indices;
   {
     int static_idx = 0;
-    for (auto [namedecl, initval] : prepared.xls_func->static_values) {
+    for (const clang::NamedDecl* namedecl :
+         prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
       prepared.return_index_for_static[namedecl] = static_idx;
       static_value_indices[namedecl] = static_idx;
       ++static_idx;
@@ -4576,12 +4627,14 @@ absl::Status Translator::GenerateFunctionMetadata(
         "GenerateFunctionMetadata called for FuncDecl that has not been "
         "processed for IR generation.");
   }
-  for (const auto& iter : found->second->static_values) {
-    auto p = clang_down_cast<const clang::ValueDecl*>(iter.first);
+  for (const clang::NamedDecl* namedecl :
+       found->second->GetDeterministicallyOrderedStaticValues()) {
+    const ConstValue& initval = found->second->static_values.at(namedecl);
+    auto p = clang_down_cast<const clang::ValueDecl*>(namedecl);
     xlscc_metadata::FunctionValue* proto_static_value =
         output->add_static_values();
-    XLS_RETURN_IF_ERROR(GenerateMetadataCPPName(
-        iter.first, proto_static_value->mutable_name()));
+    XLS_RETURN_IF_ERROR(
+        GenerateMetadataCPPName(namedecl, proto_static_value->mutable_name()));
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
     XLS_RETURN_IF_ERROR(GenerateMetadataType(
@@ -4590,7 +4643,7 @@ absl::Status Translator::GenerateFunctionMetadata(
         std::shared_ptr<CType> ctype,
         TranslateTypeFromClang(stripped.base, xls::SourceLocation()));
     XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(
-        *this, iter.second, proto_static_value->mutable_value()));
+        *this, initval, proto_static_value->mutable_value()));
   }
 
   return absl::OkStatus();

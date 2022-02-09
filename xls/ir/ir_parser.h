@@ -62,6 +62,7 @@ class Parser {
   // Parse the input_string as a function into the given package.
   // If verify_function_only is true, then only this new function is verified,
   // otherwise the whole package is verified by default.
+  // TODO(meheff): 2022/2/9 Remove `verify_function_only` argument.
   static absl::StatusOr<Function*> ParseFunction(
       absl::string_view input_string, Package* package,
       bool verify_function_only = false);
