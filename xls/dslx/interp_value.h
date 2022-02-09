@@ -288,7 +288,8 @@ class InterpValue {
   }
   absl::StatusOr<const FnData*> GetFunction() const {
     if (!absl::holds_alternative<FnData>(payload_)) {
-      return absl::InvalidArgumentError("Value does not hold function data.");
+      return absl::InvalidArgumentError(
+          absl::StrCat("Value does not hold function data: ", ToString(), "."));
     }
     return &absl::get<FnData>(payload_);
   }

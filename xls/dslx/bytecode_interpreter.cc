@@ -826,8 +826,18 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return absl::OkStatus();
     case Builtin::kCtz:
       return RunBuiltinCtz(bytecode);
+    case Builtin::kFail:
+      return FailureErrorStatus(
+          bytecode.source_span(), "Encountered `fail!` operation.");
+    case Builtin::kGate:
+      stack_.push_back(InterpValue::MakeToken());
+      return absl::OkStatus();
     case Builtin::kMap:
       return RunBuiltinMap(bytecode);
+    case Builtin::kOneHot:
+      return RunBuiltinOneHot(bytecode);
+    case Builtin::kOneHotSel:
+      return RunBuiltinOneHotSel(bytecode);
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Builtin function \"%s\" not yet implemented.",
@@ -1000,6 +1010,61 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
   BytecodeFunction* bf_ptr = bf.get();
   frames_.push_back(Frame(bf_ptr, {inputs}, bf_ptr->type_info(),
                           invocation_data.bindings, std::move(bf)));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinOneHot(const Bytecode& bytecode) {
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpValue lsb_is_prio, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue input, Pop());
+
+  if (!lsb_is_prio.IsBits() || lsb_is_prio.GetBitsOrDie().bit_count() != 1) {
+    return absl::InternalError(
+        absl::StrCat(
+          "The second argument to `one_hot` must be bool. Saw: ",
+          lsb_is_prio.ToString(), "."));
+  }
+
+  if (!input.IsBits()) {
+    return absl::InternalError(
+        absl::StrCat(
+            "The first argument to `one_hot` must be bits-typed. Saw: ",
+            input.ToString(), "."));
+  }
+
+  XLS_ASSIGN_OR_RETURN(InterpValue result, input.OneHot(lsb_is_prio.IsTrue()));
+  stack_.push_back(result);
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
+    const Bytecode& bytecode) {
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpValue cases_array, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue selector, Pop());
+  if (!selector.IsBits()) {
+    return absl::InternalError(
+        absl::StrCat(
+            "`one_hot_sel` selector must be bits-typed. Saw: ",
+            selector.ToString(), "."));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Bits selector_bits, selector.GetBits());
+
+  XLS_ASSIGN_OR_RETURN(
+      const std::vector<InterpValue>* cases, cases_array.GetValues());
+  XLS_ASSIGN_OR_RETURN(int64_t result_bit_count, cases->at(0).GetBitCount());
+  Bits result(result_bit_count);
+  for (int i = 0; i < cases->size(); i++) {
+    if (!selector_bits.Get(i)) {
+      continue;
+    }
+
+    XLS_ASSIGN_OR_RETURN(Bits case_bits, cases->at(i).GetBits());
+    result = bits_ops::Or(result, case_bits);
+  }
+
+  stack_.push_back(InterpValue::MakeBits(/*is_signed=*/false, result));
   return absl::OkStatus();
 }
 

@@ -136,6 +136,8 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinClz(const Bytecode& bytecode);
   absl::Status RunBuiltinCtz(const Bytecode& bytecode);
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
+  absl::Status RunBuiltinOneHot(const Bytecode& bytecode);
+  absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode);
 
   absl::StatusOr<InterpValue> Pop();
 

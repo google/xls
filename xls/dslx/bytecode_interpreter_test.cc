@@ -869,5 +869,39 @@ fn main() -> u32 {
   EXPECT_EQ(int_value, 16);
 }
 
+TEST(BytecodeInterpreterTest, BuiltinOneHot) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u8 {
+  let input = u3:0x5;
+  let r0 = one_hot(input, false);
+  let r1 = one_hot(input, true);
+  r0 ++ r1
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0x41);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinOneHotSel) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let cases = u32[8]:[u32:0x1, u32:0x20, u32:0x300, u32:0x4000,
+                      u32:0x50000, u32:0x600000, u32:0x7000000, u32:0x80000000];
+  let selector = u8:0xaa;
+  one_hot_sel(selector, cases)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0x80604020);
+}
+
 }  // namespace
 }  // namespace xls::dslx

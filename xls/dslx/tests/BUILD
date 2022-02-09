@@ -307,10 +307,9 @@ xls_dslx_test(
     name = "one_hot_dslx_test",
     srcs = ["one_hot.x"],
     dslx_test_args = {
+        "bytecode": "true",
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing one_hot
-    # builtin.
 )
 
 # Note: no meaningful function to convert.
@@ -318,10 +317,9 @@ xls_dslx_test(
     name = "one_hot_sel",
     srcs = ["one_hot_sel.x"],
     dslx_test_args = {
+        "bytecode": "true",
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing one_hot_sel
-    # builtin.
 )
 
 dslx_lang_test(
