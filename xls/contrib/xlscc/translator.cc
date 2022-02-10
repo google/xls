@@ -52,6 +52,7 @@
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/SourceManager.h"
 #include "clang/include/clang/Basic/Specifiers.h"
+#include "clang/include/clang/Basic/TypeTraits.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
 #include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -356,7 +357,7 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
 }
 
 int CInstantiableTypeAlias::GetBitWidth() const {
-  XLS_CHECK(false);
+  XLS_LOG(FATAL) << "GetBitWidth() unsupported for CInstantiableTypeAlias";
   return 0;
 }
 
@@ -434,8 +435,11 @@ absl::Status CStructType::GetMetadataValue(
 bool CStructType::no_tuple_flag() const { return no_tuple_flag_; }
 
 int CStructType::GetBitWidth() const {
-  XLS_LOG(FATAL) << "GetBitWidth() unsupported on structs";
-  return 0;
+  int ret = 0;
+  for (const std::shared_ptr<CField>& field : fields_) {
+    ret += field->type()->GetBitWidth();
+  }
+  return ret;
 }
 
 CStructType::operator std::string() const {
@@ -496,10 +500,7 @@ bool CArrayType::operator==(const CType& o) const {
   return *element_ == *o_derived->element_ && size_ == o_derived->size_;
 }
 
-int CArrayType::GetBitWidth() const {
-  XLS_LOG(FATAL) << "GetBitWidth() unsupported on native arrays";
-  return 0;
-}
+int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
 
 absl::Status CField::GetMetadata(Translator& translator,
                                  xlscc_metadata::StructField* output) const {
@@ -1379,7 +1380,6 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
   } else {
     XLS_ASSIGN_OR_RETURN(init_val, CreateDefaultValue(ctype, loc));
   }
-
   return CValue(init_val, ctype);
 }
 
@@ -1968,6 +1968,41 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstance(
   XLS_CHECK(found != inst_types_.end());
 
   return found->second;
+}
+
+absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstanceDeeply(
+    std::shared_ptr<CType> t) {
+  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ret, ResolveTypeInstance(t));
+
+  // Handle structs
+  {
+    auto ret_struct = std::dynamic_pointer_cast<const CStructType>(ret);
+
+    if (ret_struct != nullptr) {
+      std::vector<std::shared_ptr<CField>> fields;
+      for (const std::shared_ptr<CField>& field : ret_struct->fields()) {
+        XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> field_type,
+                             ResolveTypeInstanceDeeply(field->type()));
+        fields.push_back(std::make_shared<CField>(field->name(), field->index(),
+                                                  field_type));
+      }
+      return std::make_shared<CStructType>(fields, ret_struct->no_tuple_flag());
+    }
+  }
+
+  // Handle arrays
+  {
+    auto ret_array = std::dynamic_pointer_cast<const CArrayType>(ret);
+
+    if (ret_array != nullptr) {
+      XLS_ASSIGN_OR_RETURN(
+          std::shared_ptr<CType> elem_type,
+          ResolveTypeInstanceDeeply(ret_array->GetElementType()));
+      return std::make_shared<CArrayType>(elem_type, ret_array->GetSize());
+    }
+  }
+
+  return ret;
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::TranslateFunctionToXLS(
@@ -2784,6 +2819,34 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
           CreateInitListValue(
               *ctype, clang_down_cast<const clang::InitListExpr*>(expr), loc));
       return CValue(init_val, ctype);
+    }
+    case clang::Stmt::UnaryExprOrTypeTraitExprClass: {
+      auto* unary_or_type_expr =
+          clang_down_cast<const clang::UnaryExprOrTypeTraitExpr*>(expr);
+      if (unary_or_type_expr->getKind() != clang::UETT_SizeOf) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Unimplemented UnaryExprOrTypeTraitExpr kind %i at %s",
+            unary_or_type_expr->getKind(), LocString(loc)));
+      }
+
+      XLS_ASSIGN_OR_RETURN(
+          std::shared_ptr<CType> ret_ctype,
+          TranslateTypeFromClang(unary_or_type_expr->getType(), loc));
+      XLS_ASSIGN_OR_RETURN(
+          std::shared_ptr<CType> arg_ctype,
+          TranslateTypeFromClang(unary_or_type_expr->getTypeOfArgument(), loc));
+      // Remove CInstantiableTypeAliases since CType::BitWidth() cannot resolve
+      // them
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved_arg_ctype,
+                           ResolveTypeInstanceDeeply(arg_ctype));
+
+      XLS_LOG(WARNING) << "Warning: sizeof evaluating to size in BITS";
+
+      const int64_t ret_width = ret_ctype->GetBitWidth();
+      return CValue(
+          context().fb->Literal(
+              xls::SBits(resolved_arg_ctype->GetBitWidth(), ret_width), loc),
+          std::make_shared<CIntType>(ret_width, true));
     }
     default: {
       expr->dump();

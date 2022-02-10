@@ -931,6 +931,8 @@ class Translator {
                                                 const xls::SourceLocation& loc);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
       std::shared_ptr<CType> t);
+  absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstanceDeeply(
+      std::shared_ptr<CType> t);
   absl::StatusOr<GeneratedFunction*> TranslateFunctionToXLS(
       const clang::FunctionDecl* decl);
 

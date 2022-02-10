@@ -5139,6 +5139,42 @@ TEST_F(TranslatorTest, NativeOperatorLNot) {
   Run({{"a", -11}}, 0, content);
 }
 
+TEST_F(TranslatorTest, SizeOf) {
+  const std::string content = R"(
+      int my_package() {
+        short foo[3] = {2,3,4};
+        return sizeof(foo);
+      })";
+
+  Run({}, 3 * 16, content);
+}
+
+TEST_F(TranslatorTest, SizeOfExpr) {
+  const std::string content = R"(
+      int my_package() {
+        short foo[3] = {2,3,4};
+        return sizeof(foo) / sizeof(foo[0]);
+      })";
+
+  Run({}, 3, content);
+}
+
+TEST_F(TranslatorTest, SizeOfDeep) {
+  const std::string content = R"(
+      struct TestInner {
+        short foo;
+      };
+      struct Test {
+        TestInner x[5];
+      };
+      int my_package() {
+        Test b;
+        return sizeof(b);
+      })";
+
+  Run({}, 5 * 16, content);
+}
+
 TEST_F(TranslatorTest, ParenType) {
   const std::string content = R"(
     int thing(const int (&arr)[2]) {
