@@ -79,6 +79,7 @@ ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
           "Suffix to valid signals for streaming channels.");
 ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
           "Suffix to ready signals for streaming channels.");
+ABSL_FLAG(std::string, idle_channel_name, "idle", "Name of idle channel.");
 ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
@@ -250,7 +251,8 @@ InterpretBlockSignature(
         expected_outputs_for_channels,
     absl::string_view streaming_channel_data_suffix,
     absl::string_view streaming_channel_ready_suffix,
-    absl::string_view streaming_channel_valid_suffix) {
+    absl::string_view streaming_channel_valid_suffix,
+    absl::string_view idle_channel_name) {
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
 
   for (const xls::verilog::PortProto& port : signature.data_ports()) {
@@ -297,6 +299,8 @@ InterpretBlockSignature(
       ready_valid = true;
       XLS_CHECK(channel_info.contains(port_name));
       XLS_CHECK(this_port_input == channel_info.at(port_name).port_input);
+    } else if (port.name() == idle_channel_name) {
+      continue;
     } else {
       port_name = port.name();
       XLS_LOG(WARNING) << "Warning: Assuming port " << port_name
@@ -346,7 +350,8 @@ absl::Status RunBlockInterpreter(
         expected_outputs_for_channels,
     absl::string_view streaming_channel_data_suffix,
     absl::string_view streaming_channel_ready_suffix,
-    absl::string_view streaming_channel_valid_suffix, const int random_seed,
+    absl::string_view streaming_channel_valid_suffix,
+    absl::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert) {
   if (package->blocks().size() != 1) {
     return absl::InvalidArgumentError(
@@ -364,12 +369,12 @@ absl::Status RunBlockInterpreter(
   XLS_CHECK_EQ(signature.reset().name(), "rst_n");
 
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
-  XLS_ASSIGN_OR_RETURN(channel_info,
-                       InterpretBlockSignature(signature, inputs_for_channels,
-                                               expected_outputs_for_channels,
-                                               streaming_channel_data_suffix,
-                                               streaming_channel_ready_suffix,
-                                               streaming_channel_valid_suffix));
+  XLS_ASSIGN_OR_RETURN(
+      channel_info,
+      InterpretBlockSignature(
+          signature, inputs_for_channels, expected_outputs_for_channels,
+          streaming_channel_data_suffix, streaming_channel_ready_suffix,
+          streaming_channel_valid_suffix, idle_channel_name));
 
   // Prepare values in queue format
   absl::flat_hash_map<std::string, std::queue<Value>> channel_value_queues;
@@ -398,13 +403,15 @@ absl::Status RunBlockInterpreter(
   }
 
   int64_t last_output_cycle = 0;
+  int64_t matched_outputs = 0;
 
   for (int64_t cycle = 0;; ++cycle) {
     // Idealized reset behavior
     const bool resetting = (cycle == 0);
 
     if ((cycle < 10) || (cycle % 100 == 0)) {
-      XLS_LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting;
+      XLS_LOG(INFO) << "Cycle[" << cycle << "]: resetting? " << resetting
+                    << " matched outputs " << matched_outputs;
     }
 
     absl::flat_hash_set<std::string> asserted_valids;
@@ -494,6 +501,7 @@ absl::Status RunBlockInterpreter(
               "%s",
               name, match_value.ToString(), data_value.ToString()));
         }
+        ++matched_outputs;
         queue.pop();
         last_output_cycle = cycle;
       }
@@ -570,7 +578,8 @@ absl::Status RealMain(
     std::vector<std::string> expected_outputs_for_channels_text,
     absl::string_view streaming_channel_data_suffix,
     absl::string_view streaming_channel_ready_suffix,
-    absl::string_view streaming_channel_valid_suffix, const int random_seed,
+    absl::string_view streaming_channel_valid_suffix,
+    absl::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
@@ -616,7 +625,7 @@ absl::Status RealMain(
         package.get(), ticks, proto, max_cycles_no_output, inputs_for_channels,
         expected_outputs_for_channels, streaming_channel_data_suffix,
         streaming_channel_ready_suffix, streaming_channel_valid_suffix,
-        random_seed, prob_input_valid_assert);
+        idle_channel_name, random_seed, prob_input_valid_assert);
   } else {
     XLS_LOG(QFATAL) << "Unknown backend type";
   }
@@ -635,6 +644,11 @@ int main(int argc, char* argv[]) {
   if (backend != "serial_jit" && backend != "ir_interpreter" &&
       backend != "block_interpreter") {
     XLS_LOG(QFATAL) << "Unrecognized backend choice.";
+  }
+
+  if (backend == "block_interpreter" &&
+      absl::GetFlag(FLAGS_block_signature_proto).empty()) {
+    XLS_LOG(QFATAL) << "Block interpreter requires --block_signature_proto.";
   }
 
   std::vector<int64_t> ticks;
@@ -658,7 +672,7 @@ int main(int argc, char* argv[]) {
       absl::GetFlag(FLAGS_streaming_channel_data_suffix),
       absl::GetFlag(FLAGS_streaming_channel_ready_suffix),
       absl::GetFlag(FLAGS_streaming_channel_valid_suffix),
-      absl::GetFlag(FLAGS_random_seed),
+      absl::GetFlag(FLAGS_idle_channel_name), absl::GetFlag(FLAGS_random_seed),
       absl::GetFlag(FLAGS_prob_input_valid_assert)));
 
   return 0;
