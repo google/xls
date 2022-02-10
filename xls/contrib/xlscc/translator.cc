@@ -896,15 +896,6 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       IOOpReturn ret;
       ret.generate_expr = false;
 
-      // Unsequenced assignment pass
-      if (context().mask_assignments) {
-        XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                             TranslateTypeFromClang(expr->getType(), loc));
-        XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
-        ret.value = CValue(def, ctype);
-        return ret;
-      }
-
       IOOp op;
 
       if (op_name == "read") {
@@ -2022,6 +2013,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   if (call->getStmtClass() == clang::Stmt::StmtClass::CXXMemberCallExprClass) {
     auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(call);
     this_expr = member_call->getImplicitObjectArgument();
+
     pthisval = &thisval;
 
     const clang::QualType& thisQual =
@@ -2047,7 +2039,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       // this comes as first argument for operators
       this_expr = call->getArg(0);
-
       const clang::QualType& thisQual =
           clang_down_cast<const clang::CXXMethodDecl*>(
               op_call->getDirectCallee())
@@ -2499,7 +2490,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
     case clang::Stmt::CXXOperatorCallExprClass:
     case clang::Stmt::CallExprClass: {
       auto call = clang_down_cast<const clang::CallExpr*>(expr);
-
       XLS_ASSIGN_OR_RETURN(IOOpReturn ret, InterceptIOOp(call, loc));
 
       // If this call is an IO op, then return the IO value, rather than

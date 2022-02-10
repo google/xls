@@ -2783,6 +2783,28 @@ TEST_F(TranslatorTest, IOUnrolledUnsequenced) {
          /*outputs=*/{IOOpTest("out", 260, true)});
 }
 
+TEST_F(TranslatorTest, IOInThisExpr) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Test {
+         int x;
+         int foo()const {
+           return x;
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<Test>& in,
+                       __xls_channel<int>& out) {
+         out.write(3*in.read().foo());
+       })";
+
+  IOTest(content,
+         /*inputs=*/
+         {IOOpTest("in", xls::Value::Tuple({xls::Value(xls::SBits(5, 32))}),
+                   true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
 TEST_F(TranslatorTest, IOProcMux) {
   const std::string content = R"(
     #include "/xls_builtin.h"

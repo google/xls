@@ -193,7 +193,7 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
 
       XLS_CHECK_EQ(ch_name, test_op.name);
 
-      auto new_val = xls::Value(xls::SBits(test_op.value, 32));
+      const xls::Value& new_val = test_op.value;
 
       if (!args.contains(arg_name)) {
         args[arg_name] = new_val;
@@ -254,14 +254,12 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
       XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
                                returns[op_idx].GetElements());
       ASSERT_EQ(elements.size(), 2);
-      ASSERT_TRUE(elements[0].IsBits());
       ASSERT_TRUE(elements[1].IsBits());
-      XLS_ASSERT_OK_AND_ASSIGN(uint64_t val0, elements[0].bits().ToUint64());
       XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
       ASSERT_EQ(val1, test_op.condition ? 1 : 0);
       // Don't check data if it wasn't sent
       if (val1) {
-        ASSERT_EQ(val0, test_op.value);
+        ASSERT_EQ(elements[0], test_op.value);
       }
     } else {
       FAIL() << "IOOp was neither send nor recv: " << static_cast<int>(op.op);

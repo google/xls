@@ -74,10 +74,14 @@ class XlsccTestBase : public xls::IrTestBase {
 
   struct IOOpTest {
     IOOpTest(std::string name, int value, bool condition)
+        : name(name),
+          value(xls::Value(xls::SBits(value, 32))),
+          condition(condition) {}
+    IOOpTest(std::string name, xls::Value value, bool condition)
         : name(name), value(value), condition(condition) {}
 
     std::string name;
-    int value;
+    xls::Value value;
     bool condition;
   };
 
