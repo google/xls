@@ -530,6 +530,17 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   bool operator!() const { return (*this) == XlsInt(0); }
 
+  inline typename rt_unary::neg operator-() const {
+    typename rt_unary::neg as = *this;
+    typename rt_unary::neg ret;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret (aid): bits[i] "
+        "= neg(a, pos=(loc)) }"
+        : "=r"(ret)
+        : "i"(rt_unary::neg::width), "parama"(as));
+    return ret;
+  }
+
+  // Sign extends
   inline typename rt_unary::bnot operator~() const {
     typename rt_unary::bnot as = *this;
     typename rt_unary::bnot ret;
@@ -540,13 +551,14 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return ret;
   }
 
-  inline typename rt_unary::neg operator-() const {
-    typename rt_unary::neg as = *this;
-    typename rt_unary::neg ret;
+  // Doesn't sign extend
+  inline XlsInt<Width, false> bit_complement() const {
+    XlsInt<Width, false> as = *this;
+    XlsInt<Width, false> ret;
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret (aid): bits[i] "
-        "= neg(a, pos=(loc)) }"
+        "= not(a, pos=(loc)) }"
         : "=r"(ret)
-        : "i"(rt_unary::neg::width), "parama"(as));
+        : "i"(Width), "parama"(as));
     return ret;
   }
 

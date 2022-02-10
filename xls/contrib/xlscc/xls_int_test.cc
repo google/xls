@@ -323,12 +323,23 @@ TEST_F(XlsIntTest, LogicNeg) {
   const std::string content = R"(
     #include "xls_int.h"
 
-    unsigned long long my_package(unsigned long long a) {
-      XlsInt<5, false> ax = a;
-      // operator ~ always returns signed
-      return XlsInt<8, false>(~ax);
+    long long my_package(unsigned long long a) {
+      XlsInt<8, false> ax = a;
+      // operator ~ always returns signed, sign extends
+      return ~ax;
     })";
-  RunIntTest({{"a", 0b11001}}, 230, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", 3}}, -4, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, LogicNegate) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    unsigned long long my_package(unsigned long long a) {
+      XlsInt<8, false> ax = a;
+      return ax.bit_complement();
+    })";
+  RunIntTest({{"a", 3}}, 252U, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(XlsIntTest, Not) {
