@@ -193,16 +193,6 @@ dslx_lang_test(
     bytecode = False,
 )
 
-xls_dslx_opt_ir(
-    name = "trace_fmt_hello_opt_ir",
-    srcs = ["trace.x"],
-)
-
-xls_dslx_opt_ir_test(
-    name = "trace_fmt_hello_opt_ir_test",
-    dep = ":trace_fmt_hello_opt_ir",
-)
-
 # Note: This test is enough to keep the example code compiling,
 # but does not currently check the output.
 # TODO(https://github.com/google/xls/issues/489): 2021-09-02
@@ -245,24 +235,14 @@ xls_dslx_test(
     },
 )
 
-xls_dslx_opt_ir(
+dslx_lang_test(
     name = "parametric_value_as_nested_loop_bound",
-    srcs = ["parametric_value_as_nested_loop_bound.x"],
+    bytecode = False,
 )
 
-xls_dslx_opt_ir_test(
-    name = "parametric_value_as_nested_loop_bound_test",
-    dep = ":parametric_value_as_nested_loop_bound",
-)
-
-xls_dslx_opt_ir(
+dslx_lang_test(
     name = "derived_parametric_value_as_nested_loop_bound",
-    srcs = ["derived_parametric_value_as_nested_loop_bound.x"],
-)
-
-xls_dslx_opt_ir_test(
-    name = "derived_parametric_value_as_nested_loop_bound_test",
-    dep = ":derived_parametric_value_as_nested_loop_bound",
+    bytecode = False,
 )
 
 # Note: no meaningful function to convert to IR.
