@@ -835,23 +835,33 @@ class Translator {
                                    clang::ASTContext& ctx);
   absl::Status GenerateIR_Stmt(const clang::Stmt* stmt, clang::ASTContext& ctx);
 
-  absl::Status GenerateIR_For(const clang::ForStmt* stmt,
-                              clang::ASTContext& ctx,
-                              const xls::SourceLocation& loc,
-                              const clang::SourceManager& sm);
+  // init, cond, and inc can be nullptr
+  absl::Status GenerateIR_Loop(const clang::Stmt* init,
+                               const clang::Expr* cond_expr,
+                               const clang::Stmt* inc, const clang::Stmt* body,
+                               const clang::PresumedLoc& presumed_loc,
+                               const xls::SourceLocation& loc,
+                               clang::ASTContext& ctx,
+                               const clang::SourceManager& sm);
 
-  absl::Status GenerateIR_UnrolledFor(const clang::ForStmt* stmt,
-                                      clang::ASTContext& ctx,
-                                      const xls::SourceLocation& loc);
-  absl::Status GenerateIR_Switch(const clang::SwitchStmt* switchst,
-                                 clang::ASTContext& ctx,
-                                 const xls::SourceLocation& loc);
-  absl::Status GenerateIR_PipelinedFor(const clang::ForStmt* stmt,
-                                       int64_t initiation_interval_arg,
+  // init, cond, and inc can be nullptr
+  absl::Status GenerateIR_UnrolledLoop(const clang::Stmt* init,
+                                       const clang::Expr* cond_expr,
+                                       const clang::Stmt* inc,
+                                       const clang::Stmt* body,
                                        clang::ASTContext& ctx,
                                        const xls::SourceLocation& loc);
-  absl::Status GenerateIR_PipelinedForBody(
-      const clang::ForStmt* stmt, clang::ASTContext& ctx,
+  // init, cond, and inc can be nullptr
+  absl::Status GenerateIR_PipelinedLoop(const clang::Stmt* init,
+                                        const clang::Expr* cond_expr,
+                                        const clang::Stmt* inc,
+                                        const clang::Stmt* body,
+                                        int64_t initiation_interval_arg,
+                                        clang::ASTContext& ctx,
+                                        const xls::SourceLocation& loc);
+  absl::Status GenerateIR_PipelinedLoopBody(
+      const clang::Expr* cond_expr, const clang::Stmt* inc,
+      const clang::Stmt* body, clang::ASTContext& ctx,
       std::string_view name_prefix, IOChannel* context_out_channel,
       IOChannel* ctrl_out_channel, IOChannel* context_in_channel,
       IOChannel* ctrl_in_channel, xls::Type* context_xls_type,
@@ -861,6 +871,9 @@ class Translator {
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       std::vector<const clang::NamedDecl*>& vars_changed_in_body,
       const xls::SourceLocation& loc);
+  absl::Status GenerateIR_Switch(const clang::SwitchStmt* switchst,
+                                 clang::ASTContext& ctx,
+                                 const xls::SourceLocation& loc);
 
   struct ResolvedInheritance {
     std::shared_ptr<CField> base_field;

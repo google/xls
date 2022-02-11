@@ -973,6 +973,25 @@ TEST_F(TranslatorTest, ForUnroll) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
+TEST_F(TranslatorTest, WhileUnroll) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10) {
+          a += b;
+          a += 2*b;
+          ++i;
+        }
+        return a;
+      })";
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Unrolled loop must have an initializer")));
+}
+
 TEST_F(TranslatorTest, ForUnrollClass) {
   const std::string content = R"(
        struct TestInt {
@@ -3206,6 +3225,62 @@ TEST_F(TranslatorTest, ForPipelined) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
+TEST_F(TranslatorTest, WhilePipelined) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      long i=1;
+
+      #pragma hls_pipeline_init_interval 1
+      while(i<=4) {
+        a += i;
+        ++i;
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+}
+
 TEST_F(TranslatorTest, ForPipelinedSerial) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -3371,7 +3446,7 @@ TEST_F(TranslatorTest, ForPipelinedReturnInBody) {
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("eturns in pipelined for body unimplemented")));
+          testing::HasSubstr("eturns in pipelined loop body unimplemented")));
 }
 
 TEST_F(TranslatorTest, ForPipelinedII2) {
@@ -3944,7 +4019,7 @@ TEST_F(TranslatorTest, ForPipelinedInMethod) {
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("ipelined for loops in methods unsupported")));
+          testing::HasSubstr("ipelined loops in methods unsupported")));
 }
 
 TEST_F(TranslatorTest, ForPipelinedInFunctionInIf) {
@@ -4497,8 +4572,7 @@ TEST_F(TranslatorTest, ForPipelinedIOInBodySubroutine2) {
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr(
-              "pipelined for loops in subroutines unimplemented")));
+          testing::HasSubstr("pipelined loops in subroutines unimplemented")));
 }
 
 TEST_F(TranslatorTest, Static) {
@@ -5244,10 +5318,11 @@ TEST_F(TranslatorTest, InvalidUnrolledLoop) {
       return a;
     })";
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("Unrolled for must have an initializer")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Unrolled loop must have an initializer")));
 }
 
 TEST_F(TranslatorTest, NonPramaNestedLoop) {

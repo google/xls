@@ -2048,7 +2048,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   if (call->getStmtClass() == clang::Stmt::StmtClass::CXXMemberCallExprClass) {
     auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(call);
     this_expr = member_call->getImplicitObjectArgument();
-
     pthisval = &thisval;
 
     const clang::QualType& thisQual =
@@ -2074,6 +2073,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       // this comes as first argument for operators
       this_expr = call->getArg(0);
+
       const clang::QualType& thisQual =
           clang_down_cast<const clang::CXXMethodDecl*>(
               op_call->getDirectCallee())
@@ -2525,6 +2525,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
     case clang::Stmt::CXXOperatorCallExprClass:
     case clang::Stmt::CallExprClass: {
       auto call = clang_down_cast<const clang::CallExpr*>(expr);
+
       XLS_ASSIGN_OR_RETURN(IOOpReturn ret, InterceptIOOp(call, loc));
 
       // If this call is an IO op, then return the IO value, rather than
@@ -3039,9 +3040,9 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   switch (stmt->getStmtClass()) {
     case clang::Stmt::ReturnStmtClass: {
       if (context().in_pipelined_for_body) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Returns in pipelined for body unimplemented at %s",
-                            LocString(loc)));
+        return absl::UnimplementedError(absl::StrFormat(
+            "Returns in pipelined loop body unimplemented at %s",
+            LocString(loc)));
       }
       auto rts = clang_down_cast<const clang::ReturnStmt*>(stmt);
       const clang::Expr* rvalue = rts->getRetValue();
@@ -3142,7 +3143,15 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
             guard.propagate_break_up = false;
             guard.propagate_continue_up = false;
 
-            XLS_ASSIGN_OR_RETURN(init, TranslateBValToConstVal(translated));
+            absl::StatusOr<ConstValue> translate_result =
+                TranslateBValToConstVal(translated);
+            if (!translate_result.ok()) {
+              XLS_LOG(ERROR)
+                  << "Failed to evaluate IR as const:"
+                  << translated.value().ToString() << " at " << LocString(loc);
+              return translate_result.status();
+            }
+            init = translate_result.value();
           }
 
           XLS_RETURN_IF_ERROR(DeclareStatic(namedecl, init, loc));
@@ -3228,7 +3237,16 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
     case clang::Stmt::ForStmtClass: {
       auto forst = clang_down_cast<const clang::ForStmt*>(stmt);
-      XLS_RETURN_IF_ERROR(GenerateIR_For(forst, ctx, loc, sm));
+      XLS_RETURN_IF_ERROR(GenerateIR_Loop(
+          forst->getInit(), forst->getCond(), forst->getInc(), forst->getBody(),
+          GetPresumedLoc(sm, *forst), loc, ctx, sm));
+      break;
+    }
+    case clang::Stmt::WhileStmtClass: {
+      auto forst = clang_down_cast<const clang::WhileStmt*>(stmt);
+      XLS_RETURN_IF_ERROR(GenerateIR_Loop(
+          /*init=*/nullptr, forst->getCond(), /*inc=*/nullptr, forst->getBody(),
+          GetPresumedLoc(sm, *forst), loc, ctx, sm));
       break;
     }
     case clang::Stmt::SwitchStmtClass: {
@@ -3288,56 +3306,57 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateIR_For(const clang::ForStmt* stmt,
-                                        clang::ASTContext& ctx,
-                                        const xls::SourceLocation& loc,
-                                        const clang::SourceManager& sm) {
-  auto condition = stmt->getCond();
-  if (condition != nullptr && condition->isIntegerConstantExpr(ctx)) {
+absl::Status Translator::GenerateIR_Loop(
+    const clang::Stmt* init, const clang::Expr* cond_expr,
+    const clang::Stmt* inc, const clang::Stmt* body,
+    const clang::PresumedLoc& presumed_loc, const xls::SourceLocation& loc,
+    clang::ASTContext& ctx, const clang::SourceManager& sm) {
+  if (cond_expr != nullptr && cond_expr->isIntegerConstantExpr(ctx)) {
     // special case for "for (;0;) {}" (essentially no op)
-    XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*condition, ctx, loc));
+    XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*cond_expr, ctx, loc));
     if (constVal == 0) {
       return absl::OkStatus();
     }
   }
-  XLS_ASSIGN_OR_RETURN(Pragma pragma,
-                       FindPragmaForLoc(GetPresumedLoc(sm, *stmt)));
+  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(presumed_loc));
   if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
-    return GenerateIR_UnrolledFor(stmt, ctx, loc);
+    return GenerateIR_UnrolledLoop(init, cond_expr, inc, body, ctx, loc);
   }
   if (pragma.type() == Pragma_InitInterval) {
-    return GenerateIR_PipelinedFor(stmt, pragma.argument(), ctx, loc);
+    return GenerateIR_PipelinedLoop(init, cond_expr, inc, body,
+                                    pragma.argument(), ctx, loc);
   }
 
   return absl::UnimplementedError(
       absl::StrFormat("For loop missing #pragma at %s", LocString(loc)));
 }
 
-absl::Status Translator::GenerateIR_UnrolledFor(
-    const clang::ForStmt* stmt, clang::ASTContext& ctx,
+absl::Status Translator::GenerateIR_UnrolledLoop(
+    const clang::Stmt* init, const clang::Expr* cond_expr,
+    const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
     const xls::SourceLocation& loc) {
-  if (stmt->getInit() == nullptr) {
+  if (init == nullptr) {
     return absl::UnimplementedError(
-        absl::StrFormat("Unrolled for must have an initializer"));
+        absl::StrFormat("Unrolled loop must have an initializer"));
   }
 
-  if (stmt->getCond() == nullptr) {
+  if (cond_expr == nullptr) {
     return absl::UnimplementedError(
-        absl::StrFormat("Unrolled for must have a condition"));
+        absl::StrFormat("Unrolled loop must have a condition"));
   }
 
-  if (stmt->getInc() == nullptr) {
+  if (inc == nullptr) {
     return absl::UnimplementedError(
-        absl::StrFormat("Unrolled for must have an increment"));
+        absl::StrFormat("Unrolled loop must have an increment"));
   }
 
-  if (stmt->getInit()->getStmtClass() != clang::Stmt::DeclStmtClass) {
+  if (init->getStmtClass() != clang::Stmt::DeclStmtClass) {
     return absl::UnimplementedError(absl::StrFormat(
-        "Unrolled for initializer must be a DeclStmt, but is a %s at %s",
-        stmt->getInit()->getStmtClassName(), LocString(loc)));
+        "Unrolled loop initializer must be a DeclStmt, but is a %s at %s",
+        init->getStmtClassName(), LocString(loc)));
   }
 
-  auto declstmt = clang_down_cast<const clang::DeclStmt*>(stmt->getInit());
+  auto declstmt = clang_down_cast<const clang::DeclStmt*>(init);
   if (!declstmt->isSingleDecl()) {
     return absl::UnimplementedError(
         absl::StrFormat("Decl groups at %s", LocString(loc)));
@@ -3349,7 +3368,7 @@ absl::Status Translator::GenerateIR_UnrolledFor(
   for_init_guard.propagate_continue_up = false;
   context().in_for_body = true;
 
-  XLS_RETURN_IF_ERROR(GenerateIR_Stmt(stmt->getInit(), ctx));
+  XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
 
   const clang::Decl* decl = declstmt->getSingleDecl();
   auto counter_namedecl = clang_down_cast<const clang::NamedDecl*>(decl);
@@ -3368,8 +3387,7 @@ absl::Status Translator::GenerateIR_UnrolledFor(
           absl::StrFormat("Loop unrolling broke at maximum %i iterations at %s",
                           max_unroll_iters_, LocString(loc)));
     }
-    XLS_ASSIGN_OR_RETURN(CValue cond_expr,
-                         GenerateIR_Expr(stmt->getCond(), loc));
+    XLS_ASSIGN_OR_RETURN(CValue cond_expr, GenerateIR_Expr(cond_expr, loc));
     XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_expr.type().get()));
     XLS_ASSIGN_OR_RETURN(xls::Value cond_val, EvaluateBVal(cond_expr.value()));
     if (cond_val.IsAllZeros()) break;
@@ -3385,14 +3403,14 @@ absl::Status Translator::GenerateIR_UnrolledFor(
       context().forbidden_lvalues.insert(
           clang_down_cast<const clang::NamedDecl*>(decl));
 
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt->getBody(), ctx));
+      XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
     }
 
     // Counter increment
     {
       // Unconditionally assign to loop unrolling variable(s)
       UnconditionalAssignmentGuard assign_guard(*this);
-      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(stmt->getInc(), ctx));
+      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
     }
 
     // Flatten the counter for efficiency
@@ -3432,9 +3450,11 @@ GeneratedFunction::GetDeterministicallyOrderedStaticValues() {
   return ret;
 }
 
-absl::Status Translator::GenerateIR_PipelinedFor(
-    const clang::ForStmt* stmt, int64_t initiation_interval_arg,
-    clang::ASTContext& ctx, const xls::SourceLocation& loc) {
+absl::Status Translator::GenerateIR_PipelinedLoop(
+    const clang::Stmt* init, const clang::Expr* cond_expr,
+    const clang::Stmt* inc, const clang::Stmt* body,
+    int64_t initiation_interval_arg, clang::ASTContext& ctx,
+    const xls::SourceLocation& loc) {
   if (initiation_interval_arg != 1) {
     return absl::UnimplementedError(absl::StrFormat(
         "Only initiation interval 1 supported at %s", LocString(loc)));
@@ -3442,7 +3462,7 @@ absl::Status Translator::GenerateIR_PipelinedFor(
 
   if (context().this_val.value().valid()) {
     return absl::UnimplementedError(absl::StrFormat(
-        "Pipelined for loops in methods unsupported at %s", LocString(loc)));
+        "Pipelined loops in methods unsupported at %s", LocString(loc)));
   }
 
   // Generate the loop counter declaration within a private context
@@ -3450,14 +3470,13 @@ absl::Status Translator::GenerateIR_PipelinedFor(
   // This causes it to be automatically reset on break
   PushContextGuard for_init_guard(*this, loc);
 
-  if (stmt->getInit() != nullptr) {
-    XLS_RETURN_IF_ERROR(GenerateIR_Stmt(stmt->getInit(), ctx));
+  if (init != nullptr) {
+    XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
   }
 
   // Condition must be checked at the start
-  if (stmt->getCond() != nullptr) {
-    XLS_ASSIGN_OR_RETURN(CValue cond_cval,
-                         GenerateIR_Expr(stmt->getCond(), loc));
+  if (cond_expr != nullptr) {
+    XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
     XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_cval.type().get()));
 
     context().and_condition(cond_cval.value(), loc);
@@ -3613,9 +3632,9 @@ absl::Status Translator::GenerateIR_PipelinedFor(
 
   // Create loop body proc
   std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedForBody(
-      stmt, ctx, name_prefix, context_out_channel, ctrl_out_channel,
-      context_in_channel, ctrl_in_channel, context_xls_type,
+  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopBody(
+      cond_expr, inc, body, ctx, name_prefix, context_out_channel,
+      ctrl_out_channel, context_in_channel, ctrl_in_channel, context_xls_type,
       context_struct_type, variable_field_indices, variable_fields_order,
       vars_changed_in_body, loc));
 
@@ -3644,8 +3663,9 @@ absl::Status Translator::GenerateIR_PipelinedFor(
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateIR_PipelinedForBody(
-    const clang::ForStmt* stmt, clang::ASTContext& ctx,
+absl::Status Translator::GenerateIR_PipelinedLoopBody(
+    const clang::Expr* cond_expr, const clang::Stmt* inc,
+    const clang::Stmt* body, clang::ASTContext& ctx,
     std::string_view name_prefix, IOChannel* context_out_channel,
     IOChannel* ctrl_out_channel, IOChannel* context_in_channel,
     IOChannel* ctrl_in_channel, xls::Type* context_xls_type,
@@ -3720,8 +3740,8 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
       context_guard.propagate_break_up = false;
       context_guard.propagate_continue_up = false;
       context().in_for_body = true;
-      XLS_CHECK_NE(stmt->getBody(), nullptr);
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt->getBody(), ctx));
+      XLS_CHECK_NE(body, nullptr);
+      XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
 
       if (context().break_condition.valid()) {
         // break_condition is the assignment condition
@@ -3735,16 +3755,15 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
 
     // Increment
     // Break condition skips increment
-    if (stmt->getInc() != nullptr) {
+    if (inc != nullptr) {
       PushContextGuard context_guard(*this, loc);
       context().and_condition(context().fb->Not(do_break, loc), loc);
-      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(stmt->getInc(), ctx));
+      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
     }
 
     // Check condition
-    if (stmt->getCond() != nullptr) {
-      XLS_ASSIGN_OR_RETURN(CValue cond_cval,
-                           GenerateIR_Expr(stmt->getCond(), loc));
+    if (cond_expr != nullptr) {
+      XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
       XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_cval.type().get()));
       xls::BValue break_on_cond_val = context().fb->Not(cond_cval.value());
 
@@ -3874,7 +3893,7 @@ absl::Status Translator::GenerateIR_PipelinedForBody(
 
     if (!external_channels_by_top_param_.contains(param)) {
       return absl::UnimplementedError(absl::StrFormat(
-          "IO in pipelined for loops in subroutines unimplemented at %s",
+          "IO in pipelined loops in subroutines unimplemented at %s",
           LocString(loc)));
     }
   }
