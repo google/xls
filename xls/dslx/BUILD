@@ -104,6 +104,7 @@ cc_library(
         ":interp_value",
         ":symbolic_bindings",
         ":type_info",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",

@@ -1402,6 +1402,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMatch(Match* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> matched,
                        ctx->Deduce(node->matched()));
 
+  if (node->arms().empty()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        "Match construct has no arms, cannot determine its type.");
+  }
+
   absl::flat_hash_set<std::string> seen_patterns;
   for (MatchArm* arm : node->arms()) {
     // We opportunistically identify syntactically identical match arms -- this

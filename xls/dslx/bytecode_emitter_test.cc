@@ -283,6 +283,48 @@ fn do_ternary() -> u32 {
 006 jump_dest)");
 }
 
+TEST(BytecodeEmitterTest, MatchSimpleArms) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn do_match() -> u32 {
+  let x = u32:77;
+  match x {
+    u32:42 => u32:64,
+    u32:64 => u32:42,
+    _ => x + u32:1
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "do_match"));
+
+  EXPECT_EQ(BytecodesToString(bf->bytecodes(), /*source_locs=*/false),
+            R"(000 literal u32:77
+001 store 0
+002 load 0
+003 dup
+004 literal u32:42
+005 ne
+006 jump_rel_if +4
+007 pop
+008 literal u32:64
+009 jump_rel +14
+010 jump_dest
+011 dup
+012 literal u32:64
+013 ne
+014 jump_rel_if +4
+015 pop
+016 literal u32:42
+017 jump_rel +6
+018 jump_dest
+019 pop
+020 load 0
+021 literal u32:1
+022 add
+023 jump_dest)");
+}
+
 TEST(BytecodeEmitterTest, BytecodesFromString) {
   std::string s = R"(000 literal u2:1
 001 literal s2:-1

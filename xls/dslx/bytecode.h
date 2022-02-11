@@ -124,6 +124,8 @@ class Bytecode {
     kXor,
     // Duplicates the value at TOS0 to be the new TOS0.
     kDup,
+    // Pops the value at TOS0.
+    kPop,
   };
 
   // Indicates the amount by which the PC should be adjusted.
@@ -185,18 +187,15 @@ class Bytecode {
   //
   // Note: kPlaceholderJumpAmount is used as a canonical placeholder for things
   // that should be patched.
-  void Patch(int64_t value) {
-    XLS_CHECK(data_.has_value());
-    JumpTarget jump_target = absl::get<JumpTarget>(data_.value());
-    XLS_CHECK_EQ(jump_target, kPlaceholderJumpAmount);
-    data_ = JumpTarget(value);
-  }
+  void Patch(int64_t value);
 
  private:
   Span source_span_;
   Op op_;
   absl::optional<Data> data_;
 };
+
+std::string OpToString(Bytecode::Op op);
 
 // Holds all the bytecode implementing a function along with useful metadata.
 class BytecodeFunction {

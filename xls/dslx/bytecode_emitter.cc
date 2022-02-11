@@ -19,6 +19,7 @@
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
@@ -614,6 +615,39 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
                Bytecode::InvocationData{node, maybe_callee_bindings}));
 }
 
+void BytecodeEmitter::HandleNameDefTreeExpr(NameDefTree* tree) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  if (tree->is_leaf()) {
+    absl::visit(
+        Visitor{
+            [this](NameRef* n) { n->AcceptExpr(this); },
+            [this](Number* n) { n->AcceptExpr(this); },
+            [this](ColonRef* n) { n->AcceptExpr(this); },
+            [this](NameDef* n) {
+              status_ = absl::InternalError(
+                  "NameDefTree leaf was not an expression; got NameDef");
+            },
+            [this](WildcardPattern* n) {
+              status_ = absl::InternalError(
+                  "NameDefTree leaf was not an expression; got "
+                  "WildcardPattern");
+            },
+        },
+        tree->leaf());
+    return;
+  }
+
+  for (NameDefTree* node : tree->nodes()) {
+    HandleNameDefTreeExpr(node);
+  }
+
+  bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kCreateTuple,
+                               Bytecode::NumElements(tree->nodes().size())));
+}
+
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
   if (tree->is_leaf()) {
     NameDef* name_def = absl::get<NameDef*>(tree->leaf());
@@ -906,6 +940,136 @@ void BytecodeEmitter::HandleTernary(Ternary* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
   bytecode_.at(jump_if_index).Patch(consequent_index - jump_if_index);
   bytecode_.at(jump_index).Patch(jumpdest_index - jump_index);
+}
+
+void BytecodeEmitter::HandleMatch(Match* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  // Structure is: (value-to-match is at TOS0)
+  //
+  //  <value-to-match present>
+  //  dup                       # Duplicate the value to match so the test can
+  //                            # consume it and we can go to the next one if it
+  //                            # fails.
+  //  arm0_matcher_value        # The value to match against.
+  //  ne                        # If it's not a match...
+  //  jump_rel_if =>arm1_match  # Jump to the next arm!
+  //  pop                       # Otherwise, we don't need the matchee any more,
+  //                            # we found what arm we want to eval.
+  //  $arm0_expr                # Eval the arm RHS.
+  //  jump =>done               # Done evaluating the match, goto done.
+  // arm1_match:                # Next match arm test...
+  //  jump_dest                 # Is something we jump to.
+  //  dup                       # It also needs to copy in case its test fails.
+  //  arm1_matcher_value        # etc.
+  //  ne
+  //  jump_rel_if => wild_arm_match
+  //  pop
+  //  $arm1_expr
+  //  jump =>done
+  // wild_arm_match:            # Final arm must be wildcard.
+  //  pop                       # Where we don't care about the matched value.
+  //  $wild_arm_expr            # We just eval the RHS.
+  // done:
+  //  jump_dest                 # TOS0 holds result, matched value is gone.
+  node->matched()->AcceptExpr(this);
+
+  // Current limitations:
+  // * Only match arms with single pattern
+  // * Last pattern must be wildcard
+  // * No other patterns may be/contain wildcard
+  const std::vector<MatchArm*>& arms = node->arms();
+  if (arms.empty()) {
+    status_ = absl::InternalError("At least one match arm is required.");
+    return;
+  }
+  for (MatchArm* arm : arms) {
+    const std::vector<NameDefTree*>& patterns = arm->patterns();
+    if (patterns.size() != 1) {
+      status_ = absl::UnimplementedError(
+          "Only a single match arm pattern is supported.");
+      return;
+    }
+  }
+  NameDefTree* last_arm_pattern = arms.back()->patterns()[0];
+  if (!last_arm_pattern->is_leaf() ||
+      !absl::holds_alternative<WildcardPattern*>(last_arm_pattern->leaf())) {
+    status_ = absl::UnimplementedError(
+        "Last match-arm's pattern must be a wildcard; got: " +
+        last_arm_pattern->ToString());
+    return;
+  }
+  // Check the patterns don't require us to store any locals or skip any
+  // comparisons.
+  for (size_t i = 0; i < arms.size() - 1; ++i) {
+    NameDefTree* pattern = arms[i]->patterns().back();
+    for (NameDefTree::Leaf leaf : pattern->Flatten()) {
+      if (absl::holds_alternative<NameDef*>(leaf) ||
+          absl::holds_alternative<WildcardPattern*>(leaf)) {
+        status_ = absl::UnimplementedError(
+            "Irrefutable match pattern components are not yet supported.");
+        return;
+      }
+    }
+  }
+
+  std::vector<size_t> arm_offsets;
+  std::vector<size_t> jumps_to_next;
+  std::vector<size_t> jumps_to_done;
+
+  for (size_t i = 0; i < node->arms().size(); ++i) {
+    bool last_arm = i + 1 == node->arms().size();
+    MatchArm* arm = node->arms()[i];
+    arm_offsets.push_back(bytecode_.size());
+    // We don't jump to the first arm test, but we jump to all the subsequent
+    // ones.
+    if (arm_offsets.size() > 1) {
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
+    }
+    if (!last_arm) {
+      // Dup the value at TOS0 (the value being matched on) so we can compare to
+      // it.
+      bytecode_.emplace_back(node->matched()->span(), Bytecode::Op::kDup);
+      NameDefTree* ndt = arm->patterns()[0];
+      HandleNameDefTreeExpr(ndt);
+      bytecode_.emplace_back(ndt->span(), Bytecode::Op::kNe);
+      jumps_to_next.push_back(bytecode_.size());
+      bytecode_.emplace_back(arm->span(), Bytecode::Op::kJumpRelIf,
+                             Bytecode::kPlaceholderJumpAmount);
+    }
+    // Pop the value being matched since now we're going to produce the final
+    // result.
+    bytecode_.emplace_back(arm->span(), Bytecode::Op::kPop);
+    // The arm matched: calculate the resulting expression and jump
+    // unconditionally to "done".
+    arm->expr()->AcceptExpr(this);
+    if (!last_arm) {
+      jumps_to_done.push_back(bytecode_.size());
+      bytecode_.emplace_back(arm->span(), Bytecode::Op::kJumpRel,
+                             Bytecode::kPlaceholderJumpAmount);
+    }
+  }
+
+  size_t done_offset = bytecode_.size();
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
+
+  XLS_CHECK_EQ(node->arms().size(), arm_offsets.size());
+  XLS_CHECK_EQ(node->arms().size(), jumps_to_next.size() + 1);
+  for (size_t i = 0; i < jumps_to_next.size(); ++i) {
+    size_t jump_offset = jumps_to_next[i];
+    size_t next_offset = arm_offsets[i + 1];
+    XLS_VLOG(5) << "Patching jump offset " << jump_offset
+                << " to jump to next_offset " << next_offset;
+    bytecode_.at(jump_offset).Patch(next_offset - jump_offset);
+  }
+
+  for (size_t offset : jumps_to_done) {
+    XLS_VLOG(5) << "Patching jump-to-done offset " << offset
+                << " to jump to done_offset " << done_offset;
+    bytecode_.at(offset).Patch(done_offset - offset);
+  }
 }
 
 }  // namespace xls::dslx

@@ -32,7 +32,8 @@ using testing::HasSubstr;
 
 absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
                                       absl::string_view program,
-                                      absl::string_view entry) {
+                                      absl::string_view entry,
+                                      std::vector<InterpValue> args = {}) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", import_data));
@@ -42,7 +43,7 @@ absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(import_data, tm.type_info, f, absl::nullopt));
 
-  return BytecodeInterpreter::Interpret(import_data, bf.get(), {});
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), args);
 }
 
 static const Pos kFakePos("fake.x", 0, 0);
@@ -73,7 +74,7 @@ TEST(BytecodeInterpreterTest, DupEmptyStack) {
   ASSERT_THAT(
       BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}),
       StatusIs(absl::StatusCode::kInternal,
-               ::testing::HasSubstr("stack_.size() >= 1")));
+               ::testing::HasSubstr("!stack_.empty()")));
 }
 
 // Interprets a nearly-minimal bytecode program; the same from
@@ -155,6 +156,134 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
   XLS_ASSERT_OK_AND_ASSIGN(element, value.Index(InterpValue::MakeU32(2)));
   XLS_ASSERT_OK_AND_ASSIGN(bit_value, element.GetBitValueInt64());
   EXPECT_EQ(bit_value, 5);
+}
+
+TEST(BytecodeInterpreterTest, RunMatchArms) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u32) -> u32 {
+  match x {
+    u32:42 => u32:64,
+    u32:64 => u32:42,
+    _ => x + u32:1
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
+                        &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
+                                                  &import_data, bf.get(),
+                                                  {InterpValue::MakeU32(42)}));
+  EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
+                                            {InterpValue::MakeU32(64)}));
+  EXPECT_EQ(value, InterpValue::MakeU32(42)) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
+                                            {InterpValue::MakeU32(77)}));
+  EXPECT_EQ(value, InterpValue::MakeU32(78)) << value.ToString();
+}
+
+TEST(BytecodeInterpreterTest, RunMatchArmsTuplePattern) {
+  constexpr absl::string_view kProgram = R"(
+fn main(t: (u32, u32)) -> u32 {
+  match t {
+    (u32:42, u32:64) => u32:1,
+    (u32:64, u32:42) => u32:2,
+    _ => u32:3,
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
+                        &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+
+  auto tuple_one = InterpValue::MakeTuple(
+      {InterpValue::MakeU32(42), InterpValue::MakeU32(64)});
+  auto tuple_two = InterpValue::MakeTuple(
+      {InterpValue::MakeU32(64), InterpValue::MakeU32(42)});
+  auto tuple_three = InterpValue::MakeTuple(
+      {InterpValue::MakeU32(64), InterpValue::MakeU32(64)});
+  auto tuple_four = InterpValue::MakeTuple(
+      {InterpValue::MakeU32(42), InterpValue::MakeU32(42)});
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      BytecodeInterpreter::Interpret(&import_data, bf.get(), {tuple_one}));
+  EXPECT_EQ(value, InterpValue::MakeU32(1)) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
+                                      &import_data, bf.get(), {tuple_two}));
+  EXPECT_EQ(value, InterpValue::MakeU32(2)) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
+                                      &import_data, bf.get(), {tuple_three}));
+  EXPECT_EQ(value, InterpValue::MakeU32(3)) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
+                                      &import_data, bf.get(), {tuple_four}));
+  EXPECT_EQ(value, InterpValue::MakeU32(3)) << value.ToString();
+}
+
+TEST(BytecodeInterpreterTest, RunMatchArmIrrefutablePattern) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u32) -> u32 {
+  match x {
+    u32:42 => u32:64,
+    y => y + u32:1,
+    _ => u32:128,
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
+                        &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  ASSERT_THAT(
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt),
+      StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr(
+              "Irrefutable match pattern components are not yet supported")));
+}
+
+TEST(BytecodeInterpreterTest, RunMatchNoTrailingWildcard) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u32) -> u32 {
+  match x {
+    y => y + u32:1,
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
+                        &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  ASSERT_THAT(
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt),
+      StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("Last match-arm's pattern must be a wildcard")));
 }
 
 TEST(BytecodeInterpreterTest, RunTernaryConsequent) {

@@ -59,7 +59,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleInvocation(Invocation* node) override;
   void HandleJoin(Join* node) override { DefaultHandler(node); }
   void HandleLet(Let* node) override;
-  void HandleMatch(Match* node) override { DefaultHandler(node); }
+  void HandleMatch(Match* node) override;
   void HandleNameRef(NameRef* node) override;
   void HandleNumber(Number* node) override;
   void HandleRecv(Recv* node) override { DefaultHandler(node); }
@@ -99,6 +99,8 @@ class BytecodeEmitter : public ExprVisitor {
                                                 TypeInfo* type_info);
   absl::StatusOr<Bytecode> HandleColonRefToValue(Module* module,
                                                  ColonRef* colon_ref);
+
+  void HandleNameDefTreeExpr(NameDefTree* tree);
 
   void DestructureLet(NameDefTree* tree);
 

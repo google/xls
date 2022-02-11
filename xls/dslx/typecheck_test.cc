@@ -704,6 +704,12 @@ TEST(TypecheckTest, OutOfRangeNumberInConstantArray) {
           HasSubstr("Value '256' does not fit in the bitwidth of a uN[8]")));
 }
 
+TEST(TypecheckTest, MatchNoArms) {
+  EXPECT_THAT(Typecheck("fn f(x: u8) -> u8 { let _ = match x {}; x }"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Match construct has no arms")));
+}
+
 TEST(TypecheckTest, MatchArmMismatch) {
   EXPECT_THAT(
       Typecheck("fn f(x: u8) -> u8 { match x { u8:0 => u8:3, _ => u3:3 } }"),

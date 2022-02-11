@@ -97,6 +97,8 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
                         frame->pc(), bytecodes.size()));
   }
   const Bytecode& bytecode = bytecodes.at(frame->pc());
+  XLS_VLOG(10) << "Running bytecode: " << bytecode.ToString()
+               << " depth before: " << stack_.size();
   switch (bytecode.op()) {
     case Bytecode::Op::kAdd: {
       XLS_RETURN_IF_ERROR(EvalAdd(bytecode));
@@ -212,6 +214,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kOr: {
       XLS_RETURN_IF_ERROR(EvalOr(bytecode));
+      break;
+    }
+    case Bytecode::Op::kPop: {
+      XLS_RETURN_IF_ERROR(EvalPop(bytecode));
       break;
     }
     case Bytecode::Op::kShll: {
@@ -499,7 +505,9 @@ absl::Status BytecodeInterpreter::EvalDiv(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalDup(const Bytecode& bytecode) {
-  return EvalUnop([](const InterpValue& arg) { return arg; });
+  XLS_RET_CHECK(!stack_.empty());
+  stack_.push_back(stack_.back());
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalEq(const Bytecode& bytecode) {
@@ -656,6 +664,10 @@ absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.BitwiseOr(rhs);
   });
+}
+
+absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
+  return Pop().status();
 }
 
 absl::Status BytecodeInterpreter::EvalShll(const Bytecode& bytecode) {

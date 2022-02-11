@@ -24,82 +24,6 @@
 namespace xls::dslx {
 namespace {
 
-std::string OpToString(Bytecode::Op op) {
-  switch (op) {
-    case Bytecode::Op::kAdd:
-      return "add";
-    case Bytecode::Op::kAnd:
-      return "and";
-    case Bytecode::Op::kCall:
-      return "call";
-    case Bytecode::Op::kCast:
-      return "cast";
-    case Bytecode::Op::kConcat:
-      return "concat";
-    case Bytecode::Op::kCreateArray:
-      return "create_array";
-    case Bytecode::Op::kCreateTuple:
-      return "create_tuple";
-    case Bytecode::Op::kDiv:
-      return "div";
-    case Bytecode::Op::kDup:
-      return "dup";
-    case Bytecode::Op::kExpandTuple:
-      return "expand_tuple";
-    case Bytecode::Op::kEq:
-      return "eq";
-    case Bytecode::Op::kGe:
-      return "ge";
-    case Bytecode::Op::kGt:
-      return "gt";
-    case Bytecode::Op::kIndex:
-      return "index";
-    case Bytecode::Op::kInvert:
-      return "invert";
-    case Bytecode::Op::kJumpRel:
-      return "jump_rel";
-    case Bytecode::Op::kJumpRelIf:
-      return "jump_rel_if";
-    case Bytecode::Op::kJumpDest:
-      return "jump_dest";
-    case Bytecode::Op::kLe:
-      return "le";
-    case Bytecode::Op::kLoad:
-      return "load";
-    case Bytecode::Op::kLt:
-      return "lt";
-    case Bytecode::Op::kLiteral:
-      return "literal";
-    case Bytecode::Op::kLogicalAnd:
-      return "logical_and";
-    case Bytecode::Op::kLogicalOr:
-      return "logical_or";
-    case Bytecode::Op::kMul:
-      return "mul";
-    case Bytecode::Op::kNe:
-      return "ne";
-    case Bytecode::Op::kNegate:
-      return "negate";
-    case Bytecode::Op::kOr:
-      return "or";
-    case Bytecode::Op::kShll:
-      return "shl";
-    case Bytecode::Op::kShrl:
-      return "shr";
-    case Bytecode::Op::kSlice:
-      return "slice";
-    case Bytecode::Op::kStore:
-      return "store";
-    case Bytecode::Op::kSub:
-      return "sub";
-    case Bytecode::Op::kWidthSlice:
-      return "width_slice";
-    case Bytecode::Op::kXor:
-      return "xor";
-  }
-  return absl::StrCat("<invalid: ", static_cast<int>(op), ">");
-}
-
 absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "add") {
     return Bytecode::Op::kAdd;
@@ -160,6 +84,84 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
 }
 
 }  // namespace
+
+std::string OpToString(Bytecode::Op op) {
+  switch (op) {
+    case Bytecode::Op::kAdd:
+      return "add";
+    case Bytecode::Op::kAnd:
+      return "and";
+    case Bytecode::Op::kCall:
+      return "call";
+    case Bytecode::Op::kCast:
+      return "cast";
+    case Bytecode::Op::kConcat:
+      return "concat";
+    case Bytecode::Op::kCreateArray:
+      return "create_array";
+    case Bytecode::Op::kCreateTuple:
+      return "create_tuple";
+    case Bytecode::Op::kDiv:
+      return "div";
+    case Bytecode::Op::kDup:
+      return "dup";
+    case Bytecode::Op::kExpandTuple:
+      return "expand_tuple";
+    case Bytecode::Op::kEq:
+      return "eq";
+    case Bytecode::Op::kGe:
+      return "ge";
+    case Bytecode::Op::kGt:
+      return "gt";
+    case Bytecode::Op::kIndex:
+      return "index";
+    case Bytecode::Op::kInvert:
+      return "invert";
+    case Bytecode::Op::kJumpRel:
+      return "jump_rel";
+    case Bytecode::Op::kJumpRelIf:
+      return "jump_rel_if";
+    case Bytecode::Op::kJumpDest:
+      return "jump_dest";
+    case Bytecode::Op::kLe:
+      return "le";
+    case Bytecode::Op::kLoad:
+      return "load";
+    case Bytecode::Op::kLt:
+      return "lt";
+    case Bytecode::Op::kLiteral:
+      return "literal";
+    case Bytecode::Op::kLogicalAnd:
+      return "logical_and";
+    case Bytecode::Op::kLogicalOr:
+      return "logical_or";
+    case Bytecode::Op::kMul:
+      return "mul";
+    case Bytecode::Op::kNe:
+      return "ne";
+    case Bytecode::Op::kNegate:
+      return "negate";
+    case Bytecode::Op::kOr:
+      return "or";
+    case Bytecode::Op::kPop:
+      return "pop";
+    case Bytecode::Op::kShll:
+      return "shl";
+    case Bytecode::Op::kShrl:
+      return "shr";
+    case Bytecode::Op::kSlice:
+      return "slice";
+    case Bytecode::Op::kStore:
+      return "store";
+    case Bytecode::Op::kSub:
+      return "sub";
+    case Bytecode::Op::kWidthSlice:
+      return "width_slice";
+    case Bytecode::Op::kXor:
+      return "xor";
+  }
+  return absl::StrCat("<invalid: ", static_cast<int>(op), ">");
+}
 
 std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
                               bool source_locs) {
@@ -238,6 +240,15 @@ absl::StatusOr<const ConcreteType*> Bytecode::type_data() const {
     return absl::InvalidArgumentError("Bytecode data is not a ConcreteType.");
   }
   return absl::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
+}
+
+void Bytecode::Patch(int64_t value) {
+  XLS_CHECK(op_ == Op::kJumpRelIf || op_ == Op::kJumpRel)
+      << "Cannot patch non-jump op: " << OpToString(op_);
+  XLS_CHECK(data_.has_value());
+  JumpTarget jump_target = absl::get<JumpTarget>(data_.value());
+  XLS_CHECK_EQ(jump_target, kPlaceholderJumpAmount);
+  data_ = JumpTarget(value);
 }
 
 std::string Bytecode::ToString(bool source_locs) const {
