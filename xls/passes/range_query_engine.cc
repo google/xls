@@ -283,6 +283,44 @@ struct BitsWithIndex {
   }
 };
 
+// Calls the given function on every possible mixed-radix number of a given
+// length (the length of the radix vector). Each element `i` of a
+// "number vector" is thought of as a digit with radix equal to `radix[i]`.
+// If the given function returns `true`, the iteration ends early and we return
+// `true`. Otherwise, `false` is returned.
+//
+//
+// For example, if the `radix` is `[6, 4, 8, 2]` and the most recent time the
+// callback was called was on `[5, 3, 0, 0]` then the next call will be
+// with `[0, 0, 1, 0]` (note that the convention is little-endian).
+bool MixedRadixIterate(const std::vector<int64_t>& radix,
+                       std::function<bool(const std::vector<int64_t>&)> f) {
+  std::vector<int64_t> number;
+  number.resize(radix.size(), 0);
+
+  // Returns `true` if there was an overflow or `false` otherwise
+  auto increment_number = [&]() -> bool {
+    int64_t i = 0;
+    while ((i < number.size()) && ((number[i] + 1) >= radix[i])) {
+      number[i] = 0;
+      ++i;
+    }
+    if (i < number.size()) {
+      ++number[i];
+      return false;
+    }
+    return true;
+  };
+
+  do {
+    if (f(number)) {
+      return true;
+    }
+  } while (!increment_number());
+
+  return false;
+}
+
 // Given a set of `Bits` (all the same bit-width) and a desired size for that
 // set, reduce the number of elements in the set to the desired size by
 // computing a way to merge together small elements of the set. Returns a list
@@ -443,74 +481,65 @@ absl::Status RangeQueryVisitor::HandleVariadicOp(
     }
   }
 
-  std::vector<int64_t> indexes;
-  indexes.resize(operands.size(), 0);
-
-  // Treating `indexes` as a mixed-radix number, where each element `i` of the
-  // vector is a digit with radix equal to `operands[i].NumberOfIntervals()`,
-  // increment it by 1. Returns `true` if there was an overflow or `false`
-  // otherwise.
-  //
-  // For example, if the number of intervals for each operand is `[5, 3, 7, 1]`
-  // and `indexes` is `[5, 3, 0, 0]` then calling `increment_indexes` will
-  // update it to `[0, 0, 1, 0]` (note that the convention is little-endian).
-  auto increment_indexes = [&indexes, &operands]() -> bool {
-    int64_t i = 0;
-    while ((i < indexes.size()) &&
-           ((indexes[i] + 1) >= operands[i].NumberOfIntervals())) {
-      indexes[i] = 0;
-      ++i;
-    }
-    if (i < indexes.size()) {
-      ++indexes[i];
-      return false;
-    }
-    return true;
-  };
+  std::vector<int64_t> radix;
+  radix.reserve(operands.size());
+  for (const IntervalSet& interval_set : operands) {
+    radix.push_back(interval_set.NumberOfIntervals());
+  }
 
   IntervalSet result_intervals(op->BitCountOrDie());
 
+  absl::Status early_status = absl::OkStatus();
+
   // Each iteration of this do-while loop explores a different choice of
   // intervals from each interval set associated with a parameter.
-  do {
-    std::vector<Bits> lower_bounds;
-    lower_bounds.reserve(indexes.size());
-    std::vector<Bits> upper_bounds;
-    upper_bounds.reserve(indexes.size());
-    for (int64_t i = 0; i < indexes.size(); ++i) {
-      Interval interval = operands[i].Intervals()[indexes[i]];
-      switch (tonicities[i]) {
-        case Tonicity::Monotone: {
-          // The essential property of a unary monotone function `f` is that the
-          // codomain of `f` applied to `[x, y]` is `[f(x), f(y)]`. For example,
-          // the cubing function applied to `[5, 8]` gives a codomain of
-          // `[125, 512]`.
-          lower_bounds.push_back(interval.LowerBound());
-          upper_bounds.push_back(interval.UpperBound());
-          break;
+  bool returned_early = MixedRadixIterate(
+      radix, [&](const std::vector<int64_t>& indexes) -> bool {
+        std::vector<Bits> lower_bounds;
+        lower_bounds.reserve(indexes.size());
+        std::vector<Bits> upper_bounds;
+        upper_bounds.reserve(indexes.size());
+        for (int64_t i = 0; i < indexes.size(); ++i) {
+          Interval interval = operands[i].Intervals()[indexes[i]];
+          switch (tonicities[i]) {
+            case Tonicity::Monotone: {
+              // The essential property of a unary monotone function `f` is that
+              // the codomain of `f` applied to `[x, y]` is `[f(x), f(y)]`.
+              // For example, the cubing function applied to `[5, 8]` gives a
+              // codomain of `[125, 512]`.
+              lower_bounds.push_back(interval.LowerBound());
+              upper_bounds.push_back(interval.UpperBound());
+              break;
+            }
+            case Tonicity::Antitone: {
+              // The essential property of a unary antitone function `f` is that
+              // the codomain of `f` applied to `[x, y]` is `[f(y), f(x)]`.
+              // For example, the negation function applied to `[10, 20]` gives
+              // a codomain of `[-20, -10]`.
+              lower_bounds.push_back(interval.UpperBound());
+              upper_bounds.push_back(interval.LowerBound());
+              break;
+            }
+            case Tonicity::Unknown: {
+              early_status =
+                  absl::InternalError("Tonicity::Unknown not yet supported");
+              return true;
+            }
+          }
         }
-        case Tonicity::Antitone: {
-          // The essential property of a unary antitone function `f` is that the
-          // codomain of `f` applied to `[x, y]` is `[f(y), f(x)]`. For example,
-          // the negation function applied to `[10, 20]` gives an codomain of
-          // `[-20, -10]`.
-          lower_bounds.push_back(interval.UpperBound());
-          upper_bounds.push_back(interval.LowerBound());
-          break;
+        absl::optional<Bits> lower = impl(lower_bounds);
+        absl::optional<Bits> upper = impl(upper_bounds);
+        if (!lower.has_value() || !upper.has_value()) {
+          return true;
         }
-        case Tonicity::Unknown: {
-          return absl::InternalError("Tonicity::Unknown not yet supported");
-          break;
-        }
-      }
-    }
-    absl::optional<Bits> lower = impl(lower_bounds);
-    absl::optional<Bits> upper = impl(upper_bounds);
-    if (!lower.has_value() || !upper.has_value()) {
-      return absl::OkStatus();
-    }
-    result_intervals.AddInterval(Interval(lower.value(), upper.value()));
-  } while (!increment_indexes());
+        result_intervals.AddInterval(Interval(lower.value(), upper.value()));
+        return false;
+      });
+
+  if (returned_early) {
+    return early_status;
+  }
+
   result_intervals = MinimizeIntervals(result_intervals);
 
   LeafTypeTree<IntervalSet> result(op->GetType());
