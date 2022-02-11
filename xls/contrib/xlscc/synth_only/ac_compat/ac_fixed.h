@@ -27,7 +27,11 @@ class ac_fixed {
   ac_fixed(const T& o) {
     (void)__xlscc_unimplemented();
   }
-  int to_int() {
+  int to_int() const {
+    (void)__xlscc_unimplemented();
+    return 0;
+  }
+  ac_int<AC_MAX(I,1),S> to_ac_int() const {
     (void)__xlscc_unimplemented();
     return 0;
   }
