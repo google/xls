@@ -484,6 +484,49 @@ TEST_F(PipelineScheduleTest, ClockPeriodMargin) {
               "Original clock period: 3ps, clock margin: 200%")));
 }
 
+TEST_F(PipelineScheduleTest, PeriodRelaxation) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  auto x = fb.Param("x", u32);
+
+  // Fanout
+  auto x1 = fb.Negate(x);
+  auto x11 = fb.Negate(x1);
+  auto x21 = fb.Negate(x1);
+  auto x111 = fb.Negate(x11);
+  auto x211 = fb.Negate(x11);
+  auto x121 = fb.Negate(x21);
+  auto x221 = fb.Negate(x21);
+
+  // Fanin
+  auto y11 = fb.Or(x111, x211);
+  auto y21 = fb.Or(x121, x221);
+  auto y1 = fb.Or(y11, y21);
+  fb.Negate(y1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(func, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+  EXPECT_EQ(schedule.length(), 2);
+  int64_t reg_count_default = schedule.CountFinalInteriorPipelineRegisters();
+
+  for (int64_t relax_percent : std::vector{50, 100}) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(
+            func, TestDelayEstimator(),
+            SchedulingOptions().pipeline_stages(2).period_relaxation_percent(
+                relax_percent)));
+    EXPECT_EQ(schedule.length(), 2);
+    int64_t reg_count_relaxed = schedule.CountFinalInteriorPipelineRegisters();
+    EXPECT_LT(reg_count_relaxed, reg_count_default);
+  }
+}
+
 TEST_F(PipelineScheduleTest, MinCutCycleOrders) {
   EXPECT_THAT(GetMinCutCycleOrders(0), ElementsAre(std::vector<int64_t>()));
   EXPECT_THAT(GetMinCutCycleOrders(1), ElementsAre(std::vector<int64_t>({0})));

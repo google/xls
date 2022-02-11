@@ -28,7 +28,7 @@ namespace xls {
 
 // The strategy to use when scheduling pipelines.
 enum class SchedulingStrategy {
-  // Schedule all nodes a early as possible while satifying dependency and
+  // Schedule all nodes a early as possible while satisfying dependency and
   // timing constraints.
   ASAP,
 
@@ -96,11 +96,23 @@ class SchedulingOptions {
     return clock_margin_percent_;
   }
 
+  // Sets/gets the percentage of the estimated minimum period to relax so that
+  // the scheduler may have more options to find an area-efficient
+  // schedule without impacting timing.
+  SchedulingOptions& period_relaxation_percent(int64_t value) {
+    period_relaxation_percent_ = value;
+    return *this;
+  }
+  absl::optional<int64_t> period_relaxation_percent() const {
+    return period_relaxation_percent_;
+  }
+
  private:
   SchedulingStrategy strategy_;
   absl::optional<int64_t> clock_period_ps_;
   absl::optional<int64_t> pipeline_stages_;
   absl::optional<int64_t> clock_margin_percent_;
+  absl::optional<int64_t> period_relaxation_percent_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.
@@ -163,6 +175,9 @@ class PipelineSchedule {
 
   // Returns a protobuf holding this object's scheduling info.
   PipelineScheduleProto ToProto() const;
+
+  // Returns the number of internal registers in this schedule.
+  int64_t CountFinalInteriorPipelineRegisters() const;
 
  private:
   FunctionBase* function_base_;

@@ -320,6 +320,7 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
             return bounds_or.value().max_lower_bound() < pipeline_stages;
           }));
   XLS_VLOG(4) << "minimum clock period = " << min_period;
+
   return min_period;
 }
 
@@ -468,6 +469,12 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     XLS_ASSIGN_OR_RETURN(
         clock_period_ps,
         FindMinimumClockPeriod(f, *options.pipeline_stages(), delay_estimator));
+
+    if (options.period_relaxation_percent().has_value()) {
+      int64_t relaxation_percent = options.period_relaxation_percent().value();
+
+      clock_period_ps += (clock_period_ps * relaxation_percent + 50) / 100;
+    }
   }
 
   XLS_ASSIGN_OR_RETURN(
@@ -598,6 +605,40 @@ PipelineScheduleProto PipelineSchedule::ToProto() const {
     }
   }
   return proto;
+}
+
+int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
+  int64_t reg_count = 0;
+
+  Function* as_func = dynamic_cast<Function*>(function_base_);
+  for (int64_t stage = 0; stage < length(); ++stage) {
+    for (Node* function_base_node : function_base_->nodes()) {
+      if (cycle(function_base_node) > stage) {
+        continue;
+      }
+
+      auto is_live_out_of_stage = [&](Node* n) {
+        if (stage == length() - 1) {
+          return false;
+        }
+        if (as_func && (n == as_func->return_value())) {
+          return true;
+        }
+        for (Node* user : n->users()) {
+          if (cycle(user) > stage) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      if (is_live_out_of_stage(function_base_node)) {
+        reg_count += function_base_node->GetType()->GetFlatBitCount();
+      }
+    }
+  }
+
+  return reg_count;
 }
 
 }  // namespace xls

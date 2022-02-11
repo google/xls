@@ -15,13 +15,17 @@
 #include "xls/codegen/block_metrics_generator.h"
 
 #include "gtest/gtest.h"
+#include "xls/codegen/block_conversion.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/matchers.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/block.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 namespace xls {
 namespace verilog {
@@ -75,6 +79,37 @@ TEST(BlockMetricsGeneratorTest, PipelineRegisters) {
                            GenerateBlockMetrics(block));
 
   EXPECT_EQ(proto.flop_count(), 64);
+}
+
+TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
+  Package package("test");
+
+  FunctionBuilder fb("test_func", &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  BValue y = fb.Param("y", package.GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, fb.BuildWithReturnValue(fb.Negate(fb.Not(fb.Add(x, y)))));
+
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(f, *delay_estimator,
+                            SchedulingOptions().pipeline_stages(3)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      FunctionToPipelinedBlock(
+          schedule,
+          CodegenOptions().flop_inputs(false).flop_outputs(false).clock_name(
+              "clk"),
+          f));
+
+  XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
+                           GenerateBlockMetrics(block));
+
+  EXPECT_EQ(proto.flop_count(), schedule.CountFinalInteriorPipelineRegisters());
 }
 
 }  // namespace

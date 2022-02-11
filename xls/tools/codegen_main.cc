@@ -114,6 +114,13 @@ ABSL_FLAG(int64_t, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
           "percentage amount for the purposes of scheduling.");
+ABSL_FLAG(int64_t, period_relaxation_percent, 0,
+          "The percentage of clock period that will be relaxed when "
+          "scheduling without an explicit --clock_period_ps. "
+          "When set to 0, the minimum period that can satisfy scheduling "
+          "constraints will be used.  Increasing this will trade-off an "
+          "increase in critical path delay in favor of decreased register "
+          "count.");
 // TODO(meheff): Rather than specify all reset (or codegen options in general)
 // as a multitude of flags, these can be specified via a separate file (like a
 // options proto).
@@ -172,6 +179,10 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions() {
   if (absl::GetFlag(FLAGS_clock_margin_percent) != 0) {
     scheduling_options.clock_margin_percent(
         absl::GetFlag(FLAGS_clock_margin_percent));
+  }
+  if (absl::GetFlag(FLAGS_period_relaxation_percent) != 0) {
+    scheduling_options.period_relaxation_percent(
+        absl::GetFlag(FLAGS_period_relaxation_percent));
   }
 
   return scheduling_options;

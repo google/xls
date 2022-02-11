@@ -165,6 +165,7 @@ def xls_ir_verilog_impl(ctx, src):
         "add_idle_output",
         "module_name",
         "clock_margin_percent",
+        "period_relaxation_percent",
         "reset",
         "reset_active_low",
         "reset_asynchronous",
