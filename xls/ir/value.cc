@@ -138,20 +138,24 @@ std::string ValueKindToString(ValueKind kind) {
 int64_t Value::GetFlatBitCount() const {
   if (kind() == ValueKind::kBits) {
     return bits().bit_count();
-  } else if (kind() == ValueKind::kTuple) {
+  }
+  if (kind() == ValueKind::kToken) {
+    return 0;
+  }
+  if (kind() == ValueKind::kTuple) {
     int64_t total_size = 0;
     for (const Value& e : elements()) {
       total_size += e.GetFlatBitCount();
     }
     return total_size;
-  } else if (kind() == ValueKind::kArray) {
+  }
+  if (kind() == ValueKind::kArray) {
     if (empty()) {
       return 0;
     }
     return size() * element(0).GetFlatBitCount();
-  } else {
-    XLS_LOG(FATAL) << "Invalid value kind: " << kind();
   }
+  XLS_LOG(FATAL) << "Invalid value kind: " << kind();
 }
 
 bool Value::IsAllZeros() const {

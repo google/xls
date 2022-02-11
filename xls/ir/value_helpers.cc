@@ -15,6 +15,7 @@
 #include "xls/ir/value_helpers.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -47,6 +48,16 @@ Value ValueOfType(Type* type,
       return Value::Token();
   }
   XLS_LOG(FATAL) << "Invalid kind: " << type->kind();
+}
+
+void ValueLeafNodes(const Value& value, std::vector<Value>& leaves) {
+  if (value.IsBits() || value.IsToken()) {
+    leaves.push_back(value);
+    return;
+  }
+  for (int64_t i = 0; i < value.size(); ++i) {
+    ValueLeafNodes(value.element(i), leaves);
+  }
 }
 
 }  // namespace
@@ -114,6 +125,14 @@ absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree) {
     return Value::ArrayOrDie(values);
   }
   return tree.Get({});
+}
+
+absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
+                                                        Type* type) {
+  XLS_RET_CHECK(ValueConformsToType(value, type));
+  std::vector<Value> leaf_nodes;
+  ValueLeafNodes(value, leaf_nodes);
+  return LeafTypeTree<Value>(type, leaf_nodes);
 }
 
 }  // namespace xls

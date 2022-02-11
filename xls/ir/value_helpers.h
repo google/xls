@@ -85,6 +85,11 @@ absl::StatusOr<float> TupleToF32(const Value& v);
 // Converts a `LeafTypeTree<Value>` to a `Value`.
 absl::StatusOr<Value> LeafTypeTreeToValue(const LeafTypeTree<Value>& tree);
 
+// Converts a `Value` to a `LeafTypeTree<Value>`.
+// The given `Type*` must be the type of the given `Value`.
+absl::StatusOr<LeafTypeTree<Value>> ValueToLeafTypeTree(const Value& value,
+                                                        Type* type);
+
 }  // namespace xls
 
 #endif  // XLS_IR_VALUE_HELPERS_H_

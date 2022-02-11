@@ -94,5 +94,36 @@ TEST(ValueHelperTest, ValueConformsToType) {
       ValueConformsToType(array_value, p.GetArrayType(3, p.GetBitsType(333))));
 }
 
+TEST(ValueHelperTest, ValueToLeafTypeTree) {
+  Package p("test_package");
+  auto run_test = [](Type* type) {
+    XLS_ASSERT_OK_AND_ASSIGN(LeafTypeTree<Value> ltt,
+                             ValueToLeafTypeTree(ZeroOfType(type), type));
+    EXPECT_TRUE(ltt.type()->IsEqualTo(type));
+    LeafTypeTree<absl::monostate> shape(type);
+    LeafTypeTree<absl::monostate>::Zip<Type*, Value>(
+        [](Type* type, const Value& value) -> absl::monostate {
+          EXPECT_EQ(type->GetFlatBitCount(), value.GetFlatBitCount());
+          EXPECT_EQ(type->IsBits(), value.IsBits());
+          EXPECT_EQ(type->IsToken(), value.IsToken());
+          EXPECT_TRUE(value.IsBits() || value.IsToken());
+          return absl::monostate();
+        },
+        LeafTypeTree<Type*>(type, shape.leaf_types()), ltt);
+    XLS_ASSERT_OK_AND_ASSIGN(Value roundtrip, LeafTypeTreeToValue(ltt));
+    EXPECT_EQ(roundtrip, ZeroOfType(type));
+  };
+  run_test(p.GetBitsType(10));
+  run_test(p.GetTokenType());
+  run_test(p.GetTupleType({p.GetBitsType(10), p.GetBitsType(11)}));
+  run_test(p.GetTupleType(
+      {p.GetBitsType(10), p.GetBitsType(11),
+       p.GetArrayType(
+           5, p.GetTupleType(
+                  {p.GetBitsType(12), p.GetTokenType(),
+                   p.GetTupleType({p.GetBitsType(13), p.GetBitsType(14)}),
+                   p.GetTupleType({p.GetBitsType(15), p.GetBitsType(16)})}))}));
+}
+
 }  // namespace
 }  // namespace xls
