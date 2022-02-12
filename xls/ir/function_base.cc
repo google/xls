@@ -67,8 +67,8 @@ absl::StatusOr<Node*> FunctionBase::GetNode(
 }
 
 absl::Status FunctionBase::RemoveNode(Node* node) {
-  XLS_RET_CHECK(node->users().empty());
-  XLS_RET_CHECK(!HasImplicitUse(node));
+  XLS_RET_CHECK(node->users().empty()) << node->GetName();
+  XLS_RET_CHECK(!HasImplicitUse(node)) << node->GetName();
   std::vector<Node*> unique_operands;
   for (Node* operand : node->operands()) {
     if (!absl::c_linear_search(unique_operands, operand)) {

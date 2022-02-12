@@ -73,7 +73,9 @@ absl::Status Node::AddNodeToFunctionAndReplace(
 
 void Node::AddUser(Node* user) { users_.insert(user); }
 
-void Node::RemoveUser(Node* user) { XLS_CHECK_EQ(users_.erase(user), 1); }
+void Node::RemoveUser(Node* user) {
+  XLS_CHECK_EQ(users_.erase(user), 1) << GetName();
+}
 
 absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
   switch (op()) {

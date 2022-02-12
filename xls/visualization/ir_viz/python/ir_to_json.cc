@@ -34,13 +34,11 @@ namespace {
 
 // Returns the particular function/proc to view in the visualizer.
 absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
-  if (package->procs().size() == 1) {
+  // If the package has at least one proc choose the first one arbitrarily.
+  // TODO(meheff): 2022/02/11 Change to "top" when specifying a top proc is
+  // supported.
+  if (!package->procs().empty()) {
     return package->procs().front().get();
-  }
-  // TODO(meheff): Support more than one proc.
-  if (package->procs().size() > 1) {
-    return absl::UnimplementedError(
-        "Visualizing more than one proc not supported.");
   }
   return package->EntryFunction();
 }

@@ -54,6 +54,7 @@ class SimplificationPass : public FixedPointCompoundPass {
  public:
   explicit SimplificationPass(int64_t opt_level)
       : FixedPointCompoundPass("simp", "Simplification") {
+    Add<IdentityRemovalPass>();
     Add<ConstantFoldingPass>();
     Add<DeadCodeEliminationPass>();
     Add<CanonicalizationPass>();
@@ -96,7 +97,6 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
 
   top->Add<DeadFunctionEliminationPass>();
   top->Add<DeadCodeEliminationPass>();
-  top->Add<IdentityRemovalPass>();
   // At this stage in the pipeline only optimizations up to level 2 should
   // run. 'opt_level' is the maximum level of optimization which should be run
   // in the entire pipeline so set the level of the simplification pass to the
