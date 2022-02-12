@@ -490,6 +490,7 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:interval",
         "//xls/ir:interval_set",
+        "//xls/ir:value_helpers",
     ],
 )
 

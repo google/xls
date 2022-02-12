@@ -467,7 +467,7 @@ TEST_F(RangeQueryEngineTest, Identity) {
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()), interval_set);
 }
 
-TEST_F(RangeQueryEngineTest, Literal) {
+TEST_F(RangeQueryEngineTest, LiteralSimple) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
@@ -481,6 +481,30 @@ TEST_F(RangeQueryEngineTest, Literal) {
   // ending at its value.
   EXPECT_EQ(engine.GetIntervalSetTree(lit.node()),
             BitsLTT(lit.node(), {Interval(UBits(57, 20), UBits(57, 20))}));
+}
+
+TEST_F(RangeQueryEngineTest, LiteralNonBits) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue lit = fb.Literal(
+      Value::TupleOwned({Value(UBits(100, 123)), Value(UBits(140, 200)),
+                         *Value::UBitsArray({27, 53, 62}, 10)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // The interval set of a literal should be a single interval starting and
+  // ending at its value.
+  LeafTypeTree<IntervalSet> expected(lit.node()->GetType());
+  expected.Set({0}, IntervalSet::Precise(UBits(100, 123)));
+  expected.Set({1}, IntervalSet::Precise(UBits(140, 200)));
+  expected.Set({2, 0}, IntervalSet::Precise(UBits(27, 10)));
+  expected.Set({2, 1}, IntervalSet::Precise(UBits(53, 10)));
+  expected.Set({2, 2}, IntervalSet::Precise(UBits(62, 10)));
+
+  EXPECT_EQ(engine.GetIntervalSetTree(lit.node()), expected);
 }
 
 TEST_F(RangeQueryEngineTest, Ne) {

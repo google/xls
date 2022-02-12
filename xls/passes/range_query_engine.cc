@@ -25,6 +25,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
 
@@ -864,16 +865,19 @@ absl::Status RangeQueryVisitor::HandleInvoke(Invoke* invoke) {
 
 absl::Status RangeQueryVisitor::HandleLiteral(Literal* literal) {
   engine_->InitializeNode(literal);
-  Value v = literal->value();
-  if (!v.IsBits()) {
-    return absl::OkStatus();
-  }
-  IntervalSet result_intervals(literal->BitCountOrDie());
-  result_intervals.AddInterval(Interval(v.bits(), v.bits()));
-  result_intervals.Normalize();
-  IntervalSetTree result(literal->GetType());
-  result.Set({}, result_intervals);
-  SetIntervalSetTree(literal, result);
+  XLS_ASSIGN_OR_RETURN(
+      LeafTypeTree<Value> v_ltt,
+      ValueToLeafTypeTree(literal->value(), literal->GetType()));
+  SetIntervalSetTree(literal, v_ltt.Map<IntervalSet>([](const Value& value) {
+    IntervalSet interval_set(value.GetFlatBitCount());
+    if (value.IsBits()) {
+      return IntervalSet::Precise(value.bits());
+    }
+    if (value.IsToken()) {
+      return IntervalSet::Precise(Bits(0));
+    }
+    XLS_LOG(FATAL) << "Invalid value kind in HandleLiteral";
+  }));
   return absl::OkStatus();
 }
 
