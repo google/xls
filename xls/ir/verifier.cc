@@ -1427,7 +1427,7 @@ absl::Status VerifyTokenConnectivity(Node* source_token, Node* sink_token,
 }
 
 // Verify various invariants about the channels owned by the given pacakge.
-absl::Status VerifyChannels(Package* package) {
+absl::Status VerifyChannels(Package* package, bool codegen) {
   // Verify unique ids.
   absl::flat_hash_map<int64_t, Channel*> channels_by_id;
   for (Channel* channel : package->channels()) {
@@ -1448,6 +1448,10 @@ absl::Status VerifyChannels(Package* package) {
                channel->name(), channel->id(),
                channels_by_name.at(channel->name())->id());
     channels_by_name[channel->name()] = channel;
+  }
+
+  if (!codegen) {
+    return absl::OkStatus();
   }
 
   // Verify each channel has the appropriate send/receive node.
@@ -1512,20 +1516,20 @@ absl::Status VerifyChannels(Package* package) {
 
 }  // namespace
 
-absl::Status VerifyPackage(Package* package) {
+absl::Status VerifyPackage(Package* package, bool codegen) {
   XLS_VLOG(4) << absl::StreamFormat("Verifying package %s:\n", package->name());
   XLS_VLOG_LINES(4, package->DumpIr());
 
   for (auto& function : package->functions()) {
-    XLS_RETURN_IF_ERROR(VerifyFunction(function.get()));
+    XLS_RETURN_IF_ERROR(VerifyFunction(function.get(), codegen));
   }
 
   for (auto& proc : package->procs()) {
-    XLS_RETURN_IF_ERROR(VerifyProc(proc.get()));
+    XLS_RETURN_IF_ERROR(VerifyProc(proc.get(), codegen));
   }
 
   for (auto& block : package->blocks()) {
-    XLS_RETURN_IF_ERROR(VerifyBlock(block.get()));
+    XLS_RETURN_IF_ERROR(VerifyBlock(block.get(), codegen));
   }
 
   // Verify node IDs are unique within the package and uplinks point to this
@@ -1574,7 +1578,7 @@ absl::Status VerifyPackage(Package* package) {
     function_bases.insert(function_base);
   }
 
-  XLS_RETURN_IF_ERROR(VerifyChannels(package));
+  XLS_RETURN_IF_ERROR(VerifyChannels(package, codegen));
 
   // TODO(meheff): Verify main entry point is one of the functions.
   // TODO(meheff): Verify functions called by any node are in the set of
@@ -1584,7 +1588,7 @@ absl::Status VerifyPackage(Package* package) {
   return absl::OkStatus();
 }
 
-absl::Status VerifyFunction(Function* function) {
+absl::Status VerifyFunction(Function* function, bool codegen) {
   XLS_VLOG(4) << "Verifying function:\n";
   XLS_VLOG_LINES(4, function->DumpIr());
 
@@ -1601,7 +1605,7 @@ absl::Status VerifyFunction(Function* function) {
   return absl::OkStatus();
 }
 
-absl::Status VerifyProc(Proc* proc) {
+absl::Status VerifyProc(Proc* proc, bool codegen) {
   XLS_VLOG(4) << "Verifying proc:\n";
   XLS_VLOG_LINES(4, proc->DumpIr());
 
@@ -1727,7 +1731,7 @@ static absl::Status VerifyBlockInstantiation(BlockInstantiation* instantiation,
   return absl::OkStatus();
 }
 
-absl::Status VerifyBlock(Block* block) {
+absl::Status VerifyBlock(Block* block, bool codegen) {
   XLS_VLOG(4) << "Verifying block:\n";
   XLS_VLOG_LINES(4, block->DumpIr());
 
@@ -1838,7 +1842,7 @@ absl::Status VerifyBlock(Block* block) {
   return absl::OkStatus();
 }
 
-absl::Status VerifyNode(Node* node) {
+absl::Status VerifyNode(Node* node, bool codegen) {
   XLS_VLOG(4) << "Verifying node: " << node->ToString();
 
   for (Node* operand : node->operands()) {

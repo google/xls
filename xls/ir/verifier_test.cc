@@ -214,7 +214,7 @@ proc my_proc(t: token, s: bits[32], init=45) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
   EXPECT_THAT(
-      VerifyPackage(p.get()),
+      VerifyPackage(p.get(), /*codegen=*/true),
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr("Channel 'ch' (id 42) has no associated receive node")));
@@ -234,7 +234,7 @@ proc my_proc(t: token, s: bits[32], init=45) {
 
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  EXPECT_THAT(VerifyPackage(p.get()),
+  EXPECT_THAT(VerifyPackage(p.get(), /*codegen=*/true),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Multiple send nodes associated with channel "
                                  "'ch': send.2 and send.1")));

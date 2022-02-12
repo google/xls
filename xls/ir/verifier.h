@@ -27,11 +27,11 @@ class Package;
 
 // Verifies numerous invariants of the IR for the given IR construct. Returns a
 // error status if a violation is found.
-absl::Status VerifyPackage(Package* package);
-absl::Status VerifyFunction(Function* function);
-absl::Status VerifyProc(Proc* Proc);
-absl::Status VerifyBlock(Block* Block);
-absl::Status VerifyNode(Node* Node);
+absl::Status VerifyPackage(Package* package, bool codegen = false);
+absl::Status VerifyFunction(Function* function, bool codegen = false);
+absl::Status VerifyProc(Proc* Proc, bool codegen = false);
+absl::Status VerifyBlock(Block* Block, bool codegen = false);
+absl::Status VerifyNode(Node* Node, bool codegen = false);
 
 }  // namespace xls
 

@@ -438,6 +438,15 @@ TODO: Finish.
 
 TODO: Finish.
 
+### IO simplifications
+
+Asserts whose condition is known to be true are removed, as they will never
+trigger. Conditional sends and receives that have a condition known to be false
+are replaced with their input token (in the case of sends) or a tuple containing
+their input token and a literal representing the zero value of the appropriate
+channel (in the case of receives). Conditional sends and receives that have a
+condition known to be true are replaced with unconditional sends and receives.
+
 ### Reassociation
 
 Reassociation in XLS uses the associative and commutative property of arithmetic

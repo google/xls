@@ -402,9 +402,9 @@ in a single transaction.
 
 #### **`receive`**
 
-Receives data values from a specified channel. The number of data values `N` and
-their type is determined by the channel. An optional predicate value
-conditionally enables the receive operation.
+Receives a data value from a specified channel. The type of the data value is
+determined by the channel. An optional predicate value conditionally enables the
+receive operation.
 
 ```
 result = receive(tkn, predicate=<pred>, channel_id=<ch>)
@@ -413,10 +413,10 @@ result = receive(tkn, predicate=<pred>, channel_id=<ch>)
 **Types**
 
 Value    | Type
--------- | -------------------------------
+-------- | ------------
 `tkn`    | `token`
 `pred`   | `bits[1]`
-`result` | `(token, T_{0}, ... , T_{N-1})`
+`result` | `(token, T)`
 
 **Keyword arguments**
 
@@ -433,25 +433,24 @@ If the predicate is false the data values in the result are zero-filled.
 
 #### **`send`**
 
-Sends data values to a specified channel. The number of data values `N` and
-their type is determined by the channel. An optional predicate value
-conditionally enables the receive operation.
+Sends data to a specified channel. The type of the data values is determined by
+the channel. An optional predicate value conditionally enables the send
+operation.
 
 ```
-result = send(tkn, data_{0}, ..., data_{N-1}, predicate=<pred>, channel_id=<ch>)
+result = send(tkn, data, predicate=<pred>, channel_id=<ch>)
 ```
 
 **Types**
 
-Value      | Type
----------- | ---------
-`tkn`      | `token`
-`data_{i}` | `T_{i}`
-`pred`     | `bits[1]`
-`result`   | `token`
+Value    | Type
+-------- | ---------
+`tkn`    | `token`
+`data`   | `T`
+`pred`   | `bits[1]`
+`result` | `token`
 
-The types of operands `data_{i}` and the number `N` must match the types and
-number of data elements supported by the channel.
+The type of `data` must match the type supported by the channel.
 
 **Keyword arguments**
 

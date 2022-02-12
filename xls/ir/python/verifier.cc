@@ -27,8 +27,10 @@ PYBIND11_MODULE(verifier, m) {
   py::module::import("xls.ir.python.function");
   py::module::import("xls.ir.python.package");
 
-  m.def("verify_function", PyWrap(&VerifyFunction), py::arg("function"));
-  m.def("verify_package", PyWrap(&VerifyPackage), py::arg("package"));
+  m.def("verify_function", PyWrap(&VerifyFunction), py::arg("function"),
+        py::arg("codegen") = false);
+  m.def("verify_package", PyWrap(&VerifyPackage), py::arg("package"),
+        py::arg("codegen") = false);
 }
 
 }  // namespace xls

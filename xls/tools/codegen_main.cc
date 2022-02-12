@@ -27,6 +27,7 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
@@ -308,6 +309,8 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir_contents, ir_path));
   verilog::ModuleGeneratorResult result;
+
+  XLS_RETURN_IF_ERROR(VerifyPackage(p.get(), /*codegen=*/true));
 
   XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindEntry(p.get()));
   XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,

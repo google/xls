@@ -45,6 +45,7 @@
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/passes/useless_assert_removal_pass.h"
+#include "xls/passes/useless_io_removal_pass.h"
 #include "xls/passes/verifier_checker.h"
 
 namespace xls {
@@ -85,8 +86,6 @@ class SimplificationPass : public FixedPointCompoundPass {
     Add<DeadCodeEliminationPass>();
     Add<BooleanSimplificationPass>();
     Add<DeadCodeEliminationPass>();
-    Add<UselessAssertRemovalPass>();
-    Add<DeadCodeEliminationPass>();
     Add<CsePass>();
   }
 };
@@ -123,6 +122,9 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<DeadCodeEliminationPass>();
   top->Add<SparsifySelectPass>();
   top->Add<DeadCodeEliminationPass>();
+  top->Add<UselessAssertRemovalPass>();
+  top->Add<UselessIORemovalPass>();
+  top->Add<DeadCodeEliminationPass>();
 
   top->Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
   top->Add<DeadCodeEliminationPass>();
@@ -133,6 +135,9 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<SimplificationPass>(std::min(int64_t{3}, opt_level));
+  top->Add<UselessAssertRemovalPass>();
+  top->Add<UselessIORemovalPass>();
+  top->Add<DeadCodeEliminationPass>();
   top->Add<LiteralUncommoningPass>();
   top->Add<DeadFunctionEliminationPass>();
   return top;
