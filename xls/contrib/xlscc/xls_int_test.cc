@@ -409,6 +409,62 @@ TEST_F(XlsIntTest, ShiftRightEq) {
   RunIntTest({{"a", 100}}, 25, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, ShiftRightXlsInt) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      XlsInt<4, false> sa = 1;
+      return XlsInt<24, false>(a) >> sa;
+    })";
+  RunIntTest({{"a", 100}}, 50, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ShiftRightXlsIntLarge) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      XlsInt<2, false> sa = 3;
+      return XlsInt<24, false>(a) >> sa;
+    })";
+  RunIntTest({{"a", 80}}, 10, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ShiftRightEqXlsInt) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      XlsInt<4, false> sa = 2;
+      XlsInt<24, false> ax = a;
+      ax >>= sa;
+      return ax;
+    })";
+  RunIntTest({{"a", 100}}, 25, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ShiftRightNegative) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      return XlsInt<24, false>(a) >> -1;
+    })";
+  RunIntTest({{"a", 100}}, 200, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ShiftLeftNegative) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+        XlsInt<24, true> ax = -2;
+      return XlsInt<24, false>(a) << ax;
+    })";
+  RunIntTest({{"a", 100}}, 25, content, xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, ShiftLeft) {
   const std::string content = R"(
     #include "xls_int.h"
@@ -429,6 +485,30 @@ TEST_F(XlsIntTest, ShiftLeftEq) {
       return ax;
     })";
   RunIntTest({{"a", 100}}, 400, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ShiftLeftEqXlsInt) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      XlsInt<8, true> sa = 3;
+      XlsInt<24, false> ax = a;
+      ax <<= sa;
+      return ax;
+    })";
+  RunIntTest({{"a", 100}}, 800, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, ShiftLeftXlsIntLarge) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    int my_package(int a) {
+      XlsInt<2, false> sa = 3;
+      return XlsInt<24, false>(a) << sa;
+    })";
+  RunIntTest({{"a", 5}}, 40, content, xabsl::SourceLocation::current());
 }
 
 TEST_F(XlsIntTest, SetSlc) {

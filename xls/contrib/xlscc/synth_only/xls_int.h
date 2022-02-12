@@ -525,9 +525,6 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     typedef XlsInt<Width + !Signed, true> bnot;
   };
 
-  // Width+1 because we need to be able to represent shifting all digits
-  typedef XlsInt<Log2Ceil<Width + 1>, false> index_t;
-
   bool operator!() const { return (*this) == XlsInt(0); }
 
   inline typename rt_unary::neg operator-() const {
@@ -636,35 +633,47 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   BINARY_OP(&, "and", logic);
   BINARY_OP(^, "xor", logic);
 
-  inline XlsInt operator<<(index_t offset) const {
-    XlsInt ret;
+  template <int W2, bool S2>
+  inline XlsInt operator>>(XlsInt<W2, S2> offset) const {
+    XlsInt<W2, S2> neg_offset = -offset;
+    XlsInt ret_right;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_5_(aid): bits[i] = "
+        "identity(a, pos=(loc)) }"
+        : "=r"(ret_right.storage)
+        : "i"(Width), "a"(ShiftRightWithSign<Width, Signed, W2>::Operate(
+                          this->storage, offset.storage)));
+    XlsInt ret_left;
     asm("fn (fid)(a: bits[i], o: bits[c]) -> bits[i] { ret op_(aid): bits[i] = "
         "shll(a, o, pos=(loc)) }"
-        : "=r"(ret.storage)
-        : "i"(Width), "c"(index_t::width), "a"(this->storage),
-          "o"(offset.storage));
-    return ret;
+        : "=r"(ret_left.storage)
+        : "i"(Width), "c"(W2), "a"(this->storage), "o"(neg_offset.storage));
+    return (offset < 0) ? ret_left : ret_right;
   }
-  inline XlsInt operator<<=(index_t offset) {
-    static_assert(index_t::width > 0, "Bug in Log2Ceil");
-    (*this) = (*this) << offset;
+  template <int W2, bool S2>
+  inline XlsInt operator>>=(XlsInt<W2, S2> offset) {
+    (*this) = (*this) >> offset;
     return (*this);
   }
 
-  inline XlsInt operator>>(index_t offset) const {
-    static_assert(index_t::width > 0, "Bug in Log2Ceil");
-    XlsInt ret;
+  template <int W2, bool S2>
+  inline XlsInt operator<<(XlsInt<W2, S2> offset) const {
+    XlsInt<W2, S2> neg_offset = -offset;
+    XlsInt ret_right;
     asm("fn (fid)(a: bits[i]) -> bits[i] { ret op_5_(aid): bits[i] = "
         "identity(a, pos=(loc)) }"
-        : "=r"(ret.storage)
-        : "i"(Width),
-          "a"(ShiftRightWithSign<Width, Signed, index_t::width>::Operate(
-              this->storage, offset.storage)));
-    return ret;
+        : "=r"(ret_right.storage)
+        : "i"(Width), "a"(ShiftRightWithSign<Width, Signed, W2>::Operate(
+                          this->storage, neg_offset.storage)));
+    XlsInt ret_left;
+    asm("fn (fid)(a: bits[i], o: bits[c]) -> bits[i] { ret op_(aid): bits[i] = "
+        "shll(a, o, pos=(loc)) }"
+        : "=r"(ret_left.storage)
+        : "i"(Width), "c"(W2), "a"(this->storage), "o"(offset.storage));
+    return (offset < 0) ? ret_right : ret_left;
   }
-  inline XlsInt operator>>=(index_t offset) {
-    static_assert(index_t::width > 0, "Bug in Log2Ceil");
-    (*this) = (*this) >> offset;
+  template <int W2, bool S2>
+  inline XlsInt operator<<=(XlsInt<W2, S2> offset) {
+    (*this) = (*this) << offset;
     return (*this);
   }
 
@@ -712,6 +721,9 @@ class XlsInt : public XlsIntBase<Width, Signed> {
         : "i"(Width), "a"(o));
     return *this;
   }
+
+  // Width+1 because we need to be able to represent shifting all digits
+  typedef XlsInt<Log2Ceil<Width + 1>, false> index_t;
 
   template <int ToW>
   inline XlsInt<ToW, Signed> slc(index_t offset) const {
