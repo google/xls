@@ -209,7 +209,7 @@ TEST_F(RangeQueryEngineTest, ArrayConcat) {
   EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(expr.node()).Get({5}));
 }
 
-TEST_F(RangeQueryEngineTest, ArrayIndex) {
+TEST_F(RangeQueryEngineTest, ArrayIndex1D) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
 
@@ -246,6 +246,99 @@ TEST_F(RangeQueryEngineTest, ArrayIndex) {
   EXPECT_EQ(z_ist.Get({}), engine.GetIntervalSetTree(index2.node()).Get({}));
   EXPECT_EQ(IntervalSet::Combine(y_ist.Get({}), z_ist.Get({})),
             engine.GetIntervalSetTree(index12.node()).Get({}));
+}
+
+TEST_F(RangeQueryEngineTest, ArrayIndex3D) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  // Dimension = [5, 6, 3]
+  BValue array = fb.Literal(Value::ArrayOrDie({*Value::UBits2DArray(
+                                                   {
+                                                       {1, 2, 3},
+                                                       {4, 5, 6},
+                                                       {7, 8, 9},
+                                                       {10, 11, 12},
+                                                       {13, 14, 15},
+                                                       {16, 17, 18},
+                                                   },
+                                                   32),
+                                               *Value::UBits2DArray(
+                                                   {
+                                                       {19, 20, 21},
+                                                       {22, 23, 24},
+                                                       {25, 26, 27},
+                                                       {28, 29, 30},
+                                                       {31, 32, 33},
+                                                       {34, 35, 36},
+                                                   },
+                                                   32),
+                                               *Value::UBits2DArray(
+                                                   {
+                                                       {37, 38, 39},
+                                                       {40, 41, 42},
+                                                       {43, 44, 45},
+                                                       {46, 47, 48},
+                                                       {49, 50, 51},
+                                                       {52, 53, 54},
+                                                   },
+                                                   32),
+                                               *Value::UBits2DArray(
+                                                   {
+                                                       {55, 56, 57},
+                                                       {58, 59, 60},
+                                                       {61, 62, 63},
+                                                       {64, 65, 66},
+                                                       {67, 68, 69},
+                                                       {70, 71, 72},
+                                                   },
+                                                   32),
+                                               *Value::UBits2DArray(
+                                                   {
+                                                       {73, 74, 75},
+                                                       {76, 77, 78},
+                                                       {79, 80, 81},
+                                                       {82, 83, 84},
+                                                       {85, 86, 87},
+                                                       {88, 89, 90},
+                                                   },
+                                                   32)}));
+  BValue index = fb.ArrayIndex(array, {x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(2, 10), UBits(3, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(2, 10), UBits(4, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(z.node(), {Interval(UBits(1, 10), UBits(1, 10))});
+
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // array[2, 2, 1] = 44
+  // array[2, 3, 1] = 47
+  // array[2, 4, 1] = 50
+  // array[3, 2, 1] = 62
+  // array[3, 3, 1] = 65
+  // array[3, 4, 1] = 68
+
+  IntervalSet expected(32);
+  expected.AddInterval(Interval::Precise(UBits(44, 32)));
+  expected.AddInterval(Interval::Precise(UBits(47, 32)));
+  expected.AddInterval(Interval::Precise(UBits(50, 32)));
+  expected.AddInterval(Interval::Precise(UBits(62, 32)));
+  expected.AddInterval(Interval::Precise(UBits(65, 32)));
+  expected.AddInterval(Interval::Precise(UBits(68, 32)));
+
+  EXPECT_EQ(expected, engine.GetIntervalSetTree(index.node()).Get({}));
 }
 
 TEST_F(RangeQueryEngineTest, AndReduce) {

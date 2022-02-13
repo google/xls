@@ -888,39 +888,61 @@ absl::Status RangeQueryVisitor::HandleMap(Map* map) {
 
 absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
   engine_->InitializeNode(array_index);
-  LeafTypeTree<IntervalSet> result =
-      EmptyIntervalSetTree(array_index->GetType());
 
-  if (array_index->indices().size() != 1) {
-    return absl::OkStatus();  // TODO(taktoa): support multidimensional indexing
-  }
-  LeafTypeTree<IntervalSet> argument =
-      GetIntervalSetTree(array_index->operand(0));
-  IntervalSet index_intervals =
-      GetIntervalSetTree(array_index->indices()[0]).Get({});
-  absl::optional<int64_t> size = index_intervals.Size();
-  if (!size.has_value() || (size.value() > kMaxIterationSize)) {
+  IntervalSetTree array_interval_set_tree =
+      GetIntervalSetTree(array_index->array());
+
+  if (array_index->indices().empty()) {
+    SetIntervalSetTree(array_index, array_interval_set_tree);
     return absl::OkStatus();
   }
-  int64_t array_size =
-      array_index->operand(0)->GetType()->AsArrayOrDie()->size();
-  if (array_size <= 0) {
-    return absl::OkStatus();
-  }
-  bool early = index_intervals.ForEachElement([&](const Bits& index) -> bool {
-    if (!index.FitsInUint64()) {
-      return true;
+
+  // The dimension of the multidimensional array, truncated to the number of
+  // indexes we are indexing on.
+  // For example, if the array has shape [5, 7, 3, 2] and we index with [i, j]
+  // then this will contain [5, 7].
+  std::vector<int64_t> dimension;
+
+  // The interval set that each index lives in.
+  std::vector<IntervalSet> index_intervals;
+
+  {
+    ArrayType* array_type = array_index->array()->GetType()->AsArrayOrDie();
+    for (Node* index : array_index->indices()) {
+      dimension.push_back(array_type->size());
+      index_intervals.push_back(GetIntervalSetTree(index).Get({}));
+      absl::StatusOr<ArrayType*> array_type_status =
+          array_type->element_type()->AsArray();
+      array_type = array_type_status.ok() ? *array_type_status : nullptr;
     }
-    int64_t i =
-        std::min(*(index.ToUint64()), static_cast<uint64_t>(array_size - 1));
-    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
-        IntervalSet::Combine, result, argument.CopySubtree({i}));
+  }
+
+  IntervalSetTree result(array_index->GetType());
+  result = LeafTypeTree<Type*>(result.type(), result.leaf_types())
+               .Map<IntervalSet>([](Type* type) -> IntervalSet {
+                 return IntervalSet(type->GetFlatBitCount());
+               });
+
+  MixedRadixIterate(dimension, [&](const std::vector<int64_t>& indexes) {
+    for (int64_t i = 0; i < indexes.size(); ++i) {
+      IntervalSet intervals = index_intervals[i];
+      absl::StatusOr<Bits> index_bits =
+          UBitsWithStatus(indexes[i], intervals.BitCount());
+      if (!index_bits.ok()) {
+        return false;
+      }
+      if (!intervals.Covers(*index_bits)) {
+        return false;
+      }
+    }
+    result = IntervalSetTree::Zip<IntervalSet, IntervalSet>(
+        IntervalSet::Combine, result,
+        array_interval_set_tree.CopySubtree(indexes));
     return false;
   });
-  if (early) {
-    return absl::OkStatus();
-  }
+
   SetIntervalSetTree(array_index, result);
+
   return absl::OkStatus();
 }
 
