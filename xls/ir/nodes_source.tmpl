@@ -209,6 +209,28 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
                                       name_);
 }
 
+absl::StatusOr<Node*> Receive::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<Receive>(
+      loc(), new_operands[0],
+      new_operands.size() > 1 ? std::optional<Node*>(new_operands[1])
+                              : absl::nullopt,
+      channel_id(), name_);
+}
+
+absl::StatusOr<Node*> Send::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<Send>(
+      loc(), new_operands[0], new_operands[1],
+      new_operands.size() > 2 ? std::optional<Node*>(new_operands[2])
+                              : absl::nullopt,
+      channel_id(), name_);
+}
+
 bool Select::AllCases(std::function<bool(Node*)> p) const {
   for (Node* case_ : cases()) {
     if (!p(case_)) {

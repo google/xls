@@ -39,10 +39,14 @@ class ProcInliningPassTest : public IrTestBase {
  protected:
   ProcInliningPassTest() = default;
 
-  absl::StatusOr<bool> Run(Package* p) {
+  absl::StatusOr<bool> Run(Package* p,
+                           std::optional<std::string> top = std::nullopt) {
+    PassOptions options;
+    options.inline_procs = true;
+    options.top_level_proc_name = top;
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
-                         ProcInliningPass().Run(p, PassOptions(), &results));
+                         ProcInliningPass().Run(p, options, &results));
     // Run dce to clean things up.
     XLS_RETURN_IF_ERROR(
         DeadCodeEliminationPass().Run(p, PassOptions(), &results).status());
@@ -271,9 +275,9 @@ TEST_F(ProcInliningPassTest, SingleProc) {
   ProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", p.get());
   BValue rcv = b.Receive(ch_in, b.GetTokenParam());
   BValue send = b.Send(ch_out, b.TupleIndex(rcv, 0), b.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK(b.Build(send, b.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send, b.GetStateParam()));
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(Run(p.get(), proc->name()), IsOkAndHolds(false));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcs) {
@@ -301,7 +305,7 @@ TEST_F(ProcInliningPassTest, NestedProcs) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}},
@@ -333,7 +337,7 @@ TEST_F(ProcInliningPassTest, NestedProcsWithSingleValue) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}},
@@ -365,7 +369,7 @@ TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}},
@@ -399,7 +403,7 @@ TEST_F(ProcInliningPassTest, NestedProcDelayedPassThrough) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}},
@@ -448,7 +452,7 @@ TEST_F(ProcInliningPassTest, NestedProcsTrivialInnerLoop) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 42}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 42}}},
@@ -486,7 +490,7 @@ TEST_F(ProcInliningPassTest, NestedProcsIota) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {}, {{"out", {42, 43, 44}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {}, {{"out", {42, 43, 44}}});
@@ -526,7 +530,7 @@ TEST_F(ProcInliningPassTest, NestedProcsOddIota) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {}, {{"out", {43, 45, 47, 49}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {}, {{"out", {43, 45, 47, 49}}}, /*expected_ticks=*/8);
@@ -595,7 +599,7 @@ TEST_F(ProcInliningPassTest, SynchronizedNestedProcs) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}},
@@ -655,7 +659,7 @@ TEST_F(ProcInliningPassTest, NestedProcsNontrivialInnerLoop) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {7, 8, 9}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {7, 8, 9}}});
@@ -696,7 +700,7 @@ TEST_F(ProcInliningPassTest, DoubleNestedProcsPassThrough) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
@@ -750,7 +754,7 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsPassThrough) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
@@ -806,7 +810,7 @@ TEST_F(ProcInliningPassTest, SequentialNestedProcsWithLoops) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
@@ -908,7 +912,7 @@ TEST_F(ProcInliningPassTest, DoubleNestedLoops) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {1, 10, 100}}}, {{"out", {16, 26, 126}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 10, 100}}}, {{"out", {16, 26, 126}}},
@@ -973,12 +977,126 @@ TEST_F(ProcInliningPassTest, MultiIO) {
       p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
       {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(
       p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
       {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}},
+      /*expected_ticks=*/3);
+}
+
+TEST_F(ProcInliningPassTest, InlinedProcsWithExternalStreamingIO) {
+  // The inlined proc has streaming IO (external channels).
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_in,
+      p->CreateStreamingChannel("y", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_plus_y_out,
+      p->CreateStreamingChannel("x_plus_y_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_minus_y_out,
+      p->CreateStreamingChannel("x_minus_y_out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_x,
+      p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * x_plus_y,
+                           p->CreateStreamingChannel(
+                               "pass_x_plus_y", ChannelOps::kSendReceive, u32));
+
+  {
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue send_x =
+        ab.Send(pass_x, ab.TupleIndex(rcv_x, 0), ab.TupleIndex(rcv_x, 1));
+
+    BValue rcv_sum = ab.Receive(x_plus_y, send_x);
+    BValue send_sum = ab.Send(x_plus_y_out, ab.TupleIndex(rcv_sum, 0),
+                              ab.TupleIndex(rcv_sum, 1));
+    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetStateParam()));
+  }
+
+  // Proc "B" will be inlined and has internal communication with "A" (pass_x
+  // and pass_x_plus_y channels) as well as external IO (y and x_minus_y_out).
+  XLS_ASSERT_OK(MakeSumAndDifferenceProc("B", pass_x, y_in, x_plus_y,
+                                         x_minus_y_out, p.get()));
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(
+      p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
+      {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}});
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(
+      p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
+      {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}},
+      /*expected_ticks=*/3);
+}
+
+TEST_F(ProcInliningPassTest, InlinedProcsWithExternalSingleValueIO) {
+  // The inlined proc has single-value input on an external channel..
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_in,
+      p->CreateSingleValueChannel("y_sv", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_plus_y_out,
+      p->CreateStreamingChannel("x_plus_y_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_minus_y_out,
+      p->CreateStreamingChannel("x_minus_y_out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_x,
+      p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * x_plus_y,
+                           p->CreateStreamingChannel(
+                               "pass_x_plus_y", ChannelOps::kSendReceive, u32));
+
+  {
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue send_x =
+        ab.Send(pass_x, ab.TupleIndex(rcv_x, 0), ab.TupleIndex(rcv_x, 1));
+
+    BValue rcv_sum = ab.Receive(x_plus_y, send_x);
+    BValue send_sum = ab.Send(x_plus_y_out, ab.TupleIndex(rcv_sum, 0),
+                              ab.TupleIndex(rcv_sum, 1));
+    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetStateParam()));
+  }
+
+  // Proc "B" will be inlined and has internal communication with "A" (pass_x
+  // and pass_x_plus_y channels) as well as external IO (y and x_minus_y_out).
+  XLS_ASSERT_OK(MakeSumAndDifferenceProc("B", pass_x, y_in, x_plus_y,
+                                         x_minus_y_out, p.get()));
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(
+      p.get(), {{"x", {123, 22, 42}}, {"y_sv", {10}}},
+      {{"x_plus_y_out", {133, 32, 52}}, {"x_minus_y_out", {113, 12, 32}}});
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(
+      p.get(), {{"x", {123, 22, 42}}, {"y_sv", {10}}},
+      {{"x_plus_y_out", {133, 32, 52}}, {"x_minus_y_out", {113, 12, 32}}},
       /*expected_ticks=*/3);
 }
 
@@ -1029,7 +1147,7 @@ TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
   EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {25}}},
                 {{"sum", {148, 47, 67}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {10}}},
@@ -1112,7 +1230,7 @@ TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}},
@@ -1159,7 +1277,7 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveConditionFalse) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1193,7 +1311,7 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
     //       snd(a_to_b0)
     //    snd(a_to_b1)
     //    st = 1
-    ProcBuilder ab("B", Value(UBits(0, 1)), "tkn", "st", p.get());
+    ProcBuilder ab("A", Value(UBits(0, 1)), "tkn", "st", p.get());
     BValue rcv = ab.Receive(ch_in, ab.GetTokenParam());
     BValue send0 = ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), ab.GetStateParam(),
                              ab.Literal(UBits(0, 32)));
@@ -1214,7 +1332,7 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
     XLS_ASSERT_OK(bb.Build(bb.TupleIndex(rcv1, 0), bb.GetStateParam()));
   }
 
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1269,7 +1387,7 @@ TEST_F(ProcInliningPassTest, TokenFanOut) {
   }
 
   EXPECT_THAT(
-      Run(p.get()),
+      Run(p.get(), /*top=*/"A"),
       StatusIs(
           absl::StatusCode::kUnimplemented,
           HasSubstr("For proc inlining, tokens must form a linear chain")));

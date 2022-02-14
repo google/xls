@@ -44,6 +44,7 @@ cc_library(
         ":map_inlining_pass",
         ":narrowing_pass",
         ":passes",
+        ":proc_inlining_pass",
         ":reassociation_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",

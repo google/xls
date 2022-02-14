@@ -25,38 +25,6 @@
 namespace xls {
 namespace {
 
-// Returns the unique top-level proc or an error if no such proc can be
-// identified.
-absl::StatusOr<Proc*> GetTopLevelProc(Package* p) {
-  // Find the unique proc with sendonly and receiveonly channels.
-  std::optional<Proc*> top;
-  for (const std::unique_ptr<Proc>& proc : p->procs()) {
-    for (Node* node : proc->nodes()) {
-      if (IsChannelNode(node)) {
-        Channel* ch = GetChannelUsedByNode(node).value();
-        if (ch->supported_ops() == ChannelOps::kSendOnly ||
-            ch->supported_ops() == ChannelOps::kReceiveOnly) {
-          if (top.has_value()) {
-            // Proc inlining requires a unique top-level proc.
-            return absl::UnimplementedError(
-                "Proc inlining requires a single top-level proc (a proc with "
-                "external channels)");
-          }
-          top = proc.get();
-          break;
-        }
-      }
-    }
-  }
-
-  if (!top.has_value()) {
-    return absl::InvalidArgumentError(
-        "Unable to identify top-level proc for proc inlining. No procs have "
-        "external channels.");
-  }
-  return top.value();
-}
-
 // Returns the set of procs to inline. Effectively this is all of the procs in
 // the package except the top-level proc.
 std::vector<Proc*> GetProcsToInline(Proc* top) {
@@ -70,18 +38,14 @@ std::vector<Proc*> GetProcsToInline(Proc* top) {
   return procs;
 }
 
-struct TokenNode {
-  Node* node;
-  std::vector<Node*> sources;
-};
-
-// Returns a graph representation of the network of tokens threaded through
-// send, receive, and parameter nodes in the proc. This network defines the flow
-// of the activation bit through the proc thread. If the proc includes
-// side-effecting nodes which are not send, receive or parameter then an error
-// is returned. Currently, only a linear chain of tokens is supported (no
-// fan-out or fan-in).
-absl::StatusOr<std::vector<TokenNode>> GetTokenNetwork(Proc* proc) {
+// Verifies that the token network from the token parameter to the proc's
+// next-token is a linear chain. Also verifies that the only side-effecting
+// operations with tokens are sends, receives, and params.
+absl::Status VerifyTokenNetwork(Proc* proc) {
+  struct TokenNode {
+    Node* node;
+    std::vector<Node*> sources;
+  };
   std::vector<TokenNode> token_nodes;
   absl::flat_hash_map<Node*, std::vector<Node*>> token_sources;
   for (Node* node : TopoSort(proc)) {
@@ -127,7 +91,7 @@ absl::StatusOr<std::vector<TokenNode>> GetTokenNetwork(Proc* proc) {
         "%s (%s)", token_node.node->GetName(),
         absl::StrJoin(token_node.sources, ", ", NodeFormatter));
   }
-  return token_nodes;
+  return absl::OkStatus();
 }
 
 // Makes and returns a node computing Not(node).
@@ -203,7 +167,7 @@ struct VirtualSend {
   Node* activation_out;
 
   // Whether `data` is valid. Only present in streaming channels. Single-value
-  // channels have not flow control.
+  // channels have no flow control.
   absl::optional<Node*> data_valid;
 };
 
@@ -339,7 +303,7 @@ absl::StatusOr<VirtualReceive> CreateVirtualReceive(
           absl::StrFormat("%s_rcv_dummy_activation_in", channel->name())));
 
   if (channel->kind() == ChannelKind::kStreaming) {
-    // Create a dummy channel-has-data node. Later this will be replaced with
+    // Create a dummy data valid node. Later this will be replaced with
     // signal generated from the corresponding send.
     XLS_ASSIGN_OR_RETURN(
         virtual_receive.dummy_data_valid,
@@ -455,6 +419,9 @@ absl::StatusOr<VirtualReceive> CreateVirtualReceive(
   return virtual_receive;
 }
 
+using ActivationChainElement =
+    absl::variant<VirtualSend, VirtualReceive, Node*>;
+
 // Abstraction representing a proc thread. A proc thread virtually evaluates a
 // particular proc within the top-level proc. An activation bit is threaded
 // through the proc's virtual send/receive operations and keeps track of
@@ -463,8 +430,9 @@ struct ProcThread {
   // The proc which this proc thread evaluates.
   Proc* proc;
 
-  // The token connectivity graph of the original proc.
-  std::vector<TokenNode> token_network;
+  // The chain of side-effecting operations including virtual send/receives
+  // through with the activation bit will be threaded.
+  std::vector<ActivationChainElement> activation_chain;
 
   // A placeholder node representing the start of the activation chain through
   // the proc thread. This will eventually replaced by a bit from the top-level
@@ -501,9 +469,8 @@ absl::StatusOr<ProcThread> CreateVirtualSendReceives(
   ProcThread proc_thread;
   proc_thread.proc = proc;
 
-  // Before transforming the proc at all gather the original token connectivity
-  // graph.
-  XLS_ASSIGN_OR_RETURN(proc_thread.token_network, GetTokenNetwork(proc));
+  // Before transforming the proc at all verify the token network of the proc.
+  XLS_RETURN_IF_ERROR(VerifyTokenNetwork(proc));
 
   // Create a dummy state node and replace all uses of the existing state param
   // with it. Later the state will be augmented to include the state of the
@@ -525,17 +492,24 @@ absl::StatusOr<ProcThread> CreateVirtualSendReceives(
       Send* send = node->As<Send>();
       XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(send));
       if (ch->supported_ops() != ChannelOps::kSendReceive) {
+        // This is an external send. No transformation to be done, but the send
+        // should be added to the activation chain.
+        proc_thread.activation_chain.push_back(send);
         continue;
       }
       XLS_ASSIGN_OR_RETURN(
           VirtualSend virtual_send,
           CreateVirtualSend(ch, send->data(), send->predicate(), proc));
       XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(send->token()));
-      virtual_sends[ch] = std::move(virtual_send);
+      virtual_sends[ch] = virtual_send;
+      proc_thread.activation_chain.push_back(virtual_send);
     } else if (node->Is<Receive>()) {
       Receive* receive = node->As<Receive>();
       XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
       if (ch->supported_ops() != ChannelOps::kSendReceive) {
+        // This is an external receive. No transformation to be done, but the
+        // receive should be added to the activation chain.
+        proc_thread.activation_chain.push_back(receive);
         continue;
       }
       XLS_ASSIGN_OR_RETURN(VirtualReceive virtual_receive,
@@ -544,7 +518,8 @@ absl::StatusOr<ProcThread> CreateVirtualSendReceives(
 
       XLS_RETURN_IF_ERROR(
           receive->ReplaceUsesWith(virtual_receive.receive_output));
-      virtual_receives[ch] = std::move(virtual_receive);
+      virtual_receives[ch] = virtual_receive;
+      proc_thread.activation_chain.push_back(virtual_receive);
     }
   }
 
@@ -563,6 +538,9 @@ absl::StatusOr<ProcThread> InlineProcIntoTop(
   proc_thread.proc = proc;
 
   absl::flat_hash_map<Node*, Node*> node_map;
+
+  // Before transforming the proc at all verify the token netwokr of the proc.
+  XLS_RETURN_IF_ERROR(VerifyTokenNetwork(proc));
 
   // Create a dummy state node. Later this will be replaced with a subset of the
   // top proc state.
@@ -586,45 +564,64 @@ absl::StatusOr<ProcThread> InlineProcIntoTop(
     }
     if (node->Is<Send>()) {
       Send* send = node->As<Send>();
-      absl::optional<Node*> predicate;
-      if (send->predicate().has_value()) {
-        predicate = node_map.at(send->predicate().value());
-      }
       XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(send));
-      XLS_ASSIGN_OR_RETURN(
-          VirtualSend virtual_send,
-          CreateVirtualSend(ch, node_map.at(send->data()), predicate, top));
+      // Only convert sends over internal channels into virtual sends. Sends
+      // over external channels are inlined as is.
+      if (ch->supported_ops() == ChannelOps::kSendReceive) {
+        absl::optional<Node*> predicate;
+        if (send->predicate().has_value()) {
+          predicate = node_map.at(send->predicate().value());
+        }
+        XLS_ASSIGN_OR_RETURN(
+            VirtualSend virtual_send,
+            CreateVirtualSend(ch, node_map.at(send->data()), predicate, top));
 
-      // The output of the send operation itself is token-typed. Just use the
-      // token operand of the send.
-      node_map[node] = node_map.at(send->token());
-      virtual_sends[ch] = std::move(virtual_send);
-      continue;
+        // The output of the send operation itself is token-typed. Just use the
+        // token operand of the send.
+        node_map[node] = node_map.at(send->token());
+        virtual_sends[ch] = virtual_send;
+        proc_thread.activation_chain.push_back(virtual_send);
+        continue;
+      }
     }
     if (node->Is<Receive>()) {
       Receive* receive = node->As<Receive>();
-      absl::optional<Node*> predicate;
-      if (receive->predicate().has_value()) {
-        predicate = node_map.at(receive->predicate().value());
-      }
       XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
-      XLS_ASSIGN_OR_RETURN(
-          VirtualReceive virtual_receive,
-          CreateVirtualReceive(ch, node_map.at(receive->token()), predicate,
-                               top));
+      // Only convert receives over internal channels into virtual receives.
+      // Receives over external channels are inlined as is.
+      if (ch->supported_ops() == ChannelOps::kSendReceive) {
+        absl::optional<Node*> predicate;
+        if (receive->predicate().has_value()) {
+          predicate = node_map.at(receive->predicate().value());
+        }
+        XLS_ASSIGN_OR_RETURN(
+            VirtualReceive virtual_receive,
+            CreateVirtualReceive(ch, node_map.at(receive->token()), predicate,
+                                 top));
 
-      node_map[node] = virtual_receive.receive_output;
-      virtual_receives[ch] = std::move(virtual_receive);
-      continue;
+        node_map[node] = virtual_receive.receive_output;
+        virtual_receives[ch] = virtual_receive;
+        proc_thread.activation_chain.push_back(virtual_receive);
+        continue;
+      }
     }
 
-    // Normal operations are just cloned into `top`.
+    // Other operations are just cloned into `top`.
     std::vector<Node*> new_operands;
     for (Node* operand : node->operands()) {
       new_operands.push_back(node_map.at(operand));
     }
     XLS_ASSIGN_OR_RETURN(node_map[node],
                          node->CloneInNewFunction(new_operands, top));
+
+    if (node->Is<Send>() || node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(node));
+      // Sends and receives not converted to virtual send/receives above
+      // necessarily communicate on external channels. They should be added to
+      // the activation chain.
+      XLS_RET_CHECK_NE(ch->supported_ops(), ChannelOps::kSendReceive);
+      proc_thread.activation_chain.push_back(node_map.at(node));
+    }
   }
 
   proc_thread.computed_state = node_map.at(proc->NextState());
@@ -648,8 +645,6 @@ absl::StatusOr<ProcThread> InlineProcIntoTop(
                                 {top->NextToken(), proc_next_token}))
                             .status());
   }
-
-  XLS_ASSIGN_OR_RETURN(proc_thread.token_network, GetTokenNetwork(proc));
 
   return std::move(proc_thread);
 }
@@ -707,59 +702,64 @@ absl::Status ConnectActivationChain(
           /*loc=*/absl::nullopt, Value(UBits(1, 1)),
           absl::StrFormat("%s_dummy_activation", proc_thread.proc->name())));
   Node* activation = proc_thread.dummy_activation;
-  for (const TokenNode& token_node : proc_thread.token_network) {
-    if (token_node.node->Is<Param>()) {
+  for (const ActivationChainElement& element : proc_thread.activation_chain) {
+    if (absl::holds_alternative<VirtualSend>(element)) {
+      const VirtualSend& virtual_send = absl::get<VirtualSend>(element);
+      XLS_RETURN_IF_ERROR(
+          virtual_send.dummy_activation_in->ReplaceUsesWith(activation));
+      activation = virtual_send.activation_out;
       continue;
     }
-    XLS_RET_CHECK_EQ(token_node.sources.size(), 1);
-    if (token_node.node->Is<Send>()) {
-      Send* send = token_node.node->As<Send>();
-      XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(send));
-      if (ch->supported_ops() == ChannelOps::kSendReceive) {
-        const VirtualSend& virtual_send = virtual_sends.at(ch);
-        XLS_RETURN_IF_ERROR(
-            virtual_send.dummy_activation_in->ReplaceUsesWith(activation));
-        activation = virtual_send.activation_out;
+    if (absl::holds_alternative<VirtualReceive>(element)) {
+      const VirtualReceive& virtual_receive =
+          absl::get<VirtualReceive>(element);
+      XLS_RETURN_IF_ERROR(
+          virtual_receive.dummy_activation_in->ReplaceUsesWith(activation));
+      activation = virtual_receive.activation_out;
+      continue;
+    }
+    XLS_RET_CHECK(absl::holds_alternative<Node*>(element));
+
+    // The only Node*'s on the activation chain should be non-virtual
+    // send/receives over external channels.
+    Node* node = absl::get<Node*>(element);
+    XLS_RET_CHECK(node->Is<Send>() || node->Is<Receive>());
+    XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(node));
+    XLS_RET_CHECK_NE(ch->supported_ops(), ChannelOps::kSendReceive);
+
+    // A send/receive over a single value channel has no flow control or
+    // ordering semantics so it does not wire into the activation chain.
+    if (ch->kind() == ChannelKind::kSingleValue) {
+      continue;
+    }
+
+    if (node->Is<Send>()) {
+      Send* send = node->As<Send>();
+      // Add an additional condition so the operation only fires it has the
+      // activation bit.
+      if (send->predicate().has_value()) {
+        XLS_ASSIGN_OR_RETURN(Node * new_predicate,
+                             And(activation, send->predicate().value()));
+        XLS_RETURN_IF_ERROR(AddSendPredicate(send, new_predicate));
       } else {
-        // A receive from a SendOnly channel. Add an additional condition so
-        // the operation only fires it has the activation bit.
-        XLS_RET_CHECK(send->function_base() == top);
-        if (send->predicate().has_value()) {
-          XLS_ASSIGN_OR_RETURN(Node * new_predicate,
-                               And(activation, send->predicate().value()));
-          XLS_RETURN_IF_ERROR(AddSendPredicate(send, new_predicate));
-        } else {
-          XLS_RETURN_IF_ERROR(AddSendPredicate(send, activation));
-        }
-        // Activation bit is automatically pass along to next node in the
-        // activation change. `activation` variable does not need to be updated.
+        XLS_RETURN_IF_ERROR(AddSendPredicate(send, activation));
       }
-      continue;
-    }
-    if (token_node.node->Is<Receive>()) {
-      Receive* receive = token_node.node->As<Receive>();
-      XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
-      if (ch->supported_ops() == ChannelOps::kSendReceive) {
-        const VirtualReceive& virtual_receive = virtual_receives.at(ch);
-        XLS_RETURN_IF_ERROR(
-            virtual_receive.dummy_activation_in->ReplaceUsesWith(activation));
-        activation = virtual_receive.activation_out;
+    } else {
+      Receive* receive = node->As<Receive>();
+      // A receive from a ReceiveOnly (external) streaming channel. Add an
+      // additional condition so the operation only fires it has the
+      // activation bit.
+      if (receive->predicate().has_value()) {
+        XLS_ASSIGN_OR_RETURN(Node * new_predicate,
+                             And(activation, receive->predicate().value()));
+        XLS_RETURN_IF_ERROR(AddReceivePredicate(receive, new_predicate));
       } else {
-        // A receive from a ReceiveOnly channel. Add an additional condition so
-        // the operation only fires it has the activation bit.
-        XLS_RET_CHECK(receive->function_base() == top);
-        if (receive->predicate().has_value()) {
-          XLS_ASSIGN_OR_RETURN(Node * new_predicate,
-                               And(activation, receive->predicate().value()));
-          XLS_RETURN_IF_ERROR(AddReceivePredicate(receive, new_predicate));
-        } else {
-          XLS_RETURN_IF_ERROR(AddReceivePredicate(receive, activation));
-        }
-        // Activation bit is automatically pass along to next node in the
-        // activation change. `activation` variable does not need to be updated.
+        XLS_RETURN_IF_ERROR(AddReceivePredicate(receive, activation));
       }
-      continue;
     }
+    // For non-virtual send/receive nodes the activation bit is unconditionally
+    // passed along to next node in the activation change. `activation` variable
+    // does not need to be updated.
   }
   proc_thread.activation_out = activation;
 
@@ -829,10 +829,17 @@ absl::Status ReplaceProcState(Proc* proc,
 absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
                                                    const PassOptions& options,
                                                    PassResults* results) const {
-  if (p->procs().size() <= 1) {
+  if (!options.inline_procs || p->procs().empty()) {
     return false;
   }
-  XLS_ASSIGN_OR_RETURN(Proc * top, GetTopLevelProc(p));
+
+  if (!options.top_level_proc_name.has_value()) {
+    return absl::InvalidArgumentError(
+        "Must specify top-level proc name when running proc inlining");
+  }
+  XLS_ASSIGN_OR_RETURN(Proc * top,
+                       p->GetProc(options.top_level_proc_name.value()));
+
   std::vector<Proc*> procs_to_inline = GetProcsToInline(top);
   if (procs_to_inline.empty()) {
     return false;

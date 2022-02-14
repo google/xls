@@ -561,7 +561,8 @@ OpClass.kinds['RECEIVE'] = OpClass(
                           return_cpp_type='absl::optional<Node*>',
                           expression='operand_count() > 1 ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
                    ],
-    attributes=[Int64Attribute('channel_id')]
+    attributes=[Int64Attribute('channel_id')],
+    custom_clone_method=True
 )
 
 OpClass.kinds['SEND'] = OpClass(
@@ -580,6 +581,7 @@ OpClass.kinds['SEND'] = OpClass(
                           return_cpp_type='absl::optional<Node*>',
                           expression='operand_count() > 2 ? absl::optional<Node*>(operand(2)) : absl::nullopt'),
                    ],
+    custom_clone_method=True
 )
 
 OpClass.kinds['NARY_OP'] = OpClass(

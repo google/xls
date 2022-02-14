@@ -57,6 +57,20 @@ struct PassOptions {
   // both run_only_passes and skip_passes are present, then only passes which
   // are present in run_only_passes and not present in skip_passes will be run.
   std::vector<std::string> skip_passes;
+
+  // Whether to inline all procs by calling the proc inlining pass.
+  // TODO(meheff): 2022/2/13 Devise a better mechanism for deciding whether or
+  // not to inline procs including figuring out which procs to inline. At the
+  // minimum, there should be a specialization of PassOptions for the
+  // optimization pass pipeline which holds this value.
+  bool inline_procs = false;
+
+  // Must be specified if inline_procs is true and the package contains any
+  // procs. This is the name of the top-level proc for the purposes of
+  // inlining. All procs will be inlined into this proc.
+  // TODO(https://github.com/google/xls/issues/531) Remove when the package
+  // indicates the top-level proc.
+  absl::optional<std::string> top_level_proc_name;
 };
 
 // An object containing information about the invocation of a pass (single call

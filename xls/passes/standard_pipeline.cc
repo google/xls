@@ -37,6 +37,7 @@
 #include "xls/passes/literal_uncommoning_pass.h"
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
+#include "xls/passes/proc_inlining_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
@@ -106,6 +107,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<MapInliningPass>();
   top->Add<InliningPass>();
   top->Add<DeadFunctionEliminationPass>();
+
   top->Add<BddSimplificationPass>(std::min(int64_t{2}, opt_level));
   top->Add<DeadCodeEliminationPass>();
   top->Add<BddCsePass>();
@@ -124,6 +126,9 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<DeadCodeEliminationPass>();
   top->Add<UselessAssertRemovalPass>();
   top->Add<UselessIORemovalPass>();
+  top->Add<DeadCodeEliminationPass>();
+
+  top->Add<ProcInliningPass>();
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
