@@ -193,9 +193,6 @@ struct VirtualSend {
   // The data to be sent.
   Node* data;
 
-  // Whether `data` is valid.
-  Node* data_valid;
-
   // A placeholder node representing the incoming activation bit for this send
   // operation. It will eventually be replaced by the activation passed from the
   // previous operation in the activation chain on the proc thread.
@@ -204,6 +201,10 @@ struct VirtualSend {
   // The outgoing activation bit. This will be wired to the next operation
   // in the activation chain on the proc thread.
   Node* activation_out;
+
+  // Whether `data` is valid. Only present in streaming channels. Single-value
+  // channels have not flow control.
+  absl::optional<Node*> data_valid;
 };
 
 // Creates a virtual send corresponding to sending the given data on the given
@@ -212,10 +213,10 @@ struct VirtualSend {
 absl::StatusOr<VirtualSend> CreateVirtualSend(
     Channel* channel, Node* data, absl::optional<Node*> send_predicate,
     Proc* top) {
-  if (channel->kind() != ChannelKind::kStreaming) {
-    // TODO(meheff): 2022/02/11 Add support for single-value channels.
+  if (channel->kind() == ChannelKind::kSingleValue &&
+      send_predicate.has_value()) {
     return absl::UnimplementedError(
-        "Only streaming channels are supported in proc inlinling.");
+        "Conditional sends on single-value channels are not supported");
   }
 
   VirtualSend virtual_send;
@@ -237,20 +238,24 @@ absl::StatusOr<VirtualSend> CreateVirtualSend(
       Identity(virtual_send.dummy_activation_in,
                absl::StrFormat("%s_send_activation_out", channel->name())));
 
-  if (send_predicate.has_value()) {
-    // The send is conditional. Valid logic:
-    //
-    //   data_valid = activation_in && cond
-    XLS_ASSIGN_OR_RETURN(
-        virtual_send.data_valid,
-        And(virtual_send.dummy_activation_in, send_predicate.value(),
-            absl::StrFormat("%s_data_valid", channel->name())));
-  } else {
-    // The send is unconditional. The channel has data if the send is activated.
-    XLS_ASSIGN_OR_RETURN(
-        virtual_send.data_valid,
-        Identity(virtual_send.dummy_activation_in,
-                 absl::StrFormat("%s_data_valid", channel->name())));
+  // Only streaming channels have flow control (valid signal).
+  if (channel->kind() == ChannelKind::kStreaming) {
+    if (send_predicate.has_value()) {
+      // The send is conditional. Valid logic:
+      //
+      //   data_valid = activation_in && cond
+      XLS_ASSIGN_OR_RETURN(
+          virtual_send.data_valid,
+          And(virtual_send.dummy_activation_in, send_predicate.value(),
+              absl::StrFormat("%s_data_valid", channel->name())));
+    } else {
+      // The send is unconditional. The channel has data if the send is
+      // activated.
+      XLS_ASSIGN_OR_RETURN(
+          virtual_send.data_valid,
+          Identity(virtual_send.dummy_activation_in,
+                   absl::StrFormat("%s_data_valid", channel->name())));
+    }
   }
 
   return virtual_send;
@@ -270,52 +275,53 @@ struct VirtualReceive {
   // send.
   Node* dummy_data;
 
-  // A placeholder node representing whether the data is valid. It will
-  // eventually be replaced with the data valid node from the corresponding
-  // virtual send.
-  Node* dummy_data_valid;
-
   // A placeholder node representing the incoming activation bit for this
   // receive operation. It will eventually be replaced by the activation passed
   // from the previous operation in the activation chain on the proc thread.
   Node* dummy_activation_in;
 
-  // A placeholder node representing whether this receive is currently holding
-  // the activation bit of the proc thread. A receive might hold the activation
-  // bit for multiple proc ticks while blocked waiting for data valid.
-  Node* dummy_holds_activation;
-
-  // The value of the `holds_activation` value for the receive in the next proc
-  // tick.
-  Node* next_holds_activation;
-
   // The outgoing activation bit. This will be wired to the next operation
   // in the activation chain on the proc thread.
   Node* activation_out;
+
+  // The output of the virtual receive node. Matches the type signature of a
+  // receive node, a tuple (token, data).
+  Node* receive_output;
+
+  // The following optional fields are only present for streaming channels.
+  // Single-value channel have no flow control. This means no data valid signal
+  // and no holding on to the activation bit.
+
+  // A placeholder node representing whether the data is valid. It will
+  // eventually be replaced with the data valid node from the corresponding
+  // virtual send.
+  absl::optional<Node*> dummy_data_valid;
+
+  // A placeholder node representing whether this receive is currently holding
+  // the activation bit of the proc thread. A receive might hold the activation
+  // bit for multiple proc ticks while blocked waiting for data valid.
+  absl::optional<Node*> dummy_holds_activation;
+
+  // The value of the `holds_activation` value for the receive in the next proc
+  // tick. Only present for streaming channels.
+  absl::optional<Node*> next_holds_activation;
 };
 
 // Creates a virtual receive corresponding to receiving the given data on the
 // given channel with an optional predicate. The nodes composing the virtual
 // receive are constructed in `top`.
 absl::StatusOr<VirtualReceive> CreateVirtualReceive(
-    Channel* channel, absl::optional<Node*> receive_predicate, Proc* top) {
-  if (channel->kind() != ChannelKind::kStreaming) {
-    // TODO(meheff): 2022/02/11 Add support for single-value channels.
+    Channel* channel, Node* token, absl::optional<Node*> receive_predicate,
+    Proc* top) {
+  if (channel->kind() == ChannelKind::kSingleValue &&
+      receive_predicate.has_value()) {
     return absl::UnimplementedError(
-        "Only streaming channels are supported in proc inlinling.");
+        "Conditional receives on single-value channels are not supported");
   }
 
   VirtualReceive virtual_receive;
   virtual_receive.channel = channel;
   absl::optional<SourceLocation> loc;
-
-  // Create a dummy channel-has-data node. Later this will be replaced with
-  // signal generated from the corresponding send.
-  XLS_ASSIGN_OR_RETURN(
-      virtual_receive.dummy_data_valid,
-      top->MakeNodeWithName<Literal>(
-          loc, Value(UBits(0, 1)),
-          absl::StrFormat("%s_dummy_data_valid", channel->name())));
 
   // Create a dummy channel data node. Later this will be replaced with
   // the data sent from the the corresponding send node.
@@ -332,67 +338,119 @@ absl::StatusOr<VirtualReceive> CreateVirtualReceive(
           loc, Value(UBits(1, 1)),
           absl::StrFormat("%s_rcv_dummy_activation_in", channel->name())));
 
-  // Create a dummy holds-activation node. Later this will be replaced with a
-  // bit from the proc state.
-  XLS_ASSIGN_OR_RETURN(
-      virtual_receive.dummy_holds_activation,
-      top->MakeNodeWithName<Literal>(
-          loc, Value(UBits(0, 1)),
-          absl::StrFormat("%s_rcv_dummy_holds_activation", channel->name())));
+  if (channel->kind() == ChannelKind::kStreaming) {
+    // Create a dummy channel-has-data node. Later this will be replaced with
+    // signal generated from the corresponding send.
+    XLS_ASSIGN_OR_RETURN(
+        virtual_receive.dummy_data_valid,
+        top->MakeNodeWithName<Literal>(
+            loc, Value(UBits(0, 1)),
+            absl::StrFormat("%s_dummy_data_valid", channel->name())));
 
-  // Logic indicating whether the activation will be passed along (if the
-  // receive has the activation):
-  //
-  //   pass_activation_along = (!predicate || data_valid)
-  Node* pass_activation_along;
-  if (receive_predicate.has_value()) {
-    XLS_ASSIGN_OR_RETURN(Node * not_predicate, Not(receive_predicate.value()));
+    // Create a dummy holds-activation node. Later this will be replaced with a
+    // bit from the proc state.
     XLS_ASSIGN_OR_RETURN(
-        pass_activation_along,
-        Or(not_predicate, virtual_receive.dummy_data_valid,
-           absl::StrFormat("%s_rcv_pass_activation", channel->name())));
+        virtual_receive.dummy_holds_activation,
+        top->MakeNodeWithName<Literal>(
+            loc, Value(UBits(0, 1)),
+            absl::StrFormat("%s_rcv_dummy_holds_activation", channel->name())));
+
+    // Logic indicating whether the activation will be passed along (if the
+    // receive has the activation):
+    //
+    //   pass_activation_along = (!predicate || data_valid)
+    Node* pass_activation_along;
+    if (receive_predicate.has_value()) {
+      XLS_ASSIGN_OR_RETURN(Node * not_predicate,
+                           Not(receive_predicate.value()));
+      XLS_ASSIGN_OR_RETURN(
+          pass_activation_along,
+          Or(not_predicate, virtual_receive.dummy_data_valid.value(),
+             absl::StrFormat("%s_rcv_pass_activation", channel->name())));
+    } else {
+      // Receive is unconditional. The activation is passed along iff the
+      // channel has data.
+      XLS_ASSIGN_OR_RETURN(
+          pass_activation_along,
+          Identity(virtual_receive.dummy_data_valid.value(),
+                   absl::StrFormat("%s_rcv_pass_activation", channel->name())));
+    }
+
+    // Logic about whether to the receive currently has the activation bit:
+    //
+    //   has_activation = activation_in || holds_activation
+    XLS_ASSIGN_OR_RETURN(
+        Node * has_activation,
+        Or(virtual_receive.dummy_activation_in,
+           virtual_receive.dummy_holds_activation.value(),
+           absl::StrFormat("%s_rcv_has_activation", channel->name())));
+
+    // Logic for whether or not the receive holds the activation until the next
+    // proc tick.
+    //
+    //  next_holds_activation = has_activation && !pass_activation_along
+    XLS_ASSIGN_OR_RETURN(virtual_receive.next_holds_activation,
+                         AndNot(has_activation, pass_activation_along,
+                                absl::StrFormat("%s_rcv_next_holds_activation",
+                                                channel->name())));
+
+    // Logic for whether to set the activation out:
+    //
+    //   activation_out = has_activation && pass_activation_along
+    XLS_ASSIGN_OR_RETURN(
+        virtual_receive.activation_out,
+        And(has_activation, pass_activation_along,
+            absl::StrFormat("%s_rcv_activation_out", channel->name())));
+
+    // Add assert which fails when data is lost. That is, data_valid is true and
+    // the receive did not fire.
+    //
+    //   receive_fired = has_activation && predicate;
+    //   data_loss = data_valid && !receive_fired
+    //   assert(!data_loss)
+    Node* receive_fired;
+    if (receive_predicate.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          receive_fired, And(has_activation, receive_predicate.value(),
+                             absl::StrFormat("%s_rcv_fired", channel->name())));
+    } else {
+      receive_fired = has_activation;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * data_loss,
+        AndNot(virtual_receive.dummy_data_valid.value(), receive_fired,
+               absl::StrFormat("%s_data_loss", channel->name())));
+    XLS_ASSIGN_OR_RETURN(Node * no_data_loss, Not(data_loss));
+    XLS_ASSIGN_OR_RETURN(
+        Node * asrt,
+        top->MakeNode<Assert>(
+            loc, token, no_data_loss,
+            /*message=*/
+            absl::StrFormat("Channel %s lost data", channel->name()),
+            /*label=*/absl::StrFormat("%s_data_loss_assert", channel->name())));
+
+    // Ensure assert is threaded into token network
+    token = asrt;
   } else {
-    // Receive is unconditional. The activation is passed along iff the channel
-    // has data.
+    XLS_RET_CHECK(channel->kind() == ChannelKind::kSingleValue);
+    // Receieves on single-value channels pass the activation along
+    // unconditionally because these receives never wait for data.
     XLS_ASSIGN_OR_RETURN(
-        pass_activation_along,
-        Identity(virtual_receive.dummy_data_valid,
-                 absl::StrFormat("%s_rcv_pass_activation", channel->name())));
+        virtual_receive.activation_out,
+        Identity(virtual_receive.dummy_activation_in,
+                 absl::StrFormat("%s_rcv_activation_out", channel->name())));
   }
 
-  // Logic about whether to the receive currently has the activation bit:
-  //
-  //   has_activation = activation_in || holds_activation
+  // TODO(meheff): 2022/02/11 For conditional receives, add a select between
+  // the data value and zero to preserve the zero-value semantics when the
+  // predicate is false.
+
+  // The output of a receive operation is a tuple of (token, data).
   XLS_ASSIGN_OR_RETURN(
-      Node * has_activation,
-      Or(virtual_receive.dummy_activation_in,
-         virtual_receive.dummy_holds_activation,
-         absl::StrFormat("%s_rcv_has_activation", channel->name())));
-
-  // Logic for whether or not the receive holds the activation until the next
-  // proc tick.
-  //
-  //  next_holds_activation = has_activation && !pass_activation_along
-  XLS_ASSIGN_OR_RETURN(
-      virtual_receive.next_holds_activation,
-      AndNot(has_activation, pass_activation_along,
-             absl::StrFormat("%s_rcv_next_holds_activation", channel->name())));
-
-  // Logic for whether to set the activation out:
-  //
-  //   activation_out = has_activation && pass_activation_along
-  XLS_ASSIGN_OR_RETURN(
-      virtual_receive.activation_out,
-      And(has_activation, pass_activation_along,
-          absl::StrFormat("%s_rcv_activation_out", channel->name())));
-
-  // TODO(meheff): 2022/02/11 For conditional receives, add a select between the
-  // data value and zero to preserve the zero-vale semantics when the predicate
-  // is false.
-
-  // TODO(meheff): 2022/02/11 Add assert to catch
-  // instances where data is dropped on the floor (valid is true but the receive
-  // does not fire).
+      virtual_receive.receive_output,
+      top->MakeNodeWithName<Tuple>(
+          loc, std::vector<Node*>{token, virtual_receive.dummy_data},
+          absl::StrFormat("%s_rcv", channel->name())));
 
   return virtual_receive;
 }
@@ -480,19 +538,12 @@ absl::StatusOr<ProcThread> CreateVirtualSendReceives(
       if (ch->supported_ops() != ChannelOps::kSendReceive) {
         continue;
       }
-      XLS_ASSIGN_OR_RETURN(
-          VirtualReceive virtual_receive,
-          CreateVirtualReceive(ch, receive->predicate(), proc));
+      XLS_ASSIGN_OR_RETURN(VirtualReceive virtual_receive,
+                           CreateVirtualReceive(ch, receive->token(),
+                                                receive->predicate(), proc));
 
-      // The output of a receive operation is a tuple of (token, data).
-      XLS_ASSIGN_OR_RETURN(
-          Node * receive_output,
-          proc->MakeNodeWithName<Tuple>(
-              receive->loc(),
-              std::vector<Node*>{receive->token(), virtual_receive.dummy_data},
-              absl::StrFormat("%s_rcv", ch->name())));
-
-      XLS_RETURN_IF_ERROR(receive->ReplaceUsesWith(receive_output));
+      XLS_RETURN_IF_ERROR(
+          receive->ReplaceUsesWith(virtual_receive.receive_output));
       virtual_receives[ch] = std::move(virtual_receive);
     }
   }
@@ -557,17 +608,12 @@ absl::StatusOr<ProcThread> InlineProcIntoTop(
         predicate = node_map.at(receive->predicate().value());
       }
       XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
-      XLS_ASSIGN_OR_RETURN(VirtualReceive virtual_receive,
-                           CreateVirtualReceive(ch, predicate, top));
+      XLS_ASSIGN_OR_RETURN(
+          VirtualReceive virtual_receive,
+          CreateVirtualReceive(ch, node_map.at(receive->token()), predicate,
+                               top));
 
-      // The output of a receive operation is a tuple of (token, data).
-      XLS_ASSIGN_OR_RETURN(Node * receive_output,
-                           top->MakeNodeWithName<Tuple>(
-                               receive->loc(),
-                               std::vector<Node*>{node_map.at(receive->token()),
-                                                  virtual_receive.dummy_data},
-                               absl::StrFormat("%s_rcv", ch->name())));
-      node_map[node] = receive_output;
+      node_map[node] = virtual_receive.receive_output;
       virtual_receives[ch] = std::move(virtual_receive);
       continue;
     }
@@ -840,12 +886,22 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
     XLS_RETURN_IF_ERROR(
         virtual_receive.dummy_data->ReplaceUsesWith(virtual_send.data));
 
-    XLS_VLOG(3) << absl::StreamFormat(
-        "Connecting channel %s data_valid: replacing %s with %s", ch->name(),
-        virtual_receive.dummy_data_valid->GetName(),
-        virtual_send.data_valid->GetName());
-    XLS_RETURN_IF_ERROR(virtual_receive.dummy_data_valid->ReplaceUsesWith(
-        virtual_send.data_valid));
+    // Only streaming channels have flow control (valid signal).
+    if (ch->kind() == ChannelKind::kStreaming) {
+      XLS_RET_CHECK(virtual_send.data_valid.has_value());
+      XLS_RET_CHECK(virtual_receive.dummy_data_valid.has_value());
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Connecting channel %s data_valid: replacing %s with %s", ch->name(),
+          virtual_receive.dummy_data_valid.value()->GetName(),
+          virtual_send.data_valid.value()->GetName());
+      XLS_RETURN_IF_ERROR(
+          virtual_receive.dummy_data_valid.value()->ReplaceUsesWith(
+              virtual_send.data_valid.value()));
+    } else {
+      XLS_RET_CHECK(ch->kind() == ChannelKind::kSingleValue);
+      XLS_RET_CHECK(!virtual_send.data_valid.has_value());
+      XLS_RET_CHECK(!virtual_receive.dummy_data_valid.has_value());
+    }
   }
 
   XLS_VLOG(3) << "After connecting data channels:\n" << p->DumpIr();
@@ -874,11 +930,17 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
     if (ch->supported_ops() != ChannelOps::kSendReceive) {
       continue;
     }
-    state_elements.push_back(StateElement{
-        .name = absl::StrFormat("%s_rcv_holds_activation", ch->name()),
-        .initial_value = Value(UBits(0, 1)),
-        .dummy = virtual_receives.at(ch).dummy_holds_activation,
-        .next = virtual_receives.at(ch).next_holds_activation});
+    // Only receives on streaming channels will wait for data (hold the
+    // activation bit).
+    if (ch->kind() == ChannelKind::kStreaming) {
+      XLS_RET_CHECK(virtual_receives.at(ch).dummy_holds_activation.has_value());
+      XLS_RET_CHECK(virtual_receives.at(ch).next_holds_activation.has_value());
+      state_elements.push_back(StateElement{
+          .name = absl::StrFormat("%s_rcv_holds_activation", ch->name()),
+          .initial_value = Value(UBits(0, 1)),
+          .dummy = virtual_receives.at(ch).dummy_holds_activation.value(),
+          .next = virtual_receives.at(ch).next_holds_activation.value()});
+    }
   }
   XLS_RETURN_IF_ERROR(ReplaceProcState(top, state_elements));
 

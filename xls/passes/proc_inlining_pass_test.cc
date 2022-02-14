@@ -49,6 +49,37 @@ class ProcInliningPassTest : public IrTestBase {
     return changed;
   }
 
+  absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
+  CreateProcNetworkInterpreter(
+      Package* p,
+      const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs) {
+    // Create an fixed input queue for each set of inputs. It will feed in the
+    // specified inputs.
+    std::vector<std::unique_ptr<ChannelQueue>> queues;
+    for (auto [ch_name, ch_inputs] : inputs) {
+      XLS_ASSIGN_OR_RETURN(Channel * ch, p->GetChannel(ch_name));
+      XLS_RET_CHECK(ch->type()->IsBits());
+
+      std::vector<Value> input_values;
+      for (int64_t in : ch_inputs) {
+        input_values.push_back(Value(UBits(in, ch->type()->GetFlatBitCount())));
+      }
+
+      if (ch->kind() == ChannelKind::kStreaming) {
+        queues.push_back(
+            std::make_unique<FixedChannelQueue>(ch, p, input_values));
+      } else {
+        XLS_RET_CHECK(ch->kind() == ChannelKind::kSingleValue);
+        XLS_RET_CHECK_EQ(input_values.size(), 1)
+            << "Single value channels may only have a single input";
+        auto queue = std::make_unique<SingleValueChannelQueue>(ch);
+        XLS_RETURN_IF_ERROR(queue->Enqueue(input_values.front()));
+        queues.push_back(std::move(queue));
+      }
+    }
+    return ProcNetworkInterpreter::Create(p, std::move(queues));
+  }
+
   // Evaluate the proc with the given inputs and expect the given
   // outputs. Inputs and outputs are given as a map from channel name to
   // sequence of values. `expected_ticks` if given is the expected number of
@@ -64,24 +95,9 @@ class ProcInliningPassTest : public IrTestBase {
     testing::ScopedTrace trace(loc.file_name(), loc.line(),
                                "EvalAndExpect failed");
 
-    // Create an fixed input queue for each set of inputs. It will feed in the
-    // specified inputs.
-    std::vector<std::unique_ptr<ChannelQueue>> queues;
-    for (auto [ch_name, ch_inputs] : inputs) {
-      XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, p->GetChannel(ch_name));
-      ASSERT_TRUE(ch->type()->IsBits());
-
-      std::vector<Value> input_values;
-      for (int64_t in : ch_inputs) {
-        input_values.push_back(Value(UBits(in, ch->type()->GetFlatBitCount())));
-      }
-
-      queues.push_back(
-          std::make_unique<FixedChannelQueue>(ch, p, input_values));
-    }
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        ProcNetworkInterpreter::Create(p, std::move(queues)));
+        CreateProcNetworkInterpreter(p, inputs));
 
     std::vector<Channel*> output_channels;
     for (auto [ch_name, expected_values] : expected_outputs) {
@@ -115,7 +131,7 @@ class ProcInliningPassTest : public IrTestBase {
     for (Channel* ch : output_channels) {
       std::vector<int64_t> outputs;
       ChannelQueue& queue = interpreter->queue_manager().GetQueue(ch);
-      while (!queue.empty()) {
+      while (outputs.size() < expected_outputs.at(ch->name()).size()) {
         XLS_ASSERT_OK_AND_ASSIGN(Value output, queue.Dequeue());
         outputs.push_back(output.bits().ToUint64().value());
       }
@@ -216,6 +232,22 @@ class ProcInliningPassTest : public IrTestBase {
 
     return b.Build(send_x_minus_y, b.GetStateParam());
   }
+
+  // Make a proc which receives data values `x` and `y` and sends out the sum.
+  absl::StatusOr<Proc*> MakeSumProc(absl::string_view name, Channel* x_in,
+                                    Channel* y_in, Channel* out, Package* p) {
+    XLS_RET_CHECK(x_in->type() == y_in->type());
+    XLS_RET_CHECK(x_in->type() == out->type());
+
+    ProcBuilder b(name, Value::Tuple({}), "tkn", "st", p);
+    BValue x_rcv = b.Receive(x_in, b.GetTokenParam());
+    BValue y_rcv = b.Receive(y_in, b.TupleIndex(x_rcv, 0));
+    BValue x = b.TupleIndex(x_rcv, 1);
+    BValue y = b.TupleIndex(y_rcv, 1);
+    BValue send_out = b.Send(out, b.TupleIndex(y_rcv, 0), b.Add(x, y));
+
+    return b.Build(send_out, b.GetStateParam());
+  }
 };
 
 TEST_F(ProcInliningPassTest, NoProcs) {
@@ -274,6 +306,38 @@ TEST_F(ProcInliningPassTest, NestedProcs) {
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}},
                 /*expected_ticks=*/3);
+}
+
+TEST_F(ProcInliningPassTest, NestedProcsWithSingleValue) {
+  // Nested procs where the inner proc does a trivial arithmetic operation.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateSingleValueChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateSingleValueChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateSingleValueChannel("a_to_b", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateSingleValueChannel("b_to_a", ChannelOps::kSendReceive, u32));
+
+  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
+                    .status());
+  XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}});
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}},
+                /*expected_ticks=*/1);
 }
 
 TEST_F(ProcInliningPassTest, NestedProcPassThrough) {
@@ -914,7 +978,66 @@ TEST_F(ProcInliningPassTest, MultiIO) {
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(
       p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
-      {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}});
+      {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}},
+      /*expected_ticks=*/3);
+}
+
+TEST_F(ProcInliningPassTest, SingleValueAndStreamingChannels) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * sv_in,
+      p->CreateSingleValueChannel("sv", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_x,
+      p->CreateStreamingChannel("pass_x", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_sv,
+      p->CreateSingleValueChannel("pass_sv", ChannelOps::kSendReceive, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_sum,
+      p->CreateStreamingChannel("pass_sum", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * sum_out,
+      p->CreateStreamingChannel("sum", ChannelOps::kSendOnly, u32));
+
+  {
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue rcv_sv = ab.Receive(sv_in, ab.TupleIndex(rcv_x, 0));
+
+    BValue send_x =
+        ab.Send(pass_x, ab.TupleIndex(rcv_sv, 0), ab.TupleIndex(rcv_x, 1));
+    BValue send_sv = ab.Send(pass_sv, send_x, ab.TupleIndex(rcv_sv, 1));
+
+    BValue rcv_sum = ab.Receive(pass_sum, send_sv);
+    BValue send_sum =
+        ab.Send(sum_out, ab.TupleIndex(rcv_sum, 0), ab.TupleIndex(rcv_sum, 1));
+    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetStateParam()));
+  }
+
+  XLS_ASSERT_OK(MakeSumProc("B", pass_x, pass_sv, pass_sum, p.get()));
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {10}}},
+                {{"sum", {133, 32, 52}}});
+  EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {25}}},
+                {{"sum", {148, 47, 67}}});
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {10}}},
+                {{"sum", {133, 32, 52}}},
+                /*expected_ticks=*/3);
+  EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {25}}},
+                {{"sum", {148, 47, 67}}},
+                /*expected_ticks=*/3);
 }
 
 TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
@@ -994,6 +1117,112 @@ TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}},
                 /*expected_ticks=*/3);
+}
+
+TEST_F(ProcInliningPassTest, DataLossDueToReceiveConditionFalse) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32));
+
+  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
+                    .status());
+  {
+    // Inner proc does nothing on the first tick which results in data loss.
+    //
+    //   st = 0
+    //   while(true):
+    //    if(st):
+    //       x = rcv(a_to_b)
+    //       send(b_to_a, x + 42)
+    //    st = 1
+    ProcBuilder bb("B", Value(UBits(0, 1)), "tkn", "st", p.get());
+    BValue rcv_from_a =
+        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetStateParam());
+    BValue send_to_a = bb.SendIf(
+        b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.GetStateParam(),
+        bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
+    XLS_ASSERT_OK(bb.Build(send_to_a, bb.Literal(UBits(1, 1))));
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3}}}));
+  EXPECT_THAT(interpreter->Tick(),
+              StatusIs(absl::StatusCode::kAborted,
+                       HasSubstr("Channel a_to_b lost data")));
+}
+
+TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b0,
+      p->CreateStreamingChannel("a_to_b0", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b1,
+      p->CreateStreamingChannel("a_to_b1", ChannelOps::kSendReceive, u32));
+
+  {
+    // Top proc doesn't send on a_to_b0 on the first cycle which stalls the
+    // inner proc.
+    //
+    //   st = 0
+    //   while(true):
+    //    if(st):
+    //       snd(a_to_b0)
+    //    snd(a_to_b1)
+    //    st = 1
+    ProcBuilder ab("B", Value(UBits(0, 1)), "tkn", "st", p.get());
+    BValue rcv = ab.Receive(ch_in, ab.GetTokenParam());
+    BValue send0 = ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), ab.GetStateParam(),
+                             ab.Literal(UBits(0, 32)));
+    BValue send1 = ab.Send(a_to_b1, send0, ab.Literal(UBits(0, 32)));
+    XLS_ASSERT_OK(ab.Build(send1, ab.Literal(UBits(1, 1))).status());
+  }
+
+  {
+    // Inner proc is stalled on the first receive which results in the second
+    // receive dropping data.
+    //
+    //   while(true):
+    //    rcv(a_to_b0)
+    //    rcv(a_to_b1)
+    ProcBuilder bb("B", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv0 = bb.Receive(a_to_b0, bb.GetTokenParam());
+    BValue rcv1 = bb.Receive(a_to_b1, bb.TupleIndex(rcv0, 0));
+    XLS_ASSERT_OK(bb.Build(bb.TupleIndex(rcv1, 0), bb.GetStateParam()));
+  }
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3}}}));
+  EXPECT_THAT(interpreter->Tick(),
+              StatusIs(absl::StatusCode::kAborted,
+                       HasSubstr("Channel a_to_b1 lost data")));
 }
 
 TEST_F(ProcInliningPassTest, TokenFanOut) {

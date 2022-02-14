@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+  // Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -174,6 +174,12 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
                                         node->GetName());
     }
   }
+
+  // Raise a status error if interpreter events indicate failure such as a
+  // failed assert.
+  XLS_RETURN_IF_ERROR(
+      InterpreterEventsToStatus(visitor_->GetInterpreterEvents()));
+
   // Sort blocked_channels vector by channel id.
   std::sort(result.blocked_channels.begin(), result.blocked_channels.end(),
             [](Channel* a, Channel* b) { return a->id() < b->id(); });
