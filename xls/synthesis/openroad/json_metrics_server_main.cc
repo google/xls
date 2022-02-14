@@ -88,10 +88,14 @@ class JsonMetricsSynthesisServiceImpl : public SynthesisService::Service {
     XLS_RETURN_IF_ERROR(SetFileContents(verilog_path, request->module_text()));
 
     double clock_period_ps = 1e12 / request->target_frequency_hz();
+    setenv("CONSTANT_CLOCK_PORT", "clk", 1);
     setenv("CONSTANT_CLOCK_PERIOD_PS", absl::StrCat(clock_period_ps).c_str(),
            1);
     setenv("CONSTANT_TOP", request->top_module_name().c_str(), 1);
     setenv("INPUT_RTL", verilog_path.c_str(), 1);
+
+    std::filesystem::path netlist_path = temp_dir_path / "netlist.v";
+    setenv("OUTPUT_NETLIST", netlist_path.c_str(), 1);
 
     std::filesystem::path metrics_path = temp_dir_path / "metrics.json";
     setenv("OUTPUT_METRICS", metrics_path.c_str(), 1);
