@@ -19,6 +19,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/vast.h"
@@ -2153,21 +2154,25 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io_and_pipeline,
                        CloneNodesIntoPipelinedBlock(schedule, options, block));
 
-  if (streaming_io_and_pipeline.outputs.size() != 1) {
-    // TODO(tedhong): 2021-09-27 Add additional logic to ensure that
-    // when output channels are ready at different times, no data is lost
-    // or received twice.
+  if (streaming_io_and_pipeline.outputs.size() > 1) {
+    XLS_ASSIGN_OR_RETURN(bool streaming_outputs_mutually_exclusive,
+                         AreStreamingOutputsMutuallyExclusive(proc));
 
-    // TODO(tedhong): 2021-10-22 Add an additional check that
-    // in the case of mutually exclusive streaming outputs (at most one output
-    // is written at a time, then logic can be simplified.
-
-    XLS_LOG(WARNING) << absl::StrFormat(
-        "Proc pipeline generator only supports streaming "
-        "output channels which are guaranteed to be mutually "
-        "exclusive, got %d output channels which were not "
-        "checked for this condition",
-        streaming_io_and_pipeline.outputs.size());
+    if (streaming_outputs_mutually_exclusive) {
+      XLS_VLOG(3) << absl::StrFormat(
+          "%d streaming outputs determined to be mutually exclusive",
+          streaming_io_and_pipeline.outputs.size());
+    } else {
+      // TODO(tedhong): 2021-09-27 Add additional logic to ensure that
+      // when output channels are ready at different times, no data is lost
+      // or received twice.
+      return absl::UnimplementedError(absl::StrFormat(
+          "Proc pipeline generator only supports streaming "
+          "output channels which can be determined to be mutually "
+          "exclusive, got %d output channels which were not proven "
+          "to be mutually exclusive",
+          streaming_io_and_pipeline.outputs.size()));
+    }
   }
 
   XLS_VLOG(3) << "After Pipeline";

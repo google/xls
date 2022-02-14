@@ -399,6 +399,7 @@ cc_library(
     srcs = ["block_conversion.cc"],
     hdrs = ["block_conversion.h"],
     deps = [
+        ":bdd_io_analysis",
         ":codegen_options",
         ":codegen_pass",
         ":register_legalization_pass",
@@ -852,6 +853,47 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "bdd_io_analysis",
+    srcs = ["bdd_io_analysis.cc"],
+    hdrs = ["bdd_io_analysis.h"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:casts",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:channel",
+        "//xls/ir:node_util",
+        "//xls/passes",
+        "//xls/passes:bdd_query_engine",
+        "//xls/passes:pass_base",
+        "//xls/passes:query_engine",
+    ],
+)
+
+cc_test(
+    name = "bdd_io_analysis_test",
+    srcs = ["bdd_io_analysis_test.cc"],
+    deps = [
+        ":bdd_io_analysis",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "//xls/passes:bdd_cse_pass",
+        "//xls/passes:dce_pass",
         "@com_google_googletest//:gtest",
     ],
 )

@@ -2334,6 +2334,54 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiInputWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
+TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
+  auto package_ptr = std::make_unique<Package>(TestName());
+  Package& package = *package_ptr;
+
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out0,
+      package.CreateStreamingChannel("out0", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out1,
+      package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
+
+  Value initial_state = Value(UBits(0, 32));
+  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+
+  BValue in_val = pb.Receive(in);
+
+  BValue two = pb.Literal(UBits(2, 32));
+  BValue three = pb.Literal(UBits(3, 32));
+
+  pb.SendIf(out0, pb.ULt(in_val, two), in_val);
+  pb.SendIf(out1, pb.ULt(in_val, three), in_val);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  XLS_VLOG_LINES(2, proc->DumpIr());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+
+  CodegenOptions options;
+  options.module_name(TestName());
+  options.flop_inputs(true).flop_outputs(true).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst_n", false, /*active_low=*/true, false);
+
+  EXPECT_THAT(ProcToPipelinedBlock(schedule, options, proc).status(),
+              status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("not proven to be mutually exclusive")));
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls
