@@ -442,9 +442,37 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
   return live_out;
 }
 
+namespace {
+class DelayEstimatorWithInputDelay : public DelayEstimator {
+ public:
+  DelayEstimatorWithInputDelay(const DelayEstimator& base, int64_t input_delay)
+      : base_delay_estimator_(&base), input_delay_(input_delay) {}
+
+  virtual absl::StatusOr<int64_t> GetOperationDelayInPs(
+      Node* node) const override {
+    XLS_ASSIGN_OR_RETURN(int64_t base_delay,
+                         base_delay_estimator_->GetOperationDelayInPs(node));
+
+    return (node->op() == Op::kReceive) ? base_delay + input_delay_
+                                        : base_delay;
+  }
+
+ private:
+  const DelayEstimator* base_delay_estimator_;
+  int64_t input_delay_;
+};
+}  // namespace
+
 /*static*/ absl::StatusOr<PipelineSchedule> PipelineSchedule::Run(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
+  int64_t input_delay = options.additional_input_delay_ps().has_value()
+                            ? options.additional_input_delay_ps().value()
+                            : 0;
+
+  DelayEstimatorWithInputDelay delay_estimator_with_delay(delay_estimator,
+                                                          input_delay);
+
   int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {
     clock_period_ps = *options.clock_period_ps();
@@ -466,9 +494,9 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     // A pipeline length is specified, but no target clock period. Determine
     // the minimum clock period for which the function can be scheduled in the
     // given pipeline length.
-    XLS_ASSIGN_OR_RETURN(
-        clock_period_ps,
-        FindMinimumClockPeriod(f, *options.pipeline_stages(), delay_estimator));
+    XLS_ASSIGN_OR_RETURN(clock_period_ps,
+                         FindMinimumClockPeriod(f, *options.pipeline_stages(),
+                                                delay_estimator_with_delay));
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
@@ -480,14 +508,14 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
   XLS_ASSIGN_OR_RETURN(
       sched::ScheduleBounds bounds,
       ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
-                      options.pipeline_stages(), delay_estimator));
+                      options.pipeline_stages(), delay_estimator_with_delay));
   int64_t schedule_length = bounds.max_lower_bound() + 1;
 
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::MINIMIZE_REGISTERS) {
-    XLS_ASSIGN_OR_RETURN(cycle_map,
-                         ScheduleToMinimizeRegisters(f, schedule_length,
-                                                     delay_estimator, &bounds));
+    XLS_ASSIGN_OR_RETURN(cycle_map, ScheduleToMinimizeRegisters(
+                                        f, schedule_length,
+                                        delay_estimator_with_delay, &bounds));
   } else {
     XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
     XLS_RET_CHECK(!options.pipeline_stages().has_value());
@@ -497,7 +525,8 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     }
   }
   auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
-  XLS_RETURN_IF_ERROR(schedule.VerifyTiming(clock_period_ps, delay_estimator));
+  XLS_RETURN_IF_ERROR(
+      schedule.VerifyTiming(clock_period_ps, delay_estimator_with_delay));
   XLS_VLOG_LINES(3, "Schedule\n" + schedule.ToString());
   return schedule;
 }

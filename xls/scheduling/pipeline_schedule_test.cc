@@ -704,5 +704,60 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   EXPECT_EQ(schedule.cycle(send.node()), 4);
 }
 
+TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
+  Package p("p");
+
+  Type* u16 = p.GetBitsType(16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+
+  TokenlessProcBuilder pb("the_proc", Value::Tuple({}), "tkn", "st", &p);
+
+  BValue rcv = pb.Receive(in_ch);
+  BValue out = pb.Negate(pb.Not(pb.Negate(pb.Not(pb.Negate(rcv)))));
+  BValue send = pb.Send(out_ch, out);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(2)));
+  EXPECT_EQ(schedule.length(), 2);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 1);
+
+  int64_t nodes_in_first_cycle = schedule.nodes_in_cycle(0).size();
+  for (int64_t input_delay : std::vector{2, 5, 10}) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule_with_input_delay,
+        PipelineSchedule::Run(
+            proc, TestDelayEstimator(),
+            SchedulingOptions().pipeline_stages(2).additional_input_delay_ps(
+                input_delay)));
+    int64_t updated_nodes_in_first_cycle =
+        schedule_with_input_delay.nodes_in_cycle(0).size();
+
+    // Nodes in first cycle will always decrease
+    EXPECT_LE(updated_nodes_in_first_cycle, nodes_in_first_cycle);
+
+    if (input_delay >= 5) {
+      // With a large enough input delay the only thing that will
+      // be scheduled in the first cycle is the receive plus
+      // token and state
+      //
+      // tkn: token = param(tkn, id=1)
+      // receive.3: (token, bits[16]) = receive(tkn, channel_id=0, id=3)
+      // st: () = param(st, id=2)
+      EXPECT_EQ(updated_nodes_in_first_cycle, 3);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace xls

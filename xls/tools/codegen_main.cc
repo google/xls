@@ -122,6 +122,8 @@ ABSL_FLAG(int64_t, period_relaxation_percent, 0,
           "constraints will be used.  Increasing this will trade-off an "
           "increase in critical path delay in favor of decreased register "
           "count.");
+ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
+          "The additional delay added to each receive node.");
 // TODO(meheff): Rather than specify all reset (or codegen options in general)
 // as a multitude of flags, these can be specified via a separate file (like a
 // options proto).
@@ -184,6 +186,10 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions() {
   if (absl::GetFlag(FLAGS_period_relaxation_percent) != 0) {
     scheduling_options.period_relaxation_percent(
         absl::GetFlag(FLAGS_period_relaxation_percent));
+  }
+  if (absl::GetFlag(FLAGS_additional_input_delay_ps) != 0) {
+    scheduling_options.additional_input_delay_ps(
+        absl::GetFlag(FLAGS_additional_input_delay_ps));
   }
 
   return scheduling_options;

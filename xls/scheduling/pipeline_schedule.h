@@ -107,12 +107,25 @@ class SchedulingOptions {
     return period_relaxation_percent_;
   }
 
+  // Sets/gets the additional delay added to each receive node.
+  //
+  // TODO(tedhong): 2022-02-11, Update so that this sets/gets the
+  // additional delay added to each input path.
+  SchedulingOptions& additional_input_delay_ps(int64_t value) {
+    additional_input_delay_ps_ = value;
+    return *this;
+  }
+  absl::optional<int64_t> additional_input_delay_ps() const {
+    return additional_input_delay_ps_;
+  }
+
  private:
   SchedulingStrategy strategy_;
   absl::optional<int64_t> clock_period_ps_;
   absl::optional<int64_t> pipeline_stages_;
   absl::optional<int64_t> clock_margin_percent_;
   absl::optional<int64_t> period_relaxation_percent_;
+  absl::optional<int64_t> additional_input_delay_ps_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

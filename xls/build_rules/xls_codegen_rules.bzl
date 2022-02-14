@@ -149,6 +149,7 @@ def xls_ir_verilog_impl(ctx, src):
     # parse arguments
     CODEGEN_FLAGS = (
         "clock_period_ps",
+        "additional_input_delay_ps",
         "pipeline_stages",
         "delay_model",
         "entry",
