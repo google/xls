@@ -128,6 +128,8 @@ class BytecodeInterpreter {
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
 
+  // TODO(rspringer): 2022-02-14: Builtins should probably go in their own file,
+  // likely after removing the old interpreter.
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
   absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
@@ -139,6 +141,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHot(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode);
+  absl::Status RunBuiltinRange(const Bytecode& bytecode);
 
   absl::StatusOr<InterpValue> Pop();
 

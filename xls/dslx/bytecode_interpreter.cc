@@ -850,6 +850,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinOneHot(bytecode);
     case Builtin::kOneHotSel:
       return RunBuiltinOneHotSel(bytecode);
+    case Builtin::kRange:
+      return RunBuiltinRange(bytecode);
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Builtin function \"%s\" not yet implemented.",
@@ -1106,6 +1108,30 @@ absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
   }
 
   stack_.push_back(InterpValue::MakeBits(/*is_signed=*/false, result));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpValue end, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
+
+  XLS_RET_CHECK(start.IsBits());
+  XLS_RET_CHECK(end.IsBits());
+
+  std::vector<InterpValue> elements;
+  InterpValue cur = start;
+  XLS_ASSIGN_OR_RETURN(InterpValue done, cur.Ge(end));
+  XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
+  InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
+                                 : InterpValue::MakeUBits(cur_bits, 1));
+  while (done.IsFalse()) {
+    elements.push_back(cur);
+    XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
+    XLS_ASSIGN_OR_RETURN(done, cur.Ge(end));
+  }
+  XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(elements));
+  stack_.push_back(array);
   return absl::OkStatus();
 }
 
