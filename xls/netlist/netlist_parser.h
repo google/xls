@@ -27,6 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "absl/strings/substitute.h"
 #include "absl/types/variant.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -157,11 +158,6 @@ class AbstractParser {
 
   // Parses a wire declaration at the module scope.
   absl::Status ParseNetDecl(AbstractModule<EvalT>* module, NetDeclKind kind);
-
-  struct Range {
-    int64_t high;
-    int64_t low;
-  };
 
   // Parses an assign declaration at the module scope.
   absl::Status ParseAssignDecl(AbstractModule<EvalT>* module);
@@ -505,8 +501,8 @@ bool AbstractParser<EvalT>::TryDropKeyword(absl::string_view target) {
 }
 
 template <typename EvalT>
-absl::StatusOr<absl::optional<typename AbstractParser<EvalT>::Range>>
-AbstractParser<EvalT>::ParseOptionalRange(bool strict) {
+absl::StatusOr<absl::optional<Range>> AbstractParser<EvalT>::ParseOptionalRange(
+    bool strict) {
   absl::optional<Range> range;
   if (TryDropToken(TokenKind::kOpenBracket)) {
     XLS_ASSIGN_OR_RETURN(int64_t high, PopNumberOrError());
@@ -549,13 +545,15 @@ absl::Status AbstractParser<EvalT>::ParseNetDecl(AbstractModule<EvalT>* module,
   }
 
   for (const std::string& name : names) {
-    if (kind == NetDeclKind::kInput || kind == NetDeclKind::kOutput) {
-      int64_t width = 1;
-      if (range.has_value()) {
-        width = range->high - range->low + 1;
-      }
-      XLS_RETURN_IF_ERROR(
-          module->DeclarePort(name, width, kind == NetDeclKind::kOutput));
+    switch (kind) {
+      case NetDeclKind::kInput:
+      case NetDeclKind::kOutput:
+        XLS_RETURN_IF_ERROR(
+            module->DeclarePort(name, range, kind == NetDeclKind::kOutput));
+        break;
+      case NetDeclKind::kWire:
+        XLS_RETURN_IF_ERROR(module->DeclareWire(name, range));
+        break;
     }
     if (range.has_value()) {
       for (int64_t i = range->low; i <= range->high; ++i) {

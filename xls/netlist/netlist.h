@@ -51,7 +51,7 @@ namespace rtl {
 template <typename EvalT = bool>
 class AbstractNetDef;
 
-// Refers to an ID inside the module's wires_ array.
+// Refers to an ID inside the module's wire_nets_ array.
 template <typename EvalT = bool>
 using AbstractNetRef = AbstractNetDef<EvalT>*;
 
@@ -213,6 +213,13 @@ class AbstractNetDef {
 
 using NetDef = AbstractNetDef<>;
 
+// Represents a parsed range, for example the range [7:0] in the declaration
+// "wire [7:0] x". Both limits are inclusive.
+struct Range {
+  int64_t high;
+  int64_t low;
+};
+
 // Represents the module containing the netlist info.
 template <typename EvalT = bool>
 class AbstractModule {
@@ -273,11 +280,15 @@ class AbstractModule {
     return cells_;
   }
 
-  const std::vector<AbstractNetRef<EvalT>>& inputs() const { return inputs_; }
-  const std::vector<AbstractNetRef<EvalT>>& outputs() const { return outputs_; }
+  const std::vector<AbstractNetRef<EvalT>>& inputs() const {
+    return input_nets_;
+  }
+  const std::vector<AbstractNetRef<EvalT>>& outputs() const {
+    return output_nets_;
+  }
   const absl::flat_hash_map<AbstractNetRef<EvalT>, AbstractNetRef<EvalT>>&
   assigns() const {
-    return assigns_;
+    return assign_nets_;
   }
 
   // Declares port order in the module() keyword.  For example, if a module
@@ -318,8 +329,35 @@ class AbstractModule {
   //
   // An error status is returned if, for a given "input" or "output"
   // declaration, there no match in the parameter list.
-  absl::Status DeclarePort(absl::string_view name, int64_t width,
+  absl::Status DeclarePort(absl::string_view name, absl::optional<Range> range,
                            bool is_output);
+  // Returns the width of a port.
+  absl::optional<absl::optional<Range>> GetPortRange(absl::string_view name,
+                                                     bool is_assignable);
+
+  // Declares an individual wire with its range.  For example, when encountering
+  // these declarations:
+  //
+  //     wire [7:0] x;
+  //     wire y;
+  //
+  // The parser will invoke this method.  This differs from the invocation of
+  // AddNetDecl(), which is called for each bit of a ranged wire (i.e., in the
+  // example above, AddNetDecl() would be invoked 8 times for "x" and once for
+  // "y".  By contrast, DeclareWire does not add a net declaration--it simply
+  // records the declaration with its relevant attributes (i.e., the range).
+  absl::Status DeclareWire(absl::string_view name, absl::optional<Range> range);
+
+  // Returns the range  of a wire.  For example, given these declarations:
+  //
+  //     wire [7:0] x;
+  //     wire y;
+  //
+  // This method will return Range{7,0} for wire "x", and absl::nullopt for wire
+  // "y".  Note that the wire name needs to be given without a subscript (e.g.,
+  // "y[0]" or "x[1]" are not valid inputs.  If the wire-name lookup fails, the
+  // method returns (the enclosing) absl::nullopt.
+  absl::optional<absl::optional<Range>> GetWireRange(absl::string_view name);
 
   // Returns the bit offset of a given input net in the parameter list.  For
   // example, if a module declaration starts with:
@@ -404,21 +442,39 @@ class AbstractModule {
     return absl::OkStatus();
   }
 
+  const AbstractNetRef<EvalT> zero() const { return zero_; }
+  const AbstractNetRef<EvalT> one() const { return one_; }
+
  private:
-  struct Port {
-    explicit Port(std::string name) : name_(name) {}
+  struct Wire {
+    explicit Wire(std::string name, absl::optional<Range> range)
+        : name_(name), range_(range) {}
     std::string name_;
-    int64_t width_ = 1;
+    absl::optional<Range> range_;
+    size_t GetWidth() const {
+      size_t width = 1;
+      if (range_.has_value()) {
+        width = range_->high - range_->low + 1;
+      }
+      return width;
+    }
+  };
+  struct Port : public Wire {
+    // We don't know the port width then declaring the port order; we set the
+    // width later, when encounteing the individual port declaration.
+    explicit Port(std::string name) : Wire(name, absl::nullopt) {}
     bool is_output_ = false;
     bool is_declared_ = false;
   };
 
   std::string name_;
   std::vector<std::unique_ptr<Port>> ports_;
-  std::vector<AbstractNetRef<EvalT>> inputs_;
-  std::vector<AbstractNetRef<EvalT>> outputs_;
-  std::vector<AbstractNetRef<EvalT>> wires_;
-  absl::flat_hash_map<AbstractNetRef<EvalT>, AbstractNetRef<EvalT>> assigns_;
+  std::vector<AbstractNetRef<EvalT>> input_nets_;
+  std::vector<AbstractNetRef<EvalT>> output_nets_;
+  std::vector<std::unique_ptr<Wire>> wires_;
+  std::vector<AbstractNetRef<EvalT>> wire_nets_;
+  absl::flat_hash_map<AbstractNetRef<EvalT>, AbstractNetRef<EvalT>>
+      assign_nets_;
   std::vector<std::unique_ptr<AbstractNetDef<EvalT>>> nets_;
   absl::flat_hash_map<std::string, AbstractNetRef<EvalT>> name_to_netref_;
   std::vector<std::unique_ptr<AbstractCell<EvalT>>> cells_;
@@ -479,13 +535,13 @@ const AbstractCellLibraryEntry<EvalT>*
 AbstractModule<EvalT>::AsCellLibraryEntry() const {
   if (!cell_library_entry_.has_value()) {
     std::vector<std::string> input_names;
-    input_names.reserve(inputs_.size());
-    for (const auto& input : inputs_) {
+    input_names.reserve(input_nets_.size());
+    for (const auto& input : input_nets_) {
       input_names.push_back(input->name());
     }
     typename AbstractCellLibraryEntry<EvalT>::OutputPinToFunction output_pins;
-    output_pins.reserve(outputs_.size());
-    for (const auto& output : outputs_) {
+    output_pins.reserve(output_nets_.size());
+    for (const auto& output : output_nets_) {
       output_pins[output->name()] = "";
     }
     cell_library_entry_.emplace(AbstractCellLibraryEntry<EvalT>(
@@ -569,13 +625,13 @@ absl::Status AbstractModule<EvalT>::AddNetDecl(NetDeclKind kind,
   name_to_netref_[name] = ref;
   switch (kind) {
     case NetDeclKind::kInput:
-      inputs_.push_back(ref);
+      input_nets_.push_back(ref);
       break;
     case NetDeclKind::kOutput:
-      outputs_.push_back(ref);
+      output_nets_.push_back(ref);
       break;
     case NetDeclKind::kWire:
-      wires_.push_back(ref);
+      wire_nets_.push_back(ref);
       break;
   }
   return absl::OkStatus();
@@ -585,7 +641,7 @@ template <typename EvalT>
 absl::Status AbstractModule<EvalT>::AddAssignDecl(absl::string_view name,
                                                   bool bit) {
   XLS_ASSIGN_OR_RETURN(AbstractNetRef<EvalT> ref, ResolveNet(name));
-  assigns_[ref] = bit ? one_ : zero_;
+  assign_nets_[ref] = bit ? one_ : zero_;
   return absl::OkStatus();
 }
 
@@ -594,20 +650,39 @@ absl::Status AbstractModule<EvalT>::AddAssignDecl(absl::string_view lhs_name,
                                                   absl::string_view rhs_name) {
   XLS_ASSIGN_OR_RETURN(AbstractNetRef<EvalT> lhs, ResolveNet(lhs_name));
   XLS_ASSIGN_OR_RETURN(AbstractNetRef<EvalT> rhs, ResolveNet(rhs_name));
-  assigns_[lhs] = rhs;
+  assign_nets_[lhs] = rhs;
   return absl::OkStatus();
 }
 
 template <typename EvalT>
+absl::Status AbstractModule<EvalT>::DeclareWire(absl::string_view name,
+                                                absl::optional<Range> range) {
+  wires_.emplace_back(std::make_unique<Wire>(std::string(name), range));
+  return absl::OkStatus();
+}
+
+template <typename EvalT>
+absl::optional<absl::optional<Range>> AbstractModule<EvalT>::GetWireRange(
+    absl::string_view name) {
+  for (auto& wire : wires_) {
+    if (wire->name_ == name) {
+      return wire->range_;
+    }
+  }
+  return absl::nullopt;
+}
+
+template <typename EvalT>
 absl::Status AbstractModule<EvalT>::DeclarePort(absl::string_view name,
-                                                int64_t width, bool is_output) {
+                                                absl::optional<Range> range,
+                                                bool is_output) {
   for (auto& port : ports_) {
     if (port->name_ == name) {
       if (port->is_declared_) {
         return absl::AlreadyExistsError(
             absl::StrFormat("Duplicate declaration of port '%s'.", name));
       }
-      port->width_ = width;
+      port->range_ = range;
       port->is_output_ = is_output;
       port->is_declared_ = true;
       return absl::OkStatus();
@@ -616,6 +691,17 @@ absl::Status AbstractModule<EvalT>::DeclarePort(absl::string_view name,
   return absl::NotFoundError(
       absl::StrFormat("No match for %s '%s' in parameter list.",
                       is_output ? "output" : "input", name));
+}
+
+template <typename EvalT>
+absl::optional<absl::optional<Range>> AbstractModule<EvalT>::GetPortRange(
+    absl::string_view name, bool is_assignable) {
+  for (auto& port : ports_) {
+    if (port->name_ == name && (!is_assignable || port->is_output_)) {
+      return port->range_;
+    }
+  }
+  return absl::nullopt;
 }
 
 template <typename EvalT>
@@ -631,7 +717,7 @@ int64_t AbstractModule<EvalT>::GetInputPortOffset(
     if (ports_[i]->is_output_) {
       continue;
     }
-    off += ports_[i]->width_;
+    off += ports_[i]->GetWidth();
     if (ports_[i]->name_ == name_and_idx[0]) {
       break;
     }
