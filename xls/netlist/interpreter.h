@@ -358,18 +358,23 @@ AbstractInterpreter<EvalT>::InterpretModule(
   }
 
   // Handle assigns.
+  const auto& assigns = module->assigns();
   for (const rtl::AbstractNetRef<EvalT> output : module->outputs()) {
     if (!outputs.contains(output)) {
-      const absl::flat_hash_map<rtl::AbstractNetRef<EvalT>,
-                                rtl::AbstractNetRef<EvalT>>& assigns =
-          module->assigns();
+      // If the check below fails, it means the output wire is undefined;
+      // there's no value assignment for it.  This is allowed, but when
+      // interpreting netlists it indicates a bug in the verilog more often than
+      // not. We err on the side of caution.
       XLS_RET_CHECK(assigns.contains(output));
-      rtl::AbstractNetRef<EvalT> net_value = assigns.at(output);
-      XLS_ASSIGN_OR_RETURN(auto net_0, module->ResolveNumber(0));
-      XLS_ASSIGN_OR_RETURN(auto net_1, module->ResolveNumber(1));
-      if (net_value == net_0) {
+      rtl::AbstractNetRef<EvalT> net_value = output;
+      // Follow the chain of assignments until we get to a 0, 1, or an input
+      // wire.
+      while (assigns.contains(net_value)) {
+        net_value = assigns.at(net_value);
+      }
+      if (net_value == module->zero()) {
         outputs.insert({output, zero_});
-      } else if (net_value == net_1) {
+      } else if (net_value == module->one()) {
         outputs.insert({output, one_});
       } else {
         XLS_RET_CHECK(inputs.contains(net_value));

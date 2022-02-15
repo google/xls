@@ -676,6 +676,129 @@ TEST(NetlistParserTest, XorUsingThreads) {
 
 #undef OP
 
+TEST(InterpreterTest, ComplexMixedInputAndWireAssigns) {
+  std::string module_text = R"(
+module main (A, B, out);
+  input A;
+  input B;
+  wire [1:0] i0;
+  wire [2:0] i1;
+  wire [3:0] i2;
+  wire [4:0] i3;
+  output [15:0] out;
+  wire [15:0] out;
+
+  // i0 = 2'bAB;
+  assign i0 = { A, B };
+  // i1 = 3'b1AB
+  assign i1 = { 1'b1, i0 };
+  // 12'b1AB1AB1AB1AB -> 9'b1AB1AB1AB
+  // i2 = 4'b1AB1
+  // i3 = 5'bAB1AB
+  assign { i2, i3 }  = { i1, i1, i1, i1 };
+  // out = 9'bAB1AB1AB1. 7'b1001010
+  //     = 16'bAB1A_B1AB_1100_1010
+  assign out = { i3, i2, 7'h4a };
+endmodule
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
+  rtl::Scanner scanner(module_text);
+  XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+
+  Interpreter interpreter(netlist.get());
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
+                           netlist->GetModule("main"));
+
+  auto eval = [&module, &interpreter](bool A, bool B) {
+    NetRef2Value inputs, outputs;
+    inputs[module->inputs()[0]] = A;
+    inputs[module->inputs()[1]] = B;
+    XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                             interpreter.InterpretModule(module, inputs));
+
+    EXPECT_EQ(outputs.size(), 16);
+    EXPECT_EQ(outputs[module->outputs()[15]], A);
+    EXPECT_EQ(outputs[module->outputs()[14]], B);
+    EXPECT_EQ(outputs[module->outputs()[13]], 1);
+    EXPECT_EQ(outputs[module->outputs()[12]], A);
+    EXPECT_EQ(outputs[module->outputs()[11]], B);
+    EXPECT_EQ(outputs[module->outputs()[10]], 1);
+    EXPECT_EQ(outputs[module->outputs()[9]], A);
+    EXPECT_EQ(outputs[module->outputs()[8]], B);
+    EXPECT_EQ(outputs[module->outputs()[7]], 1);
+    EXPECT_EQ(outputs[module->outputs()[6]], 1);
+    EXPECT_EQ(outputs[module->outputs()[5]], 0);
+    EXPECT_EQ(outputs[module->outputs()[4]], 0);
+    EXPECT_EQ(outputs[module->outputs()[3]], 1);
+    EXPECT_EQ(outputs[module->outputs()[2]], 0);
+    EXPECT_EQ(outputs[module->outputs()[1]], 1);
+    EXPECT_EQ(outputs[module->outputs()[0]], 0);
+  };
+
+  eval(0, 0);
+  eval(0, 1);
+  eval(1, 0);
+  eval(1, 1);
+}
+
+TEST(InterpreterTest, ComplexWireAssigns) {
+  std::string module_text = R"(
+module main (out);
+  wire [1:0] i0;
+  wire [2:0] i1;
+  wire [3:0] i2;
+  wire [4:0] i3;
+  output [15:0] out;
+  wire [15:0] out;
+
+  // i0 = 2'b10;
+  assign i0 = 2'b10;
+  // i1 = 3'b110
+  assign i1 = { 1'b1, i0 };
+  // 12'b110110110110 -> 9'b110110110
+  // i2 = 4'b1101
+  // i3 = 5'b
+  assign { i2, i3 }  = { i1, i1, i1, i1 };
+  // out = 9'b101101101 . 7'b1001010
+  //     = 16'b1011_0110_1100_1010
+  assign out = { i3, i2, 7'h4a };
+endmodule
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(CellLibrary cell_library, MakeFakeCellLibrary());
+  rtl::Scanner scanner(module_text);
+  XLS_ASSERT_OK_AND_ASSIGN(auto netlist,
+                           rtl::Parser::ParseNetlist(&cell_library, &scanner));
+
+  Interpreter interpreter(netlist.get());
+  XLS_ASSERT_OK_AND_ASSIGN(const rtl::Module* module,
+                           netlist->GetModule("main"));
+
+  NetRef2Value inputs, outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs,
+                           interpreter.InterpretModule(module, inputs));
+
+  EXPECT_EQ(outputs.size(), 16);
+  EXPECT_EQ(outputs[module->outputs()[15]], 1);
+  EXPECT_EQ(outputs[module->outputs()[14]], 0);
+  EXPECT_EQ(outputs[module->outputs()[13]], 1);
+  EXPECT_EQ(outputs[module->outputs()[12]], 1);
+  EXPECT_EQ(outputs[module->outputs()[11]], 0);
+  EXPECT_EQ(outputs[module->outputs()[10]], 1);
+  EXPECT_EQ(outputs[module->outputs()[9]], 1);
+  EXPECT_EQ(outputs[module->outputs()[8]], 0);
+  EXPECT_EQ(outputs[module->outputs()[7]], 1);
+  EXPECT_EQ(outputs[module->outputs()[6]], 1);
+  EXPECT_EQ(outputs[module->outputs()[5]], 0);
+  EXPECT_EQ(outputs[module->outputs()[4]], 0);
+  EXPECT_EQ(outputs[module->outputs()[3]], 1);
+  EXPECT_EQ(outputs[module->outputs()[2]], 0);
+  EXPECT_EQ(outputs[module->outputs()[1]], 1);
+  EXPECT_EQ(outputs[module->outputs()[0]], 0);
+}
+
 }  // namespace
 }  // namespace netlist
 }  // namespace xls

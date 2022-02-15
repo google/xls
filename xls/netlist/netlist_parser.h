@@ -159,12 +159,63 @@ class AbstractParser {
   // Parses a wire declaration at the module scope.
   absl::Status ParseNetDecl(AbstractModule<EvalT>* module, NetDeclKind kind);
 
-  // Parses an assign declaration at the module scope.
+  // Parses an assign declaration at the module scope.  When encountering an
+  // assign declaration, we break the LHS and RHS into individual wires, from
+  // MSB to LSB.  Then, starting with the LSB, we start assigning the RHS to the
+  // LHS.  This permits the loose mapping of any combinations of wires and
+  // number-literal values.
+  //
+  // Given a list of wires representing the LHS and RHS of the assignment, each
+  // complex wire is broken into its individual bits; single wires are
+  // represented by their name only. (Number literals and input ports are not
+  // allowed to be present on the LHS.)
+  //
+  // For example, consider in the following port (equivalently, wire)
+  // declarations:
+  //
+  //   input a;
+  //   input [2:0] b;
+  //   output [3:0] c;
+  //   output d;
+  //
+  // And the following assignments:
+  //
+  //   assign c = { a, b }
+  //   assign d = a;
+  //   assign { c, d } = { a, b[2:1], 1'b10 };
+  //
+  // The LHS for the assigns would each become a vector of strings with values
+  // as follows:
+  //
+  //   "c[3]", "c[2]", "c[1]", and "c[0]".
+  //   "d"
+  //   "c[3]", "c[2]", "c[1]", "c[0]", and "d".
+  //
+  // For the RHS:
+  //   "a", "b[2]", "b[1]", "b[0]"
+  //   "a"
+  //   "a", "b[2]", "b[1]", "1", "0"
+  //
+  // These would be matched up wire by wire from left to right.  Note that the
+  // LHS and RHS need not be of the same size.  If there are more terms in the
+  // LHS, then the extraneous most-significant ones will be unassigned.  If
+  // there are more terms on the RHS, then the most-significant values would not
+  // be assigned to anything.
   absl::Status ParseAssignDecl(AbstractModule<EvalT>* module);
-  // Parse a single assignment.  Called by ParseAssignDecl()
-  absl::Status ParseOneAssignment(AbstractModule<EvalT>* module,
-                                  absl::string_view lhs_name,
-                                  absl::optional<Range> lhs_range);
+
+  // Given a wire or port identifier or a number literal next in the token
+  // stream, and also given whether we expect that token to be on the LHS or RHS
+  // of an assign statement, this method will convert the input as the following
+  // examples illustrate:
+  //
+  // Given port or wire "x" that was declared without width, it will emit "x"
+  // Given port or wire "x" that was declared with width [7:2], it will emit
+  // "x[7]", "x[6]", "x[5]", .., "x[2]".
+  // Given a number "4'b1010" and is_lhs == false, it will emit "1", "0", "1",
+  // "0".
+  absl::Status ParseOneEntryOfAssignDecl(AbstractModule<EvalT>* module,
+                                         std::vector<std::string>& side,
+                                         bool is_lhs);
 
   // Attempts to parse a range of the kind [high:low].  It also handles
   // indexing by setting parameter strict to false, by representing the range as
@@ -568,154 +619,117 @@ absl::Status AbstractParser<EvalT>::ParseNetDecl(AbstractModule<EvalT>* module,
 }
 
 template <typename EvalT>
-absl::Status AbstractParser<EvalT>::ParseOneAssignment(
-    AbstractModule<EvalT>* module, absl::string_view lhs_name,
-    absl::optional<Range> lhs_range) {
-  // Extract the range from the lhs wire.  The high and low ends are identical
-  // because the optional range might be an index dereference.
-  int64_t lhs_high = 0, lhs_low = 0;
-  if (lhs_range.has_value()) {
-    lhs_high = lhs_range.value().high;
-    lhs_low = lhs_range.value().low;
-  }
-  XLS_RET_CHECK(lhs_high >= lhs_low);
-
+absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
+    AbstractModule<EvalT>* module, std::vector<std::string>& side,
+    bool is_lhs) {
+  size_t number_bit_width;
   using TokenT = absl::variant<std::string, int64_t>;
-  XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError());
-  if (absl::holds_alternative<int64_t>(token)) {
-    int64_t rhs_value = absl::get<int64_t>(token);
-    // We'll be right-shifting below, make sure that sign extensions do not
-    // trip us up.
-    if (rhs_value < 0) {
-      return absl::UnimplementedError(
-          "Negative number literals are not supported in assign statements.");
-    }
-
-    // Start converting the value to the input wires zero_ or one_, and
-    // assign each input bit to the corresponding NetDecl, starting with the
-    // low end of the range.  If we run out of wires while converting the
-    // number, error out.
-
-    while (lhs_low <= lhs_high) {
-      bool bit = rhs_value & 1;
-      if (lhs_range.has_value()) {
-        XLS_RETURN_IF_ERROR(module->AddAssignDecl(
-            absl::StrFormat("%s[%d]", lhs_name, lhs_low), bit));
-      } else {
-        // The loop will execute only once.
-        XLS_RETURN_IF_ERROR(module->AddAssignDecl(lhs_name, bit));
-      }
-      lhs_low++;
-      rhs_value >>= 1;
-    }
-    if (rhs_value != 0) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Number literal is too wide for %s.", lhs_name));
-    }
-
+  XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError(number_bit_width));
+  std::string name;
+  absl::optional<Range> range = absl::nullopt;
+  if (absl::holds_alternative<std::string>(token)) {
+    name = absl::get<std::string>(token);
+    XLS_ASSIGN_OR_RETURN(range, ParseOptionalRange(false));
   } else {
-    std::string rhs_name = absl::get<std::string>(token);
-    XLS_ASSIGN_OR_RETURN(auto rhs_range, ParseOptionalRange(false));
-
-    // Extract the range from the rhs wire.
-    int64_t rhs_high = 0, rhs_low = 0;
-    if (rhs_range.has_value()) {
-      rhs_high = rhs_range.value().high;
-      rhs_low = rhs_range.value().low;
-    }
-    XLS_CHECK(rhs_high >= rhs_low);
-
-    // The two ranges must be the same width.
-    if (rhs_high - rhs_low != lhs_high - lhs_low) {
+    // If we parsed a number, but we're expecting an lvalue, throw an error.
+    if (is_lhs == true) {
       return absl::InvalidArgumentError(
-          absl::StrFormat("Mismatched bit widths: left-hand side is %lld, "
-                          "right-hand side is %lld.",
-                          lhs_high - lhs_low + 1, rhs_high - rhs_low + 1));
+          "Parsed a number when expecting lvalue in assign statement.");
     }
-
-    // Start mapping the rhs wires to the lhs ones.
-    while (lhs_low <= lhs_high) {
-      std::string lhs_wire_name;
-      if (lhs_range.has_value()) {
-        lhs_wire_name = absl::StrFormat("%s[%d]", lhs_name, lhs_low);
-      } else {
-        lhs_wire_name = lhs_name;
-      }
-      std::string rhs_wire_name;
-      if (rhs_range.has_value()) {
-        rhs_wire_name = absl::StrFormat("%s[%d]", rhs_name, rhs_low);
-      } else {
-        rhs_wire_name = rhs_name;
-      }
-      XLS_RETURN_IF_ERROR(module->AddAssignDecl(lhs_wire_name, rhs_wire_name));
-      lhs_low++;
-      rhs_low++;
+    // We got a number, and we're parsing the RHS. Break up the number into
+    // bits, and splay its values as "0"s and "1"s in the string, starting with
+    // the MSB.
+    auto bitmap = InlineBitmap::FromWord(absl::get<int64_t>(token),
+                                         number_bit_width, /*fill=*/false);
+    XLS_CHECK(number_bit_width > 0);
+    for (; number_bit_width; number_bit_width--) {
+      side.push_back(bitmap.Get(number_bit_width - 1) ? "1" : "0");
     }
-    XLS_CHECK(rhs_low >= rhs_high);
+    return absl::OkStatus();
   }
-
+  if (range.has_value()) {
+    auto high = range->high;
+    auto low = range->low;
+    while (high >= low) {
+      side.push_back(absl::Substitute("$0[$1]", name, high));
+      high--;
+    }
+  } else {
+    // No subscript was used; check to see the width of the wire.  Note that
+    // because wires and output ports are tracked separately, if the port
+    // lookup fails, we'll have to check the wires.
+    auto has_opt_range = module->GetPortRange(name, /*is_assignable=*/is_lhs);
+    if (!has_opt_range.has_value()) {
+      has_opt_range = module->GetWireRange(name);
+      XLS_CHECK(has_opt_range.has_value());
+    }
+    // Get the optional range from the result. If the optional range exists,
+    // then the wire is ranged, e.g. it was declared as "output [7:0] out".
+    // In this case, we insert "out[7]", "out[6]", ..., "out[0]" to the LHS
+    // array.  If there is no range, e.g. if it was declared as "output
+    // out", then we only insert "out".
+    auto opt_range = has_opt_range.value();
+    if (opt_range.has_value()) {
+      int64_t high = opt_range->high;
+      int64_t low = opt_range->low;
+      while (high >= low) {
+        side.push_back(absl::Substitute("$0[$1]", name, high));
+        high--;
+      }
+    } else {
+      side.push_back(name);
+    }
+  }
   return absl::OkStatus();
 }
 
 template <typename EvalT>
 absl::Status AbstractParser<EvalT>::ParseAssignDecl(
     AbstractModule<EvalT>* module) {
-  // Parse assign statements of the following format:
-  //
-  // assign idA = idB;
-  // assign { idA0, idA1, ... } = { idB0, idB1, ... }
-  //
-  // Each identifier can be a literal, a single wire, or a wire with a
-  // subscript, or a wire with a subscript range, e.g. "8'h00", "a", or "a[0]",
-  // or "a[7:0]".
-  //
-  // The identifiers on the LHS and the RHS must be the same width, e.g.
-  //
-  // assign a = 1'b0
-  // assign a[7:0] = 8'hff
-  // assign a = b
-  // assign { a, b[1], c[7:0] }  = { d, e[5], f[15:8] }
-  //
-  // Note: we do not handle all possible kinds of assign syntax.  For example,
-  // the line "assign {a,b} = 2'h0;" is legal.  We error out in this case rather
-  // than doing the wrong thing.  Support can be added in the future, if needed.
-
+  // Parse the left-hand side.
+  std::vector<std::string> lhs;
   if (TryDropToken(TokenKind::kOpenBrace)) {
-    std::vector<std::pair<std::string, absl::optional<Range>>> lhs;
-    // Parse the left-hand side.
     do {
-      XLS_ASSIGN_OR_RETURN(std::string name, PopNameOrError());
-      XLS_ASSIGN_OR_RETURN(auto range, ParseOptionalRange(false));
-      lhs.push_back({name, range});
-    } while (TryDropToken(TokenKind::kComma));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBrace));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-
-    // Parse the right-hand side.  While parsing, iterate over the lhs elements
-    // we collected, verify that widths match, then break them up into
-    // individual NetDecl instances, and save the associationss.  The right-hand
-    // side could map an integer to a wire range, in which case we break up the
-    // integer bitwise and assign the values to the lhs wires.
-
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOpenBrace));
-    auto left = lhs.begin();
-    do {
-      absl::string_view lhs_name = left->first;
-      absl::optional<Range> lhs_range = left->second;
-      XLS_RETURN_IF_ERROR(ParseOneAssignment(module, lhs_name, lhs_range));
-      left++;
+      XLS_RETURN_IF_ERROR(
+          ParseOneEntryOfAssignDecl(module, lhs, /*is_lhs=*/true));
     } while (TryDropToken(TokenKind::kComma));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBrace));
   } else {
-    // Parse the left-hand side.
-    XLS_ASSIGN_OR_RETURN(std::string lhs_name, PopNameOrError());
-    XLS_ASSIGN_OR_RETURN(auto lhs_range, ParseOptionalRange(false));
-    // Parse the right-hand side.
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-    XLS_RETURN_IF_ERROR(ParseOneAssignment(module, lhs_name, lhs_range));
+    XLS_RETURN_IF_ERROR(
+        ParseOneEntryOfAssignDecl(module, lhs, /*is_lhs=*/true));
   }
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemicolon));
 
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
+
+  // Parse the right-hand side.
+  std::vector<std::string> rhs;
+  if (TryDropToken(TokenKind::kOpenBrace)) {
+    do {
+      XLS_RETURN_IF_ERROR(
+          ParseOneEntryOfAssignDecl(module, rhs, /*is_lhs=*/false));
+    } while (TryDropToken(TokenKind::kComma));
+    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBrace));
+  } else {
+    XLS_RETURN_IF_ERROR(
+        ParseOneEntryOfAssignDecl(module, rhs, /*is_lhs=*/false));
+  }
+
+  // Starting with the least-significant bits (from the right), match the LHS
+  // and the RHS.  Note that the two sides need not be of equal length.  If the
+  // LHS is longer than the RHS, then the remaning wires will have undefined
+  // values.
+  auto left = lhs.end();
+  auto right = rhs.cend();
+  while (left-- != lhs.begin() && right-- != rhs.cbegin()) {
+    if (*right == "0" || *right == "1") {
+      bool bit = *right == "1";
+      XLS_RETURN_IF_ERROR(module->AddAssignDecl(*left, bit));
+    } else {
+      XLS_RETURN_IF_ERROR(module->AddAssignDecl(*left, *right));
+    }
+  }
+
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemicolon));
   return absl::OkStatus();
 }
 
