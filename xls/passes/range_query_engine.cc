@@ -19,6 +19,7 @@
 #include "absl/container/inlined_vector.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/leaf_type_tree.h"
 #include "xls/ir/abstract_node_evaluator.h"
@@ -283,44 +284,6 @@ struct BitsWithIndex {
     return false;
   }
 };
-
-// Calls the given function on every possible mixed-radix number of a given
-// length (the length of the radix vector). Each element `i` of a
-// "number vector" is thought of as a digit with radix equal to `radix[i]`.
-// If the given function returns `true`, the iteration ends early and we return
-// `true`. Otherwise, `false` is returned.
-//
-//
-// For example, if the `radix` is `[6, 4, 8, 2]` and the most recent time the
-// callback was called was on `[5, 3, 0, 0]` then the next call will be
-// with `[0, 0, 1, 0]` (note that the convention is little-endian).
-bool MixedRadixIterate(const std::vector<int64_t>& radix,
-                       std::function<bool(const std::vector<int64_t>&)> f) {
-  std::vector<int64_t> number;
-  number.resize(radix.size(), 0);
-
-  // Returns `true` if there was an overflow or `false` otherwise
-  auto increment_number = [&]() -> bool {
-    int64_t i = 0;
-    while ((i < number.size()) && ((number[i] + 1) >= radix[i])) {
-      number[i] = 0;
-      ++i;
-    }
-    if (i < number.size()) {
-      ++number[i];
-      return false;
-    }
-    return true;
-  };
-
-  do {
-    if (f(number)) {
-      return true;
-    }
-  } while (!increment_number());
-
-  return false;
-}
 
 // Given a set of `Bits` (all the same bit-width) and a desired size for that
 // set, reduce the number of elements in the set to the desired size by

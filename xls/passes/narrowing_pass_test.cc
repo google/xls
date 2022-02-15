@@ -39,8 +39,10 @@ class NarrowingPassTest : public IrTestBase,
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
+    PassOptions options;
+    options.convert_array_index_to_select = 2;
     return NarrowingPass(/*use_range_analysis=*/GetParam())
-        .Run(p, PassOptions(), &results);
+        .Run(p, options, &results);
   }
 };
 
@@ -352,9 +354,46 @@ TEST_P(NarrowingPassTest, ArrayIndexWithAllSameValue) {
       p->GetBitsType(32));
   fb.ArrayIndex(array, {index});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
-  if (/* use_range_analysis = */ GetParam()) {
+  if (/*use_range_analysis=*/GetParam()) {
     ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
     EXPECT_THAT(f->return_value(), m::Literal(600));
+  }
+}
+
+TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue index = fb.Select(
+      fb.Param("s", p->GetBitsType(1)),
+      /*cases=*/
+      {fb.Literal(Value(UBits(3, 5))), fb.Literal(Value(UBits(7, 5)))},
+      /*default=*/std::nullopt);
+  BValue array = fb.Literal(Value::ArrayOrDie({
+      Value(UBits(0, 20)),
+      Value(UBits(1, 20)),
+      Value(UBits(2, 20)),
+      Value(UBits(3, 20)),
+      Value(UBits(4, 20)),
+      Value(UBits(5, 20)),
+      Value(UBits(6, 20)),
+      Value(UBits(7, 20)),
+      Value(UBits(8, 20)),
+      Value(UBits(9, 20)),
+  }));
+  fb.ArrayIndex(array, /*indices=*/{index});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  if (/*use_range_analysis=*/GetParam()) {
+    ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+    EXPECT_THAT(f->return_value(),
+                m::Select(m::And(m::Eq(index.node(), m::Literal(7))),
+                          /*cases=*/
+                          {
+                              m::ArrayIndex(array.node(), {m::Literal(3)}),
+                              m::ArrayIndex(array.node(), {m::Literal(7)}),
+                          },
+                          /*default=*/std::nullopt));
   }
 }
 

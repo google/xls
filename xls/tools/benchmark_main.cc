@@ -62,6 +62,11 @@ ABSL_FLAG(std::string, entry, "",
           "Entry function to use in lieu of the default.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
+ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
+          "If specified, convert array indexes with fewer than or "
+          "equal to the given number of possible indices (by range analysis) "
+          "into chains of selects. Otherwise, this optimization is skipped, "
+          "since it can sometimes reduce output quality.");
 
 namespace xls {
 namespace {
@@ -100,9 +105,16 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   std::unique_ptr<CompoundPass> pipeline = CreateStandardPassPipeline();
 
   absl::Time start = absl::Now();
+  PassOptions pass_options;
+  int64_t convert_array_index_to_select =
+      absl::GetFlag(FLAGS_convert_array_index_to_select);
+  pass_options.convert_array_index_to_select =
+      (convert_array_index_to_select < 0)
+          ? std::nullopt
+          : std::make_optional(convert_array_index_to_select);
   PassResults pass_results;
   XLS_RETURN_IF_ERROR(
-      pipeline->Run(package, PassOptions(), &pass_results).status());
+      pipeline->Run(package, pass_options, &pass_results).status());
   absl::Duration total_time = absl::Now() - start;
   auto to_ms = [](absl::Duration d) { return d / absl::Milliseconds(1); };
   std::cout << absl::StreamFormat("Optimization time: %dms\n",

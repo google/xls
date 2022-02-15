@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include <limits>
 
+#include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 
 namespace xls {
@@ -132,6 +133,18 @@ T FlushSubnormal(T value) {
 
   return value;
 }
+
+// Calls the given function on every possible mixed-radix number of a given
+// length (the length of the radix vector). Each element `i` of a
+// "number vector" is thought of as a digit with radix equal to `radix[i]`.
+// If the given function returns `true`, the iteration ends early and we return
+// `true`. Otherwise, `false` is returned.
+//
+// For example, if the `radix` is `[6, 4, 8, 2]` and the most recent time the
+// callback was called was on `[5, 3, 0, 0]` then the next call will be
+// with `[0, 0, 1, 0]` (note that the convention is little-endian).
+bool MixedRadixIterate(absl::Span<const int64_t> radix,
+                       std::function<bool(const std::vector<int64_t>&)> f);
 
 }  // namespace xls
 

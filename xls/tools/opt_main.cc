@@ -38,6 +38,11 @@ ABSL_FLAG(std::vector<std::string>, skip_passes, {},
           "pass names are skipped. If both --run_only_passes and --skip_passes "
           "are specified only passes which are present in --run_only_passes "
           "and not present in --skip_passes will be run.");
+ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
+          "If specified, convert array indexes with fewer than or "
+          "equal to the given number of possible indices (by range analysis) "
+          "into chains of selects. Otherwise, this optimization is skipped, "
+          "since it can sometimes reduce output quality.");
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
@@ -54,6 +59,8 @@ absl::Status RealMain(absl::string_view input_path) {
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> run_only_passes =
       absl::GetFlag(FLAGS_run_only_passes);
+  int64_t convert_array_index_to_select =
+      absl::GetFlag(FLAGS_convert_array_index_to_select);
   const OptOptions options = {
       .opt_level = absl::GetFlag(FLAGS_opt_level),
       .entry = entry,
@@ -62,7 +69,10 @@ absl::Status RealMain(absl::string_view input_path) {
                              ? absl::nullopt
                              : absl::make_optional(std::move(run_only_passes)),
       .skip_passes = absl::GetFlag(FLAGS_skip_passes),
-  };
+      .convert_array_index_to_select =
+          (convert_array_index_to_select < 0)
+              ? std::nullopt
+              : std::make_optional(convert_array_index_to_select)};
   XLS_ASSIGN_OR_RETURN(std::string opt_ir,
                        tools::OptimizeIrForEntry(ir, options));
   std::cout << opt_ir;

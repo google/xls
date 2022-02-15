@@ -16,6 +16,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
@@ -206,10 +207,202 @@ absl::StatusOr<bool> MaybeNarrowShiftAmount(Node* shift,
   return false;
 }
 
+// If an ArrayIndex has a small set of possible indexes (based on range
+// analysis), replace it with a small select chain.
+absl::StatusOr<bool> MaybeConvertArrayIndexToSelect(
+    ArrayIndex* array_index, const QueryEngine& query_engine,
+    int64_t threshold) {
+  if (array_index->indices().empty()) {
+    return false;
+  }
+
+  // The dimension of the multidimensional array, truncated to the number of
+  // indexes we are indexing on.
+  // For example, if the array has shape [5, 7, 3, 2] and we index with [i, j]
+  // then this will contain [5, 7].
+  std::vector<int64_t> dimension;
+
+  // The interval set that each index lives in.
+  std::vector<IntervalSet> index_intervals;
+
+  // Populate `dimension` and `index_intervals`.
+  {
+    ArrayType* array_type = array_index->array()->GetType()->AsArrayOrDie();
+    for (Node* index : array_index->indices()) {
+      dimension.push_back(array_type->size());
+      index_intervals.push_back(query_engine.GetIntervals(index).Get({}));
+      absl::StatusOr<ArrayType*> array_type_status =
+          array_type->element_type()->AsArray();
+      array_type = array_type_status.ok() ? *array_type_status : nullptr;
+    }
+  }
+
+  // Return early to avoid generating too much code if the index space is big.
+  {
+    int64_t index_space_size = 1;
+    for (const IntervalSet& index_interval_set : index_intervals) {
+      if (index_space_size > threshold) {
+        return false;
+      }
+      if (std::optional<int64_t> size = index_interval_set.Size()) {
+        index_space_size *= (*size);
+      } else {
+        return false;
+      }
+    }
+
+    // This means that the indexes are literals; we shouldn't run this
+    // optimization in this case because we generate ArrayIndexes with literals
+    // as part of this optimization, so failing to skip this would result in an
+    // infinite amount of code being generated.
+    if (index_space_size == 1) {
+      return false;
+    }
+
+    if (index_space_size > threshold) {
+      return false;
+    }
+  }
+
+  // This vector contains one element per case in the ultimate OneHotSelect.
+  std::vector<Node*> cases;
+  // This vector contains one one-bit Node per case in the OneHotSelect, which
+  // will be concatenated together to form the selector.
+  std::vector<Node*> conditions;
+
+  // Reserve the right amount of space in `cases` and `conditions`.
+  {
+    int64_t overall_size = 1;
+    for (int64_t i : dimension) {
+      overall_size *= i;
+    }
+
+    cases.reserve(overall_size);
+    conditions.reserve(overall_size);
+  }
+
+  // Helpful shorthands
+  FunctionBase* f = array_index->function_base();
+  std::optional<SourceLocation> loc = array_index->loc();
+
+  // Given a possible index (possible based on range query engine data),
+  // populate `cases` and `conditions` with the relevant nodes.
+  auto handle_possible_index =
+      [&](const std::vector<Bits>& indexes) -> absl::Status {
+    // Turn the `indexes` into a vector of literal nodes.
+    std::vector<Node*> index_literals;
+    index_literals.reserve(indexes.size());
+    for (int64_t i = 0; i < indexes.size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * literal,
+                           f->MakeNode<Literal>(loc, Value(indexes[i])));
+      index_literals.push_back(literal);
+    }
+
+    // Index into the array using `index_literals`.
+    // Hopefully these `ArrayIndex`es will be fused into their indexed
+    // arrays by later passes.
+    XLS_ASSIGN_OR_RETURN(
+        Node * element,
+        f->MakeNode<ArrayIndex>(loc, array_index->array(), index_literals));
+
+    cases.push_back(element);
+
+    // Create a vector of `index_expr == index_literal` nodes, where
+    // `index_expr` is something in `array_index->indices()` and
+    // `index_literal` is from `index_literals`.
+    std::vector<Node*> equality_checks;
+    equality_checks.reserve(indexes.size());
+    for (int64_t i = 0; i < indexes.size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * equality_check,
+          f->MakeNode<CompareOp>(loc, array_index->indices()[i],
+                                 index_literals[i], Op::kEq));
+      equality_checks.push_back(equality_check);
+    }
+
+    // AND all those equality checks together to form one condition.
+    XLS_ASSIGN_OR_RETURN(Node * condition,
+                         f->MakeNode<NaryOp>(loc, equality_checks, Op::kAnd));
+    conditions.push_back(condition);
+
+    return absl::OkStatus();
+  };
+
+  // Iterate over all possible indexes.
+  absl::Status failure = absl::OkStatus();
+  MixedRadixIterate(dimension, [&](const std::vector<int64_t>& indexes) {
+    // Skip indexes that are impossible by range analysis, and convert the
+    // indexes to `Bits`.
+
+    std::vector<Bits> indexes_bits;
+    indexes_bits.reserve(indexes.size());
+
+    for (int64_t i = 0; i < indexes.size(); ++i) {
+      IntervalSet intervals = index_intervals[i];
+      absl::StatusOr<Bits> index_bits =
+          UBitsWithStatus(indexes[i], intervals.BitCount());
+      if (!index_bits.ok()) {
+        return false;
+      }
+      if (!intervals.Covers(*index_bits)) {
+        return false;
+      }
+      indexes_bits.push_back(*index_bits);
+    }
+
+    // Build up `cases` and `conditions`.
+
+    failure = handle_possible_index(indexes_bits);
+
+    return !failure.ok();
+  });
+
+  if (!failure.ok()) {
+    return failure;
+  }
+
+  // Finally, build the select chain.
+
+  Node* rest_of_chain = nullptr;
+
+  for (int64_t i = 0; i < conditions.size(); ++i) {
+    if (rest_of_chain == nullptr) {
+      rest_of_chain = cases[i];
+      continue;
+    }
+    XLS_ASSIGN_OR_RETURN(
+        rest_of_chain,
+        f->MakeNode<Select>(loc, conditions[i],
+                            std::vector<Node*>({rest_of_chain, cases[i]}),
+                            /*default_value=*/std::nullopt));
+  }
+
+  if (rest_of_chain == nullptr) {
+    return false;
+  }
+
+  XLS_RETURN_IF_ERROR(array_index->ReplaceUsesWith(rest_of_chain));
+
+  return true;
+}
+
 // Try to narrow the index value of an array index operation.
-absl::StatusOr<bool> MaybeNarrowArrayIndex(ArrayIndex* array_index,
+absl::StatusOr<bool> MaybeNarrowArrayIndex(bool use_range_analysis,
+                                           const PassOptions& options,
+                                           ArrayIndex* array_index,
                                            const QueryEngine& query_engine) {
   bool changed = false;
+
+  if (use_range_analysis && options.convert_array_index_to_select.has_value()) {
+    int64_t threshold = options.convert_array_index_to_select.value();
+    XLS_ASSIGN_OR_RETURN(
+        bool subpass_changed,
+        MaybeConvertArrayIndexToSelect(array_index, query_engine, threshold));
+    if (subpass_changed) {
+      return true;
+    }
+  }
+
   std::vector<Node*> new_indices;
   for (int64_t i = 0; i < array_index->indices().size(); ++i) {
     Node* index = array_index->indices()[i];
@@ -611,7 +804,8 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
       case Op::kArrayIndex: {
         XLS_ASSIGN_OR_RETURN(
             node_modified,
-            MaybeNarrowArrayIndex(node->As<ArrayIndex>(), *query_engine));
+            MaybeNarrowArrayIndex(use_range_analysis_, options,
+                                  node->As<ArrayIndex>(), *query_engine));
         break;
       }
       case Op::kSMul:

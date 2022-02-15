@@ -49,4 +49,32 @@ int64_t FloorOfLog2(uint64_t value) {
   return 63 - Clz(value);
 }
 
+bool MixedRadixIterate(absl::Span<const int64_t> radix,
+                       std::function<bool(const std::vector<int64_t>&)> f) {
+  std::vector<int64_t> number;
+  number.resize(radix.size(), 0);
+
+  // Returns `true` if there was an overflow or `false` otherwise
+  auto increment_number = [&]() -> bool {
+    int64_t i = 0;
+    while ((i < number.size()) && ((number[i] + 1) >= radix[i])) {
+      number[i] = 0;
+      ++i;
+    }
+    if (i < number.size()) {
+      ++number[i];
+      return false;
+    }
+    return true;
+  };
+
+  do {
+    if (f(number)) {
+      return true;
+    }
+  } while (!increment_number());
+
+  return false;
+}
+
 }  // namespace xls

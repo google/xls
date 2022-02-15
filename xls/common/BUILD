@@ -98,7 +98,10 @@ cc_library(
     name = "math_util",
     srcs = ["math_util.cc"],
     hdrs = ["math_util.h"],
-    deps = ["//xls/common/logging"],
+    deps = [
+        "@com_google_absl//absl/types:span",
+        "//xls/common/logging",
+    ],
 )
 
 cc_test(

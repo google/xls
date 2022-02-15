@@ -208,6 +208,7 @@ def _optimize_ir(ctx, src):
         "run_only_passes",
         "skip_passes",
         "opt_level",
+        "convert_array_index_to_select",
     )
 
     my_args = args_to_string(opt_ir_args, IR_OPT_FLAGS)
@@ -406,6 +407,7 @@ def get_benchmark_ir_cmd(ctx, src, entry = None, append_cmd_line_args = True):
         # Overrides global entry attribute.
         "entry",
         "delay_model",
+        "convert_array_index_to_select",
     )
 
     benchmark_ir_args = append_default_to_args(

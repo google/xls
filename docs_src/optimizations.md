@@ -72,6 +72,20 @@ Signed comparison are more complicated to handle because the sign bit
 (most-signicant bit) affects the interpretation of the value of the remaining
 bits. Stripping leading bits must preserve the sign bit of the operand.
 
+### Known-literals and `ArrayIndex`
+
+The narrowing pass also converts any node that is determined by range analysis
+to have a range containing only one value into a literal. As a further extension
+of this idea, it also converts `ArrayIndex` nodes that are determined to have a
+small number of possible indices into select chains.
+
+This latter optimization is sometimes harmful, so we currently hide it behind
+the `--convert_array_index_to_select=<n>` flag in `opt_main` and
+`benchmark_main`, where `<n>` controls the number of possible array indices
+above which the optimization does not fire. The right number to put there is
+highly contextual, since this optimization relies heavily on later passes to
+clean up its output.
+
 ## Strength Reductions
 
 ### Arithmetic Comparison Strength Reductions

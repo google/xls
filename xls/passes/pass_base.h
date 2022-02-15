@@ -71,6 +71,12 @@ struct PassOptions {
   // TODO(https://github.com/google/xls/issues/531) Remove when the package
   // indicates the top-level proc.
   absl::optional<std::string> top_level_proc_name;
+
+  // If this is not `std::nullopt`, convert array indexes with fewer than or
+  // equal to the given number of possible indices (by range analysis) into
+  // chains of selects. Otherwise, this optimization is skipped, since it can
+  // sometimes reduce output quality.
+  std::optional<int64_t> convert_array_index_to_select = std::nullopt;
 };
 
 // An object containing information about the invocation of a pass (single call
