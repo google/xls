@@ -195,11 +195,18 @@ class AbstractParser {
   absl::StatusOr<std::string> PopNameOrError();
 
   // Pops a name token and returns its value or gives an error status if a
-  // number token is not immediately present in the stream.
+  // number token is not immediately present in the stream.  The overload
+  // accepting the width parameters sets it to the bit width of the parsed
+  // number.
   absl::StatusOr<int64_t> PopNumberOrError();
+  absl::StatusOr<int64_t> PopNumberOrError(size_t& width);
 
-  // Pops either a name or number token or returns an error.
+  // Pops either a name or number token or returns an error.  The overload
+  // accepting a width parameter sets that parameter to the bit width of the
+  // parsed number, if a number was parsed; otherwise, width is not modified.
   absl::StatusOr<absl::variant<std::string, int64_t>> PopNameOrNumberOrError();
+  absl::StatusOr<absl::variant<std::string, int64_t>> PopNameOrNumberOrError(
+      size_t& width);
 
   // Drops a token of kind target from the head of the stream or gives an error
   // status.
@@ -248,7 +255,7 @@ absl::StatusOr<std::string> AbstractParser<EvalT>::PopNameOrError() {
 }
 
 template <typename EvalT>
-absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
+absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError(size_t& width) {
   // We're assuming we won't see > 64b values. Fine for now, at least.
   XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
   if (token.kind == TokenKind::kNumber) {
@@ -258,9 +265,8 @@ absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
     static LazyRE2 number_re_ = {R"(([0-9]+)'([Ss]?)([bodhBODH])([0-9a-f]+))"};
     if (RE2::FullMatch(token.value, *number_re_, &width_string, &signed_string,
                        &base_string, &value_string)) {
-      int64_t width;
       XLS_RET_CHECK(
-          absl::SimpleAtoi(width_string, reinterpret_cast<int64_t*>(&width)))
+          absl::SimpleAtoi(width_string, reinterpret_cast<size_t*>(&width)))
           << "Unable to parse number width: " << width_string;
       int base;
       if (base_string == "b" || base_string == "B") {
@@ -293,6 +299,8 @@ absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
           "Number token's value cannot be parsed as an int64_t: " +
           token.value);
     }
+    // Size field defaults to 32 when not explicitly specified.
+    width = 32;
     return result;
   }
   return absl::InvalidArgumentError("Expected number token; got: " +
@@ -300,17 +308,30 @@ absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
 }
 
 template <typename EvalT>
+absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
+  size_t width;
+  return PopNumberOrError(width);
+}
+
+template <typename EvalT>
 absl::StatusOr<absl::variant<std::string, int64_t>>
-AbstractParser<EvalT>::PopNameOrNumberOrError() {
+AbstractParser<EvalT>::PopNameOrNumberOrError(size_t& width) {
   TokenKind kind = scanner_->Peek()->kind;
   if (kind == TokenKind::kName) {
     XLS_ASSIGN_OR_RETURN(Token token, scanner_->Pop());
     return token.value;
   } else if (kind == TokenKind::kNumber) {
-    return PopNumberOrError();
+    return PopNumberOrError(width);
   }
   return absl::InvalidArgumentError(absl::StrCat(
       "Expected name or number token; got: ", static_cast<int>(kind)));
+}
+
+template <typename EvalT>
+absl::StatusOr<absl::variant<std::string, int64_t>>
+AbstractParser<EvalT>::PopNameOrNumberOrError() {
+  size_t width;
+  return PopNameOrNumberOrError(width);
 }
 
 template <typename EvalT>
