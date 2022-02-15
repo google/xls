@@ -58,6 +58,7 @@
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
@@ -3322,9 +3323,16 @@ absl::Status Translator::GenerateIR_Loop(
   if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
     return GenerateIR_UnrolledLoop(init, cond_expr, inc, body, ctx, loc);
   }
-  if (pragma.type() == Pragma_InitInterval) {
-    return GenerateIR_PipelinedLoop(init, cond_expr, inc, body,
-                                    pragma.argument(), ctx, loc);
+  // Allow no #pragma when inside a pipelined loop body, assuming the loops will
+  // be merged via proc inlining
+  if (pragma.type() == Pragma_InitInterval || context().in_pipelined_for_body) {
+    int init_interval = pragma.argument();
+    if (pragma.type() == Pragma_Null) {
+      XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
+      init_interval = context().outer_pipelined_loop_init_interval;
+    }
+    return GenerateIR_PipelinedLoop(init, cond_expr, inc, body, init_interval,
+                                    ctx, loc);
   }
 
   return absl::UnimplementedError(
@@ -3633,10 +3641,11 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   // Create loop body proc
   std::vector<const clang::NamedDecl*> vars_changed_in_body;
   XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopBody(
-      cond_expr, inc, body, ctx, name_prefix, context_out_channel,
-      ctrl_out_channel, context_in_channel, ctrl_in_channel, context_xls_type,
-      context_struct_type, variable_field_indices, variable_fields_order,
-      vars_changed_in_body, loc));
+      cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
+      context_out_channel, ctrl_out_channel, context_in_channel,
+      ctrl_in_channel, context_xls_type, context_struct_type,
+      variable_field_indices, variable_fields_order, vars_changed_in_body,
+      loc));
 
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.value();
@@ -3665,7 +3674,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
 absl::Status Translator::GenerateIR_PipelinedLoopBody(
     const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, clang::ASTContext& ctx,
+    const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
     std::string_view name_prefix, IOChannel* context_out_channel,
     IOChannel* ctrl_out_channel, IOChannel* context_in_channel,
     IOChannel* ctrl_in_channel, xls::Type* context_xls_type,
@@ -3713,6 +3722,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     context().fb = absl::implicit_cast<xls::BuilderBase*>(&body_builder);
     context().sf = &generated_func;
     context().in_pipelined_for_body = true;
+    context().outer_pipelined_loop_init_interval = init_interval;
 
     // Context in
     absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> prev_vars;

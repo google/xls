@@ -512,6 +512,7 @@ struct TranslationContext {
   // Flag set in pipelined for body
   // TODO(seanhaskell): Remove once all features are supported
   bool in_pipelined_for_body = false;
+  int64_t outer_pipelined_loop_init_interval = -1;
 };
 
 class Translator {
@@ -861,7 +862,7 @@ class Translator {
                                         const xls::SourceLocation& loc);
   absl::Status GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
-      const clang::Stmt* body, clang::ASTContext& ctx,
+      const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
       std::string_view name_prefix, IOChannel* context_out_channel,
       IOChannel* ctrl_out_channel, IOChannel* context_in_channel,
       IOChannel* ctrl_in_channel, xls::Type* context_xls_type,
