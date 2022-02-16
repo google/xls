@@ -299,9 +299,6 @@ xls_dslx_test(
 
 dslx_lang_test(
     name = "reductions",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing reductions
-    # builtins.
-    bytecode = False,
     # TODO(https://github.com/google/xls/issues/565): 2022-02-03 `and_reduce`
     # not implemented for Z3 conversion.
     test_ir_equivalence = False,
@@ -435,7 +432,6 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "mod_importer",
-    # TODO(rspringer): 2022-02-03 shows error: UNIMPLEMENTED: Unimplemented
     dslx_deps = [":mod_imported_dslx"],
 )
 
@@ -462,9 +458,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "mod_importer_simple",
-    # TODO(rspringer): 2022-02-03 Shows error: INTERNAL: Could not find type
-    # for cast "from" arg: x
-    bytecode = False,
     dslx_deps = [":mod_imported_dslx"],
 )
 

@@ -836,6 +836,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
   switch (builtin) {
     case Builtin::kAddWithCarry:
       return RunBuiltinAddWithCarry(bytecode);
+    case Builtin::kAndReduce:
+      return RunBuiltinAndReduce(bytecode);
     case Builtin::kAssertEq:
       return RunBuiltinAssertEq(bytecode);
     case Builtin::kAssertLt:
@@ -862,8 +864,12 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinOneHot(bytecode);
     case Builtin::kOneHotSel:
       return RunBuiltinOneHotSel(bytecode);
+    case Builtin::kOrReduce:
+      return RunBuiltinOrReduce(bytecode);
     case Builtin::kRange:
       return RunBuiltinRange(bytecode);
+    case Builtin::kXorReduce:
+      return RunBuiltinXorReduce(bytecode);
     default:
       return absl::UnimplementedError(
           absl::StrFormat("Builtin function \"%s\" not yet implemented.",
@@ -879,6 +885,17 @@ absl::Status BytecodeInterpreter::RunBuiltinAddWithCarry(
   XLS_ASSIGN_OR_RETURN(InterpValue rhs, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue result, lhs.AddWithCarry(rhs));
   stack_.push_back(result);
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinAndReduce(
+    const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin AndReduce.";
+  XLS_RET_CHECK(!stack_.empty());
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
+  bits = bits_ops::AndReduce(bits);
+  stack_.push_back(InterpValue::MakeBool(bits.IsOne()));
   return absl::OkStatus();
 }
 
@@ -1141,6 +1158,16 @@ absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
   return absl::OkStatus();
 }
 
+absl::Status BytecodeInterpreter::RunBuiltinOrReduce(const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin OrReduce.";
+  XLS_RET_CHECK(!stack_.empty());
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
+  bits = bits_ops::OrReduce(bits);
+  stack_.push_back(InterpValue::MakeBool(bits.IsOne()));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
   XLS_RET_CHECK_GE(stack_.size(), 2);
   XLS_ASSIGN_OR_RETURN(InterpValue end, Pop());
@@ -1162,6 +1189,17 @@ absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
   }
   XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(elements));
   stack_.push_back(array);
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinXorReduce(
+    const Bytecode& bytecode) {
+  XLS_VLOG(3) << "Executing builtin XorReduce.";
+  XLS_RET_CHECK(!stack_.empty());
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
+  bits = bits_ops::XorReduce(bits);
+  stack_.push_back(InterpValue::MakeBool(bits.IsOne()));
   return absl::OkStatus();
 }
 

@@ -133,6 +133,7 @@ class BytecodeInterpreter {
   // likely after removing the old interpreter.
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
   absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
+  absl::Status RunBuiltinAndReduce(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertLt(const Bytecode& bytecode);
   absl::Status RunBuiltinBitSlice(const Bytecode& bytecode);
@@ -143,7 +144,9 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHot(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode);
+  absl::Status RunBuiltinOrReduce(const Bytecode& bytecode);
   absl::Status RunBuiltinRange(const Bytecode& bytecode);
+  absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
 
   absl::StatusOr<InterpValue> Pop();
 
