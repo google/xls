@@ -868,6 +868,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinOrReduce(bytecode);
     case Builtin::kRange:
       return RunBuiltinRange(bytecode);
+    case Builtin::kRev:
+      return RunBuiltinRev(bytecode);
     case Builtin::kXorReduce:
       return RunBuiltinXorReduce(bytecode);
     default:
@@ -1189,6 +1191,19 @@ absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
   }
   XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(elements));
   stack_.push_back(array);
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinRev(const Bytecode& bytecode) {
+  XLS_RET_CHECK(!stack_.empty());
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  if (!value.IsBits() || value.IsSigned()) {
+    return absl::InvalidArgumentError(
+        "Argument to `rev` builtin must be an unsigned bits-typed value.");
+  }
+  XLS_ASSIGN_OR_RETURN(Bits bits, value.GetBits());
+  stack_.push_back(
+      InterpValue::MakeBits(/*is_signed=*/false, bits_ops::Reverse(bits)));
   return absl::OkStatus();
 }
 

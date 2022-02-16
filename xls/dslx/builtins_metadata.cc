@@ -32,7 +32,6 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"one_hot", {"(uN[N], u1) -> uN[N+1]", false}},
       {"one_hot_sel", {"(xN[N], xN[M][N]) -> xN[M]", false}},
       {"rev", {"(uN[N]) -> uN[N]", false}},
-      {"select", {"(u1, T, T) -> T", false}},
 
       // Bitwise reduction ops.
       {"and_reduce", {"(uN[N]) -> u1", false}},

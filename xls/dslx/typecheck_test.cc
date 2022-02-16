@@ -589,25 +589,6 @@ fn f() -> u32[3] {
 )"));
 }
 
-TEST(TypecheckTest, SelectBuiltin) {
-  XLS_EXPECT_OK(Typecheck(R"(
-fn f(x: bool) -> u32 {
-  select(x, u32:1, u32:0)
-}
-)"));
-}
-
-TEST(TypecheckTest, SelectBuiltinDifferentOnFalse) {
-  EXPECT_THAT(Typecheck(R"(
-fn f(x: bool) -> u32 {
-  select(x, u32:1, u8:0)
-}
-)"),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Want arguments 1 and 2 to 'select' to be of "
-                                 "the same type; got uN[32] vs uN[8]")));
-}
-
 TEST(TypecheckTest, EnumerateBuiltin) {
   XLS_EXPECT_OK(Typecheck(R"(
 type MyTup = (u32, u2);
