@@ -7,6 +7,9 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      # Do not trigger action when docs are updated.
+      - 'docs/**'
   pull_request:
     branches:
       - main
