@@ -46,6 +46,12 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
 ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
           absl::StrFormat("Optimization level. Ranges from 1 to %d.",
                           xls::kMaxOptLevel));
+ABSL_FLAG(bool, inline_procs, false,
+          "Whether to inline all procs by calling the proc inlining pass. "
+          "Must also specify --top_proc.");
+ABSL_FLAG(std::string, top_proc, "",
+          "The top-level proc into which to inline all other procs. Must be "
+          "specified with --inline_procs.");
 
 namespace xls::tools {
 namespace {
@@ -72,7 +78,13 @@ absl::Status RealMain(absl::string_view input_path) {
       .convert_array_index_to_select =
           (convert_array_index_to_select < 0)
               ? std::nullopt
-              : std::make_optional(convert_array_index_to_select)};
+              : std::make_optional(convert_array_index_to_select),
+      .inline_procs = absl::GetFlag(FLAGS_inline_procs),
+      .top_level_proc_name =
+          absl::GetFlag(FLAGS_top_proc).empty()
+              ? absl::nullopt
+              : absl::make_optional(absl::GetFlag(FLAGS_top_proc)),
+  };
   XLS_ASSIGN_OR_RETURN(std::string opt_ir,
                        tools::OptimizeIrForEntry(ir, options));
   std::cout << opt_ir;

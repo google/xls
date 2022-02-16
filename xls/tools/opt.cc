@@ -41,7 +41,10 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
       .ir_dump_path = options.ir_dump_path,
       .run_only_passes = options.run_only_passes,
       .skip_passes = options.skip_passes,
-      .convert_array_index_to_select = options.convert_array_index_to_select};
+      .inline_procs = options.inline_procs,
+      .top_level_proc_name = options.top_level_proc_name,
+      .convert_array_index_to_select = options.convert_array_index_to_select,
+  };
   PassResults results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package.get(), pass_options, &results).status());
