@@ -1487,12 +1487,12 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
           .RunOnFunctionBase(block, PassOptions(), &pass_results)
           .status());
 
-  for (Node* node : block->nodes()) {
-    // Nodes like cover and assume have token types and will cause a failure
-    // here. Ultimately these operations should *not*
-    // have tokens and instead are handled as side-effecting operations.
-    XLS_RET_CHECK(!TypeHasToken(node->GetType()));
-  }
+  // Nodes like cover and assert have token types and will cause
+  // a dangling token network remaining.
+  //
+  // TODO(tedhong): 2022-02-14, clean up dangling token
+  // network to ensure that deleted nodes can't be accessed via normal
+  // ir operations.
 
   return absl::OkStatus();
 }
