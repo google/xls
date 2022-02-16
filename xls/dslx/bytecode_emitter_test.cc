@@ -1058,5 +1058,59 @@ fn main() -> u32 {
   EXPECT_EQ(name_ref->identifier(), "foo");
 }
 
+TEST(BytecodeEmitterTest, SimpleFor) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn main() -> u32 {
+  for (i, accum) : (u32, u32) in range(u32:0, u32:8) {
+    accum + i
+  }(u32:1)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  // Since `for` generates a complex set of bytecodes, we test. every. one.
+  // To make that a bit easier, we do string comparison.
+  const std::vector<std::string> kExpected = {
+      "literal u32:0 @ test.x:3:44-3:45",
+      "literal u32:8 @ test.x:3:51-3:52",
+      "literal builtin:range @ test.x:3:34-3:39",
+      "call range(u32:0, u32:8) : {} @ test.x:3:39-3:53",
+      "store 0 @ test.x:3:6-5:11",
+      "literal u32:0 @ test.x:3:6-5:11",
+      "store 1 @ test.x:3:6-5:11",
+      "literal u32:1 @ test.x:5:9-5:10",
+      "jump_dest @ test.x:3:6-5:11",
+      "load 1 @ test.x:3:6-5:11",
+      "literal u32:8 @ test.x:3:6-5:11",
+      "eq @ test.x:3:6-5:11",
+      "jump_rel_if +17 @ test.x:3:6-5:11",
+      "load 0 @ test.x:3:6-5:11",
+      "load 1 @ test.x:3:6-5:11",
+      "index @ test.x:3:6-5:11",
+      "swap @ test.x:3:6-5:11",
+      "create_tuple 2 @ test.x:3:6-5:11",
+      "expand_tuple @ test.x:3:7-3:17",
+      "store 2 @ test.x:3:8-3:9",
+      "store 3 @ test.x:3:11-3:16",
+      "load 3 @ test.x:4:5-4:10",
+      "load 2 @ test.x:4:13-4:14",
+      "add @ test.x:4:11-4:12",
+      "load 1 @ test.x:3:6-5:11",
+      "literal u32:1 @ test.x:3:6-5:11",
+      "add @ test.x:3:6-5:11",
+      "store 1 @ test.x:3:6-5:11",
+      "jump_rel -20 @ test.x:3:6-5:11",
+      "jump_dest @ test.x:3:6-5:11",
+  };
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 30);
+  for (int i = 0; i < bytecodes.size(); i++) {
+    ASSERT_EQ(bytecodes[i].ToString(), kExpected[i]);
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

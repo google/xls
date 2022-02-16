@@ -117,6 +117,8 @@ class Bytecode {
     kStore,
     // Subtracts the Nth value from the N-1th value on the stack.
     kSub,
+    // Swaps TOS0 and TOS1 on the stack.
+    kSwap,
     // Slices out TOS0 bits of the array- or bits-typed value on TOS2,
     // starting at index TOS1.
     kWidthSlice,
@@ -150,6 +152,8 @@ class Bytecode {
   using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
                              std::unique_ptr<ConcreteType>, InvocationData>;
 
+  // TODO(rspringer): 2022-02-14: These constructors end up being pretty
+  // verbose. Consider a builder?
   // Creates an operation w/o any accessory data. The span is present for
   // reporting error source location.
   Bytecode(Span source_span, Op op)
@@ -184,10 +188,11 @@ class Bytecode {
   // how big that code is yet (in terms of bytecodes), you emit the jump with
   // the kPlaceholderJumpAmount and later, once the code to jump over has been
   // emitted, you go back and make it jump over the right (measured) amount.
+  // All jump amounts are relative to the current PC.
   //
   // Note: kPlaceholderJumpAmount is used as a canonical placeholder for things
   // that should be patched.
-  void Patch(int64_t value);
+  void PatchJumpTarget(int64_t value);
 
  private:
   Span source_span_;
@@ -214,6 +219,8 @@ class BytecodeFunction {
 
   // Creates and returns a [caller-owned] copy of the internal bytecodes.
   std::vector<Bytecode> CloneBytecodes() const;
+
+  std::string ToString() const;
 
  private:
   BytecodeFunction(const Function* source, const TypeInfo* type_info,

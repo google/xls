@@ -76,6 +76,12 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "slice") {
     return Bytecode::Op::kSlice;
   }
+  if (s == "sub") {
+    return Bytecode::Op::kSub;
+  }
+  if (s == "swap") {
+    return Bytecode::Op::kSwap;
+  }
   if (s == "width_slice") {
     return Bytecode::Op::kWidthSlice;
   }
@@ -155,6 +161,8 @@ std::string OpToString(Bytecode::Op op) {
       return "store";
     case Bytecode::Op::kSub:
       return "sub";
+    case Bytecode::Op::kSwap:
+      return "swap";
     case Bytecode::Op::kWidthSlice:
       return "width_slice";
     case Bytecode::Op::kXor:
@@ -242,7 +250,7 @@ absl::StatusOr<const ConcreteType*> Bytecode::type_data() const {
   return absl::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
 }
 
-void Bytecode::Patch(int64_t value) {
+void Bytecode::PatchJumpTarget(int64_t value) {
   XLS_CHECK(op_ == Op::kJumpRelIf || op_ == Op::kJumpRel)
       << "Cannot patch non-jump op: " << OpToString(op_);
   XLS_CHECK(data_.has_value());
@@ -408,6 +416,14 @@ std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
   }
 
   return bytecodes;
+}
+
+std::string BytecodeFunction::ToString() const {
+  std::vector<std::string> lines;
+  for (const auto& bytecode : bytecodes_) {
+    lines.push_back(bytecode.ToString());
+  }
+  return absl::StrJoin(lines, "\n");
 }
 
 }  // namespace xls::dslx

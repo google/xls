@@ -240,6 +240,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalSub(bytecode));
       break;
     }
+    case Bytecode::Op::kSwap: {
+      XLS_RETURN_IF_ERROR(EvalSwap(bytecode));
+      break;
+    }
     case Bytecode::Op::kWidthSlice: {
       XLS_RETURN_IF_ERROR(EvalWidthSlice(bytecode));
       break;
@@ -770,6 +774,15 @@ absl::Status BytecodeInterpreter::EvalSub(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Sub(rhs);
   });
+}
+
+absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpValue tos0, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue tos1, Pop());
+  stack_.push_back(tos0);
+  stack_.push_back(tos1);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {

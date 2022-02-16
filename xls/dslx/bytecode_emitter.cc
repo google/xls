@@ -14,6 +14,7 @@
 
 #include "xls/dslx/bytecode_emitter.h"
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
@@ -489,6 +490,128 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
 
 void BytecodeEmitter::HandleConstRef(ConstRef* node) { HandleNameRef(node); }
 
+void BytecodeEmitter::HandleFor(For* node) {
+  // Here's how a `for` loop is implemented, in some sort of pseudocode:
+  //  - Initialize iterable & index
+  //  - Initialize the accumulator
+  //  - loop_top:
+  //  - if index == iterable_sz: jump to end:
+  //  - Create the loop carry: the tuple of (index, accumulator).
+  //  - Execute the loop body.
+  //  - Jump to loop_top:
+  //  - end:
+
+  // First, get the size of the iterable array.
+  absl::optional<ConcreteType*> maybe_iterable_type =
+      type_info_->GetItem(node->iterable());
+  if (!maybe_iterable_type.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not find concrete type for loop iterable: ",
+                     node->iterable()->ToString()));
+    return;
+  }
+
+  ArrayType* array_type = dynamic_cast<ArrayType*>(maybe_iterable_type.value());
+  if (array_type == nullptr) {
+    status_ = absl::InternalError(absl::StrCat(
+        "Iterable was not of array type: ", node->iterable()->ToString()));
+    return;
+  }
+
+  ConcreteTypeDim iterable_size_dim = array_type->size();
+  absl::StatusOr<int64_t> iterable_size_or = iterable_size_dim.GetAsInt64();
+  if (!iterable_size_or.ok()) {
+    status_ = iterable_size_or.status();
+    return;
+  }
+  int64_t iterable_size = iterable_size_or.value();
+
+  // A `for` loop defines a new scope, meaning that any names defined in that
+  // scope (i.e., NameDefs) aren't valid outside the loop (i.e., they shouldn't
+  // be present in namedef_to_slot_.). To accomplish this, we create a
+  // new namedef_to_slot_ and restrict its lifetime to the loop instructions
+  // only. Once the loops scope ends, the previous map is restored.
+  absl::flat_hash_map<const NameDef*, int64_t> old_namedef_to_slot =
+      namedef_to_slot_;
+  auto cleanup = absl::MakeCleanup([this, &old_namedef_to_slot]() {
+    namedef_to_slot_ = old_namedef_to_slot;
+  });
+
+  // We need a means of referencing the loop index and accumulator in the
+  // namedef_to_slot_ map, so we pretend that they're NameDefs for uniqueness.
+  int iterable_slot = namedef_to_slot_.size();
+  NameDef* fake_name_def = reinterpret_cast<NameDef*>(node->iterable());
+  namedef_to_slot_[fake_name_def] = iterable_slot;
+  node->iterable()->AcceptExpr(this);
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
+                               Bytecode::SlotIndex(iterable_slot)));
+
+  int index_slot = namedef_to_slot_.size();
+  fake_name_def = reinterpret_cast<NameDef*>(node);
+  namedef_to_slot_[fake_name_def] = index_slot;
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(0)));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
+                               Bytecode::SlotIndex(index_slot)));
+
+  // Evaluate the initial accumulator value & leave it on the stack.
+  node->init()->AcceptExpr(this);
+
+  // Jump destination for the end-of-loop jump to start.
+  int top_of_loop = bytecode_.size();
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
+
+  // Loop header: Are we done iterating?
+  // Reload the current index and compare against the iterable size.
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
+                               Bytecode::SlotIndex(index_slot)));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
+                               InterpValue::MakeU32(iterable_size)));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kEq));
+
+  // Cache the location of the top-of-loop jump so we can patch it up later once
+  // we actually know the size of the jump.
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRelIf,
+                               Bytecode::kPlaceholderJumpAmount));
+  int start_jump_idx = bytecode_.size() - 1;
+
+  // The loop-carry values are a tuple (index, accumulator), but we don't have
+  // the index on the stack (so we don't have to drop it once we're out of the
+  // loop). We need to plop it on there, then swap the top two values so that
+  // the resulting tuple is in the right order.
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
+                               Bytecode::SlotIndex(iterable_slot)));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
+                               Bytecode::SlotIndex(index_slot)));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSwap));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
+                               Bytecode::NumElements(2)));
+  DestructureLet(node->names());
+
+  // Emit the loop body.
+  node->body()->AcceptExpr(this);
+
+  // End of loop: increment the loop index and jump back to the beginning.
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
+                               Bytecode::SlotIndex(index_slot)));
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(1)));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
+                               Bytecode::SlotIndex(index_slot)));
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kJumpRel,
+               Bytecode::JumpTarget(top_of_loop - bytecode_.size())));
+
+  // Finally, we're done with the loop!
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
+
+  // Now we can finally know the relative jump amount for the top-of-loop jump.
+  bytecode_.at(start_jump_idx)
+      .PatchJumpTarget(bytecode_.size() - start_jump_idx - 1);
+}
+
 absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
@@ -938,8 +1061,8 @@ void BytecodeEmitter::HandleTernary(Ternary* node) {
   // TODO(leary): 2021-12-10 Keep track of the stack depth so we can validate it
   // at the jump destination.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
-  bytecode_.at(jump_if_index).Patch(consequent_index - jump_if_index);
-  bytecode_.at(jump_index).Patch(jumpdest_index - jump_index);
+  bytecode_.at(jump_if_index).PatchJumpTarget(consequent_index - jump_if_index);
+  bytecode_.at(jump_index).PatchJumpTarget(jumpdest_index - jump_index);
 }
 
 void BytecodeEmitter::HandleMatch(Match* node) {
@@ -1062,13 +1185,13 @@ void BytecodeEmitter::HandleMatch(Match* node) {
     size_t next_offset = arm_offsets[i + 1];
     XLS_VLOG(5) << "Patching jump offset " << jump_offset
                 << " to jump to next_offset " << next_offset;
-    bytecode_.at(jump_offset).Patch(next_offset - jump_offset);
+    bytecode_.at(jump_offset).PatchJumpTarget(next_offset - jump_offset);
   }
 
   for (size_t offset : jumps_to_done) {
     XLS_VLOG(5) << "Patching jump-to-done offset " << offset
                 << " to jump to done_offset " << done_offset;
-    bytecode_.at(offset).Patch(done_offset - offset);
+    bytecode_.at(offset).PatchJumpTarget(done_offset - offset);
   }
 }
 

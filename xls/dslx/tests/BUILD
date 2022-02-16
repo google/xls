@@ -97,12 +97,7 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-# TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of
-# `for` node support.
-dslx_lang_test(
-    name = "parametric_dot_product",
-    bytecode = False,
-)
+dslx_lang_test(name = "parametric_dot_product")
 
 dslx_lang_test(name = "string_conversion")
 
@@ -159,8 +154,8 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_call_parametric",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing `for`
-    # node support.
+    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing `trace`
+    # builtin support.
     bytecode = False,
     # No meaningful entry function to convert.
     convert_to_ir = False,
@@ -542,12 +537,7 @@ dslx_lang_test(name = "array_ellipsis")
 
 dslx_lang_test(name = "local_const_value")
 
-dslx_lang_test(
-    name = "const_value_as_nested_loop_bound",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of For node
-    # handling.
-    bytecode = False,
-)
+dslx_lang_test(name = "const_value_as_nested_loop_bound")
 
 dslx_lang_test(name = "local_const_value_in_parametric")
 
@@ -570,21 +560,11 @@ dslx_lang_test(
     ),
 )
 
-dslx_lang_test(
-    name = "for_sans_type_annotation",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of `for`
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "for_sans_type_annotation")
 
 dslx_lang_test(name = "derived_parametrics")
 
-dslx_lang_test(
-    name = "parametric_struct",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `for`
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "parametric_struct")
 
 dslx_lang_test(
     name = "parametric_struct_simple",
@@ -604,16 +584,10 @@ dslx_lang_test(name = "array_concat")
 
 dslx_lang_test(
     name = "for_up_to_const",
-    # TODO(rspringer): Cannot run bytyecode due to lack of "for" node support.
-    bytecode = False,
     ir_entry = get_mangled_ir_symbol("for_up_to_const", "f"),
 )
 
-dslx_lang_test(
-    name = "for_up_to_const_local",
-    # TODO(rspringer): Cannot run bytyecode due to lack of "for" node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "for_up_to_const_local")
 
 dslx_lang_test(name = "map_of_stdlib_parametric")
 
@@ -694,9 +668,6 @@ xls_dslx_opt_ir_test(
 
 dslx_lang_test(
     name = "importer_const_in_range",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of "For" node
-    # support.
-    bytecode = False,
     dslx_deps = [":mod_simple_const_dslx"],
 )
 
@@ -766,16 +737,11 @@ xls_dslx_opt_ir_test(
     dep = ":simple_enum_usage",
 )
 
-dslx_lang_test(
-    name = "for_rotate",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "For"
-    # node handling and ColonRef invocation support.
-    bytecode = False,
-)
+dslx_lang_test(name = "for_rotate")
 
 dslx_lang_test(
     name = "for_enum_ref",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "For"
+    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "Match"
     # node handling.
     bytecode = False,
 )
@@ -838,23 +804,13 @@ dslx_lang_test(
 
 dslx_lang_test(name = "nest_alias_const_array")
 
-dslx_lang_test(
-    name = "parametric_used_in_for",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing `for`
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "parametric_used_in_for")
 
 dslx_lang_test(name = "parametric_to_value")
 
 dslx_lang_test(name = "constexpr_with_typed_stuff_after")
 
-dslx_lang_test(
-    name = "for_up_to_constexpr_cast",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "For"
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "for_up_to_constexpr_cast")
 
 # Note: no meaningful function to convert.
 xls_dslx_test(
@@ -899,12 +855,7 @@ dslx_lang_test(
     test_ir_equivalence = False,
 )
 
-dslx_lang_test(
-    name = "local_const_value_non_bitstype",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "For"
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "local_const_value_non_bitstype")
 
 # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "SendIf"
 # and "RecvIf" node support.

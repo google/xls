@@ -111,6 +111,7 @@ class BytecodeInterpreter {
   absl::Status EvalSlice(const Bytecode& bytecode);
   absl::Status EvalStore(const Bytecode& bytecode);
   absl::Status EvalSub(const Bytecode& bytecode);
+  absl::Status EvalSwap(const Bytecode& bytecode);
   absl::Status EvalWidthSlice(const Bytecode& bytecode);
   absl::Status EvalXor(const Bytecode& bytecode);
 
