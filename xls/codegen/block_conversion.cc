@@ -195,10 +195,6 @@ static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
   XLS_CHECK_NE(state_register.reg_write, nullptr);
   XLS_CHECK_NE(state_register.reg_read, nullptr);
 
-  Register* old_reg = state_register.reg;
-  RegisterWrite* old_reg_write = state_register.reg_write;
-  RegisterRead* old_reg_read = state_register.reg_read;
-
   // Blocks containing a state register must also have a reset signal.
   if (!reset_info.input_port.has_value() || !reset_info.behavior.has_value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -213,35 +209,9 @@ static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
   reset_behavior.reset_value = state_register.reset_value;
   Node* reset_node = reset_info.input_port.value();
 
-  // Clone and create a new set of Register, RegisterWrite, and RegisterRead.
-  // Update the inout parameter state_register as well.
-  std::string name = block->UniquifyNodeName(state_register.name);
-
-  XLS_ASSIGN_OR_RETURN(
-      state_register.reg,
-      block->AddRegister(name, old_reg->type(), reset_behavior));
-
-  XLS_ASSIGN_OR_RETURN(state_register.reg_write,
-                       block->MakeNode<RegisterWrite>(
-                           /*loc=*/old_reg_write->loc(),
-                           /*data=*/old_reg_write->data(),
-                           /*load_enable=*/absl::nullopt,
-                           /*reset=*/reset_node,
-                           /*reg=*/state_register.reg));
-
-  XLS_ASSIGN_OR_RETURN(state_register.reg_read,
-                       block->MakeNodeWithName<RegisterRead>(
-                           /*loc=*/old_reg_read->loc(),
-                           /*reg=*/state_register.reg,
-                           /*name=*/name));
-
-  // Replace old uses of RegisterRead with the new one
-  XLS_RETURN_IF_ERROR(old_reg_read->ReplaceUsesWith(state_register.reg_read));
-  XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_read));
-  XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_write));
-  XLS_RETURN_IF_ERROR(block->RemoveRegister(old_reg));
-
-  return absl::OkStatus();
+  // Replace the register's reset signal
+  return state_register.reg_write->AddOrReplaceReset(reset_node,
+                                                     reset_behavior);
 }
 
 // Updates datapath pipeline registers with a reset signal.
@@ -280,37 +250,9 @@ static absl::Status UpdateDatapathRegistersWithReset(
       xls::Reset reset_behavior = reset_info.behavior.value();
       reset_behavior.reset_value = ZeroOfType(node_type);
 
-      // Clone and create a new set of Register, RegisterWrite, and
-      // RegisterRead.
-      Register* old_reg = pipeline_reg.reg;
-      RegisterWrite* old_reg_write = pipeline_reg.reg_write;
-      RegisterRead* old_reg_read = pipeline_reg.reg_read;
-
-      std::string name = block->UniquifyNodeName(old_reg->name());
-
-      XLS_ASSIGN_OR_RETURN(
-          pipeline_reg.reg,
-          block->AddRegister(name, old_reg->type(), reset_behavior));
-
-      XLS_ASSIGN_OR_RETURN(pipeline_reg.reg_write,
-                           block->MakeNode<RegisterWrite>(
-                               /*loc=*/old_reg_write->loc(),
-                               /*data=*/old_reg_write->data(),
-                               /*load_enable=*/old_reg_write->load_enable(),
-                               /*reset=*/reset_node,
-                               /*reg=*/pipeline_reg.reg));
-
-      XLS_ASSIGN_OR_RETURN(pipeline_reg.reg_read,
-                           block->MakeNodeWithName<RegisterRead>(
-                               /*loc=*/old_reg_read->loc(),
-                               /*reg=*/pipeline_reg.reg,
-                               /*name=*/name));
-
-      // Replace old uses of RegisterRead with the new one
-      XLS_RETURN_IF_ERROR(old_reg_read->ReplaceUsesWith(pipeline_reg.reg_read));
-      XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_read));
-      XLS_RETURN_IF_ERROR(block->RemoveNode(old_reg_write));
-      XLS_RETURN_IF_ERROR(block->RemoveRegister(old_reg));
+      // Replace register reset.
+      XLS_RETURN_IF_ERROR(pipeline_reg.reg_write->AddOrReplaceReset(
+          reset_node, reset_behavior));
     }
   }
 
@@ -1752,7 +1694,6 @@ class CloneNodesIntoBlockHandler {
                          block_->AddRegister(name, node->GetType()));
 
     // Register write will be created later in HandleNextState.
-
     XLS_ASSIGN_OR_RETURN(
         RegisterRead * reg_read,
         block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,

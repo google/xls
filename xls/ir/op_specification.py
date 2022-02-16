@@ -73,6 +73,8 @@ class Method(object):
     name: Name of the method.
     return_cpp_type: The C++ type of the value returned by the method.
     expression: The expression to produce the value returned by the method.
+    expression_is_body: True if expression should be used as a body
+                        rather than a return value.
     params: Optional string of C++ parameters that gets inserted into the method
       signature between "()"s.
     is_const: The method is a const method.
@@ -82,11 +84,13 @@ class Method(object):
                name: str,
                return_cpp_type: str,
                expression: Optional[str],
+               expression_is_body: bool = False,
                params: str = '',
                is_const: bool = True):
     self.name = name
     self.return_cpp_type = return_cpp_type
     self.expression = expression
+    self.expression_is_body = expression_is_body
     self.params = params
     self.is_const = is_const
 
@@ -953,7 +957,21 @@ OpClass.kinds['REGISTER_WRITE'] = OpClass(
                           params='Node* new_operand',
                           expression='has_load_enable_ ? ReplaceOperandNumber(1, new_operand) : '
                           + 'absl::InternalError("Unable to replace load enable on RegisterWrite -- '
-                          + 'register does not have an existing load enable operand.")')],
+                          + 'register does not have an existing load enable operand.")'),
+                   Method(name='AddOrReplaceReset',
+                          is_const=False,
+                          return_cpp_type='absl::Status',
+                          params='Node* new_reset_node, Reset new_reset_info',
+                          expression_is_body=True,
+                          expression='''
+                            reg_->UpdateReset(new_reset_info);
+                            if(!has_reset_) {
+                              AddOperand(new_reset_node);
+                              has_reset_ = true;
+                              return absl::OkStatus();
+                            }
+                            return has_load_enable_ ? ReplaceOperandNumber(2, new_reset_node) : ReplaceOperandNumber(1, new_reset_node);
+                          ''')],
 )
 
 OpClass.kinds['INSTANTIATION_OUTPUT'] = OpClass(

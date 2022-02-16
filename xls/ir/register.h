@@ -28,6 +28,8 @@ struct Reset {
   bool active_low;
 };
 
+class RegisterWrite;
+
 // Data structure representing a RTL-level register. These constructs are
 // contained in and owned by Blocks and lower to registers in Verilog.
 class Register {
@@ -42,6 +44,11 @@ class Register {
   std::string ToString() const;
 
  private:
+  // RegisterWrite can access Register so that it can update
+  // reset information.
+  friend RegisterWrite;
+  void UpdateReset(Reset reset_info) { reset_ = reset_info; }
+
   std::string name_;
   Type* type_;
   absl::optional<Reset> reset_;
