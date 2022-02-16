@@ -1052,5 +1052,36 @@ fn main() -> u32[5] {
   }
 }
 
+TEST(BytecodeInterpreterTest, BuiltinGate) {
+  constexpr absl::string_view kProgram = R"(
+fn main(p: bool, x: u32) -> u32 {
+  gate!(p, x)
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      BytecodeInterpreter::Interpret(
+          &import_data, bf.get(),
+          {InterpValue::MakeBool(true), InterpValue::MakeU32(0xbeef)}));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0xbeef);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      value, BytecodeInterpreter::Interpret(
+                 &import_data, bf.get(),
+                 {InterpValue::MakeBool(false), InterpValue::MakeU32(0xbeef)}));
+  XLS_ASSERT_OK_AND_ASSIGN(int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0x0);
+}
+
 }  // namespace
 }  // namespace xls::dslx

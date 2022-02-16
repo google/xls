@@ -847,9 +847,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "gate",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack support
-    # for the gate! builtin.
-    bytecode = False,
     # TODO(https://github.com/google/xls/issues/566): 2022-02-03 gate
     # conversion to Z3 not implemented.
     test_ir_equivalence = False,

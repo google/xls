@@ -96,10 +96,10 @@ TEST_F(IrInterpreterOnlyTest, SideEffectingNodes) {
   Node* gate_node = FindNode("gate.3", function);
   EXPECT_THAT(
       InterpretNode(gate_node, {Value::Bool(true), Value(UBits(17, 5))}),
-      IsOkAndHolds(Value(UBits(0, 5))));
+      IsOkAndHolds(Value(UBits(17, 5))));
   EXPECT_THAT(
       InterpretNode(gate_node, {Value::Bool(false), Value(UBits(17, 5))}),
-      IsOkAndHolds(Value(UBits(17, 5))));
+      IsOkAndHolds(Value(UBits(0, 5))));
 }
 
 // TODO(https://github.com/google/xls/issues/506): 2021-10-05 Move these to the

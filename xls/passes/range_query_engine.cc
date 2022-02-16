@@ -778,14 +778,14 @@ absl::Status RangeQueryVisitor::HandleGate(Gate* gate) {
   engine_->InitializeNode(gate);
   IntervalSet cond_intervals = GetIntervalSetTree(gate->operand(0)).Get({});
 
-  // `cond` false passes through the data operand.
+  // `cond` true passes through the data operand.
   LeafTypeTree<IntervalSet> result =
-      cond_intervals.CoversZero()
+      cond_intervals.CoversOne()
           ? GetIntervalSetTree(gate->operand(1))  // data operand
           : EmptyIntervalSetTree(gate->GetType());
 
-  if (cond_intervals.CoversOne()) {
-    // `cond` true produces a zero value.
+  if (cond_intervals.CoversZero()) {
+    // `cond` false produces a zero value.
     for (int64_t i = 0; i < result.size(); ++i) {
       IntervalSet& set = result.elements()[i];
       Type* type = result.leaf_types()[i];

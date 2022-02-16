@@ -29,6 +29,9 @@ absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
 absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
                                            const EnumType& enum_type);
 
+// Creates a zero-valued InterpValue with the same structure as the input.
+absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_INTERP_VALUE_HELPERS_H_

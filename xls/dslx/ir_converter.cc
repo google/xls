@@ -352,10 +352,6 @@ class FunctionConverter {
   // Handles the cover!() builtin invocation.
   absl::Status HandleCoverBuiltin(Invocation* node, BValue condition);
 
-  // Handles the gate!() builtin invocation.
-  absl::Status HandleGateBuiltin(Invocation* node, BValue condition,
-                                 BValue value);
-
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
                                        absl::Span<const int64_t> index,

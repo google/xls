@@ -180,10 +180,9 @@ absl::Status IrInterpreter::HandleOutputPort(OutputPort* output_port) {
 absl::Status IrInterpreter::HandleGate(Gate* gate) {
   const Bits& condition = ResolveAsBits(gate->condition());
   if (condition.IsOne()) {
-    // Data is gated. Result is zero.
-    return SetValueResult(gate, ZeroOfType(gate->GetType()));
+    return SetValueResult(gate, ResolveAsValue(gate->data()));
   }
-  return SetValueResult(gate, ResolveAsValue(gate->data()));
+  return SetValueResult(gate, ZeroOfType(gate->GetType()));
 }
 
 absl::Status IrInterpreter::HandleBitSlice(BitSlice* bit_slice) {

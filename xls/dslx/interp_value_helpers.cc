@@ -63,4 +63,44 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
   return InterpValue::MakeEnum(bits_value.GetBitsOrDie(), &enum_def);
 }
 
+absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value) {
+  switch (value.tag()) {
+    case InterpValueTag::kSBits: {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
+      return InterpValue::MakeSBits(bit_count, /*value=*/0);
+    }
+    case InterpValueTag::kUBits: {
+      XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
+      return InterpValue::MakeUBits(bit_count, /*value=*/0);
+    }
+    case InterpValueTag::kTuple: {
+      XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                           value.GetValues());
+      std::vector<InterpValue> zero_elements;
+      zero_elements.reserve(elements->size());
+      for (const auto& element : *elements) {
+        XLS_ASSIGN_OR_RETURN(InterpValue zero_element,
+                             CreateZeroValue(element));
+        zero_elements.push_back(zero_element);
+      }
+      return InterpValue::MakeTuple(zero_elements);
+    }
+    case InterpValueTag::kArray: {
+      XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                           value.GetValues());
+      if (elements->empty()) {
+        return InterpValue::MakeArray({});
+      }
+      XLS_ASSIGN_OR_RETURN(InterpValue zero_element,
+                           CreateZeroValue(elements->at(0)));
+      std::vector<InterpValue> zero_elements(elements->size(), zero_element);
+      return InterpValue::MakeArray(zero_elements);
+    }
+    default:
+      return absl::InvalidArgumentError(
+          absl::StrCat("Invalid InterpValueTag for zero-value generation: ",
+                       TagToString(value.tag())));
+  }
+}
+
 }  // namespace xls::dslx

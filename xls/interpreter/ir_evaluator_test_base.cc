@@ -3271,8 +3271,8 @@ TEST_P(IrEvaluatorTestBase, GateBitsTypeTest) {
   auto data = b.Param("data", p->GetBitsType(32));
   b.Gate(cond, data);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
-  EXPECT_THAT(RunWithUint64sNoEvents(f, {0, 42}), 42);
-  EXPECT_THAT(RunWithUint64sNoEvents(f, {1, 42}), 0);
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {1, 42}), 42);
+  EXPECT_THAT(RunWithUint64sNoEvents(f, {0, 42}), 0);
 }
 
 TEST_P(IrEvaluatorTestBase, GateCompoundTypeTest) {
@@ -3288,8 +3288,8 @@ TEST_P(IrEvaluatorTestBase, GateCompoundTypeTest) {
       Value a, Value::Array({Value::Tuple({Value(UBits(42, 32))}),
                              Value::Tuple({Value(UBits(123, 32))})}));
 
-  EXPECT_THAT(RunWithNoEvents(f, {Value(UBits(0, 1)), a}), a);
-  EXPECT_THAT(RunWithNoEvents(f, {Value(UBits(1, 1)), a}),
+  EXPECT_THAT(RunWithNoEvents(f, {Value(UBits(1, 1)), a}), a);
+  EXPECT_THAT(RunWithNoEvents(f, {Value(UBits(0, 1)), a}),
               ZeroOfType(data.node()->GetType()));
 }
 

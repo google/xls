@@ -139,6 +139,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinClz(const Bytecode& bytecode);
   absl::Status RunBuiltinCtz(const Bytecode& bytecode);
+  absl::Status RunBuiltinGate(const Bytecode& bytecode);
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHot(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode);

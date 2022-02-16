@@ -173,6 +173,7 @@ class InterpValue {
   bool IsUBits() const { return tag_ == InterpValueTag::kUBits; }
   bool IsSBits() const { return tag_ == InterpValueTag::kSBits; }
   bool IsBits() const { return IsUBits() || IsSBits(); }
+  bool IsBool() const { return IsBits() && GetBitCount().value() == 1; }
   bool IsEnum() const { return tag_ == InterpValueTag::kEnum; }
   bool IsFunction() const { return tag_ == InterpValueTag::kFunction; }
   bool IsBuiltinFunction() const {
@@ -375,8 +376,6 @@ class InterpValue {
       : tag_(tag), payload_(std::move(payload)), sym_tree_(sym) {}
 
   using CompareF = bool (*)(const Bits& lhs, const Bits& rhs);
-
-  bool IsBool() const { return IsBits() && GetBitCount().value() == 1; }
 
   // Helper for various comparisons.
   static absl::StatusOr<InterpValue> Compare(const InterpValue& lhs,

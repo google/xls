@@ -273,7 +273,7 @@ absl::StatusOr<InterpValue> BuiltinGate(
       ArgChecker("gate!", args).size(2).ubits(0, 1).bits(1).status());
   const InterpValue& p = args[0];
   const InterpValue& value = args[1];
-  if (p.IsFalse()) {
+  if (p.IsTrue()) {
     return value;
   }
   return InterpValue::MakeBits(value.tag(), Bits(value.GetBitCount().value()));

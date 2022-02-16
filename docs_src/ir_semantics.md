@@ -1185,9 +1185,13 @@ Keyword | Type     | Required | Default | Description
 
 Gates an arbitrarily-typed value based on a condition.
 
-The result of the operation is the data operand if the condition is false,
+The result of the operation is the data operand if the condition is true,
 otherwise the result is a zero value of the type of the data operand (i.e., the
-value is gated off). This operation can reduce switching and may be used in
+value is gated off). A helpful mnemonic is to think of this as analogous to an
+`AND` gate: if the condition is `true`, the value passes through, otherwise it's
+zeroed.
+
+This operation can reduce switching and may be used in
 power optimizations. This is intended for use in operand gating for power
 reduction, and the compiler may ultimately use it to perform register-level
 load-enable gating.

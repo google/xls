@@ -494,9 +494,10 @@ TEST_F(RangeQueryEngineTest, GateWithConditionTrue) {
   engine.SetIntervalSetTree(x.node(), BitsLTT(x.node(), {{600, 700}}));
   XLS_ASSERT_OK(engine.Populate(f));
 
-  // With the gated condition true the gate operation always produces zero.
+  // With the gated condition true the gate operation produces the original
+  // value.
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
-            BitsLTT(x.node(), {{0, 0}}));
+            BitsLTT(x.node(), {{600, 700}}));
 }
 
 TEST_F(RangeQueryEngineTest, GateWithConditionFalse) {
@@ -514,7 +515,7 @@ TEST_F(RangeQueryEngineTest, GateWithConditionFalse) {
 
   // With the gated condition false the gate operation is the identity.
   EXPECT_EQ(engine.GetIntervalSetTree(expr.node()),
-            BitsLTT(x.node(), {{600, 700}}));
+            BitsLTT(x.node(), {{0, 0}}));
 }
 
 TEST_F(RangeQueryEngineTest, GateWithCompoundType) {

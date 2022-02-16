@@ -855,8 +855,7 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return FailureErrorStatus(
           bytecode.source_span(), "Encountered `fail!` operation.");
     case Builtin::kGate:
-      stack_.push_back(InterpValue::MakeToken());
-      return absl::OkStatus();
+      return RunBuiltinGate(bytecode);
     case Builtin::kMap:
       return RunBuiltinMap(bytecode);
     case Builtin::kOneHot:
@@ -992,6 +991,24 @@ absl::Status BytecodeInterpreter::RunBuiltinCtz(const Bytecode& bytecode) {
   stack_.push_back(
       InterpValue::MakeUBits(bits.bit_count(), bits.CountTrailingZeros()));
 
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinGate(const Bytecode& bytecode) {
+  XLS_RET_CHECK_GE(stack_.size(), 2);
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue pass_value, Pop());
+  if (!pass_value.IsBool()) {
+    return absl::InternalError(absl::StrCat(
+        "`gate!` pass value must be boolean: ", pass_value.ToString()));
+  }
+
+  if (pass_value.IsTrue()) {
+    stack_.push_back(value);
+  } else {
+    XLS_ASSIGN_OR_RETURN(InterpValue zero_value, CreateZeroValue(value));
+    stack_.push_back(zero_value);
+  }
   return absl::OkStatus();
 }
 
