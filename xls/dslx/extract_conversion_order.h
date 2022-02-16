@@ -138,6 +138,7 @@ class ConversionRecord {
   }
   const std::vector<Callee>& callees() const { return callees_; }
   absl::optional<ProcId> proc_id() const { return proc_id_; }
+  bool HasProcId() const { return proc_id_.has_value(); }
 
   std::string ToString() const;
 
@@ -165,7 +166,8 @@ class ConversionRecord {
 // Returns (topological) order for functions to be converted to IR.
 //
 // Returned order should be deterministic, since the call graph is traversed in
-// a deterministic way.
+// a deterministic way. The top-level procs are in the order that they appear in
+// the module. Sub-procs are in the order that they are invoked within a proc.
 //
 // Args:
 //  module: Module to convert the (non-parametric) functions for.

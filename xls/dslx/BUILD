@@ -1032,7 +1032,9 @@ cc_library(
         "//xls/common:symbolized_stacktrace",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/types:span",
         "@com_google_absl//absl/types:variant",
     ],
 )
@@ -1046,6 +1048,7 @@ cc_test(
         ":parse_and_typecheck",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings",
         "@com_google_googletest//:gtest",
     ],
 )

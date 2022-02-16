@@ -14,7 +14,11 @@
 
 #include "xls/dslx/extract_conversion_order.h"
 
+#include <vector>
+
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/symbolized_stacktrace.h"
@@ -133,6 +137,129 @@ std::string ConversionRecord::ToString() const {
       "callees=%s}",
       module_->name(), f_->identifier(), proc_id, symbolic_bindings_.ToString(),
       CalleesToString(callees_));
+}
+
+// TODO(vmirian) 2022-02-11 Consider collapsing this visitor
+// (CalleeCollectorVisitor) with the InvocationVisitor.
+// Collects callee information from Invocation node into a list.
+class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
+ public:
+  CalleeCollectorVisitor(Module* module, TypeInfo* type_info)
+      : module_(module), type_info_(type_info) {
+    XLS_CHECK_EQ(type_info_->module(), module_);
+  }
+  absl::Status HandleInvocation(Invocation* node) override {
+    absl::optional<CalleeInfo> callee_info;
+    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
+      XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
+    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
+      XLS_ASSIGN_OR_RETURN(callee_info,
+                           HandleNameRefInvocation(name_ref, node));
+    } else {
+      return absl::UnimplementedError(
+          "Only calls to named functions are currently supported "
+          "for IR conversion; callee: " +
+          node->callee()->ToString());
+    }
+
+    if (!callee_info.has_value()) {
+      // Happens for example when we're invoking a builtin, there's nothing to
+      // convert.
+      return absl::OkStatus();
+    }
+
+    callees_.emplace_back(std::move(callee_info.value()));
+    return absl::OkStatus();
+  }
+
+  ~CalleeCollectorVisitor() override = default;
+
+  // Helper type used to hold callee information for different forms of
+  // invocations.
+  struct CalleeInfo {
+    Module* module = nullptr;
+    Function* function = nullptr;
+
+    template <typename H>
+    friend H AbslHashValue(H h, const CalleeInfo& c);
+
+    friend bool operator==(const CalleeInfo& lhs, const CalleeInfo& rhs);
+  };
+
+  absl::Span<const CalleeInfo> GetCallees() { return callees_; }
+
+ private:
+  // Helper for invocations of ColonRef callees.
+  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(ColonRef* colon_ref) {
+    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    XLS_RET_CHECK(import.has_value());
+    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    XLS_RET_CHECK(info.has_value());
+    Module* module = (*info)->module;
+    XLS_ASSIGN_OR_RETURN(Function * f,
+                         module->GetFunctionOrError(colon_ref->attr()));
+    return CalleeInfo{module, f};
+  }
+
+  // Helper for invocations of NameRef callees.
+  absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefInvocation(
+      NameRef* name_ref, Invocation* invocation) {
+    Module* this_m = module_;
+    // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
+    // is fragile due to shadowing. It is also appears in the InvocationVisitor.
+    std::string identifier = name_ref->identifier();
+    if (identifier == "map") {
+      // We need to make sure we convert the mapped function!
+      XLS_RET_CHECK_EQ(invocation->args().size(), 2);
+      Expr* fn_node = invocation->args()[1];
+      XLS_VLOG(5) << "map() invoking: " << fn_node->ToString();
+      if (auto* mapped_colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
+        XLS_VLOG(5) << "map() invoking ColonRef: "
+                    << mapped_colon_ref->ToString();
+        identifier = mapped_colon_ref->attr();
+        absl::optional<Import*> import =
+            mapped_colon_ref->ResolveImportSubject();
+        XLS_RET_CHECK(import.has_value());
+        absl::optional<const ImportedInfo*> info =
+            type_info_->GetImported(*import);
+        XLS_RET_CHECK(info.has_value());
+        this_m = (*info)->module;
+        XLS_VLOG(5) << "Module for callee: " << this_m->name();
+      } else {
+        XLS_VLOG(5) << "map() invoking NameRef";
+        auto* mapped_name_ref = dynamic_cast<NameRef*>(fn_node);
+        XLS_RET_CHECK(mapped_name_ref != nullptr);
+        identifier = mapped_name_ref->identifier();
+      }
+    }
+
+    Function* f = nullptr;
+    absl::StatusOr<Function*> maybe_f = this_m->GetFunctionOrError(identifier);
+    if (maybe_f.ok()) {
+      f = maybe_f.value();
+    } else {
+      if (IsNameParametricBuiltin(identifier)) {
+        return absl::nullopt;
+      }
+      return absl::InternalError("Could not resolve invoked function: " +
+                                 identifier);
+    }
+
+    return CalleeInfo{this_m, f};
+  }
+  Module* module_;
+  TypeInfo* type_info_;
+  std::vector<CalleeInfo> callees_;
+};
+
+template <typename H>
+H AbslHashValue(H h, const CalleeCollectorVisitor::CalleeInfo& c) {
+  return H::combine(std::move(h), c.module, c.function);
+}
+
+bool operator==(const CalleeCollectorVisitor::CalleeInfo& lhs,
+                const CalleeCollectorVisitor::CalleeInfo& rhs) {
+  return lhs.module == rhs.module && lhs.function == rhs.function;
 }
 
 class InvocationVisitor : public AstNodeVisitorWithDefault {
@@ -334,7 +461,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     Module* this_m = module_;
     TypeInfo* callee_type_info = type_info_;
     // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
-    // is fragile due to shadowing.
+    // is fragile due to shadowing. It is also appears in the
+    // CalleeCollectorVisitor.
     std::string identifier = name_ref->identifier();
     if (identifier == "map") {
       // We need to make sure we convert the mapped function!
@@ -386,6 +514,59 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   // Built up list of callee records discovered during traversal.
   std::vector<Callee> callees_;
 };
+
+// Top level procs are procs where their config or next function is not invoked
+// within the module.
+// For example, for a given module with four procs: ProcA, ProcB, ProcC and
+// ProcD. The procs have the following invocation scheme: ProcA invokes ProcC
+// and ProcD, and ProcB does not invoke any procs. Given that there is no
+// invocation of ProcA and ProcB, they (ProcA and ProcB) are the top level
+// procs.
+static absl::StatusOr<std::vector<Proc*>> GetTopLevelProcs(
+    Module* module, TypeInfo* type_info) {
+  CalleeCollectorVisitor visitor(module, type_info);
+  std::vector<Proc*> procs;
+  XLS_RETURN_IF_ERROR(WalkPostOrder(module, &visitor, /*want_types=*/true));
+  absl::Span<const CalleeCollectorVisitor::CalleeInfo> callees =
+      visitor.GetCallees();
+  absl::flat_hash_set<CalleeCollectorVisitor::CalleeInfo> callee_set;
+  for (auto& callee : callees) {
+    callee_set.insert(callee);
+  }
+  for (Proc* proc : module->GetProcs()) {
+    // Checking the presence of the config function suffices since the config
+    // is instantiated prior to the next function.
+    if (callee_set.find({proc->owner(), proc->config()}) != callee_set.end()) {
+      continue;
+    }
+    procs.emplace_back(proc);
+  }
+  return procs;
+}
+
+// This function removes duplicate conversion records containing a non-derived
+// DSLX functions from a list. A non-derived non-parametric function is not an
+// inferred function (e.g. derived from a proc spawn/invocation or a parametric
+// function). The 'ready' input list is modified and cannot be nullptr.
+static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
+  for (auto iter_func = ready->begin(); iter_func != ready->end();
+       iter_func++) {
+    const ConversionRecord& function_cr = *iter_func;
+    for (auto iter_subject = iter_func + 1; iter_subject != ready->end();) {
+      const ConversionRecord& subject_cr = *iter_subject;
+      if (function_cr.f() == subject_cr.f() &&
+          // functions must not be derived from a spawned/invoked proc.
+          (!function_cr.HasProcId() || !subject_cr.HasProcId()) &&
+          // functions must not be a parametric function.
+          (!function_cr.f()->IsParametric() ||
+           !subject_cr.f()->IsParametric())) {
+        iter_subject = ready->erase(iter_subject);
+        continue;
+      }
+      iter_subject++;
+    }
+  }
+}
 
 // Traverses the definition of a node to find callees.
 //
@@ -498,6 +679,47 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
   return absl::OkStatus();
 }
 
+absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
+    absl::variant<Proc*, TestProc*> entry, TypeInfo* type_info) {
+  std::vector<ConversionRecord> ready;
+  Proc* p;
+  if (absl::holds_alternative<TestProc*>(entry)) {
+    p = absl::get<TestProc*>(entry)->proc();
+  } else {
+    p = absl::get<Proc*>(entry);
+  }
+
+  XLS_RETURN_IF_ERROR(AddToReady(p->next(),
+                                 /*invocation=*/nullptr, p->owner(), type_info,
+                                 SymbolicBindings(), &ready, ProcId{{p}, 0}));
+  XLS_RETURN_IF_ERROR(AddToReady(p->config(),
+                                 /*invocation=*/nullptr, p->owner(), type_info,
+                                 SymbolicBindings(), &ready, ProcId{{p}, 0}));
+
+  // Constants and "member" vars are assigned and defined in Procs' "config'"
+  // functions, so we need to execute those before their "next" functions.
+  // We ALSO need to evaluate them in reverse order, since proc N might be
+  // defined in terms of its parent proc N-1.
+  std::vector<ConversionRecord> final_order;
+  std::vector<ConversionRecord> config_fns;
+  std::vector<ConversionRecord> next_fns;
+  for (const auto& record : ready) {
+    if (record.f()->tag() == Function::Tag::kProcConfig) {
+      config_fns.push_back(record);
+    } else if (record.f()->tag() == Function::Tag::kProcNext) {
+      next_fns.push_back(record);
+    } else {
+      // Regular functions can go wherever.
+      final_order.push_back(record);
+    }
+  }
+  // Need to reverse so constants can prop in config
+  std::reverse(config_fns.begin(), config_fns.end());
+  final_order.insert(final_order.end(), config_fns.begin(), config_fns.end());
+  final_order.insert(final_order.end(), next_fns.begin(), next_fns.end());
+  return final_order;
+}
+
 absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                                        TypeInfo* type_info,
                                                        bool traverse_tests) {
@@ -534,13 +756,35 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
     }
   }
 
+  // Collect the top level procs.
+  XLS_ASSIGN_OR_RETURN(std::vector<Proc*> top_level_procs,
+                       GetTopLevelProcs(module, type_info));
+  // Get the Order for each top level proc.
+  for (Proc* proc : top_level_procs) {
+    XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
+                         GetOrderForEntry(proc, type_info));
+    ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
+  }
+
+  // Collect tests.
   if (traverse_tests) {
-    for (TestFunction* test : module->GetTests()) {
+    for (TestFunction* test : module->GetFunctionTests()) {
       XLS_RETURN_IF_ERROR(AddToReady(test, /*invocation=*/nullptr, module,
                                      type_info, SymbolicBindings(), &ready,
                                      {}));
     }
+    for (TestProc* test : module->GetProcTests()) {
+      XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
+                           GetOrderForProc(test, type_info));
+      ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
+    }
   }
+
+  // Remove duplicated functions. When performing a complete module conversion,
+  // the functions and the proc are converted in that order. However, procs may
+  // call functions resulting in functions being accounted for twice. There must
+  // be a single instance of the function to convert.
+  RemoveFunctionDuplicates(&ready);
 
   XLS_VLOG(5) << "Ready list: " << ConversionRecordsToString(ready);
 
@@ -557,37 +801,8 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
                                    type_info, SymbolicBindings(), &ready, {}));
     return ready;
   }
-
   Proc* p = absl::get<Proc*>(entry);
-  XLS_RETURN_IF_ERROR(AddToReady(p->next(),
-                                 /*invocation=*/nullptr, p->owner(), type_info,
-                                 SymbolicBindings(), &ready, ProcId{{p}, 0}));
-  XLS_RETURN_IF_ERROR(AddToReady(p->config(),
-                                 /*invocation=*/nullptr, p->owner(), type_info,
-                                 SymbolicBindings(), &ready, ProcId{{p}, 0}));
-
-  // Constants and "member" vars are assigned and defined in Procs' "config'"
-  // functions, so we need to execute those before their "next" functions.
-  // We ALSO need to evaluate them in reverse order, since proc N might be
-  // defined in terms of its parent proc N-1.
-  std::vector<ConversionRecord> final_order;
-  std::vector<ConversionRecord> config_fns;
-  std::vector<ConversionRecord> next_fns;
-  for (const auto& record : ready) {
-    if (record.f()->tag() == Function::Tag::kProcConfig) {
-      config_fns.push_back(record);
-    } else if (record.f()->tag() == Function::Tag::kProcNext) {
-      next_fns.push_back(record);
-    } else {
-      // Regular functions can go wherever.
-      final_order.push_back(record);
-    }
-  }
-  // Need to reverse so constants can prop in config
-  std::reverse(config_fns.begin(), config_fns.end());
-  final_order.insert(final_order.end(), config_fns.begin(), config_fns.end());
-  final_order.insert(final_order.end(), next_fns.begin(), next_fns.end());
-  return final_order;
+  return GetOrderForProc(p, type_info);
 }
 
 }  // namespace xls::dslx

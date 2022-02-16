@@ -2737,10 +2737,14 @@ class Module : public AstNode {
   std::vector<StructDef*> GetStructDefs() const {
     return GetTopWithT<StructDef>();
   }
+  std::vector<Proc*> GetProcs() const { return GetTopWithT<Proc>(); }
+  std::vector<TestProc*> GetProcTests() const {
+    return GetTopWithT<TestProc>();
+  }
   std::vector<Function*> GetFunctions() const {
     return GetTopWithT<Function>();
   }
-  std::vector<TestFunction*> GetTests() const {
+  std::vector<TestFunction*> GetFunctionTests() const {
     return GetTopWithT<TestFunction>();
   }
   std::vector<ConstantDef*> GetConstantDefs() const {
@@ -2780,7 +2784,7 @@ class Module : public AstNode {
     return result;
   }
 
-  // Return sall the elements of top_ that have the given variant type T, using
+  // Returns all the elements of top_ that have the given variant type T, using
   // T's identifier as a key. (T must have a string identifier.)
   template <typename T>
   absl::flat_hash_map<std::string, T*> GetTopWithTByName() const {
