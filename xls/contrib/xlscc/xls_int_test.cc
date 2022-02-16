@@ -559,6 +559,63 @@ TEST_F(XlsIntTest, DefaultArrayInit) {
   RunIntTest({{"a", 100}}, 101, content, xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, SaturateUnsigned) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package(long long a) {
+      XlsFixed<8, 8, false, ac_datatypes::AC_TRN, ac_datatypes::AC_SAT> ax = a;
+      return ax.to_int();
+    })";
+  RunIntTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", -5}}, 0, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", 500}}, 255, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, SaturateSigned) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package(long long a) {
+      XlsFixed<8, 8, true, ac_datatypes::AC_TRN, ac_datatypes::AC_SAT> ax = a;
+      return ax.to_int();
+    })";
+  RunIntTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", -5}}, -5, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", 500}}, 127, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", -600}}, -128, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, SaturateXlsInt) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package(long long a) {
+      XlsInt<12, true> in = a;
+      XlsFixed<8, 8, false, ac_datatypes::AC_TRN, ac_datatypes::AC_SAT> ax = in;
+      return ax.to_int();
+    })";
+  RunIntTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", -5}}, 0, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", 500}}, 255, content, xabsl::SourceLocation::current());
+}
+
+TEST_F(XlsIntTest, SaturateSignedLarge) {
+  const std::string content = R"(
+    #include "xls_fixed.h"
+
+    long long my_package(long long a) {
+      XlsFixed<33, 33, true, ac_datatypes::AC_TRN, ac_datatypes::AC_SAT> ax = a;
+      return ax.to_int();
+    })";
+  RunIntTest({{"a", 3}}, 3, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", -5}}, -5, content, xabsl::SourceLocation::current());
+  RunIntTest({{"a", 17179869184L}}, 4294967295L, content,
+             xabsl::SourceLocation::current());
+  RunIntTest({{"a", -17179869184L}}, -4294967296L, content,
+             xabsl::SourceLocation::current());
+}
+
 }  // namespace
 
 }  // namespace xlscc

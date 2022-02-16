@@ -283,6 +283,7 @@ filegroup(
         "synth_only/ac_compat/ac_int.h",
         "synth_only/ac_compat/ac_wait.h",
         "synth_only/assert.h",
+        "synth_only/cstdint",
         "synth_only/iostream",
         "synth_only/limits",
         "synth_only/math.h",
@@ -291,6 +292,7 @@ filegroup(
         "synth_only/stddef.h",
         "synth_only/string",
         "synth_only/type_traits",
+        "synth_only/xls_fixed.h",
         "synth_only/xls_int.h",
     ],
 )

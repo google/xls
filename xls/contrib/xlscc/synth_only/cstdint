@@ -1,3 +1,4 @@
+
 // Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,15 +13,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __AC_FIXED_COMPAT_H__
-#define __AC_FIXED_COMPAT_H__
+#ifndef __STDINT_H__
+#define __STDINT_H__
 
-#include "ac_int.h"
-#include "xls_fixed.h"
+typedef unsigned char uint8_t;
+typedef signed char int8_t;
+typedef unsigned long uint16_t;
+typedef signed long int16_t;
+typedef unsigned long uint32_t;
+typedef signed long int32_t;
+typedef unsigned long uint64_t;
+typedef signed long int64_t;
 
-template <int Width, int IntegerWidth, bool Signed,
-          ac_datatypes::ac_q_mode Quantization = AC_TRN,
-          ac_datatypes::ac_o_mode Overflow = AC_WRAP>
-using ac_fixed = XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>;
-
-#endif  //__AC_FIXED_COMPAT_H__
+#endif  //__STDINT_H__
