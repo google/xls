@@ -85,8 +85,10 @@ cc_library(
     name = "leaf_type_tree",
     hdrs = ["leaf_type_tree.h"],
     deps = [
+        "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
+        "//xls/common/status:status_macros",
         "//xls/ir:type",
     ],
 )
@@ -193,6 +195,7 @@ cc_test(
         ":leaf_type_tree",
         "@com_google_absl//absl/strings",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:ir_parser",

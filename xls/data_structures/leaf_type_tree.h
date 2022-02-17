@@ -17,8 +17,10 @@
 
 #include <vector>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/type.h"
 
 namespace xls {
@@ -140,7 +142,7 @@ class LeafTypeTree {
 
   // Copies and returns the subtree rooted at the given type index as a
   // LeafTypeTree.
-  LeafTypeTree<T> CopySubtree(absl::Span<int64_t const> const index) const {
+  LeafTypeTree<T> CopySubtree(absl::Span<const int64_t> index) const {
     std::pair<Type*, int64_t> type_offset =
         GetSubtypeAndOffset(type_, index, /*offset=*/0);
     Type* subtype = type_offset.first;
@@ -155,7 +157,7 @@ class LeafTypeTree {
   // leaf type by way of a function.
   template <typename R>
   LeafTypeTree<R> Map(std::function<R(const T&)> function) {
-    std::vector<R> new_elements;
+    absl::InlinedVector<R, 1> new_elements;
     new_elements.reserve(size());
     for (int32_t i = 0; i < size(); ++i) {
       new_elements.push_back(function(elements()[i]));
@@ -173,7 +175,7 @@ class LeafTypeTree {
     XLS_CHECK(lhs.type()->IsEqualTo(rhs.type()));
     XLS_CHECK_EQ(lhs.size(), rhs.size());
 
-    std::vector<T> new_elements;
+    absl::InlinedVector<T, 1> new_elements;
     new_elements.reserve(lhs.size());
     for (int32_t i = 0; i < lhs.size(); ++i) {
       new_elements.push_back(function(lhs.elements()[i], rhs.elements()[i]));
@@ -197,6 +199,27 @@ class LeafTypeTree {
   template <typename H>
   friend H AbslHashValue(H h, const LeafTypeTree<T>& ltt) {
     return H::combine(std::move(h), ltt.elements());
+  }
+
+  // Calls the given function on each leaf element. The element type, element
+  // data, and element index is passed to the function. The elements are
+  // iterated in lexicographic order of the indices.
+  absl::Status ForEach(
+      const std::function<absl::Status(Type*, T&, absl::Span<const int64_t>)>&
+          f) {
+    std::vector<int64_t> type_index;
+    int64_t linear_index = 0;
+    return ForEachHelper(type_, f, linear_index, type_index);
+  }
+
+  // Const overload of ForEach.
+  absl::Status ForEach(
+      const std::function<absl::Status(Type*, const T&,
+                                       absl::Span<const int64_t>)>& f) const {
+    return const_cast<LeafTypeTree<T>*>(this)->ForEach(
+        [&](Type* type, T& data, absl::Span<const int64_t> index) {
+          return f(type, data, index);
+        });
   }
 
  private:
@@ -247,9 +270,37 @@ class LeafTypeTree {
                                index.subspan(1), offset + element_offset);
   }
 
+  absl::Status ForEachHelper(
+      Type* subtype,
+      const std::function<absl::Status(Type*, T&, absl::Span<const int64_t>)>&
+          f,
+      int64_t& linear_index, std::vector<int64_t>& type_index) {
+    if (subtype->IsArray()) {
+      for (int64_t i = 0; i < subtype->AsArrayOrDie()->size(); ++i) {
+        type_index.push_back(i);
+        XLS_RETURN_IF_ERROR(
+            ForEachHelper(subtype->AsArrayOrDie()->element_type(), f,
+                          linear_index, type_index));
+        type_index.pop_back();
+      }
+      return absl::OkStatus();
+    }
+    if (subtype->IsTuple()) {
+      for (int64_t i = 0; i < subtype->AsTupleOrDie()->size(); ++i) {
+        type_index.push_back(i);
+        XLS_RETURN_IF_ERROR(
+            ForEachHelper(subtype->AsTupleOrDie()->element_type(i), f,
+                          linear_index, type_index));
+        type_index.pop_back();
+      }
+      return absl::OkStatus();
+    }
+    return f(subtype, elements_[linear_index++], type_index);
+  }
+
   Type* type_;
-  std::vector<T> elements_;
-  std::vector<Type*> leaf_types_;
+  absl::InlinedVector<T, 1> elements_;
+  absl::InlinedVector<Type*, 1> leaf_types_;
 };
 
 }  // namespace xls

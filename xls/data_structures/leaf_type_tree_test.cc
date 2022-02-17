@@ -17,6 +17,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
+#include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
@@ -204,6 +205,61 @@ TEST_F(LeafTypeTreeTest, Token) {
   EXPECT_EQ(tree.Get({}), 0);
   EXPECT_THAT(AsStrings(tree.leaf_types()), ElementsAre("token"));
   EXPECT_THAT(tree.elements(), ElementsAre(0));
+}
+
+TEST_F(LeafTypeTreeTest, ForEachTest) {
+  std::string result;
+  auto append_to_result = [&result](Type* type, int64_t data,
+                                    absl::Span<const int64_t> index) {
+    absl::StrAppendFormat(&result, "[%s, %d, {%s}]", type->ToString(), data,
+                          absl::StrJoin(index, ", "));
+    return absl::OkStatus();
+  };
+  {
+    LeafTypeTree<int64_t> tree(AsType("()"), 42);
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result));
+    EXPECT_EQ(result, "");
+  }
+  {
+    LeafTypeTree<int64_t> tree(AsType("(((())),(),(()))"), 42);
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result));
+    EXPECT_EQ(result, "");
+  }
+  {
+    LeafTypeTree<int64_t> tree(AsType("bits[32]"), 42);
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result));
+    EXPECT_EQ(result, "[bits[32], 42, {}]");
+  }
+  {
+    LeafTypeTree<int64_t> tree(AsType("(bits[32], bits[64])"));
+    tree.Set({0}, 23);
+    tree.Set({1}, 42);
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result));
+    EXPECT_EQ(result, "[bits[32], 23, {0}][bits[64], 42, {1}]");
+  }
+  {
+    LeafTypeTree<int64_t> tree(AsType("bits[32][2]"));
+    tree.Set({0}, 23);
+    tree.Set({1}, 42);
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result));
+    EXPECT_EQ(result, "[bits[32], 23, {0}][bits[32], 42, {1}]");
+  }
+  {
+    LeafTypeTree<int64_t> tree(AsType("(bits[32][2], ((bits[32])))"));
+    tree.Set({0, 0}, 1);
+    tree.Set({0, 1}, 2);
+    tree.Set({1, 0, 0}, 3);
+    result.clear();
+    XLS_ASSERT_OK(tree.ForEach(append_to_result));
+    EXPECT_EQ(
+        result,
+        "[bits[32], 1, {0, 0}][bits[32], 2, {0, 1}][bits[32], 3, {1, 0, 0}]");
+  }
 }
 
 }  // namespace
