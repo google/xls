@@ -473,6 +473,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#known-literals-and-arrayindex" class="md-nav__link">
+    Known-literals and ArrayIndex
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1406,6 +1413,13 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#known-literals-and-arrayindex" class="md-nav__link">
+    Known-literals and ArrayIndex
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1633,6 +1647,7 @@
 <li><a href="#select-operations">Select operations</a></li>
 <li><a href="#arithmetic-and-shift-operations">Arithmetic and shift operations</a></li>
 <li><a href="#comparison-operations">Comparison operations</a></li>
+<li><a href="#known-literals-and-arrayindex">Known-literals and ArrayIndex</a></li>
 </ul>
 </li>
 <li><a href="#strength-reductions">Strength Reductions</a><ul>
@@ -1734,6 +1749,17 @@ of the operation.</p>
 <p>Signed comparison are more complicated to handle because the sign bit
 (most-signicant bit) affects the interpretation of the value of the remaining
 bits. Stripping leading bits must preserve the sign bit of the operand.</p>
+<h3 id="known-literals-and-arrayindex">Known-literals and <code>ArrayIndex</code></h3>
+<p>The narrowing pass also converts any node that is determined by range analysis
+to have a range containing only one value into a literal. As a further extension
+of this idea, it also converts <code>ArrayIndex</code> nodes that are determined to have a
+small number of possible indices into select chains.</p>
+<p>This latter optimization is sometimes harmful, so we currently hide it behind
+the <code>--convert_array_index_to_select=&lt;n&gt;</code> flag in <code>opt_main</code> and
+<code>benchmark_main</code>, where <code>&lt;n&gt;</code> controls the number of possible array indices
+above which the optimization does not fire. The right number to put there is
+highly contextual, since this optimization relies heavily on later passes to
+clean up its output.</p>
 <h2 id="strength-reductions">Strength Reductions</h2>
 <h3 id="arithmetic-comparison-strength-reductions">Arithmetic Comparison Strength Reductions</h3>
 <p>When arithmetic comparisons occur with respect to constant values, comparisons
