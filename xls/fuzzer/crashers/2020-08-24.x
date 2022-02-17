@@ -38,7 +38,7 @@ fn main(x0: s45, x1: s50, x2: s38, x3: u8, x4: u49, x5: u13, x6: u12, x7: s14, x
   ;
     let x26: s50 = one_hot_sel(x24, [x1]);
     let x27: u8 = !(x18);
-    let x28: uN[50] = (x1)[x3+:uN[50]];
+    let x28: uN[50] = (x1 as u50)[x3+:uN[50]];
     let x29: u49 = one_hot_sel(x24, [x4]);
     let x30: u8 = one_hot_sel(x24, [x18]);
     let x31: s26 = for (i, x): (u4, s26) in range((u4:0x0), (u4:0x6)) {

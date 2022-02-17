@@ -897,6 +897,11 @@ static std::pair<int64_t, int64_t> ResolveBitSliceIndices(
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueBits(env));
   int64_t bit_count = GetTypeBitCount(arg.type);
+  // Slice LHS must be UBits.
+  if (!IsUBits(arg.type)) {
+    arg.expr = module_->Make<Cast>(fake_span_, arg.expr,
+                                   MakeTypeAnnotation(false, bit_count));
+  }
   enum class SliceType {
     kBitSlice,
     kWidthSlice,

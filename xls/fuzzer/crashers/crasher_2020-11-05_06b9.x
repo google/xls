@@ -82,7 +82,7 @@ type x28 = uN[0x1];
 fn main(x0: s32, x1: u26) -> u62 {
   let x2: u26 = -(x1);
   let x3: s39 = s39:0x8;
-  let x4: u36 = (x3)[0x3+:u36];
+  let x4: u36 = (x3 as u39)[0x3+:u36];
   let x5: u26 = (x1)[0x0+:u26];
   let x6: u1 = xor_reduce(x2);
   let x7: s32 = one_hot_sel(x6, [x0]);
@@ -95,13 +95,13 @@ fn main(x0: s32, x1: u26) -> u62 {
   let x14: u62 = rev(x9);
   let x15: u1 = (x0) > (x7);
   let x16: (u1, s39, s32) = (x15, x3, x7);
-  let x17: u1 = (x10)[:-0xf];
+  let x17: u1 = (x10 as u16)[:-0xf];
   let x18: x19[0x4] = ((x4) as x19[0x4]);
   let x20: u1 = for (i, x): (u4, u1) in range(u4:0x0, u4:0x1) {
     x
   }(x11);
   let x21: s11 = (((x20) as s11)) << (if ((x13) >= (s11:0x9)) { (u11:0x9) } else { (x13 as u11) });
-  let x22: u30 = (x0)[0x2:];
+  let x22: u30 = (x0 as u32)[0x2:];
   let x23: s32 = -(x7);
   let x24: u1 = (((x23) as u1)) >> (if ((x6) >= (u1:0x0)) { (u1:0x0) } else { (x6) });
   let x25: u1 = one_hot_sel(x15, [x8]);

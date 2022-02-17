@@ -161,7 +161,7 @@ fn main(x0: s33, x1: uN[107], x2: x3[13]) -> (u13, x24[1], bool, x3[13], x12[6],
   let x7: s33 = (x0) >> (if ((x4) >= (bool:false)) { (bool:false) } else { (x4) });
   let x8: bool = bit_slice_update(x4, x6, x1);
   let x9: x3 = (x2)[(if ((x1) >= (uN[107]:4)) { (uN[107]:4) } else { (x1) })[0:64]];
-  let x10: u13 = (x0)[20:];
+  let x10: u13 = (x0 as u33)[20:];
   let x11: bool = (x8) | (x4);
   let x13: x12[3] = [x2, x2, x2];
   let x14: bool = rev(x11);

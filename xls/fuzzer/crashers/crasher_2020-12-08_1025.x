@@ -161,9 +161,9 @@ fn x5(x6: s9) -> (u7, (u7,), u24, s4, u35, s9, u35) {
   let x20: u24 = u24:0x800000;
   let x21: u7 = clz(x15);
   let x22: u1 = (x17)[0x1:];
-  let x23: u2 = (x18)[0x2+:u2];
+  let x23: u2 = (x18 as u4)[0x2+:u2];
   let x24: s4 = (((x16) as s4)) * (x18);
-  let x25: u2 = (x7)[0x0+:u2];
+  let x25: u2 = (x7 as u9)[0x0+:u2];
   let x26: (u7,) = (x15,);
   (x10, x26, x20, x24, x16, x6, x16)
 }

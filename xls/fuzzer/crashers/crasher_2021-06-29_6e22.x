@@ -157,7 +157,7 @@ type x4 = (s10, u2, u3);
 type x33 = u46;
 fn main(x0: u46, x1: x2[W32_V9], x3: x4[W32_V8], x5: s37, x6: s62, x7: s8, x8: u59, x9: u26, x10: s5, x11: u42) -> (bool, u59, x4[3], x33[2]) {
   let x12: bool = (x3) == (x3);
-  let x13: u2 = (x10)[x0+:u2];
+  let x13: u2 = (x10 as u5)[x0+:u2];
   let x14: u2 = (((x5) as u2)) & (x13);
   let x15: u2 = (x14) & (((x5) as u2));
   let x16: u46 = (x0)[:];
@@ -165,12 +165,12 @@ fn main(x0: u46, x1: x2[W32_V9], x3: x4[W32_V8], x5: s37, x6: s62, x7: s8, x8: u
   let x18: u59 = !(x8);
   let x19: u59 = (x18) + (((x6) as u59));
   let x20: bool = (x14)[0+:bool];
-  let x21: u5 = (x10)[:];
+  let x21: u5 = (x10 as u5)[:];
   let x22: u59 = (x18) << (if ((x8) >= (u59:52)) { (u59:52) } else { (x8) });
   let x23: x4[16] = (x3) ++ (x3);
   let x24: u46 = (x0) & (((x17) as u46));
   let x25: u21 = (x0)[25+:u21];
-  let x26: u8 = (x7)[0+:u8];
+  let x26: u8 = (x7 as u8)[0+:u8];
   let x27: x4[3] = slice(x23, x0, x4[3]:[(x23)[u64:0], ...]);
   let x28: s8 = !(x7);
   let x29: u59 = bit_slice_update(x19, x11, x0);

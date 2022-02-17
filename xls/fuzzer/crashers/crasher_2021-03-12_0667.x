@@ -166,7 +166,7 @@ fn main(x0: u19, x1: u23, x2: (u15, u29), x3: (), x4: u3) -> (bool, u23, u23, ()
   let x24: u23 = (x15) + (((x10) as u23));
   let x25: bool = (((x22) as u23)) > (x21);
   let x26: bool = (x19)[0+:bool];
-  let x27: u2 = (x10)[7:9];
+  let x27: u2 = (x10 as u13)[7:9];
   let x28: u19 = (x21)[x11+:u19];
   let x29: bool = (x26)[0+:bool];
   let x30: u23 = -(x23);

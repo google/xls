@@ -153,7 +153,7 @@
 type x16 = u32;
 fn main(x0: u49, x1: s25, x2: u23, x3: u43, x4: s10) -> (s26, u32) {
   let x5: u23 = !(x2);
-  let x6: u10 = (x4)[x0+:u10];
+  let x6: u10 = (x4 as u10)[x0+:u10];
   let x7: uN[72] = (x2) ++ (x0);
   let x8: u32 = u32:0x800;
   let x9: s7 = s7:0x3f;

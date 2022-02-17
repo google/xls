@@ -102,7 +102,7 @@ pub fn fpsqrt_32(x: F32) -> F32 {
 
   let scaled_fixed_point_x = u1:0 ++ u8:1 ++ x.fraction;
   // If odd exp, double x to make it even.
-  let scaled_fixed_point_x = if exp[0:1] { scaled_fixed_point_x << u32:1 }
+  let scaled_fixed_point_x = if (exp as u8)[0:1] { scaled_fixed_point_x << u32:1 }
                              else { scaled_fixed_point_x };
   // exp = exp / 2, exponent of square root
   let exp = exp >> u8:1;

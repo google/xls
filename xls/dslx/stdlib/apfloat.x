@@ -240,7 +240,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1
   NUM_SRC_BITS:u32, EXTENDED_FRACTION_SZ:u32 = FRACTION_SZ + NUM_SRC_BITS>
   (to_cast: sN[NUM_SRC_BITS]) -> APFloat<EXP_SZ, FRACTION_SZ> {
   // Determine sign.
-  let sign = to_cast[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
+  let sign = (to_cast as uN[NUM_SRC_BITS])[(NUM_SRC_BITS-u32:1) as s32 : NUM_SRC_BITS as s32];
 
   // Determine exponent.
   let abs_magnitude = (if sign == u1:0 { to_cast } else { -to_cast }) as uN[NUM_SRC_BITS];
@@ -474,7 +474,7 @@ pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32,
   let exp = unbiased_exponent(to_cast);
   let result = (uN[NUM_DST_BITS]:0 ++ u1:1
                 ++ to_cast.fraction ++ uN[NUM_DST_BITS]:0)
-                as sN[EXTENDED_FIXED_SZ];
+                as uN[EXTENDED_FIXED_SZ];
   let result = result >>
     ((FRACTION_SZ as uN[EXTENDED_FIXED_SZ])
     + (NUM_DST_BITS as uN[EXTENDED_FIXED_SZ])

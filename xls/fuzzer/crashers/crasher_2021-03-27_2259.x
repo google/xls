@@ -149,10 +149,10 @@ type x4 = u39;
 type x7 = uN[599];
 fn main(x0: s42, x1: s59, x2: sN[1750], x3: x4[W32_V9]) -> (sN[1750], uN[1621], sN[1750], s59, bool, bool, uN[1621], bool, (sN[1750], s59, bool, sN[1750]), bool) {
   let x5: sN[1750] = !(x2);
-  let x6: uN[599] = (x5)[308+:uN[599]];
+  let x6: uN[599] = (x5 as uN[1750])[308+:uN[599]];
   let x8: x7[8] = [x6, x6, x6, x6, x6, x6, x6, x6];
   let x9: bool = (x0) >= (((x2) as s42));
-  let x10: uN[1621] = (x2)[:-129];
+  let x10: uN[1621] = (x2 as uN[1750])[:-129];
   let x11: bool = (x1) == (((x2) as s59));
   let x12: bool = and_reduce(x6);
   let x13: uN[599] = ((x6 as sN[599]) >> (if ((x10) >= (uN[1621]:1031)) { (uN[1621]:1031) } else { (x10) })) as uN[599];

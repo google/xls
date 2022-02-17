@@ -148,7 +148,7 @@ type x19 = u3;
 type x21 = u9;
 type x26 = u3;
 fn main(x0: s26) -> (u2, u3, u3, u3, x21[0x3]) {
-  let x1: u26 = (x0)[0x0+:u26];
+  let x1: u26 = (x0 as u26)[0x0+:u26];
   let x2: u27 = one_hot(x1, u1:0x1);
   let x3: u3 = u3:0x1;
   let x4: u3 = (x3)[x1+:u3];

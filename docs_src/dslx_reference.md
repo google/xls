@@ -1508,9 +1508,10 @@ fn test_cast_to_array() {
 
 ### Bit Slice Expressions
 
-DSLX supports Python-style bit slicing over bits types. Note that bits are
-numbered 0..N starting "from the right (as you would write it on paper)" --
-least significant bit, AKA LSb -- for example, for the value `u7:0b100_0111`:
+DSLX supports Python-style bit slicing over *unsigned* bits types. Note that
+bits are numbered 0..N starting "from the right (as you would write it on
+paper)" -- least significant bit, AKA LSb -- for example, for the value
+`u7:0b100_0111`:
 
 ```
     Bit    6 5 4 3 2 1 0

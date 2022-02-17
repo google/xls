@@ -77,7 +77,7 @@ fn main(x0: u7, x1: s5, x2: u59, x3: u60, x4: u23, x5: s13) -> (s13, uN[15], s5,
     let x40: uN[15] = one_hot(x39, (u1:1));
     let x41: u7 = (x25) ^ (x0);
     let x42: uN[31] = (x3)[:-0x1d];
-    let x43: uN[5] = (x37)[-0x9:-0x4];
+    let x43: uN[5] = (x37 as u13)[-0x9:-0x4];
     let x44: s13 = one_hot_sel(x29, [x27, x38, x36, x37, x27, x37, x37]);
     (x35, x40, x1, x28, x26, x7, x34, x44, x2, x40)
 }

@@ -158,7 +158,7 @@ fn main(x0: s5) -> (u1, x8[0x2], u1, s5, x21[0x1], x21[0x1], s5, u1, s5, (s5, s5
   let x11: (s5,) = (x3,);
   let x12: s5 = one_hot_sel(x0, [x1, x6, x3, x3, x10]);
   let x13: u1 = ctz(x5);
-  let x14: u5 = (x12)[x5+:u5];
+  let x14: u5 = (x12 as u5)[x5+:u5];
   let x15: (s5, s5, u1, s5, u1, s5, s5, s5, s5, s5, s5, s5, u1, s5) = (x4, x4, x13, x10, x5, x2, x6, x0, x12, x6, x10, x1, x13, x3);
   let x16: u1 = ctz(x13);
   let x17: s5 = one_hot_sel(x16, [x3]);

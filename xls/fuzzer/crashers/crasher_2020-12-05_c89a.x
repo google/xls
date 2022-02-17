@@ -163,7 +163,7 @@ fn main(x0: s7) -> (u1, s7, u1, u54, u27, s7, u27, u27, u1, s38, s38, u1, u54, u
   let x12: u27 = -(x11);
   let x13: s38 = s38:0x100;
   let x14: u27 = -(x5);
-  let x15: u27 = (x13)[x11+:u27];
+  let x15: u27 = (x13 as u38)[x11+:u27];
   let x16: u54 = for (i, x): (u4, u54) in range(u4:0x0, u4:0x3) {
     x
   }(x9);

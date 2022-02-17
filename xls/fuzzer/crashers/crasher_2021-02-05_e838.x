@@ -157,7 +157,7 @@ fn x6(x7: s40) -> (s40, (s40,), s40, s40, s40, s40, (s40, s40), s40, s40, s40, (
   }(x8);
   let x11: (s40, s40) = (x9, x8);
   let x12: (s40,) = (x8,);
-  let x13: u28 = (x10)[0x0+:u28];
+  let x13: u28 = (x10 as u40)[0x0+:u28];
   let x14: s40 = (x9) * (x8);
   let x15: s40 = one_hot_sel(u5:0x15, [x7, x8, x7, x7, x7]);
   let x16: u1 = u1:0x1;

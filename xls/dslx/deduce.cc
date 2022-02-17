@@ -1248,6 +1248,11 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
                                     "Value to slice is not of 'bits' type.");
   }
 
+  if (bits_type->is_signed()) {
+    return TypeInferenceErrorStatus(node->span(), lhs_type.get(),
+                                    "Bit slice LHS must be unsigned.");
+  }
+
   if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
     auto* width_slice = absl::get<WidthSlice*>(node->rhs());
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
