@@ -1780,6 +1780,9 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
           channel_name.value(), *supported_ops, type, *metadata, *id);
     }
   }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown channel type: ", static_cast<int>(kind.value())));
 }
 
 absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
