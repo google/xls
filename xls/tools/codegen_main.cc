@@ -137,6 +137,8 @@ ABSL_FLAG(bool, reset_data_path, false, "Whether to also reset the datapath.");
 ABSL_FLAG(bool, use_system_verilog, true,
           "If true, emit SystemVerilog otherwise emit Verilog.");
 ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
+ABSL_FLAG(std::string, assert_format, "",
+          "Format string to use for assertions.");
 ABSL_FLAG(std::string, streaming_channel_data_suffix, "",
           "Suffix to append to data signals for streaming channels.");
 ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
@@ -266,6 +268,10 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
 
   if (!absl::GetFlag(FLAGS_gate_format).empty()) {
     options.gate_format(absl::GetFlag(FLAGS_gate_format));
+  }
+
+  if (!absl::GetFlag(FLAGS_assert_format).empty()) {
+    options.assert_format(absl::GetFlag(FLAGS_assert_format));
   }
 
   options.streaming_channel_data_suffix(
