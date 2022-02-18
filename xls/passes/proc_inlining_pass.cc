@@ -25,6 +25,129 @@
 namespace xls {
 namespace {
 
+// Analysis which identifies invariant elements of each node where "element" is
+// defined as a leaf element in the type (as in LeafTypeTree). Literals and data
+// received over a single-value channel are invariant. Also, any element
+// computed exclusively from invariant elements is also invariant. All other
+// elements are not invariant. The analysis traces through tuple and tuple-index
+// operations.
+class InvariantAnalysis : public DfsVisitorWithDefault {
+ public:
+  static absl::StatusOr<InvariantAnalysis> Run(FunctionBase* f) {
+    InvariantAnalysis nt(f);
+    XLS_RETURN_IF_ERROR(f->Accept(&nt));
+    XLS_VLOG_LINES(3, absl::StrFormat("InvariantAnalysis:\n%s", nt.ToString()));
+    return std::move(nt);
+  }
+
+  // Returns the linear index of each variant element in the given node. The
+  // linear index is the in a DFS traversal of the type of `node`.
+  std::vector<int64_t> GetVariantLinearIndices(Node* node) {
+    std::vector<int64_t> result;
+    int64_t linear_index = 0;
+    invariant_elements_.at(node)
+        .ForEach([&](Type* element_type, bool is_invariant,
+                     absl::Span<const int64_t> index) {
+          if (!is_invariant) {
+            result.push_back(linear_index);
+          }
+          linear_index++;
+          return absl::OkStatus();
+        })
+        .IgnoreError();
+    return result;
+  }
+
+  std::string ToString() const {
+    std::vector<std::string> lines;
+    lines.push_back(absl::StrFormat("InvariantAnalysis(%s):", f_->name()));
+    for (Node* node : TopoSort(f_)) {
+      lines.push_back(absl::StrFormat("  %s:", node->ToString()));
+      invariant_elements_.at(node)
+          .ForEach([&](Type* element_type, bool is_invariant,
+                       absl::Span<const int64_t> index) {
+            lines.push_back(absl::StrFormat(
+                "    {%s}: %d", absl::StrJoin(index, ", "), is_invariant));
+            return absl::OkStatus();
+          })
+          .IgnoreError();
+    }
+    return absl::StrJoin(lines, "\n");
+  }
+
+ private:
+  explicit InvariantAnalysis(FunctionBase* f) : f_(f) {}
+
+  bool IsInvariant(Node* node) {
+    // If no token types involved and all inputs invariant then output is
+    // invariant.
+    if (TypeHasToken(node->GetType()) || OpIsSideEffecting(node->op())) {
+      return false;
+    }
+    for (bool element_is_invariant : invariant_elements_.at(node).elements()) {
+      if (!element_is_invariant) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  absl::Status DefaultHandler(Node* node) override {
+    bool node_is_invariant =
+        !OpIsSideEffecting(node->op()) &&
+        std::all_of(node->operands().begin(), node->operands().end(),
+                    [&](Node* operand) { return IsInvariant(operand); });
+    invariant_elements_[node] =
+        LeafTypeTree<bool>(node->GetType(), /*init_value=*/node_is_invariant);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleReceive(Receive* receive) override {
+    XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
+    if (ch->kind() == ChannelKind::kSingleValue) {
+      // The data received over a single-value channel is invariant.
+      invariant_elements_[receive] =
+          LeafTypeTree<bool>(receive->GetType(), /*init_value=*/true);
+      // The token is not invariant.
+      invariant_elements_.at(receive).Set(/*index=*/{0}, false);
+    } else {
+      // The data and token from a receive over a streaming channel is not
+      // invariant.
+      invariant_elements_[receive] =
+          LeafTypeTree<bool>(receive->GetType(), /*init_value=*/false);
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTuple(Tuple* tuple) override {
+    // Use inlined vector to avoid std::vector bool specialization abomination.
+    absl::InlinedVector<bool, 1> elements;
+    for (Node* operand : tuple->operands()) {
+      elements.insert(elements.end(),
+                      invariant_elements_.at(operand).elements().begin(),
+                      invariant_elements_.at(operand).elements().end());
+    }
+    invariant_elements_[tuple] = LeafTypeTree<bool>(tuple->GetType(), elements);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTupleIndex(TupleIndex* tuple_index) override {
+    invariant_elements_[tuple_index] =
+        invariant_elements_.at(tuple_index->operand(0))
+            .CopySubtree(/*index=*/{tuple_index->index()});
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleLiteral(Literal* literal) override {
+    invariant_elements_[literal] =
+        LeafTypeTree<bool>(literal->GetType(), /*init_value=*/true);
+    return absl::OkStatus();
+  }
+
+  FunctionBase* f_;
+  absl::flat_hash_map<Node*, LeafTypeTree<bool>> invariant_elements_;
+};
+
 // Returns the set of procs to inline. Effectively this is all of the procs in
 // the package except the top-level proc.
 std::vector<Proc*> GetProcsToInline(Proc* top) {
@@ -145,6 +268,94 @@ absl::StatusOr<Node*> AndNot(
   return And(a, not_b, name);
 }
 
+absl::Status DecomposeNodeHelper(Node* node, std::vector<Node*>& elements) {
+  if (node->GetType()->IsTuple()) {
+    for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * tuple_index,
+          node->function_base()->MakeNode<TupleIndex>(absl::nullopt, node, i));
+      XLS_RETURN_IF_ERROR(DecomposeNodeHelper(tuple_index, elements));
+    }
+  } else if (node->GetType()->IsArray()) {
+    for (int64_t i = 0; i < node->GetType()->AsArrayOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Node * index,
+                           node->function_base()->MakeNode<Literal>(
+                               absl::nullopt, Value(UBits(i, 64))));
+      XLS_ASSIGN_OR_RETURN(
+          Node * array_index,
+          node->function_base()->MakeNode<ArrayIndex>(
+              absl::nullopt, node, std::vector<Node*>({index})));
+      XLS_RETURN_IF_ERROR(DecomposeNodeHelper(array_index, elements));
+    }
+  } else {
+    elements.push_back(node);
+  }
+  return absl::OkStatus();
+}
+
+// Decomposes and returns the elements of the given node as a vector. An
+// "element" is a leaf in the type tree of the node. The elements are extracted
+// using TupleIndex and ArrayIndex operations which are added to the graph as
+// necessary. Example vectors returned for different types:
+//
+//   x: bits[32] ->
+//         {x}
+//   x: (bits[32], bits[32], bits[32]) ->
+//         {TupleIndex(x, 0), TupleIndex(x, 1), TupleIndex(x, 2)}
+//   x: (bits[32], (bits[32])) ->
+//         {TupleIndex(x, 0), TupleIndex(TupleIndex(x, 1), 0)}
+//   x: bits[32][2] ->
+//         {ArrayIndex(x, {0}), ArrayIndex(x, {1})}
+absl::StatusOr<std::vector<Node*>> DecomposeNode(Node* node) {
+  std::vector<Node*> elements;
+  XLS_RETURN_IF_ERROR(DecomposeNodeHelper(node, elements));
+  return std::move(elements);
+}
+
+absl::StatusOr<Node*> ComposeNodeHelper(Type* type,
+                                        absl::Span<Node* const> elements,
+                                        int64_t& linear_index,
+                                        FunctionBase* f) {
+  if (type->IsTuple()) {
+    std::vector<Node*> tuple_elements;
+    for (int64_t i = 0; i < type->AsTupleOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * element,
+          ComposeNodeHelper(type->AsTupleOrDie()->element_type(i), elements,
+                            linear_index, f));
+      tuple_elements.push_back(element);
+    }
+    return f->MakeNode<Tuple>(absl::nullopt, tuple_elements);
+  }
+  if (type->IsArray()) {
+    std::vector<Node*> array_elements;
+    for (int64_t i = 0; i < type->AsArrayOrDie()->size(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          Node * element,
+          ComposeNodeHelper(type->AsArrayOrDie()->element_type(), elements,
+                            linear_index, f));
+      array_elements.push_back(element);
+    }
+    return f->MakeNode<Array>(absl::nullopt, array_elements,
+                              type->AsArrayOrDie()->element_type());
+  }
+  return elements[linear_index++];
+}
+
+// Constructs a value of the given type using the given leaf elements. Array and
+// Tuple operations are added to the graph as necessary. Example expressions
+// return for given type and leaf_elements vector:
+//
+//   bits[32] {x} -> x
+//   (bits[32], bits[32]) {x, y} -> Tuple(x, y)
+//   (bits[32], (bits[32])) {x, y} -> Tuple(x, Tuple(y))
+//   bits[32][2] {x, y} -> Array(x,y)
+absl::StatusOr<Node*> ComposeNode(Type* type, absl::Span<Node* const> elements,
+                                  FunctionBase* f) {
+  int64_t linear_index = 0;
+  return ComposeNodeHelper(type, elements, linear_index, f);
+}
+
 // Abstraction representing a send operation on a proc thread. A virtual send
 // is created by decomposing a Op::kSend node into logic operations which manage
 // the data and its flow-control. In a virtual send, data is "sent" over a
@@ -169,6 +380,13 @@ struct VirtualSend {
   // Whether `data` is valid. Only present in streaming channels. Single-value
   // channels have no flow control.
   absl::optional<Node*> data_valid;
+
+  // Variant data which is sent over the single-value channel must be saved on
+  // the state. This is the dummy place holder for this state.
+  absl::optional<Node*> dummy_saved_data;
+
+  // The value of the saved data on the next tick of the proc.
+  absl::optional<Node*> next_saved_data;
 };
 
 // Creates a virtual send corresponding to sending the given data on the given
@@ -176,7 +394,7 @@ struct VirtualSend {
 // send are constructed in `top`.
 absl::StatusOr<VirtualSend> CreateVirtualSend(
     Channel* channel, Node* data, absl::optional<Node*> send_predicate,
-    Proc* top) {
+    absl::Span<const int64_t> variant_linear_indices, Proc* top) {
   if (channel->kind() == ChannelKind::kSingleValue &&
       send_predicate.has_value()) {
     return absl::UnimplementedError(
@@ -185,7 +403,6 @@ absl::StatusOr<VirtualSend> CreateVirtualSend(
 
   VirtualSend virtual_send;
   virtual_send.channel = channel;
-  virtual_send.data = data;
 
   // Create a dummy activation in. Later this will be replaced with
   // signal passed from the upstream operation in the activation chain.
@@ -204,6 +421,7 @@ absl::StatusOr<VirtualSend> CreateVirtualSend(
 
   // Only streaming channels have flow control (valid signal).
   if (channel->kind() == ChannelKind::kStreaming) {
+    virtual_send.data = data;
     if (send_predicate.has_value()) {
       // The send is conditional. Valid logic:
       //
@@ -220,6 +438,80 @@ absl::StatusOr<VirtualSend> CreateVirtualSend(
           Identity(virtual_send.dummy_activation_in,
                    absl::StrFormat("%s_data_valid", channel->name())));
     }
+  } else if (variant_linear_indices.empty()) {
+    // This is a single-value channel with no variant elements. The virtual send
+    // simply passes through the data.
+    XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kSingleValue);
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Generating virtual send for single-value channel %s of type %s with "
+        "no variants",
+        channel->name(), channel->type()->ToString());
+    virtual_send.data = data;
+  } else {
+    // This is a single-value channel with variant elements being sent over the
+    // channel. The variant values must be saved on the state.
+    XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kSingleValue);
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Generating virtual send for single-value channel %s of type %s with "
+        "variants",
+        channel->name(), channel->type()->ToString());
+
+    // Completely decompose the sent data into a std::vector<Node*> of
+    // elements. These elements are exactly the leaf elements of the type as
+    // defined in LeafTypeTree.
+    XLS_ASSIGN_OR_RETURN(std::vector<Node*> data_elements, DecomposeNode(data));
+
+    // Construct a tuple-type containing the type of each variant element.
+    XLS_VLOG(3) << "Variant linear indices:";
+    std::vector<Type*> variant_element_types;
+    for (int64_t i = 0; i < variant_linear_indices.size(); ++i) {
+      int64_t linear_index = variant_linear_indices[i];
+      XLS_VLOG(3) << absl::StreamFormat("  %d", linear_index);
+      variant_element_types.push_back(data_elements[i]->GetType());
+    }
+    Type* variant_tuple_type =
+        top->package()->GetTupleType(variant_element_types);
+
+    // Construct a dummy state variable for the variant element tuple type.
+    XLS_ASSIGN_OR_RETURN(
+        virtual_send.dummy_saved_data,
+        top->MakeNodeWithName<Literal>(
+            absl::nullopt, ZeroOfType(variant_tuple_type),
+            absl::StrFormat("%s_send_dummy_saved_data", channel->name())));
+
+    // Replace the variant elements of the sent data element vector with a
+    // select between the state and the data value. The selector is the
+    // activation bit of the send.
+    std::vector<Node*> next_saved_data_elements;
+    for (int64_t i = 0; i < variant_linear_indices.size(); ++i) {
+      int64_t linear_index = variant_linear_indices[i];
+      XLS_ASSIGN_OR_RETURN(
+          Node * state_element,
+          top->MakeNode<TupleIndex>(absl::nullopt,
+                                    virtual_send.dummy_saved_data.value(), i));
+      XLS_ASSIGN_OR_RETURN(
+          Node * selected_data,
+          top->MakeNodeWithName<Select>(
+              absl::nullopt, /*selector=*/virtual_send.dummy_activation_in,
+              /*cases=*/
+              std::vector<Node*>{state_element, data_elements[linear_index]},
+              /*default_case=*/absl::nullopt,
+              absl::StrFormat("%s_data", channel->name())));
+      next_saved_data_elements.push_back(selected_data);
+      data_elements[linear_index] = selected_data;
+    }
+
+    // Reconstruct the data to send from the constituent elements.
+    XLS_ASSIGN_OR_RETURN(virtual_send.data,
+                         ComposeNode(data->GetType(), data_elements, top));
+
+    // Construct the tuple for the next state. It consists of the selects rom
+    // each variant element.
+    XLS_ASSIGN_OR_RETURN(
+        virtual_send.next_saved_data,
+        top->MakeNodeWithName<Tuple>(
+            absl::nullopt, next_saved_data_elements,
+            absl::StrFormat("%s_send_hold_next", channel->name())));
   }
 
   return virtual_send;
@@ -486,6 +778,8 @@ absl::StatusOr<ProcThread> CreateVirtualSendReceives(
 
   XLS_RETURN_IF_ERROR(
       proc->StateParam()->ReplaceUsesWith(proc_thread.dummy_state));
+  XLS_ASSIGN_OR_RETURN(InvariantAnalysis invariant_analysis,
+                       InvariantAnalysis::Run(proc));
 
   for (Node* node : TopoSort(proc)) {
     if (node->Is<Send>()) {
@@ -499,7 +793,9 @@ absl::StatusOr<ProcThread> CreateVirtualSendReceives(
       }
       XLS_ASSIGN_OR_RETURN(
           VirtualSend virtual_send,
-          CreateVirtualSend(ch, send->data(), send->predicate(), proc));
+          CreateVirtualSend(
+              ch, send->data(), send->predicate(),
+              invariant_analysis.GetVariantLinearIndices(send->data()), proc));
       XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(send->token()));
       virtual_sends[ch] = virtual_send;
       proc_thread.activation_chain.push_back(virtual_send);
@@ -542,6 +838,9 @@ absl::StatusOr<ProcThread> InlineProcIntoTop(
   // Before transforming the proc at all verify the token netwokr of the proc.
   XLS_RETURN_IF_ERROR(VerifyTokenNetwork(proc));
 
+  XLS_ASSIGN_OR_RETURN(InvariantAnalysis invariant_analysis,
+                       InvariantAnalysis::Run(proc));
+
   // Create a dummy state node. Later this will be replaced with a subset of the
   // top proc state.
   XLS_ASSIGN_OR_RETURN(proc_thread.dummy_state,
@@ -574,7 +873,9 @@ absl::StatusOr<ProcThread> InlineProcIntoTop(
         }
         XLS_ASSIGN_OR_RETURN(
             VirtualSend virtual_send,
-            CreateVirtualSend(ch, node_map.at(send->data()), predicate, top));
+            CreateVirtualSend(
+                ch, node_map.at(send->data()), predicate,
+                invariant_analysis.GetVariantLinearIndices(send->data()), top));
 
         // The output of the send operation itself is token-typed. Just use the
         // token operand of the send.
@@ -940,13 +1241,28 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
     // Only receives on streaming channels will wait for data (hold the
     // activation bit).
     if (ch->kind() == ChannelKind::kStreaming) {
-      XLS_RET_CHECK(virtual_receives.at(ch).dummy_holds_activation.has_value());
-      XLS_RET_CHECK(virtual_receives.at(ch).next_holds_activation.has_value());
+      const VirtualReceive& virtual_receive = virtual_receives.at(ch);
+      XLS_RET_CHECK(virtual_receive.dummy_holds_activation.has_value());
+      XLS_RET_CHECK(virtual_receive.next_holds_activation.has_value());
       state_elements.push_back(StateElement{
           .name = absl::StrFormat("%s_rcv_holds_activation", ch->name()),
           .initial_value = Value(UBits(0, 1)),
-          .dummy = virtual_receives.at(ch).dummy_holds_activation.value(),
-          .next = virtual_receives.at(ch).next_holds_activation.value()});
+          .dummy = virtual_receive.dummy_holds_activation.value(),
+          .next = virtual_receive.next_holds_activation.value()});
+    } else {
+      const VirtualSend& virtual_send = virtual_sends.at(ch);
+      if (virtual_send.dummy_saved_data.has_value()) {
+        // Single-value channel with variant input elements. These input
+        // elements need to be put on the state.
+        XLS_RET_CHECK(virtual_send.next_saved_data.has_value());
+        state_elements.push_back(StateElement{
+            .name = absl::StrFormat("%s_send_hold", ch->name()),
+            .initial_value =
+                ZeroOfType(virtual_send.dummy_saved_data.value()->GetType()),
+            .dummy = virtual_send.dummy_saved_data.value(),
+            .next = virtual_send.next_saved_data.value(),
+        });
+      }
     }
   }
   XLS_RETURN_IF_ERROR(ReplaceProcState(top, state_elements));

@@ -109,6 +109,10 @@ class ProcInliningPassTest : public IrTestBase {
       ASSERT_TRUE(ch->type()->IsBits());
       output_channels.push_back(ch);
     }
+    // Sort output channels the output expectations are done in a deterministic
+    // order.
+    std::sort(output_channels.begin(), output_channels.end(),
+              [](Channel* a, Channel* b) { return a->name() < b->name(); });
 
     auto needs_more_output = [&]() {
       for (Channel* ch : output_channels) {
@@ -251,6 +255,51 @@ class ProcInliningPassTest : public IrTestBase {
     BValue send_out = b.Send(out, b.TupleIndex(y_rcv, 0), b.Add(x, y));
 
     return b.Build(send_out, b.GetStateParam());
+  }
+
+  // Make a proc which receives a tuple of data and loops twice accumulating the
+  // element values before sending out the accumulation:
+  //
+  // u1: cnt = 0
+  // x_accum = 0
+  // y_accum = 0
+  // while (true):
+  //   (x, y) = rcv(in)
+  //   x_accum += x
+  //   y_accum += y
+  //   send_if(out, cnt, (x_accum, y_accum))
+  //   cnt = !cnt
+  absl::StatusOr<Proc*> MakeTupleAccumulator(absl::string_view name,
+                                             Channel* in, Channel* out,
+                                             Package* p) {
+    XLS_RET_CHECK(in->type()->IsTuple());
+    int64_t x_bit_count =
+        in->type()->AsTupleOrDie()->element_type(0)->AsBitsOrDie()->bit_count();
+    int64_t y_bit_count =
+        in->type()->AsTupleOrDie()->element_type(1)->AsBitsOrDie()->bit_count();
+    ProcBuilder b(
+        name,
+        Value::Tuple({Value(UBits(0, 1)), Value(UBits(0, x_bit_count)),
+                      Value(UBits(0, y_bit_count))}),
+        "tkn", "st", p);
+    BValue cnt = b.TupleIndex(b.GetStateParam(), 0);
+    BValue x_accum = b.TupleIndex(b.GetStateParam(), 1);
+    BValue y_accum = b.TupleIndex(b.GetStateParam(), 2);
+
+    BValue rcv_x_y = b.Receive(in, b.GetTokenParam());
+    BValue rcv_x_y_data = b.TupleIndex(rcv_x_y, 1);
+    BValue x = b.TupleIndex(rcv_x_y_data, 0);
+    BValue y = b.TupleIndex(rcv_x_y_data, 1);
+
+    BValue x_plus_x_accum = b.Add(x, x_accum);
+    BValue y_plus_y_accum = b.Add(y, y_accum);
+
+    BValue send_x_y_result =
+        b.SendIf(out, b.TupleIndex(rcv_x_y, 0), cnt,
+                 b.Tuple({x_plus_x_accum, y_plus_y_accum}));
+
+    return b.Build(send_x_y_result,
+                   b.Tuple({b.Not(cnt), x_plus_x_accum, y_plus_y_accum}));
   }
 };
 
@@ -1044,7 +1093,7 @@ TEST_F(ProcInliningPassTest, InlinedProcsWithExternalStreamingIO) {
 }
 
 TEST_F(ProcInliningPassTest, InlinedProcsWithExternalSingleValueIO) {
-  // The inlined proc has single-value input on an external channel..
+  // The inlined proc has single-value input on an external channel.
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1341,6 +1390,319 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
   EXPECT_THAT(interpreter->Tick(),
               StatusIs(absl::StatusCode::kAborted,
                        HasSubstr("Channel a_to_b1 lost data")));
+}
+
+TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Type* u64 = p->GetBitsType(64);
+  Type* u32_u64 = p->GetTupleType({u32, u64});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_in,
+      p->CreateSingleValueChannel("y", ChannelOps::kReceiveOnly, u64));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_inputs,
+      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
+                                  u32_u64));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel("pass_result", ChannelOps::kSendReceive,
+                                u32_u64));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result0_out,
+      p->CreateStreamingChannel("result0_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result1_out,
+      p->CreateStreamingChannel("result1_out", ChannelOps::kSendOnly, u64));
+
+  {
+    // Proc "A". Element 1 sent on pass_inputs is variant:
+    //
+    // while true:
+    //   x = rcv(x_in)  // streaming
+    //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (x, y))
+    //   (result0, result1) = rcv(pass_result)
+    //   send(result0_out, result0)
+    //   send(result1_out, result1)
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue rcv_y = ab.Receive(y_in, ab.TupleIndex(rcv_x, 0));
+    BValue send_inputs =
+        ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
+                ab.Tuple({ab.TupleIndex(rcv_x, 1), ab.TupleIndex(rcv_y, 1)}));
+
+    BValue rcv_result = ab.Receive(pass_result, send_inputs);
+    BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
+    BValue send_result0 = ab.Send(result0_out, ab.TupleIndex(rcv_result, 0),
+                                  ab.TupleIndex(rcv_result_data, 0));
+    BValue send_result1 =
+        ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
+
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+  }
+
+  XLS_ASSERT_OK(
+      MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  // The fourth element in the tuple holds the variant elements sent along the
+  // single-value channel. This is `x` which is type bits[32].
+  EXPECT_EQ(p->procs()
+                .front()
+                ->StateType()
+                ->AsTupleOrDie()
+                ->element_type(4)
+                ->ToString(),
+            "(bits[32])");
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
+}
+
+TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Type* u64 = p->GetBitsType(64);
+  Type* u32_u64 = p->GetTupleType({u32, u64});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_in,
+      p->CreateSingleValueChannel("y", ChannelOps::kReceiveOnly, u64));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_inputs,
+      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
+                                  u32_u64));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel("pass_result", ChannelOps::kSendReceive,
+                                u32_u64));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result0_out,
+      p->CreateStreamingChannel("result0_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result1_out,
+      p->CreateStreamingChannel("result1_out", ChannelOps::kSendOnly, u64));
+
+  {
+    // Proc "A". Element 1 sent on pass_inputs is variant:
+    //
+    // while true:
+    //   x = rcv(x_in)  // streaming
+    //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (x+1, y+1))
+    //   (result0, result1) = rcv(pass_result)
+    //   send(result0_out, result0)
+    //   send(result1_out, result1)
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue rcv_y = ab.Receive(y_in, ab.TupleIndex(rcv_x, 0));
+    BValue x_plus_1 = ab.Add(ab.TupleIndex(rcv_x, 1), ab.Literal(UBits(1, 32)));
+    BValue y_plus_1 = ab.Add(ab.TupleIndex(rcv_y, 1), ab.Literal(UBits(1, 64)));
+    BValue send_inputs = ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
+                                 ab.Tuple({x_plus_1, y_plus_1}));
+
+    BValue rcv_result = ab.Receive(pass_result, send_inputs);
+    BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
+    BValue send_result0 = ab.Send(result0_out, ab.TupleIndex(rcv_result, 0),
+                                  ab.TupleIndex(rcv_result_data, 0));
+    BValue send_result1 =
+        ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
+
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+  }
+
+  XLS_ASSERT_OK(
+      MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  // The fourth element in the tuple holds the variant elements sent along the
+  // single-value channel. This is `x+1` which is type bits[32].
+  EXPECT_EQ(p->procs()
+                .front()
+                ->StateType()
+                ->AsTupleOrDie()
+                ->element_type(4)
+                ->ToString(),
+            "(bits[32])");
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
+}
+
+TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Type* u32_u32 = p->GetTupleType({u32, u32});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_in,
+      p->CreateSingleValueChannel("y", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_inputs,
+      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
+                                  u32_u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel("pass_result", ChannelOps::kSendReceive,
+                                u32_u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result0_out,
+      p->CreateStreamingChannel("result0_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result1_out,
+      p->CreateStreamingChannel("result1_out", ChannelOps::kSendOnly, u32));
+
+  {
+    // Proc "A". Element 1 sent on pass_inputs is variant:
+    //
+    // while true:
+    //   x = rcv(x_in)  // streaming
+    //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (y, x+y))
+    //   (result0, result1) = rcv(pass_result)
+    //   send(result0_out, result0)
+    //   send(result1_out, result1)
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue rcv_y = ab.Receive(y_in, ab.TupleIndex(rcv_x, 0));
+    BValue x = ab.TupleIndex(rcv_x, 1);
+    BValue y = ab.TupleIndex(rcv_y, 1);
+    BValue send_inputs = ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
+                                 ab.Tuple({y, ab.Add(x, y)}));
+
+    BValue rcv_result = ab.Receive(pass_result, send_inputs);
+    BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
+    BValue send_result0 = ab.Send(result0_out, ab.TupleIndex(rcv_result, 0),
+                                  ab.TupleIndex(rcv_result_data, 0));
+    BValue send_result1 =
+        ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
+
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+  }
+
+  XLS_ASSERT_OK(
+      MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  // The fourth element in the tuple holds the variant elements sent along the
+  // single-value channel. This is `x+y` which is type bits[32].
+  EXPECT_EQ(p->procs()
+                .front()
+                ->StateType()
+                ->AsTupleOrDie()
+                ->element_type(4)
+                ->ToString(),
+            "(bits[32])");
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
+}
+
+TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  Type* u32_u32 = p->GetTupleType({u32, u32});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_in,
+      p->CreateStreamingChannel("x", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_in,
+      p->CreateSingleValueChannel("y", ChannelOps::kReceiveOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_inputs,
+      p->CreateSingleValueChannel("pass_inputs", ChannelOps::kSendReceive,
+                                  u32_u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * pass_result,
+      p->CreateStreamingChannel("pass_result", ChannelOps::kSendReceive,
+                                u32_u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result0_out,
+      p->CreateStreamingChannel("result0_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * result1_out,
+      p->CreateStreamingChannel("result1_out", ChannelOps::kSendOnly, u32));
+
+  {
+    // Proc "A". Both elements sent on pass_inputs are variant:
+    //
+    // while true:
+    //   x = rcv(x_in)  // streaming
+    //   y = rcv(y_in)  // single-value
+    //   send(pass_inputs, (x, x+y))  // single-value
+    //   (result0, result1) = rcv(pass_result)
+    //   send(result0_out, result0)
+    //   send(result1_out, result1)
+    ProcBuilder ab("A", Value::Tuple({}), "tkn", "st", p.get());
+    BValue rcv_x = ab.Receive(x_in, ab.GetTokenParam());
+    BValue rcv_y = ab.Receive(y_in, ab.TupleIndex(rcv_x, 0));
+    BValue x = ab.TupleIndex(rcv_x, 1);
+    BValue y = ab.TupleIndex(rcv_y, 1);
+    BValue send_inputs = ab.Send(pass_inputs, ab.TupleIndex(rcv_y, 0),
+                                 ab.Tuple({x, ab.Add(x, y)}));
+
+    BValue rcv_result = ab.Receive(pass_result, send_inputs);
+    BValue rcv_result_data = ab.TupleIndex(rcv_result, 1);
+    BValue send_result0 = ab.Send(result0_out, ab.TupleIndex(rcv_result, 0),
+                                  ab.TupleIndex(rcv_result_data, 0));
+    BValue send_result1 =
+        ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
+
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+  }
+
+  XLS_ASSERT_OK(
+      MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
+
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  // The fourth element in the tuple holds the variant elements sent along the
+  // single-value channel. This both elements of type bits[32].
+  EXPECT_EQ(p->procs()
+                .front()
+                ->StateType()
+                ->AsTupleOrDie()
+                ->element_type(4)
+                ->ToString(),
+            "(bits[32], bits[32])");
+  EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
+                {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
 }
 
 TEST_F(ProcInliningPassTest, TokenFanOut) {
