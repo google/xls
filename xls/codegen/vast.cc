@@ -448,12 +448,14 @@ std::string InlineVerilogRef::Emit() const { return name_; }
 
 std::string Assert::Emit() const {
   // The $fatal statement takes finish_number as the first argument which is a
-  // value in the set {0, 1, 2}. This value "may be used in an
-  // implementation-specific manner" (from the SystemVerilog LRM). We choose
-  // zero arbitrarily.
+  // value in the set {0, 1, 2}. This value "sets the level of diagnostic
+  // information reported by the tool" (from IEEE Std 1800-2017).
+  //
+  // XLS emits asserts taking combinational inputs, so a deferred
+  // immediate assertion is used.
   constexpr int64_t kFinishNumber = 0;
   return absl::StrFormat(
-      "assert (%s) else $fatal(%d%s);", condition_->Emit(), kFinishNumber,
+      "assert #0 (%s) else $fatal(%d%s);", condition_->Emit(), kFinishNumber,
       error_message_.empty() ? ""
                              : absl::StrFormat(", \"%s\"", error_message_));
 }

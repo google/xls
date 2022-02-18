@@ -972,9 +972,9 @@ TEST_P(VastTest, AssertTest) {
   output wire [7:0] c
 );
   always_comb begin
-    assert (a == 8'h2a) else $fatal(0);
+    assert #0 (a == 8'h2a) else $fatal(0);
     c = a + b;
-    assert (c < 8'h64) else $fatal(0, "Oh noes! c is too big");
+    assert #0 (c < 8'h64) else $fatal(0, "Oh noes! c is too big");
   end
 endmodule)");
 }

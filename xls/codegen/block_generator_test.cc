@@ -322,7 +322,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert ($isunknown(a_d < 32'h0000_002a) || a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
+              R"(assert #0 ($isunknown(a_d < 32'h0000_002a) || a_d < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
@@ -380,7 +380,7 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
       EXPECT_THAT(
           verilog,
           HasSubstr(
-              R"(assert ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
+              R"(assert #0 ($isunknown(a < 32'h0000_002a) || a < 32'h0000_002a) else $fatal(0, "a is not greater than 42"))"));
     } else {
       EXPECT_THAT(verilog, Not(HasSubstr("assert")));
     }
