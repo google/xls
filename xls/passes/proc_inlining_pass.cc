@@ -462,12 +462,15 @@ absl::StatusOr<VirtualSend> CreateVirtualSend(
     XLS_ASSIGN_OR_RETURN(std::vector<Node*> data_elements, DecomposeNode(data));
 
     // Construct a tuple-type containing the type of each variant element.
-    XLS_VLOG(3) << "Variant linear indices:";
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Variant linear indices (out of %d leaves):", data_elements.size());
     std::vector<Type*> variant_element_types;
     for (int64_t i = 0; i < variant_linear_indices.size(); ++i) {
       int64_t linear_index = variant_linear_indices[i];
-      XLS_VLOG(3) << absl::StreamFormat("  %d", linear_index);
-      variant_element_types.push_back(data_elements[i]->GetType());
+      XLS_VLOG(3) << absl::StreamFormat(
+          "  %d: %s", linear_index,
+          data_elements[linear_index]->GetType()->ToString());
+      variant_element_types.push_back(data_elements[linear_index]->GetType());
     }
     Type* variant_tuple_type =
         top->package()->GetTupleType(variant_element_types);
