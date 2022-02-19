@@ -19,6 +19,7 @@ package_group(
     name = "xls_internal",
     packages = [
         "-//xls/public/tests/...",
+        "//...",
         "//xls/...",
         "//third_party/xls_berkeley_softfloat/...",
         "//third_party/xls_colors/...",
