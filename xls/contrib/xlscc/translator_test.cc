@@ -946,6 +946,9 @@ TEST_F(TranslatorTest, ForInSwitch) {
              #pragma hls_unroll yes
              for(int i=0;i<3;++i) {
                a+=10;
+               if(a > 110) {
+                 break;
+               }
              }
              break;
            case 1:
@@ -4742,6 +4745,44 @@ TEST_F(TranslatorTest, StaticConditionalAssign) {
   }
 }
 
+TEST_F(TranslatorTest, StaticCallConditionalAssign) {
+  const std::string content = R"(
+       int sub() {
+         static int x = 22;
+         x++;
+         return x;
+       }
+       #pragma hls_top
+       int my_package(int y) {
+         int ret = 111;
+         if(y == 1) {
+           ret = sub();
+         }
+         return ret;
+       })";
+
+  {
+    const absl::flat_hash_map<std::string, xls::Value> args = {
+        {"y", xls::Value(xls::SBits(1, 32))}};
+    xls::Value expected_vals[] = {
+        xls::Value(xls::SBits(23, 32)),
+        xls::Value(xls::SBits(24, 32)),
+        xls::Value(xls::SBits(25, 32)),
+    };
+    RunWithStatics(args, expected_vals, content);
+  }
+  {
+    const absl::flat_hash_map<std::string, xls::Value> args = {
+        {"y", xls::Value(xls::SBits(0, 32))}};
+    xls::Value expected_vals[] = {
+        xls::Value(xls::SBits(111, 32)),
+        xls::Value(xls::SBits(111, 32)),
+        xls::Value(xls::SBits(111, 32)),
+    };
+    RunWithStatics(args, expected_vals, content);
+  }
+}
+
 TEST_F(TranslatorTest, StaticMethodLocal) {
   const std::string content = R"(
        struct Thing {
@@ -5451,6 +5492,35 @@ TEST_F(TranslatorTest, DisallowUnused) {
         return a+5;
       })";
   Run({{"a", 11}}, 16, content);
+}
+
+// Checks that unnecessary conditions aren't applied to assignments
+// Variables don't need conditions from before their declarations
+// This won't cause logical incorrectness, but it overcomplicates the IR
+// and can cause loop unrolling to fail.
+TEST_F(TranslatorTest, ConditionsPerVariable) {
+  const std::string content = R"(
+    #pragma hls_top
+    int my_package(int a, int b) {
+      if(b) {
+        int ret;
+        ret = a;
+        return ret;
+      }
+      return -1;
+    })";
+
+  xlscc::GeneratedFunction* pfunc = nullptr;
+  XLS_ASSERT_OK(SourceToIr(content, &pfunc).status());
+  ASSERT_NE(pfunc, nullptr);
+  xls::Node* return_node = pfunc->xls_func->return_value();
+  ASSERT_NE(return_node, nullptr);
+  xls::Select* select_node = return_node->As<xls::Select>();
+  ASSERT_NE(select_node, nullptr);
+  const absl::Span<xls::Node* const>& cases = select_node->cases();
+  ASSERT_EQ(cases.size(), 2);
+  // Check for direct reference to parameter
+  EXPECT_TRUE(cases[0]->Is<xls::Param>() || cases[1]->Is<xls::Param>());
 }
 
 }  // namespace

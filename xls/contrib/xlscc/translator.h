@@ -394,6 +394,16 @@ struct GeneratedFunction {
   // Static declarations with initializers
   absl::flat_hash_map<const clang::NamedDecl*, ConstValue> static_values;
 
+  template <typename ValueType>
+  std::vector<const clang::NamedDecl*> DeterministicKeyNames(
+      absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map) {
+    std::vector<const clang::NamedDecl*> ret;
+    for (const auto& [name, _] : map) {
+      ret.push_back(name);
+    }
+    SortNamesDeterministically(ret);
+    return ret;
+  }
   void SortNamesDeterministically(std::vector<const clang::NamedDecl*>& names);
   std::vector<const clang::NamedDecl*>
   GetDeterministicallyOrderedStaticValues();
@@ -406,28 +416,38 @@ struct GeneratedFunction {
 //  as new CValues for assignments to variables declared outside the scope,
 //  up to the next context / outer scope.
 struct TranslationContext {
-  xls::BValue not_condition(const xls::SourceLocation& loc) {
-    if (!condition.valid()) {
+  xls::BValue not_condition(const xls::SourceLocation& loc) const {
+    if (!context_condition.valid()) {
       return fb->Literal(xls::UBits(0, 1), loc);
     } else {
-      return fb->Not(condition, loc);
+      return fb->Not(context_condition, loc);
     }
   }
 
-  xls::BValue condition_bval(const xls::SourceLocation& loc) {
-    if (!condition.valid()) {
+  xls::BValue condition_bval(const xls::SourceLocation& loc) const {
+    if (!context_condition.valid()) {
       return fb->Literal(xls::UBits(1, 1), loc);
     } else {
-      return condition;
+      return context_condition;
+    }
+  }
+
+  void and_condition_util(xls::BValue and_condition, xls::BValue& mod_condition,
+                          const xls::SourceLocation& loc) {
+    if (!mod_condition.valid()) {
+      mod_condition = and_condition;
+    } else {
+      mod_condition = fb->And(mod_condition, and_condition, loc);
     }
   }
 
   void and_condition(xls::BValue and_condition,
                      const xls::SourceLocation& loc) {
-    if (!condition.valid()) {
-      condition = and_condition;
-    } else {
-      condition = fb->And(condition, and_condition, loc);
+    and_condition_util(and_condition, context_condition, loc);
+    for (const clang::NamedDecl* name :
+         sf->DeterministicKeyNames(variable_assignment_conditions)) {
+      xls::BValue& var_cond = variable_assignment_conditions.at(name);
+      and_condition_util(and_condition, var_cond, loc);
     }
   }
 
@@ -451,6 +471,8 @@ struct TranslationContext {
   CValue this_val;
 
   absl::flat_hash_map<const clang::NamedDecl*, CValue> variables;
+  absl::flat_hash_map<const clang::NamedDecl*, xls::BValue>
+      variable_assignment_conditions;
 
   xls::BValue return_val;
   xls::BValue last_return_condition;
@@ -458,7 +480,7 @@ struct TranslationContext {
   xls::BValue have_returned_condition;
 
   // Condition for assignments
-  xls::BValue condition;
+  xls::BValue context_condition;
   xls::BValue original_condition;
 
   // Assign new CValues to variables without applying "condition" above.
@@ -909,8 +931,8 @@ class Translator {
                       const xls::SourceLocation& loc);
   absl::Status AssignThis(const CValue& rvalue, const xls::SourceLocation& loc);
   absl::StatusOr<CValue> PrepareRValueForAssignment(
-      const CValue& lvalue, const CValue& rvalue,
-      const xls::SourceLocation& loc);
+      const clang::NamedDecl* lvalue_decl, const CValue& lvalue,
+      const CValue& rvalue, const xls::SourceLocation& loc);
 
   absl::Status DeclareVariable(const clang::NamedDecl* lvalue,
                                const CValue& rvalue,

@@ -163,7 +163,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
 
   // Determinism test
   for (const std::string& text : ir_texts) {
-    EXPECT_EQ(text, ret_text);
+    EXPECT_EQ(text, ret_text) << "Failed determinism test";
   }
   return ret_text;
 }
@@ -292,7 +292,7 @@ void XlsccTestBase::ProcTest(
 
   // Determinism test
   for (const std::string& text : ir_texts) {
-    EXPECT_EQ(package_text, text);
+    EXPECT_EQ(package_text, text) << "Failed determinism test";
   }
 
   XLS_LOG(INFO) << "Package IR: ";

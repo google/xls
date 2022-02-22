@@ -552,7 +552,7 @@ Translator::Translator(int64_t max_unroll_iters,
 Translator::~Translator() {}
 
 TranslationContext& Translator::PushContext() {
-  auto ocond = context().condition;
+  auto ocond = context().context_condition;
   context_stack_.push(context());
   context().original_condition = ocond;
   return context();
@@ -568,12 +568,22 @@ void Translator::PopContext(bool propagate_up, bool propagate_break_up,
   XLS_CHECK(!context_stack_.empty());
 
   if (propagate_up) {
-    auto& cur_vars = context().variables;
-    for (const auto& var_it : popped.variables) {
-      const clang::NamedDecl* name = var_it.first;
-      if (cur_vars.contains(name) ||
+    for (const auto& [name, value] : popped.variables) {
+      if (context().variables.contains(name) ||
           context().sf->static_values.contains(name)) {
-        cur_vars[name] = var_it.second;
+        XLS_CHECK(popped.variable_assignment_conditions.contains(name));
+
+        // For ordinary variables, their assignment conditions in the outer
+        // context are already present in the map. However, static variables can
+        // be declared in inner contexts, with no conditions present in the
+        // outer ones.
+        if (context().sf->static_values.contains(name) &&
+            !context().variables.contains(name)) {
+          context().variable_assignment_conditions[name] =
+              context().context_condition;
+        }
+
+        context().variables[name] = value;
       }
     }
 
@@ -614,9 +624,11 @@ absl::Status Translator::AssignThis(const CValue& rvalue,
         string(*context().this_val.type()), string(*rvalue.type()),
         LocString(loc)));
   }
+  // "this" is always declared in the top scope of a method, so no condition
+  // assignment simplification is possible
   XLS_ASSIGN_OR_RETURN(
       context().this_val,
-      PrepareRValueForAssignment(context().this_val, rvalue, loc));
+      PrepareRValueForAssignment(nullptr, context().this_val, rvalue, loc));
 
   return absl::OkStatus();
 }
@@ -1474,15 +1486,17 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
 }
 
 absl::StatusOr<CValue> Translator::PrepareRValueForAssignment(
-    const CValue& lvalue, const CValue& rvalue,
-    const xls::SourceLocation& loc) {
+    const clang::NamedDecl* lvalue_decl, const CValue& lvalue,
+    const CValue& rvalue, const xls::SourceLocation& loc) {
   CValue rvalue_to_use = lvalue;
   if (!context().mask_assignments) {
     rvalue_to_use = rvalue;
-
-    if (context().condition.valid() && (!context().unconditional_assignment)) {
-      auto cond_sel = context().fb->Select(context().condition, rvalue.value(),
-                                           lvalue.value(), loc);
+    xls::BValue var_cond =
+        lvalue_decl ? context().variable_assignment_conditions.at(lvalue_decl)
+                    : context().context_condition;
+    if (var_cond.valid() && (!context().unconditional_assignment)) {
+      auto cond_sel =
+          context().fb->Select(var_cond, rvalue.value(), lvalue.value(), loc);
 
       rvalue_to_use = CValue(cond_sel, rvalue_to_use.type());
     }
@@ -1523,8 +1537,11 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
         lvalue->getNameAsString(), LocString(loc)));
   }
 
+  XLS_CHECK(context().variables.contains(lvalue));
+  XLS_CHECK(context().variable_assignment_conditions.contains(lvalue));
+
   XLS_ASSIGN_OR_RETURN(context().variables.at(lvalue),
-                       PrepareRValueForAssignment(found, rvalue, loc));
+                       PrepareRValueForAssignment(lvalue, found, rvalue, loc));
 
   return absl::OkStatus();
 }
@@ -1714,6 +1731,7 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
   context().sf->declaration_order_by_name_[lvalue] =
       ++context().sf->declaration_count_;
   context().variables[lvalue] = rvalue;
+  context().variable_assignment_conditions[lvalue] = xls::BValue();
   return absl::OkStatus();
 }
 
@@ -2404,7 +2422,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     XLS_CHECK(!unpacked_returns.empty());
     xls::BValue static_output = unpacked_returns.front();
     unpacked_returns.pop_front();
-
+    // ...
     XLS_RETURN_IF_ERROR(
         Assign(namedecl, CValue(static_output, initval.type()), loc));
   }
@@ -3060,8 +3078,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
             // If there are multiple returns with the same condition, this will
             // take the first one
             xls::BValue this_cond =
-                context().condition.valid()
-                    ? context().condition
+                context().context_condition.valid()
+                    ? context().context_condition
                     : context().fb->Literal(xls::UBits(1, 1));
 
             // Select the previous return instead of this one if
@@ -3092,8 +3110,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
           }
         }
 
-        if (context().condition.valid()) {
-          context().last_return_condition = context().condition;
+        if (context().context_condition.valid()) {
+          context().last_return_condition = context().context_condition;
         } else {
           context().last_return_condition =
               context().fb->Literal(xls::UBits(1, 1));
@@ -3101,8 +3119,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       }
 
       xls::BValue reach_here_cond =
-          context().condition.valid()
-              ? context().condition
+          context().context_condition.valid()
+              ? context().context_condition
               : context().fb->Literal(xls::UBits(1, 1), loc);
 
       if (!context().have_returned_condition.valid()) {
@@ -3375,6 +3393,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
   for_init_guard.propagate_break_up = false;
   for_init_guard.propagate_continue_up = false;
   context().in_for_body = true;
+  context().in_switch_body = false;
 
   XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
 
@@ -3650,13 +3669,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.value();
   {
-    if (context().this_val.value().valid()) {
-      XLS_RETURN_IF_ERROR(
-          AssignThis(CValue(GetStructFieldXLS(context_tuple_recvd, 0,
-                                              *context_struct_type, loc),
-                            context().this_val.type()),
-                     loc));
-    }
+    XLS_CHECK(!context().this_val.value().valid());
 
     // Don't assign to variables that aren't changed in the loop body,
     // as this creates extra state
@@ -4047,7 +4060,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                   ? accum_cond
                                   : context().fb->Literal(xls::UBits(0, 1));
       // Break goes through this path, sets hit_break
-      auto ocond = context().condition;
+      auto ocond = context().context_condition;
       PushContextGuard stmt_guard(*this, and_accum, loc);
       context().hit_break = false;
       context().switch_cond = ocond;
