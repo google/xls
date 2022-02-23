@@ -1,0 +1,1548 @@
+# Copyright 2020 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# proto-file: xls/delay_model/delay_model.proto
+# proto-message: xls.delay_model.DelayModel
+
+# Demonstration generated delay model for ASAP7 PDK.
+op_models {
+  op: "kIdentity"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kNot"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kAnd"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kOr"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kXor"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kNeg"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kAdd"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSMul"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSub"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kUMul"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kEq"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kNe"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSGe"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSGt"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSLe"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSLt"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kUGe"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kUGt"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kULe"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kULt"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kShll"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kShra"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kShrl"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kZeroExt"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+op_models {
+  op: "kSignExt"
+  estimator {
+    regression {
+      expressions {
+        factor {
+          source: OPERAND_BIT_COUNT
+        }
+      }
+    }
+  }
+}
+data_points {
+  operation {
+    op: "kIdentity"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kIdentity"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kIdentity"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kIdentity"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kIdentity"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kNot"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 122
+}
+data_points {
+  operation {
+    op: "kNot"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 122
+}
+data_points {
+  operation {
+    op: "kNot"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 122
+}
+data_points {
+  operation {
+    op: "kNot"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 122
+}
+data_points {
+  operation {
+    op: "kNot"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 122
+}
+data_points {
+  operation {
+    op: "kAnd"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kAnd"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kAnd"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kAnd"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kAnd"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kOr"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 119
+}
+data_points {
+  operation {
+    op: "kOr"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 119
+}
+data_points {
+  operation {
+    op: "kOr"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 119
+}
+data_points {
+  operation {
+    op: "kOr"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 119
+}
+data_points {
+  operation {
+    op: "kOr"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 119
+}
+data_points {
+  operation {
+    op: "kXor"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kXor"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kXor"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kXor"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kXor"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kNeg"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kNeg"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 146
+}
+data_points {
+  operation {
+    op: "kNeg"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 181
+}
+data_points {
+  operation {
+    op: "kNeg"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 203
+}
+data_points {
+  operation {
+    op: "kNeg"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 264
+}
+data_points {
+  operation {
+    op: "kAdd"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kAdd"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 170
+}
+data_points {
+  operation {
+    op: "kAdd"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 229
+}
+data_points {
+  operation {
+    op: "kAdd"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 332
+}
+data_points {
+  operation {
+    op: "kAdd"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 380
+}
+data_points {
+  operation {
+    op: "kSMul"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kSMul"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 170
+}
+data_points {
+  operation {
+    op: "kSMul"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 380
+}
+data_points {
+  operation {
+    op: "kSMul"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 487
+}
+data_points {
+  operation {
+    op: "kSMul"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 676
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 181
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 240
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 312
+}
+data_points {
+  operation {
+    op: "kSub"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 410
+}
+data_points {
+  operation {
+    op: "kUMul"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 116
+}
+data_points {
+  operation {
+    op: "kUMul"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 170
+}
+data_points {
+  operation {
+    op: "kUMul"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 312
+}
+data_points {
+  operation {
+    op: "kUMul"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 487
+}
+data_points {
+  operation {
+    op: "kUMul"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 676
+}
+data_points {
+  operation {
+    op: "kEq"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kEq"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 154
+}
+data_points {
+  operation {
+    op: "kEq"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 175
+}
+data_points {
+  operation {
+    op: "kEq"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 211
+}
+data_points {
+  operation {
+    op: "kEq"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 181
+}
+data_points {
+  operation {
+    op: "kNe"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 134
+}
+data_points {
+  operation {
+    op: "kNe"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kNe"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kNe"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 181
+}
+data_points {
+  operation {
+    op: "kNe"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 181
+}
+data_points {
+  operation {
+    op: "kSGe"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kSGe"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 164
+}
+data_points {
+  operation {
+    op: "kSGe"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kSGe"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 203
+}
+data_points {
+  operation {
+    op: "kSGe"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kSGt"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kSGt"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kSGt"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 164
+}
+data_points {
+  operation {
+    op: "kSGt"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 203
+}
+data_points {
+  operation {
+    op: "kSGt"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kSLe"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kSLe"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kSLe"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kSLe"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 195
+}
+data_points {
+  operation {
+    op: "kSLe"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kSLt"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kSLt"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kSLt"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kSLt"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 195
+}
+data_points {
+  operation {
+    op: "kSLt"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kUGe"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kUGe"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 164
+}
+data_points {
+  operation {
+    op: "kUGe"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 164
+}
+data_points {
+  operation {
+    op: "kUGe"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 203
+}
+data_points {
+  operation {
+    op: "kUGe"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 229
+}
+data_points {
+  operation {
+    op: "kUGt"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kUGt"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kUGt"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 164
+}
+data_points {
+  operation {
+    op: "kUGt"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 188
+}
+data_points {
+  operation {
+    op: "kUGt"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kULe"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kULe"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 164
+}
+data_points {
+  operation {
+    op: "kULe"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 170
+}
+data_points {
+  operation {
+    op: "kULe"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kULe"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kULt"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kULt"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 159
+}
+data_points {
+  operation {
+    op: "kULt"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 195
+}
+data_points {
+  operation {
+    op: "kULt"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kULt"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 195
+}
+data_points {
+  operation {
+    op: "kShll"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kShll"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 175
+}
+data_points {
+  operation {
+    op: "kShll"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kShll"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 294
+}
+data_points {
+  operation {
+    op: "kShll"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 332
+}
+data_points {
+  operation {
+    op: "kShra"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kShra"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 150
+}
+data_points {
+  operation {
+    op: "kShra"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 240
+}
+data_points {
+  operation {
+    op: "kShra"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 279
+}
+data_points {
+  operation {
+    op: "kShra"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 487
+}
+data_points {
+  operation {
+    op: "kShrl"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 128
+}
+data_points {
+  operation {
+    op: "kShrl"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 175
+}
+data_points {
+  operation {
+    op: "kShrl"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 220
+}
+data_points {
+  operation {
+    op: "kShrl"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 294
+}
+data_points {
+  operation {
+    op: "kShrl"
+    bit_count: 8
+    operands {
+      bit_count: 8
+    }
+  }
+  delay: 312
+}
+data_points {
+  operation {
+    op: "kZeroExt"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kZeroExt"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kZeroExt"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kZeroExt"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kSignExt"
+    bit_count: 1
+    operands {
+      bit_count: 1
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kSignExt"
+    bit_count: 2
+    operands {
+      bit_count: 2
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kSignExt"
+    bit_count: 4
+    operands {
+      bit_count: 4
+    }
+  }
+  delay: 109
+}
+data_points {
+  operation {
+    op: "kSignExt"
+    bit_count: 6
+    operands {
+      bit_count: 6
+    }
+  }
+  delay: 109
+}
