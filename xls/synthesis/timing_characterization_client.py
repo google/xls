@@ -56,7 +56,9 @@ VARIADIC_BITWISE = 'kAnd kOr kXor'.split()
 ARITHMETIC_UNARY = 'kNeg'.split()
 
 # https://google.github.io/xls/ir_semantics/#arithmetic-binary-operations
-ARITHMETIC_BINARY = 'kAdd kSDiv kSMul kSub kUDiv kUMul'.split()
+# Do not include division operations in characterization (kSDiv and kUDiv).
+# They are too complex to appear in reasonable RTL output.
+ARITHMETIC_BINARY = 'kAdd kSMul kSub kUMul'.split()
 
 # https://google.github.io/xls/ir_semantics/#comparison-operations
 COMPARISON = 'kEq kNe kSGe kSGt kSLe kSLt kUGe kUGt kULe kULt'.split()
