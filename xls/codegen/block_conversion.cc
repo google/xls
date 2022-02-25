@@ -2219,6 +2219,24 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
   XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io,
                        CloneProcNodesIntoBlock(proc, options, block));
 
+  if (streaming_io.outputs.size() > 1) {
+    XLS_ASSIGN_OR_RETURN(bool streaming_outputs_mutually_exclusive,
+                         AreStreamingOutputsMutuallyExclusive(proc));
+
+    if (streaming_outputs_mutually_exclusive) {
+      XLS_VLOG(3) << absl::StrFormat(
+          "%d streaming outputs determined to be mutually exclusive",
+          streaming_io.outputs.size());
+    } else {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Proc combinational generator only supports streaming "
+          "output channels which can be determined to be mutually "
+          "exclusive, got %d output channels which were not proven "
+          "to be mutually exclusive",
+          streaming_io.outputs.size()));
+    }
+  }
+
   XLS_RET_CHECK_EQ(streaming_io.pipeline_registers.size(), 0);
 
   XLS_RETURN_IF_ERROR(AddFlowControl(absl::MakeSpan(streaming_io.inputs),

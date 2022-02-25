@@ -2370,16 +2370,30 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
       PipelineSchedule::Run(proc, TestDelayEstimator(),
                             SchedulingOptions().pipeline_stages(2)));
 
-  CodegenOptions options;
-  options.module_name(TestName());
-  options.flop_inputs(true).flop_outputs(true).clock_name("clk");
-  options.valid_control("input_valid", "output_valid");
-  options.reset("rst_n", false, /*active_low=*/true, false);
+  // Pipelined test
+  {
+    CodegenOptions options;
+    options.module_name(TestName());
+    options.flop_inputs(true).flop_outputs(true).clock_name("clk");
+    options.valid_control("input_valid", "output_valid");
+    options.reset("rst_n", false, /*active_low=*/true, false);
 
-  EXPECT_THAT(ProcToPipelinedBlock(schedule, options, proc).status(),
-              status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("not proven to be mutually exclusive")));
+    EXPECT_THAT(ProcToPipelinedBlock(schedule, options, proc).status(),
+                status_testing::StatusIs(
+                    absl::StatusCode::kUnimplemented,
+                    testing::HasSubstr("not proven to be mutually exclusive")));
+  }
+  // Combinational test
+  {
+    CodegenOptions options;
+    options.module_name(TestName());
+    options.valid_control("input_valid", "output_valid");
+
+    EXPECT_THAT(ProcToCombinationalBlock(proc, TestName(), options).status(),
+                status_testing::StatusIs(
+                    absl::StatusCode::kUnimplemented,
+                    testing::HasSubstr("not proven to be mutually exclusive")));
+  }
 }
 
 }  // namespace
