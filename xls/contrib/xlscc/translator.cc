@@ -811,6 +811,9 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     xls::BValue pbval =
         context().fb->Param(safe_param_name, xls_item_type, loc);
 
+    // Check for duplicate params
+    XLS_CHECK(pbval.valid());
+
     op.input_value = CValue(pbval, channel->item_type);
   }
 
@@ -2211,6 +2214,52 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
     const xls::SourceLocation& loc, bool force_no_fork) {
+  // Translate external channels
+  for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
+    const clang::ParmVarDecl* callee_param = funcdecl->getParamDecl(pi);
+
+    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(callee_param->getType(),
+                                                        GetLoc(*callee_param)));
+    if (!is_channel) {
+      continue;
+    }
+
+    const clang::Expr* call_arg = expr_args[pi];
+    if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
+      return absl::UnimplementedError(
+          absl::StrFormat("IO operations should be DeclRefs"));
+    }
+    auto call_decl_ref_arg =
+        clang_down_cast<const clang::DeclRefExpr*>(call_arg);
+    if (call_decl_ref_arg->getDecl()->getKind() != clang::Decl::ParmVar) {
+      return absl::UnimplementedError(
+          absl::StrFormat("IO operations should be on parameters"));
+    }
+
+    auto caller_channel_param = clang_down_cast<const clang::ParmVarDecl*>(
+        call_decl_ref_arg->getDecl());
+
+    if (!external_channels_by_param_.contains(caller_channel_param)) {
+      XLS_CHECK(io_test_mode_)
+          << "Caller channel param not in external_channels_by_param_ map";
+    }
+
+    if (external_channels_by_param_.contains(callee_param) &&
+        (external_channels_by_param_.at(callee_param) !=
+         external_channels_by_param_.at(caller_channel_param))) {
+      return absl::UnimplementedError(
+          absl::StrFormat("IO ops in pipelined loops in subroutines called "
+                          "with multiple different channel arguments at %s",
+                          LocString(loc)));
+    }
+
+    if (external_channels_by_param_.contains(caller_channel_param)) {
+      external_channels_by_param_[callee_param] =
+          external_channels_by_param_.at(caller_channel_param);
+    }
+  }
+
+  // Make sure subroutine is generated
   XLS_ASSIGN_OR_RETURN(GeneratedFunction * func,
                        TranslateFunctionToXLS(funcdecl));
 
@@ -2280,8 +2329,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   // Map callee IO ops
-  absl::flat_hash_map<IOOp*, IOChannel*> caller_channels_by_callee_op;
-
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* callee_channel = funcdecl->getParamDecl(pi);
 
@@ -2310,13 +2357,22 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         context().sf->io_channels_by_param.at(caller_channel_param);
 
     for (IOOp& callee_op : func->io_ops) {
+      // Skip internal channels
+      if (!func->params_by_io_channel.contains(callee_op.channel)) {
+        continue;
+      }
+
       const clang::ParmVarDecl* callee_op_channel =
           func->params_by_io_channel.at(callee_op.channel);
       if (callee_op_channel != callee_channel) {
         continue;
       }
-      XLS_CHECK(!caller_channels_by_callee_op.contains(&callee_op));
-      caller_channels_by_callee_op[&callee_op] = caller_channel;
+      if (!context().sf->caller_channels_by_callee_op.contains(&callee_op)) {
+        context().sf->caller_channels_by_callee_op[&callee_op] = caller_channel;
+      } else {
+        XLS_CHECK_EQ(context().sf->caller_channels_by_callee_op.at(&callee_op),
+                     caller_channel);
+      }
     }
   }
 
@@ -2325,21 +2381,23 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (callee_op.channel->generated == nullptr) {
       continue;
     }
-    if (caller_channels_by_callee_op.contains(&callee_op)) {
+    if (context().sf->caller_channels_by_callee_op.contains(&callee_op)) {
       continue;
     }
     IOChannel* callee_generated_channel = callee_op.channel;
     context().sf->io_channels.push_back(*callee_generated_channel);
     IOChannel* caller_generated_channel = &context().sf->io_channels.back();
     caller_generated_channel->total_ops = 0;
-    caller_channels_by_callee_op[&callee_op] = caller_generated_channel;
+    context().sf->caller_channels_by_callee_op[&callee_op] =
+        caller_generated_channel;
   }
 
   // Map callee ops. There can be multiple for one channel
   std::multimap<IOOp*, IOOp*> caller_ops_by_callee_op;
 
   for (IOOp& callee_op : func->io_ops) {
-    IOChannel* caller_channel = caller_channels_by_callee_op.at(&callee_op);
+    IOChannel* caller_channel =
+        context().sf->caller_channels_by_callee_op.at(&callee_op);
 
     // Add super op
     IOOp caller_op;
@@ -3914,11 +3972,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     const clang::ParmVarDecl* param =
         generated_func.params_by_io_channel.at(op.channel);
 
-    if (!external_channels_by_top_param_.contains(param)) {
-      return absl::UnimplementedError(absl::StrFormat(
-          "IO in pipelined loops in subroutines unimplemented at %s",
-          LocString(loc)));
-    }
+    XLS_CHECK(io_test_mode_ || external_channels_by_param_.contains(param));
   }
 
   // Invoke loop over IOs
@@ -4314,7 +4368,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
 }
 
 absl::Status Translator::GenerateExternalChannels(
-    const PreparedBlock& prepared,
     const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
     const HLSBlock& block, const clang::FunctionDecl* definition,
     const xls::SourceLocation& loc) {
@@ -4353,8 +4406,8 @@ absl::Status Translator::GenerateExternalChannels(
                                                 : xls::ChannelOps::kSendOnly,
                                             data_type));
     }
-    XLS_CHECK(!external_channels_by_top_param_.contains(param));
-    external_channels_by_top_param_[param] = new_channel;
+    XLS_CHECK(!external_channels_by_param_.contains(param));
+    external_channels_by_param_[param] = new_channel;
   }
   return absl::OkStatus();
 }
@@ -4372,19 +4425,17 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   xls::SourceLocation body_loc = GetLoc(*definition);
   package_ = package;
 
-  PreparedBlock prepared;
-
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
 
-  XLS_RETURN_IF_ERROR(GenerateIRBlockCheck(prepared, channels_by_name, block,
-                                           definition, body_loc));
-
-  XLS_RETURN_IF_ERROR(GenerateExternalChannels(prepared, channels_by_name,
-                                               block, definition, body_loc));
+  XLS_RETURN_IF_ERROR(
+      GenerateIRBlockCheck(channels_by_name, block, definition, body_loc));
+  XLS_RETURN_IF_ERROR(
+      GenerateExternalChannels(channels_by_name, block, definition, body_loc));
 
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
   // TODO(seanhaskell): Handle block class members
+  PreparedBlock prepared;
   XLS_ASSIGN_OR_RETURN(prepared.xls_func,
                        GenerateIR_Top_Function(package, true));
 
@@ -4475,7 +4526,6 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 }
 
 absl::Status Translator::GenerateIRBlockCheck(
-    PreparedBlock& prepared,
     absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
     const HLSBlock& block, const clang::FunctionDecl* definition,
     const xls::SourceLocation& body_loc) {
@@ -4560,7 +4610,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                            StripTypeQualifiers(param->getType()));
 
-      xls::Channel* xls_channel = external_channels_by_top_param_.at(param);
+      xls::Channel* xls_channel = external_channels_by_param_.at(param);
 
       xls::BValue receive = pb.Receive(xls_channel, prepared.token);
       prepared.token = pb.TupleIndex(receive, 0);
@@ -4591,7 +4641,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
         prepared.xls_func->params_by_io_channel.at(op.channel);
 
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      xls::Channel* xls_channel = external_channels_by_top_param_.at(param);
+      xls::Channel* xls_channel = external_channels_by_param_.at(param);
       prepared.xls_channel_by_function_channel[op.channel] = xls_channel;
     }
   }
@@ -4648,8 +4698,15 @@ absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
 absl::StatusOr<bool> Translator::TypeIsChannel(const clang::QualType& param,
                                                const xls::SourceLocation& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped, StripTypeQualifiers(param));
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> obj_type,
-                       TranslateTypeFromClang(stripped.base, loc));
+  absl::StatusOr<std::shared_ptr<CType>> obj_type_ret =
+      TranslateTypeFromClang(stripped.base, loc);
+
+  // Ignore un-translatable types like pointers
+  if (!obj_type_ret.ok()) {
+    return false;
+  }
+
+  std::shared_ptr<CType> obj_type = obj_type_ret.value();
 
   if (auto obj_inst_type =
           std::dynamic_pointer_cast<const CInstantiableTypeAlias>(obj_type)) {

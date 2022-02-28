@@ -115,11 +115,15 @@ void XlsccTestBase::RunWithStatics(
 }
 
 absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
-                                     std::vector<absl::string_view> argv) {
+                                     std::vector<absl::string_view> clang_argv,
+                                     bool io_test_mode) {
   auto parser = std::make_unique<xlscc::CCParser>();
-  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(cpp_src, argv, parser.get()));
+  XLS_RETURN_IF_ERROR(
+      ScanTempFileWithContent(cpp_src, clang_argv, parser.get()));
   translator_.reset(new xlscc::Translator(1000, std::move(parser)));
-
+  if (io_test_mode) {
+    translator_->SetIOTestMode();
+  }
   return absl::OkStatus();
 }
 
@@ -145,12 +149,13 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
-    std::vector<absl::string_view> clang_argv) {
+    std::vector<absl::string_view> clang_argv, bool io_test_mode) {
   std::list<std::string> ir_texts;
   std::string ret_text;
 
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
-    XLS_RETURN_IF_ERROR(ScanFile(cpp_src, clang_argv));
+    XLS_RETURN_IF_ERROR(
+        ScanFile(cpp_src, clang_argv, /* io_test_mode= */ io_test_mode));
     package_.reset(new xls::Package("my_package"));
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(package_.get()));
@@ -172,7 +177,9 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
                            std::list<IOOpTest> outputs,
                            absl::flat_hash_map<std::string, xls::Value> args) {
   xlscc::GeneratedFunction* func;
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content, &func));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
+                           SourceToIr(content, &func, /* clang_argv= */ {},
+                                      /* io_test_mode= */ true));
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
   XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->EntryFunction());

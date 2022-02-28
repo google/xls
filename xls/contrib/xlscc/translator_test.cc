@@ -2619,6 +2619,31 @@ TEST_F(TranslatorTest, IOSubroutine4) {
          {IOOpTest("out", 20, true), IOOpTest("out", 20, true)});
 }
 
+TEST_F(TranslatorTest, IOSubroutine5) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       int sub_recv(__xls_channel<int>& in) {
+         return in.read();
+       }
+       void sub_send(int v, __xls_channel<int>& out) {
+         out.write(v);
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int xx = 0;
+         xx += sub_recv(in);
+         xx += sub_recv(in);
+         sub_send(xx, out);
+         sub_send(xx, out);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true), IOOpTest("in", 15, true)},
+         /*outputs=*/
+         {IOOpTest("out", 20, true), IOOpTest("out", 20, true)});
+}
+
 TEST_F(TranslatorTest, IOMethodSubroutine) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -2657,11 +2682,10 @@ TEST_F(TranslatorTest, IOOperatorSubroutine) {
          Foo f;
          out.write(f += in);
        })";
-
-  auto ret = SourceToIr(content);
-
   ASSERT_THAT(
-      SourceToIr(content).status(),
+      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
+                 /* io_test_mode= */ true)
+          .status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("IO ops in operator calls are not supported")));
@@ -2732,10 +2756,10 @@ TEST_F(TranslatorTest, IOSaveChannelStruct) {
          f.sub_send(7 + f.sub_recv(in));
        })";
 
-  auto ret = SourceToIr(content);
-
   ASSERT_THAT(
-      SourceToIr(content).status(),
+      SourceToIr(content, /* pfunc= */ nullptr, /* clang_argv= */ {},
+                 /* io_test_mode= */ true)
+          .status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Channel parameter reference unsupported")));
@@ -4630,13 +4654,131 @@ TEST_F(TranslatorTest, ForPipelinedIOInBodySubroutine2) {
     ch_out1->set_type(FIFO);
   }
 
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(6, 32)),
+                  xls::Value(xls::SBits(12, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(18, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+}
+
+TEST_F(TranslatorTest, ForPipelinedIOInBodySubroutine3) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    int sub_read(__xls_channel<int>& in2) {
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=2;++i) {
+        a += in2.read();
+      }
+      return a;
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in1,
+             __xls_channel<int>& in2,
+             __xls_channel<int>& out) {
+      out.write(sub_read(in1) + sub_read(in2));
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in1 = block_spec.add_channels();
+    ch_in1->set_name("in1");
+    ch_in1->set_is_input(true);
+    ch_in1->set_type(FIFO);
+
+    HLSChannel* ch_in2 = block_spec.add_channels();
+    ch_in2->set_name("in2");
+    ch_in2->set_is_input(true);
+    ch_in2->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
   XLS_ASSERT_OK(ScanFile(content));
   package_.reset(new xls::Package("my_package"));
   ASSERT_THAT(
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("pipelined loops in subroutines unimplemented")));
+          testing::HasSubstr("ops in pipelined loops in subroutines called "
+                             "with multiple different channel arguments")));
+}
+
+TEST_F(TranslatorTest, ForPipelinedIOInBodySubroutine4) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    int sub_read(__xls_channel<int>& in2) {
+      int a = 0;
+      #pragma hls_pipeline_init_interval 1
+      for(long i=1;i<=2;++i) {
+        a += in2.read();
+      }
+      return a;
+    }
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int ret = sub_read(in);
+      ret += sub_read(in);
+      out.write(ret);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(6, 32)), xls::Value(xls::SBits(12, 32)),
+                  xls::Value(xls::SBits(6, 32)),
+                  xls::Value(xls::SBits(12, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(18 * 2, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 2);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
 }
 
 TEST_F(TranslatorTest, Static) {

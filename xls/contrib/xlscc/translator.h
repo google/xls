@@ -371,6 +371,10 @@ struct GeneratedFunction {
 
   std::list<IOChannel> io_channels;
 
+  // Used for translating IO ops from callee to caller. Needs to be here
+  // to map ops to the same channel across multiple calls to the same callee.
+  absl::flat_hash_map<IOOp*, IOChannel*> caller_channels_by_callee_op;
+
   // Not all IO channels will be in these maps
   absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel*>
       io_channels_by_param;
@@ -586,6 +590,8 @@ class Translator {
       const clang::FunctionDecl* func,
       xlscc_metadata::FunctionPrototype* output);
 
+  inline void SetIOTestMode() { io_test_mode_ = true; }
+
  private:
   friend class CInstantiableTypeAlias;
 
@@ -700,6 +706,10 @@ class Translator {
   //  unsequenced modification and access in expressions.
   const bool unsequenced_gen_backwards_ = false;
 
+  // Makes translation of external channel parameters optional,
+  // so that IO operations can be generated without calling GenerateIR_Block()
+  bool io_test_mode_ = false;
+
   struct InstTypeHash {
     size_t operator()(
         const std::shared_ptr<CInstantiableTypeAlias>& value) const {
@@ -753,8 +763,10 @@ class Translator {
                   bool propagate_continue_up, const xls::SourceLocation& loc);
 
   xls::Package* package_;
+  // Initially contains keys for the parameters of the top function,
+  // then subroutine parameters are added as they are translated.
   absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*>
-      external_channels_by_top_param_;
+      external_channels_by_param_;
   std::stack<TranslationContext> context_stack_;
 
   TranslationContext& context();
@@ -806,14 +818,12 @@ class Translator {
 
   // Verifies the function prototype in the Clang AST and HLSBlock are sound.
   absl::Status GenerateIRBlockCheck(
-      PreparedBlock& prepared,
       absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
       const HLSBlock& block, const clang::FunctionDecl* definition,
       const xls::SourceLocation& body_loc);
 
   // Creates xls::Channels in the package
   absl::Status GenerateExternalChannels(
-      const PreparedBlock& prepared,
       const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
       const HLSBlock& block, const clang::FunctionDecl* definition,
       const xls::SourceLocation& loc);
