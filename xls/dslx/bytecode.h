@@ -28,6 +28,7 @@
 #include "xls/dslx/pos.h"
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
+#include "xls/ir/format_strings.h"
 
 namespace xls::dslx {
 
@@ -119,6 +120,8 @@ class Bytecode {
     kSub,
     // Swaps TOS0 and TOS1 on the stack.
     kSwap,
+    // Prints information about the given arguments to the terminal.
+    kTrace,
     // Slices out TOS0 bits of the array- or bits-typed value on TOS2,
     // starting at index TOS1.
     kWidthSlice,
@@ -149,8 +152,11 @@ class Bytecode {
     absl::optional<const SymbolicBindings*> bindings;
   };
 
-  using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
-                             std::unique_ptr<ConcreteType>, InvocationData>;
+  using TraceData = std::vector<FormatStep>;
+
+  using Data =
+      absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
+                    std::unique_ptr<ConcreteType>, InvocationData, TraceData>;
 
   // TODO(rspringer): 2022-02-14: These constructors end up being pretty
   // verbose. Consider a builder?
@@ -172,6 +178,7 @@ class Bytecode {
   absl::StatusOr<const ConcreteType*> type_data() const;
   absl::StatusOr<JumpTarget> jump_target() const;
   absl::StatusOr<InvocationData> invocation_data() const;
+  absl::StatusOr<const TraceData*> trace_data() const;
   absl::StatusOr<InterpValue> value_data() const;
   absl::StatusOr<NumElements> num_elements() const;
   absl::StatusOr<SlotIndex> slot_index() const;

@@ -14,10 +14,10 @@
 
 fn hello() {
   let x = u8:0xF0;
-  let _ = trace_fmt!("Hello world!\n");
-  let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary\n", x, x, x);
+  let _ = trace_fmt!("Hello world!");
+  let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
   let y = u32:17;
-  let _ = trace_fmt!("y is 32'd{:d}, 32'h{:x} and 32'b{:b}\n", y, y, y);
+  let _ = trace_fmt!("y is 32'd{:d}, 32'h{:x} and 32'b{:b}", y, y, y);
   ()
 }
 

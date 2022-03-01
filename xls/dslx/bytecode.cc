@@ -82,6 +82,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "swap") {
     return Bytecode::Op::kSwap;
   }
+  if (s == "trace") {
+    return Bytecode::Op::kTrace;
+  }
   if (s == "width_slice") {
     return Bytecode::Op::kWidthSlice;
   }
@@ -163,6 +166,8 @@ std::string OpToString(Bytecode::Op op) {
       return "sub";
     case Bytecode::Op::kSwap:
       return "swap";
+    case Bytecode::Op::kTrace:
+      return "trace";
     case Bytecode::Op::kWidthSlice:
       return "width_slice";
     case Bytecode::Op::kXor:
@@ -206,6 +211,16 @@ absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
   return absl::get<NumElements>(data_.value());
 }
 
+absl::StatusOr<const Bytecode::TraceData*> Bytecode::trace_data() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<TraceData>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a TraceData.");
+  }
+  return &absl::get<TraceData>(data_.value());
+}
+
 absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
@@ -218,7 +233,7 @@ absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
 }
 
 absl::StatusOr<Bytecode::InvocationData> Bytecode::invocation_data() const {
-  if (!has_data()) {
+  if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
   if (!absl::holds_alternative<InvocationData>(data_.value())) {

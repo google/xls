@@ -55,6 +55,7 @@ cc_library(
         "//xls/common:strong_int",
         "//xls/common/status:ret_check",
         "//xls/ir:bits_ops",
+        "//xls/ir:format_strings",
         "//xls/ir:number_parser",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status",

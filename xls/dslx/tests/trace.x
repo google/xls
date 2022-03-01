@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Verifies that trace!() can show up in a DSLX sequnce w/o the
+// Verifies that trace!() can show up in a DSLX sequence w/o the
 // IR converter complaining.
 fn main() -> u3 {
   let x0 = clz(u3:0b111);

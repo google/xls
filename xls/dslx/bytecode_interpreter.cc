@@ -244,6 +244,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalSwap(bytecode));
       break;
     }
+    case Bytecode::Op::kTrace: {
+      XLS_RETURN_IF_ERROR(EvalTrace(bytecode));
+      break;
+    }
     case Bytecode::Op::kWidthSlice: {
       XLS_RETURN_IF_ERROR(EvalWidthSlice(bytecode));
       break;
@@ -785,6 +789,35 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
+                       bytecode.trace_data());
+
+  std::deque<std::string> pieces;
+  for (int i = trace_data->size() - 1; i >= 0; i--) {
+    absl::variant<std::string, FormatPreference> trace_element =
+        trace_data->at(i);
+    if (absl::holds_alternative<std::string>(trace_element)) {
+      pieces.push_front(absl::get<std::string>(trace_element));
+      if (i != 0) {
+        pieces.push_back(" ");
+      }
+
+    } else {
+      XLS_RET_CHECK(!stack_.empty());
+      // TODO(rspringer): 2022-02-22: This JIT prints values via the IR's
+      // Value::ToHumanString() function. The problem is that it doesn't print
+      // out negative numbers, which is lossy and confusing. Find a way to unify
+      // these two somehow?
+      XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+      pieces.push_front(value.ToString());
+    }
+  }
+  XLS_LOG(INFO) << absl::StrJoin(pieces, "");
+  stack_.push_back(InterpValue::MakeToken());
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
@@ -876,6 +909,9 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinSignex(bytecode);
     case Builtin::kSlice:
       return RunBuiltinSlice(bytecode);
+    case Builtin::kTrace:
+      return absl::InternalError(
+          "`trace!` builtins should be converted into kTrace opcodes.");
     case Builtin::kUpdate:
       return RunBuiltinUpdate(bytecode);
     case Builtin::kXorReduce:

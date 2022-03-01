@@ -612,6 +612,19 @@ void BytecodeEmitter::HandleFor(For* node) {
       .PatchJumpTarget(bytecode_.size() - start_jump_idx - 1);
 }
 
+void BytecodeEmitter::HandleFormatMacro(FormatMacro* node) {
+  if (!status_.ok()) {
+    return;
+  }
+
+  for (auto* arg : node->args()) {
+    arg->AcceptExpr(this);
+  }
+
+  bytecode_.push_back(
+      Bytecode(node->span(), Bytecode::Op::kTrace, node->format()));
+}
+
 absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
   absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
@@ -721,6 +734,27 @@ void BytecodeEmitter::HandleIndex(Index* node) {
 void BytecodeEmitter::HandleInvocation(Invocation* node) {
   if (!status_.ok()) {
     return;
+  }
+
+  if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
+      name_ref != nullptr) {
+    if (name_ref->identifier() == "trace!") {
+      if (node->args().size() != 1) {
+        status_ = absl::InternalError("`trace!` takes a single argument.");
+        return;
+      }
+
+      node->args().at(0)->AcceptExpr(this);
+
+      Bytecode::TraceData trace_data;
+      trace_data.push_back(absl::StrCat("trace of ",
+                                        node->args()[0]->ToString(), " @ ",
+                                        node->span().ToString()));
+      trace_data.push_back(FormatPreference::kDefault);
+      bytecode_.push_back(
+          Bytecode(node->span(), Bytecode::Op::kTrace, trace_data));
+      return;
+    }
   }
 
   for (auto* arg : node->args()) {

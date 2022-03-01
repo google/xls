@@ -1426,19 +1426,20 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
           const std::string& format_text = format_string->text();
           absl::StatusOr<std::vector<FormatStep>> format_result =
               ParseFormatString(format_text);
-          if (!format_result.ok())
+          if (!format_result.ok()) {
             return ParseErrorStatus(format_string->span(),
                                     format_result.status().message());
+          }
           // Remove the format string argument before building the macro call.
           args.erase(args.begin());
           return module_->Make<FormatMacro>(span, name, format_result.value(),
                                             args);
-        } else {
-          return ParseErrorStatus(
-              span, absl::StrFormat("The first argument of the %s macro must "
-                                    "be a literal string.",
-                                    name));
         }
+
+        return ParseErrorStatus(
+            span, absl::StrFormat("The first argument of the %s macro must "
+                                  "be a literal string.",
+                                  name));
       }
     }
   }

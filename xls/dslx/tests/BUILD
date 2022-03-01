@@ -154,9 +154,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "parametric_call_parametric",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to needing `trace`
-    # builtin support.
-    bytecode = False,
     # No meaningful entry function to convert.
     convert_to_ir = False,
 )
@@ -181,12 +178,7 @@ dslx_lang_test(
 
 dslx_lang_test(name = "subtract_to_negative")
 
-dslx_lang_test(
-    name = "trace",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing `trace!`
-    # builtin.
-    bytecode = False,
-)
+dslx_lang_test(name = "trace")
 
 # Note: This test is enough to keep the example code compiling,
 # but does not currently check the output.
