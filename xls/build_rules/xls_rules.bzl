@@ -37,11 +37,11 @@ load(
     "xls_benchmark_ir_attrs",
     "xls_dslx_ir_attrs",
     "xls_dslx_ir_impl",
-    "xls_entry_attrs",
     "xls_eval_ir_test_attrs",
     "xls_ir_equivalence_test_attrs",
     "xls_ir_opt_ir_attrs",
     "xls_ir_opt_ir_impl",
+    "xls_ir_top_attrs",
 )
 load(
     "//xls/build_rules:xls_codegen_rules.bzl",
@@ -103,6 +103,7 @@ Examples:
         name = "d_opt_ir",
         srcs = ["d.x"],
         deps = [":bc_dslx"],
+        dslx_top = "d",
     )
     ```
     """,
@@ -129,7 +130,6 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
     opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
     opt_ir_args = ctx.attr.dep[OptIRInfo].opt_ir_args
-    entry = opt_ir_args.get("entry", None)
     runfiles = list(dslx_source_files)
 
     # xls_dslx_test
@@ -143,7 +143,6 @@ def _xls_dslx_opt_ir_test_impl(ctx):
         ctx,
         conv_ir_file,
         opt_ir_file,
-        entry,
     )
     runfiles += my_runfiles
 
@@ -151,7 +150,6 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     my_runfiles, eval_ir_test_cmd = get_eval_ir_test_cmd(
         ctx,
         conv_ir_file,
-        entry,
     )
     runfiles += my_runfiles
 
@@ -159,7 +157,6 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     my_runfiles, benchmark_ir_cmd = get_benchmark_ir_cmd(
         ctx,
         conv_ir_file,
-        entry,
     )
     runfiles += my_runfiles
 
@@ -214,6 +211,7 @@ Examples:
     xls_dslx_opt_ir(
         name = "a_opt_ir",
         srcs = ["a.x"],
+        dslx_top = "a",
     )
 
     xls_dslx_opt_ir_test(
@@ -229,7 +227,7 @@ Examples:
         xls_ir_equivalence_test_attrs,
         xls_eval_ir_test_attrs,
         xls_benchmark_ir_attrs,
-        xls_entry_attrs,
+        xls_ir_top_attrs,
         xls_toolchain_attr,
     ),
     test = True,
@@ -298,6 +296,7 @@ Examples:
         codegen_args = {
             "pipeline_stages": "1",
         },
+        dslx_top = "d",
     )
     ```
     """,

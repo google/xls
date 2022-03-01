@@ -221,11 +221,13 @@ xls_dslx_library(
 
 xls_dslx_ir(
     name = "add_one_dslx_ir",
+    dslx_top = "main",
     library = ":add_one_dslx",
 )
 
 xls_dslx_opt_ir(
     name = "add_one_dslx_opt_ir",
+    dslx_top = "main",
     library = ":add_one_dslx",
 )
 
@@ -234,6 +236,7 @@ xls_dslx_verilog(
     codegen_args = {
         "generator": "combinational",
     },
+    dslx_top = "main",
     library = ":add_one_dslx",
     verilog_file = "add_one_dslx_verilog.v",
 )
@@ -415,10 +418,8 @@ cc_xls_ir_jit_wrapper(
 xls_ir_opt_ir(
     name = "chaining_example_double_opt_ir",
     src = ":chaining_example_ir",
-    opt_ir_args = {
-        "entry": get_mangled_ir_symbol("chaining_example", "double"),
-    },
     opt_ir_file = "chaining_example_double_opt_ir.opt.ir",
+    top = get_mangled_ir_symbol("chaining_example", "double"),
 )
 
 cc_xls_ir_jit_wrapper(
@@ -434,10 +435,10 @@ xls_ir_opt_ir(
     name = "chaining_example_triple_run_only_opt_ir",
     src = ":chaining_example_ir",
     opt_ir_args = {
-        "entry": get_mangled_ir_symbol("chaining_example", "triple"),
         "run_only_passes": "arith_simp",
     },
     opt_ir_file = "chaining_example_triple_run_only_opt_ir.opt.ir",
+    top = get_mangled_ir_symbol("chaining_example", "triple"),
 )
 
 xls_ir_opt_ir(
@@ -447,12 +448,14 @@ xls_ir_opt_ir(
         "skip_passes": "arith_simp",
     },
     opt_ir_file = "chaining_example_triple_skip_passes_opt_ir.opt.ir",
+    top = get_mangled_ir_symbol("chaining_example", "triple"),
 )
 
 xls_ir_equivalence_test(
     name = "chaining_example_triple_ir_equivalence_test",
     src_0 = ":chaining_example_triple_run_only_opt_ir.opt.ir",
     src_1 = ":chaining_example_triple_skip_passes_opt_ir.opt.ir",
+    top = get_mangled_ir_symbol("chaining_example", "triple"),
 )
 
 ################################################################################
@@ -544,49 +547,21 @@ xls_dslx_opt_ir_test(
 )
 
 ################################################################################
-# Examples using entry points.
+# Examples using top attribute.
 ################################################################################
-# Base rule for entry points.
-# The rule performs: DSLX -> IR -> Optimized IR.
+# The rule performs: DSLX -> IR -> Optimized IR. The top attribute is used at
+# the Optimized IR stage.
 xls_dslx_opt_ir(
-    name = "simple_example_5_entry_five",
+    name = "simple_example_5_top_five",
     srcs = ["simple_example_five.x"],
-    ir_conv_args = {
-        "entry": "five",
-    },
+    dslx_top = "five",
     deps = [":simple_example_4_dslx"],
 )
 
-# Universal entry example: The value is provided by the
-# 'simple_example_5_entry_five' target.
+# Test for the 'simple_example_5_top_five' target.
 xls_dslx_opt_ir_test(
-    name = "simple_example_5_one_stage_entry_five_universal_test",
-    dep = ":simple_example_5_entry_five",
-)
-
-# Global entry example: The value is provided by the rule's context using the
-# 'entry' attribute. The global entry overwrites the universal entry.
-xls_dslx_opt_ir_test(
-    name = "simple_example_5_one_stage_entry_five_global_test",
-    dep = ":simple_example_5_entry_five",
-    entry = get_mangled_ir_symbol("simple_example_five", "five"),
-)
-
-# Local entry example: The value is provided by the arguments. The local entry
-# overwrites the universal entry and global entry.
-xls_dslx_opt_ir_test(
-    name = "simple_example_5_one_stage_entry_five_local_test",
-    benchmark_ir_args = {
-        "entry": get_mangled_ir_symbol("simple_example_five", "five"),
-    },
-    dep = ":simple_example_5_entry_five",
-    entry = "Global entry gets overwritten by local arguments.",
-    ir_equivalence_args = {
-        "function": get_mangled_ir_symbol("simple_example_five", "five"),
-    },
-    ir_eval_args = {
-        "entry": get_mangled_ir_symbol("simple_example_five", "five"),
-    },
+    name = "simple_example_5_top_five_test",
+    dep = ":simple_example_5_top_five",
 )
 
 ################################################################################
@@ -596,12 +571,14 @@ xls_dslx_opt_ir_test(
 xls_dslx_ir_native_rule(
     name = "chaining_example_ir_native_rule",
     srcs = ["chaining_example.x"],
+    dslx_top = "main",
 )
 
 # The target is the native rule form of the 'chaining_example_opt_ir' target.
 xls_ir_opt_ir_native_rule(
     name = "chaining_example_opt_ir_native_rule",
     src = ":chaining_example_ir",
+    top = get_mangled_ir_symbol("chaining_example", "main"),
 )
 
 # The target is the native rule form of the 'chaining_example_verilog' target.
@@ -618,9 +595,7 @@ xls_ir_verilog_native_rule(
 xls_dslx_opt_ir_native_rule(
     name = "simple_example_5_entry_five_native_rule",
     srcs = ["simple_example_five.x"],
-    ir_conv_args = {
-        "entry": "five",
-    },
+    dslx_top = "five",
     deps = [":simple_example_4_dslx"],
 )
 
@@ -631,6 +606,7 @@ xls_dslx_verilog_native_rule(
     codegen_args = {
         "pipeline_stages": "1",
     },
+    dslx_top = "main",
     verilog_file = "simple_example_5_one_stage_macro.v",
     deps = [":simple_example_4_dslx"],
 )
@@ -649,6 +625,7 @@ xls_ir_jit_wrapper_native_rule(
 xls_dslx_ir(
     name = "user_defined_output_filename_ir",
     srcs = ["chaining_example.x"],
+    dslx_top = "main",
     ir_file = "xls_dslx_ir.ir",
 )
 
@@ -672,12 +649,14 @@ xls_ir_verilog(
 xls_dslx_ir_native_rule(
     name = "user_defined_output_filename_native_rule_ir",
     srcs = ["chaining_example.x"],
+    dslx_top = "main",
     ir_file = "xls_dslx_ir_native_rule.ir",
 )
 
 xls_dslx_opt_ir_native_rule(
     name = "user_defined_output_filename_native_rule_dslx_opt_ir",
     srcs = ["chaining_example.x"],
+    dslx_top = "main",
     ir_file = "xls_dslx_opt_ir_native_rule.ir",
     opt_ir_file = "xls_dslx_opt_ir_native_rule.opt.ir",
 )
@@ -705,6 +684,7 @@ xls_dslx_verilog_native_rule(
     codegen_args = {
         "pipeline_stages": "1",
     },
+    dslx_top = "main",
     ir_file = "xls_dslx_verilog_native_rule.ir",
     module_sig_file = "xls_dslx_verilog_native_rule.sig.textproto",
     opt_ir_file = "xls_dslx_verilog_native_rule.opt.ir",

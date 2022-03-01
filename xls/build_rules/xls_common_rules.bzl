@@ -60,26 +60,26 @@ def append_default_to_args(arguments, default_arguments):
         my_args.setdefault(key, default_arguments[key])
     return my_args
 
-def args_to_string(arguments, valid_arguments):
-    """Returns a string representation of the arguments.
+def is_args_valid(arguments, valid_arguments):
+    """Validates a dictionary of arguments with a list of valid arguments.
 
-    The macro builds a string representation of the arguments. If an argument
-    has a key that is not a valid argument, an error is thrown.
+    If an argument has a key that is not a valid argument, an error is thrown.
+    Otherwise, the function returns True.
 
     Example:
       1) Simple use case.
         Input:
           arguments = {"argument1": "42", "argument2": "binary"}
           valid_arguments = {"argument1", "argument2", "arguments3"}
-          args_to_string(arguments, valid_arguments)
+          is_args_valid(arguments, valid_arguments)
 
         Output:
-            --argument1=42 --argument2=binary
+            True
       2) An invalid argument.
         Input:
           arguments = {"argument1": "42", "argument2": "binary"}
           valid_arguments = {"argument1"}
-          args_to_string(arguments, valid_arguments)
+          is_args_valid(arguments, valid_arguments)
 
         Output (error with message):
             Unrecognized argument: argument2.
@@ -88,15 +88,40 @@ def args_to_string(arguments, valid_arguments):
       arguments: A dictionary of arguments where the key is the argument name
         and the value is the value of the argument.
       valid_arguments: A list of valid arguments names.
+
     Returns:
-      A string of the arguments.
+      If an argument has a key that is not a valid argument, an error is thrown.
+      Otherwise, the function returns True.
+    """
+    for flag_name in arguments:
+        if flag_name not in valid_arguments:
+            fail("Unrecognized argument: %s." % flag_name)
+    return True
+
+def args_to_string(arguments):
+    """Returns a string representation of the arguments.
+
+    The macro builds a string representation of the arguments.
+
+    Example:
+      1) Simple use case.
+        Input:
+          arguments = {"argument1": "42", "argument2": "binary"}
+          args_to_string(arguments)
+
+        Output:
+            --argument1=42 --argument2=binary
+
+    Args:
+      arguments: A dictionary of arguments where the key is the argument name
+        and the value is the value of the argument.
+    Returns:
+      A string representation of the arguments.
     """
 
     # Add arguments
     my_args = ""
     for flag_name in arguments:
-        if flag_name not in valid_arguments:
-            fail("Unrecognized argument: %s." % flag_name)
         my_args += " --%s=%s" % (flag_name, arguments[flag_name])
     return my_args
 

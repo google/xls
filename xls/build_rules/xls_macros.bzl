@@ -45,6 +45,7 @@ def xls_dslx_verilog_macro(
         srcs = None,
         deps = None,
         library = None,
+        dslx_top = None,
         ir_conv_args = {},
         opt_ir_args = {},
         codegen_args = {},
@@ -77,6 +78,7 @@ def xls_dslx_verilog_macro(
             codegen_args = {
                 "pipeline_stages": "1",
             },
+            dslx_top = "d",
         )
         ```
 
@@ -90,21 +92,18 @@ def xls_dslx_verilog_macro(
         exclusive with the 'srcs' and 'deps' arguments.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' extension.
+      dslx_top: The entry point to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. When the default XLS
-        toolchain differs from the default toolchain, the application target
-        may be different.
+        //xls/dslx/ir_converter_main.cc. Note: the 'entry'
+        argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
-        //xls/tools/opt_main.cc. When the default XLS toolchain
-        differs from the default toolchain, the application target may be
-        different.
+        //xls/tools/opt_main.cc. Note: the 'entry'
+        argument is not assigned using this attribute.
       codegen_args: Arguments of the codegen tool. For details on the arguments,
         refer to the codegen_main application at
-        //xls/tools/codegen_main.cc. When the default XLS
-        toolchain differs from the default toolchain, the application target may
-        be different.
+        //xls/tools/codegen_main.cc.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -121,6 +120,10 @@ def xls_dslx_verilog_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
+
+    # TODO(vmirian) 2002-02-19 Update when dslx_top is mandatory.
+    if dslx_top and type(dslx_top) != type(""):
+        fail("Argument 'dslx_top' must be of string type.")
     if type(verilog_file) != type(""):
         fail("Argument 'verilog_file' must be of string type.")
     if type(ir_conv_args) != type({}):
@@ -151,6 +154,7 @@ def xls_dslx_verilog_macro(
         srcs = srcs,
         deps = deps,
         library = library,
+        dslx_top = dslx_top,
         verilog_file = verilog_file,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,
@@ -173,6 +177,7 @@ def xls_dslx_opt_ir_macro(
         srcs = None,
         deps = None,
         library = None,
+        dslx_top = None,
         ir_conv_args = {},
         opt_ir_args = {},
         enable_generated_file = True,
@@ -200,6 +205,7 @@ def xls_dslx_opt_ir_macro(
             name = "d_opt_ir",
             srcs = ["d.x"],
             deps = [":bc_dslx"],
+            dslx_top = "d",
         )
         ```
 
@@ -211,16 +217,15 @@ def xls_dslx_opt_ir_macro(
       library: A DSLX library target where the direct (non-transitive)
         files of the target are tested. This argument is mutually
         exclusive with the 'srcs' and 'deps' arguments.
+      dslx_top: The entry point to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. When the default XLS
-        toolchain differs from the default toolchain, the application target
-        may be different.
+        //xls/dslx/ir_converter_main.cc. Note: the 'entry'
+        argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
-        //xls/tools/opt_main.cc. When the default XLS toolchain
-        differs from the default toolchain, the application target may be
-        different.
+        //xls/tools/opt_main.cc. Note: the 'entry'
+        argument is not assigned using this attribute.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -237,6 +242,10 @@ def xls_dslx_opt_ir_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
+
+    # TODO(vmirian) 2002-02-19 Update when dslx_top is mandatory.
+    if dslx_top and type(dslx_top) != type(""):
+        fail("Argument 'dslx_top' must be of string type.")
     if type(ir_conv_args) != type({}):
         fail("Argument 'ir_conv_args' must be of dictionary type.")
     if type(opt_ir_args) != type({}):
@@ -256,6 +265,7 @@ def xls_dslx_opt_ir_macro(
         srcs = srcs,
         deps = deps,
         library = library,
+        dslx_top = dslx_top,
         ir_conv_args = ir_conv_args,
         opt_ir_args = opt_ir_args,
         outs = get_xls_dslx_ir_generated_files(kwargs) +

@@ -22,6 +22,7 @@ load(
     "append_default_to_args",
     "args_to_string",
     "get_output_filename_value",
+    "is_args_valid",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
@@ -44,9 +45,7 @@ xls_ir_verilog_attrs = {
     "codegen_args": attr.string_dict(
         doc = "Arguments of the codegen tool. For details on the arguments, " +
               "refer to the codegen_main application at " +
-              "//xls/tools/codegen_main.cc. When the default XLS " +
-              "toolchain differs from the default toolchain, the application " +
-              "target may be different.",
+              "//xls/tools/codegen_main.cc.",
     ),
     "verilog_file": attr.output(
         doc = "The filename of Verilog file generated. The filename must " +
@@ -177,7 +176,8 @@ def xls_ir_verilog_impl(ctx, src):
         "streaming_channel_valid_suffix",
     )
 
-    my_args = args_to_string(codegen_args, CODEGEN_FLAGS)
+    is_args_valid(codegen_args, CODEGEN_FLAGS)
+    my_args = args_to_string(codegen_args)
     uses_combinational_generator = _is_combinational_generator(codegen_args)
 
     # output filenames

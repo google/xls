@@ -97,7 +97,6 @@ def dslx_lang_test(
     dslx_interp_tests can reference via the dslx_deps attribute.
     """
     dslx_deps = dslx_deps or []
-    ir_conv_args = {"entry": dslx_entry} if dslx_entry else {}
     xls_dslx_library(
         name = name + "_dslx",
         srcs = [name + ".x"],
@@ -116,24 +115,24 @@ def dslx_lang_test(
             name = "_" + name + "_ir",
             srcs = [name + ".x"],
             deps = dslx_deps,
-            ir_conv_args = ir_conv_args,
+            dslx_top = dslx_entry,
         )
         if test_ir_equivalence:
             xls_ir_equivalence_test(
                 name = name + "_ir_equivalence_test",
                 src_0 = ":_" + name + "_ir.ir",
                 src_1 = ":_" + name + "_ir.opt.ir",
-                entry = ir_entry,
+                top = ir_entry,
             )
         if evaluate_ir:
             xls_eval_ir_test(
                 name = name + "_eval_ir_test",
                 src = ":_" + name + "_ir.opt.ir",
-                entry = ir_entry,
+                top = ir_entry,
             )
         if benchmark_ir:
             xls_benchmark_ir(
                 name = name + "_benchmark_ir",
                 src = ":_" + name + "_ir.opt.ir",
-                entry = ir_entry,
+                top = ir_entry,
             )

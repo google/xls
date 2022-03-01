@@ -81,9 +81,7 @@ def xls_ir_verilog_macro(
         must have a '.ir' extension.
       codegen_args: Arguments of the codegen tool. For details on the arguments,
         refer to the codegen_main application at
-        //xls/tools/codegen_main.cc. When the default XLS
-        toolchain differs from the default toolchain, the application target may
-        be different.
+        //xls/tools/codegen_main.cc.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' extension.
       enable_generated_file: See 'enable_generated_file' from

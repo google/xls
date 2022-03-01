@@ -20,6 +20,7 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
+    "is_args_valid",
 )
 load(
     "//xls/build_rules:xls_providers.bzl",
@@ -159,7 +160,8 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
         dslx_test_args.get("dslx_path", "") + ":${PWD}:" +
         ctx.genfiles_dir.path + ":" + ctx.bin_dir.path
     )
-    my_args = args_to_string(dslx_test_args, DSLX_TEST_FLAGS)
+    is_args_valid(dslx_test_args, DSLX_TEST_FLAGS)
+    my_args = args_to_string(dslx_test_args)
 
     cmd = "{} {} {}".format(
         dslx_interpreter_tool.short_path,
@@ -244,9 +246,7 @@ xls_dslx_test_common_attrs = {
         doc = "Arguments of the DSLX interpreter executable. For details " +
               "on the arguments, refer to the interpreter_main " +
               "application at " +
-              "//xls/dslx/interpreter_main.cc. When the " +
-              "default XLS toolchain differs from the default toolchain, " +
-              "the application target may be different.",
+              "//xls/dslx/interpreter_main.cc.",
     ),
 }
 
