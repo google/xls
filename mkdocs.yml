@@ -16,6 +16,10 @@ nav:
       - Intro to parameterics: 'tutorials/intro_to_parametrics.md'
       - For expressions: 'tutorials/crc32.md'
       - Enumerate and match: 'tutorials/prefix_scan.md'
+    - XLS[cc]:
+      - Overview: 'tutorials/xlscc_overview.md'
+      - Channels: 'tutorials/xlscc_channels.md'
+      - State: 'tutorials/xlscc_state.md'
   - IR:
     - Semantics: 'ir_semantics.md'
     - Optimizations: 'optimizations.md'
