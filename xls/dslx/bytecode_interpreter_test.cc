@@ -455,6 +455,22 @@ fn do_shll() -> u32 {
   EXPECT_EQ(int_val, 0x84208420);
 }
 
+TEST(BytecodeInterpreterTest, BinopShra) {
+  constexpr absl::string_view kProgram = R"(
+fn do_shrl() -> s32 {
+  let a = s32:-128;
+  let b = u32:2;
+  a >> b
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "do_shrl"));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_val, bits.ToInt64());
+  EXPECT_EQ(int_val, -32);
+}
+
 TEST(BytecodeInterpreterTest, BinopShrl) {
   constexpr absl::string_view kProgram = R"(
 fn do_shrl() -> u32 {

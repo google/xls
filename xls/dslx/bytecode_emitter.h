@@ -94,15 +94,15 @@ class BytecodeEmitter : public ExprVisitor {
 
   // Finds either the Module or EnumDef that a ColonRef ultimately refers to.
   absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
-      ColonRef* node);
+      const TypeInfo* type_info, ColonRef* node);
 
   // Given a TypeDef, determines the EnumDef to which it refers.
-  absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(Module* module,
+  absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(const TypeInfo* type_info,
                                                 TypeDef* type_def);
 
   absl::StatusOr<InterpValue> HandleColonRefToEnum(ColonRef* colon_ref,
                                                    EnumDef* enum_def,
-                                                   TypeInfo* type_info);
+                                                   const TypeInfo* type_info);
   absl::StatusOr<InterpValue> HandleColonRefToValue(Module* module,
                                                     ColonRef* colon_ref);
 

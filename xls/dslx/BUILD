@@ -740,6 +740,7 @@ cc_library(
         ":abstract_interpreter",
         ":ast",
         ":interp_value",
+        ":interp_value_helpers",
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",

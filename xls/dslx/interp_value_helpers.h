@@ -37,6 +37,11 @@ absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value);
 absl::Status FlattenTuple(const InterpValue& value,
                           std::vector<InterpValue>* result);
 
+// Finds the first index in the LHS and RHS sequences at which values differ or
+// nullopt if the two are equal.
+absl::StatusOr<absl::optional<int64_t>> FindFirstDifferingIndex(
+    absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_INTERP_VALUE_HELPERS_H_

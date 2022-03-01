@@ -177,10 +177,10 @@ void BytecodeEmitter::HandleBinop(Binop* node) {
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kOr));
       return;
     case BinopKind::kShl:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShll));
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShl));
       return;
     case BinopKind::kShr:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShrl));
+      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShr));
       return;
     case BinopKind::kSub:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSub));
@@ -327,7 +327,7 @@ void BytecodeEmitter::HandleCast(Cast* node) {
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
-    ColonRef* colon_ref, EnumDef* enum_def, TypeInfo* type_info) {
+    ColonRef* colon_ref, EnumDef* enum_def, const TypeInfo* type_info) {
   // TODO(rspringer): 2022-01-26 We'll need to pull the right type info during
   // ResolveTypeDefToEnum.
   absl::string_view attr = colon_ref->attr();
@@ -375,9 +375,9 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
   return maybe_value.value();
 }
 
-// Has to be enum, given context we're in: looking for _values_
+// Has to be an enum, given the context we're in: looking for _values_.
 absl::StatusOr<EnumDef*> BytecodeEmitter::ResolveTypeDefToEnum(
-    Module* module, TypeDef* type_def) {
+    const TypeInfo* type_info, TypeDef* type_def) {
   TypeDefinition td = type_def;
   while (absl::holds_alternative<TypeDef*>(td)) {
     TypeDef* type_def = absl::get<TypeDef*>(td);
@@ -392,13 +392,18 @@ absl::StatusOr<EnumDef*> BytecodeEmitter::ResolveTypeDefToEnum(
 
   if (absl::holds_alternative<ColonRef*>(td)) {
     ColonRef* colon_ref = absl::get<ColonRef*>(td);
-    XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubject(colon_ref));
+    XLS_ASSIGN_OR_RETURN(auto subject,
+                         ResolveColonRefSubject(type_info, colon_ref));
     XLS_RET_CHECK(absl::holds_alternative<Module*>(subject));
     Module* module = absl::get<Module*>(subject);
     XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
 
     if (absl::holds_alternative<TypeDef*>(td)) {
-      return ResolveTypeDefToEnum(module, absl::get<TypeDef*>(td));
+      // We need to get the right type info for the enum's containing module. We
+      // can get the top-level module since [currently?] enums can't be
+      // parameterized.
+      type_info = import_data_->GetRootTypeInfo(module).value();
+      return ResolveTypeDefToEnum(type_info, absl::get<TypeDef*>(td));
     }
   }
 
@@ -412,7 +417,8 @@ absl::StatusOr<EnumDef*> BytecodeEmitter::ResolveTypeDefToEnum(
 }
 
 absl::StatusOr<absl::variant<Module*, EnumDef*>>
-BytecodeEmitter::ResolveColonRefSubject(ColonRef* node) {
+BytecodeEmitter::ResolveColonRefSubject(const TypeInfo* type_info,
+                                        ColonRef* node) {
   if (absl::holds_alternative<NameRef*>(node->subject())) {
     // Inside a ColonRef, the LHS can't be a BuiltinNameDef.
     NameRef* name_ref = absl::get<NameRef*>(node->subject());
@@ -421,7 +427,7 @@ BytecodeEmitter::ResolveColonRefSubject(ColonRef* node) {
     if (Import* import = dynamic_cast<Import*>(name_def->definer());
         import != nullptr) {
       absl::optional<const ImportedInfo*> imported =
-          type_info_->GetImported(import);
+          type_info->GetImported(import);
       if (!imported.has_value()) {
         return absl::InternalError(absl::StrCat(
             "Could not find Module for Import: ", import->ToString()));
@@ -438,12 +444,20 @@ BytecodeEmitter::ResolveColonRefSubject(ColonRef* node) {
 
     TypeDef* type_def = dynamic_cast<TypeDef*>(name_def->definer());
     XLS_RET_CHECK(type_def != nullptr);
-    return ResolveTypeDefToEnum(type_def->owner(), type_def);
+
+    if (type_def->owner() != type_info->module()) {
+      // We need to get the right type info for the enum's containing module. We
+      // can get the top-level module since [currently?] enums can't be
+      // parameterized (and we know this must be an enum, per the above).
+      type_info = import_data_->GetRootTypeInfo(type_def->owner()).value();
+    }
+    return ResolveTypeDefToEnum(type_info, type_def);
   }
 
   XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(node->subject()));
   ColonRef* subject = absl::get<ColonRef*>(node->subject());
-  XLS_ASSIGN_OR_RETURN(auto resolved_subject, ResolveColonRefSubject(subject));
+  XLS_ASSIGN_OR_RETURN(auto resolved_subject,
+                       ResolveColonRefSubject(type_info, subject));
   // Has to be a module, since it's a ColonRef inside a ColonRef.
   XLS_RET_CHECK(absl::holds_alternative<Module*>(resolved_subject));
   Module* module = absl::get<Module*>(resolved_subject);
@@ -454,7 +468,7 @@ BytecodeEmitter::ResolveColonRefSubject(ColonRef* node) {
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        module->GetTypeDefinition(subject->attr()));
   if (absl::holds_alternative<TypeDef*>(td)) {
-    return ResolveTypeDefToEnum(module, absl::get<TypeDef*>(td));
+    return ResolveTypeDefToEnum(type_info, absl::get<TypeDef*>(td));
   }
 
   return absl::get<EnumDef*>(td);
@@ -476,12 +490,15 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
     ColonRef* node) {
   absl::variant<Module*, EnumDef*> resolved_subject;
-  XLS_ASSIGN_OR_RETURN(resolved_subject, ResolveColonRefSubject(node));
+  XLS_ASSIGN_OR_RETURN(resolved_subject,
+                       ResolveColonRefSubject(type_info_, node));
 
   if (absl::holds_alternative<EnumDef*>(resolved_subject)) {
     EnumDef* enum_def = absl::get<EnumDef*>(resolved_subject);
-    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                         import_data_->GetRootTypeInfo(enum_def->owner()));
+    const TypeInfo* type_info = type_info_;
+    if (enum_def->owner() != type_info_->module()) {
+      type_info = import_data_->GetRootTypeInfo(enum_def->owner()).value();
+    }
     return HandleColonRefToEnum(node, enum_def, type_info);
   }
 

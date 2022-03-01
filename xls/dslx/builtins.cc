@@ -16,6 +16,7 @@
 
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -89,20 +90,6 @@ absl::StatusOr<InterpValue> FailUnless(const InterpValue& pred,
     return FailureErrorStatus(span, message);
   }
   return InterpValue::MakeUnit();
-}
-
-// Helper that finds the first differing index among value spans.
-//
-// Precondition: lhs and rhs must be same size.
-absl::optional<int64_t> FindFirstDifferingIndex(
-    absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs) {
-  XLS_CHECK_EQ(lhs.size(), rhs.size());
-  for (int64_t i = 0; i < lhs.size(); ++i) {
-    if (lhs[i].Ne(rhs[i])) {
-      return i;
-    }
-  }
-  return absl::nullopt;
 }
 
 }  // namespace
@@ -305,8 +292,9 @@ absl::StatusOr<InterpValue> BuiltinAssertEq(
                       lhs.ToHumanString(), rhs.ToHumanString());
 
   if (lhs.IsArray() && rhs.IsArray()) {
-    absl::optional<int64_t> i =
-        FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie());
+    XLS_ASSIGN_OR_RETURN(
+        absl::optional<int64_t> i,
+        FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie()));
     XLS_RET_CHECK(i.has_value());
     const auto& lhs_values = lhs.GetValuesOrDie();
     const auto& rhs_values = rhs.GetValuesOrDie();

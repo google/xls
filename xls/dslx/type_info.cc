@@ -70,6 +70,14 @@ absl::optional<InterpValue> TypeInfo::GetConstExpr(AstNode* const_expr) const {
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
     return it->second;
   }
+
+  if (parent_ != nullptr) {
+    // In a case where a [child] type info is for a parametric function
+    // specialization, it won't contain top-level constants, but its parent
+    // [transitively] will.
+    return parent_->GetConstExpr(const_expr);
+  }
+
   return absl::nullopt;
 }
 

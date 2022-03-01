@@ -241,12 +241,12 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalPop(bytecode));
       break;
     }
-    case Bytecode::Op::kShll: {
-      XLS_RETURN_IF_ERROR(EvalShll(bytecode));
+    case Bytecode::Op::kShl: {
+      XLS_RETURN_IF_ERROR(EvalShl(bytecode));
       break;
     }
-    case Bytecode::Op::kShrl: {
-      XLS_RETURN_IF_ERROR(EvalShrl(bytecode));
+    case Bytecode::Op::kShr: {
+      XLS_RETURN_IF_ERROR(EvalShr(bytecode));
       break;
     }
     case Bytecode::Op::kSlice: {
@@ -549,7 +549,8 @@ absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
   InterpValue tuple = stack_.back();
   stack_.pop_back();
   if (!tuple.IsTuple()) {
-    return absl::InvalidArgumentError(
+    return FailureErrorStatus(
+        bytecode.source_span(),
         absl::StrCat("Stack top for ExpandTuple was not a tuple, was: ",
                      TagToString(tuple.tag())));
   }
@@ -748,14 +749,17 @@ absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
   return Pop().status();
 }
 
-absl::Status BytecodeInterpreter::EvalShll(const Bytecode& bytecode) {
+absl::Status BytecodeInterpreter::EvalShl(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Shl(rhs);
   });
 }
 
-absl::Status BytecodeInterpreter::EvalShrl(const Bytecode& bytecode) {
+absl::Status BytecodeInterpreter::EvalShr(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
+    if (lhs.IsSigned()) {
+      return lhs.Shra(rhs);
+    }
     return lhs.Shrl(rhs);
   });
 }
@@ -873,9 +877,14 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
       // out negative numbers, which is lossy and confusing. Find a way to unify
       // these two somehow?
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
-      pieces.push_front(value.ToString());
+      XLS_ASSIGN_OR_RETURN(Value ir_value, value.ConvertToIr());
+      pieces.push_front(
+          ir_value.ToHumanString(absl::get<FormatPreference>(trace_element)));
     }
   }
+
+  // Note: trace is specified to log to the INFO log.
+  XLS_LOG(INFO) << absl::StrJoin(pieces, "");
   stack_.push_back(InterpValue::MakeToken());
   return absl::OkStatus();
 }
@@ -950,9 +959,10 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinCtz(bytecode);
     case Builtin::kEnumerate:
       return RunBuiltinEnumerate(bytecode);
-    case Builtin::kFail:
-      return FailureErrorStatus(
-          bytecode.source_span(), "Encountered `fail!` operation.");
+    case Builtin::kFail: {
+      XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+      return FailureErrorStatus(bytecode.source_span(), value.ToString());
+    }
     case Builtin::kGate:
       return RunBuiltinGate(bytecode);
     case Builtin::kMap:
@@ -1020,6 +1030,17 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
     std::string message =
         absl::StrFormat("\n  lhs: %s\n  rhs: %s\n  were not equal",
                         lhs.ToHumanString(), rhs.ToHumanString());
+    if (lhs.IsArray() && rhs.IsArray()) {
+      XLS_ASSIGN_OR_RETURN(
+          absl::optional<int64_t> i,
+          FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie()));
+      XLS_RET_CHECK(i.has_value());
+      const auto& lhs_values = lhs.GetValuesOrDie();
+      const auto& rhs_values = rhs.GetValuesOrDie();
+      message += absl::StrFormat("; first differing index: %d :: %s vs %s", *i,
+                                 lhs_values[*i].ToHumanString(),
+                                 rhs_values[*i].ToHumanString());
+    }
     return FailureErrorStatus(bytecode.source_span(), message);
   }
 

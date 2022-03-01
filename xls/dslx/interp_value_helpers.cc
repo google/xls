@@ -119,4 +119,21 @@ absl::Status FlattenTuple(const InterpValue& value,
   return absl::OkStatus();
 }
 
+absl::StatusOr<absl::optional<int64_t>> FindFirstDifferingIndex(
+    absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs) {
+  if (lhs.size() != rhs.size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("LHS and RHS must have the same size: %d vs. %d.",
+                        lhs.size(), rhs.size()));
+  }
+
+  for (int64_t i = 0; i < lhs.size(); ++i) {
+    if (lhs[i].Ne(rhs[i])) {
+      return i;
+    }
+  }
+
+  return absl::nullopt;
+}
+
 }  // namespace xls::dslx

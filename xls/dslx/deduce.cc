@@ -101,6 +101,7 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(ColonRef* ref, DeduceCtx* ctx) {
 //  ctx: Deduction context.
 static absl::Status ValidateParametricInvocation(
     Function* parametric_fn, Invocation* invocation,
+    const std::vector<InstantiateArg>& args,
     const SymbolicBindings& symbolic_bindings,
     std::function<absl::Status(Function*, DeduceCtx*)> typecheck_fn,
     DeduceCtx* ctx,
@@ -141,6 +142,12 @@ static absl::Status ValidateParametricInvocation(
 
     XLS_VLOG(5) << "Typechecking parametric function: "
                 << parametric_fn->identifier() << " via " << symbolic_bindings;
+    for (int i = 0; i < parametric_fn->params().size(); i++) {
+      invocation_imported_type_info->SetItem(parametric_fn->params()[i],
+                                             *args[i].type);
+      invocation_imported_type_info->SetItem(
+          parametric_fn->params()[i]->name_def(), *args[i].type);
+    }
 
     // Use typecheck_function callback to do this, in case we run into more
     // dependencies in that module.
@@ -2346,9 +2353,9 @@ absl::StatusOr<TypeAndBindings> DeduceParametricCall(
     // Now that we have callee_symbolic_bindings, let's use them to typecheck
     // the body of callee_fn to make sure these values actually work.
     XLS_ASSIGN_OR_RETURN(Function * f, resolve_fn(invocation, ctx));
-    XLS_RETURN_IF_ERROR(
-        ValidateParametricInvocation(f, invocation, callee_symbolic_bindings,
-                                     typecheck_fn, ctx, proc_members));
+    XLS_RETURN_IF_ERROR(ValidateParametricInvocation(
+        f, invocation, args, callee_symbolic_bindings, typecheck_fn, ctx,
+        proc_members));
   }
 
   return tab;

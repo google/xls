@@ -109,12 +109,13 @@ class Bytecode {
     kNegate,
     // Performs a bitwise OR of the top two values on the stack.
     kOr,
-    // Performs a logical left shift of the second-to-top stack element by the
+    // Performs a left shift of the second-to-top stack element by the
     // top element's number.
-    kShll,
-    // Performs a logical right shift of the second-to-top stack element by the
-    // top element's number.
-    kShrl,
+    kShl,
+    // Performs a right shift of the second-to-top stack element by the
+    // top element's number. If TOS1 is signed, the shift will be arithmetic,
+    // otherwise it'll be logical.
+    kShr,
     // Slices out a subset of the bits-typed value on TOS2,
     // starting at index TOS1 and ending at index TOS0.
     kSlice,

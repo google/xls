@@ -160,9 +160,9 @@ std::string OpToString(Bytecode::Op op) {
       return "or";
     case Bytecode::Op::kPop:
       return "pop";
-    case Bytecode::Op::kShll:
+    case Bytecode::Op::kShl:
       return "shl";
-    case Bytecode::Op::kShrl:
+    case Bytecode::Op::kShr:
       return "shr";
     case Bytecode::Op::kSlice:
       return "slice";

@@ -18,6 +18,7 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/bytecode.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -409,10 +410,10 @@ fn binops_galore() {
   ASSERT_EQ(bc->op(), Bytecode::Op::kOr);
 
   bc = &bytecodes[54];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kShll);
+  ASSERT_EQ(bc->op(), Bytecode::Op::kShl);
 
   bc = &bytecodes[58];
-  ASSERT_EQ(bc->op(), Bytecode::Op::kShrl);
+  ASSERT_EQ(bc->op(), Bytecode::Op::kShr);
 
   bc = &bytecodes[62];
   ASSERT_EQ(bc->op(), Bytecode::Op::kSub);
@@ -1110,6 +1111,72 @@ fn main() -> u32 {
   for (int i = 0; i < bytecodes.size(); i++) {
     ASSERT_EQ(bytecodes[i].ToString(), kExpected[i]);
   }
+}
+
+TEST(BytecodeEmitterTest, ShlAndShr) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn main() -> u32 {
+  let x = u32:8;
+  let y = u32:16;
+  x << y >> y
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 9);
+  const Bytecode* bc = &bytecodes[6];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kShl);
+
+  bc = &bytecodes[8];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kShr);
+}
+
+TEST(BytecodeEmitterTest, ParameterizedTypeDefToImportedEnum) {
+  constexpr absl::string_view kImported = R"(
+pub struct ImportedStruct<X: u32> {
+  x: uN[X],
+}
+
+pub enum ImportedEnum : u32 {
+  EAT = 0,
+  YOUR = 1,
+  VEGGIES = 2
+})";
+
+  constexpr absl::string_view kProgram = R"(
+import imported
+
+type MyEnum = imported::ImportedEnum;
+type MyStruct = imported::ImportedStruct<u32:16>;
+
+#![test]
+fn main() -> u32 {
+  let foo = MyStruct { x: u16:100 };
+  foo.x as u32 + (MyEnum::VEGGIES as u32)
+}
+
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      tm, ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn(),
+                            /*caller_bindings=*/absl::nullopt));
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 10);
 }
 
 }  // namespace
