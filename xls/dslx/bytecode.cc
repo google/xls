@@ -17,6 +17,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/ast.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 #include "re2/re2.h"
@@ -57,6 +58,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   }
   if (s == "literal") {
     return Bytecode::Op::kLiteral;
+  }
+  if (s == "match_arm") {
+    return Bytecode::Op::kMatchArm;
   }
   if (s == "negate") {
     return Bytecode::Op::kNegate;
@@ -144,6 +148,8 @@ std::string OpToString(Bytecode::Op op) {
       return "logical_and";
     case Bytecode::Op::kLogicalOr:
       return "logical_or";
+    case Bytecode::Op::kMatchArm:
+      return "match_arm";
     case Bytecode::Op::kMul:
       return "mul";
     case Bytecode::Op::kNe:
@@ -189,6 +195,103 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
   return program;
 }
 
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeInterpValue(
+    const InterpValue& interp_value) {
+  return MatchArmItem(Kind::kInterpValue, interp_value);
+}
+
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeLoad(
+    SlotIndex slot_index) {
+  return MatchArmItem(Kind::kLoad, slot_index);
+}
+
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeStore(
+    SlotIndex slot_index) {
+  return MatchArmItem(Kind::kStore, slot_index);
+}
+
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeWildcard() {
+  return MatchArmItem(Kind::kWildcard);
+}
+
+Bytecode::MatchArmItem::MatchArmItem(Kind kind)
+    : kind_(kind), data_(absl::nullopt) {}
+
+Bytecode::MatchArmItem::MatchArmItem(Kind kind,
+                                     absl::variant<InterpValue, SlotIndex> data)
+    : kind_(kind), data_(data) {}
+
+absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("MatchArmItem does not hold data.");
+  }
+  if (!absl::holds_alternative<InterpValue>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
+  }
+
+  return absl::get<InterpValue>(data_.value());
+}
+
+absl::StatusOr<Bytecode::SlotIndex> Bytecode::MatchArmItem::slot_index() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("MatchArmItem does not hold data.");
+  }
+  if (!absl::holds_alternative<SlotIndex>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
+  }
+
+  return absl::get<SlotIndex>(data_.value());
+}
+
+std::string Bytecode::MatchArmItem::ToString() const {
+  switch (kind_) {
+    case Kind::kInterpValue:
+      return absl::StrCat("value:",
+                          absl::get<InterpValue>(data_.value()).ToString());
+    case Kind::kLoad:
+      return absl::StrCat("load:", absl::get<SlotIndex>(data_.value()).value());
+    case Kind::kStore:
+      return absl::StrCat("store:",
+                          absl::get<SlotIndex>(data_.value()).value());
+    case Kind::kWildcard:
+      return "wildcard";
+  }
+
+  return "<invalid MatchArmItem>";
+}
+
+#define DEF_UNARY_BUILDER(OP_NAME)                           \
+  /* static */ Bytecode Bytecode::Make##OP_NAME(Span span) { \
+    return Bytecode(span, Op::k##OP_NAME);                   \
+  }
+
+DEF_UNARY_BUILDER(Dup);
+DEF_UNARY_BUILDER(Invert);
+DEF_UNARY_BUILDER(JumpDest);
+DEF_UNARY_BUILDER(LogicalOr);
+DEF_UNARY_BUILDER(Pop);
+DEF_UNARY_BUILDER(Swap);
+
+/* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
+  return Bytecode(span, Op::kJumpRelIf, target);
+}
+
+/* static */ Bytecode Bytecode::MakeJumpRel(Span span, JumpTarget target) {
+  return Bytecode(span, Op::kJumpRel, target);
+}
+
+/* static */ Bytecode Bytecode::MakeLiteral(Span span, InterpValue literal) {
+  return Bytecode(span, Op::kLiteral, std::move(literal));
+}
+
+/* static */ Bytecode Bytecode::MakeLoad(Span span, SlotIndex slot_index) {
+  return Bytecode(span, Op::kLoad, slot_index);
+}
+
+/* static */ Bytecode Bytecode::MakeMatchArm(Span span, MatchArmData data) {
+  return Bytecode(span, Op::kMatchArm, std::move(data));
+}
+
 absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
@@ -198,6 +301,16 @@ absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
   }
 
   return absl::get<JumpTarget>(data_.value());
+}
+
+absl::StatusOr<const Bytecode::MatchArmData*> Bytecode::match_arm_data() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<MatchArmData>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not MatchArmDAta.");
+  }
+  return &absl::get<MatchArmData>(data_.value());
 }
 
 absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
@@ -305,8 +418,35 @@ std::string Bytecode::ToString(bool source_locs) const {
       data_string = absl::get<InterpValue>(data_.value()).ToString();
     } else if (absl::holds_alternative<NumElements>(data_.value())) {
       data_string = absl::StrCat(absl::get<NumElements>(data_.value()).value());
-    } else {
+    } else if (absl::holds_alternative<SlotIndex>(data_.value())) {
       data_string = absl::StrCat(absl::get<SlotIndex>(data_.value()).value());
+    } else if (absl::holds_alternative<TraceData>(data_.value())) {
+      TraceData trace_data = absl::get<TraceData>(data_.value());
+      std::vector<std::string> pieces;
+      pieces.reserve(trace_data.size());
+      for (const auto& step : trace_data) {
+        if (absl::holds_alternative<std::string>(step)) {
+          pieces.push_back(absl::get<std::string>(step));
+        } else {
+          pieces.push_back(std::string(
+              FormatPreferenceToString(absl::get<FormatPreference>(step))));
+        }
+      }
+      data_string = absl::StrCat("trace data: ", absl::StrJoin(pieces, ", "));
+    } else if (absl::holds_alternative<JumpTarget>(data_.value())) {
+      JumpTarget target = absl::get<JumpTarget>(data_.value());
+      if (target == kPlaceholderJumpAmount) {
+        data_string = "<placeholder>";
+      } else {
+        data_string = absl::StrCat(target.value());
+      }
+    } else {
+      // MatchArmData.
+      std::vector<std::string> pieces;
+      for (const MatchArmItem& item : absl::get<MatchArmData>(data_.value())) {
+        pieces.push_back(item.ToString());
+      }
+      data_string = absl::StrJoin(pieces, ", ");
     }
     return absl::StrFormat("%s %s%s", op_string, data_string, loc_string);
   }

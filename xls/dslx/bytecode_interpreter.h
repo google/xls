@@ -62,6 +62,8 @@ class BytecodeInterpreter {
       return bindings_;
     }
 
+    void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
+
    private:
     int64_t pc_;
     std::vector<InterpValue> slots_;
@@ -101,6 +103,7 @@ class BytecodeInterpreter {
   absl::Status EvalLogicalAnd(const Bytecode& bytecode);
   absl::Status EvalLogicalOr(const Bytecode& bytecode);
   absl::Status EvalLt(const Bytecode& bytecode);
+  absl::Status EvalMatchArm(const Bytecode& bytecode);
   absl::Status EvalMul(const Bytecode& bytecode);
   absl::Status EvalNe(const Bytecode& bytecode);
   absl::Status EvalNegate(const Bytecode& bytecode);

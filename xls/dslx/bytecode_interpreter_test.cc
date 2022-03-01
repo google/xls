@@ -257,12 +257,19 @@ fn main(x: u32) -> u32 {
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
-  ASSERT_THAT(
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt),
-      StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr(
-              "Irrefutable match pattern components are not yet supported")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
+                                                  &import_data, bf.get(),
+                                                  {InterpValue::MakeU32(42)}));
+  EXPECT_EQ(value, InterpValue::MakeU32(64)) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
+                                            {InterpValue::MakeU32(43)}));
+  EXPECT_EQ(value, InterpValue::MakeU32(44)) << value.ToString();
 }
 
 TEST(BytecodeInterpreterTest, RunMatchNoTrailingWildcard) {
@@ -284,6 +291,46 @@ fn main(x: u32) -> u32 {
       StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("Last match-arm's pattern must be a wildcard")));
+}
+
+TEST(BytecodeInterpreterTest, RunMatchWithNameRefs) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u32, y: u32, z: u32) -> u32 {
+  match x {
+    y => x + y,
+    z => x + z,
+    _ => u32:0xdeadbeef,
+  }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
+                        &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+
+  InterpValue one(InterpValue::MakeU32(1));
+  InterpValue two(InterpValue::MakeU32(2));
+  InterpValue three(InterpValue::MakeU32(3));
+  InterpValue four(InterpValue::MakeU32(4));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      BytecodeInterpreter::Interpret(&import_data, bf.get(), {one, one, two}));
+  EXPECT_EQ(value, two) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
+                                      &import_data, bf.get(), {two, one, two}));
+  EXPECT_EQ(value, four) << value.ToString();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
+                                            {three, one, two}));
+  EXPECT_EQ(value, InterpValue::MakeU32(0xdeadbeef)) << value.ToString();
 }
 
 TEST(BytecodeInterpreterTest, RunTernaryConsequent) {

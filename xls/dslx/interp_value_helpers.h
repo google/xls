@@ -32,6 +32,11 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
 // Creates a zero-valued InterpValue with the same structure as the input.
 absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value);
 
+// Places a "flat" representation of the input value (if it's a tuple) in
+// `result`. Converts, e.g., (a, (b, c), d) into {a, b, c, d}.
+absl::Status FlattenTuple(const InterpValue& value,
+                          std::vector<InterpValue>* result);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_INTERP_VALUE_HELPERS_H_

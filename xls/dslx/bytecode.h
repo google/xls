@@ -97,6 +97,10 @@ class Bytecode {
     kLogicalOr,
     // Compares TOS1 to B, storing true if TOS1 < TOS0.
     kLt,
+    // Evaluates the item at TOS0 and pushes `true` on the stack if it's
+    // equivalent to the MatchArmItem (defined below) held in the optional data
+    // member.
+    kMatchArm,
     // Multiplies the top two values on the stack.
     kMul,
     // Compares TOS1 to B, storing true if TOS1 != TOS0.
@@ -152,11 +156,56 @@ class Bytecode {
     absl::optional<const SymbolicBindings*> bindings;
   };
 
-  using TraceData = std::vector<FormatStep>;
+  // Encapsulates an element in a MatchArm's NameDefTree. For literals, a
+  // this is an InterpValue. For NameRefs, this is the associated SlotIndex. For
+  // NameDefs (i.e., assignments to a name from the value to match), this is the
+  // SlotIndex to which to store, and for wildcards, this is a simple "matches
+  // anything" flag.
+  class MatchArmItem {
+   public:
+    static MatchArmItem MakeInterpValue(const InterpValue& interp_value);
+    static MatchArmItem MakeLoad(SlotIndex slot_index);
+    static MatchArmItem MakeStore(SlotIndex slot_index);
+    static MatchArmItem MakeWildcard();
 
-  using Data =
-      absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
-                    std::unique_ptr<ConcreteType>, InvocationData, TraceData>;
+    enum class Kind {
+      kInterpValue,
+      kLoad,
+      kStore,
+      kWildcard,
+    };
+
+    absl::StatusOr<InterpValue> interp_value() const;
+    absl::StatusOr<SlotIndex> slot_index() const;
+    Kind kind() const { return kind_; }
+
+    std::string ToString() const;
+
+   private:
+    MatchArmItem(Kind kind);
+    MatchArmItem(Kind kind, absl::variant<InterpValue, SlotIndex> data);
+
+    Kind kind_;
+    absl::optional<absl::variant<InterpValue, SlotIndex>> data_;
+  };
+
+  using MatchArmData = std::vector<MatchArmItem>;
+  using TraceData = std::vector<FormatStep>;
+  using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
+                             std::unique_ptr<ConcreteType>, InvocationData,
+                             MatchArmData, TraceData>;
+
+  static Bytecode MakeDup(Span span);
+  static Bytecode MakeInvert(Span span);
+  static Bytecode MakeJumpDest(Span span);
+  static Bytecode MakeJumpRelIf(Span span, JumpTarget target);
+  static Bytecode MakeJumpRel(Span span, JumpTarget target);
+  static Bytecode MakeLiteral(Span span, InterpValue literal);
+  static Bytecode MakeLoad(Span span, SlotIndex slot_index);
+  static Bytecode MakeLogicalOr(Span span);
+  static Bytecode MakeMatchArm(Span span, MatchArmData data);
+  static Bytecode MakePop(Span span);
+  static Bytecode MakeSwap(Span span);
 
   // TODO(rspringer): 2022-02-14: These constructors end up being pretty
   // verbose. Consider a builder?
@@ -175,13 +224,14 @@ class Bytecode {
 
   bool has_data() const { return data_.has_value(); }
 
-  absl::StatusOr<const ConcreteType*> type_data() const;
-  absl::StatusOr<JumpTarget> jump_target() const;
   absl::StatusOr<InvocationData> invocation_data() const;
-  absl::StatusOr<const TraceData*> trace_data() const;
-  absl::StatusOr<InterpValue> value_data() const;
+  absl::StatusOr<JumpTarget> jump_target() const;
+  absl::StatusOr<const MatchArmData*> match_arm_data() const;
   absl::StatusOr<NumElements> num_elements() const;
   absl::StatusOr<SlotIndex> slot_index() const;
+  absl::StatusOr<const TraceData*> trace_data() const;
+  absl::StatusOr<const ConcreteType*> type_data() const;
+  absl::StatusOr<InterpValue> value_data() const;
 
   std::string ToString(bool source_locs = true) const;
 

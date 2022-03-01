@@ -326,7 +326,7 @@ void BytecodeEmitter::HandleCast(Cast* node) {
       Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
 }
 
-absl::StatusOr<Bytecode> BytecodeEmitter::HandleColonRefToEnum(
+absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
     ColonRef* colon_ref, EnumDef* enum_def, TypeInfo* type_info) {
   // TODO(rspringer): 2022-01-26 We'll need to pull the right type info during
   // ResolveTypeDefToEnum.
@@ -340,10 +340,10 @@ absl::StatusOr<Bytecode> BytecodeEmitter::HandleColonRefToEnum(
         enum_def->identifier(), attr));
   }
 
-  return Bytecode(colon_ref->span(), Bytecode::Op::kLiteral, value_or.value());
+  return value_or.value();
 }
 
-absl::StatusOr<Bytecode> BytecodeEmitter::HandleColonRefToValue(
+absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
     Module* module, ColonRef* colon_ref) {
   // TODO(rspringer): We'll need subject resolution to return the appropriate
   // TypeInfo for parametrics.
@@ -360,15 +360,19 @@ absl::StatusOr<Bytecode> BytecodeEmitter::HandleColonRefToValue(
 
   if (absl::holds_alternative<Function*>(*member.value())) {
     Function* f = absl::get<Function*>(*member.value());
-    return Bytecode(
-        colon_ref->span(), Bytecode::Op::kLiteral,
-        InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
+    return InterpValue::MakeFunction(InterpValue::UserFnData{module, f});
   }
 
   XLS_RET_CHECK(absl::holds_alternative<ConstantDef*>(*member.value()));
   ConstantDef* constant_def = absl::get<ConstantDef*>(*member.value());
-  return Bytecode(colon_ref->span(), Bytecode::Op::kLiteral,
-                  type_info->GetConstExpr(constant_def->value()));
+  absl::optional<InterpValue> maybe_value =
+      type_info->GetConstExpr(constant_def->value());
+  if (!maybe_value.has_value()) {
+    return absl::InternalError(
+        absl::StrCat("Could not find constexpr value for ConstantDef \"",
+                     constant_def->ToString(), "\"."));
+  }
+  return maybe_value.value();
 }
 
 // Has to be enum, given context we're in: looking for _values_
@@ -457,35 +461,32 @@ BytecodeEmitter::ResolveColonRefSubject(ColonRef* node) {
 }
 
 void BytecodeEmitter::HandleColonRef(ColonRef* node) {
-  absl::StatusOr<absl::variant<Module*, EnumDef*>> resolved_subject_or =
-      ResolveColonRefSubject(node);
-  if (!resolved_subject_or.ok()) {
-    status_ = resolved_subject_or.status();
+  if (!status_.ok()) {
     return;
   }
 
-  if (absl::holds_alternative<EnumDef*>(resolved_subject_or.value())) {
-    EnumDef* enum_def = absl::get<EnumDef*>(resolved_subject_or.value());
-    absl::StatusOr<TypeInfo*> type_info =
-        import_data_->GetRootTypeInfo(enum_def->owner());
-    absl::StatusOr<Bytecode> bytecode_or =
-        HandleColonRefToEnum(node, enum_def, type_info.value());
-    if (!bytecode_or.ok()) {
-      status_ = bytecode_or.status();
-    } else {
-      bytecode_.push_back(std::move(bytecode_or.value()));
-    }
-    return;
+  absl::StatusOr<InterpValue> value_or = HandleColonRefInternal(node);
+  if (!value_or.ok()) {
+    status_ = value_or.status();
   }
 
-  Module* module = absl::get<Module*>(resolved_subject_or.value());
-  absl::StatusOr<Bytecode> bytecode_or = HandleColonRefToValue(module, node);
-  if (!bytecode_or.ok()) {
-    status_ = bytecode_or.status();
-    return;
+  Add(Bytecode::MakeLiteral(node->span(), value_or.value()));
+}
+
+absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
+    ColonRef* node) {
+  absl::variant<Module*, EnumDef*> resolved_subject;
+  XLS_ASSIGN_OR_RETURN(resolved_subject, ResolveColonRefSubject(node));
+
+  if (absl::holds_alternative<EnumDef*>(resolved_subject)) {
+    EnumDef* enum_def = absl::get<EnumDef*>(resolved_subject);
+    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                         import_data_->GetRootTypeInfo(enum_def->owner()));
+    return HandleColonRefToEnum(node, enum_def, type_info);
   }
 
-  bytecode_.push_back(std::move(bytecode_or.value()));
+  Module* module = absl::get<Module*>(resolved_subject);
+  return HandleColonRefToValue(module, node);
 }
 
 void BytecodeEmitter::HandleConstRef(ConstRef* node) { HandleNameRef(node); }
@@ -772,25 +773,50 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
                Bytecode::InvocationData{node, maybe_callee_bindings}));
 }
 
-void BytecodeEmitter::HandleNameDefTreeExpr(NameDefTree* tree) {
+void BytecodeEmitter::HandleNameDefTreeExpr(NameDefTree* tree,
+                                            Bytecode::MatchArmData* arm_data) {
   if (!status_.ok()) {
     return;
   }
 
   if (tree->is_leaf()) {
-    absl::visit(
+    status_ = absl::visit(
         Visitor{
-            [this](NameRef* n) { n->AcceptExpr(this); },
-            [this](Number* n) { n->AcceptExpr(this); },
-            [this](ColonRef* n) { n->AcceptExpr(this); },
-            [this](NameDef* n) {
-              status_ = absl::InternalError(
-                  "NameDefTree leaf was not an expression; got NameDef");
+            [&](NameRef* n) -> absl::Status {
+              using ValueT = absl::variant<InterpValue, Bytecode::SlotIndex>;
+              XLS_ASSIGN_OR_RETURN(ValueT item_value, HandleNameRefInternal(n));
+              if (absl::holds_alternative<InterpValue>(item_value)) {
+                arm_data->push_back(Bytecode::MatchArmItem::MakeInterpValue(
+                    absl::get<InterpValue>(item_value)));
+              } else {
+                arm_data->push_back(Bytecode::MatchArmItem::MakeLoad(
+                    absl::get<Bytecode::SlotIndex>(item_value)));
+              }
+              return absl::OkStatus();
             },
-            [this](WildcardPattern* n) {
-              status_ = absl::InternalError(
-                  "NameDefTree leaf was not an expression; got "
-                  "WildcardPattern");
+            [&](Number* n) -> absl::Status {
+              XLS_ASSIGN_OR_RETURN(InterpValue number, HandleNumberInternal(n));
+              arm_data->push_back(
+                  Bytecode::MatchArmItem::MakeInterpValue(number));
+              return absl::OkStatus();
+            },
+            [&](ColonRef* n) -> absl::Status {
+              XLS_ASSIGN_OR_RETURN(InterpValue value,
+                                   HandleColonRefInternal(n));
+              arm_data->push_back(
+                  Bytecode::MatchArmItem::MakeInterpValue(value));
+              return absl::OkStatus();
+            },
+            [&](NameDef* n) {
+              int64_t slot_index = namedef_to_slot_.size();
+              namedef_to_slot_[n] = slot_index;
+              arm_data->push_back(Bytecode::MatchArmItem::MakeStore(
+                  Bytecode::SlotIndex(slot_index)));
+              return absl::OkStatus();
+            },
+            [&](WildcardPattern* n) {
+              arm_data->push_back(Bytecode::MatchArmItem::MakeWildcard());
+              return absl::OkStatus();
             },
         },
         tree->leaf());
@@ -798,15 +824,18 @@ void BytecodeEmitter::HandleNameDefTreeExpr(NameDefTree* tree) {
   }
 
   for (NameDefTree* node : tree->nodes()) {
-    HandleNameDefTreeExpr(node);
+    HandleNameDefTreeExpr(node, arm_data);
   }
-
-  bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kCreateTuple,
-                               Bytecode::NumElements(tree->nodes().size())));
 }
 
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
   if (tree->is_leaf()) {
+    if (absl::holds_alternative<WildcardPattern*>(tree->leaf())) {
+      Add(Bytecode::MakePop(tree->span()));
+      // We can just drop this one.
+      return;
+    }
+
     NameDef* name_def = absl::get<NameDef*>(tree->leaf());
     if (!namedef_to_slot_.contains(name_def)) {
       namedef_to_slot_.insert({name_def, namedef_to_slot_.size()});
@@ -842,30 +871,38 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
     return;
   }
 
+  absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>> result_or =
+      HandleNameRefInternal(node);
+  if (!result_or.ok()) {
+    status_ = result_or.status();
+    return;
+  }
+
+  auto result = result_or.value();
+  if (absl::holds_alternative<InterpValue>(result)) {
+    Add(Bytecode::MakeLiteral(node->span(), absl::get<InterpValue>(result)));
+  } else {
+    Add(Bytecode::MakeLoad(node->span(),
+                           absl::get<Bytecode::SlotIndex>(result)));
+  }
+}
+
+absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
+BytecodeEmitter::HandleNameRefInternal(NameRef* node) {
   if (absl::holds_alternative<BuiltinNameDef*>(node->name_def())) {
     // Builtins don't have NameDefs, so we can't use slots to store them. It's
     // simpler to just emit a literal InterpValue, anyway.
     BuiltinNameDef* builtin_def = absl::get<BuiltinNameDef*>(node->name_def());
-    absl::StatusOr<Builtin> builtin_or =
-        BuiltinFromString(builtin_def->identifier());
-    if (!builtin_or.ok()) {
-      status_ = builtin_or.status();
-      return;
-    }
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kLiteral,
-                 InterpValue::MakeFunction(builtin_or.value())));
-    return;
+    XLS_ASSIGN_OR_RETURN(Builtin builtin,
+                         BuiltinFromString(builtin_def->identifier()));
+    return InterpValue::MakeFunction(builtin);
   }
 
   // Emit function and constant refs directly so that they can be stack elements
   // without having to load slots with them.
   NameDef* name_def = absl::get<NameDef*>(node->name_def());
   if (auto* f = dynamic_cast<Function*>(name_def->definer()); f != nullptr) {
-    bytecode_.push_back(Bytecode(
-        node->span(), Bytecode::Op::kLiteral,
-        InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f})));
-    return;
+    return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
   }
 
   if (auto* cd = dynamic_cast<ConstantDef*>(name_def->definer());
@@ -873,35 +910,26 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
     absl::optional<InterpValue> const_value =
         type_info_->GetConstExpr(cd->value());
     if (!const_value.has_value()) {
-      status_ = absl::InternalError(
+      return absl::InternalError(
           absl::StrCat("Could not find value for constant: ", cd->ToString()));
-      return;
     }
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kLiteral, const_value.value()));
-    return;
+    return const_value.value();
   }
 
   // The value is either a local name or a symbolic binding.
   if (namedef_to_slot_.contains(name_def)) {
-    int64_t slot = namedef_to_slot_.at(name_def);
-    bytecode_.push_back(
-        Bytecode(node->span(), Bytecode::Op::kLoad, Bytecode::SlotIndex(slot)));
-    return;
+    return Bytecode::SlotIndex(namedef_to_slot_.at(name_def));
   }
 
   if (caller_bindings_.has_value()) {
     absl::flat_hash_map<std::string, InterpValue> bindings_map =
         caller_bindings_.value()->ToMap();
     if (bindings_map.contains(name_def->identifier())) {
-      bytecode_.push_back(Bytecode(
-          node->span(), Bytecode::Op::kLiteral,
-          caller_bindings_.value()->ToMap().at(name_def->identifier())));
-      return;
+      return caller_bindings_.value()->ToMap().at(name_def->identifier());
     }
   }
 
-  status_ = absl::InternalError(absl::StrCat(
+  return absl::InternalError(absl::StrCat(
       "Could not find slot or binding for name: ", name_def->ToString()));
 }
 
@@ -910,37 +938,33 @@ void BytecodeEmitter::HandleNumber(Number* node) {
     return;
   }
 
+  absl::StatusOr<InterpValue> value_or = HandleNumberInternal(node);
+  if (!value_or.ok()) {
+    status_ = value_or.status();
+    return;
+  }
+
+  Add(Bytecode::MakeLiteral(node->span(), value_or.value()));
+}
+
+absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
+    Number* node) {
   absl::optional<ConcreteType*> type_or = type_info_->GetItem(node);
   if (!type_or.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not find type for number: ", node->ToString()));
-    return;
   }
 
   BitsType* bits_type = dynamic_cast<BitsType*>(type_or.value());
   if (bits_type == nullptr) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         "Error in type deduction; number did not have \"bits\" type.");
-    return;
   }
 
   ConcreteTypeDim dim = bits_type->size();
-  absl::StatusOr<int64_t> dim_val = dim.GetAsInt64();
-  if (!dim_val.ok()) {
-    status_ = absl::InternalError("Unable to get bits type size as integer.");
-    return;
-  }
-
-  absl::StatusOr<Bits> bits = node->GetBits(dim_val.value());
-  if (!bits.ok()) {
-    status_ = absl::InternalError(absl::StrCat(
-        "Unable to convert number \"", node->ToString(), "\" to Bits."));
-    return;
-  }
-
-  bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kLiteral,
-               InterpValue::MakeBits(bits_type->is_signed(), bits.value())));
+  XLS_ASSIGN_OR_RETURN(int64_t dim_val, dim.GetAsInt64());
+  XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(dim_val));
+  return InterpValue::MakeBits(bits_type->is_signed(), bits);
 }
 
 void BytecodeEmitter::HandleString(String* node) {
@@ -1099,6 +1123,24 @@ void BytecodeEmitter::HandleTernary(Ternary* node) {
   bytecode_.at(jump_index).PatchJumpTarget(jumpdest_index - jump_index);
 }
 
+bool IsTreeWildcard(NameDefTree* ndt) {
+  if (ndt->is_leaf()) {
+    auto leaf = ndt->leaf();
+    if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+      return true;
+    }
+    return false;
+  }
+
+  for (const auto& node : ndt->nodes()) {
+    if (!IsTreeWildcard(node)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 void BytecodeEmitter::HandleMatch(Match* node) {
   if (!status_.ok()) {
     return;
@@ -1136,81 +1178,81 @@ void BytecodeEmitter::HandleMatch(Match* node) {
   // Current limitations:
   // * Only match arms with single pattern
   // * Last pattern must be wildcard
-  // * No other patterns may be/contain wildcard
   const std::vector<MatchArm*>& arms = node->arms();
   if (arms.empty()) {
     status_ = absl::InternalError("At least one match arm is required.");
     return;
   }
-  for (MatchArm* arm : arms) {
-    const std::vector<NameDefTree*>& patterns = arm->patterns();
-    if (patterns.size() != 1) {
-      status_ = absl::UnimplementedError(
-          "Only a single match arm pattern is supported.");
-      return;
-    }
-  }
+
   NameDefTree* last_arm_pattern = arms.back()->patterns()[0];
-  if (!last_arm_pattern->is_leaf() ||
-      !absl::holds_alternative<WildcardPattern*>(last_arm_pattern->leaf())) {
+  if (!IsTreeWildcard(last_arm_pattern)) {
     status_ = absl::UnimplementedError(
         "Last match-arm's pattern must be a wildcard; got: " +
         last_arm_pattern->ToString());
     return;
-  }
-  // Check the patterns don't require us to store any locals or skip any
-  // comparisons.
-  for (size_t i = 0; i < arms.size() - 1; ++i) {
-    NameDefTree* pattern = arms[i]->patterns().back();
-    for (NameDefTree::Leaf leaf : pattern->Flatten()) {
-      if (absl::holds_alternative<NameDef*>(leaf) ||
-          absl::holds_alternative<WildcardPattern*>(leaf)) {
-        status_ = absl::UnimplementedError(
-            "Irrefutable match pattern components are not yet supported.");
-        return;
-      }
-    }
   }
 
   std::vector<size_t> arm_offsets;
   std::vector<size_t> jumps_to_next;
   std::vector<size_t> jumps_to_done;
 
-  for (size_t i = 0; i < node->arms().size(); ++i) {
-    bool last_arm = i + 1 == node->arms().size();
-    MatchArm* arm = node->arms()[i];
+  for (size_t arm_idx = 0; arm_idx < node->arms().size(); ++arm_idx) {
+    auto outer_scope_slots = namedef_to_slot_;
+    auto cleanup = absl::MakeCleanup(
+        [this, &outer_scope_slots]() { namedef_to_slot_ = outer_scope_slots; });
+
+    bool last_arm = arm_idx + 1 == node->arms().size();
+    MatchArm* arm = node->arms()[arm_idx];
     arm_offsets.push_back(bytecode_.size());
     // We don't jump to the first arm test, but we jump to all the subsequent
     // ones.
     if (arm_offsets.size() > 1) {
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
+      Add(Bytecode::MakeJumpDest(node->span()));
     }
+
     if (!last_arm) {
-      // Dup the value at TOS0 (the value being matched on) so we can compare to
-      // it.
-      bytecode_.emplace_back(node->matched()->span(), Bytecode::Op::kDup);
-      NameDefTree* ndt = arm->patterns()[0];
-      HandleNameDefTreeExpr(ndt);
-      bytecode_.emplace_back(ndt->span(), Bytecode::Op::kNe);
+      const std::vector<NameDefTree*>& patterns = arm->patterns();
+      // First, prime the stack with all the copies of the matchee we'll need.
+      for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
+        Add(Bytecode::MakeDup(node->matched()->span()));
+      }
+
+      for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
+        // Then we match each arm. We OR with the prev. result (if there is one)
+        // and swap to the next copy of the matchee, unless this is the last
+        // pattern.
+        NameDefTree* ndt = arm->patterns()[pattern_idx];
+        Bytecode::MatchArmData arm_data;
+        HandleNameDefTreeExpr(ndt, &arm_data);
+        Add(Bytecode::MakeMatchArm(ndt->span(), arm_data));
+
+        if (pattern_idx != 0) {
+          Add(Bytecode::MakeLogicalOr(ndt->span()));
+        }
+        if (pattern_idx != patterns.size() - 1) {
+          Add(Bytecode::MakeSwap(ndt->span()));
+        }
+      }
+      Add(Bytecode::MakeInvert(arm->span()));
       jumps_to_next.push_back(bytecode_.size());
-      bytecode_.emplace_back(arm->span(), Bytecode::Op::kJumpRelIf,
-                             Bytecode::kPlaceholderJumpAmount);
+      Add(Bytecode::MakeJumpRelIf(arm->span(),
+                                  Bytecode::kPlaceholderJumpAmount));
     }
     // Pop the value being matched since now we're going to produce the final
     // result.
-    bytecode_.emplace_back(arm->span(), Bytecode::Op::kPop);
+    Add(Bytecode::MakePop(arm->span()));
+
     // The arm matched: calculate the resulting expression and jump
     // unconditionally to "done".
     arm->expr()->AcceptExpr(this);
     if (!last_arm) {
       jumps_to_done.push_back(bytecode_.size());
-      bytecode_.emplace_back(arm->span(), Bytecode::Op::kJumpRel,
-                             Bytecode::kPlaceholderJumpAmount);
+      Add(Bytecode::MakeJumpRel(arm->span(), Bytecode::kPlaceholderJumpAmount));
     }
   }
 
   size_t done_offset = bytecode_.size();
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
+  Add(Bytecode::MakeJumpDest(node->span()));
 
   XLS_CHECK_EQ(node->arms().size(), arm_offsets.size());
   XLS_CHECK_EQ(node->arms().size(), jumps_to_next.size() + 1);

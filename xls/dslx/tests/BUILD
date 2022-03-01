@@ -110,26 +110,11 @@ dslx_lang_test(name = "map")
 
 dslx_lang_test(name = "multiplies")
 
-dslx_lang_test(
-    name = "match_sample",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # match support.
-    bytecode = False,
-)
+dslx_lang_test(name = "match_sample")
 
-dslx_lang_test(
-    name = "match_const",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # match support.
-    bytecode = False,
-)
+dslx_lang_test(name = "match_const")
 
-dslx_lang_test(
-    name = "match_multi",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # match support.
-    bytecode = False,
-)
+dslx_lang_test(name = "match_multi")
 
 xls_dslx_library(
     name = "number_of_imported_type_import_dslx",
@@ -549,9 +534,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "test_f_calls_parametric_f",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to missing `match`
-    # node support.
-    bytecode = False,
     ir_entry = get_mangled_ir_symbol("test_f_calls_parametric_f", "f"),
 )
 
@@ -595,25 +577,16 @@ xls_dslx_library(
 
 dslx_lang_test(
     name = "mod_simple_enum_importer",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of Match
-    # node support.
-    bytecode = False,
     dslx_deps = [":mod_simple_enum_dslx"],
 )
 
 dslx_lang_test(
     name = "mod_enum_use_in_for_match_importer",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of Match
-    # node support.
-    bytecode = False,
     dslx_deps = [":mod_simple_enum_dslx"],
 )
 
 dslx_lang_test(
     name = "mod_enum_fully_qualified_match_importer",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of Match
-    # node support.
-    bytecode = False,
     dslx_deps = [":mod_simple_enum_dslx"],
     # TODO(rspringer): 2021-06-29 We can't lower fail!/assert to Z3, so we
     # can't do opt/unopt equivalence testing yet.
@@ -673,9 +646,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "mod_simple_enum_alias_importer",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to lack of "Match"
-    # node support.
-    bytecode = False,
     dslx_deps = [":mod_simple_enum_dslx"],
 )
 
@@ -714,12 +684,7 @@ xls_dslx_opt_ir_test(
 
 dslx_lang_test(name = "for_rotate")
 
-dslx_lang_test(
-    name = "for_enum_ref",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "Match"
-    # node handling.
-    bytecode = False,
-)
+dslx_lang_test(name = "for_enum_ref")
 
 dslx_lang_test(
     name = "update_within_parametric",
@@ -793,18 +758,10 @@ xls_dslx_test(
     },
 )
 
-dslx_lang_test(
-    name = "local_const_value_in_parametric_match",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "Match"
-    # node support.
-    bytecode = False,
-)
+dslx_lang_test(name = "local_const_value_in_parametric_match")
 
 dslx_lang_test(
     name = "let_match_tuple",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "Match"
-    # node support.
-    bytecode = False,
     # TODO(https://github.com/google/xls/issues/400): 2022-02-03 This fails on
     # the missing conversion to a Z3 representation for a 0-bit concat.
     test_ir_equivalence = False,

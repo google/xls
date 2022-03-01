@@ -37,6 +37,17 @@ BytecodeInterpreter::Frame::Frame(
       bindings_(bindings),
       bf_holder_(std::move(bf_holder)) {}
 
+void BytecodeInterpreter::Frame::StoreSlot(Bytecode::SlotIndex slot,
+                                           InterpValue value) {
+  // Slots are assigned in ascending order of use, which means that we'll only
+  // ever need to add one slot.
+  if (slots_.size() <= slot.value()) {
+    slots_.push_back(InterpValue::MakeToken());
+  }
+
+  slots_.at(slot.value()) = value;
+}
+
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
     std::vector<InterpValue> args) {
@@ -67,8 +78,14 @@ absl::Status BytecodeInterpreter::Run() {
       const Bytecode& bytecode = bytecodes.at(frame->pc());
       XLS_VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
                   << bytecode.ToString();
+      if (!stack_.empty()) {
+        XLS_VLOG(2) << " - TOS: " << stack_.back().ToString();
+      }
       int64_t old_pc = frame->pc();
       XLS_RETURN_IF_ERROR(EvalNextInstruction());
+      if (!stack_.empty()) {
+        XLS_VLOG(2) << " - TOS: " << stack_.back().ToString();
+      }
 
       if (bytecode.op() == Bytecode::Op::kCall) {
         frame = &frames_.back();
@@ -198,6 +215,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kLt: {
       XLS_RETURN_IF_ERROR(EvalLt(bytecode));
+      break;
+    }
+    case Bytecode::Op::kMatchArm: {
+      XLS_RETURN_IF_ERROR(EvalMatchArm(bytecode));
       break;
     }
     case Bytecode::Op::kMul: {
@@ -649,6 +670,55 @@ absl::Status BytecodeInterpreter::EvalLt(const Bytecode& bytecode) {
   });
 }
 
+absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
+  // Evaluate if the flattened object on TOS is equal to the elements described
+  // in the bytecode.
+  // Puts true on the stack if the items are equal and false otherwise.
+  XLS_ASSIGN_OR_RETURN(const Bytecode::MatchArmData* arm_data,
+                       bytecode.match_arm_data());
+  std::vector<InterpValue> flat_matchee;
+  XLS_ASSIGN_OR_RETURN(InterpValue matchee, Pop());
+  XLS_RETURN_IF_ERROR(FlattenTuple(matchee, &flat_matchee));
+  if (arm_data->size() != flat_matchee.size()) {
+    return absl::InternalError(absl::StrCat(
+        "MatchArm and arg to match have different [flattened] sizes: ",
+        arm_data->size(), flat_matchee.size()));
+  }
+
+  Frame& frame = frames_.back();
+  for (int i = 0; i < arm_data->size(); i++) {
+    const Bytecode::MatchArmItem& item = arm_data->at(i);
+    Bytecode::MatchArmItem::Kind item_kind = item.kind();
+    if (item_kind == Bytecode::MatchArmItem::Kind::kInterpValue) {
+      XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
+      if (arm_value != flat_matchee[i]) {
+        stack_.push_back(InterpValue::MakeBool(false));
+        return absl::OkStatus();
+      }
+    } else if (item_kind == Bytecode::MatchArmItem::Kind::kLoad) {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+      if (frame.slots().size() <= slot_index.value()) {
+        return absl::InternalError(absl::StrCat(
+            "MatchArm load item index was OOB: ", slot_index.value(), " vs. ",
+            frame.slots().size(), "."));
+      }
+      InterpValue arm_value = frame.slots().at(slot_index.value());
+      if (arm_value != flat_matchee[i]) {
+        stack_.push_back(InterpValue::MakeBool(false));
+        return absl::OkStatus();
+      }
+    } else if (item_kind == Bytecode::MatchArmItem::Kind::kStore) {
+      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+      frame.StoreSlot(slot_index, flat_matchee[i]);
+    }
+
+    // Otherwise, it's a wildcard, so we pass.
+  }
+
+  stack_.push_back(InterpValue::MakeBool(true));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeInterpreter::EvalMul(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Mul(rhs);
@@ -751,15 +821,8 @@ absl::Status BytecodeInterpreter::EvalStore(const Bytecode& bytecode) {
         "Attempted to store value from empty stack.");
   }
 
-  // Slots are assigned in ascending order of use, which means that we'll only
-  // ever need to add one slot.
-  Frame& frame = frames_.back();
-  if (frame.slots().size() <= slot.value()) {
-    frame.slots().push_back(InterpValue::MakeToken());
-  }
-
-  frame.slots().at(slot.value()) = stack_.back();
-  stack_.pop_back();
+  XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+  frames_.back().StoreSlot(slot, value);
   return absl::OkStatus();
 }
 
@@ -813,7 +876,6 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
       pieces.push_front(value.ToString());
     }
   }
-  XLS_LOG(INFO) << absl::StrJoin(pieces, "");
   stack_.push_back(InterpValue::MakeToken());
   return absl::OkStatus();
 }

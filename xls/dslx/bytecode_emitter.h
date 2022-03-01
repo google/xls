@@ -45,6 +45,8 @@ class BytecodeEmitter : public ExprVisitor {
   ~BytecodeEmitter();
   absl::Status Init(const Function* f);
 
+  // Adds the given bytecode to the program.
+  void Add(Bytecode bytecode) { bytecode_.push_back(std::move(bytecode)); }
   void HandleArray(Array* node) override;
   void HandleAttr(Attr* node) override;
   void HandleBinop(Binop* node) override;
@@ -52,6 +54,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleCast(Cast* node) override;
   void HandleChannelDecl(ChannelDecl* node) override { DefaultHandler(node); }
   void HandleColonRef(ColonRef* node) override;
+  absl::StatusOr<InterpValue> HandleColonRefInternal(ColonRef* node);
   void HandleConstRef(ConstRef* node) override;
   void HandleFor(For* node) override;
   void HandleFormatMacro(FormatMacro* node) override;
@@ -61,7 +64,10 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleLet(Let* node) override;
   void HandleMatch(Match* node) override;
   void HandleNameRef(NameRef* node) override;
+  absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
+  HandleNameRefInternal(NameRef* node);
   void HandleNumber(Number* node) override;
+  absl::StatusOr<InterpValue> HandleNumberInternal(Number* node);
   void HandleRecv(Recv* node) override { DefaultHandler(node); }
   void HandleRecvIf(RecvIf* node) override { DefaultHandler(node); }
   void HandleSend(Send* node) override { DefaultHandler(node); }
@@ -94,13 +100,14 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(Module* module,
                                                 TypeDef* type_def);
 
-  absl::StatusOr<Bytecode> HandleColonRefToEnum(ColonRef* colon_ref,
-                                                EnumDef* enum_def,
-                                                TypeInfo* type_info);
-  absl::StatusOr<Bytecode> HandleColonRefToValue(Module* module,
-                                                 ColonRef* colon_ref);
+  absl::StatusOr<InterpValue> HandleColonRefToEnum(ColonRef* colon_ref,
+                                                   EnumDef* enum_def,
+                                                   TypeInfo* type_info);
+  absl::StatusOr<InterpValue> HandleColonRefToValue(Module* module,
+                                                    ColonRef* colon_ref);
 
-  void HandleNameDefTreeExpr(NameDefTree* tree);
+  void HandleNameDefTreeExpr(NameDefTree* tree,
+                             Bytecode::MatchArmData* arm_data);
 
   void DestructureLet(NameDefTree* tree);
 

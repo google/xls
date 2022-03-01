@@ -303,16 +303,16 @@ fn do_match() -> u32 {
 001 store 0
 002 load 0
 003 dup
-004 literal u32:42
-005 ne
+004 match_arm value:u32:42
+005 invert
 006 jump_rel_if +4
 007 pop
 008 literal u32:64
 009 jump_rel +14
 010 jump_dest
 011 dup
-012 literal u32:64
-013 ne
+012 match_arm value:u32:64
+013 invert
 014 jump_rel_if +4
 015 pop
 016 literal u32:42
