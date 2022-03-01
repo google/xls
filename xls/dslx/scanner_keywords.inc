@@ -44,7 +44,6 @@
   X(kStruct, STRUCT, "struct")   \
   X(kTrue, TRUE, "true")         \
   X(kType, TYPE, "type")         \
-  X(kWhile, WHILE, "while")      \
   /* builtin types */            \
   X(kBits, BITS, "bits")         \
   X(kToken, TOKEN, "token")      \

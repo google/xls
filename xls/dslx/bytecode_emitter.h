@@ -50,7 +50,6 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleArray(Array* node) override;
   void HandleAttr(Attr* node) override;
   void HandleBinop(Binop* node) override;
-  void HandleCarry(Carry* node) override { DefaultHandler(node); }
   void HandleCast(Cast* node) override;
   void HandleChannelDecl(ChannelDecl* node) override { DefaultHandler(node); }
   void HandleColonRef(ColonRef* node) override;
@@ -78,7 +77,6 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleSplatStructInstance(SplatStructInstance* node) override;
   void HandleTernary(Ternary* node) override;
   void HandleUnop(Unop* node) override;
-  void HandleWhile(While* node) override { DefaultHandler(node); }
   void HandleXlsTuple(XlsTuple* node) override;
 
   void DefaultHandler(Expr* node) {

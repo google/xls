@@ -38,30 +38,6 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
   return bindings->ResolveValue(expr);
 }
 
-absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
-                                          ConcreteType* type_context,
-                                          AbstractInterpreter* interp) {
-  return bindings->ResolveValueFromIdentifier("carry");
-}
-
-absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
-                                          ConcreteType* type_context,
-                                          AbstractInterpreter* interp) {
-  XLS_ASSIGN_OR_RETURN(InterpValue carry, interp->Eval(expr->init(), bindings));
-  InterpBindings new_bindings(bindings);
-  new_bindings.AddValue("carry", carry);
-  while (true) {
-    XLS_ASSIGN_OR_RETURN(InterpValue test,
-                         interp->Eval(expr->test(), &new_bindings));
-    if (!test.IsTrue()) {
-      break;
-    }
-    XLS_ASSIGN_OR_RETURN(carry, interp->Eval(expr->body(), &new_bindings));
-    new_bindings.AddValue("carry", carry);
-  }
-  return carry;
-}
-
 absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            InterpBindings* bindings,
                                            ConcreteType* type_context,

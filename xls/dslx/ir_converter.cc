@@ -747,10 +747,6 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Spawn)
   INVALID(StructDef)
 
-  // Unsupported for IR emission.
-  INVALID(While)
-  INVALID(Carry)
-
  private:
   // Called when we visit a node we don't expect to observe in the traversal.
   absl::Status Invalid(AstNode* node) {

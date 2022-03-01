@@ -293,9 +293,6 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
   if (peek->IsKeyword(Keyword::kFor)) {
     return ParseFor(bindings);
   }
-  if (peek->IsKeyword(Keyword::kWhile)) {
-    return ParseWhile(bindings);
-  }
   if (peek->IsKeyword(Keyword::kChannel)) {
     return ParseChannelDecl(bindings);
   }
@@ -1120,13 +1117,6 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
   if (peek->IsKindIn({TokenKind::kNumber, TokenKind::kCharacter}) ||
       peek->IsKeywordIn({Keyword::kTrue, Keyword::kFalse})) {
     XLS_ASSIGN_OR_RETURN(lhs, ParseNumber(outer_bindings));
-  } else if (peek->IsKeyword(Keyword::kCarry)) {
-    Token tok = PopTokenOrDie();
-    if (loop_stack_.empty()) {
-      return ParseErrorStatus(
-          tok.span(), "Carry keyword encountered outside of a while loop.");
-    }
-    lhs = module_->Make<Carry>(tok.span(), loop_stack_.back());
   } else if (peek->IsKindIn({TokenKind::kDoubleQuote})) {
     // Eat characters until the first unescaped double quote.
     Span span = peek->span();
@@ -1777,23 +1767,6 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   config->set_proc(proc);
   next->set_proc(proc);
   return proc;
-}
-
-absl::StatusOr<While*> Parser::ParseWhile(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(Token while_, PopKeywordOrError(Keyword::kWhile));
-  Bindings while_bindings(bindings);
-  While* w = module_->Make<While>(while_.span());
-  loop_stack_.push_back(w);
-  XLS_ASSIGN_OR_RETURN(Expr * test, ParseExpression(&while_bindings));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseBlockExpression(&while_bindings));
-  XLS_CHECK_EQ(w, loop_stack_.back());
-  loop_stack_.pop_back();
-  XLS_ASSIGN_OR_RETURN(Expr * init, ParseParenthesizedExpr(bindings));
-  w->set_test(test);
-  w->set_body(body);
-  w->set_init(init);
-  w->set_span(Span(while_.span().start(), GetPos()));
-  return w;
 }
 
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings* bindings) {

@@ -30,13 +30,11 @@ namespace xls::dslx {
     return Evaluate##__expr_type(expr, bindings, type_context, interp);        \
   }
 
-DISPATCH_DEF(Carry)
 DISPATCH_DEF(ConstRef)
 DISPATCH_DEF(Let)
 DISPATCH_DEF(NameRef)
 DISPATCH_DEF(SplatStructInstance)
 DISPATCH_DEF(String)
-DISPATCH_DEF(While)
 
 #undef DISPATCH_DEF
 

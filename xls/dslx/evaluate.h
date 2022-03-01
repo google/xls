@@ -117,14 +117,6 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
                                              ConcreteType* type_context,
                                              AbstractInterpreter* interp);
 
-absl::StatusOr<InterpValue> EvaluateWhile(While* expr, InterpBindings* bindings,
-                                          ConcreteType* type_context,
-                                          AbstractInterpreter* interp);
-
-absl::StatusOr<InterpValue> EvaluateCarry(Carry* expr, InterpBindings* bindings,
-                                          ConcreteType* type_context,
-                                          AbstractInterpreter* interp);
-
 // Evaluates a Number AST node to a value.
 //
 // Args:

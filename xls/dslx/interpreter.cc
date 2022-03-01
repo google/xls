@@ -73,7 +73,6 @@ class Evaluator : public ExprVisitor {
   DISPATCH(Array)
   DISPATCH(Attr)
   DISPATCH(Binop)
-  DISPATCH(Carry)
   DISPATCH(Cast)
   DISPATCH(ColonRef)
   DISPATCH(ConstRef)
@@ -88,7 +87,6 @@ class Evaluator : public ExprVisitor {
   DISPATCH(StructInstance)
   DISPATCH(Ternary)
   DISPATCH(Unop)
-  DISPATCH(While)
   DISPATCH(XlsTuple)
 
 #undef DISPATCH

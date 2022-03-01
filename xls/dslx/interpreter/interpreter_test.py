@@ -326,18 +326,6 @@ class InterpreterTest(test_base.TestCase):
         ':4:16-6:4 The program being interpreted failed with an incomplete match',
         stderr)
 
-  def test_while(self):
-    program = """
-    #![test]
-    fn while_lt_test() {
-      let i: u32 = while carry < u32:9 {
-        carry + u32:2
-      }(u32:0);
-      assert_eq(u32:10, i)
-    }
-    """
-    self._parse_and_test(program)
-
   def test_boolean_literal_needs_no_type_annotation(self):
     program = """
     fn returns_bool() -> bool {
@@ -409,25 +397,27 @@ class InterpreterTest(test_base.TestCase):
   def test_trace(self):
     program = """
     fn fut() -> u32 {
-      while carry < u32:2 {
-        trace!(carry + u32:1)
-      }(u32:0)
+      let x = u32:0;
+      let _ = trace!(x + u32:1);
+      let x = u32:1;
+      let _ = trace!(x + u32:1);
+      x + u32:1
     }
+
     #![test]
-    fn while_lt_test() {
+    fn trace_test() {
       assert_eq(u32:2, fut())
     }
     """
     program_file = self.create_tempfile(content=program)
-    # Note: no support for `while` in IR conversion.
     # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
     cmd = [
         _INTERP_PATH, '--compare=none', '--alsologtostderr',
         program_file.full_path
     ]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
-    self.assertIn('4:15-4:30: 1', result.stderr)
-    self.assertIn('4:15-4:30: 2', result.stderr)
+    self.assertIn('4:21-4:32: 1', result.stderr)
+    self.assertIn('6:21-6:32: 2', result.stderr)
 
   def test_trace_fmt_hello(self):
     program = """

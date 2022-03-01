@@ -409,9 +409,6 @@ class Parser : public TokenParser {
   // Parses a match expression.
   absl::StatusOr<Match*> ParseMatch(Bindings* bindings);
 
-  // Parses a while expression.
-  absl::StatusOr<While*> ParseWhile(Bindings* bindings);
-
   // Parses a channel declaration.
   absl::StatusOr<ChannelDecl*> ParseChannelDecl(Bindings* bindings);
 
@@ -516,11 +513,6 @@ class Parser : public TokenParser {
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
       absl::string_view proc_name);
-
-  // Stack of loops being parsed -- this is primarily kept so that 'carry' nodes
-  // can keep a back-reference to which while node they're retrieving carry data
-  // for.
-  std::vector<While*> loop_stack_;
 
   std::unique_ptr<Module> module_;
 };

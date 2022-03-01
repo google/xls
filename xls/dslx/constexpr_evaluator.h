@@ -35,7 +35,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleArray(Array* expr) override {}
   void HandleAttr(Attr* expr) override;
   void HandleBinop(Binop* expr) override;
-  void HandleCarry(Carry* expr) override {}
   void HandleCast(Cast* expr) override;
   void HandleChannelDecl(ChannelDecl* expr) override {}
   void HandleColonRef(ColonRef* expr) override {}
@@ -58,7 +57,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleSplatStructInstance(SplatStructInstance* expr) override {}
   void HandleTernary(Ternary* expr) override {}
   void HandleUnop(Unop* expr) override {}
-  void HandleWhile(While* expr) override {}
   void HandleXlsTuple(XlsTuple* expr) override {}
 
   absl::Status status() { return status_; }

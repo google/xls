@@ -54,7 +54,6 @@ bool IsOneOf(ObjT* obj) {
   X(Array)                         \
   X(Attr)                          \
   X(Binop)                         \
-  X(Carry)                         \
   X(Cast)                          \
   X(ColonRef)                      \
   X(ConstantArray)                 \
@@ -72,7 +71,6 @@ bool IsOneOf(ObjT* obj) {
   X(Ternary)                       \
   X(FormatMacro)                   \
   X(Unop)                          \
-  X(While)                         \
   X(XlsTuple)
 
 // Higher-order macro for all the AST node leaf types (non-abstract).
@@ -244,9 +242,7 @@ enum class AstNodeKind {
   kQuickCheck,
   kXlsTuple,
   kFor,
-  kWhile,
   kCast,
-  kCarry,
   kConstantDef,
   kLet,
   kChannelDecl,
@@ -621,7 +617,6 @@ class ExprVisitor {
   virtual void HandleArray(Array* expr) = 0;
   virtual void HandleAttr(Attr* expr) = 0;
   virtual void HandleBinop(Binop* expr) = 0;
-  virtual void HandleCarry(Carry* expr) = 0;
   virtual void HandleCast(Cast* expr) = 0;
   virtual void HandleChannelDecl(ChannelDecl* expr) = 0;
   virtual void HandleColonRef(ColonRef* expr) = 0;
@@ -644,7 +639,6 @@ class ExprVisitor {
   virtual void HandleSplatStructInstance(SplatStructInstance* expr) = 0;
   virtual void HandleTernary(Ternary* expr) = 0;
   virtual void HandleUnop(Unop* expr) = 0;
-  virtual void HandleWhile(While* expr) = 0;
   virtual void HandleXlsTuple(XlsTuple* expr) = 0;
 };
 
@@ -2286,41 +2280,6 @@ class For : public Expr {
   Expr* init_;
 };
 
-// Represents a while-loop expression.
-class While : public Expr {
- public:
-  While(Module* owner, Span span) : Expr(owner, std::move(span)) {}
-
-  AstNodeKind kind() const { return AstNodeKind::kWhile; }
-
-  absl::Status Accept(AstNodeVisitor* v) override {
-    return v->HandleWhile(this);
-  }
-  void AcceptExpr(ExprVisitor* v) override { v->HandleWhile(this); }
-
-  absl::string_view GetNodeTypeName() const override { return "While"; }
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {test_, body_, init_};
-  }
-
-  std::string ToString() const override {
-    return absl::StrFormat("while %s { %s }(%s)", test_->ToString(),
-                           body_->ToString(), init_->ToString());
-  }
-
-  Expr* test() const { return test_; }
-  void set_test(Expr* test) { test_ = test; }
-  Expr* body() const { return body_; }
-  void set_body(Expr* body) { body_ = body; }
-  Expr* init() const { return init_; }
-  void set_init(Expr* init) { init_ = init; }
-
- private:
-  Expr* test_;  // Expression that determines whether the body should execute.
-  Expr* body_;  // Body to execute each time the test is true.
-  Expr* init_;  // Initial value to use for loop carry data.
-};
-
 // Represents a cast expression; converting a new value to a target type.
 //
 // For example:
@@ -2361,34 +2320,6 @@ class Cast : public Expr {
  private:
   Expr* expr_;
   TypeAnnotation* type_annotation_;
-};
-
-// Represents `carry` keyword, refers to the implicit loop-carry data in
-// `While`.
-class Carry : public Expr {
- public:
-  Carry(Module* owner, Span span, While* loop)
-      : Expr(owner, std::move(span)), loop_(loop) {}
-
-  AstNodeKind kind() const { return AstNodeKind::kCarry; }
-
-  absl::Status Accept(AstNodeVisitor* v) override {
-    return v->HandleCarry(this);
-  }
-  void AcceptExpr(ExprVisitor* v) override { v->HandleCarry(this); }
-
-  absl::string_view GetNodeTypeName() const override { return "Carry"; }
-  std::string ToString() const override { return "carry"; }
-
-  // Note: the while loop is a back reference, it is not a child.
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {};
-  }
-
-  While* loop() const { return loop_; }
-
- private:
-  While* loop_;
 };
 
 // Represents a constant definition.

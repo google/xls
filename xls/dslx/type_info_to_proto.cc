@@ -112,12 +112,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_XLS_TUPLE;
     case AstNodeKind::kFor:
       return AST_NODE_KIND_FOR;
-    case AstNodeKind::kWhile:
-      return AST_NODE_KIND_WHILE;
     case AstNodeKind::kCast:
       return AST_NODE_KIND_CAST;
-    case AstNodeKind::kCarry:
-      return AST_NODE_KIND_CARRY;
     case AstNodeKind::kConstantDef:
       return AST_NODE_KIND_CONSTANT_DEF;
     case AstNodeKind::kLet:
@@ -570,12 +566,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kXlsTuple;
     case AST_NODE_KIND_FOR:
       return AstNodeKind::kFor;
-    case AST_NODE_KIND_WHILE:
-      return AstNodeKind::kWhile;
     case AST_NODE_KIND_CAST:
       return AstNodeKind::kCast;
-    case AST_NODE_KIND_CARRY:
-      return AstNodeKind::kCarry;
     case AST_NODE_KIND_CONSTANT_DEF:
       return AstNodeKind::kConstantDef;
     case AST_NODE_KIND_LET:
