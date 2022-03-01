@@ -132,6 +132,13 @@ class BytecodeInterpreter {
   // TODO(rspringer): 2022-02-14: Builtins should probably go in their own file,
   // likely after removing the old interpreter.
   absl::Status RunBuiltinFn(const Bytecode& bytecode, Builtin builtin);
+  absl::Status RunBinaryBuiltin(std::function<absl::StatusOr<InterpValue>(
+                                    const InterpValue& a, const InterpValue& b)>
+                                    fn);
+  absl::Status RunTernaryBuiltin(
+      std::function<absl::StatusOr<InterpValue>(
+          const InterpValue& a, const InterpValue& b, const InterpValue& c)>
+          fn);
   absl::Status RunBuiltinAddWithCarry(const Bytecode& bytecode);
   absl::Status RunBuiltinAndReduce(const Bytecode& bytecode);
   absl::Status RunBuiltinAssertEq(const Bytecode& bytecode);
@@ -140,6 +147,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinBitSliceUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinClz(const Bytecode& bytecode);
   absl::Status RunBuiltinCtz(const Bytecode& bytecode);
+  absl::Status RunBuiltinEnumerate(const Bytecode& bytecode);
   absl::Status RunBuiltinGate(const Bytecode& bytecode);
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHot(const Bytecode& bytecode);
@@ -147,6 +155,9 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinOrReduce(const Bytecode& bytecode);
   absl::Status RunBuiltinRange(const Bytecode& bytecode);
   absl::Status RunBuiltinRev(const Bytecode& bytecode);
+  absl::Status RunBuiltinSignex(const Bytecode& bytecode);
+  absl::Status RunBuiltinSlice(const Bytecode& bytecode);
+  absl::Status RunBuiltinUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
 
   absl::StatusOr<InterpValue> Pop();

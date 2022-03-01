@@ -206,12 +206,7 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "array_slice",
-    # TODO(rspringer): 2022-01-19: Can't run bytecode yet due to needing
-    # `slice` builtin support.
-    bytecode = False,
-)
+dslx_lang_test(name = "array_slice")
 
 # TODO(leary): 2019-07-24 Missing support for array of tuples eliding cast node.
 xls_dslx_test(
@@ -331,10 +326,9 @@ xls_dslx_test(
     name = "signex_builtin_dslx_test",
     srcs = ["signex_builtin.x"],
     dslx_test_args = {
+        "bytecode": "true",
         "compare": "none",
     },
-    # TODO(rspringer): 2022-01-19: Can't run bytecode due to missing signex
-    # builtins.
 )
 
 # Note: no meaningful function to convert.
@@ -737,9 +731,6 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "update_within_parametric",
-    # TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of
-    # support for the `update` builtin.
-    bytecode = False,
     # Only a parametric entry point, so nothing meaningful to convert.
     convert_to_ir = False,
 )
