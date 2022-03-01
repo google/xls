@@ -12,7 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""This module contains rules not dependent on the XLS framework."""
+"""This module contains helper rules."""
+
+load(
+    "//xls/build_rules:xls_common_rules.bzl",
+    "get_output_filename_value",
+)
+
+_PROTOBIN_FILE_EXTENSION = ".protobin"
 
 def _check_sha256sum_test_impl(ctx):
     """The implementation of the 'check_sha256sum_test' rule.
@@ -109,7 +116,7 @@ def _check_sha256sum_frozen_impl(ctx):
     src_path = src.path
     ctx.actions.run_shell(
         outputs = [frozen_file],
-        # The files required for converting the DSLX source file.
+        # The files required for generating the frozen file.
         inputs = [src],
         command = "\n".join([
             # Note two spaces is required between the sha256sum and filename to
@@ -221,4 +228,89 @@ Examples:
     """,
     implementation = _check_sha256sum_frozen_impl,
     attrs = _check_sha256sum_frozen_attrs,
+)
+
+def _proto_data_impl(ctx):
+    """The implementation of the 'proto_data' rule.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      DefaultInfo provider
+    """
+    src = ctx.file.src
+    proto2bin_tool = ctx.executable._proto2bin_tool
+    protobin_filename = get_output_filename_value(
+        ctx,
+        "protobin_file",
+        ctx.attr.name + _PROTOBIN_FILE_EXTENSION,
+    )
+    protobin_file = ctx.actions.declare_file(protobin_filename)
+    ctx.actions.run_shell(
+        outputs = [protobin_file],
+        # The files required for generating the protobin file.
+        inputs = [src, proto2bin_tool],
+        # The proto2bin executable is a tool needed by the action.
+        tools = [proto2bin_tool],
+        command = "{} {} --message {} --output {}".format(
+            proto2bin_tool.path,
+            src.path,
+            ctx.attr._proto_name,
+            protobin_file.path,
+        ),
+        use_default_shell_env = True,
+        mnemonic = "Proto2Bin",
+        progress_message = "Checking sha256sum on file: %s" % (src.path),
+    )
+    return [
+        DefaultInfo(
+            files = depset([protobin_file]),
+        ),
+    ]
+
+_proto_data_attrs = {
+    "src": attr.label(
+        doc = "The source file.",
+        allow_single_file = True,
+        mandatory = True,
+    ),
+    "protobin_file": attr.output(
+        doc = "The name of the output file to write binary proto to. If not " +
+              "specified, the target name of the bazel rule followed by an " +
+              _PROTOBIN_FILE_EXTENSION + " extension is used.",
+    ),
+    "_proto_name": attr.string(
+        doc = "The name of the message type in the .proto files that 'src' " +
+              "file represents.",
+        default = "xlscc.HLSBlock",
+    ),
+    "_proto2bin_tool": attr.label(
+        doc = "Convert a proto text to a proto binary.",
+        default = Label("//xls/tools:proto2bin"),
+        allow_single_file = True,
+        executable = True,
+        cfg = "exec",
+    ),
+}
+
+proto_data = rule(
+    doc = """Converts a proto text with a xlscc.HLSBlock message to a proto binary.
+
+This rules is used in conjunction with the (e.g. xls_cc_ir and xls_cc_verilog)
+rules and xls_cc_* (e.g. xls_cc_ir_macro and xls_cc_verilog_macro) macros.
+
+Examples:
+
+1. A simple example.
+
+    ```
+    proto_data(
+        name = "packet_selector_block_pb",
+        src = "packet_selector.textproto",
+    )
+    ```
+    """,
+    implementation = _proto_data_impl,
+    attrs = _proto_data_attrs,
 )

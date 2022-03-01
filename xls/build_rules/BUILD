@@ -49,6 +49,7 @@ exports_files(
 bzl_library(
     name = "xls_utilities_bzl",
     srcs = ["xls_utilities.bzl"],
+    deps = ["xls_common_rules_bzl"],
 )
 
 bzl_library(

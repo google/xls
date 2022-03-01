@@ -127,6 +127,41 @@ Examples:
 | <a id="check_sha256sum_test-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
 
 
+<a id="#proto_data"></a>
+
+## proto_data
+
+<pre>
+proto_data(<a href="#proto_data-name">name</a>, <a href="#proto_data-protobin_file">protobin_file</a>, <a href="#proto_data-src">src</a>)
+</pre>
+
+Converts a proto text with a xlscc.HLSBlock message to a proto binary.
+
+This rules is used in conjunction with the (e.g. xls_cc_ir and xls_cc_verilog)
+rules and xls_cc_* (e.g. xls_cc_ir_macro and xls_cc_verilog_macro) macros.
+
+Examples:
+
+1. A simple example.
+
+    ```
+    proto_data(
+        name = "packet_selector_block_pb",
+        src = "packet_selector.textproto",
+    )
+    ```
+    
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="proto_data-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="proto_data-protobin_file"></a>protobin_file |  The name of the output file to write binary proto to. If not specified, the target name of the bazel rule followed by an .protobin extension is used.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional |  |
+| <a id="proto_data-src"></a>src |  The source file.   | <a href="https://bazel.build/concepts/labels">Label</a> | required |  |
+
+
 <a id="#xls_benchmark_ir"></a>
 
 ## xls_benchmark_ir

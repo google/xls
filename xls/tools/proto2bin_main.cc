@@ -30,7 +30,6 @@ to to provide binary protos to xls rules and command line
 interfaces that utilize binary protos for configuration (ex. xlscc).
 )";
 
-ABSL_FLAG(std::string, textproto, "", "Text proto to use as input.");
 ABSL_FLAG(std::string, message, "",
           "Message to read testproto as.  Supported: [xlscc.HLSBlock]");
 ABSL_FLAG(std::string, output, "", "Output file to write binary proto to.");
@@ -87,7 +86,7 @@ int main(int argc, char** argv) {
   }
 
   if (absl::GetFlag(FLAGS_output).empty()) {
-    XLS_LOG(QFATAL) << "--output (binary proto output file path required.";
+    XLS_LOG(QFATAL) << "--output (binary proto output file path) required.";
   }
 
   XLS_QCHECK_OK(xls::RealMain(text_proto_path, absl::GetFlag(FLAGS_message),

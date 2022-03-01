@@ -44,6 +44,7 @@ load(
     "//xls/build_rules:xls_utilities.bzl",
     _check_sha256sum_frozen = "check_sha256sum_frozen",
     _check_sha256sum_test = "check_sha256sum_test",
+    _proto_data = "proto_data",
 )
 load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
@@ -63,6 +64,7 @@ load(
 # XLS Rules
 check_sha256sum_test = _check_sha256sum_test
 check_sha256sum_frozen = _check_sha256sum_frozen
+proto_data = _proto_data
 xls_dslx_library = _xls_dslx_library
 xls_dslx_test = _xls_dslx_test
 
