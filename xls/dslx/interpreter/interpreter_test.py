@@ -29,12 +29,10 @@ class InterpreterTest(test_base.TestCase):
 
   def _parse_and_test(self,
                       program: Text,
-                      trace_all: bool = False,
                       compare: str = 'jit',
                       want_error: bool = False) -> str:
     temp_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, temp_file.full_path]
-    cmd.append('--trace_all=%s' % str(trace_all).lower())
     cmd.append('--compare=%s' % compare)
     p = subp.run(cmd, check=False, stderr=subp.PIPE, encoding='utf-8')
     if want_error:
@@ -603,41 +601,6 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     self._parse_and_test(program)
-
-  def test_trace_all(self):
-    # To test tracing output, we'll run a program, capture stderr, and make sure
-    # that the desired traces (and _only_ the desired traces) are present.
-    program = """
-    #![test]
-    fn t_test() {
-      let x0 = u8:32;
-      let _ = trace!(x0);
-      let x1 = clz(x0);
-      let x2 = x0 + x1;
-      assert_eq(x2, u8:34)
-    }
-    """
-    program_file = self.create_tempfile(content=program)
-    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
-    cmd = [
-        _INTERP_PATH, '--compare=interpreter', '--trace_all=true',
-        '--alsologtostderr', program_file.full_path
-    ]
-    result = subp.run(
-        cmd,
-        stderr=subp.PIPE,  # Only capture stderr
-        encoding='utf-8',
-        check=True)
-    stderr = result.stderr
-
-    # Verify x0, x1, and x2 are traced.
-    self.assertIn('trace of x0', stderr)
-    self.assertIn('trace of x1', stderr)
-    self.assertIn('trace of x2', stderr)
-
-    # Now verify no "trace" or "let" lines or function references.
-    self.assertNotIn('Tag.FUNCTION', stderr)
-    self.assertNotIn('trace of trace', stderr)
 
   def test_assert_eq_failure_arrays(self):
     program = """

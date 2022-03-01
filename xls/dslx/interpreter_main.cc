@@ -26,7 +26,6 @@
 
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
-ABSL_FLAG(bool, trace_all, false, "Trace every expression.");
 ABSL_FLAG(bool, run_concolic, false,
           "Run the concolic engine (under development).");
 ABSL_FLAG(
@@ -60,7 +59,7 @@ Parses, typechecks, and executes all tests inside of a DSLX module.
 
 absl::Status RealMain(absl::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
-                      absl::optional<std::string> test_filter, bool trace_all,
+                      absl::optional<std::string> test_filter,
                       bool run_concolic,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
@@ -81,7 +80,6 @@ absl::Status RealMain(absl::string_view entry_module_path,
   ParseAndTestOptions options = {
       .dslx_paths = dslx_paths,
       .test_filter = test_filter,
-      .trace_all = trace_all,
       .run_concolic = run_concolic,
       .trace_format_preference = trace_format_preference,
       .run_comparator = run_comparator ? &run_comparator.value() : nullptr,
@@ -115,7 +113,6 @@ int main(int argc, char* argv[]) {
     dslx_paths.push_back(std::filesystem::path(path));
   }
 
-  bool trace_all = absl::GetFlag(FLAGS_trace_all);
   bool run_concolic = absl::GetFlag(FLAGS_run_concolic);
   std::string compare_flag_str = absl::GetFlag(FLAGS_compare);
   bool execute = absl::GetFlag(FLAGS_execute);
@@ -153,8 +150,8 @@ int main(int argc, char* argv[]) {
 
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
-      args[0], dslx_paths, test_filter, trace_all, run_concolic,
-      preference.value(), compare_flag, execute, seed, &printed_error);
+      args[0], dslx_paths, test_filter, run_concolic, preference.value(),
+      compare_flag, execute, seed, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

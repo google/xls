@@ -70,7 +70,6 @@ PYBIND11_MODULE(interpreter, m) {
         Interpreter interpreter(
             tm.module, /*typecheck=*/nullptr,
             /*import_data=*/&import_data,
-            /*trace_all=*/false,
             /*run_concolic=*/false,
             /*trace_format_preference=*/FormatPreference::kDefault,
             /*package=*/nullptr);

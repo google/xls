@@ -233,8 +233,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
 };
 
 Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
-                         ImportData* import_data, bool trace_all,
-                         bool run_concolic,
+                         ImportData* import_data, bool run_concolic,
                          FormatPreference trace_format_preference,
                          PostFnEvalHook post_fn_eval_hook)
     : entry_module_(entry_module),
@@ -242,7 +241,6 @@ Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
       post_fn_eval_hook_(std::move(post_fn_eval_hook)),
       typecheck_(std::move(typecheck)),
       import_data_(import_data),
-      trace_all_(trace_all),
       run_concolic_(run_concolic),
       trace_format_preference_(trace_format_preference),
       abstract_adapter_(std::make_unique<AbstractInterpreterAdapter>(this)),
@@ -435,9 +433,6 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
     return result_or;
   }
   InterpValue result = std::move(result_or).value();
-  if (trace_all_) {
-    OptionalTrace(expr, result, abstract_adapter_.get());
-  }
   return result;
 }
 
@@ -622,13 +617,6 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
         "EvaluateError: %s Callee value is not a function; should have been "
         "determined during type inference; got %s",
         expr->callee()->span().ToString(), callee_value.ToString()));
-  }
-
-  if (trace_all_ && callee_value.IsTraceBuiltin()) {
-    // TODO(leary): 2020-11-19 This was the previous behavior, but I'm pretty
-    // sure it's not right to skip traces, because they're supposed to result in
-    // their (traced) argument.
-    return InterpValue::MakeUnit();
   }
 
   absl::optional<SymbolicBindings> owned_symbolic_bindings;

@@ -31,8 +31,7 @@ static absl::StatusOr<std::string> RunConcolic(std::string program) {
       TypecheckedModule tm,
       ParseAndTypecheck(program, "top.x", "top", &import_data));
   Interpreter interp(tm.module, /*typecheck=*/nullptr,
-                     /*import_data=*/&import_data, /*trace_all=*/false,
-                     /*run_concolic=*/true);
+                     /*import_data=*/&import_data, /*run_concolic=*/true);
   XLS_RETURN_IF_ERROR(interp.RunTest("top_test"));
   return interp.GetConcolicTestCases();
 }

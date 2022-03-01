@@ -79,8 +79,6 @@ class Interpreter {
   //    of some AST nodes relies on this type information.
   //  typecheck: Optional, callback used to check modules on import.
   //  import_data: Optional, cache for imported modules.
-  //  trace_all: Whether to trace "all" (really most "non-noisy") expressions in
-  //    the interpreter evaluation.
   //  run_concolic: Whether to run the concolic engine (concrete + symbolic
   //  execution to analyze the program coverage).
   //  trace_format_preference: The preferred format to use when executing
@@ -89,7 +87,7 @@ class Interpreter {
   //    PostFnEvalHook above.
   Interpreter(
       Module* entry_module, TypecheckFn typecheck, ImportData* import_data,
-      bool trace_all = false, bool run_concolic = false,
+      bool run_concolic = false,
       FormatPreference trace_format_preference = FormatPreference::kDefault,
       PostFnEvalHook post_fn_eval = nullptr);
 
@@ -273,7 +271,6 @@ class Interpreter {
   PostFnEvalHook post_fn_eval_hook_;
   TypecheckFn typecheck_;
   ImportData* import_data_;
-  bool trace_all_;
   bool run_concolic_;
   FormatPreference trace_format_preference_;
 

@@ -343,8 +343,8 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
   };
 
   Interpreter interpreter(entry_module, typecheck_callback, &import_data,
-                          options.trace_all, options.run_concolic,
-                          options.trace_format_preference, post_fn_eval_hook);
+                          options.run_concolic, options.trace_format_preference,
+                          post_fn_eval_hook);
 
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {

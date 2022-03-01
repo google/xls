@@ -75,7 +75,6 @@ class RunComparator {
 //
 //   test_filter: Test filter specification (e.g. as passed from bazel test
 //     environment).
-//   trace_all: Whether or not to trace all expressions.
 //   run_comparator: Optional object that can compare DSLX interpreter
 //    executions with a reference (e.g. IR execution).
 //   execute: Whether or not to execute the quickchecks and tests.
@@ -86,7 +85,6 @@ struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
   absl::optional<absl::string_view> test_filter = absl::nullopt;
-  bool trace_all = false;
   bool run_concolic = false;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
   RunComparator* run_comparator = nullptr;
