@@ -119,6 +119,9 @@ class BuilderBase {
 
   const std::string& name() const;
 
+  // Set function as top to package.
+  absl::Status SetAsTop();
+
   // Get access to currently built up function (or proc).
   FunctionBase* function() const { return function_.get(); }
 

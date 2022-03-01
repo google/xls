@@ -268,6 +268,7 @@ template <typename PackageT>
 absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
     absl::string_view input_string, absl::optional<absl::string_view> filename,
     absl::optional<absl::string_view> entry) {
+  absl::optional<Token> previous_top_token;
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser parser(std::move(scanner));
 
@@ -278,29 +279,56 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
       (filename.has_value() ? std::string(filename.value()) : "<unknown file>");
   while (!parser.AtEof()) {
     XLS_ASSIGN_OR_RETURN(Token peek, parser.scanner_.PeekToken());
+    bool is_top = false;
+    // The fn, proc or block is a top entity.
+    if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "top") {
+      is_top = true;
+      XLS_RETURN_IF_ERROR(parser.scanner_.DropKeywordOrError("top"));
+      XLS_ASSIGN_OR_RETURN(peek, parser.scanner_.PeekToken());
+      if (package.get()->HasTop() && previous_top_token.has_value()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Top declared more than once, previous declaration @ %s",
+            previous_top_token.value().pos().ToHumanString()));
+      }
+      previous_top_token = peek;
+    }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "fn") {
-      XLS_RETURN_IF_ERROR(parser.ParseFunction(package.get()).status())
-          << "@ " << filename_str;
+      XLS_ASSIGN_OR_RETURN(Function * fn, parser.ParseFunction(package.get()),
+                           _ << "@ " << filename_str);
+      if (is_top) {
+        XLS_RETURN_IF_ERROR(package->SetTop(fn));
+      }
       continue;
     }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "proc") {
-      XLS_RETURN_IF_ERROR(parser.ParseProc(package.get()).status())
-          << "@ " << filename_str;
+      XLS_ASSIGN_OR_RETURN(Proc * proc, parser.ParseProc(package.get()),
+                           _ << "@ " << filename_str);
+      if (is_top) {
+        XLS_RETURN_IF_ERROR(package->SetTop(proc));
+      }
       continue;
     }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "block") {
-      XLS_RETURN_IF_ERROR(parser.ParseBlock(package.get()).status())
-          << "@ " << filename_str;
+      XLS_ASSIGN_OR_RETURN(Block * block, parser.ParseBlock(package.get()),
+                           _ << "@ " << filename_str);
+      if (is_top) {
+        XLS_RETURN_IF_ERROR(package->SetTop(block));
+      }
       continue;
+    }
+    if (is_top) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected fn, proc or block definition, got %s @ %s",
+                          peek.value(), peek.pos().ToHumanString()));
     }
     if (peek.type() == LexicalTokenType::kKeyword && peek.value() == "chan") {
       XLS_RETURN_IF_ERROR(parser.ParseChannel(package.get()).status())
           << "@ " << filename_str;
       continue;
     }
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected fn, proc, or chan definition, got %s @ %s",
-                        peek.value(), peek.pos().ToHumanString()));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Expected fn, proc, block or chan definition, got %s @ %s",
+        peek.value(), peek.pos().ToHumanString()));
   }
 
   // Verify the given entry function exists in the package.

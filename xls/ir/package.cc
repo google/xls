@@ -17,6 +17,7 @@
 #include <utility>
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
@@ -37,11 +38,59 @@ constexpr char kMain[] = "main";
 
 Package::Package(absl::string_view name,
                  absl::optional<absl::string_view> entry)
-    : entry_(entry), name_(name) {
+    : name_(name) {
   owned_types_.insert(&token_type_);
+  if (entry.has_value()) {
+    top_ = std::string(entry.value());
+  }
 }
 
 Package::~Package() {}
+
+absl::optional<FunctionBase*> Package::GetTop() const {
+  if (top_.has_value() &&
+      absl::holds_alternative<FunctionBase*>(top_.value())) {
+    return absl::get<FunctionBase*>(top_.value());
+  }
+  return absl::nullopt;
+}
+
+absl::Status Package::SetTop(absl::optional<FunctionBase*> top) {
+  if (top.has_value() && top.value()->package() != this) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot set the top entity of the package: the top entity %s does not "
+        "belong to the package.",
+        top.value()->name()));
+  }
+  top_ = top;
+  return absl::OkStatus();
+}
+
+absl::Status Package::SetTopByName(absl::string_view top_name) {
+  std::vector<FunctionBase*> fbs = GetFunctionBases();
+  int64_t count = std::count_if(
+      fbs.begin(), fbs.end(),
+      [top_name](const FunctionBase* fb) { return fb->name() == top_name; });
+  if (count == 0) {
+    std::string available =
+        absl::StrJoin(fbs.begin(), fbs.end(), ", ",
+                      [](std::string* out, const FunctionBase* fb) {
+                        absl::StrAppend(out, "\"", fb->name(), "\"");
+                      });
+    return absl::NotFoundError(
+        absl::StrFormat("Could not find top for this package; "
+                        "tried: [\"%s\"]; available: %s",
+                        top_name, available));
+  }
+  if (count == 1) {
+    auto fb_iter = std::find_if(
+        fbs.begin(), fbs.end(),
+        [top_name](const FunctionBase* fb) { return fb->name() == top_name; });
+    return SetTop(*fb_iter);
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("More than one instance with name: %s", top_name));
+}
 
 Function* Package::AddFunction(std::unique_ptr<Function> f) {
   functions_.push_back(std::move(f));
@@ -119,6 +168,13 @@ std::vector<FunctionBase*> Package::GetFunctionBases() const {
 }
 
 absl::Status Package::RemoveFunction(Function* function) {
+  if (top_.has_value() &&
+      absl::holds_alternative<FunctionBase*>(top_.value()) &&
+      absl::get<FunctionBase*>(top_.value()) == function) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot remove function: %s. The function is the top entity.",
+        function->name()));
+  }
   auto it = std::remove_if(
       functions_.begin(), functions_.end(),
       [&](const std::unique_ptr<Function>& f) { return f.get() == function; });
@@ -131,6 +187,12 @@ absl::Status Package::RemoveFunction(Function* function) {
 }
 
 absl::Status Package::RemoveProc(Proc* proc) {
+  if (top_.has_value() &&
+      absl::holds_alternative<FunctionBase*>(top_.value()) &&
+      absl::get<FunctionBase*>(top_.value()) == proc) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Cannot remove proc: %s. The proc is the top entity.", proc->name()));
+  }
   auto it = std::remove_if(
       procs_.begin(), procs_.end(),
       [&](const std::unique_ptr<Proc>& f) { return f.get() == proc; });
@@ -143,6 +205,13 @@ absl::Status Package::RemoveProc(Proc* proc) {
 }
 
 absl::Status Package::RemoveBlock(Block* block) {
+  if (top_.has_value() &&
+      absl::holds_alternative<FunctionBase*>(top_.value()) &&
+      absl::get<FunctionBase*>(top_.value()) == block) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Cannot remove block: %s. The block is the top entity.",
+                        block->name()));
+  }
   auto it = std::remove_if(
       blocks_.begin(), blocks_.end(),
       [&](const std::unique_ptr<Block>& f) { return f.get() == block; });
@@ -157,8 +226,17 @@ absl::Status Package::RemoveBlock(Block* block) {
 absl::StatusOr<Function*> Package::EntryFunction() {
   auto by_name = GetFunctionByName();
 
-  if (entry_.has_value()) {
-    auto it = by_name.find(entry_.value());
+  if (top_.has_value()) {
+    if (absl::holds_alternative<FunctionBase*>(top_.value())) {
+      FunctionBase* fb = absl::get<FunctionBase*>(top_.value());
+      if (!fb->IsFunction()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "The package top %s is not a function.", fb->name()));
+      }
+      return fb->AsFunctionOrDie();
+    }
+    absl::string_view top_str = absl::get<std::string>(top_.value());
+    auto it = by_name.find(top_str);
     if (it != by_name.end()) {
       return it->second;
     }
@@ -172,7 +250,7 @@ absl::StatusOr<Function*> Package::EntryFunction() {
     return absl::NotFoundError(
         absl::StrFormat("Could not find entry function for this package; "
                         "tried: [\"%s\"]; available: %s",
-                        entry_.value(), available));
+                        top_str, available));
   }
 
   // Try a few possibilities of names for the canonical entry function.
@@ -442,14 +520,27 @@ std::string Package::DumpIr() const {
     absl::StrAppend(&out, "\n");
   }
   std::vector<std::string> function_dumps;
+  absl::optional<FunctionBase*> top = GetTop();
   for (auto& function : functions()) {
-    function_dumps.push_back(function->DumpIr());
+    std::string prefix = "";
+    if (top.has_value() && top.value() == function.get()) {
+      prefix = "top ";
+    }
+    function_dumps.push_back(absl::StrCat(prefix, function->DumpIr()));
   }
   for (auto& proc : procs()) {
-    function_dumps.push_back(proc->DumpIr());
+    std::string prefix = "";
+    if (top.has_value() && top.value() == proc.get()) {
+      prefix = "top ";
+    }
+    function_dumps.push_back(absl::StrCat(prefix, proc->DumpIr()));
   }
   for (auto& block : blocks()) {
-    function_dumps.push_back(block->DumpIr());
+    std::string prefix = "";
+    if (top.has_value() && top.value() == block.get()) {
+      prefix = "top ";
+    }
+    function_dumps.push_back(absl::StrCat(prefix, block->DumpIr()));
   }
   absl::StrAppend(&out, absl::StrJoin(function_dumps, "\n"));
   return out;

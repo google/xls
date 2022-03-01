@@ -375,5 +375,90 @@ TEST_F(PackageTest, ChannelRemoval) {
                        HasSubstr("cannot be removed because it is used")));
 }
 
+TEST_F(PackageTest, Top) {
+  const char text[] = R"(
+package my_package
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+proc my_proc(tkn: token, st: bits[32], init=42) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+
+)";
+  absl::optional<FunctionBase*> top;
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
+  Package dummy_package("dummy_package");
+  Block dummy_block("dummy_block", &dummy_package);
+  // Test FunctionBase owned by different package.
+  EXPECT_THAT(pkg->SetTop(&dummy_block),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot set the top entity of the package:")));
+  // Test non-existent FunctionBase.
+  EXPECT_THAT(
+      pkg->SetTopByName("top_not_present"),
+      StatusIs(
+          absl::StatusCode::kNotFound,
+          HasSubstr(
+              R"available("my_function", "my_proc", "my_block")available")));
+  // Set function as top.
+  EXPECT_FALSE(pkg->GetTop().has_value());
+  XLS_EXPECT_OK(pkg->SetTopByName("my_function"));
+  top = pkg->GetTop();
+  EXPECT_TRUE(top.has_value());
+  EXPECT_TRUE(top.value()->IsFunction());
+  Function* func = top.value()->AsFunctionOrDie();
+  XLS_EXPECT_OK(pkg->SetTop(func));
+  EXPECT_EQ(func->name(), "my_function");
+  // Can't remove function as top.
+  EXPECT_THAT(pkg->RemoveFunction(func),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot remove function:")));
+  XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
+  XLS_EXPECT_OK(pkg->RemoveFunction(func));
+  // Set proc as top.
+  EXPECT_FALSE(pkg->GetTop().has_value());
+  XLS_EXPECT_OK(pkg->SetTopByName("my_proc"));
+  top = pkg->GetTop();
+  EXPECT_TRUE(top.has_value());
+  EXPECT_TRUE(top.value()->IsProc());
+  Proc* proc = top.value()->AsProcOrDie();
+  XLS_EXPECT_OK(pkg->SetTop(proc));
+  EXPECT_EQ(proc->name(), "my_proc");
+  // Can't remove proc as top.
+  EXPECT_THAT(pkg->RemoveProc(proc),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot remove proc:")));
+  XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
+  XLS_EXPECT_OK(pkg->RemoveProc(proc));
+  // Set block as top.
+  EXPECT_FALSE(pkg->GetTop().has_value());
+  XLS_EXPECT_OK(pkg->SetTopByName("my_block"));
+  top = pkg->GetTop();
+  EXPECT_TRUE(top.has_value());
+  EXPECT_TRUE(top.value()->IsBlock());
+  Block* block = top.value()->AsBlockOrDie();
+  XLS_EXPECT_OK(pkg->SetTop(block));
+  EXPECT_EQ(block->name(), "my_block");
+  // Can't remove block as top.
+  EXPECT_THAT(pkg->RemoveBlock(block),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Cannot remove block:")));
+  XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
+  XLS_EXPECT_OK(pkg->RemoveBlock(block));
+  EXPECT_EQ(pkg->GetNodeCount(), 0);
+}
+
 }  // namespace
 }  // namespace xls

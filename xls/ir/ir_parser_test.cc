@@ -931,9 +931,10 @@ TEST(IrParserTest, ParsePackageWithError) {
 
 Garbage
 )";
-  EXPECT_THAT(Parser::ParsePackage(input).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected fn, proc, or chan definition")));
+  EXPECT_THAT(
+      Parser::ParsePackage(input).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected fn, proc, block or chan definition")));
 }
 
 TEST(IrParserTest, ParseEmptyStringAsPackage) {
@@ -995,7 +996,7 @@ fn to_apply(element: bits[42]) -> bits[1] {
   ret ult.3: bits[1] = ult(element, literal.2, id=3)
 }
 
-fn top(input: bits[42][123]) -> bits[1][123] {
+fn main(input: bits[42][123]) -> bits[1][123] {
   ret map.5: bits[1][123] = map(input, to_apply=to_apply, id=5)
 }
 )";
@@ -2640,6 +2641,103 @@ block my_block(x: bits[8], y: bits[32]) {
                        HasSubstr("Type of output port \"y\" "
                                  "in block signature bits[8] does not match "
                                  "type of output_port operation: bits[32]")));
+}
+
+TEST(IrParserTest, ParseTopFunction) {
+  const std::string input = R"(package test
+
+top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add: bits[32] = add(x, y)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * my_function,
+                           pkg->GetFunction("my_function"));
+  EXPECT_TRUE(pkg->GetTop().has_value());
+  EXPECT_EQ(pkg->GetTop().value(), my_function);
+}
+
+TEST(IrParserTest, ParseTopProc) {
+  const std::string input = R"(package test
+
+top proc my_proc(tkn: token, st: bits[32], init=42) {
+  literal: bits[32] = literal(value=1)
+  add: bits[32] = add(literal, st)
+  next (tkn, add)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * my_proc, pkg->GetProc("my_proc"));
+  EXPECT_TRUE(pkg->GetTop().has_value());
+  EXPECT_EQ(pkg->GetTop().value(), my_proc);
+}
+
+TEST(IrParserTest, ParseTopBlock) {
+  const std::string input = R"(package test
+
+top block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a)
+  b: bits[32] = input_port(name=b)
+  add: bits[32] = add(a, b)
+  out: () = output_port(add, name=out)
+}
+
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> pkg,
+                           Parser::ParsePackage(input));
+  XLS_ASSERT_OK_AND_ASSIGN(FunctionBase * my_block, pkg->GetBlock("my_block"));
+  EXPECT_TRUE(pkg->GetTop().has_value());
+  EXPECT_EQ(pkg->GetTop().value(), my_block);
+}
+
+TEST(IrParserTest, ParseWithTwoTops) {
+  const std::string input = R"(
+package my_package
+
+top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add: bits[32] = add(x, y)
+}
+
+top block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a)
+  b: bits[32] = input_port(name=b)
+  add: bits[32] = add(a, b)
+  out: () = output_port(add, name=out)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Top declared more than once, previous declaration @")));
+}
+
+TEST(IrParserTest, ParseTopInvalidTopEntity) {
+  const std::string input = R"(
+package invalid_top_entity_package
+
+top invalid_top_entity
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected fn, proc or block definition, got")));
+}
+
+TEST(IrParserTest, ParseTopInvalidTopEntityWithKeyword) {
+  const std::string input = R"(
+package invalid_top_entity_package
+
+top reg
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(input),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Expected fn, proc or block definition, got")));
 }
 
 }  // namespace xls

@@ -346,7 +346,7 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -366,7 +366,7 @@ fn body(index: bits[32][2], accumulator: bits[32], invariant_1: bits[48], invari
   ret add.5: bits[32] = add(accumulator, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -387,20 +387,20 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackageNoVerify(input));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * top, p->GetFunction("top"));
-  Node* top_invariant_1 = FindNode("invariant_1", top);
-  Node* top_invariant_2 = FindNode("invariant_2", top);
-  Node* top_stride = FindNode("stride", top);
-  Node* top_trip_count = FindNode("trip_count", top);
-  Node* top_original_for = FindNode("dynamic_counted_for.11", top);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * main, p->GetFunction("main"));
+  Node* main_invariant_1 = FindNode("invariant_1", main);
+  Node* main_invariant_2 = FindNode("invariant_2", main);
+  Node* main_stride = FindNode("stride", main);
+  Node* main_trip_count = FindNode("trip_count", main);
+  Node* main_original_for = FindNode("dynamic_counted_for.11", main);
   EXPECT_THAT(
-      top_original_for->Clone({top_invariant_1, top_trip_count, top_stride,
-                               top_invariant_1, top_invariant_2}),
+      main_original_for->Clone({main_invariant_1, main_trip_count, main_stride,
+                                main_invariant_1, main_invariant_2}),
       StatusIs(
           absl::StatusCode::kInternal,
           HasSubstr("Return type of function body used as dynamic_counted_for "
@@ -416,7 +416,7 @@ fn body(index: bits[32], accumulator: bits[128], invariant_1: bits[48], invarian
   ret add.5: bits[32] = add(index, index, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -436,7 +436,7 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[128], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[128], stride: bits[16], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -459,7 +459,7 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16][2], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[16][2], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -479,7 +479,7 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16][2], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16][2], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -498,7 +498,7 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[32], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[16], trip_count: bits[32], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";
@@ -519,7 +519,7 @@ fn body(index: bits[32], accumulator: bits[32], invariant_1: bits[48], invariant
   ret add.5: bits[32] = add(index, accumulator, id=5)
 }
 
-fn top(invariant_1: bits[48], invariant_2: bits[64], stride: bits[33], trip_count: bits[16], init: bits[32]) -> bits[32] {
+fn main(invariant_1: bits[48], invariant_2: bits[64], stride: bits[33], trip_count: bits[16], init: bits[32]) -> bits[32] {
   ret dynamic_counted_for.11: bits[32] = dynamic_counted_for(init, trip_count, stride, body=body, invariant_args=[invariant_1, invariant_2], id=11)
 }
 )";

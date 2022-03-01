@@ -91,6 +91,14 @@ BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
 
 const std::string& BuilderBase::name() const { return function_->name(); }
 
+absl::Status BuilderBase::SetAsTop() {
+  if (package() == nullptr) {
+    return absl::InternalError(
+        absl::StrFormat("Package is not set for builder base: %s.", name()));
+  }
+  return package()->SetTop(function_.get());
+}
+
 BValue BuilderBase::SetError(absl::string_view msg,
                              absl::optional<SourceLocation> loc) {
   error_pending_ = true;

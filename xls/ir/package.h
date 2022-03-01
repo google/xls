@@ -56,6 +56,16 @@ class Package {
 
   virtual ~Package();
 
+  absl::optional<FunctionBase*> GetTop() const;
+  bool HasTop() { return top_.has_value(); }
+  // Sets the top entity of the package.
+  absl::Status SetTop(absl::optional<FunctionBase*> top);
+  // Sets the top to a FunctionBase with its name equivalent to the 'top_name'
+  // parameter. The function calls xls::Package::SetTop function. Prerequisite:
+  // a single function base with the with its name equivalent to the 'top_name'
+  // parameter must exist.
+  absl::Status SetTopByName(absl::string_view top_name);
+
   // Returns whether the given type is one of the types owned by this package.
   bool IsOwnedType(const Type* type) {
     return owned_types_.find(type) != owned_types_.end();
@@ -96,11 +106,15 @@ class Package {
   absl::StatusOr<Block*> GetBlock(absl::string_view block_name) const;
 
   // Remove a function, proc, or block. The caller is responsible for ensuring
-  // no references to the construct remain (e.g., via invoke operations).
+  // no references to the construct remain (e.g., via invoke operations). The
+  // function, proc, or block must not be the top entity of the package. Use the
+  // xls::Package::UnsetTop function to unset the top. The function, proc, or
+  // block cannot be nullptr.
   absl::Status RemoveFunction(Function* function);
   absl::Status RemoveProc(Proc* proc);
   absl::Status RemoveBlock(Block* block);
 
+  // TODO(vmirian) 2022-02-22 Remove function below when GetTop is enabled.
   // Returns the entry function of the package.
   absl::StatusOr<Function*> EntryFunction();
   absl::StatusOr<const Function*> EntryFunction() const;
@@ -225,7 +239,9 @@ class Package {
 
   friend class FunctionBuilder;
 
-  absl::optional<std::string> entry_;
+  // TODO(vmirian) 2022-02-22 Remove std::string type from variant when GetTop
+  // is enabled.
+  absl::optional<absl::variant<FunctionBase*, std::string>> top_;
 
   // Helper that returns a map from the names of functions inside this package
   // to the functions themselves.
