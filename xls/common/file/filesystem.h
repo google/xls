@@ -162,6 +162,20 @@ inline absl::StatusOr<T> ParseTextProtoFile(
 absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
                                google::protobuf::Message* proto);
 
+// Writes the protobuf provided to the file `filename` in a protobuf binary
+// format, overwriting any existing content in the file.
+//
+// NOTE: Will return OK iff the protobuf could be converted to string and all of
+// that data in was written.  May write some data and return an error.
+//
+// Typical return codes (not guaranteed exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kPermissionDenied (file not writable)
+//  * StatusCode::kFailedPrecondition (the proto couldn't be converted to
+//    string)
+absl::Status SetProtobinFile(const std::filesystem::path& file_name,
+                             const google::protobuf::Message& proto);
+
 // Writes the protobuf provided to the file `filename` in a protobuf text
 // format, overwriting any existing content in the file.
 //

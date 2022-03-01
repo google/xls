@@ -1108,6 +1108,25 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "proto2bin",
+    srcs = ["proto2bin_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/contrib/xlscc:hls_block_cc_proto",
+    ],
+)
+
 py_test(
     name = "delay_info_main_test",
     srcs = ["delay_info_main_test.py"],

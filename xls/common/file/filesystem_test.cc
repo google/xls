@@ -319,6 +319,19 @@ TEST(FilesystemTest, ParseTextProtoFileParsesTextProto) {
   EXPECT_EQ(contents->field(), "hi");
 }
 
+TEST(FilesystemTest, SetProtobinFileWritesAFile) {
+  absl::StatusOr<TempFile> temp_file = TempFile::Create();
+  XLS_ASSERT_OK(temp_file);
+  FilesystemTest test;
+  test.set_field("hi");
+
+  XLS_EXPECT_OK(SetProtobinFile(temp_file->path(), test));
+
+  FilesystemTest content;
+  XLS_ASSERT_OK(ParseProtobinFile(temp_file->path(), &content));
+  EXPECT_EQ(content.field(), "hi");
+}
+
 TEST(FilesystemTest, SetTextProtoFileWritesAFile) {
   absl::StatusOr<TempFile> temp_file = TempFile::Create();
   XLS_ASSERT_OK(temp_file);

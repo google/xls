@@ -217,6 +217,25 @@ absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
   return absl::OkStatus();
 }
 
+absl::Status SetProtobinFile(const std::filesystem::path& file_name,
+                             const google::protobuf::Message& proto) {
+  std::string bin_proto;
+  if (!proto.IsInitialized()) {
+    return absl::FailedPreconditionError(
+        absl::StrCat("Cannot serialize proto, missing required field ",
+                     proto.InitializationErrorString()));
+  }
+
+  if (!proto.SerializeToString(&bin_proto)) {
+    return absl::FailedPreconditionError(absl::StrCat(
+        "Failed to convert proto to protobin for saving to ",
+        file_name.string(),
+        " (this generally stems from massive protobufs that either exhaust "
+        "memory or overflow a 32-bit buffer somewhere)."));
+  }
+  return SetFileContents(file_name, bin_proto);
+}
+
 absl::Status SetTextProtoFile(const std::filesystem::path& file_name,
                               const google::protobuf::Message& proto) {
   std::string text_proto;
