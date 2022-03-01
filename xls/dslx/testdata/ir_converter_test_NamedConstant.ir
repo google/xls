@@ -1,5 +1,5 @@
 package test_module
 
-fn __test_module__f() -> bits[32] {
+top fn __test_module__f() -> bits[32] {
   ret foo: bits[32] = literal(value=42, id=1, pos=0,1,21)
 }

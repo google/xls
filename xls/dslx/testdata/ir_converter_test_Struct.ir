@@ -1,6 +1,6 @@
 package test_module
 
-fn __test_module__f(a: (bits[8], bits[8]), b: (bits[8], bits[8])) -> bits[8] {
+top fn __test_module__f(a: (bits[8], bits[8]), b: (bits[8], bits[8])) -> bits[8] {
   literal.6: bits[8] = literal(value=42, id=6)
   literal.7: bits[8] = literal(value=0, id=7)
   literal.10: bits[8] = literal(value=22, id=10)

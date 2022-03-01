@@ -12,7 +12,7 @@ fn ____test_module__f_counted_for_0_body(i: bits[32], __loop_carry: (bits[32], b
   ret tuple.14: (bits[32], bits[8]) = tuple(add.13, tuple_index.10, id=14)
 }
 
-fn __test_module__f() -> bits[32] {
+top fn __test_module__f() -> bits[32] {
   literal.1: bits[32] = literal(value=0, id=1)
   literal.2: bits[8] = literal(value=0, id=2)
   tuple.3: (bits[32], bits[8]) = tuple(literal.1, literal.2, id=3)

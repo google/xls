@@ -118,13 +118,13 @@ std::string Callee::ToString() const {
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
     Function* f, Invocation* invocation, Module* module, TypeInfo* type_info,
     SymbolicBindings symbolic_bindings, std::vector<Callee> callees,
-    absl::optional<ProcId> proc_id) {
+    absl::optional<ProcId> proc_id, bool is_top) {
   XLS_RETURN_IF_ERROR(
       ConversionRecord::ValidateParametrics(f, symbolic_bindings));
 
   return ConversionRecord(f, invocation, module, type_info,
                           std::move(symbolic_bindings), std::move(callees),
-                          proc_id);
+                          proc_id, is_top);
 }
 
 std::string ConversionRecord::ToString() const {
@@ -133,10 +133,10 @@ std::string ConversionRecord::ToString() const {
     proc_id = proc_id_.value().ToString();
   }
   return absl::StrFormat(
-      "ConversionRecord{m=%s, f=%s, pid=%s, symbolic_bindings=%s, "
+      "ConversionRecord{m=%s, f=%s, top=%s, pid=%s, symbolic_bindings=%s, "
       "callees=%s}",
-      module_->name(), f_->identifier(), proc_id, symbolic_bindings_.ToString(),
-      CalleesToString(callees_));
+      module_->name(), f_->identifier(), is_top_ ? "true" : "false", proc_id,
+      symbolic_bindings_.ToString(), CalleesToString(callees_));
 }
 
 // TODO(vmirian) 2022-02-11 Consider collapsing this visitor
@@ -619,7 +619,8 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready,
-                               absl::optional<ProcId> proc_id);
+                               absl::optional<ProcId> proc_id,
+                               bool is_top = false);
 
 static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
                                    std::vector<ConversionRecord>* ready) {
@@ -650,7 +651,8 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready,
-                               const absl::optional<ProcId> proc_id) {
+                               const absl::optional<ProcId> proc_id,
+                               bool is_top) {
   XLS_CHECK_EQ(type_info->module(), m);
   if (IsReady(f, m, bindings, ready)) {
     return absl::OkStatus();
@@ -672,15 +674,16 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
 
   auto* fn = absl::get<Function*>(f);
   XLS_VLOG(3) << "Adding to ready sequence: " << fn->identifier();
-  XLS_ASSIGN_OR_RETURN(ConversionRecord cr,
-                       ConversionRecord::Make(fn, invocation, m, type_info,
-                                              bindings, orig_callees, proc_id));
+  XLS_ASSIGN_OR_RETURN(
+      ConversionRecord cr,
+      ConversionRecord::Make(fn, invocation, m, type_info, bindings,
+                             orig_callees, proc_id, is_top));
   ready->push_back(std::move(cr));
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
-    absl::variant<Proc*, TestProc*> entry, TypeInfo* type_info) {
+static absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
+    absl::variant<Proc*, TestProc*> entry, TypeInfo* type_info, bool is_top) {
   std::vector<ConversionRecord> ready;
   Proc* p;
   if (absl::holds_alternative<TestProc*>(entry)) {
@@ -689,9 +692,12 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForProc(
     p = absl::get<Proc*>(entry);
   }
 
+  // The next function of a proc is the entry function when converting a proc to
+  // IR.
   XLS_RETURN_IF_ERROR(AddToReady(p->next(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
-                                 SymbolicBindings(), &ready, ProcId{{p}, 0}));
+                                 SymbolicBindings(), &ready, ProcId{{p}, 0},
+                                 is_top));
   XLS_RETURN_IF_ERROR(AddToReady(p->config(),
                                  /*invocation=*/nullptr, p->owner(), type_info,
                                  SymbolicBindings(), &ready, ProcId{{p}, 0}));
@@ -762,7 +768,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   // Get the Order for each top level proc.
   for (Proc* proc : top_level_procs) {
     XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
-                         GetOrderForEntry(proc, type_info));
+                         GetOrderForProc(proc, type_info, /*is_top=*/false));
     ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
   }
 
@@ -775,7 +781,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
     }
     for (TestProc* test : module->GetProcTests()) {
       XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
-                           GetOrderForProc(test, type_info));
+                           GetOrderForProc(test, type_info, /*is_top=*/false));
       ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
     }
   }
@@ -798,11 +804,12 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
     Function* f = absl::get<Function*>(entry);
     XLS_RETURN_IF_ERROR(AddToReady(f,
                                    /*invocation=*/nullptr, f->owner(),
-                                   type_info, SymbolicBindings(), &ready, {}));
+                                   type_info, SymbolicBindings(), &ready, {},
+                                   /*is_top=*/true));
     return ready;
   }
   Proc* p = absl::get<Proc*>(entry);
-  return GetOrderForProc(p, type_info);
+  return GetOrderForProc(p, type_info, /*is_top=*/true);
 }
 
 }  // namespace xls::dslx

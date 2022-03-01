@@ -31,6 +31,9 @@ enum class CallingConvention {
   // that an assertion should actually cause a failure when the predicate is
   // false).
   kImplicitToken,
+
+  // The IR calling convention for a proc next function.
+  kProcNext,
 };
 
 // Returns the mangled name of function with the given parametric bindings.

@@ -30,7 +30,8 @@
 #include "xls/dslx/typecheck.h"
 
 ABSL_FLAG(std::string, entry, "",
-          "Entry function name for conversion; when not given, all functions "
+          "Entry name for conversion. When provided, the function/proc is the "
+          "top entity in the generated IR. When not provided, all functions "
           "and procs are converted.");
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
           "Path to DSLX standard library files.");

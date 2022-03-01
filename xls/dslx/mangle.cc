@@ -62,13 +62,22 @@ absl::StatusOr<std::string> MangleDslxName(
     convention_str = "itok__";
   }
   std::string module_name_str = absl::StrReplaceAll(module_name, {{".", "_"}});
-  if (symbolic_bindings_values.empty()) {
-    return absl::StrFormat("__%s%s__%s", convention_str, module_name_str,
-                           function_name);
+
+  std::string suffix;
+  if (!symbolic_bindings_values.empty()) {
+    suffix = absl::StrCat("__", absl::StrJoin(symbolic_bindings_values, "_"));
   }
-  std::string suffix = absl::StrJoin(symbolic_bindings_values, "_");
-  return absl::StrFormat("__%s%s__%s__%s", convention_str, module_name_str,
-                         function_name, suffix);
+  std::string mangled_name = absl::StrFormat(
+      "__%s%s__%s%s", convention_str, module_name_str, function_name, suffix);
+  if (convention == CallingConvention::kProcNext) {
+    // Note that the identifier for the next function of a proc is used to
+    // identify the proc in the conversion. The config function of a proc is
+    // absorbed in the conversion, as a result it is never referenced.
+    // Thus, it does not need to be mangled.
+    mangled_name = absl::StrCat(
+        absl::StrReplaceAll(mangled_name, {{":", "_"}, {"->", "__"}}), "_next");
+  }
+  return mangled_name;
 }
 
 }  // namespace xls::dslx

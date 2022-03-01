@@ -30,6 +30,9 @@ TEST(MangleTest, SimpleModuleFunction) {
   EXPECT_THAT(MangleDslxName("my_mod", "f", CallingConvention::kImplicitToken,
                              {}, nullptr),
               IsOkAndHolds("__itok__my_mod__f"));
+  EXPECT_THAT(MangleDslxName("my_mod", "f->func:0",
+                             CallingConvention::kProcNext, {}, nullptr),
+              IsOkAndHolds("__my_mod__f__func_0_next"));
 }
 
 TEST(MangleTest, SingleFreeKey) {

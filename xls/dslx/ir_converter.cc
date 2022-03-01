@@ -27,6 +27,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/substitute.h"
+#include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
@@ -122,7 +123,8 @@ class FunctionConverter {
   FunctionConverter(
       PackageData& package_data, Module* module, ImportData* import_data,
       ConvertOptions options,
-      absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members);
+      absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members,
+      bool is_top);
 
   // Main entry point to request conversion of the DSLX function "f" to an IR
   // function.
@@ -536,6 +538,9 @@ class FunctionConverter {
   // The ID of the unique Proc instance currently being converted. Only valid if
   // a Proc is being converted.
   ProcId proc_id_;
+
+  // If the function is the entry function resulting in a top entity in the IR.
+  bool is_top_;
 };
 
 // RAII helper that establishes a control predicate for a lexical scope that
@@ -773,7 +778,8 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
 FunctionConverter::FunctionConverter(
     PackageData& package_data, Module* module, ImportData* import_data,
     ConvertOptions options,
-    absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members)
+    absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members,
+    bool is_top)
     : package_data_(package_data),
       module_(module),
       import_data_(import_data),
@@ -781,7 +787,8 @@ FunctionConverter::FunctionConverter(
       // TODO(leary): 2019-07-19 Create a way to get the file path from the
       // module.
       fileno_(package_data.package->GetOrCreateFileno("fake_file.x")),
-      proc_id_to_members_(proc_id_to_members) {
+      proc_id_to_members_(proc_id_to_members),
+      is_top_(is_top) {
   XLS_VLOG(5) << "Constructed IR converter: " << this;
 }
 
@@ -1423,7 +1430,8 @@ absl::Status FunctionConverter::HandleFor(For* node) {
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
-                                   options_, proc_id_to_members_);
+                                   options_, proc_id_to_members_,
+                                   /*is_top=*/false);
   body_converter.set_symbolic_binding_map(symbolic_binding_map_);
 
   // The body conversion uses the same types that we use in the caller.
@@ -2190,7 +2198,8 @@ absl::Status FunctionConverter::AddImplicitTokenParams() {
 // normal function, so it can be called by the outside world in a typical
 // fashion as an entry point (e.g. the IR JIT, Verilog module signature, etc).
 static absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
-    xls::Function* implicit_token_f, dslx::Function* dslx_function) {
+    xls::Function* implicit_token_f, dslx::Function* dslx_function,
+    bool is_top) {
   XLS_RET_CHECK_GE(implicit_token_f->params().size(), 2);
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
@@ -2198,7 +2207,10 @@ static absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
                      dslx_function->identifier(), CallingConvention::kTypical,
                      /*free_keys=*/{}, /*symbolic_bindings=*/nullptr));
   FunctionBuilder fb(mangled_name, implicit_token_f->package());
-
+  // Entry is a top entity.
+  if (is_top) {
+    XLS_RETURN_IF_ERROR(fb.SetAsTop());
+  }
   // Clone all the params except for the leading `(token, bool)`.
   std::vector<BValue> params;
   for (const xls::Param* p : implicit_token_f->params().subspan(2)) {
@@ -2244,7 +2256,9 @@ static absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
   dslx::Function* dslx_entry =
       dynamic_cast<Function*>(package_data.ir_to_dslx.at(entry));
   if (GetRequiresImplicitToken(dslx_entry, import_data, options)) {
-    return EmitImplicitTokenEntryWrapper(entry, dslx_entry).status();
+    // Only create implicit token wrapper.
+    return EmitImplicitTokenEntryWrapper(entry, dslx_entry, /*is_top=*/false)
+        .status();
   }
   return absl::OkStatus();
 }
@@ -2273,6 +2287,10 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   auto builder = std::make_unique<FunctionBuilder>(mangled_name, package());
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
+  // Function is a top entity.
+  if (is_top_ && !requires_implicit_token) {
+    XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
+  }
 
   XLS_VLOG(6) << "Function " << node->identifier()
               << " requires_implicit_token? "
@@ -2348,9 +2366,10 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
   // the name). Those don't seem like very public symbols with respect to the
   // outside world, since they're driven and named by DSL instantiation, so we
   // forgo exposing them here.
-  if (requires_implicit_token && node->is_public() && !node->IsParametric()) {
+  if (requires_implicit_token && (node->is_public() || is_top_) &&
+      !node->IsParametric()) {
     XLS_ASSIGN_OR_RETURN(xls::Function * wrapper,
-                         EmitImplicitTokenEntryWrapper(f, node));
+                         EmitImplicitTokenEntryWrapper(f, node, is_top_));
     package_data_.wrappers.insert(wrapper);
   }
 
@@ -2401,10 +2420,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   XLS_ASSIGN_OR_RETURN(
       std::string mangled_name,
       MangleDslxName(module_->name(), proc_id.ToString(),
-                     CallingConvention::kTypical, f->GetFreeParametricKeySet(),
+                     CallingConvention::kProcNext, f->GetFreeParametricKeySet(),
                      symbolic_bindings));
-  mangled_name = absl::StrCat(
-      absl::StrReplaceAll(mangled_name, {{":", "_"}, {"->", "__"}}), "_next");
   std::string token_name = "__token";
   std::string state_name = "__state";
   // If this function is parametric, then the constant args will be defined in
@@ -2424,6 +2441,10 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   SetNodeToIr(f->params()[0]->name_def(), builder->GetTokenParam());
   auto* builder_ptr = builder.get();
   SetFunctionBuilder(std::move(builder));
+  // Proc is a top entity.
+  if (is_top_) {
+    XLS_RETURN_IF_ERROR(builder_ptr->SetAsTop());
+  }
 
   // Now bind all iter args to their elements in the recurrent state.
   // We need to shift indices by one to handle the token arg.
@@ -3126,7 +3147,7 @@ absl::Status ConvertOneFunctionInternal(
       record.f(), record.symbolic_bindings()));
 
   FunctionConverter converter(package_data, record.module(), import_data,
-                              options, proc_id_to_members);
+                              options, proc_id_to_members, record.IsTop());
   XLS_ASSIGN_OR_RETURN(auto constant_deps,
                        GetConstantDepFreevars(record.f()->body()));
   for (const auto& dep : constant_deps) {
@@ -3163,10 +3184,10 @@ absl::Status ConvertOneFunctionInternal(
 //   import_data: Contains type information used in conversion.
 //   options: Conversion option flags.
 //   package: output of function
-static absl::Status ConvertCallGraph(absl::Span<const ConversionRecord> order,
-                                     ImportData* import_data,
-                                     const ConvertOptions& options,
-                                     PackageData& package_data) {
+static absl::Status ConvertCallGraph(
+    absl::Span<const ConversionRecord> order, ImportData* import_data,
+    const ConvertOptions& options, PackageData& package_data,
+    absl::optional<absl::string_view> entry_function_name = absl::nullopt) {
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, ", ",

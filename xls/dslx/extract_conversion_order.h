@@ -121,7 +121,7 @@ class ConversionRecord {
   static absl::StatusOr<ConversionRecord> Make(
       Function* f, Invocation* invocation, Module* module, TypeInfo* type_info,
       SymbolicBindings symbolic_bindings, std::vector<Callee> callees,
-      absl::optional<ProcId> proc_id);
+      absl::optional<ProcId> proc_id, bool is_top);
 
   // Integrity-checks that the symbolic_bindings provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -139,20 +139,23 @@ class ConversionRecord {
   const std::vector<Callee>& callees() const { return callees_; }
   absl::optional<ProcId> proc_id() const { return proc_id_; }
   bool HasProcId() const { return proc_id_.has_value(); }
+  bool IsTop() const { return is_top_; }
 
   std::string ToString() const;
 
  private:
   ConversionRecord(Function* f, Invocation* invocation, Module* module,
                    TypeInfo* type_info, SymbolicBindings symbolic_bindings,
-                   std::vector<Callee> callees, absl::optional<ProcId> proc_id)
+                   std::vector<Callee> callees, absl::optional<ProcId> proc_id,
+                   bool is_top)
       : f_(f),
         invocation_(invocation),
         module_(module),
         type_info_(type_info),
         symbolic_bindings_(std::move(symbolic_bindings)),
         callees_(std::move(callees)),
-        proc_id_(proc_id) {}
+        proc_id_(proc_id),
+        is_top_(is_top) {}
 
   Function* f_;
   Invocation* invocation_;
@@ -161,6 +164,7 @@ class ConversionRecord {
   SymbolicBindings symbolic_bindings_;
   std::vector<Callee> callees_;
   absl::optional<ProcId> proc_id_;
+  bool is_top_;
 };
 
 // Returns (topological) order for functions to be converted to IR.
