@@ -15,7 +15,6 @@
 # Delay models.
 
 load("//xls/delay_model:build_defs.bzl", "delay_model")
-load("@bazel_skylib//rules:build_test.bzl", "build_test")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -28,25 +27,10 @@ cc_library(
     name = "models",
     srcs = [],
     deps = [
-        ":model_unit",  # build_cleaner: keep
-    ],
-)
-
-# The demo delay models are incomplete so they cannot be included in the
-# main delay model registry yet.
-cc_library(
-    name = "demo_models",
-    srcs = [],
-    deps = [
         ":model_asap7",
         ":model_sky130",
+        ":model_unit",  # build_cleaner: keep
     ],
-)
-
-# A build test to ensure that the generated demo models compile.
-build_test(
-    name = "demo_models_test",
-    targets = [":demo_models"],
 )
 
 delay_model(
@@ -60,12 +44,12 @@ delay_model(
     name = "model_asap7",
     srcs = ["asap7.textproto"],
     model_name = "asap7",
-    precedence = "kHigh",
+    precedence = "kMedium",
 )
 
 delay_model(
     name = "model_sky130",
     srcs = ["sky130.textproto"],
     model_name = "sky130",
-    precedence = "kHigh",
+    precedence = "kMedium",
 )
