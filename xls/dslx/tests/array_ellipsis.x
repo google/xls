@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn make_array(x: u32) -> u32[3] {
+// Makes array
+fn main(x: u32) -> u32[3] {
   u32[3]:[u32:42, x, ...]
 }
 
 #![test]
-fn make_array_test() {
-  let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
-  let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
+fn main_test() {
+  let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], main(u32:42));
+  let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], main(u32:64));
   ()
 }

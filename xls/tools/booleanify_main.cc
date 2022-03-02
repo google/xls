@@ -29,7 +29,7 @@
 #include "xls/tools/booleanifier.h"
 
 ABSL_FLAG(
-    std::string, entry, "",
+    std::string, top, "",
     "Name of function to convert to SMTLIB. If unspecified, a 'best guess' "
     "will be made to try to find the package's entry function. "
     "If that fails, an error will be returned.");
@@ -71,8 +71,8 @@ int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
   absl::optional<std::string> function_name;
-  if (!absl::GetFlag(FLAGS_entry).empty()) {
-    function_name = absl::GetFlag(FLAGS_entry);
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    function_name = absl::GetFlag(FLAGS_top);
   } else if (!absl::GetFlag(FLAGS_function).empty()) {
     function_name = absl::GetFlag(FLAGS_function);
   }

@@ -65,12 +65,13 @@ ABSL_FLAG(
     std::string, output_signature_path, "",
     "Specific output path for the module signature. If not specified then "
     "no module signature is generated.");
-ABSL_FLAG(std::string, entry, "",
-          "Entry function for the package.  Mutually-exclusive with "
+ABSL_FLAG(std::string, top, "",
+          "Top function entity for the package.  Mutually-exclusive with "
           "--top_level_proc.");
+// TODO(vmirian) 2022-02-28 Merge 'top_level_proc' flag with the 'top' flag.
 ABSL_FLAG(std::string, top_level_proc, "",
           "Entry (top-level) proc for the package, mutually-exclusive with "
-          "--entry.");
+          "--top.");
 ABSL_FLAG(std::string, generator, "pipeline",
           "The generator to use when emitting the device function. Valid "
           "values: pipeline, combinational.");
@@ -150,12 +151,12 @@ namespace xls {
 namespace {
 
 absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
-  std::string entry_function = absl::GetFlag(FLAGS_entry);
+  std::string entry_function = absl::GetFlag(FLAGS_top);
   std::string top_level_proc = absl::GetFlag(FLAGS_top_level_proc);
 
   if (!entry_function.empty() && !top_level_proc.empty()) {
     return absl::InvalidArgumentError(
-        absl::StrFormat("Cannot provide both --entry and --top_level_proc"));
+        absl::StrFormat("Cannot provide both --top and --top_level_proc"));
   }
 
   if (!entry_function.empty()) {

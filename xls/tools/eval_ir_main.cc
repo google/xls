@@ -85,7 +85,7 @@ Evaluate IR using the JIT and with the interpreter and compare the results:
    eval_ir_main --test_llvm_jit --random_inputs=100  IR_FILE
 )";
 
-ABSL_FLAG(std::string, entry, "", "Entry function name to evaluate.");
+ABSL_FLAG(std::string, top, "", "Top entity to evaluate.");
 ABSL_FLAG(std::string, input, "",
           "The input to the function as a semicolon-separated list of typed "
           "values. For example: \"bits[32]:42; (bits[7]:0, bits[20]:4)\"");
@@ -392,13 +392,10 @@ absl::Status RealMain(absl::string_view input_path,
     input_path = "/dev/stdin";
   }
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(input_path));
-  std::unique_ptr<Package> package;
-  if (absl::GetFlag(FLAGS_entry).empty()) {
-    XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackage(contents, input_path));
-  } else {
-    XLS_ASSIGN_OR_RETURN(package,
-                         Parser::ParsePackageWithEntry(
-                             contents, absl::GetFlag(FLAGS_entry), input_path));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       Parser::ParsePackage(contents, input_path));
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(absl::GetFlag(FLAGS_top)));
   }
   XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
 

@@ -98,6 +98,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp32_fma",
+    dslx_top = "fp32_fma",
     library = ":fp32_fma_dslx",
 )
 
@@ -163,6 +164,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp64_fma",
+    dslx_top = "fp64_fma",
     ir_file = "fp64_fma.ir",
     library = ":fp64_fma_dslx",
     opt_ir_file = "fp64_fma.opt.ir",
@@ -216,6 +218,7 @@ cc_test(
 
 xls_dslx_opt_ir(
     name = "fp32_add_2",
+    dslx_top = "fp32_add_2",
     ir_file = "fp32_add_2.ir",
     library = ":fp32_add_2_dslx",
     opt_ir_file = "fp32_add_2.opt.ir",
@@ -240,6 +243,7 @@ xls_benchmark_ir(
 
 xls_dslx_opt_ir(
     name = "fp32_sub_2",
+    dslx_top = "fp32_sub_2",
     ir_file = "fp32_sub_2.ir",
     library = ":fp32_sub_2_dslx",
 )
@@ -272,6 +276,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp64_sub_2",
+    dslx_top = "fp64_sub_2",
     ir_file = "fp64_sub_2.ir",
     library = ":fp64_sub_2_dslx",
 )
@@ -356,6 +361,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp64_add_2",
+    dslx_top = "fp64_add_2",
     ir_file = "fp64_add_2.ir",
     library = "fp64_add_2_dslx",
     opt_ir_file = "fp64_add_2.opt.ir",
@@ -420,6 +426,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "bf16_add_2",
+    dslx_top = "bf16_add_2",
     ir_file = "bf16_add_2.ir",
     library = "bf16_add_2_dslx",
 )
@@ -443,6 +450,7 @@ xls_benchmark_ir(
 xls_dslx_opt_ir(
     name = "fp32_ldexp",
     srcs = ["fp32_ldexp.x"],
+    dslx_top = "fp32_ldexp",
     ir_file = "fp32_ldexp.ir",
     opt_ir_file = "fp32_ldexp.opt.ir",
 )
@@ -497,6 +505,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp32_mul_2",
+    dslx_top = "fp32_mul_2",
     ir_file = "fp32_mul_2.ir",
     library = ":fp32_mul_2_dslx",
     opt_ir_file = "fp32_mul_2.opt.ir",
@@ -569,6 +578,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp64_mul_2",
+    dslx_top = "fp64_mul_2",
     ir_file = "fp64_mul_2.ir",
     library = ":fp64_mul_2_dslx",
     opt_ir_file = "fp64_mul_2.opt.ir",
@@ -635,6 +645,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp32_fast_rsqrt",
+    dslx_top = "fp32_fast_rsqrt",
     ir_file = "fp32_fast_rsqrt.ir",
     library = ":fp32_fast_rsqrt_dslx",
     opt_ir_file = "fp32_fast_rsqrt.opt.ir",

@@ -127,9 +127,9 @@ def _convert_to_ir(ctx, src, dep_src_list):
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
 
-    # TODO(vmirian) 2022-02-19 When entry is a mandatory attr,
-    # remove if statement.
-    if ctx.attr.dslx_top:
+    # TODO(vmirian) 2022-02-19 When bypass_dslx_top is removed, modify if
+    # statement.
+    if not ctx.attr.bypass_dslx_top and ctx.attr.dslx_top:
         ir_conv_args["entry"] = ctx.attr.dslx_top
     my_args = args_to_string(ir_conv_args)
 
@@ -175,9 +175,6 @@ def _optimize_ir(ctx, src):
     opt_ir_tool = get_xls_toolchain_info(ctx).opt_ir_tool
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     IR_OPT_FLAGS = (
-        # TODO(vmirian) 2022-02-19 When top is a mandatory attr, remove item
-        # below.
-        "entry",
         "ir_dump_path",
         "run_only_passes",
         "skip_passes",
@@ -188,7 +185,7 @@ def _optimize_ir(ctx, src):
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)
 
     if ctx.attr.top:
-        opt_ir_args.setdefault("entry", ctx.attr.top)
+        opt_ir_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(opt_ir_args)
 
     opt_ir_filename = get_output_filename_value(
@@ -237,17 +234,13 @@ def get_ir_equivalence_test_cmd(
     """
     ir_equivalence_tool = get_xls_toolchain_info(ctx).ir_equivalence_tool
     IR_EQUIVALENCE_FLAGS = (
-        # TODO(vmirian) 2022-02-19 When top is a mandatory attr, remove item
-        # below.
-        # Overrides global entry attribute.
-        "function",
         "timeout",
     )
 
     ir_equivalence_args = dict(ctx.attr.ir_equivalence_args)
     is_args_valid(ir_equivalence_args, IR_EQUIVALENCE_FLAGS)
     if ctx.attr.top:
-        ir_equivalence_args.setdefault("function", ctx.attr.top)
+        ir_equivalence_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(ir_equivalence_args)
 
     cmd = "{} {} {} {}\n".format(
@@ -283,10 +276,6 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     """
     ir_eval_tool = get_xls_toolchain_info(ctx).ir_eval_tool
     IR_EVAL_FLAGS = (
-        # TODO(vmirian) 2022-02-19 When top is a mandatory attr, remove item
-        # below.
-        # Overrides global entry attribute.
-        "entry",
         "input",
         "input_file",
         "random_inputs",
@@ -322,7 +311,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     elif ctx.attr.input_validator_expr:
         ir_eval_args["input_validator_expr"] = "\"" + ctx.attr.input_validator_expr + "\""
     if ctx.attr.top:
-        ir_eval_args.setdefault("entry", ctx.attr.top)
+        ir_eval_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(ir_eval_args)
 
     cmd = "{} {} {}".format(
@@ -361,10 +350,6 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         "pipeline_stages",
         "clock_margin_percent",
         "show_known_bits",
-        # TODO(vmirian) 2022-02-19 When top is a mandatory attr, remove item
-        # below.
-        # Overrides global entry attribute.
-        "entry",
         "delay_model",
         "convert_array_index_to_select",
     )
@@ -376,7 +361,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
 
     is_args_valid(benchmark_ir_args, BENCHMARK_IR_FLAGS)
     if ctx.attr.top:
-        benchmark_ir_args.setdefault("entry", ctx.attr.top)
+        benchmark_ir_args.setdefault("top", ctx.attr.top)
     my_args = args_to_string(benchmark_ir_args)
 
     cmd = "{} {} {}".format(
@@ -427,7 +412,8 @@ def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
 xls_ir_top_attrs = {
     "top": attr.string(
         doc = "The (*mangled*) name of the entry point. See " +
-              "get_mangled_ir_symbol.",
+              "get_mangled_ir_symbol. Defines the 'top' argument of the " +
+              "IR tool/application.",
     ),
 }
 
@@ -446,8 +432,13 @@ xls_dslx_ir_attrs = dicts.add(
         "dslx_top": attr.string(
             doc = "Defines the 'entry' argument of the" +
                   "//xls/dslx/ir_converter_main.cc application.",
-            # TODO(vmirian) 2002-02-19 Update when entry is mandatory.
-            #            mandatory = True,
+            mandatory = True,
+        ),
+        # TODO(b/220380384) 2022-02-19 When bypass_dslx_top is no longer needed,
+        # remove attribute below.
+        "bypass_dslx_top": attr.bool(
+            doc = "DO NOT USE. Bypasses the dsl_top requirement.",
+            default = False,
         ),
         "ir_conv_args": attr.string_dict(
             doc = "Arguments of the IR conversion tool. For details on the " +

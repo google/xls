@@ -49,6 +49,7 @@ filegroup(
 xls_dslx_opt_ir(
     name = "adler32",
     srcs = ["adler32.x"],
+    dslx_top = "main",
     ir_file = "adler32.ir",
     opt_ir_file = "adler32.opt.ir",
 )
@@ -84,6 +85,7 @@ cc_binary(
 xls_dslx_opt_ir(
     name = "capitalize",
     srcs = ["capitalize.x"],
+    dslx_top = "main",
 )
 
 xls_dslx_opt_ir_test(
@@ -94,6 +96,7 @@ xls_dslx_opt_ir_test(
 xls_dslx_opt_ir(
     name = "crc32",
     srcs = ["crc32.x"],
+    dslx_top = "main",
     ir_file = "crc32.ir",
     opt_ir_file = "crc32.opt.ir",
 )
@@ -162,6 +165,7 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
+    dslx_top = "run_instruction",
 )
 
 # TODO: 2021-05-28 Add xls_ir_equivalence_test, xls_eval_ir_test and
@@ -178,6 +182,7 @@ xls_dslx_test(
 xls_dslx_opt_ir(
     name = "sha256",
     srcs = ["sha256.x"],
+    dslx_top = "main",
     ir_file = "sha256.ir",
     opt_ir_file = "sha256.opt.ir",
     tags = ["optonly"],
@@ -328,6 +333,7 @@ cc_test(
 xls_dslx_opt_ir(
     name = "proc_iota",
     srcs = ["proc_iota.x"],
+    dslx_top = "main",
     ir_file = "proc_iota.ir",
     opt_ir_file = "proc_iota.opt.ir",
     tags = ["optonly"],

@@ -16,7 +16,7 @@ fn p<N: u32>(_: bits[N]) -> u8 {
   N as u8
 }
 
-fn f() -> u8 {
+fn main() -> u8 {
   match false {
     // TODO(cdleary): 2020-08-05 Turn this match arm into a wildcard match when
     // https://github.com/google/xls/issues/75 is resolved.
@@ -26,6 +26,6 @@ fn f() -> u8 {
 }
 
 #![test]
-fn t() {
-  assert_eq(u8:8, f())
+fn main_test() {
+  assert_eq(u8:8, main())
 }

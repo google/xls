@@ -36,6 +36,19 @@
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
 
+const char kUsage[] = R"(
+Prints numerous metrics and other information about an XLS IR file including:
+total delay, critical path, codegen information, optimization time, etc.
+
+Expected invocation:
+  benchmark_main <IR file>
+where:
+  - <IR file> is the path to the input IR file.
+
+Example invocation:
+  benchmark_main path/to/file.ir
+)";
+
 // TODO(meheff): These codegen flags are duplicated from codegen_main. Might be
 // easier to wrap all the options into a proto or something codegen_main and
 // this could consume. It would make it less likely that the benchmark and
@@ -58,8 +71,7 @@ ABSL_FLAG(int64_t, clock_margin_percent, 0,
           "with --clock_period_ps");
 ABSL_FLAG(bool, show_known_bits, false,
           "Show known bits as determined via the query engine.");
-ABSL_FLAG(std::string, entry, "",
-          "Entry function to use in lieu of the default.");
+ABSL_FLAG(std::string, top, "", "Top entity to use in lieu of the default.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
 ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
@@ -364,12 +376,10 @@ absl::Status RealMain(absl::string_view path,
                       absl::optional<int64_t> clock_margin_percent) {
   XLS_VLOG(1) << "Reading contents at path: " << path;
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
-  std::unique_ptr<Package> package;
-  if (absl::GetFlag(FLAGS_entry).empty()) {
-    XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackage(contents));
-  } else {
-    XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackageWithEntry(
-                                      contents, absl::GetFlag(FLAGS_entry)));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       Parser::ParsePackage(contents));
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(absl::GetFlag(FLAGS_top)));
   }
 
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
@@ -415,7 +425,7 @@ absl::Status RealMain(absl::string_view path,
 
 int main(int argc, char** argv) {
   std::vector<absl::string_view> positional_arguments =
-      xls::InitXls(argv[0], argc, argv);
+      xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {
     XLS_LOG(QFATAL) << "Expected path argument with IR: " << argv[0]

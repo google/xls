@@ -35,15 +35,13 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
     XLS_VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
   }
 
-  std::unique_ptr<Package> package;
-  if (options.entry.empty()) {
-    XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackage(ir, options.ir_path));
-  } else {
-    XLS_ASSIGN_OR_RETURN(package, Parser::ParsePackageWithEntry(
-                                      ir, options.entry, options.ir_path));
-    XLS_VLOG(3) << "Entry function: '"
-                << package->EntryFunction().value()->name() << "'";
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       Parser::ParsePackage(ir, options.ir_path));
+  if (!options.entry.empty()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(options.entry));
   }
+  XLS_VLOG(3) << "Entry function: '" << package->EntryFunction().value()->name()
+              << "'";
   std::unique_ptr<CompoundPass> pipeline =
       CreateStandardPassPipeline(options.opt_level);
   const PassOptions pass_options = {

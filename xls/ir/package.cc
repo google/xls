@@ -246,7 +246,6 @@ absl::StatusOr<Function*> Package::EntryFunction() {
                          const std::pair<std::string, const Function*>& item) {
                         absl::StrAppend(out, "\"", item.first, "\"");
                       });
-
     return absl::NotFoundError(
         absl::StrFormat("Could not find entry function for this package; "
                         "tried: [\"%s\"]; available: %s",

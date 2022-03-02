@@ -19,14 +19,15 @@ struct Point {
 
 const BEST_Y = u32:42;
 
-fn update_y(p: Point) -> Point {
+// Update the y member of the Point struct to BEST_Y.
+fn main(p: Point) -> Point {
   Point{ y: BEST_Y, ..p }
 }
 
 #![test]
-fn test_update_y() {
+fn main_test() {
   let p = Point{ x: u32:1, y: u32:2 };
-  let q = update_y(p);
+  let q = main(p);
   let _ = assert_eq(q.y, u32:42);
   let _ = assert_eq(q.x, u32:1);
   ()

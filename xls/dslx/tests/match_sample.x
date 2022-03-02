@@ -45,3 +45,13 @@ fn match_wrapper_test() {
   let _: () = assert_eq(u8:4, match_wrapper(u32:128));
   ()
 }
+
+fn main() -> u32 {
+  match_wrapper(u32:42) as u32 + match_sample(false, u32:7, u32:-1)
+}
+
+#![test]
+fn main_test() {
+  assert_eq(u32:0, main())
+}
+

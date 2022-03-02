@@ -15,7 +15,6 @@
 load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
-    "get_mangled_ir_symbol",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
     "xls_eval_ir_test",
@@ -32,11 +31,7 @@ package(
 xls_dslx_opt_ir(
     name = "idct_chen",
     srcs = ["idct_chen.x"],
-    ir_file = "idct_chen.ir",
-    opt_ir_args = {
-        "entry": get_mangled_ir_symbol("idct_chen", "idct"),
-    },
-    opt_ir_file = "idct_chen.opt.ir",
+    dslx_top = "idct",
     # Note: times out in fastbuild 2020-11-09.
     tags = ["optonly"],
 )
@@ -79,9 +74,6 @@ xls_dslx_test(
 xls_eval_ir_test(
     name = "idct_chen_eval_ir_test",
     src = ":idct_chen.ir",
-    ir_eval_args = {
-        "entry": get_mangled_ir_symbol("idct_chen", "idct"),
-    },
     # Note: times out in fastbuild 2020-11-09.
     tags = ["optonly"],
 )

@@ -17,13 +17,13 @@ enum Foo : u32 {
   B = 1,
 }
 
-fn f(x: Foo) -> Foo {
+fn main(x: Foo) -> Foo {
   if x == Foo::A { Foo::B } else { Foo::A }
 }
 
 #![test]
-fn test_f() {
-  let _ = assert_eq(Foo::B, f(Foo::A));
-  let _ = assert_eq(Foo::A, f(Foo::B));
+fn test_main() {
+  let _ = assert_eq(Foo::B, main(Foo::A));
+  let _ = assert_eq(Foo::A, main(Foo::B));
   ()
 }

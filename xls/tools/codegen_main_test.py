@@ -65,7 +65,7 @@ class CodeGenMainTest(parameterized.TestCase):
 
     subprocess.check_call([
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
-        '--entry=not_add', '--output_signature_path=' + signature_path,
+        '--top=not_add', '--output_signature_path=' + signature_path,
         '--output_verilog_path=' + verilog_path, ir_file.full_path
     ])
 
@@ -82,7 +82,7 @@ class CodeGenMainTest(parameterized.TestCase):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
     verilog = subprocess.check_output([
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
-        '--entry=not_add', ir_file.full_path
+        '--top=not_add', ir_file.full_path
     ]).decode('utf-8')
     self.assertIn('module not_add(', verilog)
 
@@ -138,7 +138,7 @@ class CodeGenMainTest(parameterized.TestCase):
     verilog = subprocess.check_output([
         CODEGEN_MAIN_PATH, '--generator=pipeline', '--delay_model=unit',
         '--pipeline_stages=3', '--clock_period_ps=1500', '--alsologtostderr',
-        '--entry=not_add', '--module_name=foo_qux_baz', ir_file.full_path
+        '--top=not_add', '--module_name=foo_qux_baz', ir_file.full_path
     ]).decode('utf-8')
     self.assertIn('module foo_qux_baz(', verilog)
 

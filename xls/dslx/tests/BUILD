@@ -16,7 +16,6 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
-    "get_mangled_ir_symbol",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
@@ -82,7 +81,6 @@ dslx_lang_test(name = "constexpr_slice")
 dslx_lang_test(
     name = "explicit_parametric",
     dslx_entry = "instantiates_indirect_foo",
-    ir_entry = get_mangled_ir_symbol("explicit_parametric", "instantiates_indirect_foo"),
 )
 
 dslx_lang_test(
@@ -458,6 +456,7 @@ dslx_lang_test(
 xls_dslx_opt_ir(
     name = "mod_parametric_id_user",
     srcs = ["mod_parametric_id_user.x"],
+    dslx_top = "main",
     deps = [":mod_parametric_id_dslx"],
 )
 
@@ -513,11 +512,7 @@ dslx_lang_test(name = "typedef_multidim_array")
 
 dslx_lang_test(
     name = "parametric_multidim_array",
-    ir_entry = get_mangled_ir_symbol(
-        "parametric_multidim_array",
-        "id",
-        (6, 3, 2),
-    ),
+    dslx_entry = "id_6_3_2",
 )
 
 dslx_lang_test(name = "for_sans_type_annotation")
@@ -532,17 +527,11 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
-dslx_lang_test(
-    name = "test_f_calls_parametric_f",
-    ir_entry = get_mangled_ir_symbol("test_f_calls_parametric_f", "f"),
-)
+dslx_lang_test(name = "test_f_calls_parametric_f")
 
 dslx_lang_test(name = "array_concat")
 
-dslx_lang_test(
-    name = "for_up_to_const",
-    ir_entry = get_mangled_ir_symbol("for_up_to_const", "f"),
-)
+dslx_lang_test(name = "for_up_to_const")
 
 dslx_lang_test(name = "for_up_to_const_local")
 
@@ -606,6 +595,7 @@ dslx_lang_test(
 xls_dslx_opt_ir(
     name = "mod_const_importer",
     srcs = ["mod_const_importer.x"],
+    dslx_top = "main",
     deps = [":mod_simple_const_dslx"],
 )
 
@@ -662,6 +652,7 @@ dslx_lang_test(
 xls_dslx_opt_ir(
     name = "mod_const_array_of_enum_importer",
     srcs = ["mod_const_array_of_enum_importer.x"],
+    dslx_top = "main",
     deps = [":mod_simple_const_array_of_enums_dslx"],
 )
 
@@ -675,6 +666,7 @@ dslx_lang_test(name = "simple_enum_usage")
 xls_dslx_opt_ir(
     name = "simple_enum_usage",
     srcs = ["simple_enum_usage.x"],
+    dslx_top = "main",
 )
 
 xls_dslx_opt_ir_test(

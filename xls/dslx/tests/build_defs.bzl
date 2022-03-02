@@ -35,7 +35,7 @@ load(
 def dslx_lang_test(
         name,
         dslx_deps = None,
-        dslx_entry = None,
+        dslx_entry = "main",
         ir_entry = None,
         convert_to_ir = True,
         test_ir_equivalence = True,
@@ -73,8 +73,7 @@ def dslx_lang_test(
         this is effectively it.
       dslx_deps: Dependency labels (for other xls_dslx_library targets required
         as deps of the library).
-      dslx_entry: DSLX-level entry point name, if it is required to be
-        explicitly specified.
+      dslx_entry: DSLX-level entry point name. By default, the value is "main".
       ir_entry: IR-level entry point name, if it is required to be explicitly
         specified (e.g. for instantiated parametric entry points). Note this
         would be a mangled DSLX name.

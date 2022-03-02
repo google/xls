@@ -26,38 +26,50 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
-xls_dslx_opt_ir(
-    name = "simple",
-    srcs = ["simple.x"],
-    opt_ir_file = "simple.opt.ir",
-)
-
 xls_dslx_test(
     name = "simple_dslx_test",
     srcs = ["simple.x"],
 )
 
+xls_dslx_opt_ir(
+    name = "simple_identity",
+    srcs = ["simple.x"],
+    dslx_top = "identity",
+)
+
 cc_xls_ir_jit_wrapper(
     name = "identity",
-    src = ":simple.opt.ir",
+    src = ":simple_identity.opt.ir",
     jit_wrapper_args = {
         "class_name": "F32Identity",
         "function": "identity",
     },
 )
 
+xls_dslx_opt_ir(
+    name = "simple_is_inf",
+    srcs = ["simple.x"],
+    dslx_top = "is_inf",
+)
+
 cc_xls_ir_jit_wrapper(
     name = "is_inf",
-    src = ":simple.opt.ir",
+    src = ":simple_is_inf.opt.ir",
     jit_wrapper_args = {
         "class_name": "F32IsInf",
         "function": "is_inf",
     },
 )
 
+xls_dslx_opt_ir(
+    name = "simple_fail_on_42",
+    srcs = ["simple.x"],
+    dslx_top = "fail_on_42",
+)
+
 cc_xls_ir_jit_wrapper(
     name = "fail_on_42",
-    src = ":simple.opt.ir",
+    src = ":simple_fail_on_42.opt.ir",
     jit_wrapper_args = {
         "class_name": "FailOn42",
         "function": "fail_on_42",

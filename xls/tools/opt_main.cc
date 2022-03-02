@@ -27,7 +27,22 @@
 #include "xls/passes/standard_pipeline.h"
 #include "xls/tools/opt.h"
 
-ABSL_FLAG(std::string, entry, "", "Entry function name to optimize.");
+const char kUsage[] = R"(
+Takes in an IR file and produces an IR file that has been run through the
+standard optimization pipeline.
+
+Successfully optimized IR is printed to stdout.
+
+Expected invocation:
+  opt_main <IR file>
+where:
+  - <IR file> is the path to the input IR file. '-' denotes stdin as input.
+
+Example invocation:
+  opt_main path/to/file.ir
+)";
+
+ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
 ABSL_FLAG(std::string, ir_dump_path, "",
           "Dump all intermediate IR files to the given directory");
 ABSL_FLAG(std::vector<std::string>, run_only_passes, {},
@@ -61,7 +76,7 @@ absl::Status RealMain(absl::string_view input_path) {
     input_path = "/dev/stdin";
   }
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
-  std::string entry = absl::GetFlag(FLAGS_entry);
+  std::string entry = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> run_only_passes =
       absl::GetFlag(FLAGS_run_only_passes);
@@ -96,7 +111,7 @@ absl::Status RealMain(absl::string_view input_path) {
 
 int main(int argc, char **argv) {
   std::vector<absl::string_view> positional_arguments =
-      xls::InitXls(argv[0], argc, argv);
+      xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty()) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <path>",

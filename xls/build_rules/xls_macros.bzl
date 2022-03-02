@@ -41,11 +41,11 @@ load(
 
 def xls_dslx_verilog_macro(
         name,
+        dslx_top,
         verilog_file,
         srcs = None,
         deps = None,
         library = None,
-        dslx_top = None,
         ir_conv_args = {},
         opt_ir_args = {},
         codegen_args = {},
@@ -120,9 +120,7 @@ def xls_dslx_verilog_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
-
-    # TODO(vmirian) 2002-02-19 Update when dslx_top is mandatory.
-    if dslx_top and type(dslx_top) != type(""):
+    if type(dslx_top) != type(""):
         fail("Argument 'dslx_top' must be of string type.")
     if type(verilog_file) != type(""):
         fail("Argument 'verilog_file' must be of string type.")
@@ -174,10 +172,10 @@ def xls_dslx_verilog_macro(
 
 def xls_dslx_opt_ir_macro(
         name,
+        dslx_top,
         srcs = None,
         deps = None,
         library = None,
-        dslx_top = None,
         ir_conv_args = {},
         opt_ir_args = {},
         enable_generated_file = True,
@@ -242,9 +240,7 @@ def xls_dslx_opt_ir_macro(
         fail("Argument 'deps' must be of list type.")
     if library and type(library) != type(""):
         fail("Argument 'library' must be of string type.")
-
-    # TODO(vmirian) 2002-02-19 Update when dslx_top is mandatory.
-    if dslx_top and type(dslx_top) != type(""):
+    if type(dslx_top) != type(""):
         fail("Argument 'dslx_top' must be of string type.")
     if type(ir_conv_args) != type({}):
         fail("Argument 'ir_conv_args' must be of dictionary type.")

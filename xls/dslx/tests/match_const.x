@@ -44,3 +44,12 @@ fn match_nested() {
   let _ = assert_eq(u32:7, h((u8:0, (u16:1, u32:0))));
   ()
 }
+
+fn main() -> u32 {
+  match_const(u8:42) as u32 + h((u8:0, (u16:1, u32:42)))
+}
+
+#![test]
+fn main_test() {
+  assert_eq(u32:1, main())
+}

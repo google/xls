@@ -56,24 +56,29 @@ xls_dslx_test(
 )
 
 xls_dslx_opt_ir(
-    name = "float32",
+    name = "float32_to_int32",
     srcs = ["float32.x"],
-    ir_file = "float32.ir",
-    opt_ir_file = "float32.opt.ir",
+    dslx_top = "to_int32",
 )
 
 cc_xls_ir_jit_wrapper(
     name = "float32_to_int32_wrapper",
-    src = ":float32.opt.ir",
+    src = ":float32_to_int32.opt.ir",
     jit_wrapper_args = {
         "class_name": "Float32ToInt32",
         "function": get_mangled_ir_symbol("float32", "to_int32"),
     },
 )
 
+xls_dslx_opt_ir(
+    name = "float32_from_int32",
+    srcs = ["float32.x"],
+    dslx_top = "from_int32",
+)
+
 cc_xls_ir_jit_wrapper(
     name = "float32_from_int32_wrapper",
-    src = ":float32.opt.ir",
+    src = ":float32_from_int32.opt.ir",
     jit_wrapper_args = {
         "class_name": "Float32FromInt32",
         "function": get_mangled_ir_symbol("float32", "from_int32"),

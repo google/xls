@@ -32,6 +32,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fpexp_32",
+    dslx_top = "fpexp_32",
     ir_file = "fpexp_32.ir",
     library = ":fpexp_32_dslx",
     opt_ir_file = "fpexp_32.opt.ir",
@@ -107,6 +108,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp_sincos_32",
+    dslx_top = "fp_sincos_32",
     ir_file = "fp_sincos_32.ir",
     library = ":fp_sincos_32_dslx",
     opt_ir_file = "fp_sincos_32.opt.ir",
@@ -167,6 +169,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fp_trig_reduce",
+    dslx_top = "main",
     ir_file = "fp_trig_reduce.ir",
     library = ":fp_trig_reduce_dslx_module",
     opt_ir_file = "fp_trig_reduce.opt.ir",
@@ -227,6 +230,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fpsqrt_32",
+    dslx_top = "fpsqrt_32",
     ir_file = "fpsqrt_32.ir",
     library = ":fpsqrt_32_dslx",
     opt_ir_file = "fpsqrt_32.opt.ir",

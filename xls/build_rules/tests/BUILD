@@ -87,6 +87,7 @@ xls_dslx_verilog(
         "pipeline_stages": "2",
         "delay_model": "unit",
     },
+    dslx_top = "main",
     verilog_file = "add_one_pipeline_rtl.v",
 )
 
@@ -125,6 +126,7 @@ xls_dslx_verilog(
     codegen_args = {
         "generator": "combinational",
     },
+    dslx_top = "main",
     verilog_file = "add_one_combinational_rtl.v",
 )
 
@@ -297,6 +299,7 @@ xls_dslx_test(
 xls_dslx_ir(
     name = "chaining_example_ir",
     srcs = ["chaining_example.x"],
+    dslx_top = "main",
 )
 
 xls_ir_opt_ir(
@@ -500,6 +503,7 @@ xls_dslx_verilog(
     codegen_args = {
         "pipeline_stages": "1",
     },
+    dslx_top = "main",
     # Output the Optimized IR file to reference.
     opt_ir_file = "simple_example_5_one_stage.opt.ir",
     verilog_file = "simple_example_5_one_stage.v",
@@ -746,6 +750,7 @@ xls_dslx_library(
 xls_dslx_opt_ir(
     name = "die_if_odd",
     srcs = ["die_if_odd.x"],
+    dslx_top = "die_if_odd",
     ir_file = "die_if_odd.ir",
     opt_ir_file = "die_if_odd.opt.ir",
 )

@@ -51,9 +51,10 @@ recommended that you specify --function to ensure that the right functions are
 compared. If the tool picks the wrong one, a crash may result.
 )";
 
-ABSL_FLAG(std::string, function, "",
-          "Function to check. If unspecified, an attempt will be made to find "
-          "and check an entry function for the package.");
+ABSL_FLAG(std::string, top, "",
+          "The top entity to check. If unspecified, an attempt will be made"
+          "to find and check a top entity for the package. Currently, only"
+          "Functions are supported.");
 ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
           "How long to wait for any proof to complete.");
 
@@ -77,12 +78,14 @@ absl::StatusOr<Z3_ast> CreateComparisonFunction(
 }
 
 absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
-                      const std::string& entry_function,
-                      absl::Duration timeout) {
+                      const std::string& entry, absl::Duration timeout) {
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
     XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
     XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
+    if (!entry.empty()) {
+      XLS_RETURN_IF_ERROR(package->SetTopByName(entry));
+    }
     packages.push_back(std::move(package));
   }
 
@@ -109,17 +112,9 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
   }
 
   std::vector<Function*> functions;
-  if (!entry_function.empty()) {
-    for (const auto& package : packages) {
-      XLS_ASSIGN_OR_RETURN(Function * func,
-                           package->GetFunction(entry_function));
-      functions.push_back(func);
-    }
-  } else {
-    for (const auto& package : packages) {
-      XLS_ASSIGN_OR_RETURN(Function * func, package->EntryFunction());
-      functions.push_back(func);
-    }
+  for (const auto& package : packages) {
+    XLS_ASSIGN_OR_RETURN(Function * func, package->EntryFunction());
+    functions.push_back(func);
   }
 
   std::vector<std::unique_ptr<IrTranslator>> translators;
@@ -170,6 +165,6 @@ int main(int argc, char** argv) {
   std::vector<absl::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   XLS_QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
-  XLS_QCHECK_OK(xls::RealMain(positional_args, absl::GetFlag(FLAGS_function),
+  XLS_QCHECK_OK(xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),
                               absl::GetFlag(FLAGS_timeout)));
 }

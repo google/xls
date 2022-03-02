@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn match_multi(x: u32) -> u32 {
+fn main(x: u32) -> u32 {
   match x {
     u32:24 | u32:42 => u32:42,
     _ => u32:64
@@ -20,9 +20,9 @@ fn match_multi(x: u32) -> u32 {
 }
 
 #![test]
-fn match_multi_test() {
-  //let _ = assert_eq(u32:42, match_multi(u32:24));
-  let _ = assert_eq(u32:42, match_multi(u32:42));
-  //let _ = assert_eq(u32:64, match_multi(u32:41));
+fn main_test() {
+  //let _ = assert_eq(u32:42, main(u32:24));
+  let _ = assert_eq(u32:42, main(u32:42));
+  //let _ = assert_eq(u32:64, main(u32:41));
   ()
 }

@@ -30,6 +30,7 @@ package(
 xls_dslx_opt_ir(
     name = "crc32_one_byte",
     srcs = ["crc32_one_byte.x"],
+    dslx_top = "crc32_one_byte",
 )
 
 xls_dslx_opt_ir_test(
@@ -40,6 +41,7 @@ xls_dslx_opt_ir_test(
 xls_dslx_opt_ir(
     name = "crc32_one_byte_inferred",
     srcs = ["crc32_one_byte_inferred.x"],
+    dslx_top = "crc32_one_byte_inferred",
 )
 
 xls_dslx_opt_ir_test(

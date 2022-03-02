@@ -23,6 +23,7 @@ xls_dslx_library(
 
 xls_dslx_opt_ir(
     name = "fpdiv_2x32_opt_ir",
+    dslx_top = "fpdiv_2x32",
     ir_file = "fpdiv_2x32.opt.ir",
     library = ":fpdiv_2x32_dslx",
     tags = ["optonly"],
