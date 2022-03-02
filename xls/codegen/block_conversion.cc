@@ -553,6 +553,11 @@ struct StreamingIoPipeline {
   std::vector<PipelineStageRegisters> pipeline_registers;
   absl::optional<StateRegister> state_register;
   absl::optional<OutputPort*> idle_port;
+
+  // Node in block that represents when all output channels (that
+  // are predicated true) are ready.
+  // See MakeOutputReadyPortsForOutputChannels().
+  absl::optional<Node*> all_active_outputs_ready;
 };
 
 // For each output streaming channel add a corresponding ready port (input
@@ -1308,6 +1313,158 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
   return absl::OkStatus();
 }
 
+// Add one-shot logic to the and output RDV channel.
+static absl::Status AddOneShotLogicToRVNodes(Node* from_valid, Node* from_rdy,
+                                             Node* all_active_outputs_ready,
+                                             absl::string_view name_prefix,
+                                             const ResetInfo& reset_info,
+                                             Block* block) {
+  // Location for added logic is taken from from_valid.
+  absl::optional<SourceLocation> loc = from_valid->loc();
+
+  // Add a node to serve as placeholder (will be removed later).
+  XLS_ASSIGN_OR_RETURN(
+      Node * literal_1,
+      block->MakeNode<xls::Literal>(absl::nullopt, Value(UBits(1, 1))));
+
+  // Create a register to store whether or not channel has been sent.
+  Type* u1 = block->package()->GetBitsType(1);
+  std::string name = absl::StrFormat("__%s_has_been_sent_reg", name_prefix);
+  XLS_ASSIGN_OR_RETURN(Register * has_been_sent_reg,
+                       block->AddRegister(name, u1, reset_info.behavior));
+  XLS_ASSIGN_OR_RETURN(RegisterWrite * has_been_sent_reg_write,
+                       block->MakeNode<RegisterWrite>(
+                           /*loc=*/loc, literal_1,
+                           /*load_enable=*/literal_1,
+                           /*reset=*/reset_info.input_port, has_been_sent_reg));
+  XLS_ASSIGN_OR_RETURN(RegisterRead * has_been_sent,
+                       block->MakeNode<RegisterRead>(
+                           /*loc=*/from_valid->loc(), has_been_sent_reg));
+
+  // Regenerate ready as OR of
+  // 1) output channel is ready.
+  // 2) data has already been sent on the channel.
+  XLS_CHECK_EQ(from_rdy->operand_count(), 1);
+  Node* to_is_ready = from_rdy->operand(0);
+  name = absl::StrFormat("__%s_has_sent_or_is_ready", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * has_sent_or_is_ready,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/loc, std::vector<Node*>({to_is_ready, has_been_sent}),
+          Op::kOr, name));
+  XLS_RETURN_IF_ERROR(from_rdy->ReplaceOperandNumber(0, has_sent_or_is_ready));
+
+  // Clamp output valid if has already sent.
+  name = absl::StrFormat("__%s_not_has_been_sent", name_prefix);
+  XLS_ASSIGN_OR_RETURN(Node * not_has_been_sent,
+                       block->MakeNodeWithName<UnOp>(/*loc=*/loc, has_been_sent,
+                                                     Op::kNot, name));
+
+  name = absl::StrFormat("__%s_valid_and_not_has_been_sent", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * valid_and_not_has_been_sent,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/loc, std::vector<Node*>({from_valid, not_has_been_sent}),
+          Op::kAnd, name));
+  XLS_RETURN_IF_ERROR(from_valid->ReplaceUsesWith(valid_and_not_has_been_sent));
+
+  // Data is transfered whenever valid and ready
+  name = absl::StrFormat("__%s_valid_and_ready_txfr", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * valid_and_ready_txfr,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/loc,
+          std::vector<Node*>({valid_and_not_has_been_sent, to_is_ready}),
+          Op::kAnd, name));
+
+  // Now set up the has_sent register
+  //  txfr = valid and ready -- data has been transferred to output
+  //  load = all_active_outputs_ready -- pipeline stage is now being loaded
+  //                                     with new inputs.
+  //
+  // if load
+  //   has_been_sent <= 0
+  // else if triggered
+  //   has_been_sent <= 1
+  //
+  // this can be implemented with
+  //   load_enable = load + triggered
+  //   data = !load
+  name = absl::StrFormat("__%s_has_been_sent_reg_load_en", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * load_enable,
+      block->MakeNodeWithName<NaryOp>(
+          /*loc=*/loc,
+          std::vector<Node*>({valid_and_ready_txfr, all_active_outputs_ready}),
+          Op::kOr, name));
+
+  name = absl::StrFormat("__%s_not_stage_load", name_prefix);
+  XLS_ASSIGN_OR_RETURN(
+      Node * not_stage_load,
+      block->MakeNodeWithName<UnOp>(/*loc=*/loc, all_active_outputs_ready,
+                                    Op::kNot, name));
+
+  XLS_RETURN_IF_ERROR(
+      has_been_sent_reg_write->ReplaceOperandNumber(0, not_stage_load));
+
+  XLS_RETURN_IF_ERROR(
+      has_been_sent_reg_write->ReplaceExistingLoadEnable(load_enable));
+
+  return absl::OkStatus();
+}
+
+// Adds logic to ensure that for multi-output blocks that
+// an output is not transferred more than once.
+//
+// For multiple-output blocks, even if all outputs are valid
+// at the same time, it may not be the case that their destinations
+// are ready.  In this case, for N output sends, M<N sends
+// may be completed. In  subsequent cycles, more sends may yet be completed.
+//
+// This logic is to ensure that in those subsequent cycles,
+// sends that are already completed have valid set to zero to prevent
+// sending an output twice.
+static absl::Status AddOneShotOutputLogic(const ResetInfo& reset_info,
+                                          const CodegenOptions& options,
+                                          StreamingIoPipeline& streaming_io,
+                                          Block* block) {
+  XLS_CHECK(streaming_io.all_active_outputs_ready.has_value());
+  Node* all_active_outputs_ready =
+      streaming_io.all_active_outputs_ready.value();
+
+  for (StreamingOutput& output : streaming_io.outputs) {
+    // Add an buffers before the valid output ports and after
+    // the ready input port to serve as points where the
+    // additional logic from AddRegisterToRDVNodes() can be inserted.
+    std::string valid_buf_name =
+        absl::StrFormat("__%s_buf", output.port_ready->name());
+    std::string ready_buf_name =
+        absl::StrFormat("__%s_buf", output.port_ready->name());
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * output_port_valid_buf,
+        block->MakeNodeWithName<UnOp>(
+            /*loc=*/absl::nullopt, output.port_valid->operand(0), Op::kIdentity,
+            valid_buf_name));
+    XLS_RETURN_IF_ERROR(
+        output.port_valid->ReplaceOperandNumber(0, output_port_valid_buf));
+
+    XLS_ASSIGN_OR_RETURN(Node * output_port_ready_buf,
+                         block->MakeNodeWithName<UnOp>(
+                             /*loc=*/absl::nullopt, output.port_ready,
+                             Op::kIdentity, valid_buf_name));
+
+    XLS_RETURN_IF_ERROR(
+        output.port_ready->ReplaceUsesWith(output_port_ready_buf));
+
+    XLS_RETURN_IF_ERROR(AddOneShotLogicToRVNodes(
+        output_port_valid_buf, output_port_ready_buf, all_active_outputs_ready,
+        output.port->name(), reset_info, block));
+  }
+
+  return absl::OkStatus();
+}
+
 // Adds an idle signal (un-flopped) to the block.
 //
 // Idle is asserted if valid signals for
@@ -1396,6 +1553,7 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
       Node * all_active_outputs_ready,
       MakeOutputReadyPortsForOutputChannels(
           absl::MakeSpan(streaming_io.outputs), ready_suffix, block));
+  streaming_io.all_active_outputs_ready = all_active_outputs_ready;
 
   XLS_VLOG(3) << "After Outputs Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
@@ -2095,8 +2253,9 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io_and_pipeline,
                        CloneNodesIntoPipelinedBlock(schedule, options, block));
 
+  bool streaming_outputs_mutually_exclusive = true;
   if (streaming_io_and_pipeline.outputs.size() > 1) {
-    XLS_ASSIGN_OR_RETURN(bool streaming_outputs_mutually_exclusive,
+    XLS_ASSIGN_OR_RETURN(streaming_outputs_mutually_exclusive,
                          AreStreamingOutputsMutuallyExclusive(proc));
 
     if (streaming_outputs_mutually_exclusive) {
@@ -2104,15 +2263,10 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
           "%d streaming outputs determined to be mutually exclusive",
           streaming_io_and_pipeline.outputs.size());
     } else {
-      // TODO(tedhong): 2021-09-27 Add additional logic to ensure that
-      // when output channels are ready at different times, no data is lost
-      // or received twice.
-      return absl::UnimplementedError(absl::StrFormat(
-          "Proc pipeline generator only supports streaming "
-          "output channels which can be determined to be mutually "
-          "exclusive, got %d output channels which were not proven "
-          "to be mutually exclusive",
-          streaming_io_and_pipeline.outputs.size()));
+      XLS_VLOG(3) << absl::StrFormat(
+          "%d streaming outputs not proven to be mutually exclusive -- "
+          "assuming false",
+          streaming_io_and_pipeline.outputs.size());
     }
   }
 
@@ -2126,6 +2280,13 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
                                             streaming_io_and_pipeline, block));
 
   XLS_VLOG(3) << "After Flow Control";
+  XLS_VLOG_LINES(3, block->DumpIr());
+
+  if (!streaming_outputs_mutually_exclusive) {
+    XLS_RETURN_IF_ERROR(AddOneShotOutputLogic(
+        reset_info, options, streaming_io_and_pipeline, block));
+  }
+  XLS_VLOG(3) << absl::StrFormat("After Output Triggers");
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // Initialize the valid flops to the pipeline registers.

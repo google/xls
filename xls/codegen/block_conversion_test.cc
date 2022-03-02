@@ -2378,11 +2378,9 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
     options.valid_control("input_valid", "output_valid");
     options.reset("rst_n", false, /*active_low=*/true, false);
 
-    EXPECT_THAT(ProcToPipelinedBlock(schedule, options, proc).status(),
-                status_testing::StatusIs(
-                    absl::StatusCode::kUnimplemented,
-                    testing::HasSubstr("not proven to be mutually exclusive")));
+    XLS_EXPECT_OK(ProcToPipelinedBlock(schedule, options, proc).status());
   }
+
   // Combinational test
   {
     CodegenOptions options;
@@ -2396,6 +2394,265 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
   }
 }
 
+// Fixture used to test pipelined BlockConversion on a multi input and
+// output block, that has state.
+class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
+ protected:
+  absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
+      int64_t stage_count, const CodegenOptions& options) override {
+    auto package_ptr = std::make_unique<Package>(TestName());
+    Package& package = *package_ptr;
+
+    Type* u32 = package.GetBitsType(32);
+    XLS_ASSIGN_OR_RETURN(
+        Channel * ch_in0,
+        package.CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * ch_in1,
+        package.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * ch_out0,
+        package.CreateStreamingChannel("out0", ChannelOps::kSendOnly, u32));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * ch_out1,
+        package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
+
+    Value initial_state = Value(UBits(0, 32));
+    TokenlessProcBuilder pb(TestName(), /*init_value=*/initial_state,
+                            /*token_name=*/"tkn", /*state_name=*/"st",
+                            &package);
+
+    BValue in0_val = pb.Receive(ch_in0);
+    BValue in1_val = pb.Receive(ch_in1);
+    BValue state = pb.GetStateParam();
+
+    BValue increment = pb.Add(in0_val, in1_val);
+    BValue next_state = pb.Add(state, increment);
+
+    pb.Send(ch_out0, next_state);
+
+    BValue state_plus_in1 = pb.Add(state, in1_val);
+    pb.Send(ch_out1, state_plus_in1);
+
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(next_state));
+
+    XLS_VLOG(2) << "Multi io streaming proc";
+    XLS_VLOG_LINES(2, proc->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
+                         PipelineSchedule::Run(
+                             proc, TestDelayEstimator(),
+                             SchedulingOptions().pipeline_stages(stage_count)));
+
+    CodegenOptions codegen_options = options;
+    codegen_options.module_name(kBlockName);
+
+    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+
+    return package_ptr;
+  }
+};
+
+// Fixture to sweep MultiIOWithStatePipelinedProcTest
+//
+// Sweep parameters are (stage_count, flop_inputs, flop_outputs,
+// flop_output_kind).
+class MultiIOWithStatePipelinedProcTestSweepFixture
+    : public MultiIOWithStatePipelinedProcTest,
+      public testing::WithParamInterface<
+          std::tuple<int64_t, bool, bool, CodegenOptions::IOKind,
+                     CodegenOptions::IOKind>> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = std::get<0>(info.param);
+    bool flop_inputs = std::get<1>(info.param);
+    bool flop_outputs = std::get<2>(info.param);
+    CodegenOptions::IOKind flop_inputs_kind = std::get<3>(info.param);
+    CodegenOptions::IOKind flop_outputs_kind = std::get<4>(info.param);
+
+    return absl::StrFormat(
+        "stage_count_%d_flop_inputs_%d_flop_outputs_%d_"
+        "flop_inputs_kind_%s_flop_outputs_kind_%s",
+        stage_count, flop_inputs, flop_outputs,
+        CodegenOptions::IOKindToString(flop_inputs_kind),
+        CodegenOptions::IOKindToString(flop_outputs_kind));
+  }
+};
+
+TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
+  int64_t stage_count = std::get<0>(GetParam());
+  bool flop_inputs = std::get<1>(GetParam());
+  bool flop_outputs = std::get<2>(GetParam());
+  CodegenOptions::IOKind flop_inputs_kind = std::get<3>(GetParam());
+  CodegenOptions::IOKind flop_outputs_kind = std::get<4>(GetParam());
+  bool add_idle_output = true;
+  bool active_low_reset = true;
+
+  CodegenOptions options;
+  options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.flop_inputs_kind(flop_inputs_kind);
+  options.flop_outputs_kind(flop_outputs_kind);
+  options.add_idle_output(add_idle_output);
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst_n", false, /*active_low=*/active_low_reset, false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Package> package,
+      BuildBlockInPackage(/*stage_count=*/stage_count, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  XLS_VLOG(2) << "Multi io counting pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  // The input stimulus to this test are
+  //  1. 10 cycles of reset
+  //  2. Randomly varying in_vld and out_rdy.
+  //  3. in_vld = 0 and out_rdy = 1 for 10 cycles to drain the pipeline
+
+  const char* reset_signal = "rst_n";
+  int64_t reset_active = 0;
+  int64_t reset_inactive = 1;
+
+  int64_t simulation_cycle_count = 10000;
+  int64_t max_random_cycle = simulation_cycle_count - 10 - 1;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(
+      SetSignalsOverCycles(0, 9, {{reset_signal, reset_active}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, simulation_cycle_count - 1,
+                                     {{reset_signal, reset_inactive}}, inputs));
+
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
+                                                "in0", 1, inputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
+                                                "in1", 1, inputs));
+
+  std::minstd_rand rng_engine;
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in0_vld", 0, 1,
+                                          rng_engine, inputs));
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in1_vld", 0, 1,
+                                          rng_engine, inputs));
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "out0_rdy", 0, 1,
+                                          rng_engine, inputs));
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "out1_rdy", 0, 1,
+                                          rng_engine, inputs));
+
+  XLS_ASSERT_OK(SetSignalsOverCycles(
+      max_random_cycle + 1, simulation_cycle_count - 1,
+      {{"in0_vld", 0}, {"in1_vld", 0}, {"out0_rdy", 1}, {"out1_rdy", 1}},
+      inputs));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{
+          {"cycle", SignalType::kOutput},
+          {reset_signal, SignalType::kInput, active_low_reset},
+          {"in0", SignalType::kInput},
+          {"in0_vld", SignalType::kInput},
+          {"in0_rdy", SignalType::kOutput},
+          {"in1", SignalType::kInput},
+          {"in1_vld", SignalType::kInput},
+          {"in1_rdy", SignalType::kOutput},
+          {"out0", SignalType::kOutput},
+          {"out0_vld", SignalType::kOutput},
+          {"out0_rdy", SignalType::kInput},
+          {"out1", SignalType::kOutput},
+          {"out1_vld", SignalType::kOutput},
+          {"out1_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  // Check the following property
+  // 1. The sequence of outputs is implied by the running
+  //    sum of the sequennce of inputs.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> input0_sequence,
+      GetChannelSequenceFromIO(
+          {"in0", SignalType::kInput}, {"in0_vld", SignalType::kInput},
+          {"in0_rdy", SignalType::kOutput},
+          {reset_signal, SignalType::kInput, active_low_reset}, inputs,
+          outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> input1_sequence,
+      GetChannelSequenceFromIO(
+          {"in1", SignalType::kInput}, {"in1_vld", SignalType::kInput},
+          {"in1_rdy", SignalType::kOutput},
+          {reset_signal, SignalType::kInput, active_low_reset}, inputs,
+          outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> output0_sequence,
+      GetChannelSequenceFromIO(
+          {"out0", SignalType::kOutput}, {"out0_vld", SignalType::kOutput},
+          {"out0_rdy", SignalType::kInput},
+          {reset_signal, SignalType::kInput, active_low_reset}, inputs,
+          outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> output1_sequence,
+      GetChannelSequenceFromIO(
+          {"out1", SignalType::kOutput}, {"out1_vld", SignalType::kOutput},
+          {"out1_rdy", SignalType::kInput},
+          {reset_signal, SignalType::kInput, active_low_reset}, inputs,
+          outputs));
+
+  int64_t prior_sum = 0;
+
+  for (int64_t i = 0; i < output0_sequence.size(); ++i) {
+    int64_t in0_val = input0_sequence.at(i).value;
+    int64_t in1_val = input1_sequence.at(i).value;
+    int64_t out0_val = output0_sequence.at(i).value;
+    int64_t out1_val = output1_sequence.at(i).value;
+
+    int64_t expected0_sum = in0_val + in1_val + prior_sum;
+    int64_t expected1_sum = prior_sum + in1_val;
+
+    EXPECT_EQ(out0_val, expected0_sum) << absl::StreamFormat(
+        "Expected output0 index %d val %d == %d + %d + %d, got %d, expected %d",
+        i, out0_val, in0_val, prior_sum, in1_val, out0_val, expected0_sum);
+
+    EXPECT_EQ(out1_val, expected1_sum) << absl::StreamFormat(
+        "Expected output0 index %d val %d == %d + %d + %d, got %d, expected %d",
+        i, out1_val, in0_val, prior_sum, in1_val, out1_val, expected1_sum);
+
+    prior_sum = expected0_sum;
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MultiIOWithStatePipelinedProcTestSweep,
+    MultiIOWithStatePipelinedProcTestSweepFixture,
+    testing::Combine(
+        testing::Values(2, 3, 4), testing::Values(false, true),
+        testing::Values(false, true),
+        testing::Values(CodegenOptions::IOKind::kFlop,
+                        CodegenOptions::IOKind::kSkidBuffer,
+                        CodegenOptions::IOKind::kZeroLatencyBuffer),
+        testing::Values(CodegenOptions::IOKind::kFlop,
+                        CodegenOptions::IOKind::kSkidBuffer,
+                        CodegenOptions::IOKind::kZeroLatencyBuffer)),
+    MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
+
+INSTANTIATE_TEST_SUITE_P(
+    MultiIOWithStateSingleStagePipelinedProcTestSweep,
+    MultiIOWithStatePipelinedProcTestSweepFixture,
+    testing::Combine(
+        testing::Values(1), testing::Values(true), testing::Values(false, true),
+        testing::Values(CodegenOptions::IOKind::kFlop,
+                        CodegenOptions::IOKind::kSkidBuffer,
+                        CodegenOptions::IOKind::kZeroLatencyBuffer),
+        testing::Values(CodegenOptions::IOKind::kFlop,
+                        CodegenOptions::IOKind::kSkidBuffer,
+                        CodegenOptions::IOKind::kZeroLatencyBuffer)),
+    MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 }  // namespace
 }  // namespace verilog
 }  // namespace xls
