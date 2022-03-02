@@ -8,21 +8,21 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/xls_style/">
+        <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_channels/">
       
-      <link rel="icon" href="../assets/images/favicon.png">
+      <link rel="icon" href="../../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.2.3, mkdocs-material-8.2.4">
     
     
       
-        <title>Style Guide - XLS: Accelerated HW Synthesis</title>
+        <title>Channels - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.2d9f7617.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.2d9f7617.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.e6a45f82.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.e6a45f82.min.css">
         
       
     
@@ -37,7 +37,7 @@
       
     
     
-    <script>__md_scope=new URL("..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("../..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -61,7 +61,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#xls-style-guide" class="md-skip">
+        <a href="#tutorial-xlscc-channels-and-fixed-width-integers" class="md-skip">
           Skip to content
         </a>
       
@@ -75,7 +75,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
@@ -94,7 +94,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Style Guide
+              Channels
             
           </span>
         </div>
@@ -173,7 +173,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54z"/></svg>
@@ -204,7 +204,7 @@
   
   
     <li class="md-nav__item">
-      <a href=".." class="md-nav__link">
+      <a href="../.." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -217,12 +217,14 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" checked>
       
       
       
@@ -245,7 +247,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/" class="md-nav__link">
+      <a href="../" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -285,7 +287,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/hello_xls/" class="md-nav__link">
+      <a href="../hello_xls/" class="md-nav__link">
         Hello, XLS!
       </a>
     </li>
@@ -299,7 +301,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/float_to_int/" class="md-nav__link">
+      <a href="../float_to_int/" class="md-nav__link">
         Basic logic
       </a>
     </li>
@@ -313,7 +315,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
+      <a href="../intro_to_parametrics/" class="md-nav__link">
         Intro to parameterics
       </a>
     </li>
@@ -327,7 +329,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/crc32/" class="md-nav__link">
+      <a href="../crc32/" class="md-nav__link">
         For expressions
       </a>
     </li>
@@ -341,7 +343,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/prefix_scan/" class="md-nav__link">
+      <a href="../prefix_scan/" class="md-nav__link">
         Enumerate and match
       </a>
     </li>
@@ -360,12 +362,14 @@
               
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_3" type="checkbox" id="__nav_2_3" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_3" type="checkbox" id="__nav_2_3" checked>
       
       
       
@@ -388,7 +392,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_overview/" class="md-nav__link">
+      <a href="../xlscc_overview/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -400,11 +404,87 @@
               
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../tutorials/xlscc_channels/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          Channels
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Channels
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#introduction-to-channels" class="md-nav__link">
+    Introduction to channels.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#introduction-to-fixed-width-integers" class="md-nav__link">
+    Introduction to fixed-width integers.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-xlscc-for-channel-interfaces" class="md-nav__link">
+    Configuring XLS[cc] for channel interfaces.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-xlscc-for-fixed-width-integers" class="md-nav__link">
+    Configuring XLS[cc] for fixed-width integers.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#translate-into-optimized-xls-ir" class="md-nav__link">
+    Translate into optimized XLS IR.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
+    Perform code-generation into a pipelined Verilog block.
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -416,7 +496,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tutorials/xlscc_state/" class="md-nav__link">
+      <a href="../xlscc_state/" class="md-nav__link">
         State
       </a>
     </li>
@@ -471,7 +551,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_semantics/" class="md-nav__link">
+      <a href="../../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
     </li>
@@ -485,7 +565,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../optimizations/" class="md-nav__link">
+      <a href="../../optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -525,7 +605,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../scheduling/" class="md-nav__link">
+      <a href="../../scheduling/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -539,7 +619,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../delay_estimation/" class="md-nav__link">
+      <a href="../../delay_estimation/" class="md-nav__link">
         Delay Estimation
       </a>
     </li>
@@ -560,7 +640,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_visualization/" class="md-nav__link">
+      <a href="../../ir_visualization/" class="md-nav__link">
         Visualizer
       </a>
     </li>
@@ -600,7 +680,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../ir_jit/" class="md-nav__link">
+      <a href="../../ir_jit/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -614,7 +694,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../data_layout/" class="md-nav__link">
+      <a href="../../data_layout/" class="md-nav__link">
         Data Layout
       </a>
     </li>
@@ -635,7 +715,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../solvers/" class="md-nav__link">
+      <a href="../../solvers/" class="md-nav__link">
         Formal
       </a>
     </li>
@@ -683,7 +763,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_reference/" class="md-nav__link">
+      <a href="../../dslx_reference/" class="md-nav__link">
         Reference
       </a>
     </li>
@@ -697,7 +777,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_std/" class="md-nav__link">
+      <a href="../../dslx_std/" class="md-nav__link">
         Standard Library
       </a>
     </li>
@@ -711,7 +791,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../floating_point/" class="md-nav__link">
+      <a href="../../floating_point/" class="md-nav__link">
         Floating Point
       </a>
     </li>
@@ -725,7 +805,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../fuzzer/" class="md-nav__link">
+      <a href="../../fuzzer/" class="md-nav__link">
         Fuzzer
       </a>
     </li>
@@ -739,7 +819,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
+      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
         Interpreter
       </a>
     </li>
@@ -787,7 +867,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../vast/" class="md-nav__link">
+      <a href="../../vast/" class="md-nav__link">
         VAST
       </a>
     </li>
@@ -835,7 +915,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../build_system/" class="md-nav__link">
+      <a href="../../build_system/" class="md-nav__link">
         Build System
       </a>
     </li>
@@ -849,7 +929,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../bazel_rules_macros/" class="md-nav__link">
+      <a href="../../bazel_rules_macros/" class="md-nav__link">
         Bazel Rules And Macros
       </a>
     </li>
@@ -863,7 +943,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools_quick_start/" class="md-nav__link">
+      <a href="../../tools_quick_start/" class="md-nav__link">
         Quick Start
       </a>
     </li>
@@ -877,7 +957,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../tools/" class="md-nav__link">
+      <a href="../../tools/" class="md-nav__link">
         Listing
       </a>
     </li>
@@ -891,7 +971,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../interpreters/" class="md-nav__link">
+      <a href="../../interpreters/" class="md-nav__link">
         Interpreters
       </a>
     </li>
@@ -911,14 +991,12 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" >
       
       
       
@@ -941,7 +1019,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../contributing/" class="md-nav__link">
+      <a href="../../contributing/" class="md-nav__link">
         Contributing
       </a>
     </li>
@@ -953,92 +1031,11 @@
               
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          Style Guide
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../xls_style/" class="md-nav__link">
         Style Guide
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c" class="md-nav__link">
-    C++
-  </a>
-  
-    <nav class="md-nav" aria-label="C++">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    Functions
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ir-nodes" class="md-nav__link">
-    IR nodes
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#faq" class="md-nav__link">
-    FAQ
-  </a>
-  
-    <nav class="md-nav" aria-label="FAQ">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#how-heavyweight-is-statusor" class="md-nav__link">
-    How heavyweight is StatusOr?
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -1050,7 +1047,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../adding_ir_operation/" class="md-nav__link">
+      <a href="../../adding_ir_operation/" class="md-nav__link">
         Adding a new IR operation
       </a>
     </li>
@@ -1098,7 +1095,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_readme/" class="md-nav__link">
+      <a href="../../xls_noc_readme/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -1138,7 +1135,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_topologies/" class="md-nav__link">
+      <a href="../../xls_noc_topologies/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -1152,7 +1149,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../../xls_noc_dimension_order_topology/" class="md-nav__link">
         Dimension Order
       </a>
     </li>
@@ -1166,7 +1163,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../../xls_noc_tree_topology/" class="md-nav__link">
         Tree
       </a>
     </li>
@@ -1180,7 +1177,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../../xls_noc_butterfly_topology/" class="md-nav__link">
         k-ary n-fly Butterfly
       </a>
     </li>
@@ -1194,7 +1191,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../../xls_noc_fully_connected_topology/" class="md-nav__link">
         Fully Connected
       </a>
     </li>
@@ -1208,7 +1205,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_star_topology/" class="md-nav__link">
+      <a href="../../xls_noc_star_topology/" class="md-nav__link">
         Star
       </a>
     </li>
@@ -1229,7 +1226,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xls_noc_glossary/" class="md-nav__link">
+      <a href="../../xls_noc_glossary/" class="md-nav__link">
         Glossary
       </a>
     </li>
@@ -1270,49 +1267,44 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#c" class="md-nav__link">
-    C++
+  <a href="#introduction-to-channels" class="md-nav__link">
+    Introduction to channels.
   </a>
-  
-    <nav class="md-nav" aria-label="C++">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#functions" class="md-nav__link">
-    Functions
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#ir-nodes" class="md-nav__link">
-    IR nodes
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#faq" class="md-nav__link">
-    FAQ
-  </a>
-  
-    <nav class="md-nav" aria-label="FAQ">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#how-heavyweight-is-statusor" class="md-nav__link">
-    How heavyweight is StatusOr?
+  <a href="#introduction-to-fixed-width-integers" class="md-nav__link">
+    Introduction to fixed-width integers.
   </a>
   
 </li>
-        
-      </ul>
-    </nav>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-xlscc-for-channel-interfaces" class="md-nav__link">
+    Configuring XLS[cc] for channel interfaces.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuring-xlscc-for-fixed-width-integers" class="md-nav__link">
+    Configuring XLS[cc] for fixed-width integers.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#translate-into-optimized-xls-ir" class="md-nav__link">
+    Translate into optimized XLS IR.
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
+    Perform code-generation into a pipelined Verilog block.
+  </a>
   
 </li>
       
@@ -1328,112 +1320,153 @@
             <article class="md-content__inner md-typeset">
               
                 
-<a href="https://github.com/google/xls/tree/main/docs_src/xls_style.md" title="Edit this page" class="md-content__button md-icon">
+<a href="https://github.com/google/xls/tree/main/docs_src/tutorials/xlscc_channels.md" title="Edit this page" class="md-content__button md-icon">
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>
 </a>
 
 
 
-<h1 id="xls-style-guide">XLS Style Guide</h1>
-<p>The Google style guides recommend enforcing local consistency where stylistic
-choices are not pre-defined. This file notes some of the choices we make locally
-in the XLS project, with the relevant Google style guides
-(<a href="https://google.github.io/styleguide/cppguide.html">C++</a>,
-<a href="https://google.github.io/styleguide/pyguide.html">Python</a>) as their bases.</p>
-<h2 id="c">C++</h2>
+<h1 id="tutorial-xlscc-channels-and-fixed-width-integers">Tutorial: XLS[cc] channels, and fixed-width integers.</h1>
+<div class="toc">
 <ul>
-<li>Align the pointer or reference modifier token with the type; e.g. <code>Foo&amp;
-    foo = ...</code> instead of <code>Foo &amp;foo = ...</code>, and <code>Foo* foo = ...</code> instead of <code>Foo
-    *foo= ...</code>.</li>
+<li><a href="#tutorial-xlscc-channels-and-fixed-width-integers">Tutorial: XLS[cc] channels, and fixed-width integers.</a><ul>
+<li><a href="#introduction-to-channels">Introduction to channels.</a></li>
+<li><a href="#introduction-to-fixed-width-integers">Introduction to fixed-width integers.</a></li>
+<li><a href="#configuring-xlscc-for-channel-interfaces">Configuring XLS[cc] for channel interfaces.</a></li>
+<li><a href="#configuring-xlscc-for-fixed-width-integers">Configuring XLS[cc] for fixed-width integers.</a></li>
+<li><a href="#translate-into-optimized-xls-ir">Translate into optimized XLS IR.</a></li>
+<li><a href="#perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</a></li>
 </ul>
-<ul>
-<li>Use <code>/*parameter_name=*/value</code> style comments if you choose to annotate
-    arguments in a function invocation. <code>clang-tidy</code> recognizes this form, and
-    provides a Tricorder notification if <code>parameter_name</code> is mismatched against
-    the parameter name of the callee.</li>
-</ul>
-<ul>
-<li>Prefer <code>int64_t</code> over <code>int</code> to avoid any possibility of overflow.</li>
-</ul>
-<ul>
-<li>Always use <code>Status</code> or <code>StatusOr</code> for any error that a user could encounter.</li>
-</ul>
-<ul>
-<li>Other than user-facing errors, use <code>Status</code> only in exceptional situations.
-    For example, <code>Status</code> is good to signal that a required file does not exist
-    but not for signaling that constant folding did not constant fold an
-    expression.<p>See <a href="#how-heavyweight-is-statusor">how heavyweight is StatusOr</a> for more
-  details on thinking about the costs involved.</p>
 </li>
 </ul>
-<ul>
-<li>Internal errors for conditions that should never be false can use <code>CHECK</code>,
-    but may also use <code>Status</code> or <code>StatusOr</code>.</li>
-</ul>
-<ul>
-<li>Prefer using <code>XLS_ASSIGN_OR_RETURN</code> / <code>XLS_RETURN_IF_ERROR</code> when
-    appropriate, but when binding a <code>StatusOr</code> wrapped value prefer to name it
-    <code>thing_or</code> so that it can be referenced without the wrapper as <code>thing</code>; e.g.<div class="highlight"><pre><span></span><code>absl::StatusOr&lt;Thing&gt; thing_or = f();
-if (!thing_or.ok()) {
-  // ... handling of the status via thing_or.status() and returning ...
+</div>
+<p>This tutorial is aimed at walking you through the implementation and synthesis
+into Verilog of a C++ function containing channels and fixed-width integers.</p>
+<h2 id="introduction-to-channels">Introduction to channels.</h2>
+<p>XLS implements channels via a FIFO-based (ready/valid/data) interface.</p>
+<p>In C++, these channels are provided by a built-in template class called
+<code>__xls_channel</code> supporting two methods: <code>read()</code> and <code>write(val)</code>.</p>
+<p>To utilize channels include the special xls_builtin header file: <code>#include
+"/xls_builtin.h"</code>.</p>
+<p>An example of a usage is below, which reads an integer on the input channel,
+multiplies it by 3, and writes it to the output channel.</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;/xls_builtin.h&quot;</span><span class="cp"></span>
+
+<span class="cp">#pragma hls_top</span>
+<span class="kt">void</span><span class="w"> </span><span class="nf">test_channels</span><span class="p">(</span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">,</span><span class="w"></span>
+<span class="w">                   </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Note that an <code>ac_datatypes</code> compatibility layer is also provided so that the
+same C++ code can be used for both simulation and XLS[cc] synthesis with just a
+change in the include paths:
+<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/synth_only/ac_compat">ac_compat</a>.</p>
+<h2 id="introduction-to-fixed-width-integers">Introduction to fixed-width integers.</h2>
+<p>XLS also provides a template class for fixed-width integers. These are declared
+using the template class <code>XlsInt&lt;int Wdith, bool Signed = true&gt;</code>.</p>
+<p>To utilize fixed with integer types, include
+<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/synth_only/xls_int.h">xls_int.h</a>.</p>
+<p>Create a <code>test_channels.cc</code> with the following contents for the rest of this
+tutorial.</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;/xls_builtin.h&quot;</span><span class="cp"></span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;xls_int.h&quot;</span><span class="cp"></span>
+
+<span class="cp">#pragma hls_top</span>
+<span class="kt">void</span><span class="w"> </span><span class="nf">test_channels</span><span class="p">(</span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">XlsInt</span><span class="o">&lt;</span><span class="mi">17</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="o">&gt;&gt;&amp;</span><span class="w"> </span><span class="n">in</span><span class="p">,</span><span class="w"></span>
+<span class="w">                </span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="n">XlsInt</span><span class="o">&lt;</span><span class="mi">22</span><span class="p">,</span><span class="w"> </span><span class="nb">false</span><span class="o">&gt;&gt;&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">());</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p><strong>NOTE</strong> <code>"/xls_builtin.h"</code> has a <code>\/'</code> in order to reduce the chance of
+collisions with other include files that my exist on the system.</p>
+<h2 id="configuring-xlscc-for-channel-interfaces">Configuring XLS[cc] for channel interfaces.</h2>
+<p>To support different of channel interfaces, a protofile is provided to XLS[cc]
+to configure the direction and interface of the top level function.</p>
+<p>The below textproto specifies that</p>
+<ol>
+<li>
+<p><code>in</code> is an input channel with FIFO (ready/valid) signaling</p>
+</li>
+<li>
+<p><code>out</code> is an output channel with FIFO (ready/valid) signaling.</p>
+</li>
+<li>
+<p>The IR should be created with a top-level proc named <code>xls_test_proc</code>.</p>
+</li>
+</ol>
+<p>Create a file <code>test_channels.textproto</code> with the following contents.</p>
+<div class="highlight"><pre><span></span><code>channels {
+  name: &quot;in&quot;
+  is_input: true
+  type: FIFO
 }
-const Thing&amp; thing = thing_or.value();
+channels {
+  name: &quot;out&quot;
+  is_input: false
+  type: FIFO
+}
+name: &quot;xls_test&quot;`
 </code></pre></div>
-</li>
-</ul>
-<ul>
-<li>Prefer <code>CHECK</code> to <code>DCHECK</code>, except that <code>DCHECK</code> can be used to verify
-    conditions that it would be too expensive to verify in production, but that
-    are fast enough to include outside of production.</li>
-</ul>
-<h3 id="functions">Functions</h3>
-<ul>
-<li>Short or easily-explained argument lists (as defined by the developer) can
-    be explained inline with the rest of the function comment. For more complex
-    argument lists, the following pattern should be used:<div class="highlight"><pre><span></span><code>// &lt;Function description&gt;
-// Args:
-//   arg1: &lt;arg1 description&gt;
-//   arg2: &lt;arg2 description&gt;
-//   ...
+<p>Then convert it to a protobin. This protobin will be later provided to <code>xlscc</code>
+with <code>--block_pb test_channels.pb</code>.</p>
+<div class="highlight"><pre><span></span><code>./bazel-bin/xls/tools/proto2bin test_channels.textproto --message xlscc.HLSBlock --output test_channels.pb
 </code></pre></div>
-</li>
-</ul>
-<h3 id="ir-nodes">IR nodes</h3>
-<ul>
-<li>Unlike most data, IR elements should be passed as non-const pointers, even
-    when expected to be const (which would usually indicate passing them as
-    const references). Experience has shown that IR elements often develop
-    non-const usages over time. Consider the case of IR analysis passes - those
-    passes themselves rarely need to mutate their input data, but they build up
-    data structures whose users often need to mutate their contents. In
-    addition, treating elements as pointers makes equality comparisons more
-    straightforward (avoid taking an address of a reference) and helps avoid
-    accidental copies (assigning a reference to local, etc.). Non-const pointer
-    usage propagates outwards such that the few cases where a const reference
-    could <em>actually</em> be appropriate become odd outliers, so our guidance is that
-    IR elements should uniformly be passed as non-const pointers.</li>
-</ul>
-<h2 id="faq">FAQ</h2>
-<h3 id="how-heavyweight-is-statusor">How heavyweight is <code>StatusOr</code>?</h3>
-<p>What follows is the <strong>general guidance on how absl::StatusOr is used</strong> -- it is
-used extensively throughout the XLS code base as an error-style indicator object
-wrapper, so it is important to understand the mental model used for its cost.</p>
-<p>Consider cost wise that: a) creating an <strong>ok</strong> <code>StatusOr</code> is cheap, b) creating
-a <strong>non-ok</strong> <code>StatusOr</code> is expensive (that is, imagine the non-ok <code>Status</code>
-within a <code>StatusOr</code> is the expensive part).</p>
-<p>The implication being: if there's an API where "not found" is a reasonable
-outcome, prefer <code>absl::optional&lt;&gt;</code> as a return value to indicate that / go with
-the grain of cost.</p>
-<p>Something like a filesystem API would be a classic example -- where you
-shouldn't be rooting around looking for files that aren't there -- so a
-not-found <code>absl::StatusOr</code> result would be fine to use.</p>
-<p>A good potential mental model is to imagine the program may run with logging of
-a traceback for every non-ok status that is created. (This is related to a
-debugging capability in Google internally called
-<code>--util_status_save_stack_trace</code> that captures backtraces when error <code>Status</code>es
-are created.) Ideally, with such a logging flag turned on, the screen wouldn't
-fill up with "non error tracebacks", only tracebacks from events where something
-really went wrong.</p>
+<h2 id="configuring-xlscc-for-fixed-width-integers">Configuring XLS[cc] for fixed-width integers.</h2>
+<p>XLS[cc] fixed-width integers have a dependency on the <code>ac_datatypes</code> library.
+Clone the repository (https://github.com/hlslibs) into a directory named
+<code>ac_datatypes</code>.</p>
+<div class="highlight"><pre><span></span><code>git clone https://github.com/hlslibs/ac_types.git ac_datatypes
+</code></pre></div>
+<p>Then create the a <code>clang.args</code> file with the following contents to configure the
+include paths and pre-define the <code>__SYNTHESIS__</code> name as a macro.</p>
+<div class="highlight"><pre><span></span><code>-D__SYNTHESIS__
+-I/path/to/your/xls/contrib/xlscc/synth_only
+-I/path/containing/ac_datatypes/..
+</code></pre></div>
+<h2 id="translate-into-optimized-xls-ir">Translate into optimized XLS IR.</h2>
+<p>With the above setup complete, XLS IR can now be generated using a sequence of
+<code>xlscc</code> and <code>xls_opt</code>.</p>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/contrib/xlscc/xlscc test_channels.cc \
+  --clang_args_file clang.args \
+  --block_pb test_channels.pb \
+  --dump_ir_only &gt; test_channels.ir
+$ ./bazel-bin/xls/tools/xls_opt test_channels.ir &gt; test_channels.opt.ir
+</code></pre></div>
+<p>Note that unlike in the prior tutorial, XLS[cc] is used to generate
+<a href="../../ir_semantics/#proc">XLS procs</a>
+rather than functions. This is to support the additional interface requirements
+of channels.</p>
+<h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
+<p>With the same IR, you can either generate a combinational block or a clocked
+pipelined block with the <code>codegen_main</code> tool. In this section, we'll demonstrate
+how to generate a pipelined block using the above C++ code.</p>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_channels.opt.ir \
+  --generator=pipeline \
+  --delay_model=&quot;sky130&quot; \
+  --output_verilog_path=test_channels.v \
+  --module_name=xls_test \
+  --top_level_proc=xls_test_proc \
+  --reset=rst \
+  --reset_active_low=false \
+  --reset_asynchronous=false \
+  --reset_data_path=true \
+  --pipeline_stages=5  \
+  --flop_inputs=true \
+  --flop_outputs=true \
+  --flop_inputs_kind=skid \
+  --flop_outputs_kind=skid
+</code></pre></div>
+<p>Below is a quick summary of the new options.</p>
+<ol>
+<li><code>--delay_model="sky130"</code> - use the sky130 delay model.</li>
+<li><code>--top_level_proc=xls_test_proc</code> - the proc that is the top-level is named
+    <code>xls_test_proc</code>. This should be the name specified in the textproto given to
+    XLS[cc] with a <code>_proc</code> suffix appended.</li>
+<li><code>--flop_inputs_kind=skid</code> and <code>--flop_outputs_kind=skid</code> - control what type
+    of I/O buffering is used. In this case, we configure a skid buffer at both
+    the input and output.</li>
+</ol>
 
               
             </article>
@@ -1447,7 +1480,7 @@ really went wrong.</p>
     <nav class="md-footer__inner md-grid" aria-label="Footer">
       
         
-        <a href="../contributing/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Contributing" rel="prev">
+        <a href="../xlscc_overview/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Overview" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12z"/></svg>
           </div>
@@ -1456,20 +1489,20 @@ really went wrong.</p>
               <span class="md-footer__direction">
                 Previous
               </span>
-              Contributing
+              Overview
             </div>
           </div>
         </a>
       
       
         
-        <a href="../adding_ir_operation/" class="md-footer__link md-footer__link--next" aria-label="Next: Adding a new IR operation" rel="next">
+        <a href="../xlscc_state/" class="md-footer__link md-footer__link--next" aria-label="Next: State" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Adding a new IR operation
+              State
             </div>
           </div>
           <div class="md-footer__button md-icon">
@@ -1499,10 +1532,10 @@ really went wrong.</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../assets/javascripts/workers/search.bd0b6b67.min.js"}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "translations": {"clipboard.copy": "Copy to clipboard", "clipboard.copied": "Copied to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.placeholder": "Type to start searching", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.term.missing": "Missing", "select.version.title": "Select version"}, "search": "../../assets/javascripts/workers/search.bd0b6b67.min.js"}</script>
     
     
-      <script src="../assets/javascripts/bundle.5413a266.min.js"></script>
+      <script src="../../assets/javascripts/bundle.5413a266.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
