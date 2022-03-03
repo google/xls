@@ -172,3 +172,12 @@ def load_external_repositories():
         #repo_mapping = {"@com_googlesource_code_re2": "@com_github_google_re2"},
         patches = ["@com_google_xls//dependency_support/com_github_grpc_grpc:grpc_patch.diff"],
     )
+
+    # Used by xlscc.
+    http_archive(
+        name = "com_github_hlslibs_ac_types",
+        urls = ["https://github.com/hlslibs/ac_types/archive/57d89634cb5034a241754f8f5347803213dabfca.tar.gz"],
+        sha256 = "7ab5e2ee4c675ef6895fdd816c32349b3070dc8211b7d412242c66d0c6e8edca",
+        strip_prefix = "ac_types-57d89634cb5034a241754f8f5347803213dabfca",
+        build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:BUILD.bazel",
+    )

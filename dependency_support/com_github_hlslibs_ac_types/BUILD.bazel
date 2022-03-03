@@ -1,0 +1,93 @@
+# Copyright 2020 The XLS Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# This package contains Mentor Graphics AC Datatypes headers.
+
+package(default_visibility = ["//visibility:public"])
+
+licenses(["notice"])
+
+exports_files(["LICENSE"])
+
+# Each header is split into its own library because not all of the AC headers
+# build, and presently only a few headers are needed.
+
+cc_library(
+    name = "ac_int",
+    hdrs = ["include/ac_int.h"],
+    # Don't pollute the global namespace with uint1, uint2, ... uint32 from
+    # ac_int.h. Those typedefs don't play nicely with ABSL among other things.
+    defines = ["AC_NOT_USING_INTN"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "ac_channel",
+    hdrs = ["include/ac_channel.h"],
+    includes = ["include"],
+)
+
+cc_library(
+    name = "ac_sync",
+    hdrs = ["include/ac_sync.h"],
+    includes = ["include"],
+    deps = [":ac_channel"],
+)
+
+cc_library(
+    name = "ac_fixed",
+    hdrs = ["include/ac_fixed.h"],
+    includes = ["include"],
+    deps = [":ac_int"],
+)
+
+cc_library(
+    name = "ac_float",
+    hdrs = ["include/ac_float.h"],
+    includes = ["include"],
+    deps = [
+        ":ac_fixed",
+    ],
+)
+
+cc_library(
+    name = "ac_std_float",
+    hdrs = ["include/ac_std_float.h"],
+    includes = ["include"],
+    deps = [
+        ":ac_float",
+    ],
+)
+
+cc_library(
+    name = "ac_complex",
+    hdrs = ["include/ac_complex.h"],
+    includes = ["include"],
+    deps = [
+        ":ac_float",
+    ],
+)
+
+filegroup(
+    name = "ac_types_as_data",
+    srcs = [
+        "include/ac_channel.h",
+        "include/ac_complex.h",
+        "include/ac_fixed.h",
+        "include/ac_float.h",
+        "include/ac_int.h",
+        "include/ac_std_float.h",
+        "include/ac_sync.h",
+    ],
+)

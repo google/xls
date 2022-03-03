@@ -1,0 +1,18 @@
+# proto-file: xls/contrib/xlscc/hls_block.proto
+# proto-message: xlscc.HLSBlock
+channels {
+  name: "in0"
+  is_input: true
+  type: FIFO
+}
+channels {
+  name: "in1"
+  is_input: true
+  type: FIFO
+}
+channels {
+  name: "out"
+  is_input: false
+  type: FIFO
+}
+name: "PacketSelector"
