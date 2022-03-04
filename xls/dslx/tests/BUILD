@@ -42,7 +42,6 @@ dslx_lang_test(name = "tuple_with_array_member")
 
 dslx_lang_test(
     name = "binops",
-    bytecode = False,
     test_ir_equivalence = False,
 )
 
@@ -202,12 +201,10 @@ xls_dslx_test(
 
 dslx_lang_test(
     name = "parametric_value_as_nested_loop_bound",
-    bytecode = False,
 )
 
 dslx_lang_test(
     name = "derived_parametric_value_as_nested_loop_bound",
-    bytecode = False,
 )
 
 # Note: no meaningful function to convert to IR.
@@ -228,7 +225,6 @@ xls_dslx_test(
     name = "bit_slice_syntax_dslx_test",
     srcs = ["bit_slice_syntax.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -238,7 +234,6 @@ xls_dslx_test(
     name = "tuple_indexing_dslx_test",
     srcs = ["tuple_indexing.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -252,7 +247,6 @@ xls_dslx_test(
     name = "one_hot_dslx_test",
     srcs = ["one_hot.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -262,7 +256,6 @@ xls_dslx_test(
     name = "one_hot_sel",
     srcs = ["one_hot_sel.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -281,7 +274,6 @@ xls_dslx_test(
     name = "numerical_conversions_dslx_test",
     srcs = ["numerical_conversions.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -291,7 +283,6 @@ xls_dslx_test(
     name = "numerical_conversions2_dslx_test",
     srcs = ["numerical_conversions2.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -301,7 +292,6 @@ xls_dslx_test(
     name = "signex_builtin_dslx_test",
     srcs = ["signex_builtin.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -311,7 +301,6 @@ xls_dslx_test(
     name = "enum_values_dslx_test",
     srcs = ["enum_values.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -321,7 +310,6 @@ xls_dslx_test(
     name = "casts_dslx_test",
     srcs = ["casts.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -339,7 +327,6 @@ xls_dslx_test(
     name = "parametric_with_comparison_dslx_test",
     srcs = ["parametric_with_comparison.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -349,7 +336,6 @@ xls_dslx_test(
     name = "parametric_smul_dslx_test",
     srcs = ["parametric_smul.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
@@ -365,7 +351,6 @@ xls_dslx_test(
     name = "struct_equality_dslx_test",
     srcs = ["struct_equality.x"],
     dslx_test_args = {
-        "bytecode": "true",
         "compare": "none",
     },
 )
