@@ -1602,6 +1602,62 @@ TEST_F(TranslatorTest, StructWithArrayAccess) {
   Run({{"a", 56}}, 56, content);
 }
 
+TEST_F(TranslatorTest, StructInitList) {
+  const std::string content = R"(
+       struct Test {
+         long long x;
+         long long y;
+         long long z;
+       };
+       long long my_package(long long a, long long b) {
+         Test ret = {a,5,b};
+         return ret.x+ret.y+ret.z;
+       })";
+  Run({{"a", 11}, {"b", 50}}, 66, content);
+}
+
+TEST_F(TranslatorTest, StructInitListWrongCount) {
+  const std::string content = R"(
+       struct Test {
+         long long x;
+         long long y;
+         long long z;
+       };
+       long long my_package(long long a, long long b) {
+         Test ret = {a,b};
+         return ret.x+ret.y+ret.z;
+       })";
+  Run({{"a", 11}, {"b", 50}}, 61, content);
+}
+
+TEST_F(TranslatorTest, StructInitListWithDefaultnt) {
+  const std::string content = R"(
+       struct Test {
+         long long x;
+         long long y;
+         long long z = 100;
+       };
+       long long my_package(long long a, long long b) {
+         Test ret = {a,b,10};
+         return ret.x+ret.y+ret.z;
+       })";
+  Run({{"a", 11}, {"b", 50}}, 71, content);
+}
+
+TEST_F(TranslatorTest, StructInitListWithDefaultWrongCount) {
+  const std::string content = R"(
+       struct Test {
+         long long x;
+         long long y;
+         long long z = 100;
+       };
+       long long my_package(long long a, long long b) {
+         Test ret = {a,b};
+         return ret.x+ret.y+ret.z;
+       })";
+  Run({{"a", 11}, {"b", 50}}, 161, content);
+}
+
 TEST_F(TranslatorTest, NoTupleStruct) {
   const std::string content = R"(
        #pragma hls_no_tuple

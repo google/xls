@@ -2866,6 +2866,21 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
       return CValue(def, ctype);
     }
+    // Implicitly generated value, as in an incomplete initializer list
+    case clang::Stmt::ImplicitValueInitExprClass: {
+      auto* implicit_value_init_expr =
+          clang_down_cast<const clang::ImplicitValueInitExpr*>(expr);
+      XLS_ASSIGN_OR_RETURN(
+          shared_ptr<CType> ctype,
+          TranslateTypeFromClang(implicit_value_init_expr->getType(), loc));
+      XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
+      return CValue(def, ctype);
+    }
+    case clang::Stmt::CXXDefaultInitExprClass: {
+      auto* default_init_expr =
+          clang_down_cast<const clang::CXXDefaultInitExpr*>(expr);
+      return GenerateIR_Expr(default_init_expr->getExpr(), loc);
+    }
     case clang::Stmt::StringLiteralClass: {
       auto* string_literal_expr =
           clang_down_cast<const clang::StringLiteral*>(expr);
@@ -2895,7 +2910,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       XLS_ASSIGN_OR_RETURN(
           xls::BValue init_val,
           CreateInitListValue(
-              *ctype, clang_down_cast<const clang::InitListExpr*>(expr), loc));
+              ctype, clang_down_cast<const clang::InitListExpr*>(expr), loc));
       return CValue(init_val, ctype);
     }
     case clang::Stmt::UnaryExprOrTypeTraitExprClass: {
@@ -3025,9 +3040,9 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
 }
 
 absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
-    const CType& t, const clang::InitListExpr* init_list,
+    const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
     const xls::SourceLocation& loc) {
-  if (auto array_t = dynamic_cast<const CArrayType*>(&t)) {
+  if (auto array_t = dynamic_cast<const CArrayType*>(t.get())) {
     if (array_t->GetSize() != init_list->getNumInits()) {
       return absl::UnimplementedError(absl::StrFormat(
           "Wrong number of initializers at %s", LocString(loc)));
@@ -3044,7 +3059,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
         XLS_ASSIGN_OR_RETURN(
             this_val,
             CreateInitListValue(
-                *array_t->GetElementType(),
+                array_t->GetElementType(),
                 clang_down_cast<const clang::InitListExpr*>(this_init), loc));
       } else {
         XLS_ASSIGN_OR_RETURN(CValue expr_val, GenerateIR_Expr(this_init, loc));
@@ -3060,10 +3075,25 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     XLS_ASSIGN_OR_RETURN(xls::Type * xls_elem_type,
                          TranslateTypeToXLS(array_t->GetElementType(), loc));
     return context().fb->Array(element_vals, xls_elem_type, loc);
+  }
+  if (dynamic_cast<const CInstantiableTypeAlias*>(t.get())) {
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> struct_type,
+                         ResolveTypeInstance(t));
+    auto struct_type_ptr = dynamic_cast<const CStructType*>(struct_type.get());
+    XLS_CHECK_NE(nullptr, struct_type_ptr);
+    XLS_CHECK_EQ(struct_type_ptr->fields().size(), init_list->getNumInits());
+    std::vector<xls::BValue> field_vals;
+    for (uint64_t i = 0; i < init_list->getNumInits(); ++i) {
+      XLS_ASSIGN_OR_RETURN(CValue value,
+                           GenerateIR_Expr(init_list->getInit(i), loc));
+      XLS_CHECK(*value.type() == *struct_type_ptr->fields().at(i)->type());
+      field_vals.push_back(value.value());
+    }
+    return context().fb->Tuple(field_vals, loc);
   } else {
     return absl::UnimplementedError(absl::StrFormat(
         "Don't know how to interpret initializer list for type %s at %s",
-        string(t), LocString(loc)));
+        string(*t), LocString(loc)));
   }
 }
 

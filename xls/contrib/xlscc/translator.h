@@ -928,7 +928,7 @@ class Translator {
   absl::StatusOr<xls::BValue> CreateDefaultValue(
       std::shared_ptr<CType> t, const xls::SourceLocation& loc);
   absl::StatusOr<xls::BValue> CreateInitListValue(
-      const CType& t, const clang::InitListExpr* init_list,
+      const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
       const xls::SourceLocation& loc);
   absl::StatusOr<CValue> GetIdentifier(const clang::NamedDecl* decl,
                                        const xls::SourceLocation& loc,
