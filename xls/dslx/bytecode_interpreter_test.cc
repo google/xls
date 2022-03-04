@@ -286,11 +286,36 @@ fn main(x: u32) -> u32 {
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
-  ASSERT_THAT(
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt),
-      StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Last match-arm's pattern must be a wildcard")));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
+                                                  &import_data, bf.get(),
+                                                  {InterpValue::MakeU32(1)}));
+  EXPECT_EQ(value, InterpValue::MakeU32(2));
+}
+
+TEST(BytecodeInterpreterTest, RunMatchNoMatch) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u32) -> u32 {
+  match x {
+    u32:1 => u32:2,
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
+                        &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+  absl::StatusOr<InterpValue> value = BytecodeInterpreter::Interpret(
+      &import_data, bf.get(), {InterpValue::MakeU32(2)});
+  EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
+                                       HasSubstr("The value was not matched")));
 }
 
 TEST(BytecodeInterpreterTest, RunMatchWithNameRefs) {

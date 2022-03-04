@@ -93,6 +93,7 @@ class BytecodeInterpreter {
   absl::Status EvalDup(const Bytecode& bytecode);
   absl::Status EvalEq(const Bytecode& bytecode);
   absl::Status EvalExpandTuple(const Bytecode& bytecode);
+  absl::Status EvalFail(const Bytecode& bytecode);
   absl::Status EvalGe(const Bytecode& bytecode);
   absl::Status EvalGt(const Bytecode& bytecode);
   absl::Status EvalIndex(const Bytecode& bytecode);
@@ -163,6 +164,12 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinSlice(const Bytecode& bytecode);
   absl::Status RunBuiltinUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
+
+  absl::StatusOr<std::string> TraceDataToString(
+      const Bytecode::TraceData& trace_data);
+  absl::StatusOr<bool> MatchArmEqualsInterpValue(
+      Frame* frame, const Bytecode::MatchArmItem& item,
+      const InterpValue& value);
 
   absl::StatusOr<InterpValue> Pop();
 

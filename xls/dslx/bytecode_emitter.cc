@@ -25,6 +25,10 @@
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 
+// TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
+// some subset that we test), interpretation terminates with only a single value
+// on the stack (I believe that should be the case for any valid program).
+
 namespace xls::dslx {
 
 BytecodeEmitter::BytecodeEmitter(
@@ -790,59 +794,51 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
                Bytecode::InvocationData{node, maybe_callee_bindings}));
 }
 
-void BytecodeEmitter::HandleNameDefTreeExpr(NameDefTree* tree,
-                                            Bytecode::MatchArmData* arm_data) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
+    NameDefTree* tree) {
   if (tree->is_leaf()) {
-    status_ = absl::visit(
+    return absl::visit(
         Visitor{
-            [&](NameRef* n) -> absl::Status {
+            [&](NameRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               using ValueT = absl::variant<InterpValue, Bytecode::SlotIndex>;
               XLS_ASSIGN_OR_RETURN(ValueT item_value, HandleNameRefInternal(n));
               if (absl::holds_alternative<InterpValue>(item_value)) {
-                arm_data->push_back(Bytecode::MatchArmItem::MakeInterpValue(
-                    absl::get<InterpValue>(item_value)));
-              } else {
-                arm_data->push_back(Bytecode::MatchArmItem::MakeLoad(
-                    absl::get<Bytecode::SlotIndex>(item_value)));
+                return Bytecode::MatchArmItem::MakeInterpValue(
+                    absl::get<InterpValue>(item_value));
               }
-              return absl::OkStatus();
+
+              return Bytecode::MatchArmItem::MakeLoad(
+                  absl::get<Bytecode::SlotIndex>(item_value));
             },
-            [&](Number* n) -> absl::Status {
+            [&](Number* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue number, HandleNumberInternal(n));
-              arm_data->push_back(
-                  Bytecode::MatchArmItem::MakeInterpValue(number));
-              return absl::OkStatus();
+              return Bytecode::MatchArmItem::MakeInterpValue(number);
             },
-            [&](ColonRef* n) -> absl::Status {
+            [&](ColonRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue value,
                                    HandleColonRefInternal(n));
-              arm_data->push_back(
-                  Bytecode::MatchArmItem::MakeInterpValue(value));
-              return absl::OkStatus();
+              return Bytecode::MatchArmItem::MakeInterpValue(value);
             },
-            [&](NameDef* n) {
+            [&](NameDef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               int64_t slot_index = namedef_to_slot_.size();
               namedef_to_slot_[n] = slot_index;
-              arm_data->push_back(Bytecode::MatchArmItem::MakeStore(
-                  Bytecode::SlotIndex(slot_index)));
-              return absl::OkStatus();
+              return Bytecode::MatchArmItem::MakeStore(
+                  Bytecode::SlotIndex(slot_index));
             },
-            [&](WildcardPattern* n) {
-              arm_data->push_back(Bytecode::MatchArmItem::MakeWildcard());
-              return absl::OkStatus();
+            [&](WildcardPattern* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
+              return Bytecode::MatchArmItem::MakeWildcard();
             },
         },
         tree->leaf());
-    return;
   }
 
+  std::vector<Bytecode::MatchArmItem> elements;
   for (NameDefTree* node : tree->nodes()) {
-    HandleNameDefTreeExpr(node, arm_data);
+    XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem element,
+                         HandleNameDefTreeExpr(node));
+    elements.push_back(element);
   }
+  return Bytecode::MatchArmItem::MakeTuple(std::move(elements));
 }
 
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
@@ -990,7 +986,7 @@ void BytecodeEmitter::HandleString(String* node) {
   }
 
   // A string is just a fancy array literal.
-  for (const char c : node->text()) {
+  for (const unsigned char c : node->text()) {
     bytecode_.push_back(
         Bytecode(node->span(), Bytecode::Op::kLiteral,
                  InterpValue::MakeUBits(/*bit_count=*/8, static_cast<int>(c))));
@@ -1140,24 +1136,6 @@ void BytecodeEmitter::HandleTernary(Ternary* node) {
   bytecode_.at(jump_index).PatchJumpTarget(jumpdest_index - jump_index);
 }
 
-bool IsTreeWildcard(NameDefTree* ndt) {
-  if (ndt->is_leaf()) {
-    auto leaf = ndt->leaf();
-    if (absl::holds_alternative<WildcardPattern*>(leaf)) {
-      return true;
-    }
-    return false;
-  }
-
-  for (const auto& node : ndt->nodes()) {
-    if (!IsTreeWildcard(node)) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 void BytecodeEmitter::HandleMatch(Match* node) {
   if (!status_.ok()) {
     return;
@@ -1192,20 +1170,9 @@ void BytecodeEmitter::HandleMatch(Match* node) {
   //  jump_dest                 # TOS0 holds result, matched value is gone.
   node->matched()->AcceptExpr(this);
 
-  // Current limitations:
-  // * Only match arms with single pattern
-  // * Last pattern must be wildcard
   const std::vector<MatchArm*>& arms = node->arms();
   if (arms.empty()) {
     status_ = absl::InternalError("At least one match arm is required.");
-    return;
-  }
-
-  NameDefTree* last_arm_pattern = arms.back()->patterns()[0];
-  if (!IsTreeWildcard(last_arm_pattern)) {
-    status_ = absl::UnimplementedError(
-        "Last match-arm's pattern must be a wildcard; got: " +
-        last_arm_pattern->ToString());
     return;
   }
 
@@ -1218,7 +1185,6 @@ void BytecodeEmitter::HandleMatch(Match* node) {
     auto cleanup = absl::MakeCleanup(
         [this, &outer_scope_slots]() { namedef_to_slot_ = outer_scope_slots; });
 
-    bool last_arm = arm_idx + 1 == node->arms().size();
     MatchArm* arm = node->arms()[arm_idx];
     arm_offsets.push_back(bytecode_.size());
     // We don't jump to the first arm test, but we jump to all the subsequent
@@ -1227,34 +1193,35 @@ void BytecodeEmitter::HandleMatch(Match* node) {
       Add(Bytecode::MakeJumpDest(node->span()));
     }
 
-    if (!last_arm) {
-      const std::vector<NameDefTree*>& patterns = arm->patterns();
-      // First, prime the stack with all the copies of the matchee we'll need.
-      for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
-        Add(Bytecode::MakeDup(node->matched()->span()));
-      }
-
-      for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
-        // Then we match each arm. We OR with the prev. result (if there is one)
-        // and swap to the next copy of the matchee, unless this is the last
-        // pattern.
-        NameDefTree* ndt = arm->patterns()[pattern_idx];
-        Bytecode::MatchArmData arm_data;
-        HandleNameDefTreeExpr(ndt, &arm_data);
-        Add(Bytecode::MakeMatchArm(ndt->span(), arm_data));
-
-        if (pattern_idx != 0) {
-          Add(Bytecode::MakeLogicalOr(ndt->span()));
-        }
-        if (pattern_idx != patterns.size() - 1) {
-          Add(Bytecode::MakeSwap(ndt->span()));
-        }
-      }
-      Add(Bytecode::MakeInvert(arm->span()));
-      jumps_to_next.push_back(bytecode_.size());
-      Add(Bytecode::MakeJumpRelIf(arm->span(),
-                                  Bytecode::kPlaceholderJumpAmount));
+    const std::vector<NameDefTree*>& patterns = arm->patterns();
+    // First, prime the stack with all the copies of the matchee we'll need.
+    for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
+      Add(Bytecode::MakeDup(node->matched()->span()));
     }
+
+    for (int pattern_idx = 0; pattern_idx < patterns.size(); pattern_idx++) {
+      // Then we match each arm. We OR with the prev. result (if there is one)
+      // and swap to the next copy of the matchee, unless this is the last
+      // pattern.
+      NameDefTree* ndt = arm->patterns()[pattern_idx];
+      absl::StatusOr<Bytecode::MatchArmItem> arm_item_or =
+          HandleNameDefTreeExpr(ndt);
+      if (!arm_item_or.ok()) {
+        status_ = arm_item_or.status();
+        return;
+      }
+      Add(Bytecode::MakeMatchArm(ndt->span(), arm_item_or.value()));
+
+      if (pattern_idx != 0) {
+        Add(Bytecode::MakeLogicalOr(ndt->span()));
+      }
+      if (pattern_idx != patterns.size() - 1) {
+        Add(Bytecode::MakeSwap(ndt->span()));
+      }
+    }
+    Add(Bytecode::MakeInvert(arm->span()));
+    jumps_to_next.push_back(bytecode_.size());
+    Add(Bytecode::MakeJumpRelIf(arm->span(), Bytecode::kPlaceholderJumpAmount));
     // Pop the value being matched since now we're going to produce the final
     // result.
     Add(Bytecode::MakePop(arm->span()));
@@ -1262,17 +1229,26 @@ void BytecodeEmitter::HandleMatch(Match* node) {
     // The arm matched: calculate the resulting expression and jump
     // unconditionally to "done".
     arm->expr()->AcceptExpr(this);
-    if (!last_arm) {
-      jumps_to_done.push_back(bytecode_.size());
-      Add(Bytecode::MakeJumpRel(arm->span(), Bytecode::kPlaceholderJumpAmount));
-    }
+    jumps_to_done.push_back(bytecode_.size());
+    Add(Bytecode::MakeJumpRel(arm->span(), Bytecode::kPlaceholderJumpAmount));
   }
+
+  // Finally, handle the case where no arm matched, which is a failure.
+  // Theoretically, we could reduce bytecode size by omitting this when the last
+  // arm is strictly wildcards, but it doesn't seem worth the effort.
+  arm_offsets.push_back(bytecode_.size());
+  Add(Bytecode::MakeJumpDest(node->span()));
+  Bytecode::TraceData trace_data;
+  trace_data.push_back("The value was not matched: value: ");
+  trace_data.push_back(FormatPreference::kDefault);
+  Add(Bytecode(node->span(), Bytecode::Op::kFail, trace_data));
 
   size_t done_offset = bytecode_.size();
   Add(Bytecode::MakeJumpDest(node->span()));
 
-  XLS_CHECK_EQ(node->arms().size(), arm_offsets.size());
-  XLS_CHECK_EQ(node->arms().size(), jumps_to_next.size() + 1);
+  // One extra for the fall-through failure case.
+  XLS_CHECK_EQ(node->arms().size() + 1, arm_offsets.size());
+  XLS_CHECK_EQ(node->arms().size(), jumps_to_next.size());
   for (size_t i = 0; i < jumps_to_next.size(); ++i) {
     size_t jump_offset = jumps_to_next[i];
     size_t next_offset = arm_offsets[i + 1];

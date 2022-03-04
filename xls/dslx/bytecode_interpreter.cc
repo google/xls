@@ -161,6 +161,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalExpandTuple(bytecode));
       break;
     }
+    case Bytecode::Op::kFail: {
+      XLS_RETURN_IF_ERROR(EvalFail(bytecode));
+      break;
+    }
     case Bytecode::Op::kGe: {
       XLS_RETURN_IF_ERROR(EvalGe(bytecode));
       break;
@@ -567,6 +571,13 @@ absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
+absl::Status BytecodeInterpreter::EvalFail(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
+                       bytecode.trace_data());
+  XLS_ASSIGN_OR_RETURN(std::string message, TraceDataToString(*trace_data));
+  return FailureErrorStatus(bytecode.source_span(), message);
+}
+
 absl::Status BytecodeInterpreter::EvalGe(const Bytecode& bytecode) {
   return EvalBinop([](const InterpValue& lhs, const InterpValue& rhs) {
     return lhs.Ge(rhs);
@@ -671,52 +682,66 @@ absl::Status BytecodeInterpreter::EvalLt(const Bytecode& bytecode) {
   });
 }
 
-absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
-  // Evaluate if the flattened object on TOS is equal to the elements described
-  // in the bytecode.
-  // Puts true on the stack if the items are equal and false otherwise.
-  XLS_ASSIGN_OR_RETURN(const Bytecode::MatchArmData* arm_data,
-                       bytecode.match_arm_data());
-  std::vector<InterpValue> flat_matchee;
-  XLS_ASSIGN_OR_RETURN(InterpValue matchee, Pop());
-  XLS_RETURN_IF_ERROR(FlattenTuple(matchee, &flat_matchee));
-  if (arm_data->size() != flat_matchee.size()) {
-    return absl::InternalError(absl::StrCat(
-        "MatchArm and arg to match have different [flattened] sizes: ",
-        arm_data->size(), flat_matchee.size()));
+absl::StatusOr<bool> BytecodeInterpreter::MatchArmEqualsInterpValue(
+    Frame* frame, const Bytecode::MatchArmItem& item,
+    const InterpValue& value) {
+  using Kind = Bytecode::MatchArmItem::Kind;
+  if (item.kind() == Kind::kInterpValue) {
+    XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
+    return arm_value.Eq(value);
   }
 
-  Frame& frame = frames_.back();
-  for (int i = 0; i < arm_data->size(); i++) {
-    const Bytecode::MatchArmItem& item = arm_data->at(i);
-    Bytecode::MatchArmItem::Kind item_kind = item.kind();
-    if (item_kind == Bytecode::MatchArmItem::Kind::kInterpValue) {
-      XLS_ASSIGN_OR_RETURN(InterpValue arm_value, item.interp_value());
-      if (arm_value != flat_matchee[i]) {
-        stack_.push_back(InterpValue::MakeBool(false));
-        return absl::OkStatus();
-      }
-    } else if (item_kind == Bytecode::MatchArmItem::Kind::kLoad) {
-      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
-      if (frame.slots().size() <= slot_index.value()) {
-        return absl::InternalError(absl::StrCat(
-            "MatchArm load item index was OOB: ", slot_index.value(), " vs. ",
-            frame.slots().size(), "."));
-      }
-      InterpValue arm_value = frame.slots().at(slot_index.value());
-      if (arm_value != flat_matchee[i]) {
-        stack_.push_back(InterpValue::MakeBool(false));
-        return absl::OkStatus();
-      }
-    } else if (item_kind == Bytecode::MatchArmItem::Kind::kStore) {
-      XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
-      frame.StoreSlot(slot_index, flat_matchee[i]);
+  if (item.kind() == Kind::kLoad) {
+    XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+    if (frame->slots().size() <= slot_index.value()) {
+      return absl::InternalError(
+          absl::StrCat("MatchArm load item index was OOB: ", slot_index.value(),
+                       " vs. ", frame->slots().size(), "."));
     }
-
-    // Otherwise, it's a wildcard, so we pass.
+    InterpValue arm_value = frame->slots().at(slot_index.value());
+    return arm_value.Eq(value);
   }
 
-  stack_.push_back(InterpValue::MakeBool(true));
+  if (item.kind() == Kind::kStore) {
+    XLS_ASSIGN_OR_RETURN(Bytecode::SlotIndex slot_index, item.slot_index());
+    frame->StoreSlot(slot_index, value);
+    return true;
+  }
+
+  if (item.kind() == Kind::kWildcard) {
+    return true;
+  }
+
+  // Otherwise, we're a tuple. Recurse.
+  XLS_ASSIGN_OR_RETURN(auto item_elements, item.tuple_elements());
+  XLS_ASSIGN_OR_RETURN(auto* value_elements, value.GetValues());
+  if (item_elements.size() != value_elements->size()) {
+    return absl::InternalError(
+        absl::StrCat("Match arm item had a different number of elements "
+                     "than the corresponding InterpValue: ",
+                     item.ToString(), " vs. ", value.ToString()));
+  }
+
+  for (int i = 0; i < item_elements.size(); i++) {
+    XLS_ASSIGN_OR_RETURN(
+        bool equal, MatchArmEqualsInterpValue(&frames_.back(), item_elements[i],
+                                              value_elements->at(i)));
+    if (!equal) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+absl::Status BytecodeInterpreter::EvalMatchArm(const Bytecode& bytecode) {
+  // Puts true on the stack if the items are equal and false otherwise.
+  XLS_ASSIGN_OR_RETURN(const Bytecode::MatchArmItem* item,
+                       bytecode.match_arm_item());
+  XLS_ASSIGN_OR_RETURN(InterpValue matchee, Pop());
+  XLS_ASSIGN_OR_RETURN(
+      bool equal, MatchArmEqualsInterpValue(&frames_.back(), *item, matchee));
+  stack_.push_back(InterpValue::MakeBool(equal));
   return absl::OkStatus();
 }
 
@@ -856,14 +881,12 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
-                       bytecode.trace_data());
-
+absl::StatusOr<std::string> BytecodeInterpreter::TraceDataToString(
+    const Bytecode::TraceData& trace_data) {
   std::deque<std::string> pieces;
-  for (int i = trace_data->size() - 1; i >= 0; i--) {
+  for (int i = trace_data.size() - 1; i >= 0; i--) {
     absl::variant<std::string, FormatPreference> trace_element =
-        trace_data->at(i);
+        trace_data.at(i);
     if (absl::holds_alternative<std::string>(trace_element)) {
       pieces.push_front(absl::get<std::string>(trace_element));
       if (i != 0) {
@@ -883,8 +906,15 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
     }
   }
 
+  return absl::StrJoin(pieces, "");
+}
+
+absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
+                       bytecode.trace_data());
+  XLS_ASSIGN_OR_RETURN(std::string message, TraceDataToString(*trace_data));
   // Note: trace is specified to log to the INFO log.
-  XLS_LOG(INFO) << absl::StrJoin(pieces, "");
+  XLS_LOG(INFO) << message;
   stack_.push_back(InterpValue::MakeToken());
   return absl::OkStatus();
 }

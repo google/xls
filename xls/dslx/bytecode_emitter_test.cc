@@ -309,7 +309,7 @@ fn do_match() -> u32 {
 006 jump_rel_if +4
 007 pop
 008 literal u32:64
-009 jump_rel +14
+009 jump_rel +21
 010 jump_dest
 011 dup
 012 match_arm value:u32:64
@@ -317,13 +317,20 @@ fn do_match() -> u32 {
 014 jump_rel_if +4
 015 pop
 016 literal u32:42
-017 jump_rel +6
+017 jump_rel +13
 018 jump_dest
-019 pop
-020 load 0
-021 literal u32:1
-022 add
-023 jump_dest)");
+019 dup
+020 match_arm wildcard
+021 invert
+022 jump_rel_if +6
+023 pop
+024 load 0
+025 literal u32:1
+026 add
+027 jump_rel +3
+028 jump_dest
+029 fail trace data: The value was not matched: value: , default
+030 jump_dest)");
 }
 
 TEST(BytecodeEmitterTest, BytecodesFromString) {

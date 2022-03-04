@@ -47,6 +47,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "eq") {
     return Bytecode::Op::kEq;
   }
+  if (s == "fail") {
+    return Bytecode::Op::kFail;
+  }
   if (s == "index") {
     return Bytecode::Op::kIndex;
   }
@@ -122,6 +125,8 @@ std::string OpToString(Bytecode::Op op) {
       return "expand_tuple";
     case Bytecode::Op::kEq:
       return "eq";
+    case Bytecode::Op::kFail:
+      return "fail";
     case Bytecode::Op::kGe:
       return "ge";
     case Bytecode::Op::kGt:
@@ -210,6 +215,11 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
   return MatchArmItem(Kind::kStore, slot_index);
 }
 
+/* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeTuple(
+    std::vector<MatchArmItem> elements) {
+  return MatchArmItem(Kind::kTuple, std::move(elements));
+}
+
 /* static */ Bytecode::MatchArmItem Bytecode::MatchArmItem::MakeWildcard() {
   return MatchArmItem(Kind::kWildcard);
 }
@@ -217,9 +227,10 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
 Bytecode::MatchArmItem::MatchArmItem(Kind kind)
     : kind_(kind), data_(absl::nullopt) {}
 
-Bytecode::MatchArmItem::MatchArmItem(Kind kind,
-                                     absl::variant<InterpValue, SlotIndex> data)
-    : kind_(kind), data_(data) {}
+Bytecode::MatchArmItem::MatchArmItem(
+    Kind kind,
+    absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data)
+    : kind_(kind), data_(std::move(data)) {}
 
 absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
   if (!data_.has_value()) {
@@ -243,6 +254,18 @@ absl::StatusOr<Bytecode::SlotIndex> Bytecode::MatchArmItem::slot_index() const {
   return absl::get<SlotIndex>(data_.value());
 }
 
+absl::StatusOr<std::vector<Bytecode::MatchArmItem>>
+Bytecode::MatchArmItem::tuple_elements() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("MatchArmItem does not hold data.");
+  }
+  if (!absl::holds_alternative<std::vector<MatchArmItem>>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
+  }
+
+  return absl::get<std::vector<MatchArmItem>>(data_.value());
+}
+
 std::string Bytecode::MatchArmItem::ToString() const {
   switch (kind_) {
     case Kind::kInterpValue:
@@ -253,6 +276,16 @@ std::string Bytecode::MatchArmItem::ToString() const {
     case Kind::kStore:
       return absl::StrCat("store:",
                           absl::get<SlotIndex>(data_.value()).value());
+    case Kind::kTuple: {
+      std::vector<MatchArmItem> elements =
+          absl::get<std::vector<MatchArmItem>>(data_.value());
+      std::vector<std::string> pieces;
+      pieces.reserve(elements.size());
+      for (const auto& element : elements) {
+        pieces.push_back(element.ToString());
+      }
+      return absl::StrCat("tuple: (", absl::StrJoin(pieces, ", "), ")");
+    }
     case Kind::kWildcard:
       return "wildcard";
   }
@@ -288,8 +321,8 @@ DEF_UNARY_BUILDER(Swap);
   return Bytecode(span, Op::kLoad, slot_index);
 }
 
-/* static */ Bytecode Bytecode::MakeMatchArm(Span span, MatchArmData data) {
-  return Bytecode(span, Op::kMatchArm, std::move(data));
+/* static */ Bytecode Bytecode::MakeMatchArm(Span span, MatchArmItem item) {
+  return Bytecode(span, Op::kMatchArm, std::move(item));
 }
 
 absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
@@ -303,14 +336,14 @@ absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
   return absl::get<JumpTarget>(data_.value());
 }
 
-absl::StatusOr<const Bytecode::MatchArmData*> Bytecode::match_arm_data() const {
+absl::StatusOr<const Bytecode::MatchArmItem*> Bytecode::match_arm_item() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<MatchArmData>(data_.value())) {
-    return absl::InvalidArgumentError("Bytecode data is not MatchArmDAta.");
+  if (!absl::holds_alternative<MatchArmItem>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not MatchArmItem.");
   }
-  return &absl::get<MatchArmData>(data_.value());
+  return &absl::get<MatchArmItem>(data_.value());
 }
 
 absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
@@ -441,12 +474,8 @@ std::string Bytecode::ToString(bool source_locs) const {
         data_string = absl::StrCat(target.value());
       }
     } else {
-      // MatchArmData.
-      std::vector<std::string> pieces;
-      for (const MatchArmItem& item : absl::get<MatchArmData>(data_.value())) {
-        pieces.push_back(item.ToString());
-      }
-      data_string = absl::StrJoin(pieces, ", ");
+      // MatchArmItem.
+      data_string = absl::get<MatchArmItem>(data_.value()).ToString();
     }
     return absl::StrFormat("%s %s%s", op_string, data_string, loc_string);
   }

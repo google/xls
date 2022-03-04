@@ -41,7 +41,7 @@ ABSL_FLAG(
 // TODO(leary): 2021-01-19 allow filters with wildcards.
 ABSL_FLAG(std::string, test_filter, "",
           "Target (currently *single*) test name to run.");
-ABSL_FLAG(bool, bytecode, false,
+ABSL_FLAG(bool, bytecode, true,
           "If true, use the in-development bytecode interpreter to execute.");
 
 namespace xls::dslx {

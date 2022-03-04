@@ -104,8 +104,8 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<InterpValue> HandleColonRefToValue(Module* module,
                                                     ColonRef* colon_ref);
 
-  void HandleNameDefTreeExpr(NameDefTree* tree,
-                             Bytecode::MatchArmData* arm_data);
+  absl::StatusOr<Bytecode::MatchArmItem> HandleNameDefTreeExpr(
+      NameDefTree* tree);
 
   void DestructureLet(NameDefTree* tree);
 

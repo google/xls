@@ -321,8 +321,9 @@ class InterpreterTest(test_base.TestCase):
     """)
     stderr = self._parse_and_test(program, want_error=True)
     self.assertIn(
-        ':4:16-6:4 The program being interpreted failed with an incomplete match',
+        'The program being interpreted failed! The value was not matched',
         stderr)
+    self.assertIn(':4:16-6:4', stderr)
 
   def test_boolean_literal_needs_no_type_annotation(self):
     program = """

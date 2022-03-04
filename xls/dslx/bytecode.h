@@ -68,6 +68,9 @@ class Bytecode {
     kExpandTuple,
     // Compares TOS1 to TOS0, storing true if TOS1 == TOS0.
     kEq,
+    // Terminates the current program with a failure status. Consumes as many
+    // values from the stack as are specified in the `TraceData` data member.
+    kFail,
     // Compares TOS1 to TOS0, storing true if TOS1 >= TOS0.
     kGe,
     // Compares TOS1 to TOS0, storing true if TOS1 > TOS0.
@@ -167,36 +170,43 @@ class Bytecode {
     static MatchArmItem MakeInterpValue(const InterpValue& interp_value);
     static MatchArmItem MakeLoad(SlotIndex slot_index);
     static MatchArmItem MakeStore(SlotIndex slot_index);
+    static MatchArmItem MakeTuple(std::vector<MatchArmItem> elements);
     static MatchArmItem MakeWildcard();
 
     enum class Kind {
       kInterpValue,
       kLoad,
       kStore,
+      kTuple,
       kWildcard,
     };
 
     absl::StatusOr<InterpValue> interp_value() const;
     absl::StatusOr<SlotIndex> slot_index() const;
+    absl::StatusOr<std::vector<MatchArmItem>> tuple_elements() const;
     Kind kind() const { return kind_; }
 
     std::string ToString() const;
 
    private:
     MatchArmItem(Kind kind);
-    MatchArmItem(Kind kind, absl::variant<InterpValue, SlotIndex> data);
+    MatchArmItem(
+        Kind kind,
+        absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);
 
     Kind kind_;
-    absl::optional<absl::variant<InterpValue, SlotIndex>> data_;
+    absl::optional<
+        absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>>>
+        data_;
   };
 
-  using MatchArmData = std::vector<MatchArmItem>;
   using TraceData = std::vector<FormatStep>;
   using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
                              std::unique_ptr<ConcreteType>, InvocationData,
-                             MatchArmData, TraceData>;
+                             MatchArmItem, TraceData>;
 
   static Bytecode MakeDup(Span span);
+  static Bytecode MakeFail(Span span, std::string);
   static Bytecode MakeInvert(Span span);
   static Bytecode MakeJumpDest(Span span);
   static Bytecode MakeJumpRelIf(Span span, JumpTarget target);
@@ -204,7 +214,7 @@ class Bytecode {
   static Bytecode MakeLiteral(Span span, InterpValue literal);
   static Bytecode MakeLoad(Span span, SlotIndex slot_index);
   static Bytecode MakeLogicalOr(Span span);
-  static Bytecode MakeMatchArm(Span span, MatchArmData data);
+  static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
   static Bytecode MakeSwap(Span span);
 
@@ -227,7 +237,7 @@ class Bytecode {
 
   absl::StatusOr<InvocationData> invocation_data() const;
   absl::StatusOr<JumpTarget> jump_target() const;
-  absl::StatusOr<const MatchArmData*> match_arm_data() const;
+  absl::StatusOr<const MatchArmItem*> match_arm_item() const;
   absl::StatusOr<NumElements> num_elements() const;
   absl::StatusOr<SlotIndex> slot_index() const;
   absl::StatusOr<const TraceData*> trace_data() const;

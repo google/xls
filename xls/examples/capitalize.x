@@ -50,7 +50,7 @@ fn sponge_capitalize<N: u32>(input: u8[N]) -> u8[N] {
     let lower = input[i] + cap_distance;
 
     let element =
-        if do_cap && input_is_lower { 
+        if do_cap && input_is_lower {
           capital
         } else {
           if !do_cap && input_is_cap { lower }
