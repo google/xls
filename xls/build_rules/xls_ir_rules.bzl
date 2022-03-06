@@ -379,7 +379,12 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
     runfiles = [src, benchmark_ir_tool]
     return runfiles, cmd
 
-def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
+def get_mangled_ir_symbol(
+        module_name,
+        function_name,
+        parametric_values = None,
+        is_implicit_token = False,
+        is_proc_next = False):
     """Returns the mangled IR symbol for the module/function combination.
 
     "Mangling" is the process of turning nicely namedspaced symbols into
@@ -393,21 +398,59 @@ def get_mangled_ir_symbol(module_name, function_name, parametric_values = None):
       parametric_values: Any parametric values used for instantiation (e.g. for
         a parametric entry point that is known to be instantiated in the IR
         converted module). This is generally for more advanced use cases like
-        internals testing.
+        internals testing. The argument is mutually exclusive with argument
+        'is_proc_next'.
+      is_implicit_token: A boolean flag denoting whether the symbol contains an
+        implicit token. The argument is mutually exclusive with argument
+        'is_proc_next'.
+      is_proc_next: A boolean flag denoting whether the symbol is a
+        next proc function. The argument is mutually exclusive with arguments:
+        'parametric_values' and 'is_implicit_token'.
 
     Returns:
       The "mangled" symbol string.
     """
-    parametric_values_str = ""
+
+    # Type validation for optional inputs.
+    if parametric_values and type(parametric_values) != "tuple":
+        fail("Argument 'parametric_values' must be of tuple type.")
+    if is_implicit_token and type(is_implicit_token) != type(True):
+        fail("Argument 'is_implicit_token' must be of boolean type.")
+    if is_proc_next and type(is_proc_next) != type(True):
+        fail("Argument 'is_proc_next' must be of boolean type.")
+
+    # Presence validation for optional inputs.
+    if is_proc_next and (parametric_values or is_implicit_token):
+        fail("Argument 'is_proc_next' is mutually exclusive with arguments: " +
+             "'parametric_values' and 'is_implicit_token'.")
+
+    prefix_str = ""
+    if is_implicit_token:
+        prefix_str = "itok__"
+
+    suffix = ""
 
     if parametric_values:
-        parametric_values_str = "__" + "_".join(
+        suffix = "__" + "_".join(
             [
                 str(v)
                 for v in parametric_values
             ],
         )
-    return "__" + module_name + "__" + function_name + parametric_values_str
+
+    mangled_name = "__{}{}__{}{}".format(
+        prefix_str,
+        module_name,
+        function_name,
+        suffix,
+    )
+
+    if is_proc_next:
+        mangled_name = mangled_name.replace(":", "_")
+        mangled_name = mangled_name.replace("->", "__")
+        mangled_name = mangled_name + "next"
+
+    return mangled_name
 
 xls_ir_top_attrs = {
     "top": attr.string(
