@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:xls_build_defs.bzl", "proto_data")
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "proto_data",
     "xls_ir_opt_ir",
     "xls_ir_verilog",
 )
@@ -88,7 +88,7 @@ xls_ir_verilog(
     codegen_args = {
         "generator": "combinational",
         "module_name": "mux3_comb",
-        "top_level_proc": "Mux3_proc",
+        "top": "Mux3_proc",
     },
     verilog_file = "mux3_comb_v.v",
 )
@@ -107,7 +107,7 @@ xls_ir_verilog(
         "reset_asynchronous": "false",
         "flop_inputs": "false",
         "flop_outputs": "false",
-        "top_level_proc": "Mux3_proc",
+        "top": "Mux3_proc",
     },
     verilog_file = "mux3_stages_5_v.v",
 )
@@ -126,7 +126,7 @@ xls_ir_verilog(
         "reset_asynchronous": "false",
         "flop_inputs": "false",
         "flop_outputs": "false",
-        "top_level_proc": "Mux1To2_proc",
+        "top": "Mux1To2_proc",
     },
     verilog_file = "mux1to2_stages_5_v.v",
 )

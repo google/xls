@@ -56,7 +56,7 @@ xls_cc_verilog(
     codegen_args = {
         "generator": "combinational",
         "module_name": "PacketSelector",
-        "top_level_proc": "PacketSelector_proc",
+        "top": "PacketSelector_proc",
     },
     verilog_file = "packet_selector_verilog.v",
 )
@@ -68,7 +68,7 @@ xls_cc_verilog_macro(
     codegen_args = {
         "generator": "combinational",
         "module_name": "PacketSelector",
-        "top_level_proc": "PacketSelector_proc",
+        "top": "PacketSelector_proc",
     },
     verilog_file = "packet_selector_verilog_macro.v",
 )
@@ -90,7 +90,7 @@ xls_cc_verilog(
     codegen_args = {
         "generator": "combinational",
         "module_name": "PacketSelector",
-        "top_level_proc": "PacketSelector_proc",
+        "top": "PacketSelector_proc",
     },
     ir_file = "xls_cc_verilog.ir",
     module_sig_file = "xls_cc_verilog.sig.textproto",

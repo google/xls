@@ -370,7 +370,7 @@ xls_cc_verilog = rule(
                 codegen_args = {
                     "generator": "combinational",
                     "module_name": "A",
-                    "top_level_proc": "A_proc",
+                    "top": "A_proc",
                 },
             )
         ```

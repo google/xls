@@ -152,7 +152,6 @@ def xls_ir_verilog_impl(ctx, src):
         "pipeline_stages",
         "delay_model",
         "top",
-        "top_level_proc",
         "generator",
         "input_valid_signal",
         "output_valid_signal",

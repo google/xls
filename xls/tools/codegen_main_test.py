@@ -172,7 +172,7 @@ class CodeGenMainTest(parameterized.TestCase):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
     verilog = subprocess.check_output([
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
-        '--top_level_proc=neg_proc', ir_file.full_path
+        '--top=neg_proc', ir_file.full_path
     ]).decode('utf-8')
 
     self.assertIn('module neg_proc(', verilog)
@@ -188,7 +188,7 @@ class CodeGenMainTest(parameterized.TestCase):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
     verilog = subprocess.check_output([
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
-        '--top_level_proc=neg_proc', '--streaming_channel_data_suffix=_d',
+        '--top=neg_proc', '--streaming_channel_data_suffix=_d',
         '--streaming_channel_ready_suffix=_r',
         '--streaming_channel_valid_suffix=_v', ir_file.full_path
     ]).decode('utf-8')

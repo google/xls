@@ -27,10 +27,6 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
   if (!options.entry.empty()) {
     XLS_VLOG(3) << "OptimizeIrForEntry; entry: '" << options.entry
                 << "'; opt_level: " << options.opt_level;
-  } else if (options.top_level_proc_name.has_value()) {
-    XLS_VLOG(3) << "OptimizeIrForEntry; top_level_proc_name: '"
-                << options.top_level_proc_name.value()
-                << "'; opt_level: " << options.opt_level;
   } else {
     XLS_VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
   }
@@ -53,7 +49,6 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
       .run_only_passes = options.run_only_passes,
       .skip_passes = options.skip_passes,
       .inline_procs = options.inline_procs,
-      .top_level_proc_name = options.top_level_proc_name,
       .convert_array_index_to_select = options.convert_array_index_to_select,
   };
   PassResults results;
