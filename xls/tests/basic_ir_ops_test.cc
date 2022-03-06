@@ -38,7 +38,7 @@ TEST_F(BasicOpsTest, LogicalNot) {
   std::string text = R"(
 package LogicalNot
 
-fn main(x: bits[32]) -> bits[32] {
+top fn main(x: bits[32]) -> bits[32] {
   ret result: bits[32] = not(x)
 }
 )";
@@ -52,7 +52,7 @@ TEST_F(BasicOpsTest, Add64) {
   std::string text = R"(
 package Add64
 
-fn main(x: bits[64], y: bits[64]) -> bits[64] {
+top fn main(x: bits[64], y: bits[64]) -> bits[64] {
   ret result: bits[64] = add(x, y)
 }
 )";
@@ -66,7 +66,7 @@ TEST_F(BasicOpsTest, BitSlice) {
   constexpr char text_template[] = R"(
 package BitSlice
 
-fn main(x: bits[$0]) -> bits[$2] {
+top fn main(x: bits[$0]) -> bits[$2] {
   ret result: bits[$2] = bit_slice(x, start=$1, width=$2)
 }
 )";
@@ -92,7 +92,7 @@ TEST_F(BasicOpsTest, BitSliceUpdateOneBit) {
   constexpr absl::string_view text = R"(
 package BitSlice
 
-fn main(x: bits[1]) -> bits[1] {
+top fn main(x: bits[1]) -> bits[1] {
   zero: bits[1] = literal(value=0)
   ret result: bits[1] = bit_slice_update(x, zero, x)
 }
@@ -105,7 +105,7 @@ TEST_F(BasicOpsTest, BitSliceUpdateOneBitWithinTwo) {
   constexpr absl::string_view text = R"(
 package BitSlice
 
-fn main(x: bits[2]) -> bits[2] {
+top fn main(x: bits[2]) -> bits[2] {
   zero: bits[1] = literal(value=0)
   ret result: bits[2] = bit_slice_update(x, zero, zero)
 }
@@ -119,7 +119,7 @@ TEST_F(BasicOpsTest, WideAndNot) {
   std::string text = R"(
 package WideAndNot
 
-fn main(x: bits[128], y: bits[128]) -> bits[128] {
+top fn main(x: bits[128], y: bits[128]) -> bits[128] {
   not_y: bits[128] = not(y)
   ret result: bits[128] = and(x, not_y)
 }
@@ -143,7 +143,7 @@ TEST_F(BasicOpsTest, Nand) {
   std::string text = R"(
 package test
 
-fn main(x: bits[2], y: bits[2]) -> bits[2] {
+top fn main(x: bits[2], y: bits[2]) -> bits[2] {
   ret result: bits[2] = nand(x, y)
 }
 )";
@@ -159,7 +159,7 @@ TEST_F(BasicOpsTest, Nor) {
   std::string text = R"(
 package test
 
-fn main(x: bits[2], y: bits[2]) -> bits[2] {
+top fn main(x: bits[2], y: bits[2]) -> bits[2] {
   ret result: bits[2] = nor(x, y)
 }
 )";
@@ -177,7 +177,7 @@ TEST_F(BasicOpsTest, SignedComparisons) {
   std::string text = R"(
 package SignedComparisons
 
-fn main(x: bits[32], y: bits[32]) -> bits[4] {
+top fn main(x: bits[32], y: bits[32]) -> bits[4] {
   sge.1: bits[1] = sge(x, y)
   sgt.2: bits[1] = sgt(x, y)
   sle.3: bits[1] = sle(x, y)
@@ -204,7 +204,7 @@ TEST_F(BasicOpsTest, BinarySelect) {
   std::string text = R"(
 package Select
 
-fn main(p: bits[1], x: bits[32], y: bits[32]) -> bits[32] {
+top fn main(p: bits[1], x: bits[32], y: bits[32]) -> bits[32] {
   ret result: bits[32] = sel(p, cases=[x, y])
 }
 )";
@@ -217,7 +217,7 @@ TEST_F(BasicOpsTest, TwoBitSelectorWithDefault) {
   std::string text = R"(
 package Select
 
-fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+top fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   literal.1: bits[32] = literal(value=0)
   ret result: bits[32] = sel(p, cases=[x, y, z], default=literal.1)
 }
@@ -233,7 +233,7 @@ TEST_F(BasicOpsTest, OneHotZeroBitInput) {
   std::string text = R"(
 package test
 
-fn main(x: bits[1]) -> bits[1] {
+top fn main(x: bits[1]) -> bits[1] {
   sliced: bits[0] = bit_slice(x, start=1, width=0)
   ret result: bits[1] = one_hot(sliced, lsb_prio=false)
 }
@@ -246,7 +246,7 @@ TEST_F(BasicOpsTest, OneHotWithMsbPriority3bInput) {
   std::string text = R"(
 package test
 
-fn main(x: bits[3]) -> bits[4] {
+top fn main(x: bits[3]) -> bits[4] {
   ret result: bits[4] = one_hot(x, lsb_prio=false)
 }
 )";
@@ -281,7 +281,7 @@ TEST_F(BasicOpsTest, OneHotSelect) {
   std::string text = R"(
 package Select
 
-fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+top fn main(p: bits[2], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   one_hot.1: bits[3] = one_hot(p, lsb_prio=true)
   ret result: bits[32] = one_hot_sel(one_hot.1, cases=[x, y, z])
 }
@@ -297,7 +297,7 @@ TEST_F(BasicOpsTest, MultipleOneHotSelect) {
   std::string text = R"(
 package Select
 
-fn main(p0: bits[3], p1: bits[2], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
+top fn main(p0: bits[3], p1: bits[2], w: bits[32], x: bits[32], y: bits[32], z: bits[32]) -> bits[32] {
   one_hot_sel.1: bits[32] = one_hot_sel(p0, cases=[w, x, y])
   ret result: bits[32] = one_hot_sel(p1, cases=[one_hot_sel.1, z])
 }
@@ -340,6 +340,7 @@ TEST_F(BasicOpsTest, Clz) {
   fb.Clz(x);
 
   XLS_ASSERT_OK(fb.Build().status());
+  XLS_ASSERT_OK(p->SetTopByName("main"));
   std::string text = p->DumpIr();
 
   struct Example {
@@ -367,7 +368,7 @@ TEST_F(BasicOpsTest, Decode) {
   std::string text = R"(
 package Decode
 
-fn main(x: bits[3]) -> bits[8] {
+top fn main(x: bits[3]) -> bits[8] {
   ret result: bits[8] = decode(x, width=8)
 }
 )";
@@ -382,7 +383,7 @@ TEST_F(BasicOpsTest, NarrowedDecode) {
   std::string text = R"(
 package NarrowedDecode
 
-fn main(x: bits[8]) -> bits[27] {
+top fn main(x: bits[8]) -> bits[27] {
   ret result: bits[27] = decode(x, width=27)
 }
 )";
@@ -400,7 +401,7 @@ TEST_F(BasicOpsTest, Encode) {
   std::string text = R"(
 package Encode
 
-fn main(x: bits[5]) -> bits[3] {
+top fn main(x: bits[5]) -> bits[3] {
   ret result: bits[3] = encode(x)
 }
 )";
@@ -418,7 +419,7 @@ TEST_F(BasicOpsTest, Reverse) {
   std::string text = R"(
 package Reverse
 
-fn main(x: bits[4]) -> bits[4] {
+top fn main(x: bits[4]) -> bits[4] {
   ret result: bits[4] = reverse(x)
 }
 )";
@@ -432,7 +433,7 @@ TEST_F(BasicOpsTest, NonBitsTypedLiteral) {
   std::string text = R"(
 package TupleLiteral
 
-fn main(x: bits[4]) -> (bits[4], bits[8]) {
+top fn main(x: bits[4]) -> (bits[4], bits[8]) {
   ret result: (bits[4], bits[8]) = literal(value=(1, 2))
 }
 )";
@@ -445,7 +446,7 @@ TEST_F(BasicOpsTest, AndReduce) {
   std::string text = R"(
 package Decode
 
-fn main(x: bits[8]) -> bits[1] {
+top fn main(x: bits[8]) -> bits[1] {
   ret result: bits[1] = and_reduce(x)
 }
 )";
@@ -460,7 +461,7 @@ TEST_F(BasicOpsTest, OrReduce) {
   std::string text = R"(
 package Decode
 
-fn main(x: bits[8]) -> bits[1] {
+top fn main(x: bits[8]) -> bits[1] {
   ret result: bits[1] = or_reduce(x)
 }
 )";
@@ -475,7 +476,7 @@ TEST_F(BasicOpsTest, XorrReduce) {
   std::string text = R"(
 package Decode
 
-fn main(x: bits[8]) -> bits[1] {
+top fn main(x: bits[8]) -> bits[1] {
   ret result: bits[1] = xor_reduce(x)
 }
 )";
@@ -490,7 +491,7 @@ TEST_F(BasicOpsTest, ArraySlice) {
   std::string text = R"(
 package ArraySlice
 
-fn main(start: bits[32]) -> bits[32][4] {
+top fn main(start: bits[32]) -> bits[32][4] {
    literal.1: bits[32][8] = literal(value=[5, 6, 7, 8, 9, 10, 11, 12])
    ret array_slice.3: bits[32][4] = array_slice(literal.1, start, width=4)
 }

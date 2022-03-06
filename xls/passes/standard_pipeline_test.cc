@@ -119,7 +119,7 @@ TEST_F(StandardPipelineTest, RrotAndBitExtract) {
       sample_packages::BuildRrot8Fixed();
   Package* p = rrot_fixed.first.get();
   ASSERT_THAT(Run(p), IsOkAndHolds(true));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetTopAsFunction());
   EXPECT_THAT(f->return_value(),
               m::Concat(m::BitSlice(m::Param("x"), /*start=*/0, /*width=*/3),
                         m::BitSlice(m::Param("x"), /*start=*/3, /*width=*/5)));

@@ -32,15 +32,19 @@ namespace xls {
 
 namespace {
 
-// Returns the particular function/proc to view in the visualizer.
+// Returns the top entity to view in the visualizer. If the top is not set in
+// the package, returns an arbitrary entity. If the package does not contain
+// any entities, returns an error.
 absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
-  // If the package has at least one proc choose the first one arbitrarily.
-  // TODO(meheff): 2022/02/11 Change to "top" when specifying a top proc is
-  // supported.
-  if (!package->procs().empty()) {
-    return package->procs().front().get();
+  absl::optional<FunctionBase*> top = package->GetTop();
+  if (top.has_value()) {
+    return top.value();
   }
-  return package->EntryFunction();
+  if (!package->GetFunctionBases().empty()) {
+    return package->GetFunctionBases().front();
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("No entities found in package: %s.", package->name()));
 }
 
 }  // namespace

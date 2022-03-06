@@ -102,13 +102,13 @@ fn body(x: bits[11], y: bits[11]) -> bits[11] {
   ret add.3: bits[11] = add(x, y)
 }
 
-fn main() -> bits[11] {
+top fn main() -> bits[11] {
   literal.1: bits[11] = literal(value=0)
   ret counted_for.2: bits[11] = counted_for(literal.1, trip_count=7, stride=1, body=body)
 }
 )"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->GetTopAsFunction());
   EXPECT_EQ(entry->node_count(), 2);
   EXPECT_THAT(Run(entry), IsOkAndHolds(true));
   EXPECT_EQ(entry->node_count(), 1);

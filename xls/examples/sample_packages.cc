@@ -63,8 +63,9 @@ std::pair<std::unique_ptr<Package>, Function*> BuildRrot8Fixed() {
         ret orval: bits[8] = or(expr1, expr2)
      }
 })";
-
-  return {std::move(p), Parser::ParseFunction(input, p.get()).value()};
+  Function* function = Parser::ParseFunction(input, p.get()).value();
+  XLS_QCHECK_OK(p->SetTop(function));
+  return {std::move(p), function};
 }
 
 std::pair<std::unique_ptr<Package>, Function*> BuildAbs32() {

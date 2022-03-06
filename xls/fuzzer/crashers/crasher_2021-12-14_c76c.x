@@ -20,7 +20,7 @@
 // evaluated unopt IR (JIT), evaluated unopt IR (interpreter), interpreted DSLX =
 //    (bits[1]:0x0, bits[1]:0x1, [(bits[50]:0x0)], bits[1]:0x1, bits[52]:0x0)
 //
-// options: {"codegen": false, "codegen_args": null, "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": false, "simulator": null, "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
+// options: {"codegen": false, "codegen_args": null, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--entry=main"], "optimize_ir": true, "simulate": false, "simulator": null, "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
 // args: bits[52]:0x7_ffff_ffff_ffff; bits[49]:0x1_55e7_dd9c_a2ec
 // args: bits[52]:0x0; bits[49]:0x0
 // args: bits[52]:0xf_ffff_ffff_ffff; bits[49]:0x1_f8fb_7eef_bb37

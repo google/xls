@@ -1,6 +1,6 @@
 package sub_add_folding_overlarge
 
-fn candidate_main() -> bits[16] {
+top fn candidate_main() -> bits[16] {
   literal.292: bits[16] = literal(value=4096)
   literal.297: bits[16] = literal(value=0)
   not.294: bits[16] = not(literal.292)

@@ -46,8 +46,7 @@ class StreamingChannel;
 
 class Package {
  public:
-  explicit Package(absl::string_view name,
-                   absl::optional<absl::string_view> entry = absl::nullopt);
+  explicit Package(absl::string_view name);
 
   // Note: functions have parent pointers to their packages, so we don't want
   // them to be moved or copied; this makes Package non-moveable non-copyable.
@@ -65,6 +64,11 @@ class Package {
   // a single function base with the with its name equivalent to the 'top_name'
   // parameter must exist.
   absl::Status SetTopByName(absl::string_view top_name);
+
+  // Helper function to get the top as a function, proc or block.
+  absl::StatusOr<Function*> GetTopAsFunction() const;
+  absl::StatusOr<Proc*> GetTopAsProc() const;
+  absl::StatusOr<Block*> GetTopAsBlock() const;
 
   // Returns whether the given type is one of the types owned by this package.
   bool IsOwnedType(const Type* type) {
@@ -113,11 +117,6 @@ class Package {
   absl::Status RemoveFunction(Function* function);
   absl::Status RemoveProc(Proc* proc);
   absl::Status RemoveBlock(Block* block);
-
-  // TODO(vmirian) 2022-02-22 Remove function below when GetTop is enabled.
-  // Returns the entry function of the package.
-  absl::StatusOr<Function*> EntryFunction();
-  absl::StatusOr<const Function*> EntryFunction() const;
 
   // Returns a new SourceLocation object containing a Fileno and Lineno pair.
   // SourceLocation objects are added to XLS IR nodes and used for debug
@@ -239,9 +238,7 @@ class Package {
 
   friend class FunctionBuilder;
 
-  // TODO(vmirian) 2022-02-22 Remove std::string type from variant when GetTop
-  // is enabled.
-  absl::optional<absl::variant<FunctionBase*, std::string>> top_;
+  absl::optional<FunctionBase*> top_;
 
   // Helper that returns a map from the names of functions inside this package
   // to the functions themselves.

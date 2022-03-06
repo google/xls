@@ -16,7 +16,7 @@
 // Command '['/xls/tools/opt_main', 'sample.ir', '--logtostderr']' returned non-zero exit status 1.
 // Issue: https://github.com/google/xls/issues/363
 //
-// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=combinational"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
+// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=combinational"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--entry=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
 // args: bits[46]:0x1555_5555_5555; (bits[45]:0x1511_68b7_72c9, bits[43]:0x51d_55d1_5f51); bits[47]:0x3fff_ffff_ffff; bits[22]:0x1_0000
 // args: bits[46]:0x1555_5555_5555; (bits[45]:0x1555_5555_5555, bits[43]:0x537_1155_3554); bits[47]:0x20; bits[22]:0x10
 // args: bits[46]:0x3fff_ffff_ffff; (bits[45]:0x1555_5555_5555, bits[43]:0x3ff_ffff_ffff); bits[47]:0x49cc_80cc_bf27; bits[22]:0x2a_aaaa

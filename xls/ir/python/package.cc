@@ -37,6 +37,8 @@ PYBIND11_MODULE(package, m) {
            }),
            py::arg("name"))
       .def("dump_ir", PyWrap(&Package::DumpIr))
+      .def("set_top_by_name", PyWrap(&Package::SetTopByName),
+           py::arg("top_name"))
       .def("get_bits_type", PyWrap(&Package::GetBitsType), py::arg("bit_count"))
       .def("get_array_type", PyWrap(&Package::GetArrayType), py::arg("size"),
            py::arg("element"))

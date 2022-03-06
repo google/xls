@@ -51,7 +51,7 @@ TEST_F(IrTypeTests, TupleConstant) {
   std::string text = R"(
 package TupleConstant
 
-fn main() -> bits[32] {
+top fn main() -> bits[32] {
   literal.1: (bits[4], bits[32], bits[42]) = literal(value=(1, 123, 7))
   ret tuple_index.2: bits[32] = tuple_index(literal.1, index=1)
 }
@@ -65,7 +65,7 @@ TEST_F(IrTypeTests, NestedTupleConstant) {
   std::string text = R"(
 package NestedTupleConstant
 
-fn main() -> bits[16] {
+top fn main() -> bits[16] {
   literal.1: (bits[4], (bits[16], bits[1]), (bits[42], bits[16])) = literal(value=(1, (123,0), (7, 33)))
   tuple_index.2: (bits[16], bits[1]) = tuple_index(literal.1, index=1)
   tuple_index.3: (bits[42], bits[16]) = tuple_index(literal.1, index=2)
@@ -84,7 +84,7 @@ TEST_F(IrTypeTests, TuplesAsInputsAndOutputs) {
   std::string text = R"(
 package TuplesAsInputsAndOutputs
 
-fn main(x: (bits[16], (bits[16], bits[1]))) -> (bits[16], bits[1]) {
+top fn main(x: (bits[16], (bits[16], bits[1]))) -> (bits[16], bits[1]) {
   // Extract the two bits[16] values from the input 'x'.
   tuple_index.2: bits[16] = tuple_index(x, index=0)
   tuple_index.3: (bits[16], bits[1]) = tuple_index(x, index=1)
@@ -109,7 +109,7 @@ TEST_F(IrTypeTests, ArrayConstant) {
   std::string text = R"(
 package ArrayConstant
 
-fn main(x: bits[32]) -> bits[13] {
+top fn main(x: bits[32]) -> bits[13] {
   literal.1: bits[13][3] = literal(value=[42, 44, 77])
   ret array_index.2: bits[13] = array_index(literal.1, indices=[x])
 }
@@ -125,7 +125,7 @@ TEST_F(IrTypeTests, NestedArrayConstant) {
   std::string text = R"(
 package NestedArrayConstant
 
-fn main(x: bits[32], y: bits[32]) -> bits[13] {
+top fn main(x: bits[32], y: bits[32]) -> bits[13] {
   literal.1: bits[13][3][2] = literal(value=[[42, 44, 77], [11, 22, 33]])
   array_index.2: bits[13][3] = array_index(literal.1, indices=[x])
   ret array_index.3: bits[13] = array_index(array_index.2, indices=[y])
@@ -143,7 +143,7 @@ TEST_F(IrTypeTests, ArraysAsInputsAndOutputs) {
   std::string text = R"(
 package ArraysAsInputsAndOutputs
 
-fn main(in: bits[16][3][2], x: bits[16], y0: bits[16], y1:bits[16]) -> bits[16][2] {
+top fn main(in: bits[16][3][2], x: bits[16], y0: bits[16], y1:bits[16]) -> bits[16][2] {
   array_index.2: bits[16][3] = array_index(in, indices=[x])
   array_index.3: bits[16] = array_index(array_index.2, indices=[y0])
   array_index.4: bits[16] = array_index(array_index.2, indices=[y1])
@@ -165,7 +165,7 @@ TEST_F(IrTypeTests, PassThrough2DArray) {
   std::string text = R"(
 package PassThrough2DArray
 
-fn main(in: bits[16][3][2]) -> bits[16][3][2] {
+top fn main(in: bits[16][3][2]) -> bits[16][3][2] {
   ret param.1: bits[16][3][2] = param(name=in)
 }
 )";
@@ -180,7 +180,7 @@ TEST_F(IrTypeTests, ArrayOfTuplesConstant) {
   std::string text = R"(
 package ArrayOfTuplesConstant
 
-fn main(x: bits[32]) -> (bits[17], bits[13])[3] {
+top fn main(x: bits[32]) -> (bits[17], bits[13])[3] {
   literal.1: (bits[13], bits[17])[2] = literal(value=[(12, 34), (56, 78)])
   array_index.2: (bits[13], bits[17]) = array_index(literal.1, indices=[x])
   tuple_index.3: bits[13] = tuple_index(array_index.2, index=0)
@@ -208,7 +208,7 @@ TEST_F(IrTypeTests, TuplesOfArraysConstant) {
   std::string text = R"(
 package TuplesOfArraysConstant
 
-fn main(x: bits[32], y: bits[32]) -> bits[13] {
+top fn main(x: bits[32], y: bits[32]) -> bits[13] {
   literal.1: (bits[13][3], bits[13][2]) = literal(value=([1, 2, 3], [55, 66]))
   tuple_index.2: bits[13][3] = tuple_index(literal.1, index=0)
   tuple_index.3: bits[13][2] = tuple_index(literal.1, index=1)

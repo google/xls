@@ -86,7 +86,7 @@ fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[
   ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
 }
 
-fn __LoopBodyPipelineTest__main() -> bits[32] {
+top fn __LoopBodyPipelineTest__main() -> bits[32] {
   literal.1: bits[32] = literal(value=0, pos=0,3,8)
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
@@ -95,10 +95,12 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+  absl::optional<FunctionBase*> main = package->GetTop();
+  ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.10"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                           main.value()->GetNode("counted_for.10"));
   CountedFor* loop = node_loop->As<CountedFor>();
 
   // Build the builder.
@@ -139,7 +141,7 @@ fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[
   ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
 }
 
-fn __LoopBodyPipelineTest__main() -> bits[32] {
+top fn __LoopBodyPipelineTest__main() -> bits[32] {
   literal.1: bits[32] = literal(value=0, pos=0,3,8)
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
@@ -148,10 +150,12 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+  absl::optional<FunctionBase*> main = package->GetTop();
+  ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.10"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                           main.value()->GetNode("counted_for.10"));
   CountedFor* loop = node_loop->As<CountedFor>();
 
   // Build the builder.
@@ -192,7 +196,7 @@ fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[
   ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
 }
 
-fn __LoopBodyPipelineTest__main() -> bits[32] {
+top fn __LoopBodyPipelineTest__main() -> bits[32] {
   literal.1: bits[32] = literal(value=0, pos=0,3,8)
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
@@ -201,10 +205,12 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+  absl::optional<FunctionBase*> main = package->GetTop();
+  ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.10"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                           main.value()->GetNode("counted_for.10"));
   CountedFor* loop = node_loop->As<CountedFor>();
 
   // Build the builder.
@@ -245,7 +251,7 @@ fn ____ModuleSignatureTestInvariants__main_counted_for_0_body(index: bits[32], a
   ret add.12: bits[32] = add(add.11, invar_b, pos=0,5,26)
 }
 
-fn __ModuleSignatureTestInvariants__main() -> bits[32] {
+top fn __ModuleSignatureTestInvariants__main() -> bits[32] {
   literal.4: bits[32] = literal(value=0, pos=0,6,8)
   literal.1: bits[32] = literal(value=3, pos=0,1,26)
   literal.2: bits[32] = literal(value=4, pos=0,2,26)
@@ -256,10 +262,12 @@ fn __ModuleSignatureTestInvariants__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+  absl::optional<FunctionBase*> main = package->GetTop();
+  ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.13"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                           main.value()->GetNode("counted_for.13"));
   CountedFor* loop = node_loop->As<CountedFor>();
 
   // Build the builder.
@@ -301,7 +309,7 @@ fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[
   ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
 }
 
-fn __LoopBodyPipelineTest__main() -> bits[32] {
+top fn __LoopBodyPipelineTest__main() -> bits[32] {
   literal.1: bits[32] = literal(value=0, pos=0,3,8)
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
@@ -310,10 +318,12 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+  absl::optional<FunctionBase*> main = package->GetTop();
+  ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.10"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                           main.value()->GetNode("counted_for.10"));
   CountedFor* loop = node_loop->As<CountedFor>();
 
   // Build the builder.
@@ -360,7 +370,7 @@ fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[
   ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
 }
 
-fn __LoopBodyPipelineTest__main() -> bits[32] {
+top fn __LoopBodyPipelineTest__main() -> bits[32] {
   literal.1: bits[32] = literal(value=0, pos=0,3,8)
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
@@ -369,10 +379,12 @@ fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+  absl::optional<FunctionBase*> main = package->GetTop();
+  ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
-  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.10"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                           main.value()->GetNode("counted_for.10"));
   CountedFor* loop = node_loop->As<CountedFor>();
 
   // Build the builder.
@@ -1586,7 +1598,7 @@ fn ____SequentialModuleSimple__main_counted_for_0_body(index: bits[32], acc: bit
   ret add.5: bits[32] = add(acc, index, pos=0,2,8)
 }
 
-fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
+top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
 }
@@ -1597,10 +1609,12 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+    absl::optional<FunctionBase*> main = package->GetTop();
+    ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
-    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                             main.value()->GetNode("counted_for.6"));
     CountedFor* loop = node_loop->As<CountedFor>();
 
     // Build the builder.
@@ -1634,7 +1648,7 @@ fn ____SequentialModuleInvariants__main_counted_for_0_body(index: bits[32], acc:
   ret add.11: bits[32] = add(add.10, invarb, pos=0,2,25)
 }
 
-fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], invarb: bits[32]) -> bits[32] {
+top fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], invarb: bits[32]) -> bits[32] {
   literal.4: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.12: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleInvariants__main_counted_for_0_body, invariant_args=[invara, invarb], pos=0,1,5)
 }
@@ -1645,10 +1659,12 @@ fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], inva
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+    absl::optional<FunctionBase*> main = package->GetTop();
+    ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
-    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.12"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                             main.value()->GetNode("counted_for.12"));
     CountedFor* loop = node_loop->As<CountedFor>();
 
     // Build the builder.
@@ -1682,7 +1698,7 @@ fn ____SequentialModuleSimple__main_counted_for_0_body(index: bits[32], acc: bit
   ret add.5: bits[32] = add(acc, index, pos=0,2,8)
 }
 
-fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
+top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
 }
@@ -1693,10 +1709,12 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+    absl::optional<FunctionBase*> main = package->GetTop();
+    ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
-    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                             main.value()->GetNode("counted_for.6"));
     CountedFor* loop = node_loop->As<CountedFor>();
 
     // Build the builder.
@@ -1793,7 +1811,7 @@ fn ____SequentialModuleSimple__main_counted_for_0_body(index: bits[32], acc: bit
   ret add.5: bits[32] = add(acc, index, pos=0,2,8)
 }
 
-fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
+top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   literal.2: bits[32] = literal(value=4, pos=0,1,51)
   ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
 }
@@ -1804,10 +1822,12 @@ fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+    absl::optional<FunctionBase*> main = package->GetTop();
+    ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
-    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop, main->GetNode("counted_for.6"));
+    XLS_ASSERT_OK_AND_ASSIGN(Node * node_loop,
+                             main.value()->GetNode("counted_for.6"));
     CountedFor* loop = node_loop->As<CountedFor>();
 
     // Build the builder.

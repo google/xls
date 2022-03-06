@@ -40,8 +40,12 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
   if (!options.entry.empty()) {
     XLS_RETURN_IF_ERROR(package->SetTopByName(options.entry));
   }
-  XLS_VLOG(3) << "Entry function: '" << package->EntryFunction().value()->name()
-              << "'";
+  absl::optional<FunctionBase*> top = package->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity not set for package: %s.", package->name()));
+  }
+  XLS_VLOG(3) << "Top entity: '" << top.value()->name() << "'";
   std::unique_ptr<CompoundPass> pipeline =
       CreateStandardPassPipeline(options.opt_level);
   const PassOptions pass_options = {

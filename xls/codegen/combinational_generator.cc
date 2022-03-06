@@ -48,7 +48,7 @@ namespace xls {
 namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    Function* func, bool use_system_verilog, absl::string_view module_name,
+    FunctionBase* func, bool use_system_verilog, absl::string_view module_name,
     absl::string_view gate_format) {
   CodegenOptions codegen_options;
   codegen_options.use_system_verilog(use_system_verilog);

@@ -15,6 +15,7 @@
 #include "xls/codegen/pipeline_generator.h"
 
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
 #include "xls/codegen/module_signature.h"
@@ -34,7 +35,7 @@ namespace {
 // Generates a pipeline with the given number of stages.
 absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
     Package* package, int64_t stages, absl::string_view module_name) {
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       PipelineSchedule::Run(f, GetStandardDelayEstimator(),
@@ -48,7 +49,7 @@ absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithNStages(
 // Generates a pipeline with the given clock period.
 absl::StatusOr<ModuleGeneratorResult> GeneratePipelinedModuleWithClockPeriod(
     Package* package, int64_t clock_period_ps, absl::string_view module_name) {
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       PipelineSchedule::Run(

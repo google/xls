@@ -38,6 +38,7 @@ class PipelineGeneratorTest(absltest.TestCase):
     fb = function_builder.FunctionBuilder('main', pkg)
     fb.add_param('x', pkg.get_bits_type(32))
     fb.build()
+    pkg.set_top_by_name('main')
 
     module_signature = pipeline_generator.generate_pipelined_module_with_n_stages(
         pkg, 5, 'foo')
@@ -54,6 +55,7 @@ class PipelineGeneratorTest(absltest.TestCase):
     fb = function_builder.FunctionBuilder('main', pkg)
     fb.add_param('x', pkg.get_bits_type(32))
     fb.build()
+    pkg.set_top_by_name('main')
 
     module_signature = pipeline_generator.generate_pipelined_module_with_clock_period(
         pkg, 100, 'bar')

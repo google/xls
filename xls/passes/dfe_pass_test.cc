@@ -46,13 +46,14 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
 };
 
 TEST_F(DeadFunctionEliminationPassTest, NoDeadFunctions) {
-  auto p = std::make_unique<Package>(TestName(), /*entry=*/"the_entry");
+  auto p = std::make_unique<Package>(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Function * b, MakeFunction("b", p.get()));
   FunctionBuilder fb("the_entry", p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   fb.Add(fb.Invoke({x}, a), fb.Invoke({x}, b));
   XLS_ASSERT_OK(fb.Build().status());
+  XLS_ASSERT_OK(p->SetTopByName("the_entry"));
 
   EXPECT_EQ(p->functions().size(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -60,13 +61,14 @@ TEST_F(DeadFunctionEliminationPassTest, NoDeadFunctions) {
 }
 
 TEST_F(DeadFunctionEliminationPassTest, OneDeadFunction) {
-  auto p = std::make_unique<Package>(TestName(), /*entry=*/"the_entry");
+  auto p = std::make_unique<Package>(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   XLS_ASSERT_OK(MakeFunction("dead", p.get()).status());
   FunctionBuilder fb("the_entry", p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
   fb.Add(fb.Invoke({x}, a), fb.Invoke({x}, a));
   XLS_ASSERT_OK(fb.Build().status());
+  XLS_ASSERT_OK(p->SetTopByName("the_entry"));
 
   EXPECT_EQ(p->functions().size(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -90,7 +92,7 @@ TEST_F(DeadFunctionEliminationPassTest, OneDeadFunctionButNoEntry) {
 }
 
 TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
-  auto p = std::make_unique<Package>(TestName(), "entry");
+  auto p = std::make_unique<Package>(TestName());
   XLS_ASSERT_OK(MakeFunction("entry", p.get()).status());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            MakeFunction("called_by_proc", p.get()));
@@ -98,6 +100,7 @@ TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
   TokenlessProcBuilder b(TestName(), Value(UBits(0, 32)), "tkn", "st", p.get());
   BValue invoke = b.Invoke({b.GetStateParam()}, f);
   XLS_ASSERT_OK(b.Build(invoke));
+  XLS_ASSERT_OK(p->SetTopByName("entry"));
 
   EXPECT_EQ(p->functions().size(), 2);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
@@ -107,7 +110,7 @@ TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
 TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   // If no entry function is specified, then DFS cannot happen as all functions
   // are live.
-  auto p = std::make_unique<Package>(TestName(), /*entry=*/"the_entry");
+  auto p = std::make_unique<Package>(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * a, MakeFunction("a", p.get()));
   Function* body;
   {
@@ -125,6 +128,7 @@ TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   fb.Tuple({mapped_ar, for_loop});
 
   XLS_ASSERT_OK(fb.Build().status());
+  XLS_ASSERT_OK(p->SetTopByName("the_entry"));
 
   EXPECT_EQ(p->functions().size(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));

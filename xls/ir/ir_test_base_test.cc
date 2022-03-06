@@ -28,7 +28,7 @@ class IrTestBaseTest : public IrTestBase {
   static constexpr char kTestPackage[] = R"(
 package test_package
 
-fn main(p: bits[8], q: bits[8]) -> bits[8] {
+top fn main(p: bits[8], q: bits[8]) -> bits[8] {
   add.1: bits[8] = add(p, q)
   ret add.2: bits[8] = add(add.1, q)
 }

@@ -16,7 +16,7 @@
 // Command '['/xls/tools/codegen_main', '--output_signature_path=module_sig.textproto', '--delay_model=unit', '--use_system_verilog', '--generator=pipeline', '--pipeline_stages=7', 'sample.opt.ir', '--logtostderr']' returned non-zero exit status 1.
 // Issue: https://github.com/google/xls/issues/346
 //
-// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=7"], "convert_to_ir": true, "input_is_dslx": true, "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
+// options: {"codegen": true, "codegen_args": ["--use_system_verilog", "--generator=pipeline", "--pipeline_stages=7"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--entry=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
 // args: bits[29]:0x1654_4d1f; (); bits[53]:0x1f_ffff_ffff_ffff; bits[43]:0x2f3_aee0_d52a; bits[51]:0x2_d66d_727f_0f9e
 // args: bits[29]:0x0; (); bits[53]:0xa_aaaa_aaaa_aaaa; bits[43]:0x2aa_aaaa_aaaa; bits[51]:0x0
 // args: bits[29]:0x2; (); bits[53]:0x10_4118_de04_dd7d; bits[43]:0x3ff_ffff_ffff; bits[51]:0x0

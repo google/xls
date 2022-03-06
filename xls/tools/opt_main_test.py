@@ -25,7 +25,7 @@ OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 
 ADD_ZERO_IR = """package add_zero
 
-fn add_zero(x: bits[32]) -> bits[32] {
+top fn add_zero(x: bits[32]) -> bits[32] {
   literal.1: bits[32] = literal(value=0)
   ret add.2: bits[32] = add(x, literal.1)
 }
@@ -38,7 +38,7 @@ fn dead_function(x: bits[32]) -> bits[32] {
   ret add.2: bits[32] = add(x, literal.1)
 }
 
-fn main(x: bits[32]) -> bits[32] {
+top fn main(x: bits[32]) -> bits[32] {
   literal.3: bits[32] = literal(value=0)
   ret add.4: bits[32] = add(x, literal.3)
 }
@@ -46,7 +46,7 @@ fn main(x: bits[32]) -> bits[32] {
 
 ADD_LITERAL_IR = """package add_literal
 
-fn add_zero(x: bits[32]) -> bits[32] {
+top fn add_zero(x: bits[32]) -> bits[32] {
   literal.1: bits[32] = literal(value=0xfff_0000)
   ret add.2: bits[32] = add(x, literal.1)
 }

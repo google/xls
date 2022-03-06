@@ -197,8 +197,13 @@ IrTestBase::UInt64ArgsToValues(
   for (const auto& pair : args) {
     const std::string& param_name = pair.first;
     const uint64_t arg_value = pair.second;
-    XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
-    XLS_ASSIGN_OR_RETURN(Param * param, entry->GetParamByName(pair.first));
+    absl::optional<FunctionBase*> top = package->GetTop();
+    if (!top.has_value()) {
+      return absl::InternalError(absl::StrFormat(
+          "Top entity not set for package: %s.", package->name()));
+    }
+    XLS_ASSIGN_OR_RETURN(Param * param,
+                         top.value()->GetParamByName(pair.first));
     Type* type = param->GetType();
     XLS_RET_CHECK(type->IsBits())
         << absl::StrFormat("Parameter '%s' is not a bits type: %s",
@@ -217,7 +222,16 @@ IrTestBase::UInt64ArgsToValues(
 
 absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64_t value,
                                                       Package* package) {
-  XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
+  absl::optional<FunctionBase*> top = package->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity not set for package: %s.", package->name()));
+  }
+  if (!top.value()->IsFunction()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity is not a function for package: %s.", package->name()));
+  }
+  Function* entry = top.value()->AsFunctionOrDie();
   Type* return_type = entry->return_value()->GetType();
   XLS_RET_CHECK(return_type->IsBits()) << absl::StrFormat(
       "Return value of function not a bits type: %s", return_type->ToString());
@@ -235,7 +249,7 @@ void IrTestBase::RunAndExpectEq(
 
   // Run interpreter on unoptimized IR.
   {
-    XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+    XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->GetTopAsFunction());
     XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
                              InterpretFunctionKwargs(entry, args));
     XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
@@ -250,7 +264,7 @@ void IrTestBase::RunAndExpectEq(
 
     // Run interpreter on optimized IR.
     {
-      XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+      XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->GetTopAsFunction());
       XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
                                InterpretFunctionKwargs(main, args));
       XLS_ASSERT_OK(InterpreterEventsToStatus(result.events));
@@ -263,11 +277,13 @@ void IrTestBase::RunAndExpectEq(
   // Emit Verilog with combinational generator and run with ModuleSimulator.
   if (simulate) {
     ASSERT_EQ(package->functions().size(), 1);
-    XLS_ASSERT_OK_AND_ASSIGN(Function * main, package->EntryFunction());
+    absl::optional<FunctionBase*> top = package->GetTop();
+    EXPECT_TRUE(top.has_value());
+    EXPECT_TRUE(top.value()->IsFunction());
 
     XLS_ASSERT_OK_AND_ASSIGN(verilog::ModuleGeneratorResult result,
                              verilog::GenerateCombinationalModule(
-                                 main, /*use_system_verilog=*/false));
+                                 top.value(), /*use_system_verilog=*/false));
 
     absl::flat_hash_map<std::string, Value> arg_set;
     for (const auto& pair : args) {

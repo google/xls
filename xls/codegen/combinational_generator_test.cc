@@ -238,7 +238,7 @@ TEST_P(CombinationalGeneratorTest, TupleLiterals) {
   std::string text = R"(
 package TupleLiterals
 
-fn main(x: bits[123]) -> bits[123] {
+top fn main(x: bits[123]) -> bits[123] {
   literal.1: (bits[123], bits[123], bits[123]) = literal(value=(0x10000, 0x2000, 0x300))
   tuple_index.2: bits[123] = tuple_index(literal.1, index=0)
   tuple_index.3: bits[123] = tuple_index(literal.1, index=1)
@@ -251,9 +251,10 @@ fn main(x: bits[123]) -> bits[123] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -268,7 +269,7 @@ TEST_P(CombinationalGeneratorTest, ArrayLiteral) {
   std::string text = R"(
 package ArrayLiterals
 
-fn main(x: bits[32], y: bits[32]) -> bits[44] {
+top fn main(x: bits[32], y: bits[32]) -> bits[44] {
   literal.1: bits[44][3][2] = literal(value=[[1, 2, 3], [4, 5, 6]])
   array_index.2: bits[44][3] = array_index(literal.1, indices=[x])
   ret result: bits[44] = array_index(array_index.2, indices=[y])
@@ -277,9 +278,10 @@ fn main(x: bits[32], y: bits[32]) -> bits[44] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -298,16 +300,17 @@ TEST_P(CombinationalGeneratorTest, OneHot) {
   std::string text = R"(
 package OneHot
 
-fn main(x: bits[3]) -> bits[4] {
+top fn main(x: bits[3]) -> bits[4] {
   ret one_hot.1: bits[4] = one_hot(x, lsb_prio=true)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -336,16 +339,17 @@ TEST_P(CombinationalGeneratorTest, OneHotSelect) {
   std::string text = R"(
 package OneHotSelect
 
-fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
+top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   ret one_hot_sel.1: bits[16] = one_hot_sel(p, cases=[x, y])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -368,7 +372,7 @@ TEST_P(CombinationalGeneratorTest, UncommonParameterTypes) {
   std::string text = R"(
 package UncommonParameterTypes
 
-fn main(a: bits[32],
+top fn main(a: bits[32],
         b: (bits[32], ()),
         c: bits[32][3],
         d: (bits[32], bits[32])[1],
@@ -388,9 +392,10 @@ fn main(a: bits[32],
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
@@ -398,10 +403,11 @@ fn main(a: bits[32],
                             GetSimulator());
 
   std::minstd_rand engine;
-  std::vector<Value> arguments = RandomFunctionArguments(entry, &engine);
+  ASSERT_TRUE(top.value()->IsFunction());
+  Function* fn = top.value()->AsFunctionOrDie();
+  std::vector<Value> arguments = RandomFunctionArguments(fn, &engine);
   XLS_ASSERT_OK_AND_ASSIGN(
-      Value expected,
-      DropInterpreterEvents(InterpretFunction(entry, arguments)));
+      Value expected, DropInterpreterEvents(InterpretFunction(fn, arguments)));
   EXPECT_THAT(simulator.Run(arguments), IsOkAndHolds(expected));
 }
 
@@ -461,7 +467,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateBitElements) {
   std::string text = R"(
 package ArrayUpdate
 
-fn main(idx: bits[2]) -> bits[32][3] {
+top fn main(idx: bits[2]) -> bits[32][3] {
   literal.5: bits[32][3] = literal(value=[1, 2, 3])
   literal.6: bits[32] = literal(value=99)
   ret updated_array: bits[32][3] = array_update(literal.5, literal.6, indices=[idx])
@@ -470,9 +476,10 @@ fn main(idx: bits[2]) -> bits[32][3] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -501,7 +508,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateArrayElements) {
   std::string text = R"(
 package ArrayUpdate
 
-fn main(idx: bits[2]) -> bits[32][2][3] {
+top fn main(idx: bits[2]) -> bits[32][2][3] {
   literal.17: bits[32][2][3] = literal(value=[[1, 2], [3, 4], [5, 6]])
   literal.14: bits[32][2] = literal(value=[98, 99])
   ret updated_array: bits[32][2][3] = array_update(literal.17, literal.14, indices=[idx])
@@ -511,9 +518,10 @@ fn main(idx: bits[2]) -> bits[32][2][3] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -560,7 +568,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateTupleElements) {
   std::string text = R"(
 package ArrayUpdate
 
-fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
+top fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   literal.17: (bits[32], bits[32])[3] = literal(value=[(1,2),(3,4),(5,6)])
   literal.14: (bits[32], bits[32]) = literal(value=(98, 99))
   ret array_update.15: (bits[32], bits[32])[3] = array_update(literal.17, literal.14, indices=[idx])
@@ -570,9 +578,10 @@ fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -619,7 +628,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateTupleWithArrayElements) {
   std::string text = R"(
 package ArrayUpdate
 
-fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
+top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   literal.17: (bits[32], bits[8][2])[2] = literal(value=[(1,[2,3]),(4,[5,6])])
   literal.14: (bits[32], bits[8][2]) = literal(value=(98, [99, 100]))
   ret array_update.15: (bits[32], bits[8][2])[2] = array_update(literal.17, literal.14, indices=[idx])
@@ -629,9 +638,10 @@ fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
+                                            top.value(), UseSystemVerilog()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());

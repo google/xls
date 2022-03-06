@@ -166,7 +166,7 @@ absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
   }
 
   // Default to the the entry function if nothing is specified.
-  return p->EntryFunction();
+  return p->GetTopAsFunction();
 }
 
 absl::StatusOr<SchedulingOptions> SetupSchedulingOptions() {

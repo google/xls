@@ -229,12 +229,13 @@ TEST_F(TranslatorTest, ArrayParam) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
                            ParsePackage(ir_src));
+  XLS_ASSERT_OK(package->SetTopByName("my_package"));
   std::vector<uint64_t> in_vals = {55, 20};
   XLS_ASSERT_OK_AND_ASSIGN(xls::Value in_arr,
                            xls::Value::UBitsArray(in_vals, 64));
   absl::flat_hash_map<std::string, xls::Value> args;
   args["arr"] = in_arr;
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package->GetTopAsFunction());
 
   auto x = DropInterpreterEvents(xls::InterpretFunctionKwargs(
       entry, {{"arr", xls::Value::UBitsArray({55, 20}, 64).value()}}));
@@ -1436,6 +1437,7 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
                            ParsePackage(ir_src));
+  XLS_ASSERT_OK(package->SetTopByName("my_package"));
 
   // std::vector<xls::Value> st_elem;
   // st_elem.push_back(xls::Value(xls::UBits(1, 1)));
@@ -1446,7 +1448,8 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
   std::string output = "";
   for (; *input; ++input) {
     const char inc = *input;
-    XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package->EntryFunction());
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry,
+                             package->GetTopAsFunction());
     absl::flat_hash_map<std::string, xls::Value> args;
     args["st"] = state;
     args["c"] = xls::Value(xls::UBits(inc, 8));

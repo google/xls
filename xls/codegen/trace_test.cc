@@ -47,7 +47,7 @@ class TraceTest : public VerilogTestBase {};
 
 constexpr char kSimpleTraceText[] = R"(
 package SimpleTrace
-fn main(tkn: token, cond: bits[1]) -> token {
+top fn main(tkn: token, cond: bits[1]) -> token {
   ret trace.1: token = trace(tkn, cond, format="This is a simple trace.", data_operands=[], id=1)
 }
 )";
@@ -55,7 +55,9 @@ fn main(tkn: token, cond: bits[1]) -> token {
 TEST_P(TraceTest, CombinationalSimpleTrace) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(kSimpleTraceText));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  FunctionBase* entry = top.value();
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
 
@@ -116,7 +118,9 @@ class TestDelayEstimator : public DelayEstimator {
 TEST_P(TraceTest, ClockedSimpleTraceTest) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(kSimpleTraceText));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  absl::optional<FunctionBase*> top = package->GetTop();
+  ASSERT_TRUE(top.has_value());
+  FunctionBase* entry = top.value();
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,

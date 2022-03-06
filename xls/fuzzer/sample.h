@@ -70,6 +70,9 @@ class SampleOptions {
   json11::Json ToJson() const;
 
   bool input_is_dslx() const { return input_is_dslx_; }
+  const absl::optional<std::vector<std::string>>& ir_converter_args() const {
+    return ir_converter_args_;
+  }
   bool convert_to_ir() const { return convert_to_ir_; }
   bool optimize_ir() const { return optimize_ir_; }
   bool use_jit() const { return use_jit_; }
@@ -83,6 +86,9 @@ class SampleOptions {
   absl::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
+  void set_ir_converter_args(const std::vector<std::string>& value) {
+    ir_converter_args_ = value;
+  }
   void set_codegen(bool value) { codegen_ = value; }
   void set_simulate(bool value) { simulate_ = value; }
   void set_codegen_args(const std::vector<std::string>& value) {
@@ -101,6 +107,8 @@ class SampleOptions {
  private:
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
   bool input_is_dslx_ = true;
+  // Arguments to pass to ir_converter_main. Requires input_is_dslx_ to be true.
+  absl::optional<std::vector<std::string>> ir_converter_args_;
   // Convert the input code sample to XLS IR. Only meaningful if input_is_dslx
   // is true.
   bool convert_to_ir_ = true;

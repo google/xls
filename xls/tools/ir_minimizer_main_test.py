@@ -25,7 +25,7 @@ IR_MINIMIZER_MAIN_PATH = runfiles.get_path('xls/tools/ir_minimizer_main')
 
 ADD_IR = """package foo
 
-fn foo(x: bits[32], y: bits[32]) -> bits[32] {
+top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
   not.1: bits[32] = not(x, id=1)
   add.2: bits[32] = add(not.1, y, id=2)
   ret not.3: bits[32] = not(add.2, id=3)
@@ -53,7 +53,7 @@ class IrMinimizerMainTest(absltest.TestCase):
     self.assertEqual(
         minimized_ir.decode('utf-8'), """package foo
 
-fn foo(x: bits[32], y: bits[32]) -> bits[32] {
+top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
   literal.11: bits[32] = literal(value=0, id=11)
   ret add.2: bits[32] = add(literal.11, literal.11, id=2)
 }
@@ -70,7 +70,7 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32] {
     self.assertEqual(
         minimized_ir.decode('utf-8'), """package foo
 
-fn foo() -> bits[32] {
+top fn foo() -> bits[32] {
   literal.6: bits[32] = literal(value=0, id=6)
   ret add.2: bits[32] = add(literal.6, literal.6, id=2)
 }
@@ -94,7 +94,7 @@ fn foo() -> bits[32] {
   def test_simplify_and_unbox_array(self):
     input_ir = """package foo
 
-fn foo(x: bits[32], y: bits[32]) -> bits[32][3] {
+top fn foo(x: bits[32], y: bits[32]) -> bits[32][3] {
   not: bits[32] = not(x, id=3)
   ret a: bits[32][3] = array(x, y, not)
 }
@@ -114,7 +114,7 @@ fn foo(x: bits[32], y: bits[32]) -> bits[32][3] {
   def test_simplify_tuple(self):
     input_ir = """package foo
 
-fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[32]), bits[32]) {
+top fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[32]), bits[32]) {
   tmp: (bits[32], bits[32]) = tuple(y, x)
   ret a: (bits[32], (bits[32], bits[32]), bits[32]) = tuple(y, tmp, z)
 }
@@ -134,7 +134,7 @@ fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[32])
   def test_simplify_array(self):
     input_ir = """package foo
 
-fn foo() -> bits[32][3] {
+top fn foo() -> bits[32][3] {
   ret a: bits[32][3] = literal(value=[0, 0, 0], id=3)
 }
 """

@@ -26,7 +26,7 @@ SIMULATE_MODULE_MAIN_PATH = runfiles.get_path('xls/tools/simulate_module_main')
 
 ADD_IR = """package add
 
-fn add(x: bits[32], y: bits[32]) -> bits[32] {
+top fn add(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 """

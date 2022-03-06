@@ -103,7 +103,7 @@ TEST_F(BitSliceSimplificationPassTest, SliceOfConcats) {
   const char fn_template[] = R"(
 package SliceOfConcats
 
-fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
+top fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
     concat.1: bits[9] = concat(x, y, z)
     ret result: bits[$1] = bit_slice(concat.1, start=$0, width=$1)
 })";
@@ -121,7 +121,7 @@ fn main(x: bits[4], y: bits[1], z: bits[4]) -> bits[$1] {
   for (int64_t start = 0; start < kInputWidth; ++start) {
     for (int64_t width = 1; width < kInputWidth - start; ++width) {
       XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(gen_fn(start, width)));
-      XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
+      XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->GetTopAsFunction());
       XLS_ASSERT_OK_AND_ASSIGN(
           Value expected,
           DropInterpreterEvents(InterpretFunction(entry, {x, y, z})));

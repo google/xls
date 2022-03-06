@@ -60,7 +60,7 @@ absl::Status RealMain(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(contents, ir_path));
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   XLS_ASSIGN_OR_RETURN(Node * subject, f->GetNode(subject_node_name));
   absl::Duration timeout = absl::Milliseconds(timeout_ms);
 

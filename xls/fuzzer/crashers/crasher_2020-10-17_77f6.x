@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": false, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--entry=main"], "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": false, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
 // args: bits[25]:0x100_9010; bits[36]:0x20; bits[53]:0x4_c2f0_06d1
 fn main(x4: u25, x5: s36, x7: u53) -> (s36, u25, u1) {
   let x8: u1 = or_reduce(x7);

@@ -118,14 +118,24 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
   // TODO(leary): 2021-07-20 Temporary workaround for copybara rewrite -- want
   // to get this into a .inc file.
   // clang-format off
-  std::vector<std::string> benchmarks = {
-    "examples/crc32", "examples/sha256"};
+  // TODO (b/220380384) For some benchmarks, an error is produced when the
+  // entry point is  defined during the DSLX IR conversion. As a result, the top
+  // must be explicitly stated.
+  struct BenchmarkData {
+    std::string location;
+    std::string top;
+  };
+  std::vector<BenchmarkData> benchmarks = {
+      {.location = "examples/crc32", .top = "__crc32__main"},
+      {.location = "examples/sha256", .top = "__sha256__main"},
+  };
   // clang-format on
-  for (std::string benchmark : benchmarks) {
+  for (BenchmarkData& benchmark : benchmarks) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<Package> p,
-        sample_packages::GetBenchmark(benchmark, /*optimized=*/true));
-    XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
+        sample_packages::GetBenchmark(benchmark.location, /*optimized=*/true));
+    XLS_ASSERT_OK(p->SetTopByName(benchmark.top));
+    XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->GetTopAsFunction());
 
     std::minstd_rand engine;
     const int64_t kSampleCount = 32;
@@ -135,7 +145,7 @@ TEST_F(BddFunctionTest, BenchmarkTest) {
       for (int64_t i = 0; i < kSampleCount; ++i) {
         XLS_ASSERT_OK_AND_ASSIGN(
             std::vector<Value> inputs,
-            GenerateFunctionArguments(entry, &engine, benchmark));
+            GenerateFunctionArguments(entry, &engine, benchmark.location));
 
         XLS_ASSERT_OK_AND_ASSIGN(
             Value expected,

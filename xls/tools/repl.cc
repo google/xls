@@ -277,6 +277,10 @@ absl::Status UpdateIr() {
                                               &globals->dslx->import_data,
                                               dslx::ConvertOptions{},
                                               /*traverse_tests=*/true));
+  XLS_ASSIGN_OR_RETURN(std::string mangled_name,
+                       dslx::MangleDslxName(globals->dslx->module.get()->name(),
+                                            "main", /*free_keys=*/{}));
+  XLS_RETURN_IF_ERROR(globals->ir_package->SetTopByName(mangled_name));
   XLS_RETURN_IF_ERROR(
       RunStandardPassPipeline(globals->ir_package.get()).status());
   return absl::OkStatus();
@@ -385,7 +389,7 @@ absl::Status CommandVerilog(absl::optional<std::string> function_name) {
   XLS_RETURN_IF_ERROR(UpdateIr());
   Package* package = GetSingletonGlobals()->ir_package.get();
   dslx::Module* module = GetSingletonGlobals()->dslx->module.get();
-  Function* main;
+  FunctionBase* main;
   if (function_name) {
     XLS_ASSIGN_OR_RETURN(main, FindFunction(*function_name, module, package));
     if (main == nullptr) {
@@ -393,7 +397,12 @@ absl::Status CommandVerilog(absl::optional<std::string> function_name) {
       return absl::OkStatus();
     }
   } else {
-    XLS_ASSIGN_OR_RETURN(main, package->EntryFunction());
+    absl::optional<FunctionBase*> top = package->GetTop();
+    if (!top.has_value()) {
+      return absl::InternalError(absl::StrFormat(
+          "Top entity not set for package: %s.", package->name()));
+    }
+    main = top.value();
   }
   XLS_RET_CHECK(main != nullptr);
   // TODO(taktoa): 2021-03-10 add ability to generate non-combinational modules

@@ -25,20 +25,20 @@ EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
 
 ADD_IR = """package foo
 
-fn foo(x: bits[32], y: bits[32]) -> bits[32] {
+top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 """
 
 TUPLE_IR = """package foo
 
-fn foo(x: (bits[8], bits[32])) -> ((bits[8], bits[32])) {
+top fn foo(x: (bits[8], bits[32])) -> ((bits[8], bits[32])) {
   ret tuple.1: ((bits[8], bits[32])) = tuple(x)
 }
 """
 
 FAIL_IR = """package foo
-fn foo(x: bits[32], y:bits[32]) -> bits[64] {
+top fn foo(x: bits[32], y:bits[32]) -> bits[64] {
   ret smul.1: bits[64] = smul(x, y)
 }
 """

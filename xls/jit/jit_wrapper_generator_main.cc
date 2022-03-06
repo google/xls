@@ -60,7 +60,7 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   Function* function;
   std::string package_prefix = absl::StrCat("__", package->name(), "__");
   if (function_name.empty()) {
-    XLS_ASSIGN_OR_RETURN(function, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(function, package->GetTopAsFunction());
     function_name = absl::StripPrefix(function->name(), package_prefix);
   } else {
     // Apply the package prefix if not already there.

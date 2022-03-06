@@ -36,24 +36,13 @@ namespace {
 constexpr char kMain[] = "main";
 }
 
-Package::Package(absl::string_view name,
-                 absl::optional<absl::string_view> entry)
-    : name_(name) {
+Package::Package(absl::string_view name) : name_(name) {
   owned_types_.insert(&token_type_);
-  if (entry.has_value()) {
-    top_ = std::string(entry.value());
-  }
 }
 
 Package::~Package() {}
 
-absl::optional<FunctionBase*> Package::GetTop() const {
-  if (top_.has_value() &&
-      absl::holds_alternative<FunctionBase*>(top_.value())) {
-    return absl::get<FunctionBase*>(top_.value());
-  }
-  return absl::nullopt;
-}
+absl::optional<FunctionBase*> Package::GetTop() const { return top_; }
 
 absl::Status Package::SetTop(absl::optional<FunctionBase*> top) {
   if (top.has_value() && top.value()->package() != this) {
@@ -90,6 +79,45 @@ absl::Status Package::SetTopByName(absl::string_view top_name) {
   }
   return absl::NotFoundError(
       absl::StrFormat("More than one instance with name: %s", top_name));
+}
+
+absl::StatusOr<Function*> Package::GetTopAsFunction() const {
+  absl::optional<FunctionBase*> top = GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity not set for package: %s.", name_));
+  }
+  if (!top.value()->IsFunction()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity is not a function for package: %s.", name_));
+  }
+  return top.value()->AsFunctionOrDie();
+}
+
+absl::StatusOr<Proc*> Package::GetTopAsProc() const {
+  absl::optional<FunctionBase*> top = GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity not set for package: %s.", name_));
+  }
+  if (!top.value()->IsProc()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity is not a proc for package: %s.", name_));
+  }
+  return top.value()->AsProcOrDie();
+}
+
+absl::StatusOr<Block*> Package::GetTopAsBlock() const {
+  absl::optional<FunctionBase*> top = GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity not set for package: %s.", name_));
+  }
+  if (!top.value()->IsBlock()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity is not a block for package: %s.", name_));
+  }
+  return top.value()->AsBlockOrDie();
 }
 
 Function* Package::AddFunction(std::unique_ptr<Function> f) {
@@ -168,9 +196,7 @@ std::vector<FunctionBase*> Package::GetFunctionBases() const {
 }
 
 absl::Status Package::RemoveFunction(Function* function) {
-  if (top_.has_value() &&
-      absl::holds_alternative<FunctionBase*>(top_.value()) &&
-      absl::get<FunctionBase*>(top_.value()) == function) {
+  if (top_.has_value() && top_.value() == function) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Cannot remove function: %s. The function is the top entity.",
         function->name()));
@@ -187,9 +213,7 @@ absl::Status Package::RemoveFunction(Function* function) {
 }
 
 absl::Status Package::RemoveProc(Proc* proc) {
-  if (top_.has_value() &&
-      absl::holds_alternative<FunctionBase*>(top_.value()) &&
-      absl::get<FunctionBase*>(top_.value()) == proc) {
+  if (top_.has_value() && top_.value() == proc) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Cannot remove proc: %s. The proc is the top entity.", proc->name()));
   }
@@ -205,9 +229,7 @@ absl::Status Package::RemoveProc(Proc* proc) {
 }
 
 absl::Status Package::RemoveBlock(Block* block) {
-  if (top_.has_value() &&
-      absl::holds_alternative<FunctionBase*>(top_.value()) &&
-      absl::get<FunctionBase*>(top_.value()) == block) {
+  if (top_.has_value() && top_.value() == block) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Cannot remove block: %s. The block is the top entity.",
                         block->name()));
@@ -221,69 +243,6 @@ absl::Status Package::RemoveBlock(Block* block) {
   }
   blocks_.erase(it, blocks_.end());
   return absl::OkStatus();
-}
-
-absl::StatusOr<Function*> Package::EntryFunction() {
-  auto by_name = GetFunctionByName();
-
-  if (top_.has_value()) {
-    if (absl::holds_alternative<FunctionBase*>(top_.value())) {
-      FunctionBase* fb = absl::get<FunctionBase*>(top_.value());
-      if (!fb->IsFunction()) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "The package top %s is not a function.", fb->name()));
-      }
-      return fb->AsFunctionOrDie();
-    }
-    absl::string_view top_str = absl::get<std::string>(top_.value());
-    auto it = by_name.find(top_str);
-    if (it != by_name.end()) {
-      return it->second;
-    }
-    std::string available =
-        absl::StrJoin(by_name.begin(), by_name.end(), ", ",
-                      [](std::string* out,
-                         const std::pair<std::string, const Function*>& item) {
-                        absl::StrAppend(out, "\"", item.first, "\"");
-                      });
-    return absl::NotFoundError(
-        absl::StrFormat("Could not find entry function for this package; "
-                        "tried: [\"%s\"]; available: %s",
-                        top_str, available));
-  }
-
-  // Try a few possibilities of names for the canonical entry function.
-  const std::vector<std::string> to_try = {
-      kMain,
-      name(),
-      absl::StrCat("__", name(), "__", kMain),
-      absl::StrCat("__", name(), "__", name()),
-  };
-
-  for (const std::string& attempt : to_try) {
-    auto it = by_name.find(attempt);
-    if (it != by_name.end()) {
-      return it->second;
-    }
-  }
-
-  // Finally we use the only function if only one exists.
-  if (functions_.size() == 1) {
-    return functions_.front().get();
-  }
-  auto quote = [](std::string* out, const std::string& s) {
-    absl::StrAppend(out, "\"", s, "\"");
-  };
-  return absl::NotFoundError(absl::StrFormat(
-      "Could not find an entry function for the \"%s\" package; "
-      "attempted: [%s]",
-      name(), absl::StrJoin(to_try, ", ", quote)));
-}
-
-absl::StatusOr<const Function*> Package::EntryFunction() const {
-  XLS_ASSIGN_OR_RETURN(Function * f,
-                       const_cast<Package*>(this)->EntryFunction());
-  return f;
 }
 
 SourceLocation Package::AddSourceLocation(absl::string_view filename,
@@ -496,11 +455,11 @@ int64_t Package::GetNodeCount() const {
 }
 
 bool Package::IsDefinitelyEqualTo(const Package* other) const {
-  auto entry_function_status = EntryFunction();
+  auto entry_function_status = GetTopAsFunction();
   if (!entry_function_status.ok()) {
     return false;
   }
-  auto other_entry_function_status = other->EntryFunction();
+  auto other_entry_function_status = other->GetTopAsFunction();
   if (!other_entry_function_status.ok()) {
     return false;
   }

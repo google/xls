@@ -183,7 +183,7 @@ absl::StatusOr<bool> StillFailsHelper(
   // Test for bugs by comparing the results of the JIT and interpreter.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package, ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
-  XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * main, package->GetTopAsFunction());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(main));
   InterpreterResult<Value> jit_result;
   if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
@@ -545,7 +545,7 @@ absl::Status RealMain(absl::string_view path,
     XLS_LOG(INFO) << "=== Cleaning up initial garbage";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                          ParsePackage(knownf_ir_text));
-    XLS_ASSIGN_OR_RETURN(Function * main, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(Function * main, package->GetTopAsFunction());
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
     XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
     knownf_ir_text = package->DumpIr();
@@ -579,7 +579,7 @@ absl::Status RealMain(absl::string_view path,
     XLS_VLOG(1) << "=== Simplification attempt " << total_attempts;
 
     XLS_ASSIGN_OR_RETURN(auto package, ParsePackage(knownf_ir_text));
-    XLS_ASSIGN_OR_RETURN(Function * candidate, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(Function * candidate, package->GetTopAsFunction());
     XLS_VLOG_LINES(2,
                    "=== Candidate for simplification:\n" + candidate->DumpIr());
 

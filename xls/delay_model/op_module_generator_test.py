@@ -34,7 +34,7 @@ class OpModuleGeneratorTest(absltest.TestCase):
     self.assertEqual(
         """package add_characterization
 
-fn main(op0: bits[8], op1: bits[8]) -> bits[8] {
+top fn main(op0: bits[8], op1: bits[8]) -> bits[8] {
   ret result: bits[8] = add(op0, op1)
 }""",
         opgen.generate_ir_package(
@@ -44,7 +44,7 @@ fn main(op0: bits[8], op1: bits[8]) -> bits[8] {
     self.assertEqual(
         """package umul_characterization
 
-fn main(op0: bits[27], op1: bits[5]) -> bits[42] {
+top fn main(op0: bits[27], op1: bits[5]) -> bits[42] {
   ret result: bits[42] = umul(op0, op1)
 }""",
         opgen.generate_ir_package(
@@ -54,7 +54,7 @@ fn main(op0: bits[27], op1: bits[5]) -> bits[42] {
     self.assertEqual(
         """package array_update_characterization
 
-fn main(op0: bits[17][42], op1: bits[17], op2: bits[3]) -> bits[17][42] {
+top fn main(op0: bits[17][42], op1: bits[17], op2: bits[3]) -> bits[17][42] {
   ret result: bits[17][42] = array_update(op0, op1, indices=[op2])
 }""",
         opgen.generate_ir_package(
@@ -66,7 +66,7 @@ fn main(op0: bits[17][42], op1: bits[17], op2: bits[3]) -> bits[17][42] {
     self.assertEqual(
         """package array_index_characterization
 
-fn main(op0: bits[17][42][10], op1: bits[32], op2: bits[3]) -> bits[17] {
+top fn main(op0: bits[17][42][10], op1: bits[32], op2: bits[3]) -> bits[17] {
   ret result: bits[17] = array_index(op0, indices=[op1, op2])
 }""",
         opgen.generate_ir_package(
@@ -78,7 +78,7 @@ fn main(op0: bits[17][42][10], op1: bits[32], op2: bits[3]) -> bits[17] {
     self.assertEqual(
         """package sel_characterization
 
-fn main(op0: bits[1], op1: bits[32], op2: bits[32]) -> bits[32] {
+top fn main(op0: bits[1], op1: bits[32], op2: bits[32]) -> bits[32] {
   ret result: bits[32] = sel(op0, cases=[op1, op2])
 }""",
         opgen.generate_ir_package(
@@ -90,7 +90,7 @@ fn main(op0: bits[1], op1: bits[32], op2: bits[32]) -> bits[32] {
     self.assertEqual(
         """package sel_characterization
 
-fn main(op0: bits[2], op1: bits[32], op2: bits[32], op3: bits[32]) -> bits[32] {
+top fn main(op0: bits[2], op1: bits[32], op2: bits[32], op3: bits[32]) -> bits[32] {
   ret result: bits[32] = sel(op0, cases=[op1, op2], default=op3)
 }""",
         opgen.generate_ir_package(
@@ -109,7 +109,7 @@ fn main(op0: bits[2], op1: bits[32], op2: bits[32], op3: bits[32]) -> bits[32] {
     self.assertEqual(
         """package one_hot_sel_characterization
 
-fn main(op0: bits[2], op1: bits[32], op2: bits[32]) -> bits[32] {
+top fn main(op0: bits[2], op1: bits[32], op2: bits[32]) -> bits[32] {
   ret result: bits[32] = one_hot_sel(op0, cases=[op1, op2])
 }""",
         opgen.generate_ir_package(
@@ -121,7 +121,7 @@ fn main(op0: bits[2], op1: bits[32], op2: bits[32]) -> bits[32] {
     self.assertEqual(
         """package sign_ext_characterization
 
-fn main(op0: bits[16]) -> bits[32] {
+top fn main(op0: bits[16]) -> bits[32] {
   ret result: bits[32] = sign_ext(op0, new_bit_count=32)
 }""",
         opgen.generate_ir_package(
@@ -134,7 +134,7 @@ fn main(op0: bits[16]) -> bits[32] {
     self.assertEqual(
         """package add_characterization
 
-fn main(op0: bits[32]) -> bits[32] {
+top fn main(op0: bits[32]) -> bits[32] {
   op1: bits[32] = literal(value=0xd82c07cd)
   ret result: bits[32] = add(op0, op1)
 }""",
@@ -148,7 +148,7 @@ fn main(op0: bits[32]) -> bits[32] {
     self.assertEqual(
         """package array_update_characterization
 
-fn main(op1: bits[17], op2: bits[3]) -> bits[17][4] {
+top fn main(op1: bits[17], op2: bits[3]) -> bits[17][4] {
   op0: bits[17][4] = literal(value=[0x1b058, 0xc53e, 0x18412, 0x1c7ce])
   ret result: bits[17][4] = array_update(op0, op1, indices=[op2])
 }""",

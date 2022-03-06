@@ -274,7 +274,7 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
 
   XLS_ASSIGN_OR_RETURN(std::string package_name, parser.ParsePackageName());
 
-  auto package = std::make_unique<PackageT>(package_name, entry);
+  auto package = std::make_unique<PackageT>(package_name);
   std::string filename_str =
       (filename.has_value() ? std::string(filename.value()) : "<unknown file>");
   while (!parser.AtEof()) {
@@ -333,6 +333,7 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
 
   // Verify the given entry function exists in the package.
   if (entry.has_value()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(entry.value()));
     XLS_RETURN_IF_ERROR(package->GetFunction(*entry).status());
   }
   return package;

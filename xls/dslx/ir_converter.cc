@@ -2227,6 +2227,41 @@ static absl::StatusOr<xls::Function*> EmitImplicitTokenEntryWrapper(
   return fb.BuildWithReturnValue(result);
 }
 
+// Tries four heuristics as names for potential entry functions of the package.
+// Returns the first found heuristic. Otherwise, returns an absl::NotFoundError.
+static absl::StatusOr<xls::Function*> GetEntryFunction(xls::Package* package) {
+  constexpr char kMain[] = "main";
+  // Try a few possibilities of names for the canonical entry function.
+  const std::vector<std::string> to_try = {
+      kMain,
+      package->name(),
+      absl::StrCat("__", package->name(), "__", kMain),
+      absl::StrCat("__", package->name(), "__", package->name()),
+  };
+
+  for (const std::string& attempt : to_try) {
+    auto func_or = package->GetFunction(attempt);
+    if (func_or.ok()) {
+      return func_or.value();
+    }
+  }
+
+  std::vector<xls::Function*> functions;
+  // Finally we use the only function if only one exists.
+  for (xls::FunctionBase* fb : package->GetFunctionBases()) {
+    if (fb->IsFunction()) {
+      functions.emplace_back(fb->AsFunctionOrDie());
+    }
+  }
+  if (functions.size() == 1) {
+    return functions.front();
+  }
+
+  return absl::NotFoundError(absl::StrFormat(
+      "Could not find an entry function for the \"%s\" package.",
+      package->name()));
+}
+
 // As a postprocessing step for converting a module to a package, we check and
 // see if the entry point has the "implicit token" calling convention, to see if
 // it should be wrapped up.
@@ -2237,7 +2272,7 @@ static absl::Status WrapEntryIfImplicitToken(const PackageData& package_data,
                                              ImportData* import_data,
                                              const ConvertOptions& options) {
   absl::StatusOr<xls::Function*> entry_or =
-      package_data.package->EntryFunction();
+      GetEntryFunction(package_data.package);
   if (!entry_or.ok()) {  // Entry point not found.
     XLS_RET_CHECK_EQ(entry_or.status().code(), absl::StatusCode::kNotFound);
     return absl::OkStatus();

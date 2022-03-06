@@ -233,7 +233,7 @@ absl::Status RealMain(
   lec_params.ir_package = package.get();
   if (entry_function_name.empty()) {
     XLS_ASSIGN_OR_RETURN(lec_params.ir_function,
-                         lec_params.ir_package->EntryFunction());
+                         lec_params.ir_package->GetTopAsFunction());
   } else {
     XLS_ASSIGN_OR_RETURN(
         lec_params.ir_function,
@@ -273,7 +273,8 @@ absl::Status RealMain(
 
     XLS_ASSIGN_OR_RETURN(constraints_pkg,
                          Parser::ParsePackage(stdout_and_stderr.first));
-    XLS_ASSIGN_OR_RETURN(Function * function, constraints_pkg->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(Function * function,
+                         constraints_pkg->GetTopAsFunction());
     XLS_RETURN_IF_ERROR(lec->AddConstraints(function));
   }
 

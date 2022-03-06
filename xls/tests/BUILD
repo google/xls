@@ -60,6 +60,7 @@ cc_test(
         "//xls/common/file:temp_file",
         "//xls/common/logging",
         "//xls/common/status:matchers",
+        "//xls/dslx:mangle",
         "//xls/ir",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",

@@ -56,12 +56,13 @@ absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
   // TODO(meheff): Package:EntryFunction check fails if there is not a function
   // named "main". Ideally as an invariant a Package should always have an entry
   // function, but for now look for it and bail if it does not exist.
-  absl::StatusOr<Function*> func = p->EntryFunction();
-  if (!func.ok()) {
+  absl::optional<FunctionBase*> top = p->GetTop();
+  if (!top.has_value() || !top.value()->IsFunction()) {
     return false;
   }
+  Function* func = top.value()->AsFunctionOrDie();
 
-  MarkReachedFunctions(*func, &reached);
+  MarkReachedFunctions(func, &reached);
 
   // Blocks and procs are not deleted from the package so any references from
   // these constructs must remain.

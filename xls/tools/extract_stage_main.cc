@@ -45,7 +45,7 @@ absl::Status RealMain(const std::string& ir_path,
   if (function_name) {
     XLS_ASSIGN_OR_RETURN(function, package->GetFunction(function_name.value()));
   } else {
-    XLS_ASSIGN_OR_RETURN(function, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(function, package->GetTopAsFunction());
   }
 
   XLS_ASSIGN_OR_RETURN(

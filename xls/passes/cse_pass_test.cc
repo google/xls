@@ -120,7 +120,7 @@ fn same_as_body(a: bits[11], b: bits[11]) -> bits[11] {
   ret add.102: bits[11] = add(a, b)
 }
 
-fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
+top fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
   counted_for.6: bits[11] = counted_for(x, trip_count=7, stride=1, body=body)
   counted_for.7: bits[11] = counted_for(x, trip_count=7, stride=1, body=body)
   counted_for.8: bits[11] = counted_for(x, trip_count=7, stride=1, body=same_as_body)
@@ -128,7 +128,7 @@ fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
 }
 )"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->GetTopAsFunction());
   EXPECT_EQ(entry->node_count(), 5);
 
   EXPECT_THAT(Run(entry), IsOkAndHolds(true));
@@ -148,7 +148,7 @@ TEST_F(CsePassTest, BitSliceConcat) {
   XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
 package bit_slice_concat
 
-fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
+top fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
   bit_slice.2: bits[10] = bit_slice(x, start=1, width=10)
   literal.42: bits[32] = literal(value=0)
   concat.43: bits[42] = concat(literal.42, bit_slice.2)
@@ -163,7 +163,7 @@ fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
 }
 )"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, p->GetTopAsFunction());
 
   EXPECT_THAT(Run(entry), IsOkAndHolds(true));
 

@@ -90,7 +90,7 @@ std::string KnownBitString(Node* node, const QueryEngine& query_engine) {
   return query_engine.ToString(node);
 }
 
-void PrintNodeBreakdown(Function* f) {
+void PrintNodeBreakdown(FunctionBase* f) {
   std::cout << absl::StreamFormat("Entry function (%s) node count: %d nodes\n",
                                   f->name(), f->node_count());
   std::vector<Op> ops;
@@ -164,7 +164,7 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
 }
 
 absl::Status PrintCriticalPath(
-    Function* f, const QueryEngine& query_engine,
+    FunctionBase* f, const QueryEngine& query_engine,
     const DelayEstimator& delay_estimator,
     absl::optional<int64_t> effective_clock_period_ps) {
   XLS_ASSIGN_OR_RETURN(
@@ -218,7 +218,7 @@ absl::Status PrintCriticalPath(
   return absl::OkStatus();
 }
 
-absl::Status PrintTotalDelay(Function* f,
+absl::Status PrintTotalDelay(FunctionBase* f,
                              const DelayEstimator& delay_estimator) {
   int64_t total_delay = 0;
   for (Node* node : f->nodes()) {
@@ -232,7 +232,7 @@ absl::Status PrintTotalDelay(Function* f,
 
 // Returns the critical-path delay through each pipeline stage.
 absl::StatusOr<std::vector<int64_t>> GetDelayPerStageInPs(
-    Function* f, const PipelineSchedule& schedule,
+    FunctionBase* f, const PipelineSchedule& schedule,
     const DelayEstimator& delay_estimator) {
   std::vector<int64_t> delay_per_stage(schedule.length() + 1);
   // The delay from the beginning of the stage at which each node completes.
@@ -269,10 +269,15 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     options.clock_margin_percent(*clock_margin_percent);
   }
 
-  XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
+  absl::optional<FunctionBase*> top = package->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity not set for package: %s.", package->name()));
+  }
   absl::Time start = absl::Now();
-  XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                       PipelineSchedule::Run(entry, delay_estimator, options));
+  XLS_ASSIGN_OR_RETURN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(top.value(), delay_estimator, options));
   absl::Duration total_time = absl::Now() - start;
   std::cout << absl::StreamFormat("Scheduling time: %dms\n",
                                   total_time / absl::Milliseconds(1));
@@ -280,7 +285,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   return std::move(schedule);
 }
 
-absl::Status PrintCodegenInfo(Function* f, const PipelineSchedule& schedule,
+absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
                               const BddQueryEngine& bdd_query_engine,
                               const DelayEstimator& delay_estimator,
                               absl::optional<int64_t> clock_period_ps) {
@@ -383,7 +388,12 @@ absl::Status RealMain(absl::string_view path,
   }
 
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  absl::optional<FunctionBase*> top = package->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity not set for package: %s.", package->name()));
+  }
+  FunctionBase* f = top.value();
   BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);

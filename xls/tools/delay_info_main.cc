@@ -65,7 +65,7 @@ absl::Status RealMain(absl::string_view input_path) {
                        Parser::ParsePackage(ir, input_path));
   Function* function;
   if (absl::GetFlag(FLAGS_entry).empty()) {
-    XLS_ASSIGN_OR_RETURN(function, p->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(function, p->GetTopAsFunction());
   } else {
     XLS_ASSIGN_OR_RETURN(function, p->GetFunction(absl::GetFlag(FLAGS_entry)));
   }

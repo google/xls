@@ -259,7 +259,7 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-fn main(a: bits[32]) -> bits[32] {
+top fn main(a: bits[32]) -> bits[32] {
   ret invoke.5: bits[32] = invoke(a, a, to_apply=f)
 }
 )";
@@ -272,7 +272,7 @@ fn f(x: bits[32], y: bits[32]) -> bits[32] {
   ret sub.1: bits[32] = sub(x, y)
 }
 
-fn main(a: bits[32]) -> bits[32] {
+top fn main(a: bits[32]) -> bits[32] {
   ret invoke.5: bits[32] = invoke(a, a, to_apply=f)
 }
 )";
@@ -458,6 +458,132 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
   XLS_EXPECT_OK(pkg->SetTop(absl::nullopt));
   XLS_EXPECT_OK(pkg->RemoveBlock(block));
   EXPECT_EQ(pkg->GetNodeCount(), 0);
+}
+
+TEST_F(PackageTest, FunctionAsTop) {
+  const char text[] = R"(
+package my_package
+
+top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+proc my_proc(tkn: token, st: bits[32], init=42) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
+  EXPECT_THAT(pkg->GetTopAsProc(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity is not a proc for package:")));
+  EXPECT_THAT(pkg->GetTopAsBlock(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity is not a block for package:")));
+  EXPECT_EQ(pkg->GetTopAsFunction(), pkg->GetFunction("my_function"));
+}
+
+TEST_F(PackageTest, ProcAsTop) {
+  const char text[] = R"(
+package my_package
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+top proc my_proc(tkn: token, st: bits[32], init=42) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
+  EXPECT_THAT(pkg->GetTopAsFunction(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity is not a function for package:")));
+  EXPECT_THAT(pkg->GetTopAsBlock(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity is not a block for package:")));
+  EXPECT_EQ(pkg->GetTopAsProc(), pkg->GetProc("my_proc"));
+}
+
+TEST_F(PackageTest, BlockAsTop) {
+  const char text[] = R"(
+package my_package
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+proc my_proc(tkn: token, st: bits[32], init=42) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+
+top block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
+  EXPECT_THAT(pkg->GetTopAsFunction(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity is not a function for package:")));
+  EXPECT_THAT(pkg->GetTopAsProc(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity is not a proc for package:")));
+  EXPECT_EQ(pkg->GetTopAsBlock(), pkg->GetBlock("my_block"));
+}
+
+TEST_F(PackageTest, TopNotSet) {
+  const char text[] = R"(
+package my_package
+
+fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
+  ret add.1: bits[32] = add(x, y)
+}
+
+proc my_proc(tkn: token, st: bits[32], init=42) {
+  literal.3: bits[32] = literal(value=1, id=3)
+  add.4: bits[32] = add(literal.3, st, id=4)
+  next (tkn, add.4)
+}
+
+block my_block(a: bits[32], b: bits[32], out: bits[32]) {
+  a: bits[32] = input_port(name=a, id=5)
+  b: bits[32] = input_port(name=b, id=6)
+  add.7: bits[32] = add(a, b, id=7)
+  out: () = output_port(add.7, name=out, id=8)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
+  EXPECT_THAT(pkg->GetTopAsFunction(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity not set for package:")));
+  EXPECT_THAT(pkg->GetTopAsProc(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity not set for package:")));
+  EXPECT_THAT(pkg->GetTopAsBlock(),
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("Top entity not set for package:")));
 }
 
 }  // namespace

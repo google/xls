@@ -161,7 +161,7 @@ TEST_F(FunctionPartitionTest, BenchmarkTest) {
         std::unique_ptr<Package> p,
         sample_packages::GetBenchmark(benchmark_name, /*optimized=*/true));
 
-    absl::StatusOr<Function*> f_status = p->EntryFunction();
+    absl::StatusOr<Function*> f_status = p->GetTopAsFunction();
     if (!f_status.ok()) {
       // Skip packages which need the entry to be specified explicitly.
       continue;

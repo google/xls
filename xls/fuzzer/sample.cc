@@ -106,6 +106,13 @@ std::string ArgsBatchToText(
     }
     options.codegen_args_ = std::move(codegen_args);
   }
+  if (!parsed["ir_converter_args"].is_null()) {
+    std::vector<std::string> ir_converter_args;
+    for (const json11::Json& item : parsed["ir_converter_args"].array_items()) {
+      ir_converter_args.push_back(item.string_value());
+    }
+    options.ir_converter_args_ = std::move(ir_converter_args);
+  }
   if (!parsed["simulator"].is_null()) {
     options.simulator_ = parsed["simulator"].string_value();
   }
@@ -134,6 +141,12 @@ json11::Json SampleOptions::ToJson() const {
     json["codegen_args"] = *codegen_args_;
   } else {
     json["codegen_args"] = nullptr;
+  }
+
+  if (ir_converter_args_) {
+    json["ir_converter_args"] = *ir_converter_args_;
+  } else {
+    json["ir_converter_args"] = nullptr;
   }
 
   if (simulator_) {

@@ -24,7 +24,7 @@ DELAY_INFO_MAIN_PATH = runfiles.get_path('xls/tools/delay_info_main')
 
 NOT_ADD_IR = """package not_add
 
-fn not_add(x: bits[32], y: bits[32]) -> bits[32] {
+top fn not_add(x: bits[32], y: bits[32]) -> bits[32] {
   sum: bits[32] = add(x, y)
   ret not_sum: bits[32] = not(sum)
 }

@@ -297,7 +297,7 @@ absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn zero_extend() -> bits[$0] {
+  top fn zero_extend() -> bits[$0] {
     literal.1: bits[$1] = literal(value=3)
     ret zero_ext.2: bits[$0] = zero_ext(literal.1, new_bit_count=$0)
   }
@@ -305,7 +305,7 @@ absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
 
   std::string formatted_ir = absl::Substitute(ir_text, output_size, input_size);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, /*args=*/{})),
               IsOkAndHolds(Value(UBits(3, output_size))));
@@ -324,7 +324,7 @@ absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn concatenate() -> bits[$0] {
+  top fn concatenate() -> bits[$0] {
     literal.1: bits[$1] = literal(value=$2)
     ret sign_ext.2: bits[$0] = sign_ext(literal.1, new_bit_count=$0)
   }
@@ -333,7 +333,7 @@ absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
   std::string formatted_text = absl::Substitute(
       ir_text, new_bit_count, input.bit_count(), input.ToString());
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_text));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
   Value expected(bits_ops::SignExtend(input, new_bit_count));
   EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {})),
               IsOkAndHolds(expected));
@@ -1143,7 +1143,7 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn concatenate(a: bits[$0], b: bits[$1]) -> bits[$2] {
+  top fn concatenate(a: bits[$0], b: bits[$1]) -> bits[$2] {
     ret concat.1: bits[$2] = concat(a, b)
   }
   )";
@@ -1158,7 +1158,7 @@ absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
   std::string formatted_text =
       absl::Substitute(ir_text, a_width, b_width, a_width + b_width);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_text));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   Value expected(bits_ops::Concat({a.bits(), b.bits()}));
   EXPECT_THAT(DropInterpreterEvents(param.kwargs_evaluator(function, kwargs)),
@@ -1473,13 +1473,13 @@ TEST_P(IrEvaluatorTestBase, InterpretMap) {
     ret ult.3: bits[1] = ult(element, literal.2)
   }
 
-  fn main(input: bits[16][2]) -> bits[1][2] {
+  top fn main(input: bits[16][2]) -> bits[1][2] {
     ret map.5: bits[1][2] = map(input, to_apply=to_apply)
   }
   )"));
 
   XLS_ASSERT_OK(VerifyPackage(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto input_array,
       Value::Array({Value(UBits(1, 16)), Value(UBits(2, 16))}));
@@ -1516,13 +1516,13 @@ TEST_P(IrEvaluatorTestBase, InterpretTwoLevelInvoke) {
     ret tuple.14: ((bits[1], bits[1]), bits[16], bits[1]) = tuple(tuple_index.11, tuple_index.12, tuple_index.13)
   }
 
-  fn main(input: bits[16][2]) -> ((bits[1], bits[1]), bits[16], bits[1])[2] {
+  top fn main(input: bits[16][2]) -> ((bits[1], bits[1]), bits[16], bits[1])[2] {
     ret map.15: ((bits[1], bits[1]), bits[16], bits[1])[2] = map(input, to_apply=to_apply)
   }
   )"));
 
   XLS_ASSERT_OK(VerifyPackage(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto input_array,
       Value::Array({Value(UBits(1, 16)), Value(UBits(2, 16))}));
@@ -1546,14 +1546,14 @@ absl::Status RunReverseTest(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn main(x: bits[$0]) -> bits[$0] {
+  top fn main(x: bits[$0]) -> bits[$0] {
     ret reverse.1: bits[$0] = reverse(x)
   }
   )";
 
   std::string formatted_ir = absl::Substitute(ir_text, bits.bit_count());
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   Value expected(bits_ops::Reverse(bits));
   EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {Value(bits)})),
@@ -1582,7 +1582,7 @@ TEST_P(IrEvaluatorTestBase, InterpretCountedFor) {
     ret add.3: bits[11] = add(zero_ext.1, y)
   }
 
-  fn main() -> bits[11] {
+  top fn main() -> bits[11] {
     literal.4: bits[11] = literal(value=0)
     ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=1, body=body)
   }
@@ -1598,7 +1598,7 @@ TEST_P(IrEvaluatorTestBase, InterpretCountedFor) {
   //  iteration 4: body(iv = 4, x =  6) -> 10
   //  iteration 5: body(iv = 5, x = 10) -> 15
   //  iteration 6: body(iv = 6, x = 15) -> 21
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(21, 11))));
 }
@@ -1611,7 +1611,7 @@ TEST_P(IrEvaluatorTestBase, InterpretCountedForStride2) {
     ret add.3: bits[11] = add(x, y)
   }
 
-  fn main() -> bits[11] {
+  top fn main() -> bits[11] {
     literal.4: bits[11] = literal(value=0)
     ret counted_for.5: bits[11] = counted_for(literal.4, trip_count=7, stride=2, body=body)
   }
@@ -1627,7 +1627,7 @@ TEST_P(IrEvaluatorTestBase, InterpretCountedForStride2) {
   //  iteration 4: body(x = 12, y =  8) -> 20
   //  iteration 5: body(x = 20, y = 10) -> 30
   //  iteration 6: body(x = 30, y = 12) -> 42
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(42, 11))));
 }
@@ -1641,13 +1641,13 @@ fn body(x: bits[32], y: bits[32], z: bits[32], unused: bits[32]) -> bits[32] {
   ret shll.4: bits[32] = shll(add.3, z)
 }
 
-fn main() -> bits[32] {
+top fn main() -> bits[32] {
   literal.0: bits[32] = literal(value=0)
   literal.1: bits[32] = literal(value=1)
   ret counted_for.5: bits[32] = counted_for(literal.0, trip_count=4, body=body, invariant_args=[literal.1, literal.0])
 }
 )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   // The body function executed via counted_for above should be equivalent to
   // the following:
   int64_t expected = 0;
@@ -1677,7 +1677,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedFor) {
     ret add.9: bits[16] = add(add.3, invar)
   }
 
-  fn main() -> bits[16] {
+  top fn main() -> bits[16] {
     literal.4: bits[16] = literal(value=0)
     literal.5: bits[8] = literal(value=4)
     literal.6: bits[8] = literal(value=1)
@@ -1693,7 +1693,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedFor) {
   //  iteration 1: body(iv = 1, x =  1) ->  3
   //  iteration 2: body(iv = 2, x =  3) ->  6
   //  iteration 3: body(iv = 3, x =  6) ->  10
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(SBits(10, 16))));
 }
@@ -1709,7 +1709,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForZeroTrip) {
     ret add.9: bits[16] = add(add.3, invar)
   }
 
-  fn main() -> bits[16] {
+  top fn main() -> bits[16] {
     literal.4: bits[16] = literal(value=0)
     literal.5: bits[8] = literal(value=0)
     literal.6: bits[8] = literal(value=1)
@@ -1721,7 +1721,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForZeroTrip) {
 
   // Expected execution behavior:
   //  initial_value = 0, trip_count = 0, stride = 1 -> 0
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(SBits(0, 16))));
 }
@@ -1737,7 +1737,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForMultiStride) {
     ret add.9: bits[16] = add(add.3, invar)
   }
 
-  fn main() -> bits[16] {
+  top fn main() -> bits[16] {
     literal.4: bits[16] = literal(value=0)
     literal.5: bits[8] = literal(value=4)
     literal.6: bits[8] = literal(value=2)
@@ -1753,7 +1753,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForMultiStride) {
   //  iteration 1: body(iv = 2, x =  1) ->  4
   //  iteration 2: body(iv = 4, x =  4) ->  9
   //  iteration 3: body(iv = 6, x =  9) ->  16
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(SBits(16, 16))));
 }
@@ -1770,7 +1770,7 @@ TEST_P(IrEvaluatorTestBase,
     ret add.9: bits[16] = add(add.3, invar)
   }
 
-  fn main() -> bits[16] {
+  top fn main() -> bits[16] {
     literal.4: bits[16] = literal(value=0)
     literal.5: bits[2] = literal(value=3)
     literal.6: bits[3] = literal(value=3)
@@ -1785,7 +1785,7 @@ TEST_P(IrEvaluatorTestBase,
   //  iteration 0: body(iv = 0, x =  0) ->  1
   //  iteration 1: body(iv = 3, x =  1) ->  5
   //  iteration 2: body(iv = 6, x =  5) ->  12
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(SBits(12, 16))));
 }
@@ -1801,7 +1801,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForNegativeStride) {
     ret add.9: bits[16] = add(add.3, invar)
   }
 
-  fn main() -> bits[16] {
+  top fn main() -> bits[16] {
     literal.4: bits[16] = literal(value=0)
     literal.5: bits[8] = literal(value=4)
     literal.6: bits[8] = literal(value=-2)
@@ -1817,7 +1817,7 @@ TEST_P(IrEvaluatorTestBase, InterpretDynamicCountedForNegativeStride) {
   //  iteration 1: body(iv = -2, x =  1) ->  0
   //  iteration 2: body(iv = -4, x =  0) ->  -3
   //  iteration 3: body(iv = -6, x = -3) ->  -8
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(SBits(-8, 16))));
 }
@@ -2367,11 +2367,11 @@ fn val() -> bits[32] {
   ret literal.1: bits[32] = literal(value=42)
 }
 
-fn main() -> bits[32] {
+top fn main() -> bits[32] {
   ret invoke.5: bits[32] = invoke(to_apply=val)
 }
 )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(42, 32))));
 }
@@ -2384,13 +2384,13 @@ fn add_wrapper(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.4: bits[32] = add(x, y)
 }
 
-fn main() -> bits[32] {
+top fn main() -> bits[32] {
   literal.0: bits[32] = literal(value=2)
   literal.1: bits[32] = literal(value=3)
   ret invoke.5: bits[32] = invoke(literal.0, literal.1, to_apply=add_wrapper)
 }
 )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(5, 32))));
 }
@@ -2407,13 +2407,13 @@ fn middleman(x: bits[32], y: bits[32]) -> bits[32] {
   ret invoke.2: bits[32] = invoke(x, y, to_apply=add_wrapper)
 }
 
-fn main() -> bits[32] {
+top fn main() -> bits[32] {
   literal.0: bits[32] = literal(value=2)
   literal.1: bits[32] = literal(value=3)
   ret invoke.5: bits[32] = invoke(literal.0, literal.1, to_apply=middleman)
 }
 )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(5, 32))));
 }
@@ -2422,14 +2422,14 @@ TEST_P(IrEvaluatorTestBase, WideAdd) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package wide_add
 
-  fn main(a: bits[128], b: bits[128]) -> bits[128] {
+  top fn main(a: bits[128], b: bits[128]) -> bits[128] {
     ret add.1: bits[128] = add(a, b)
   }
   )"));
   absl::flat_hash_map<std::string, Value> args = {
       {"a", Value(UBits(42, 128))}, {"b", Value(UBits(123, 128))}};
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithKwargsNoEvents(function, args),
               IsOkAndHolds(Value(UBits(165, 128))));
 }
@@ -2438,13 +2438,13 @@ TEST_P(IrEvaluatorTestBase, WideNegate) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package wide_negate
 
-  fn main(a: bits[128]) -> bits[128] {
+  top fn main(a: bits[128]) -> bits[128] {
     ret neg.1: bits[128] = neg(a)
   }
   )"));
   absl::flat_hash_map<std::string, Value> args = {
       {"a", Value(UBits(0x42, 128))}};
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargsNoEvents(function, args));
   EXPECT_EQ(result.bits().ToString(FormatPreference::kHex),
             "0xffff_ffff_ffff_ffff_ffff_ffff_ffff_ffbe");
@@ -2454,7 +2454,7 @@ TEST_P(IrEvaluatorTestBase, WideLogicOperator) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package wide_add
 
-  fn main(a: bits[128], b: bits[128]) -> bits[128] {
+  top fn main(a: bits[128], b: bits[128]) -> bits[128] {
     xor.1: bits[128] = xor(a, b)
     ret not.2: bits[128] = not(xor.1)
   }
@@ -2468,7 +2468,7 @@ TEST_P(IrEvaluatorTestBase, WideLogicOperator) {
       {"b", Value(bits_ops::Concat({UBits(0xf0f0f0f00f0f0f0fULL, 64),
                                     UBits(0x5a5a5a5aa5a5a5a5ULL, 64)}))}};
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargsNoEvents(function, args));
   EXPECT_EQ(result.bits().ToString(FormatPreference::kHex),
             "0xd1a2_b1e0_0e1b_2a1d_b791_f3dd_dd3f_197b");
@@ -2478,7 +2478,7 @@ TEST_P(IrEvaluatorTestBase, OptimizedParamReturn) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(x0: bits[1], x1: bits[2]) -> bits[1] {
+  top fn main(x0: bits[1], x1: bits[2]) -> bits[1] {
     ret param.1: bits[1] = param(name=x0)
   }
   )"));
@@ -2487,7 +2487,7 @@ TEST_P(IrEvaluatorTestBase, OptimizedParamReturn) {
       {"x1", Value(UBits(0, 2))},
   };
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(Value result, RunWithKwargsNoEvents(function, args));
   EXPECT_EQ(result.bits().ToString(FormatPreference::kBinary), "0b1");
 }
@@ -2496,7 +2496,7 @@ TEST_P(IrEvaluatorTestBase, AfterAllWithOtherOps) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main() -> bits[8] {
+  top fn main() -> bits[8] {
     after_all.1: token = after_all()
     literal.2: bits[8] = literal(value=6)
     after_all.3: token = after_all()
@@ -2507,7 +2507,7 @@ TEST_P(IrEvaluatorTestBase, AfterAllWithOtherOps) {
     ret nand.8: bits[8] = nand(literal.2, literal.4, literal.6)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value(UBits(0b11111101, 8))));
 }
@@ -2516,11 +2516,11 @@ TEST_P(IrEvaluatorTestBase, AfterAllReturnToken) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main() -> token {
+  top fn main() -> token {
     ret after_all.1: token = after_all()
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithNoEvents(function, /*args=*/{}),
               IsOkAndHolds(Value::Token()));
 }
@@ -2529,11 +2529,11 @@ TEST_P(IrEvaluatorTestBase, AfterAllTokenArgs) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(t1: token, t2: token) -> token {
+  top fn main(t1: token, t2: token) -> token {
     ret after_all.1: token = after_all(t1, t2)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(
       RunWithKwargsNoEvents(
           function, /*args=*/{{"t1", Value::Token()}, {"t2", Value::Token()}}),
@@ -2544,11 +2544,11 @@ TEST_P(IrEvaluatorTestBase, ArrayOperation) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(x0: bits[16], x1: bits[16]) -> bits[16][2] {
+  top fn main(x0: bits[16], x1: bits[16]) -> bits[16][2] {
     ret array.1: bits[16][2] = array(x0, x1)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(
       Value result,
       RunWithKwargsNoEvents(function, {{"x0", Value(UBits(34, 16))},
@@ -2561,11 +2561,11 @@ TEST_P(IrEvaluatorTestBase, Decode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(x: bits[3]) -> bits[8] {
+  top fn main(x: bits[3]) -> bits[8] {
     ret decode.1: bits[8] = decode(x, width=8)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(1));
   EXPECT_THAT(RunWithUint64sNoEvents(function, {1}), IsOkAndHolds(2));
   EXPECT_THAT(RunWithUint64sNoEvents(function, {2}), IsOkAndHolds(4));
@@ -2580,11 +2580,11 @@ TEST_P(IrEvaluatorTestBase, NarrowedDecode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(x: bits[3]) -> bits[5] {
+  top fn main(x: bits[3]) -> bits[5] {
     ret decode.1: bits[5] = decode(x, width=5)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(1));
   EXPECT_THAT(RunWithUint64sNoEvents(function, {1}), IsOkAndHolds(2));
   EXPECT_THAT(RunWithUint64sNoEvents(function, {2}), IsOkAndHolds(4));
@@ -2599,11 +2599,11 @@ TEST_P(IrEvaluatorTestBase, Encode) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(x: bits[5]) -> bits[3] {
+  top fn main(x: bits[5]) -> bits[3] {
     ret encode.1: bits[3] = encode(x)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(RunWithUint64sNoEvents(function, {0}), IsOkAndHolds(0));
 
   // Explicitly test all the one-hot values.
@@ -2633,11 +2633,11 @@ TEST_P(IrEvaluatorTestBase, RunMismatchedType) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main(x: bits[16]) -> bits[16] {
+  top fn main(x: bits[16]) -> bits[16] {
     ret param.2: bits[16] = param(name=x)
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   EXPECT_THAT(
       RunWithNoEvents(function, {Value(UBits(42, 17))}),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -2651,7 +2651,7 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn main() -> bits[$0] {
+  top fn main() -> bits[$0] {
     literal.1: bits[$1] = literal(value=$2)
     ret bit_slice.2: bits[$0] = bit_slice(literal.1, start=$3, width=$0)
   }
@@ -2668,7 +2668,7 @@ absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
   std::string formatted_ir = absl::Substitute(
       ir_text, slice_width, literal_width, bytes_str, slice_start);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   Value expected(
       Bits::FromBytes(bytes, literal_width).Slice(slice_start, slice_width));
@@ -2693,7 +2693,7 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn main() -> bits[$0] {
+  top fn main() -> bits[$0] {
     literal.1: bits[$1] = literal(value=$2)
     literal.2: bits[$3] = literal(value=$4)
     ret dynamic_bit_slice.3: bits[$0] = dynamic_bit_slice(literal.1,
@@ -2716,7 +2716,7 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
       absl::Substitute(ir_text, slice_width, literal_width, bytes_str,
                        start_width, start_bytes_str);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   Value expected;
   if (slice_start > literal_width) {
@@ -2739,7 +2739,7 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn main() -> bits[$0] {
+  top fn main() -> bits[$0] {
     literal.1: bits[$1] = literal(value=$2)
     literal.2: bits[$3] = literal(value=$4)
     ret dynamic_bit_slice.3: bits[$0] = dynamic_bit_slice(literal.1,
@@ -2769,7 +2769,7 @@ absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
       absl::Substitute(ir_text, slice_width, literal_width, bytes_str,
                        2 * literal_width, start_bytes_str);
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   // Clearly out of bounds
   Value expected = Value(Bits(slice_width));
@@ -2797,11 +2797,11 @@ TEST_P(IrEvaluatorTestBase, FunnyShapedArrays) {
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(R"(
   package test
 
-  fn main() -> bits[20][2] {
+  top fn main() -> bits[20][2] {
     ret literal.1: bits[20][2] = literal(value=[0xabcde, 0x12345])
   }
   )"));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function, package->GetTopAsFunction());
   Value expected =
       Value::ArrayOrDie({Value(UBits(0xabcde, 20)), Value(UBits(0x12345, 20))});
   EXPECT_THAT(RunWithNoEvents(function, {}), IsOkAndHolds(expected));
@@ -2813,7 +2813,7 @@ absl::Status RunBitwiseReduceTest(
   constexpr absl::string_view ir_text = R"(
   package test
 
-  fn main(x: bits[$1]) -> bits[1] {
+  top fn main(x: bits[$1]) -> bits[1] {
     ret $0.1: bits[1] = $0(x)
   }
   )";
@@ -2821,7 +2821,7 @@ absl::Status RunBitwiseReduceTest(
   std::string formatted_ir =
       absl::Substitute(ir_text, reduce_op, bits.bit_count());
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(formatted_ir));
-  XLS_ASSIGN_OR_RETURN(Function * function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * function, package->GetTopAsFunction());
 
   EXPECT_THAT(DropInterpreterEvents(param.evaluator(function, {Value(bits)})),
               IsOkAndHolds(generate_expected(bits)));

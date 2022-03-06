@@ -127,8 +127,7 @@ absl::Status Run(absl::string_view cpp_path) {
                     ? absl::Span<absl::string_view>()
                     : absl::MakeSpan(&clang_argv[0], clang_argv.size())));
 
-  XLS_ASSIGN_OR_RETURN(absl::StatusOr<std::string> top_name,
-                       translator.GetEntryFunctionName());
+  XLS_ASSIGN_OR_RETURN(std::string top_name, translator.GetEntryFunctionName());
 
   std::string package_name = absl::GetFlag(FLAGS_package);
 
@@ -137,15 +136,17 @@ absl::Status Run(absl::string_view cpp_path) {
   }
 
   std::cerr << "Generating IR..." << std::endl;
-  xls::Package package(package_name, top_name.value());
+  xls::Package package(package_name);
   if (block_pb_name.empty()) {
     XLS_RETURN_IF_ERROR(translator.GenerateIR_Top_Function(&package).status());
     // TODO(seanhaskell): Simplify IR
+    XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
     std::cout << package.DumpIr() << std::endl;
   } else {
     XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
                          translator.GenerateIR_Block(&package, block));
 
+    XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
     if (absl::GetFlag(FLAGS_dump_ir_only)) {
       std::cerr << "Saving Package IR..." << std::endl;
       std::cout << package.DumpIr() << std::endl;

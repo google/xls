@@ -134,7 +134,7 @@ def generate_ir_package(op: str,
     ir_text = textwrap.dedent("""\
     package {op}_characterization
 
-    fn main({params}) -> {output_type} {{
+    top fn main({params}) -> {output_type} {{
       ret result: {output_type} = {op}({args})
     }}""").format(
         op=op,
@@ -147,7 +147,7 @@ def generate_ir_package(op: str,
     ir_text = textwrap.dedent("""\
     package {op}_characterization
 
-    fn main({params}) -> {output_type} {{
+    top fn main({params}) -> {output_type} {{
       op{literal_operand}: {literal_type} = literal(value={literal_value})
       ret result: {output_type} = {op}({args})
     }}""").format(

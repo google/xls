@@ -20,6 +20,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/subprocess.h"
+#include "xls/dslx/mangle.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
@@ -76,7 +77,12 @@ fn main(i: u32) -> (bool, u32) {
 })";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
   XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string mangled_name,
+      dslx::MangleDslxName(package->name(), "main",
+                           dslx::CallingConvention::kTypical));
+  XLS_ASSERT_OK(package->SetTopByName(mangled_name));
+  Function* entry = package->GetTop().value()->AsFunctionOrDie();
   XLS_VLOG(1) << package->DumpIr();
   // Verify that no ArrayIndex or ArrayUpdate operations exist in the IR.
   // TODO(b/159035667): The optimized IR is much more complicated than it should
@@ -117,7 +123,12 @@ fn main(foo: S, foo_bar: S) -> u8 {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
   XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string mangled_name,
+      dslx::MangleDslxName(package->name(), "main",
+                           dslx::CallingConvention::kTypical));
+  XLS_ASSERT_OK(package->SetTopByName(mangled_name));
+  Function* entry = package->GetTop().value()->AsFunctionOrDie();
   EXPECT_THAT(entry->return_value(),
               m::Add(m::Name("foo_zub"), m::Name("foo_bar_qux")));
 }
@@ -167,7 +178,12 @@ fn main(idx: u4, update: u32, original: bits[320]) -> bits[320] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package, DslxToIr(input));
   XLS_ASSERT_OK(RunStandardPassPipeline(package.get()).status());
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string mangled_name,
+      dslx::MangleDslxName(package->name(), "main",
+                           dslx::CallingConvention::kTypical));
+  XLS_ASSERT_OK(package->SetTopByName(mangled_name));
+  Function* entry = package->GetTop().value()->AsFunctionOrDie();
 
   // The optimized block could look like a concat of selects:
   //

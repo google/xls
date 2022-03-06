@@ -57,7 +57,7 @@ PYBIND11_MODULE(z3_lec, m) {
 
         z3::LecParams params;
         params.ir_package = package.get();
-        XLS_ASSIGN_OR_RETURN(auto entry_function, package->EntryFunction());
+        XLS_ASSIGN_OR_RETURN(auto entry_function, package->GetTopAsFunction());
         params.ir_function = entry_function;
         params.netlist = netlist.get();
         params.netlist_module_name = netlist_module_name;

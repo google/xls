@@ -31,7 +31,7 @@ class Z3LecTest(absltest.TestCase):
 
   def test_simple_lec(self):
     ir_text = """package p
-    fn main(a: bits[2], b: bits[2]) -> bits[2] {
+    top fn main(a: bits[2], b: bits[2]) -> bits[2] {
       ret add.3: bits[2] = add(a, b)
     }
     """

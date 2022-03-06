@@ -48,7 +48,7 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   Function* function;
   if (!function_name) {
-    XLS_ASSIGN_OR_RETURN(function, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(function, package->GetTopAsFunction());
   } else {
     XLS_ASSIGN_OR_RETURN(function, package->GetFunction(function_name.value()));
   }

@@ -29,50 +29,56 @@ namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_sample, m) {
   py::class_<SampleOptions>(m, "SampleOptions")
-      .def(py::init([](absl::optional<bool> input_is_dslx,
-                       absl::optional<bool> convert_to_ir,
-                       absl::optional<bool> optimize_ir,
-                       absl::optional<bool> use_jit,
-                       absl::optional<bool> codegen,
-                       absl::optional<std::vector<std::string>> codegen_args,
-                       absl::optional<bool> simulate,
-                       absl::optional<std::string> simulator,
-                       absl::optional<bool> use_system_verilog,
-                       absl::optional<int64_t> timeout_seconds) {
-             std::map<std::string, json11::Json> json;
-             if (input_is_dslx) {
-               json["input_is_dslx"] = *input_is_dslx;
-             }
-             if (convert_to_ir) {
-               json["convert_to_ir"] = *convert_to_ir;
-             }
-             if (optimize_ir) {
-               json["optimize_ir"] = *optimize_ir;
-             }
-             if (use_jit) {
-               json["use_jit"] = *use_jit;
-             }
-             if (codegen) {
-               json["codegen"] = *codegen;
-             }
-             if (codegen_args) {
-               json["codegen_args"] = *codegen_args;
-             }
-             if (simulate) {
-               json["simulate"] = *simulate;
-             }
-             if (simulator) {
-               json["simulator"] = *simulator;
-             }
-             if (use_system_verilog) {
-               json["use_system_verilog"] = *use_system_verilog;
-             }
-             if (timeout_seconds) {
-               json["timeout_seconds"] = static_cast<int>(*timeout_seconds);
-             }
-             return SampleOptions::FromJson(json11::Json(json).dump()).value();
-           }),
+      .def(py::init(
+               [](absl::optional<bool> input_is_dslx,
+                  absl::optional<std::vector<std::string>> ir_converter_args,
+                  absl::optional<bool> convert_to_ir,
+                  absl::optional<bool> optimize_ir,
+                  absl::optional<bool> use_jit, absl::optional<bool> codegen,
+                  absl::optional<std::vector<std::string>> codegen_args,
+                  absl::optional<bool> simulate,
+                  absl::optional<std::string> simulator,
+                  absl::optional<bool> use_system_verilog,
+                  absl::optional<int64_t> timeout_seconds) {
+                 std::map<std::string, json11::Json> json;
+                 if (input_is_dslx) {
+                   json["input_is_dslx"] = *input_is_dslx;
+                 }
+                 if (ir_converter_args) {
+                   json["ir_converter_args"] = *ir_converter_args;
+                 }
+                 if (convert_to_ir) {
+                   json["convert_to_ir"] = *convert_to_ir;
+                 }
+                 if (optimize_ir) {
+                   json["optimize_ir"] = *optimize_ir;
+                 }
+                 if (use_jit) {
+                   json["use_jit"] = *use_jit;
+                 }
+                 if (codegen) {
+                   json["codegen"] = *codegen;
+                 }
+                 if (codegen_args) {
+                   json["codegen_args"] = *codegen_args;
+                 }
+                 if (simulate) {
+                   json["simulate"] = *simulate;
+                 }
+                 if (simulator) {
+                   json["simulator"] = *simulator;
+                 }
+                 if (use_system_verilog) {
+                   json["use_system_verilog"] = *use_system_verilog;
+                 }
+                 if (timeout_seconds) {
+                   json["timeout_seconds"] = static_cast<int>(*timeout_seconds);
+                 }
+                 return SampleOptions::FromJson(json11::Json(json).dump())
+                     .value();
+               }),
            py::arg("input_is_dslx") = absl::nullopt,
+           py::arg("ir_converter_args") = absl::nullopt,
            py::arg("convert_to_ir") = absl::nullopt,
            py::arg("optimize_ir") = absl::nullopt,
            py::arg("use_jit") = absl::nullopt,
@@ -87,6 +93,8 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_static("from_json", &SampleOptions::FromJson)
       .def("to_json", &SampleOptions::ToJsonText)
       .def_property_readonly("input_is_dslx", &SampleOptions::input_is_dslx)
+      .def_property_readonly("ir_converter_args",
+                             &SampleOptions::ir_converter_args)
       .def_property_readonly("convert_to_ir", &SampleOptions::convert_to_ir)
       .def_property_readonly("simulate", &SampleOptions::simulate)
       .def_property_readonly("simulator", &SampleOptions::simulator)

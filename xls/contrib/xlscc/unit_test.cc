@@ -68,7 +68,8 @@ void XlsccTestBase::RunWithStatics(
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir));
 
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * top_func, package_->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * top_func,
+                           package_->GetTopAsFunction());
 
   const absl::Span<xls::Param* const> params = top_func->params();
 
@@ -159,6 +160,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     package_.reset(new xls::Package("my_package"));
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(package_.get()));
+    XLS_RETURN_IF_ERROR(package_->SetTopByName(func->xls_func->name()));
     if (pfunc) {
       *pfunc = func;
     }
@@ -182,7 +184,7 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
                                       /* io_test_mode= */ true));
 
   XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
 
   const int total_test_ops = inputs.size() + outputs.size();
   ASSERT_EQ(func->io_ops.size(), total_test_ops);

@@ -33,9 +33,7 @@ namespace xls {
 // explicitly call the verifier.
 class VerifiedPackage : public Package {
  public:
-  explicit VerifiedPackage(absl::string_view name,
-                           absl::optional<absl::string_view> entry)
-      : Package(name, entry) {}
+  explicit VerifiedPackage(absl::string_view name) : Package(name) {}
   ~VerifiedPackage() override;
 };
 
@@ -50,7 +48,7 @@ class IrTestBase : public ::testing::Test {
 
   // Creates an empty package with a name equal to TestName().
   static std::unique_ptr<VerifiedPackage> CreatePackage() {
-    return std::make_unique<VerifiedPackage>(TestName(), absl::nullopt);
+    return std::make_unique<VerifiedPackage>(TestName());
   }
 
   // Parses the given text as a package and replaces the owned packaged with the

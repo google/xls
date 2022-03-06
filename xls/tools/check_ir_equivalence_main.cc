@@ -113,7 +113,7 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
 
   std::vector<Function*> functions;
   for (const auto& package : packages) {
-    XLS_ASSIGN_OR_RETURN(Function * func, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(Function * func, package->GetTopAsFunction());
     functions.push_back(func);
   }
 

@@ -37,6 +37,7 @@ xls_pybind_extension(
     ],
     deps = [
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
         "//xls/codegen:module_signature",
         "//xls/codegen:pipeline_generator",
         "//xls/common/python:absl_casters",

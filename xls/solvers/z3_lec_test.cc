@@ -35,7 +35,7 @@ absl::StatusOr<bool> Match(const std::string& ir_text,
                            const std::string& netlist_text, bool expect_equal) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(Function * entry_function, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * entry_function, package->GetTopAsFunction());
 
   XLS_ASSIGN_OR_RETURN(netlist::CellLibrary cell_library,
                        netlist::MakeFakeCellLibrary());
@@ -60,7 +60,7 @@ TEST(Z3LecTest, SimpleLec) {
   std::string ir_text = R"(
 package p
 
-fn main(input: bits[4]) -> bits[4] {
+top fn main(input: bits[4]) -> bits[4] {
   ret not.2: bits[4] = not(input)
 }
 )";
@@ -101,7 +101,7 @@ TEST(Z3LecTest, FailsBadComparison) {
   std::string ir_text = R"(
 package p
 
-fn main(input: bits[4]) -> bits[4] {
+top fn main(input: bits[4]) -> bits[4] {
   ret not.2: bits[4] = not(input)
 }
 )";
@@ -142,7 +142,7 @@ TEST(Z3LecTest, SimpleMultiStage) {
   std::string ir_text = R"(
 package p
 
-fn main(i0: bits[1], i1: bits[1], i2: bits[1], i3: bits[1]) -> bits[1] {
+top fn main(i0: bits[1], i1: bits[1], i2: bits[1], i3: bits[1]) -> bits[1] {
   // Stage 1:
   and.1: bits[1] = and(i0, i1)
   and.2: bits[1] = and(i2, i3)
@@ -182,7 +182,8 @@ endmodule
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function,
+                           package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(netlist::CellLibrary cell_library,
                            netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);
@@ -227,7 +228,7 @@ TEST(Z3LecTest, FailsBadMultiStage) {
   std::string ir_text = R"(
 package p
 
-fn main(i0: bits[1], i1: bits[1], i2: bits[1], i3: bits[1]) -> bits[1] {
+top fn main(i0: bits[1], i1: bits[1], i2: bits[1], i3: bits[1]) -> bits[1] {
   // Stage 1:
   and.1: bits[1] = and(i0, i1)
   and.2: bits[1] = and(i2, i3)
@@ -270,7 +271,8 @@ endmodule
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function,
+                           package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(netlist::CellLibrary cell_library,
                            netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);
@@ -320,7 +322,7 @@ TEST(Z3LecTest, MultibitMultiStage) {
   std::string ir_text = R"(
 package p
 
-fn main(i0: bits[4], i1: bits[4], i2: bits[4], i3: bits[4]) -> bits[4] {
+top fn main(i0: bits[4], i1: bits[4], i2: bits[4], i3: bits[4]) -> bits[4] {
   // Stage 1:
   and.1: bits[4] = and(i0, i1)
   and.2: bits[4] = and(i2, i3)
@@ -422,7 +424,8 @@ endmodule
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(ir_text));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function, package->EntryFunction());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * entry_function,
+                           package->GetTopAsFunction());
   XLS_ASSERT_OK_AND_ASSIGN(netlist::CellLibrary cell_library,
                            netlist::MakeFakeCellLibrary());
   netlist::rtl::Scanner scanner(netlist_text);

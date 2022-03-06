@@ -164,7 +164,9 @@ TEST_F(DelayHeapTest, BenchmarkTest) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<Package> p,
       sample_packages::GetBenchmark("examples/sha256", /*optimized=*/true));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->EntryFunction());
+  absl::optional<xls::FunctionBase*> top = p->GetTop();
+  ASSERT_TRUE(top.has_value());
+  xls::FunctionBase* f = top.value();
   // Run test in both directions.
   for (Direction direction :
        {Direction::kGrowsTowardUsers, Direction::kGrowsTowardOperands}) {

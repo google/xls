@@ -202,7 +202,6 @@ absl::StatusOr<std::string> IrToJson(
       GetFunctionIds(package);
 
   absl::optional<FunctionBase*> entry_function_base;
-  proto.set_name(package->name());
   for (FunctionBase* fb : package->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(
         *proto.add_function_bases(),
@@ -215,14 +214,15 @@ absl::StatusOr<std::string> IrToJson(
       entry_function_base = fb;
     }
   }
+  proto.set_name(package->name());
   XLS_ASSIGN_OR_RETURN(std::string ir_html, MarkUpIrText(package));
   proto.set_ir_html(ir_html);
   if (entry_function_base.has_value()) {
     proto.set_entry_id(function_ids.at(entry_function_base.value()));
   } else {
-    absl::StatusOr<Function*> entry_status = package->EntryFunction();
-    if (entry_status.ok()) {
-      proto.set_entry_id(function_ids.at(entry_status.value()));
+    absl::optional<FunctionBase*> top = package->GetTop();
+    if (top.has_value()) {
+      proto.set_entry_id(function_ids.at(top.value()));
     }
   }
 
@@ -333,10 +333,11 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
     //
     //   <span>fn <span>foo</span>(<span>a</span>: bits[32]) {
     //
+    std::string is_top;
     std::string kind;
     std::string function_name;
-    if (RE2::PartialMatch(line, R"(^\s*(fn|proc|block)\s+(\w+))", &kind,
-                          &function_name)) {
+    if (RE2::PartialMatch(line, R"(^\s*(top|)\s*(fn|proc|block)\s+(\w+))",
+                          &is_top, &kind, &function_name)) {
       std::vector<Node*> args;
       if (kind == "fn") {
         XLS_ASSIGN_OR_RETURN(current_function,

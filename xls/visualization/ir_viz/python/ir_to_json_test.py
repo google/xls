@@ -36,7 +36,7 @@ class IrToJsonTest(absltest.TestCase):
     json_str = ir_to_json.ir_to_json(
         """package test_package
 
-fn main(x: bits[32], y: bits[32]) -> bits[32] {
+top fn main(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }""", 'unit')
     json_dict = json.loads(json_str)
@@ -52,7 +52,7 @@ fn main(x: bits[32], y: bits[32]) -> bits[32] {
     json_str = ir_to_json.ir_to_json(
         """package test
 
-fn main(x: bits[32], y: bits[32]) -> bits[32] {
+top fn main(x: bits[32], y: bits[32]) -> bits[32] {
   add.1: bits[32] = add(x, y)
   ret neg.2: bits[32] = neg(add.1)
 }""", 'unit', 2)

@@ -95,11 +95,15 @@ absl::Status RealMain(absl::string_view input_path) {
       // the BDD.
       std::cout << "================== " << name << std::endl;
     }
-    XLS_ASSIGN_OR_RETURN(Function * entry, package->EntryFunction());
+    absl::optional<FunctionBase*> top = package->GetTop();
+    if (!top.has_value()) {
+      return absl::InternalError(absl::StrFormat(
+          "Top entity not set for package: %s.", package->name()));
+    }
     absl::Time start = absl::Now();
     XLS_ASSIGN_OR_RETURN(
         std::unique_ptr<BddFunction> bdd_function,
-        BddFunction::Run(entry, absl::GetFlag(FLAGS_bdd_path_limit)));
+        BddFunction::Run(top.value(), absl::GetFlag(FLAGS_bdd_path_limit)));
     absl::Duration bdd_time = absl::Now() - start;
     total_time += bdd_time;
     std::cout << "BDD construction time: " << bdd_time << "\n";
@@ -108,7 +112,7 @@ absl::Status RealMain(absl::string_view input_path) {
               << "\n";
 
     int64_t number_bits = 0;
-    for (Node* node : entry->nodes()) {
+    for (Node* node : top.value()->nodes()) {
       number_bits += node->GetType()->GetFlatBitCount();
     }
     std::cout << "Bits in graph: " << number_bits << "\n";

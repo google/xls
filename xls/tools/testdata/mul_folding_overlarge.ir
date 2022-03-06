@@ -4,7 +4,7 @@
 
 package mul_folding_overlarge
 
-fn known_failing_main(x1102180: bits[25]) -> bits[21] {
+top fn known_failing_main(x1102180: bits[25]) -> bits[21] {
   literal.482: bits[21] = literal(value=2048)
   bit_slice.483: bits[21] = bit_slice(x1102180, start=0, width=21)
   umul.484: bits[21] = umul(literal.482, bit_slice.483)

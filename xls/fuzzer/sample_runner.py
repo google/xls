@@ -386,9 +386,10 @@ class SampleRunner:
   def _dslx_to_ir(self, dslx_filename: Text,
                   options: sample.SampleOptions) -> Text:
     """Converts the DSLX file to an IR file whose filename is returned."""
-    ir_text = self._run_command('Converting DSLX to IR',
-                                (IR_CONVERTER_MAIN_PATH, dslx_filename),
-                                options)
+    args = [IR_CONVERTER_MAIN_PATH]
+    args.extend(options.ir_converter_args)
+    args.append(dslx_filename)
+    ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)
 
   def _optimize_ir(self, ir_filename: Text,

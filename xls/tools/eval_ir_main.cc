@@ -222,7 +222,7 @@ class EvalInvariantChecker : public InvariantChecker {
       std::cerr << "// Evaluating entry function after pass: "
                 << results->invocations.back().pass_name << "\n";
     }
-    XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+    XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
     std::string actual_src = "before optimizations";
     XLS_RETURN_IF_ERROR(Eval(f, arg_sets_, use_jit_,
                              /*actual_src=*/results->invocations.empty()
@@ -242,7 +242,7 @@ class EvalInvariantChecker : public InvariantChecker {
 // (based on flags) optimizing the IR and evaluating the ArgSets during and
 // after optimizations.
 absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
   // Copy the input ArgSets because we want to write in expected values if they
   // do not exist.
   std::vector<ArgSet> arg_sets(arg_sets_in.begin(), arg_sets_in.end());
@@ -397,7 +397,7 @@ absl::Status RealMain(absl::string_view input_path,
   if (!absl::GetFlag(FLAGS_top).empty()) {
     XLS_RETURN_IF_ERROR(package->SetTopByName(absl::GetFlag(FLAGS_top)));
   }
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
 
   std::vector<ArgSet> arg_sets;
   if (!absl::GetFlag(FLAGS_input).empty()) {

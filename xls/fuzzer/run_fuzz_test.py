@@ -36,7 +36,7 @@ FLAGS = flags.FLAGS
 
 X_SUB_Y_IR = """package x_sub_y
 
-fn main(x: bits[8], y: bits[8]) -> bits[8] {
+top fn main(x: bits[8], y: bits[8]) -> bits[8] {
   ret sub.1: bits[8] = sub(x, y)
 }
 """
@@ -84,7 +84,11 @@ class RunFuzzTest(parameterized.TestCase):
     # reduce the sample to a minimal function (just returns a parameter).
     s = sample.Sample(
         'fn main(x: u8) -> u8 { -x }',
-        sample.SampleOptions(codegen=True, codegen_args=('--invalid_flag!!!',)),
+        sample.SampleOptions(
+            input_is_dslx=True,
+            ir_converter_args=['--entry=main'],
+            codegen=True,
+            codegen_args=('--invalid_flag!!!',)),
         sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
@@ -108,8 +112,11 @@ class RunFuzzTest(parameterized.TestCase):
     # and doesn't blow up if the IR is not minimizable. In this case, "not
     # minimizable" means that no error is ever generated when running the
     # sample.
-    s = sample.Sample('fn main(x: u8) -> u8 { -x }', sample.SampleOptions(),
-                      sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
+    s = sample.Sample(
+        'fn main(x: u8) -> u8 { -x }',
+        sample.SampleOptions(
+            input_is_dslx=True, ir_converter_args=['--entry=main']),
+        sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)
@@ -118,8 +125,11 @@ class RunFuzzTest(parameterized.TestCase):
     self.assertIn('ir_minimizer_test.sh', dir_contents)
 
   def test_minimize_jit_interpreter_mismatch(self):
-    s = sample.Sample('fn main(x: u8) -> u8 { !x }', sample.SampleOptions(),
-                      sample.parse_args_batch('bits[8]:0xff\nbits[8]:0x42'))
+    s = sample.Sample(
+        'fn main(x: u8) -> u8 { !x }',
+        sample.SampleOptions(
+            input_is_dslx=True, ir_converter_args=['--entry=main']),
+        sample.parse_args_batch('bits[8]:0xff\nbits[8]:0x42'))
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
     run_fuzz.run_sample(s, run_dir=run_dir)

@@ -26,7 +26,7 @@ FIND_FAILING_INPUT_MAIN = runfiles.get_path(
 
 ADD_IR = """package foo
 
-fn foo(x: bits[32], y: bits[32]) -> bits[32] {
+top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 """

@@ -56,7 +56,7 @@ absl::Status RealMain(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(std::string inputs_text, GetFileContents(inputs_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text, ir_path));
-  XLS_ASSIGN_OR_RETURN(Function * f, package->EntryFunction());
+  XLS_ASSIGN_OR_RETURN(Function * f, package->GetTopAsFunction());
 
   std::vector<std::vector<Value>> inputs;
   for (const auto& args_line :
