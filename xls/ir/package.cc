@@ -460,6 +460,13 @@ void Package::SetFileno(Fileno file_number, absl::string_view filename) {
   fileno_to_filename_.emplace(file_number, std::string(filename));
 }
 
+std::optional<std::string> Package::GetFilename(Fileno file_number) const {
+  if (!fileno_to_filename_.contains(file_number)) {
+    return std::nullopt;
+  }
+  return fileno_to_filename_.at(file_number);
+}
+
 int64_t Package::GetNodeCount() const {
   int64_t count = 0;
   for (const auto& f : functions()) {

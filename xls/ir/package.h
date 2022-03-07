@@ -155,6 +155,9 @@ class Package {
   // Used when parsing a `Package`.
   void SetFileno(Fileno file_number, absl::string_view filename);
 
+  // Get the filename corresponding to the given `Fileno`.
+  std::optional<std::string> GetFilename(Fileno file_number) const;
+
   // Returns the total number of nodes in the graph. Traverses the functions and
   // sums the node counts.
   int64_t GetNodeCount() const;

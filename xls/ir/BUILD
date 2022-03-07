@@ -66,6 +66,20 @@ cc_library(
 )
 
 cc_library(
+    name = "caret",
+    srcs = ["caret.cc"],
+    hdrs = ["caret.h"],
+    deps = [
+        ":source_location",
+        "//xls/common/file:filesystem",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+cc_library(
     name = "interval",
     srcs = ["interval.cc"],
     hdrs = ["interval.h"],
@@ -898,6 +912,18 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "caret_test",
+    srcs = ["caret_test.cc"],
+    deps = [
+        ":caret",
+        ":ir",
+        ":source_location",
+        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
 )
