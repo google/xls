@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__callee(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.3: bits[32] = add(x, y, id=3, pos=0,1,4)
 }

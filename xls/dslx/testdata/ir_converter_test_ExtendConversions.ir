@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__main(x: bits[8], y: bits[8]) -> (bits[32], bits[32], bits[32], bits[32]) {
   zero_ext.3: bits[32] = zero_ext(x, new_bit_count=32, id=3)
   sign_ext.4: bits[32] = sign_ext(y, new_bit_count=32, id=4)

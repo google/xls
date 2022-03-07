@@ -435,15 +435,29 @@ Type* Package::GetTypeForValue(const Value& value) {
 
 Fileno Package::GetOrCreateFileno(absl::string_view filename) {
   // Attempt to add a new fileno/filename pair to the map.
-  auto this_fileno = Fileno(filename_to_fileno_.size());
   if (auto it = filename_to_fileno_.find(std::string(filename));
       it != filename_to_fileno_.end()) {
     return it->second;
   }
+  Fileno this_fileno =
+      maximum_fileno_.has_value()
+          ? Fileno(static_cast<int32_t>(maximum_fileno_.value()) + 1)
+          : Fileno(0);
   filename_to_fileno_.emplace(std::string(filename), this_fileno);
   fileno_to_filename_.emplace(this_fileno, std::string(filename));
+  maximum_fileno_ = this_fileno;
 
   return this_fileno;
+}
+
+void Package::SetFileno(Fileno file_number, absl::string_view filename) {
+  maximum_fileno_ =
+      maximum_fileno_.has_value()
+          ? Fileno(std::max(static_cast<int32_t>(file_number),
+                            static_cast<int32_t>(maximum_fileno_.value())))
+          : file_number;
+  filename_to_fileno_.emplace(std::string(filename), file_number);
+  fileno_to_filename_.emplace(file_number, std::string(filename));
 }
 
 int64_t Package::GetNodeCount() const {
@@ -471,6 +485,15 @@ bool Package::IsDefinitelyEqualTo(const Package* other) const {
 std::string Package::DumpIr() const {
   std::string out;
   absl::StrAppend(&out, "package ", name(), "\n\n");
+
+  if (!fileno_to_filename_.empty()) {
+    for (const auto& [fileno, filename] : fileno_to_filename_) {
+      absl::StrAppend(&out, "file_number ", static_cast<int32_t>(fileno), " ",
+                      "\"", filename, "\"\n");
+    }
+    absl::StrAppend(&out, "\n");
+  }
+
   if (!channels().empty()) {
     for (Channel* channel : channels()) {
       absl::StrAppend(&out, channel->ToString(), "\n");

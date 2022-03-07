@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __itok__test_module__callee_callee(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   not.6: bits[1] = not(__activated, id=6)
   literal.4: bits[32] = literal(value=3, id=4)

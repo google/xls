@@ -1499,6 +1499,26 @@ absl::StatusOr<std::string> Parser::ParsePackageName() {
   return package_name.value();
 }
 
+absl::Status Parser::ParseFileNumber(Package* package) {
+  if (AtEof()) {
+    return absl::InvalidArgumentError("Could not parse function; at EOF.");
+  }
+  XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("file_number"));
+  XLS_ASSIGN_OR_RETURN(
+      Token file_number_token,
+      scanner_.PopTokenOrError(LexicalTokenType::kLiteral, "file number"));
+  XLS_ASSIGN_OR_RETURN(
+      Token file_path_token,
+      scanner_.PopTokenOrError(LexicalTokenType::kQuotedString, "file path"));
+  XLS_ASSIGN_OR_RETURN(int64_t file_number, file_number_token.GetValueInt64());
+  if (file_number > (2 >> 30)) {
+    return absl::InternalError("file_number declaration might overflow");
+  }
+  package->SetFileno(Fileno(static_cast<int32_t>(file_number)),
+                     file_path_token.value());
+  return absl::OkStatus();
+}
+
 absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   if (AtEof()) {
     return absl::InvalidArgumentError("Could not parse function; at EOF.");

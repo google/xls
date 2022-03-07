@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 chan main_chandecl_test_module_x_4_50_4_58(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
 chan main_chandecl_test_module_x_5_50_5_58(bits[64], id=1, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
 chan main_chandecl_test_module_x_6_82_6_106((bits[64], (bits[64], (bits[64]))), id=2, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")

@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__main(x: token) -> token {
   ret x: token = param(name=x)
 }

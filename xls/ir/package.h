@@ -151,6 +151,10 @@ class Package {
   // If it already exists, returns the existing file-number entry.
   Fileno GetOrCreateFileno(absl::string_view filename);
 
+  // Forcibly sets a given file number to map to a given file.
+  // Used when parsing a `Package`.
+  void SetFileno(Fileno file_number, absl::string_view filename);
+
   // Returns the total number of nodes in the graph. Traverses the functions and
   // sums the node counts.
   int64_t GetNodeCount() const;
@@ -281,6 +285,9 @@ class Package {
   // Mapping from Type:ToString to the owned function type. Use
   // node_hash_map for pointer stability.
   absl::node_hash_map<std::string, FunctionType> function_types_;
+
+  // The largest `Fileno` used in this `Package`.
+  std::optional<Fileno> maximum_fileno_;
 
   // Mapping of Fileno ids to string filenames, and vice-versa for reverse
   // lookups. These two data structures must be updated together for consistency

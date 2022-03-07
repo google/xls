@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 chan main_chandecl_test_module_x_26_18_26_26(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=ready_valid, metadata="""""")
 
 top proc __test_module__main_0_next(__token: token, __state: (), init=()) {

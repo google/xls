@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__main(__token: token) -> (token, bits[32]) {
   literal.3: bits[1] = literal(value=1, id=3)
   literal.2: bits[32] = literal(value=42, id=2)

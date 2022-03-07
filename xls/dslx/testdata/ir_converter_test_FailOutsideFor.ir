@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32])) -> (token, bits[1], bits[32]) {
   tuple_index.7: token = tuple_index(__token_wrapped, index=0, id=7)
   tuple_index.8: bits[1] = tuple_index(__token_wrapped, index=1, id=8)

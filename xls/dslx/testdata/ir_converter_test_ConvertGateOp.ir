@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__main(p: bits[1], x: bits[32]) -> bits[32] {
   ret gate.3: bits[32] = gate(p, x, id=3)
 }

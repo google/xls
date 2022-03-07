@@ -931,10 +931,9 @@ TEST(IrParserTest, ParsePackageWithError) {
 
 Garbage
 )";
-  EXPECT_THAT(
-      Parser::ParsePackage(input).status(),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Expected fn, proc, block or chan definition")));
+  EXPECT_THAT(Parser::ParsePackage(input).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected declaration")));
 }
 
 TEST(IrParserTest, ParseEmptyStringAsPackage) {

@@ -55,6 +55,8 @@ fn test_function(x: bits[32]) -> bits[32] {
         p.dump_ir(), """\
 package test_package
 
+file_number 0 "my_file.x"
+
 fn test_function(x: bits[32]) -> bits[32] {
   my_or: bits[32] = or(x, x, id=2, pos=0,42,64)
   ret why_not: bits[32] = not(x, id=3, pos=0,42,64)

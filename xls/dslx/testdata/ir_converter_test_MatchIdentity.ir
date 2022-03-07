@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__f(x: bits[8]) -> bits[2] {
   literal.2: bits[8] = literal(value=42, id=2)
   eq.3: bits[1] = eq(literal.2, x, id=3)

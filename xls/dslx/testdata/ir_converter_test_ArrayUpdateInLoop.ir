@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn ____test_module__main_counted_for_0_body(i: bits[32], accum: bits[8][2]) -> bits[8][2] {
   bit_slice.6: bits[8] = bit_slice(i, start=0, width=8, id=6)
   ret array_update.7: bits[8][2] = array_update(accum, bit_slice.6, indices=[i], id=7)

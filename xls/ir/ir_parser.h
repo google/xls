@@ -258,6 +258,13 @@ class Parser {
   // And returns the name.
   absl::StatusOr<std::string> ParsePackageName();
 
+  // Pops a file_number declaration out of the scanner, of the form:
+  //
+  //  "file_number" <integer> <quoted-string>
+  //
+  // And adds the mapping to the given `Package`.
+  absl::Status ParseFileNumber(Package* package);
+
   bool AtEof() const { return scanner_.AtEof(); }
 
   Scanner scanner_;
@@ -326,9 +333,17 @@ absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
           << "@ " << filename_str;
       continue;
     }
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Expected fn, proc, block or chan definition, got %s @ %s",
-        peek.value(), peek.pos().ToHumanString()));
+    if (peek.type() == LexicalTokenType::kKeyword &&
+        peek.value() == "file_number") {
+      XLS_RETURN_IF_ERROR(parser.ParseFileNumber(package.get()))
+          << "@ " << filename_str;
+      continue;
+    }
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected declaration "
+                        "(`fn`, `proc`, `block`, `chan`, `file_number`), "
+                        "got %s @ %s",
+                        peek.value(), peek.pos().ToHumanString()));
   }
 
   // Verify the given entry function exists in the package.

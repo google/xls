@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__main() -> bits[8] {
   literal.1: bits[32] = literal(value=3, id=1)
   literal.2: bits[8] = literal(value=4, id=2)

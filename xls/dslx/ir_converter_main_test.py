@@ -51,6 +51,8 @@ class IrConverterMainTest(test_base.TestCase):
         textwrap.dedent("""\
     package a
 
+    file_number 0 "fake_file.x"
+
     fn __a__f() -> bits[32] {
       ret literal.1: bits[32] = literal(value=42, id=1, pos=0,0,20)
     }
@@ -61,6 +63,8 @@ class IrConverterMainTest(test_base.TestCase):
         self._ir_convert({'b.x': self.B_DOT_X}),
         textwrap.dedent("""\
     package b
+
+    file_number 0 "fake_file.x"
 
     fn __b__f() -> bits[32] {
       ret literal.1: bits[32] = literal(value=64, id=1, pos=0,0,20)
@@ -76,6 +80,8 @@ class IrConverterMainTest(test_base.TestCase):
                          package_name='my_entry'),
         textwrap.dedent("""\
     package my_entry
+
+    file_number 0 "fake_file.x"
 
     fn __a__f() -> bits[32] {
       ret literal.1: bits[32] = literal(value=42, id=1, pos=0,0,20)

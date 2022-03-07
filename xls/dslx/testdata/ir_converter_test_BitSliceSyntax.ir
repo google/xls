@@ -1,5 +1,7 @@
 package test_module
 
+file_number 0 "fake_file.x"
+
 fn __test_module__f(x: bits[4]) -> bits[2] {
   bit_slice.2: bits[2] = bit_slice(x, start=0, width=2, id=2)
   bit_slice.3: bits[2] = bit_slice(x, start=2, width=2, id=3)
