@@ -23,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
+#include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
@@ -1455,28 +1456,74 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
   }
 
   // Verify each channel has the appropriate send/receive node.
-  absl::flat_hash_map<Channel*, Node*> send_nodes;
-  absl::flat_hash_map<Channel*, Node*> receive_nodes;
+
+  absl::flat_hash_map<Channel*, std::vector<Node*>> send_nodes_unverified;
+  absl::flat_hash_map<Channel*, std::vector<Node*>> receive_nodes_unverified;
   for (auto& proc : package->procs()) {
-    for (Node* node : proc->nodes()) {
+    for (Node* node : TopoSort(proc.get())) {
       if (node->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
-        XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
-            "Multiple send nodes associated with channel '%s': %s and %s (at "
-            "least).",
-            channel->name(), node->GetName(),
-            send_nodes.at(channel)->GetName());
-        send_nodes[channel] = node;
+        send_nodes_unverified[channel].push_back(node);
       }
       if (node->Is<Receive>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
-        XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
-            "Multiple receive nodes associated with channel '%s': %s and %s "
-            "(at least).",
-            channel->name(), node->GetName(),
-            receive_nodes.at(channel)->GetName());
-        receive_nodes[channel] = node;
+        receive_nodes_unverified[channel].push_back(node);
       }
+    }
+  }
+
+  absl::flat_hash_map<Channel*, Node*> send_nodes;
+  absl::flat_hash_map<Channel*, Node*> receive_nodes;
+
+  for (const auto& [channel, sends] : send_nodes_unverified) {
+    XLS_CHECK(!sends.empty());
+    if (sends.size() == 1) {
+      send_nodes[channel] = sends.at(0);
+    } else {
+      std::string error_message = absl::StrFormat(
+          "Multiple sends associated with the same channel '%s':\n\n",
+          channel->name());
+      for (Node* send : sends) {
+        if (!send->loc().has_value()) {
+          absl::StrAppend(
+              &error_message,
+              "Send node with no known provenance: ", send->ToString(), "\n\n");
+          continue;
+        }
+        absl::StrAppend(
+            &error_message,
+            PrintCaret(
+                [&](Fileno fileno) { return package->GetFilename(fileno); },
+                send->loc().value()),
+            "\n");
+      }
+      return absl::InternalError(error_message);
+    }
+  }
+
+  for (const auto& [channel, receives] : receive_nodes_unverified) {
+    XLS_CHECK(!receives.empty());
+    if (receives.size() == 1) {
+      receive_nodes[channel] = receives.at(0);
+    } else {
+      std::string error_message = absl::StrFormat(
+          "Multiple receives associated with the same channel '%s':\n\n",
+          channel->name());
+      for (Node* receive : receives) {
+        if (!receive->loc().has_value()) {
+          absl::StrAppend(&error_message,
+                          "Receive node with no known provenance: ",
+                          receive->ToString(), "\n\n");
+          continue;
+        }
+        absl::StrAppend(
+            &error_message,
+            PrintCaret(
+                [&](Fileno fileno) { return package->GetFilename(fileno); },
+                receive->loc().value()),
+            "\n");
+      }
+      return absl::InternalError(error_message);
     }
   }
 

@@ -280,6 +280,7 @@ cc_library(
     visibility = ["//xls:xls_best_effort_users"],
     deps = [
         ":bits",
+        ":caret",
         ":channel",
         ":channel_cc_proto",
         ":channel_ops",
