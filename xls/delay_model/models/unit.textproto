@@ -35,7 +35,6 @@ op_models { op: "kEncode" estimator { fixed: 1 } }
 op_models { op: "kEq" estimator { fixed: 1 } }
 op_models { op: "kGate" estimator { fixed: 1 } }
 op_models { op: "kIdentity" estimator { fixed: 1 } }
-op_models { op: "kInputPort" estimator { fixed: 1 } }
 op_models { op: "kInstantiationInput" estimator { fixed: 1 } }
 op_models { op: "kInstantiationOutput" estimator { fixed: 1 } }
 op_models { op: "kInvoke" estimator { fixed: 1 } }
@@ -50,11 +49,8 @@ op_models { op: "kOneHot" estimator { fixed: 1 } }
 op_models { op: "kOneHotSel" estimator { fixed: 1 } }
 op_models { op: "kOr" estimator { fixed: 1 } }
 op_models { op: "kOrReduce" estimator { fixed: 1 } }
-op_models { op: "kOutputPort" estimator { fixed: 1 } }
 op_models { op: "kParam" estimator { fixed: 1 } }
 op_models { op: "kReceive" estimator { fixed: 1 } }
-op_models { op: "kRegisterRead" estimator { fixed: 1 } }
-op_models { op: "kRegisterWrite" estimator { fixed: 1 } }
 op_models { op: "kReverse" estimator { fixed: 1 } }
 op_models { op: "kSDiv" estimator { fixed: 1 } }
 op_models { op: "kSGe" estimator { fixed: 1 } }
@@ -85,6 +81,10 @@ op_models { op: "kXorReduce" estimator { fixed: 1 } }
 op_models { op: "kZeroExt" estimator { fixed: 1 } }
 
 # Always-free ops.
-op_models { op: "kAssert" estimator { fixed: 0 } }
 op_models { op: "kAfterAll" estimator { fixed: 0 } }
+op_models { op: "kAssert" estimator { fixed: 0 } }
 op_models { op: "kCover" estimator { fixed: 0 } }
+op_models { op: "kInputPort" estimator { fixed: 0 } }
+op_models { op: "kOutputPort" estimator { fixed: 0 } }
+op_models { op: "kRegisterRead" estimator { fixed: 0 } }
+op_models { op: "kRegisterWrite" estimator { fixed: 0 } }

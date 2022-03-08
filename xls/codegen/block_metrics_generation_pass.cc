@@ -15,7 +15,7 @@
 #include "xls/codegen/block_metrics_generation_pass.h"
 
 #include "absl/strings/str_format.h"
-#include "xls/codegen/block_metrics_generator.h"
+#include "xls/codegen/block_metrics.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_util.h"
 

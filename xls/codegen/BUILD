@@ -811,7 +811,7 @@ cc_library(
     srcs = ["block_metrics_generation_pass.cc"],
     hdrs = ["block_metrics_generation_pass.h"],
     deps = [
-        ":block_metrics_generator",
+        ":block_metrics",
         ":codegen_pass",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
@@ -822,14 +822,15 @@ cc_library(
 )
 
 cc_library(
-    name = "block_metrics_generator",
-    srcs = ["block_metrics_generator.cc"],
-    hdrs = ["block_metrics_generator.h"],
+    name = "block_metrics",
+    srcs = ["block_metrics.cc"],
+    hdrs = ["block_metrics.h"],
     deps = [
         ":xls_metrics_cc_proto",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
         "//xls/scheduling:pipeline_schedule",
@@ -837,11 +838,11 @@ cc_library(
 )
 
 cc_test(
-    name = "block_metrics_generator_test",
-    srcs = ["block_metrics_generator_test.cc"],
+    name = "block_metrics_test",
+    srcs = ["block_metrics_test.cc"],
     deps = [
         ":block_conversion",
-        ":block_metrics_generator",
+        ":block_metrics",
         ":codegen_options",
         ":xls_metrics_cc_proto",
         "//xls/common:xls_gunit_main",
