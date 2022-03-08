@@ -85,6 +85,7 @@ Evaluate IR using the JIT and with the interpreter and compare the results:
    eval_ir_main --test_llvm_jit --random_inputs=100  IR_FILE
 )";
 
+// LINT.IfChange
 ABSL_FLAG(std::string, top, "", "Top entity to evaluate.");
 ABSL_FLAG(std::string, input, "",
           "The input to the function as a semicolon-separated list of typed "
@@ -137,6 +138,7 @@ ABSL_FLAG(
     std::string, test_only_inject_jit_result, "",
     "Test-only flag for injecting the result produced by the JIT. Used to "
     "force mismatches between JIT and interpreter for testing purposed.");
+// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
 namespace {

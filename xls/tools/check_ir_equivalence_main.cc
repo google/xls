@@ -51,12 +51,14 @@ recommended that you specify --function to ensure that the right functions are
 compared. If the tool picks the wrong one, a crash may result.
 )";
 
+// LINT.IfChange
 ABSL_FLAG(std::string, top, "",
           "The top entity to check. If unspecified, an attempt will be made"
           "to find and check a top entity for the package. Currently, only"
           "Functions are supported.");
 ABSL_FLAG(absl::Duration, timeout, absl::InfiniteDuration(),
           "How long to wait for any proof to complete.");
+// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
 

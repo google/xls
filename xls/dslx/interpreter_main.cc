@@ -24,6 +24,7 @@
 #include "xls/dslx/error_printer.h"
 #include "xls/dslx/run_routines.h"
 
+// LINT.IfChange
 ABSL_FLAG(std::string, dslx_path, "",
           "Additional paths to search for modules (colon delimited).");
 ABSL_FLAG(bool, run_concolic, false,
@@ -43,6 +44,7 @@ ABSL_FLAG(std::string, test_filter, "",
           "Target (currently *single*) test name to run.");
 ABSL_FLAG(bool, bytecode, true,
           "If true, use the in-development bytecode interpreter to execute.");
+// LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
 namespace {

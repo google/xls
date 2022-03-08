@@ -42,6 +42,7 @@ Example invocation:
   opt_main path/to/file.ir
 )";
 
+// LINT.IfChange
 ABSL_FLAG(std::string, top, "", "Top entity to optimize.");
 ABSL_FLAG(std::string, ir_dump_path, "",
           "Dump all intermediate IR files to the given directory");
@@ -63,6 +64,7 @@ ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
                           xls::kMaxOptLevel));
 ABSL_FLAG(bool, inline_procs, false,
           "Whether to inline all procs by calling the proc inlining pass. ");
+// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls::tools {
 namespace {

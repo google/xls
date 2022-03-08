@@ -46,6 +46,7 @@ Emit a feed-forward pipelined module:
        IR_FILE
 )";
 
+// LINT.IfChange
 ABSL_FLAG(int64_t, clock_period_ps, 0, "Target clock period, in picoseconds.");
 ABSL_FLAG(int64_t, pipeline_stages, 0,
           "The number of stages in the generated pipeline.");
@@ -141,6 +142,7 @@ ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
           "Suffix to append to valid signals for streaming channels.");
 ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
           "Suffix to append to ready signals for streaming channels.");
+// LINT.ThenChange(//xls/build_rules/xls_codegen_rules.bzl)
 
 namespace xls {
 namespace {

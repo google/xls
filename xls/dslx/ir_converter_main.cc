@@ -29,6 +29,7 @@
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/typecheck.h"
 
+// LINT.IfChange
 ABSL_FLAG(std::string, entry, "",
           "Entry name for conversion. When provided, the function/proc is the "
           "top entity in the generated IR. When not provided, all functions "
@@ -46,6 +47,7 @@ ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
 ABSL_FLAG(bool, verify, true,
           "If true, verifies the generated IR for correctness.");
+// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls::dslx {
 namespace {

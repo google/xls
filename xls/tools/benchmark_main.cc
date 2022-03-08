@@ -49,6 +49,7 @@ Example invocation:
   benchmark_main path/to/file.ir
 )";
 
+// LINT.IfChange
 // TODO(meheff): These codegen flags are duplicated from codegen_main. Might be
 // easier to wrap all the options into a proto or something codegen_main and
 // this could consume. It would make it less likely that the benchmark and
@@ -79,6 +80,7 @@ ABSL_FLAG(int64_t, convert_array_index_to_select, -1,
           "equal to the given number of possible indices (by range analysis) "
           "into chains of selects. Otherwise, this optimization is skipped, "
           "since it can sometimes reduce output quality.");
+// LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls {
 namespace {
