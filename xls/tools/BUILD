@@ -1127,6 +1127,39 @@ cc_binary(
     ],
 )
 
+cc_binary(
+    name = "benchmark_codegen_main",
+    srcs = ["benchmark_codegen_main.cc"],
+    deps = [
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "//xls/codegen:block_metrics",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/ir:ir_parser",
+    ],
+)
+
+py_test(
+    name = "benchmark_codegen_main_test",
+    srcs = ["benchmark_codegen_main_test.py"],
+    data = [
+        ":benchmark_codegen_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+    ],
+)
+
 py_test(
     name = "delay_info_main_test",
     srcs = ["delay_info_main_test.py"],
