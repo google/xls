@@ -137,6 +137,13 @@ sh_test(
     data = [":add_one_combinational_rtl.v"],
 )
 
+sh_test(
+    name = "add_one_combinational_rtl_block_ir_test",
+    srcs = ["is_block_ir.sh"],
+    args = ["$(rootpath :add_one_combinational_rtl.block.ir)"],
+    data = [":add_one_combinational_rtl.block.ir"],
+)
+
 # Run the test inside of the generated file.
 xls_dslx_test(
     name = "generated_file_as_input_test",

@@ -60,8 +60,7 @@ ABSL_FLAG(std::string, output_schedule_path, "",
           "Specific output path for the generated pipeline schedule. "
           "If not specified, then no schedule is output.");
 ABSL_FLAG(std::string, output_block_ir_path, "",
-          "Specific output path for the block IR. "
-          "If not specified, then no schedule is output.");
+          "Path to write the block-level IR.");
 ABSL_FLAG(
     std::string, output_signature_path, "",
     "Specific output path for the module signature. If not specified then "
