@@ -290,7 +290,7 @@ std::string Interval::ToString() const {
 
 Interval Interval::Random(uint32_t seed, int64_t bit_count) {
   std::mt19937 gen(seed);
-  std::uniform_int_distribution<uint8_t> distrib(0, 255);
+  std::uniform_int_distribution<int32_t> distrib(0, 255);
   int64_t num_bytes = (bit_count / 8) + ((bit_count % 8 == 0) ? 0 : 1);
   std::vector<uint8_t> start_bytes(num_bytes);
   for (int64_t i = 0; i < num_bytes; ++i) {

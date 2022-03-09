@@ -41,9 +41,10 @@ Value RandomValue(Type* type, std::minstd_rand* engine) {
   }
   int64_t bit_count = type->AsBitsOrDie()->bit_count();
   std::vector<uint8_t> bytes;
-  std::uniform_int_distribution<uint8_t> generator(0, 255);
+  bytes.reserve(bit_count);
+  std::uniform_int_distribution<int32_t> generator(0, 255);
   for (int64_t i = 0; i < bit_count; i += 8) {
-    bytes.push_back(generator(*engine));
+    bytes.push_back(static_cast<uint8_t>(generator(*engine)));
   }
   return Value(Bits::FromBytes(bytes, bit_count));
 }
