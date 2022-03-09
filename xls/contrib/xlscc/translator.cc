@@ -3093,7 +3093,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
       XLS_CHECK(*value.type() == *struct_type_ptr->fields().at(i)->type());
       field_vals.push_back(value.value());
     }
-    return context().fb->Tuple(field_vals, loc);
+    return MakeStructXLS(field_vals, *struct_type_ptr, loc);
   } else {
     return absl::UnimplementedError(absl::StrFormat(
         "Don't know how to interpret initializer list for type %s at %s",
@@ -4496,11 +4496,15 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
 
   // Create next state value
   std::vector<xls::BValue> static_next_values;
+  XLS_CHECK_GE(prepared.xls_func->return_value_count,
+               prepared.xls_func->static_values.size());
   int static_idx = 0;
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    static_next_values.push_back(pb.TupleIndex(
-        last_ret_val, prepared.return_index_for_static[namedecl], body_loc));
+    XLS_CHECK(context().fb == &pb);
+    static_next_values.push_back(GetFlexTupleField(
+        last_ret_val, prepared.return_index_for_static[namedecl],
+        prepared.xls_func->return_value_count, body_loc));
     ++static_idx;
   }
   const xls::BValue next_state = pb.Tuple(static_next_values);

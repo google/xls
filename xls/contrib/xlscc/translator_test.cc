@@ -3293,6 +3293,81 @@ TEST_F(TranslatorTest, IOProcStatic) {
   }
 }
 
+TEST_F(TranslatorTest, IOProcStaticNoIO) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      static int accum = 0;
+      (void)accum;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  { ProcTest(content, block_spec, {}, {}); }
+}
+
+TEST_F(TranslatorTest, IOProcStaticStruct) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    struct Test {
+      char a;
+      short b;
+      int c;
+      long d;
+    };
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      static Test accum = {1, 2, 3, 4};
+      out.write(2*in.read() + accum.d);
+      accum.d++;
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(3, 32)),
+                    xls::Value(xls::SBits(7, 32))};
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(10, 32)),
+                      xls::Value(xls::SBits(19, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
 TEST_F(TranslatorTest, ForPipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"
