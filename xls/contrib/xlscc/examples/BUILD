@@ -19,8 +19,8 @@ load(
     "xls_ir_verilog",
 )
 load(
-    "//xls/contrib/xlscc/build_rules:xlscc_rules.bzl",
-    "xls_cc_ir_macro",
+    "//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl",
+    "xls_cc_ir",
 )
 
 package(
@@ -43,21 +43,21 @@ proto_data(
     src = "mux1to2.textproto",
 )
 
-xls_cc_ir_macro(
+xls_cc_ir(
     name = "mux3_ir",
     src = "mux3.cc",
     block = ":mux3_block_pb",
     ir_file = "mux3.ir",
 )
 
-xls_cc_ir_macro(
+xls_cc_ir(
     name = "switch_ir",
     src = "switch.cc",
     block = ":switch_block_pb",
     ir_file = "switch.ir",
 )
 
-xls_cc_ir_macro(
+xls_cc_ir(
     name = "mux1to2_ir",
     src = "mux1to2.cc",
     block = ":mux1to2_block_pb",

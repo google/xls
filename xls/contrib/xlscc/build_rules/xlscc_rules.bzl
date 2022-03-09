@@ -219,21 +219,20 @@ _xls_cc_ir_attrs = {
 }
 
 xls_cc_ir = rule(
-    doc = """
-        A build rule that converts a C/C++ source file to an IR file.
+    doc = """A build rule that converts a C/C++ source file to an IR file.
 
-        Examples:
+Examples:
 
-        1) A simple IR conversion example. Assume target 'a_block_pb' is
-        defined.
+1) A simple IR conversion example. Assume target 'a_block_pb' is
+defined.
 
-        ```
-            xls_cc_ir(
-                name = "a_ir",
-                src = "a.cc",
-                block = ":a_block_pb",
-            )
-        ```
+```
+    xls_cc_ir(
+        name = "a_ir",
+        src = "a.cc",
+        block = ":a_block_pb",
+    )
+```
     """,
     implementation = _xls_cc_ir_impl,
     attrs = dicts.add(
@@ -251,11 +250,23 @@ def xls_cc_ir_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_cc_ir' rule.
+    """A macro that instantiates a build rule generating an IR file from a C/C++ source file.
 
-    The macro instantiates the 'xls_cc_ir' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
+    The macro instantiates a rule that converts a C/C++ source file to an IR
+    file and the 'enable_generated_file_wrapper' function. The generated files
     are listed in the outs attribute of the rule.
+
+    Examples:
+
+    1) A simple IR conversion example. Assume target 'a_block_pb' is defined.
+
+    ```
+        xls_cc_ir(
+            name = "a_ir",
+            src = "a.cc",
+            block = ":a_block_pb",
+        )
+    ```
 
     Args:
       name: The name of the rule.
@@ -358,22 +369,22 @@ _cc_verilog_attrs = dicts.add(
 xls_cc_verilog = rule(
     doc = """A build rule that generates a Verilog file from a C/C++ source file.
 
-        Examples:
+Examples:
 
-        1) A simple example. Assume target 'a_block_pb' is defined.
+1) A simple example. Assume target 'a_block_pb' is defined.
 
-        ```
-            xls_cc_verilog(
-                name = "a_verilog",
-                src = "a.cc",
-                block = ":a_block_pb",
-                codegen_args = {
-                    "generator": "combinational",
-                    "module_name": "A",
-                    "top": "A_proc",
-                },
-            )
-        ```
+```
+    xls_cc_verilog(
+        name = "a_verilog",
+        src = "a.cc",
+        block = ":a_block_pb",
+        codegen_args = {
+            "generator": "combinational",
+            "module_name": "A",
+            "top": "A_proc",
+        },
+    )
+```
     """,
     implementation = _xls_cc_verilog_impl,
     attrs = _cc_verilog_attrs,
@@ -391,11 +402,32 @@ def xls_cc_verilog_macro(
         enable_generated_file = True,
         enable_presubmit_generated_file = False,
         **kwargs):
-    """A macro wrapper for the 'xls_cc_verilog' rule.
+    """A macro that instantiates a build rule generating a Verilog file from a C/C++ source file.
 
-    The macro instantiates the 'xls_cc_verilog' rule and
-    'enable_generated_file_wrapper' function. The generated files of the rule
-    are listed in the outs attribute of the rule.
+    The macro instantiates a build rule that generates an Verilog file from
+    a DSLX source file. The build rule executes the core functionality of
+    following macros:
+
+    1. xls_cc_ir (converts a C/C++ file to an IR),
+    1. xls_ir_opt_ir (optimizes the IR), and,
+    1. xls_ir_verilog (generated a Verilog file).
+
+    Examples:
+
+    1) A simple example. Assume target 'a_block_pb' is defined.
+
+    ```
+        xls_cc_verilog(
+            name = "a_verilog",
+            src = "a.cc",
+            block = ":a_block_pb",
+            codegen_args = {
+                "generator": "combinational",
+                "module_name": "A",
+                "top": "A_proc",
+            },
+        )
+    ```
 
     Args:
       name: The name of the rule.

@@ -20,14 +20,22 @@ package(
 )
 
 exports_files(
-    ["xlscc_rules.bzl"],
+    [
+        "xlscc_rules.bzl",
+        "xlscc_rules_build_defs.bzl",
+    ],
     visibility = ["//visibility:private"],
+)
+
+exports_files(
+    ["xlscc_build_defs.bzl"],
+    visibility = ["//xls:xls_users"],
 )
 
 bzl_library(
     name = "xlscc_rules_bzl",
     srcs = ["xlscc_rules.bzl"],
-    visibility = ["//xls:xls_users"],
+    visibility = ["//xls/contrib/xlscc/build_rules/__subpackages__"],
     deps = [
         "@bazel_skylib//lib:dicts",
         "//xls/build_rules:xls_codegen_rules_bzl",
@@ -36,5 +44,23 @@ bzl_library(
         "//xls/build_rules:xls_ir_rules_bzl",
         "//xls/build_rules:xls_providers_bzl",
         "//xls/build_rules:xls_toolchains_bzl",
+    ],
+)
+
+bzl_library(
+    name = "xlscc_rules_build_defs_bzl",
+    srcs = ["xlscc_rules_build_defs.bzl"],
+    visibility = ["//xls/contrib/xlscc/build_rules/__subpackages__"],
+    deps = [
+        ":xlscc_rules_bzl",
+    ],
+)
+
+bzl_library(
+    name = "xlscc_build_defs_bzl",
+    srcs = ["xlscc_build_defs.bzl"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        ":xlscc_rules_bzl",
     ],
 )

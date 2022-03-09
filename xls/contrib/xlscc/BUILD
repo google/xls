@@ -27,6 +27,11 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+exports_files(
+    ["bazel_rules_macros.md"],
+    visibility = ["//xls:xls_internal"],
+)
+
 proto_library(
     name = "hls_block_proto",
     srcs = ["hls_block.proto"],

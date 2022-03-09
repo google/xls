@@ -87,28 +87,12 @@ bazel-bin/xls/tools/codegen_main test.opt.ir --generator combinational --entry t
 ```
 
 ### Building XLS[cc] with Bazel ###
-An extensive description of the Bazel build rules and macros is available at
-[xls/contrib/xlscc/build_rules/xlscc_rules.bzl](https://github.com/google/xls/tree/main/xls/contrib/xlscc/build_rules/xlscc_rules.bzl).
+
+XLScc build rules and macros are defined in
+[xls/contrib/xlscc/build_rules/xlscc_build_defs.bzl](https://github.com/google/xls/tree/main/xls/contrib/xlscc/build_rules/xlscc_build_defs.bzl).
+
 Examples using the rules and macros are found at
 [xls/contrib/xlscc/build_rules/tests/BUILD](https://github.com/google/xls/tree/main/xls/contrib/xlscc/build_rules/tests/BUILD).
-Every rule has a macro equivalent. These macro invokes the rule as well as
-postprocessing. Users are recommended to use the macros.
 
-### `xls_cc_ir`<a id="xls_cc_ir"></a>
-
-A build rule that converts a C/C++ source file to an IR file.
-
-### `xls_cc_ir_macro`
-
-The macro instantiates the '[xls_cc_ir](#xls_cc_ir)' rule and
-'enable_generated_file_wrapper' function.
-
-### `xls_cc_verilog`<a id="xls_cc_verilog"></a>
-
-A build rule that converts a C/C++ source file to an IR file, optimizes the IR
-file, and generates the verilog file from the optimized IR file.
-
-### `xls_cc_verilog_macro`
-
-The macro instantiates the '[xls_cc_verilog](#xls_cc_verilog)' rule and
-'enable_generated_file_wrapper' function.
+A detailed description of the bazel rules/macros can be found
+[here](bazel_rules_macros.md).

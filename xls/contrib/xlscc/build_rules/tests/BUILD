@@ -14,11 +14,14 @@
 
 load("//xls/build_rules:xls_build_defs.bzl", "proto_data")
 load(
-    "//xls/contrib/xlscc/build_rules:xlscc_rules.bzl",
+    "//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl",
     "xls_cc_ir",
-    "xls_cc_ir_macro",
     "xls_cc_verilog",
-    "xls_cc_verilog_macro",
+)
+load(
+    "//xls/contrib/xlscc/build_rules:xlscc_rules_build_defs.bzl",
+    xls_cc_ir_native_rule = "xls_cc_ir",
+    xls_cc_verilog_native_rule = "xls_cc_verilog",
 )
 
 package(
@@ -32,24 +35,24 @@ proto_data(
 )
 
 ################################################################################
-# Standalone tests for xls_cc_ir and xls_cc_ir_macro.
+# Standalone tests for the native rule and macro versions of xls_cc_ir.
 ################################################################################
-xls_cc_ir(
+xls_cc_ir_native_rule(
     name = "packet_selector_ir",
     src = "packet_selector.cc",
     block = ":packet_selector_block_pb",
 )
 
-xls_cc_ir_macro(
+xls_cc_ir(
     name = "packet_selector_ir_macro",
     src = "packet_selector.cc",
     block = ":packet_selector_block_pb",
 )
 
 ################################################################################
-# Standalone tests for xls_cc_verilog and xls_cc_verilog_macro.
+# Standalone tests for the native rule and macro versions of xls_cc_verilog.
 ################################################################################
-xls_cc_verilog(
+xls_cc_verilog_native_rule(
     name = "packet_selector_verilog",
     src = "packet_selector.cc",
     block = ":packet_selector_block_pb",
@@ -61,7 +64,7 @@ xls_cc_verilog(
     verilog_file = "packet_selector_verilog.v",
 )
 
-xls_cc_verilog_macro(
+xls_cc_verilog(
     name = "packet_selector_verilog_macro",
     src = "packet_selector.cc",
     block = ":packet_selector_block_pb",
@@ -76,14 +79,14 @@ xls_cc_verilog_macro(
 ################################################################################
 # Tests for user defined output filenames.
 ################################################################################
-xls_cc_ir(
+xls_cc_ir_native_rule(
     name = "packet_selector_user_defined_name_ir",
     src = "packet_selector.cc",
     block = ":packet_selector_block_pb",
     ir_file = "xls_cc_ir.ir",
 )
 
-xls_cc_verilog(
+xls_cc_verilog_native_rule(
     name = "packet_selector_user_defined_name_verilog",
     src = "packet_selector.cc",
     block = ":packet_selector_block_pb",
