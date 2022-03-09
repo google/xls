@@ -103,6 +103,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/delay_model:delay_estimators",
         "//xls/examples:sample_packages",
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",

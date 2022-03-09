@@ -24,6 +24,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/package.h"
@@ -39,23 +40,11 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
-class TestDelayEstimator : public DelayEstimator {
- public:
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
-    switch (node->op()) {
-      case Op::kParam:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
-        return 0;
-      default:
-        return 1;
-    }
-  }
-};
-
 // A test for ModuleSimulator which uses generated Verilog.
-class ModuleSimulatorCodegenTest : public VerilogTestBase {};
+class ModuleSimulatorCodegenTest : public VerilogTestBase {
+ protected:
+  const DelayEstimator* delay_estimator_ = GetDelayEstimator("unit").value();
+};
 
 TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
   Package package(TestName());
@@ -66,7 +55,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -96,7 +85,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -137,7 +126,7 @@ TEST_P(ModuleSimulatorCodegenTest, SingleNegatePipeline) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -168,7 +157,7 @@ TEST_P(ModuleSimulatorCodegenTest, TripleNegatePipelineBatched) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(1)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -214,7 +203,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddsWithSharedResource) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(40)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
@@ -250,7 +239,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAdds) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -287,7 +276,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().pipeline_stages(5)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -323,7 +312,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(func, TestDelayEstimator(),
+      PipelineSchedule::Run(func, *delay_estimator_,
                             SchedulingOptions().clock_period_ps(40)));
 
   XLS_ASSERT_OK_AND_ASSIGN(

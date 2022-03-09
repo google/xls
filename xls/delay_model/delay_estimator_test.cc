@@ -33,7 +33,8 @@ using ::testing::ElementsAre;
 // A test delay estimator that returns a fixed delay for every node.
 class TestDelayEstimator : public DelayEstimator {
  public:
-  explicit TestDelayEstimator(int64_t delay) : delay_(delay) {}
+  explicit TestDelayEstimator(int64_t delay, absl::string_view name)
+      : DelayEstimator(name), delay_(delay) {}
 
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     return delay_;
@@ -50,10 +51,10 @@ TEST_F(DelayEstimatorTest, DelayEstimatorManager) {
   EXPECT_THAT(manager.estimator_names(), ElementsAre());
 
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      "forty_two", std::make_unique<TestDelayEstimator>(42),
+      std::make_unique<TestDelayEstimator>(42, "forty_two"),
       DelayEstimatorPrecedence::kLow));
   XLS_ASSERT_OK(manager.RegisterDelayEstimator(
-      "one", std::make_unique<TestDelayEstimator>(1),
+      std::make_unique<TestDelayEstimator>(1, "one"),
       DelayEstimatorPrecedence::kLow));
 
   EXPECT_THAT(manager.estimator_names(), ElementsAre("forty_two", "one"));

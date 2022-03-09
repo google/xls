@@ -173,6 +173,7 @@ absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
   proto.set_feedthrough_path_exists(HasFeedthroughPass(block));
 
   if (delay_estimator.has_value()) {
+    proto.set_delay_model(delay_estimator.value()->name());
     XLS_RETURN_IF_ERROR(
         SetDelayFields(block, *delay_estimator.value(), &proto));
   }

@@ -20,6 +20,7 @@
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -40,6 +41,8 @@ using xls::status_testing::StatusIs;
 
 class TestDelayEstimator : public DelayEstimator {
  public:
+  TestDelayEstimator() : DelayEstimator("test") {}
+
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kAfterAll:
@@ -657,25 +660,6 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
                          "that is impossible due to the node's operand(s)")));
 }
 
-// This test attempts to schedule when receive and send nodes are connected
-// without any intermediate nodes.
-class TestDelayEstimatorUnit : public DelayEstimator {
- public:
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
-    switch (node->op()) {
-      case Op::kParam:
-      case Op::kInputPort:
-      case Op::kOutputPort:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
-        return 0;
-      default:
-        return 1;
-    }
-  }
-};
-
 TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   Package package = Package(TestName());
 
@@ -695,9 +679,11 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
                         /*data=*/pb.TupleIndex(rcv, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, pb.GetStateParam()));
 
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(proc, TestDelayEstimatorUnit(),
+      PipelineSchedule::Run(proc, *delay_estimator,
                             SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);

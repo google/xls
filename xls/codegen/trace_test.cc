@@ -20,6 +20,7 @@
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/status/matchers.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/random_value.h"
@@ -95,22 +96,6 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
                                  HasSubstr("This is a simple trace.")));
 }
 
-class TestDelayEstimator : public DelayEstimator {
- public:
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
-    switch (node->op()) {
-      case Op::kParam:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
-      case Op::kTrace:
-        return 0;
-      default:
-        return 1;
-    }
-  }
-};
-
 // This is just a basic test to ensure that traces in clocked modules generate
 // output.
 // TODO(amfv): 2021-09-27 Figure out the rules for how traces should be
@@ -122,9 +107,11 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
   ASSERT_TRUE(top.has_value());
   FunctionBase* entry = top.value();
 
+  XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
+                           GetDelayEstimator("unit"));
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
-      PipelineSchedule::Run(entry, TestDelayEstimator(),
+      PipelineSchedule::Run(entry, *delay_estimator,
                             SchedulingOptions().pipeline_stages(1)));
 
   XLS_ASSERT_OK_AND_ASSIGN(

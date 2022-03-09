@@ -67,14 +67,15 @@ DelayEstimatorManager::GetDefaultDelayEstimator() const {
 }
 
 absl::Status DelayEstimatorManager::RegisterDelayEstimator(
-    absl::string_view name, std::unique_ptr<DelayEstimator> delay_estimator,
+    std::unique_ptr<DelayEstimator> delay_estimator,
     DelayEstimatorPrecedence precedence) {
+  std::string name = delay_estimator->name();
   if (estimators_.contains(name)) {
     return absl::InternalError(
         absl::StrFormat("Delay estimator named %s already exists", name));
   }
   estimators_[name] = {precedence, std::move(delay_estimator)};
-  estimator_names_.push_back(std::string(name));
+  estimator_names_.push_back(name);
   std::sort(estimator_names_.begin(), estimator_names_.end());
 
   return absl::OkStatus();

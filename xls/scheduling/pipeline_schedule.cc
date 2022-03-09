@@ -446,7 +446,9 @@ namespace {
 class DelayEstimatorWithInputDelay : public DelayEstimator {
  public:
   DelayEstimatorWithInputDelay(const DelayEstimator& base, int64_t input_delay)
-      : base_delay_estimator_(&base), input_delay_(input_delay) {}
+      : DelayEstimator(absl::StrFormat("%s_with_input_delay", base.name())),
+        base_delay_estimator_(&base),
+        input_delay_(input_delay) {}
 
   virtual absl::StatusOr<int64_t> GetOperationDelayInPs(
       Node* node) const override {

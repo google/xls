@@ -205,6 +205,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:channel",
         "//xls/ir:function_builder",

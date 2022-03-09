@@ -61,6 +61,7 @@ cc_test(
     deps = [
         ":analyze_critical_path",
         ":delay_estimator",
+        ":delay_estimators",
         ":delay_heap",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

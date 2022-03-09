@@ -28,7 +28,10 @@ namespace xls {
 // Abstraction describing a timing model for XLS operations.
 class DelayEstimator {
  public:
+  DelayEstimator(absl::string_view name) : name_(name) {}
   virtual ~DelayEstimator() = default;
+
+  const std::string& name() const { return name_; }
 
   // Returns the estimated delay of the given node in picoseconds.
   virtual absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const = 0;
@@ -38,6 +41,9 @@ class DelayEstimator {
   // method.
   static absl::StatusOr<int64_t> GetLogicalEffortDelayInPs(Node* node,
                                                            int64_t tau_in_ps);
+
+ private:
+  std::string name_;
 };
 
 enum class DelayEstimatorPrecedence {
@@ -58,7 +64,7 @@ class DelayEstimatorManager {
 
   // Adds a DelayEstimator to the manager and associates it with the given name.
   absl::Status RegisterDelayEstimator(
-      absl::string_view name, std::unique_ptr<DelayEstimator> delay_estimator,
+      std::unique_ptr<DelayEstimator> delay_estimator,
       DelayEstimatorPrecedence precedence);
 
   // Returns a list of the names of available models in this manager.

@@ -25,21 +25,24 @@ message BlockMetricsProto {
   // port.
   optional bool feedthrough_path_exists = 2;
 
+  // The name of the delay model used to generate the block.
+  optional string delay_model = 3;
+
   // The maximum combinational delay in picoseconds of any path in the block
   // from the output of a register to the input of a register.
-  optional int64 max_reg_to_reg_delay_ps = 3;
+  optional int64 max_reg_to_reg_delay_ps = 4;
 
   // The maximum combinational delay in picoseconds of any path in the block
   // from an input port to a register.
-  optional int64 max_input_to_reg_delay_ps = 4;
+  optional int64 max_input_to_reg_delay_ps = 5;
 
   // The maximum combinational delay in picoseconds of any path in the block
   // from a register to an output port.
-  optional int64 max_reg_to_output_delay_ps = 5;
+  optional int64 max_reg_to_output_delay_ps = 6;
 
   // The maximum delay in picoseconds of any combinational path from an input
   // port to an output port.
-  optional int64 max_feedthrough_path_delay_ps = 6;
+  optional int64 max_feedthrough_path_delay_ps = 7;
 }
 
 message XlsMetricsProto {

@@ -54,13 +54,12 @@ class DelayInfoMainTest(test_base.TestCase):
          ir_file.full_path]).decode('utf-8')
     self.assertEqual(
         optimized_ir, """# Critical path:
-      3ps (+  1ps): not_sum: bits[32] = not(sum: bits[32], id=4)
-      2ps (+  1ps): sum: bits[32] = add(x: bits[32], y: bits[32], id=3)
-      1ps (+  1ps): x: bits[32] = param(x, id=1)
+      2ps (+  1ps): not_sum: bits[32] = not(sum: bits[32], id=4)
+      1ps (+  1ps): sum: bits[32] = add(x: bits[32], y: bits[32], id=3)
 
 # Delay of all nodes:
-x               :     1ps
-y               :     1ps
+x               :     0ps
+y               :     0ps
 sum             :     1ps
 not_sum         :     1ps
 """)
@@ -77,17 +76,15 @@ not_sum         :     1ps
 
     self.assertEqual(
         optimized_ir, """# Critical path for stage 0:
-      2ps (+  1ps): tuple.7: (bits[32], bits[32]) = tuple(x: bits[32], y: bits[32], id=7)
-      1ps (+  1ps): x: bits[32] = param(x, id=5)
+      1ps (+  1ps): tuple.7: (bits[32], bits[32]) = tuple(x: bits[32], y: bits[32], id=7)
 
 # Critical path for stage 1:
-      3ps (+  1ps): not_sum: bits[32] = not(sum: bits[32], id=11)
-      2ps (+  1ps): sum: bits[32] = add(x: bits[32], y: bits[32], id=10)
-      1ps (+  1ps): x: bits[32] = param(x, id=8)
+      2ps (+  1ps): not_sum: bits[32] = not(sum: bits[32], id=11)
+      1ps (+  1ps): sum: bits[32] = add(x: bits[32], y: bits[32], id=10)
 
 # Delay of all nodes:
-x               :     1ps
-y               :     1ps
+x               :     0ps
+y               :     0ps
 sum             :     1ps
 not_sum         :     1ps
 """)

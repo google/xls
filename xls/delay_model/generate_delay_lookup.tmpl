@@ -22,7 +22,10 @@ namespace {
 }
 
 class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
+ public:
+  DelayEstimatorModel{{camel_case_name}}() : DelayEstimator("{{name}}") {}
 
+ private:
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const {
     absl::StatusOr<int64_t> delay_status;
     switch (node->op()) {
@@ -46,7 +49,6 @@ class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
 XLS_REGISTER_MODULE_INITIALIZER(model_{{name}}, {
   XLS_CHECK_OK(
         GetDelayEstimatorManagerSingleton().RegisterDelayEstimator(
-          "{{name}}",
           std::make_unique<DelayEstimatorModel{{camel_case_name}}>(),
           DelayEstimatorPrecedence::{{precedence}})
   );

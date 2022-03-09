@@ -112,6 +112,19 @@ TEST(BlockMetricsGeneratorTest, PipelineRegistersCount) {
   EXPECT_EQ(proto.flop_count(), schedule.CountFinalInteriorPipelineRegisters());
 }
 
+TEST(BlockMetricsGeneratorTest, DelayModel) {
+  Package package("test");
+  BlockBuilder bb("pass_thru", &package);
+  bb.OutputPort("out", bb.InputPort("in", package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(BlockMetricsProto proto,
+                           GenerateBlockMetrics(block, delay_estimator));
+  EXPECT_EQ(proto.delay_model(), "unit");
+}
+
 TEST(BlockMetricsGeneratorTest, CombinationalPath) {
   Package package("test");
   Type* u32 = package.GetBitsType(32);

@@ -40,7 +40,7 @@ TEST_F(DelayEstimatorsTest, UnitDelayModel) {
   BValue and_op = fb.And(x, x);
   BValue tuple = fb.Tuple({x, add, mul});
 
-  EXPECT_THAT(estimator->GetOperationDelayInPs(x.node()), IsOkAndHolds(1));
+  EXPECT_THAT(estimator->GetOperationDelayInPs(x.node()), IsOkAndHolds(0));
   EXPECT_THAT(estimator->GetOperationDelayInPs(add.node()), IsOkAndHolds(1));
   EXPECT_THAT(estimator->GetOperationDelayInPs(negate.node()), IsOkAndHolds(1));
   EXPECT_THAT(estimator->GetOperationDelayInPs(mul.node()), IsOkAndHolds(1));

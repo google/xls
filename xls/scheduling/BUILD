@@ -89,6 +89,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:function_builder",

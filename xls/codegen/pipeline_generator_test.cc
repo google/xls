@@ -41,6 +41,8 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 
 class TestDelayEstimator : public DelayEstimator {
  public:
+  TestDelayEstimator() : DelayEstimator("test") {}
+
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
       case Op::kParam:

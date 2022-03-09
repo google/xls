@@ -21,6 +21,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/examples/sample_packages.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/function_builder.h"
@@ -39,24 +40,9 @@ namespace {
 using status_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 
-class TestDelayEstimator : public DelayEstimator {
- public:
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
-    switch (node->op()) {
-      case Op::kParam:
-      case Op::kLiteral:
-      case Op::kBitSlice:
-      case Op::kConcat:
-        return 0;
-      default:
-        return 1;
-    }
-  }
-};
-
 class DelayHeapTest : public IrTestBase {
  protected:
-  TestDelayEstimator delay_estimator_;
+  const DelayEstimator* delay_estimator_ = GetDelayEstimator("unit").value();
 };
 
 TEST_F(DelayHeapTest, TrivialFunction) {
@@ -69,7 +55,7 @@ TEST_F(DelayHeapTest, TrivialFunction) {
   auto rev = fb.Reverse(neg);
   XLS_ASSERT_OK(fb.Build().status());
 
-  DelayHeap heap(Direction::kGrowsTowardUsers, delay_estimator_);
+  DelayHeap heap(Direction::kGrowsTowardUsers, *delay_estimator_);
   EXPECT_EQ(heap.CriticalPathDelay(), 0);
   EXPECT_EQ(heap.size(), 0);
   EXPECT_THAT(heap.CriticalPathDelayAfterAdding(x.node()), IsOkAndHolds(0));
@@ -170,7 +156,7 @@ TEST_F(DelayHeapTest, BenchmarkTest) {
   // Run test in both directions.
   for (Direction direction :
        {Direction::kGrowsTowardUsers, Direction::kGrowsTowardOperands}) {
-    DelayHeap heap(direction, delay_estimator_);
+    DelayHeap heap(direction, *delay_estimator_);
     for (Node* node : direction == Direction::kGrowsTowardUsers
                           ? TopoSort(f)
                           : ReverseTopoSort(f)) {
@@ -183,7 +169,7 @@ TEST_F(DelayHeapTest, BenchmarkTest) {
     // critical-path delay through the whole function.
     XLS_ASSERT_OK_AND_ASSIGN(
         std::vector<CriticalPathEntry> cp_entries,
-        AnalyzeCriticalPath(f, absl::nullopt, TestDelayEstimator()));
+        AnalyzeCriticalPath(f, absl::nullopt, *delay_estimator_));
     EXPECT_EQ(heap.CriticalPathDelay(), cp_entries.front().path_delay_ps);
 
     // Iterate through the frontier removing nodes. This should remove *all*
