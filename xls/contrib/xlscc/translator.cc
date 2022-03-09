@@ -731,9 +731,11 @@ xls::BValue Translator::MakeFlexTuple(const std::vector<xls::BValue>& bvals,
 
 xls::BValue Translator::GetFlexTupleField(xls::BValue val, int index,
                                           int n_fields,
-                                          const xls::SourceLocation& loc) {
+                                          const xls::SourceLocation& loc,
+                                          std::string_view op_name) {
   XLS_CHECK_GT(n_fields, 0);
-  return (n_fields == 1) ? val : context().fb->TupleIndex(val, index, loc);
+  return (n_fields == 1) ? val
+                         : context().fb->TupleIndex(val, index, loc, op_name);
 }
 
 xls::Type* Translator::GetFlexTupleType(
@@ -1181,6 +1183,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
         absl::StrFormat("Function %s has no outputs at %s",
                         funcdecl->getNameAsString(), LocString(*funcdecl)));
   }
+
+  sf.return_value_count = return_bvals.size();
 
   if (return_bvals.size() == 1) {
     // XLS functions return the last value added to the FunctionBuilder
@@ -1732,7 +1736,7 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
   check_unique_ids_.insert(lvalue);
 
   context().sf->declaration_order_by_name_[lvalue] =
-      ++context().sf->declaration_count_;
+      ++context().sf->declaration_count;
   context().variables[lvalue] = rvalue;
   context().variable_assignment_conditions[lvalue] = xls::BValue();
   return absl::OkStatus();
@@ -1746,7 +1750,7 @@ absl::Status Translator::DeclareStatic(const clang::NamedDecl* lvalue,
             context().sf->static_values.at(lvalue) == init);
 
   context().sf->declaration_order_by_name_[lvalue] =
-      ++context().sf->declaration_count_;
+      ++context().sf->declaration_count;
 
   context().sf->static_values[lvalue] = init;
 
@@ -3910,7 +3914,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       return_bvals.push_back(op.ret_value);
     }
 
-    xls::BValue ret_val = context().fb->Tuple(return_bvals, loc);
+    xls::BValue ret_val = MakeFlexTuple(return_bvals, loc);
+    generated_func.return_value_count = return_bvals.size();
     XLS_ASSIGN_OR_RETURN(generated_func.xls_func,
                          body_builder.BuildWithReturnValue(ret_val));
 
@@ -4506,6 +4511,11 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
 absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     PreparedBlock& prepared, xls::ProcBuilder& pb,
     const xls::SourceLocation& body_loc) {
+  XLS_CHECK(&pb == context().fb);
+
+  XLS_CHECK_GE(prepared.xls_func->return_value_count,
+               prepared.xls_func->io_ops.size());
+
   // The function is first invoked with defaults for any
   //  read() IO Ops.
   // If there are any read() IO Ops, then it will be invoked again
@@ -4523,9 +4533,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
 
-      xls::BValue condition =
-          pb.TupleIndex(last_ret_val, return_index, body_loc,
-                        absl::StrFormat("%s_pred", xls_channel->name()));
+      xls::BValue condition = GetFlexTupleField(
+          last_ret_val, return_index, prepared.xls_func->return_value_count,
+          body_loc, absl::StrFormat("%s_pred", xls_channel->name()));
 
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       xls::BValue receive =
@@ -4542,7 +4552,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
           pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
     } else if (op.op == OpType::kSend) {
       xls::BValue send_tup =
-          pb.TupleIndex(last_ret_val, return_index, body_loc);
+          GetFlexTupleField(last_ret_val, return_index,
+                            prepared.xls_func->return_value_count, body_loc);
       xls::BValue val = pb.TupleIndex(send_tup, 0, body_loc);
       xls::BValue condition =
           pb.TupleIndex(send_tup, 1, body_loc,

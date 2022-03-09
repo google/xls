@@ -2978,6 +2978,41 @@ TEST_F(TranslatorTest, IOProcMux) {
   }
 }
 
+TEST_F(TranslatorTest, IOProcOneOp) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(const int& dir,
+             __xls_channel<int>& out) {
+
+      out.write(dir+22);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* dir_in = block_spec.add_channels();
+    dir_in->set_name("dir");
+    dir_in->set_is_input(true);
+    dir_in->set_type(DIRECT_IN);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["dir"] = {xls::Value(xls::SBits(3, 32))};
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+  outputs["out"] = {xls::Value(xls::SBits(25, 32))};
+
+  ProcTest(content, block_spec, inputs, outputs);
+}
+
 TEST_F(TranslatorTest, IOProcOneLine) {
   const std::string content = R"(
     #include "/xls_builtin.h"

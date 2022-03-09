@@ -364,7 +364,9 @@ struct SideEffectingParameter {
 struct GeneratedFunction {
   xls::Function* xls_func = nullptr;
 
-  int64_t declaration_count_ = 0;
+  int64_t declaration_count = 0;
+
+  int64_t return_value_count = 0;
 
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       declaration_order_by_name_;
@@ -1065,8 +1067,10 @@ class Translator {
   // val is the "flexible tuple" value
   // index is the index of the field
   // n_fields is the total number of fields
+  // op_name is passed to the FunctionBuilder
   xls::BValue GetFlexTupleField(xls::BValue val, int index, int n_fields,
-                                const xls::SourceLocation& loc);
+                                const xls::SourceLocation& loc,
+                                std::string_view op_name = "");
   // Changes the value of a field in a "flexible tuple"
   // tuple_val is the "flexible tuple" value
   // new_val is the value to set the field to
