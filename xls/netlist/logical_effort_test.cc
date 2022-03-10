@@ -146,5 +146,19 @@ TEST(LogicalEffortTest, ManyOperandXors) {
   EXPECT_NEAR(many_input_xor_effort, 28.0, 1e-3);
 }
 
+TEST(LogicalEffortTest, SingleOperandOperations) {
+  XLS_ASSERT_OK_AND_ASSIGN(double one_input_nor_effort,
+                           GetLogicalEffort(CellKind::kNor, 1));
+  EXPECT_NEAR(one_input_nor_effort, 1.0, 1e-3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(double one_input_nand_effort,
+                           GetLogicalEffort(CellKind::kNand, 1));
+  EXPECT_NEAR(one_input_nand_effort, 1.0, 1e-3);
+
+  XLS_ASSERT_OK_AND_ASSIGN(double one_input_xor_effort,
+                           GetLogicalEffort(CellKind::kXor, 1));
+  EXPECT_NEAR(one_input_xor_effort, 0.0, 1e-3);
+}
+
 }  // namespace
 }  // namespace xls::netlist::logical_effort

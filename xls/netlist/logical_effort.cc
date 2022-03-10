@@ -32,16 +32,16 @@ absl::StatusOr<double> GetLogicalEffort(CellKind kind, int64_t input_count) {
       XLS_RET_CHECK_EQ(input_count, 1);
       return 1;
     case CellKind::kNand:
-      XLS_RET_CHECK_GE(input_count, 2);
+      XLS_RET_CHECK_GE(input_count, 1);
       return (input_count + 2.0) / 3.0;
     case CellKind::kNor:
-      XLS_RET_CHECK_GE(input_count, 2);
+      XLS_RET_CHECK_GE(input_count, 1);
       return (2.0 * input_count + 1.0) / 3.0;
     case CellKind::kMultiplexer:
       XLS_RET_CHECK_GE(input_count, 2);
       return 2;
     case CellKind::kXor:
-      XLS_RET_CHECK_GE(input_count, 2);
+      XLS_RET_CHECK_GE(input_count, 1);
       // Section 4.5.4 provides the formula for XOR: N * 2**(N-1). So a
       // two-input XOR has logical effort 4. For XORs with more inputs we
       // compute it as a tree of two-input XORs.
@@ -60,17 +60,17 @@ absl::StatusOr<double> GetParasiticDelay(CellKind kind, int64_t input_count) {
       XLS_RET_CHECK_EQ(input_count, 1);
       return 1.0;
     case CellKind::kNand:
-      XLS_RET_CHECK_GE(input_count, 2);
+      XLS_RET_CHECK_GE(input_count, 1);
       return input_count;
     case CellKind::kNor:
-      XLS_RET_CHECK_GE(input_count, 2);
+      XLS_RET_CHECK_GE(input_count, 1);
       return input_count;
     case CellKind::kMultiplexer:
       XLS_RET_CHECK_GE(input_count, 2);
       return 2.0 * input_count;
     case CellKind::kXor:
       // case CellKind::kXnor:
-      XLS_RET_CHECK_GE(input_count, 2);
+      XLS_RET_CHECK_GE(input_count, 1);
       return 4.0;
     default:
       return absl::UnimplementedError(
