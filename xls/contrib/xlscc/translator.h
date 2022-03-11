@@ -814,7 +814,10 @@ class Translator {
         xls_channel_by_function_channel;
     absl::flat_hash_map<const IOOp*, int> arg_index_for_op;
     absl::flat_hash_map<const IOOp*, int> return_index_for_op;
-    absl::flat_hash_map<const clang::NamedDecl*, int> return_index_for_static;
+    absl::flat_hash_map<const clang::NamedDecl*, int64_t>
+        return_index_for_static;
+    absl::flat_hash_map<const clang::NamedDecl*, int64_t>
+        state_index_for_static;
     xls::BValue token;
   };
 
@@ -835,7 +838,7 @@ class Translator {
   // are only used for direct-ins
   absl::Status GenerateIRBlockPrepare(
       PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-      const clang::FunctionDecl* definition,
+      int64_t next_state_index, const clang::FunctionDecl* definition,
       const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
       const xls::SourceLocation& body_loc);
 

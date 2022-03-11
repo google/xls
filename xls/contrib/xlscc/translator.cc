@@ -2484,7 +2484,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     XLS_CHECK(!unpacked_returns.empty());
     xls::BValue static_output = unpacked_returns.front();
     unpacked_returns.pop_front();
-    // ...
     XLS_RETURN_IF_ERROR(
         Assign(namedecl, CValue(static_output, initval.type()), loc));
   }
@@ -3894,21 +3893,22 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       tuple_values[field_idx] = context().variables.at(decl).value();
     }
 
-    // TODO: Need extra returns
-    if (!generated_func.static_values.empty()) {
-      return absl::UnimplementedError(
-          absl::StrFormat("Static variable declarations in pipelined for body "
-                          "not implemented at %s",
-                          LocString(loc)));
-    }
-
-    XLS_CHECK_EQ(generated_func.static_values.size(), 0);
 
     XLS_CHECK(!prev_context.this_val.value().valid());
     xls::BValue ret_ctx = MakeStructXLS(tuple_values, *context_ctype, loc);
     std::vector<xls::BValue> return_bvals = {ret_ctx, do_break};
+
+    // For GenerateIRBlock_Prepare() / GenerateIOInvokes()
     extra_return_count += return_bvals.size();
 
+    // First static returns
+    for (const clang::NamedDecl* decl :
+         generated_func.GetDeterministicallyOrderedStaticValues()) {
+      XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, loc));
+      return_bvals.push_back(value.value());
+    }
+
+    // IO returns
     for (IOOp& op : generated_func.io_ops) {
       XLS_CHECK(op.ret_value.valid());
       return_bvals.push_back(op.ret_value);
@@ -3941,6 +3941,14 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
                                              prev_value.type(), GetLoc(*decl)));
     init_values.push_back(def);
+  }
+
+  const int64_t extra_state_count = init_values.size();
+
+  for (const clang::NamedDecl* namedecl :
+       generated_func.GetDeterministicallyOrderedStaticValues()) {
+    const ConstValue& initval = generated_func.static_values.at(namedecl);
+    init_values.push_back(initval.value());
   }
 
   xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
@@ -4019,6 +4027,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(
       prepared, pb,
       /*next_return_index=*/extra_return_count,
+      /*next_state_index=*/extra_state_count,
       /*definition =*/nullptr, /*channels_by_name=*/nullptr, loc));
 
   XLS_ASSIGN_OR_RETURN(xls::BValue ret_tup,
@@ -4045,6 +4054,13 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     xls::BValue val =
         GetStructFieldXLS(updated_context, field_idx, *context_ctype, loc);
     next_state_values.push_back(val);
+  }
+  for (const clang::NamedDecl* namedecl :
+       prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
+    XLS_CHECK(context().fb == &pb);
+
+    next_state_values.push_back(pb.TupleIndex(
+        ret_tup, prepared.return_index_for_static.at(namedecl), loc));
   }
 
   xls::BValue next_state = pb.Tuple(next_state_values);
@@ -4487,9 +4503,10 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
 
   prepared.token = pb.GetTokenParam();
 
-  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(
-      prepared, pb,
-      /*next_return_index=*/0, definition, &channels_by_name, body_loc));
+  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb,
+                                             /*next_return_index=*/0,
+                                             /*next_state_index=*/0, definition,
+                                             &channels_by_name, body_loc));
 
   XLS_ASSIGN_OR_RETURN(xls::BValue last_ret_val,
                        GenerateIOInvokes(prepared, pb, body_loc));
@@ -4498,14 +4515,12 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   std::vector<xls::BValue> static_next_values;
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->static_values.size());
-  int static_idx = 0;
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     XLS_CHECK(context().fb == &pb);
     static_next_values.push_back(GetFlexTupleField(
         last_ret_val, prepared.return_index_for_static[namedecl],
         prepared.xls_func->return_value_count, body_loc));
-    ++static_idx;
   }
   const xls::BValue next_state = pb.Tuple(static_next_values);
 
@@ -4620,22 +4635,18 @@ absl::Status Translator::GenerateIRBlockCheck(
 
 absl::Status Translator::GenerateIRBlockPrepare(
     PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-    const clang::FunctionDecl* definition,
+    int64_t next_state_index, const clang::FunctionDecl* definition,
     const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
     const xls::SourceLocation& body_loc) {
   // For defaults, updates, invokes
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
 
   // Add returns for static locals
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> static_value_indices;
   {
-    int static_idx = 0;
     for (const clang::NamedDecl* namedecl :
          prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-      prepared.return_index_for_static[namedecl] = static_idx;
-      static_value_indices[namedecl] = static_idx;
-      ++static_idx;
-      ++next_return_index;
+      prepared.return_index_for_static[namedecl] = next_return_index++;
+      prepared.state_index_for_static[namedecl] = next_state_index++;
     }
   }
 
@@ -4708,7 +4719,8 @@ absl::Status Translator::GenerateIRBlockPrepare(
         break;
       }
       case xlscc::SideEffectingParameterType::kStatic: {
-        const uint64_t static_idx = static_value_indices.at(param.static_value);
+        const uint64_t static_idx =
+            prepared.state_index_for_static.at(param.static_value);
         prepared.args.push_back(
             pb.TupleIndex(pb.GetStateParam(), static_idx, body_loc));
         break;

@@ -4292,7 +4292,7 @@ TEST_F(TranslatorTest, ForPipelinedStaticInBody) {
 
       #pragma hls_pipeline_init_interval 1
       for(short i=1;i<=4;++i) {
-        static int st = 3;
+        static long st = 3;
         a += st;
         ++st;
       }
@@ -4316,11 +4316,24 @@ TEST_F(TranslatorTest, ForPipelinedStaticInBody) {
   }
   XLS_ASSERT_OK(ScanFile(content));
   package_.reset(new xls::Package("my_package"));
-  ASSERT_THAT(
-      translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("tatic variable declarations")));
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(100 + 3 + 4 + 5 + 6, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 4);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 16 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
 }
 
 TEST_F(TranslatorTest, ForPipelinedStaticOuter) {
