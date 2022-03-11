@@ -1280,6 +1280,10 @@ absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
         XLS_ASSIGN_OR_RETURN(Bits selector_bits, selector.GetBits());
         XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* cases,
                              cases_array.GetValues());
+        if (cases->empty()) {
+          return absl::InternalError(
+              "At least one case must be specified for one_hot_sel.");
+        }
         XLS_ASSIGN_OR_RETURN(int64_t result_bit_count,
                              cases->at(0).GetBitCount());
         Bits result(result_bit_count);
@@ -1292,7 +1296,7 @@ absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
           result = bits_ops::Or(result, case_bits);
         }
 
-        return InterpValue::MakeBits(/*is_signed=*/false, result);
+        return InterpValue::MakeBits(cases->at(0).tag(), result);
       });
 }
 

@@ -47,7 +47,7 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 
 }  // namespace
 
-bool ConstexprEvaluator::IsConstExpr(Expr* expr) {
+bool ConstexprEvaluator::IsConstExpr(const Expr* expr) {
   return ctx_->type_info()->GetConstExpr(expr).has_value();
 }
 
@@ -55,6 +55,52 @@ void ConstexprEvaluator::HandleAttr(Attr* expr) {
   if (IsConstExpr(expr->lhs())) {
     status_.Update(SimpleEvaluate(expr));
   }
+}
+
+void ConstexprEvaluator::HandleArray(Array* expr) {
+  std::vector<InterpValue> values;
+  for (const Expr* member : expr->members()) {
+    absl::optional<InterpValue> maybe_value =
+        ctx_->type_info()->GetConstExpr(member);
+    if (!maybe_value.has_value()) {
+      return;
+    }
+
+    values.push_back(maybe_value.value());
+  }
+
+  if (concrete_type_ != nullptr) {
+    auto* array_type = dynamic_cast<const ArrayType*>(concrete_type_);
+    if (array_type == nullptr) {
+      status_ = absl::InternalError(
+          absl::StrCat(expr->span().ToString(), " : ",
+                       "Array ConcreteType was not an ArrayType!"));
+      return;
+    }
+
+    ConcreteTypeDim size = array_type->size();
+    absl::StatusOr<int64_t> int_size_or = size.GetAsInt64();
+    if (!int_size_or.ok()) {
+      status_ = absl::InternalError(absl::StrCat(
+          expr->span().ToString(), " : ", int_size_or.status().message()));
+      return;
+    }
+
+    int64_t int_size = int_size_or.value();
+    int64_t remaining = int_size - values.size();
+    while (remaining-- > 0) {
+      values.push_back(values.back());
+    }
+  }
+
+  // No need to fire up the interpreter. We can handle this one.
+  absl::StatusOr<InterpValue> array_or(InterpValue::MakeArray(values));
+  if (!array_or.ok()) {
+    status_ = array_or.status();
+    return;
+  }
+
+  ctx_->type_info()->NoteConstExpr(expr, array_or.value());
 }
 
 void ConstexprEvaluator::HandleBinop(Binop* expr) {
@@ -182,10 +228,21 @@ void ConstexprEvaluator::HandleIndex(Index* expr) {
 }
 
 void ConstexprEvaluator::HandleInvocation(Invocation* expr) {
-  // An invocation is constexpr iff its args are constexpr.
-  for (const auto& arg : expr->args()) {
-    if (!IsConstExpr(arg)) {
+  // Map "invocations" are special - only the first (of two) args must be
+  // constexpr (the second must be a fn to apply).
+  auto* callee_name_ref = dynamic_cast<NameRef*>(expr->callee());
+  bool callee_is_map =
+      callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
+  if (callee_is_map) {
+    if (!IsConstExpr(expr->args()[0])) {
       return;
+    }
+  } else {
+    // A regular invocation is constexpr iff its args are constexpr.
+    for (const auto* arg : expr->args()) {
+      if (!IsConstExpr(arg)) {
+        return;
+      }
     }
   }
 
@@ -218,13 +275,13 @@ void ConstexprEvaluator::HandleNumber(Number* expr) {
   }
 
   std::unique_ptr<BitsType> temp_type;
-  ConcreteType* type_ptr;
+  const ConcreteType* type_ptr;
   if (expr->type_annotation() != nullptr) {
     // If the number is annotated with a type, then extract it to pass to
     // EvaluateNumber (for consistency checking). It might be that the type is
     // parametric, in which case we'll need to fully instantiate it.
     type_ptr = ctx_->type_info()->GetItem(expr->type_annotation()).value();
-    BitsType* bt = down_cast<BitsType*>(type_ptr);
+    const BitsType* bt = down_cast<const BitsType*>(type_ptr);
     if (bt->size().IsParametric()) {
       absl::StatusOr<std::unique_ptr<BitsType>> temp_type_or =
           InstantiateParametricNumberType(env, bt);
@@ -235,6 +292,8 @@ void ConstexprEvaluator::HandleNumber(Number* expr) {
       temp_type = std::move(temp_type_or.value());
       type_ptr = temp_type.get();
     }
+  } else if (concrete_type_ != nullptr) {
+    type_ptr = concrete_type_;
   } else if (expr->number_kind() == NumberKind::kBool) {
     temp_type = std::make_unique<BitsType>(false, 1);
     type_ptr = temp_type.get();
@@ -266,6 +325,40 @@ void ConstexprEvaluator::HandleStructInstance(StructInstance* expr) {
     }
   }
   status_ = SimpleEvaluate(expr);
+}
+
+void ConstexprEvaluator::HandleTernary(Ternary* expr) {
+  // Simple enough that we don't need to invoke the interpreter.
+  if (!IsConstExpr(expr->test()) || !IsConstExpr(expr->consequent()) ||
+      !IsConstExpr(expr->alternate())) {
+    return;
+  }
+
+  TypeInfo* type_info = ctx_->type_info();
+  InterpValue test = type_info->GetConstExpr(expr->test()).value();
+  if (test.IsTrue()) {
+    type_info->NoteConstExpr(
+        expr, type_info->GetConstExpr(expr->consequent()).value());
+  } else {
+    type_info->NoteConstExpr(
+        expr, type_info->GetConstExpr(expr->alternate()).value());
+  }
+}
+
+void ConstexprEvaluator::HandleXlsTuple(XlsTuple* expr) {
+  std::vector<InterpValue> values;
+  for (const Expr* member : expr->members()) {
+    absl::optional<InterpValue> maybe_value =
+        ctx_->type_info()->GetConstExpr(member);
+    if (!maybe_value.has_value()) {
+      return;
+    }
+
+    values.push_back(maybe_value.value());
+  }
+
+  // No need to fire up the interpreter. We can handle this one.
+  ctx_->type_info()->NoteConstExpr(expr, InterpValue::MakeTuple(values));
 }
 
 absl::Status ConstexprEvaluator::SimpleEvaluate(Expr* expr) {

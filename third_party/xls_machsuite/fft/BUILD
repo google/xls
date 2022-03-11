@@ -53,6 +53,7 @@ xls_dslx_library(
 # xls_ir_equivalence_test, xls_eval_ir_test and xls_benchmark_ir.
 xls_dslx_test(
     name = "fft_test",
+    size = "large",
     dslx_test_args = {
         "compare": "none",
     },

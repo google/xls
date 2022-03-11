@@ -40,7 +40,7 @@ absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
 
 absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            InterpBindings* bindings,
-                                           ConcreteType* type_context,
+                                           const ConcreteType* type_context,
                                            AbstractInterpreter* interp) {
   XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
               << expr->span();
@@ -71,7 +71,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
     type_context = type_context_value.get();
   }
 
-  BitsType* bits_type = dynamic_cast<BitsType*>(type_context);
+  const BitsType* bits_type = dynamic_cast<const BitsType*>(type_context);
   XLS_RET_CHECK(bits_type != nullptr)
       << "Type for number should be 'bits' kind.";
   InterpValueTag tag =

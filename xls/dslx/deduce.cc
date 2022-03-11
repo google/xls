@@ -20,9 +20,10 @@
 #include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/constexpr_evaluator.h"
-#include "xls/dslx/interpreter.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/type_and_bindings.h"
 
@@ -38,6 +39,18 @@ static absl::Status TypeMissingErrorStatusUpdateUser(const absl::Status& status,
   auto result = TypeMissingErrorStatus(node, new_user);
   XLS_VLOG(5) << "Updated from " << status << " to " << result;
   return result;
+}
+
+absl::StatusOr<InterpValue> InterpretExpr(
+    DeduceCtx* ctx, Expr* expr,
+    const absl::flat_hash_map<std::string, InterpValue>& env) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
+                       BytecodeEmitter::EmitExpression(
+                           ctx->import_data(), ctx->type_info(), expr, env,
+                           ctx->fn_stack().back().symbolic_bindings()));
+
+  return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
+                                        /*args=*/{});
 }
 
 // Creates a function invocation on the first element of the given array.
@@ -65,7 +78,7 @@ static Invocation* CreateElementInvocation(Module* module, const Span& span,
   auto* annotation =
       module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32);
   auto* index_number =
-      module->Make<Number>(span, "32", NumberKind::kOther, annotation);
+      module->Make<Number>(span, "0", NumberKind::kOther, annotation);
   auto* index = module->Make<Index>(span, arg_array, index_number);
   return module->Make<Invocation>(span, callee, std::vector<Expr*>{index});
 }
@@ -243,17 +256,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     fn_ctx.emplace(FnCtx{peek_entry.module()->name(), peek_entry.name(),
                          peek_entry.symbolic_bindings()});
   }
-  absl::StatusOr<InterpValue> constexpr_value = Interpreter::InterpretExpr(
-      node->owner(), ctx->type_info(), ctx->typecheck_module(),
-      ctx->import_data(), env, node->value(), fn_ctx ? &*fn_ctx : nullptr);
-  if (constexpr_value.ok()) {
-    XLS_VLOG(5) << "Noting constexpr: " << node->value()->ToString() << " in "
-                << ctx->type_info();
-    ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
-    ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value.value());
-  }
+
   ctx->type_info()->SetItem(node, *result);
   ctx->type_info()->SetItem(node->name_def(), *result);
+  absl::optional<InterpValue> constexpr_value =
+      ctx->type_info()->GetConstExpr(node->value());
+  XLS_RET_CHECK(constexpr_value.has_value());
+  ctx->type_info()->NoteConstExpr(node, constexpr_value.value());
+  ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
+  ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value.value());
   return result;
 }
 
@@ -909,6 +920,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
         number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
       XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, element_type));
+
+      // Since we set the member type here, ConstexprEvaluation in Deduce()
+      // won't occur, so we do it, also, here.
+      ConstexprEvaluator evaluator(ctx, &element_type);
+      member->AcceptExpr(&evaluator);
+      XLS_RETURN_IF_ERROR(evaluator.status());
     }
   }
 
@@ -1208,13 +1225,11 @@ static absl::StatusOr<absl::optional<int64_t>> TryResolveBound(
   if (bound == nullptr) {
     return absl::nullopt;
   }
-  absl::StatusOr<InterpValue> bound_or = Interpreter::InterpretExpr(
-      slice->owner(), ctx->type_info(), ctx->typecheck_module(),
-      ctx->import_data(), env, bound,
-      /*fn_ctx=*/nullptr, s32);
+
+  absl::StatusOr<InterpValue> bound_or = InterpretExpr(ctx, bound, env);
   if (!bound_or.ok()) {
     const absl::Status& status = bound_or.status();
-    if (absl::StrContains(status.message(), "Could not find bindings entry")) {
+    if (absl::StrContains(status.message(), "Could not find slot or binding")) {
       return TypeInferenceErrorStatus(
           bound->span(), nullptr,
           absl::StrFormat(
@@ -1222,6 +1237,7 @@ static absl::StatusOr<absl::optional<int64_t>> TryResolveBound(
               bound_name));
     }
   }
+
   const InterpValue& value = bound_or.value();
   if (value.tag() != InterpValueTag::kSBits) {  // Error if bound is not signed.
     std::string error_suffix = ".";
@@ -1816,21 +1832,29 @@ static absl::StatusOr<ConcreteTypeDim> DimToConcrete(TypeAnnotation* node,
             dim_expr->ToString()));
   }
 
+  XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
+  absl::optional<InterpValue> maybe_constexpr_value =
+      ctx->type_info()->GetConstExpr(dim_expr);
+  if (maybe_constexpr_value.has_value()) {
+    // Deducing the dim expr will implicitly try to constexpr evaluate it.
+    XLS_ASSIGN_OR_RETURN(uint64_t int_value,
+                         maybe_constexpr_value.value().GetBitValueUint64());
+    return ConcreteTypeDim::CreateU32(int_value);
+  }
+
   absl::flat_hash_map<std::string, InterpValue> env = MakeConstexprEnv(
       dim_expr, ctx->fn_stack().back().symbolic_bindings(), ctx->type_info());
-  XLS_RETURN_IF_ERROR(ctx->Deduce(dim_expr).status());
-  absl::StatusOr<InterpValue> value_or = Interpreter::InterpretExpr(
-      dim_expr->owner(),
-      ctx->import_data()->GetRootTypeInfoForNode(dim_expr).value(),
-      ctx->typecheck_module(), ctx->import_data(), env, dim_expr);
+  absl::StatusOr<InterpValue> value_or = InterpretExpr(ctx, dim_expr, env);
   if (!value_or.ok()) {
     return TypeInferenceErrorStatus(
         dim_expr->span(), nullptr,
         absl::StrCat(
             "Could not evaluate dimension expression to a constant value: ",
-            value_or.status().message()));
+            value_or.status().ToString()));
   }
-  XLS_ASSIGN_OR_RETURN(uint64_t int_value, value_or->GetBitValueUint64());
+
+  XLS_ASSIGN_OR_RETURN(uint64_t int_value,
+                       value_or.value().GetBitValueUint64());
   return ConcreteTypeDim::CreateU32(int_value);
 }
 
@@ -2492,8 +2516,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(NameRef* node,
   absl::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
   if (item.has_value()) {
     auto concrete_type = (*item)->CloneToUnique();
-    ConstexprEvaluator evaluator(ctx, concrete_type.get());
-    node->AcceptExpr(&evaluator);
     return concrete_type;
   }
 
@@ -2632,11 +2654,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
               << type->ToString() << " in " << ctx->type_info();
 
   if (!ctx->inside_for()) {
-    ConstexprEvaluator evaluator(ctx, type.get());
     if (Expr* expr = dynamic_cast<Expr*>(node); expr != nullptr) {
+      ConstexprEvaluator evaluator(ctx, type.get());
       expr->AcceptExpr(&evaluator);
+      XLS_RETURN_IF_ERROR(evaluator.status());
     }
-    XLS_RETURN_IF_ERROR(evaluator.status());
   }
 
   return type;

@@ -26,12 +26,20 @@ namespace xls::dslx {
 // currently covered, but will need to be shortly.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
-  ConstexprEvaluator(DeduceCtx* ctx, ConcreteType* concrete_type)
+  // A concrete type is only necessary when:
+  //  - Deducing a Number that is undecorated and whose type is specified by
+  //    context, e.g., an element in a constant array:
+  //    `u32[4]:[0, 1, 2, 3]`. It can be nullptr in all other circumstances.
+  //  - Deducing a constant array whose declaration terminates in an ellipsis:
+  //    `u32[4]:[0, 1, ...]`. The type is needed to determine the number of
+  //    elements to fill in.
+  // In all other cases, `concrete_type` can be nullptr.
+  ConstexprEvaluator(DeduceCtx* ctx, const ConcreteType* concrete_type)
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
 
   void HandleJoin(Join* expr) override {}
-  void HandleArray(Array* expr) override {}
+  void HandleArray(Array* expr) override;
   void HandleAttr(Attr* expr) override;
   void HandleBinop(Binop* expr) override;
   void HandleCast(Cast* expr) override;
@@ -54,18 +62,18 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleString(String* expr) override {}
   void HandleStructInstance(StructInstance* expr) override;
   void HandleSplatStructInstance(SplatStructInstance* expr) override {}
-  void HandleTernary(Ternary* expr) override {}
+  void HandleTernary(Ternary* expr) override;
   void HandleUnop(Unop* expr) override {}
-  void HandleXlsTuple(XlsTuple* expr) override {}
+  void HandleXlsTuple(XlsTuple* expr) override;
 
   absl::Status status() { return status_; }
 
  private:
-  bool IsConstExpr(Expr* expr);
+  bool IsConstExpr(const Expr* expr);
   absl::Status SimpleEvaluate(Expr* expr);
 
   DeduceCtx* ctx_;
-  ConcreteType* concrete_type_;
+  const ConcreteType* concrete_type_;
   absl::Status status_;
 };
 

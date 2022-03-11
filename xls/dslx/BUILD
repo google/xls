@@ -918,12 +918,13 @@ cc_library(
     deps = [
         ":ast",
         ":builtins_metadata",
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
         ":concrete_type",
         ":constexpr_evaluator",
         ":deduce_ctx",
         ":import_routines",
         ":interp_bindings",
-        ":interpreter",
         ":parametric_instantiator",
         ":scanner",
         ":type_and_bindings",
@@ -957,6 +958,7 @@ cc_library(
     deps = [
         ":ast",
         ":builtins_metadata",
+        ":constexpr_evaluator",
         ":deduce",
         ":deduce_ctx",
         ":dslx_builtins",

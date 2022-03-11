@@ -302,7 +302,8 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     # TODO(leary): 2021-06-21 This error should become something like "can only
     # refer to constant or parametric values in dimensions".
     self.assertIn('non_const_array_type_dimension.x:16:10-16:18', stderr)
-    self.assertIn('uN[32][x] vs ()', stderr)
+    self.assertIn('Expected concrete type dimension to be integral; got: x',
+                  stderr)
 
   def test_array_type_dimension_with_width_annotated(self):
     stderr = self._run(

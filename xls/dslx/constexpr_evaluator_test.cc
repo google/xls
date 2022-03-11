@@ -114,6 +114,24 @@ fn Foo() -> u64 {
   EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 13);
 }
 
+TEST(ConstexprEvaluatorTest, HandleTernary) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  if false { u32:100 } else { u32:500 }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kProgram));
+  Module* module = test_data.module.get();
+  TypeInfo* type_info = test_data.type_info;
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+
+  Ternary* cast = down_cast<Ternary*>(f->body());
+  absl::optional<InterpValue> maybe_value = type_info->GetConstExpr(cast);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 500);
+}
+
 TEST(ConstexprEvaluatorTest, HandleStructInstance_Simple) {
   constexpr absl::string_view kModule = R"(
 struct MyStruct {
@@ -262,6 +280,30 @@ fn main() -> u16 {
   absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(index);
   ASSERT_TRUE(maybe_value.has_value());
   EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xadbe);
+}
+
+TEST(ConstexprEvaluatorTest, HandleXlsTuple) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> (u32, u32, u32) {
+  (u32:1, u32:2, u32:3)
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XlsTuple* xls_tuple = down_cast<XlsTuple*>(f->body());
+  std::vector<InterpValue> elements;
+  elements.push_back(InterpValue::MakeU32(1));
+  elements.push_back(InterpValue::MakeU32(2));
+  elements.push_back(InterpValue::MakeU32(3));
+  absl::optional<InterpValue> maybe_value =
+      tm.type_info->GetConstExpr(xls_tuple);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value(), InterpValue::MakeTuple(elements));
 }
 
 }  // namespace

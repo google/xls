@@ -134,7 +134,7 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
 //     tuple cannot be the type for a number).
 absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
                                            InterpBindings* bindings,
-                                           ConcreteType* type_context,
+                                           const ConcreteType* type_context,
                                            AbstractInterpreter* interp);
 
 // Evaluates a string node down to its flat representation as an array of u8s.

@@ -18,6 +18,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
@@ -127,6 +128,20 @@ static absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
     }
   }
 
+  // Add parametrics to the set of constexpr values.
+  auto sym_bindings_map = ctx->fn_stack().back().symbolic_bindings().ToMap();
+  for (ParametricBinding* parametric : f->parametric_bindings()) {
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
+                         ctx->Deduce(parametric->type_annotation()));
+    if (parametric->expr() == nullptr) {
+      if (sym_bindings_map.contains(parametric->identifier())) {
+        ctx->type_info()->NoteConstExpr(
+            parametric->name_def(),
+            sym_bindings_map.at(parametric->identifier()));
+      }
+    }
+  }
+
   // Third, typecheck the body of the function.
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_return_type,
                        DeduceAndResolve(f->body(), ctx));
@@ -220,12 +235,14 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
         FnStackEntry::Make(map_fn, tab.symbolic_bindings));
     // We need to typecheck this imported function with respect to its module.
     XLS_RETURN_IF_ERROR(ctx->typecheck_function()(map_fn, imported_ctx.get()));
+
     XLS_VLOG(5) << "TypeInfo::AddInstantiation; invocation: "
                 << invocation->ToString()
                 << " symbolic_bindings: " << tab.symbolic_bindings;
     ctx->type_info()->SetInstantiationTypeInfo(
         invocation, /*caller=*/tab.symbolic_bindings,
         /*type_info=*/invocation_imported_type_info);
+
     return nullptr;
   }
 
@@ -243,6 +260,7 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametricMap(
               << " symbolic_bindings: " << tab.symbolic_bindings;
   parent_type_info->SetInstantiationTypeInfo(invocation, tab.symbolic_bindings,
                                              ctx->type_info());
+
   auto* name_ref = dynamic_cast<NameRef*>(map_fn_ref);
   XLS_RET_CHECK(absl::holds_alternative<NameDef*>(name_ref->name_def()));
   return absl::get<NameDef*>(name_ref->name_def());
@@ -384,6 +402,9 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
       /*callee=*/tab.symbolic_bindings);
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
   ctx->type_info()->SetItem(invocation, fn_type->return_type());
+
+  ConstexprEvaluator evaluator(ctx, &fn_type->return_type());
+  invocation->AcceptExpr(&evaluator);
 
   if (builtin_name->identifier() == "map") {
     return InstantiateBuiltinParametricMap(tab, *map_fn_name, *map_fn,
