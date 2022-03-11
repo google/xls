@@ -26,7 +26,6 @@ namespace xls::dslx {
 // currently covered, but will need to be shortly.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
-  // TODO COMMENT ON WHEN CONCRETE TYPE IS NECESSARY
   ConstexprEvaluator(DeduceCtx* ctx, ConcreteType* concrete_type)
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
@@ -37,11 +36,11 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleBinop(Binop* expr) override;
   void HandleCast(Cast* expr) override;
   void HandleChannelDecl(ChannelDecl* expr) override {}
-  void HandleColonRef(ColonRef* expr) override {}
+  void HandleColonRef(ColonRef* expr) override;
   void HandleConstRef(ConstRef* expr) override;
   void HandleFor(For* expr) override {}
   void HandleFormatMacro(FormatMacro* expr) override {}
-  void HandleIndex(Index* expr) override {}
+  void HandleIndex(Index* expr) override;
   void HandleInvocation(Invocation* expr) override;
   void HandleLet(Let* expr) override {}
   void HandleMatch(Match* expr) override {}

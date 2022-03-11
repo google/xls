@@ -989,7 +989,7 @@ static absl::StatusOr<InterpValue> EvaluateIndexWidthSlice(
 
   XLS_ASSIGN_OR_RETURN(uint64_t start_index, start.GetBitValueUint64());
   if (start_index >= bits.bit_count()) {
-    // Return early  to potentially avoid an unreasonably long zero extend (e.g.
+    // Return early to potentially avoid an unreasonably long zero extend (e.g.
     // if the start index was a large negative number).
     return make_oob_value();
   }

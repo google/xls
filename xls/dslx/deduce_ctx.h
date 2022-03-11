@@ -149,6 +149,9 @@ class DeduceCtx {
     return import_data_->type_info_owner();
   }
 
+  bool inside_for() const { return inside_for_; }
+  void set_inside_for(bool inside_for) { inside_for_ = inside_for; }
+
  private:
   // Maps AST nodes to their deduced types.
   TypeInfo* type_info_ = nullptr;
@@ -169,6 +172,14 @@ class DeduceCtx {
 
   // Cache used for imported modules, may be nullptr.
   ImportData* import_data_;
+
+  // Set to true if this context is deducing inside a For AST node. It is
+  // necessary to disable constexpr evaluation during that time, as a given
+  // NameDef will have multiple values associated with it, and so constexpr
+  // evaluation will give incorrect results.
+  // TODO(https://github.com/google/xls/issues/585) eliminate the need for this
+  // member.
+  bool inside_for_ = false;
 
   // -- Metadata
 

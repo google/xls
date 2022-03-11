@@ -22,6 +22,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
 
@@ -33,7 +34,7 @@ namespace xls::dslx {
 
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
-    absl::optional<const SymbolicBindings*> caller_bindings)
+    const absl::optional<SymbolicBindings>& caller_bindings)
     : import_data_(import_data),
       type_info_(type_info),
       caller_bindings_(caller_bindings) {}
@@ -51,17 +52,147 @@ absl::Status BytecodeEmitter::Init(const Function* f) {
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
                       const Function* f,
-                      absl::optional<const SymbolicBindings*> caller_bindings) {
+                      const absl::optional<SymbolicBindings>& caller_bindings) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
   XLS_RETURN_IF_ERROR(emitter.Init(f));
-
   f->body()->AcceptExpr(&emitter);
 
   if (!emitter.status_.ok()) {
     return emitter.status_;
   }
 
-  return BytecodeFunction::Create(f, type_info, std::move(emitter.bytecode_));
+  return BytecodeFunction::Create(f->owner(), type_info,
+                                  std::move(emitter.bytecode_));
+}
+
+// Extracts all NameDefs "downstream" of a given AstNode. This
+// is needed for Expr evaluation, so we can reserve slots for provided
+// InterpValues (in namedef_to_slot_).
+class NameDefCollector : public AstNodeVisitor {
+ public:
+  const absl::flat_hash_map<std::string, NameDef*>& name_defs() {
+    return name_defs_;
+  }
+
+#define DEFAULT_HANDLER(NODE)                                      \
+  absl::Status Handle##NODE(NODE* n) override {                    \
+    for (AstNode * child : n->GetChildren(/*want_types=*/false)) { \
+      XLS_RETURN_IF_ERROR(child->Accept(this));                    \
+    }                                                              \
+    return absl::OkStatus();                                       \
+  }
+
+  DEFAULT_HANDLER(Array);
+  DEFAULT_HANDLER(ArrayTypeAnnotation);
+  absl::Status HandleAttr(Attr* n) {
+    XLS_RETURN_IF_ERROR(n->lhs()->Accept(this));
+    return absl::OkStatus();
+  }
+  DEFAULT_HANDLER(Binop);
+  DEFAULT_HANDLER(BuiltinNameDef);
+  DEFAULT_HANDLER(BuiltinTypeAnnotation);
+  DEFAULT_HANDLER(Cast);
+  DEFAULT_HANDLER(ChannelDecl);
+  DEFAULT_HANDLER(ChannelTypeAnnotation);
+  DEFAULT_HANDLER(ColonRef);
+  DEFAULT_HANDLER(ConstantArray);
+  DEFAULT_HANDLER(ConstantDef);
+  DEFAULT_HANDLER(ConstRef);
+  DEFAULT_HANDLER(EnumDef);
+  DEFAULT_HANDLER(For);
+  DEFAULT_HANDLER(FormatMacro);
+  absl::Status HandleFunction(Function* n) {
+    return absl::InternalError("Encountered nested Function?");
+  }
+  DEFAULT_HANDLER(Index);
+  DEFAULT_HANDLER(Invocation);
+  DEFAULT_HANDLER(Import);
+  DEFAULT_HANDLER(Join);
+  DEFAULT_HANDLER(Let);
+  DEFAULT_HANDLER(Match);
+  DEFAULT_HANDLER(MatchArm);
+  DEFAULT_HANDLER(Module);
+  absl::Status HandleNameDef(NameDef* n) override {
+    name_defs_[n->identifier()] = n;
+    return absl::OkStatus();
+  }
+  DEFAULT_HANDLER(NameDefTree);
+  DEFAULT_HANDLER(NameRef);
+  DEFAULT_HANDLER(Number);
+  DEFAULT_HANDLER(Param);
+  DEFAULT_HANDLER(ParametricBinding);
+  absl::Status HandleProc(Proc* n) {
+    return absl::InternalError("Encountered nested Proc?");
+  }
+  DEFAULT_HANDLER(QuickCheck);
+  DEFAULT_HANDLER(Recv);
+  DEFAULT_HANDLER(RecvIf);
+  DEFAULT_HANDLER(Send);
+  DEFAULT_HANDLER(SendIf);
+  DEFAULT_HANDLER(Slice);
+  DEFAULT_HANDLER(Spawn);
+  DEFAULT_HANDLER(SplatStructInstance);
+  DEFAULT_HANDLER(String);
+  DEFAULT_HANDLER(StructDef);
+  absl::Status HandleTestFunction(TestFunction* n) {
+    return absl::InternalError("Encountered nested TestFunction?");
+  }
+  absl::Status HandleStructInstance(StructInstance* n) {
+    for (const auto& member : n->GetUnorderedMembers()) {
+      XLS_RETURN_IF_ERROR(member.second->Accept(this));
+    }
+    return absl::OkStatus();
+  }
+  DEFAULT_HANDLER(Ternary);
+  DEFAULT_HANDLER(TestProc);
+  DEFAULT_HANDLER(TupleTypeAnnotation);
+  DEFAULT_HANDLER(TypeDef);
+  DEFAULT_HANDLER(TypeRef);
+  DEFAULT_HANDLER(TypeRefTypeAnnotation);
+  DEFAULT_HANDLER(Unop);
+  DEFAULT_HANDLER(WidthSlice);
+  DEFAULT_HANDLER(WildcardPattern);
+  DEFAULT_HANDLER(XlsTuple);
+
+ private:
+  absl::flat_hash_map<std::string, NameDef*> name_defs_;
+};
+
+/* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
+BytecodeEmitter::EmitExpression(
+    ImportData* import_data, const TypeInfo* type_info, Expr* expr,
+    const absl::flat_hash_map<std::string, InterpValue>& env,
+    const absl::optional<SymbolicBindings>& caller_bindings) {
+  BytecodeEmitter emitter(import_data, type_info, caller_bindings);
+
+  NameDefCollector collector;
+  XLS_RETURN_IF_ERROR(expr->Accept(&collector));
+
+  for (const auto& [identifier, name_def] : collector.name_defs()) {
+    AstNode* definer = name_def->definer();
+    if (dynamic_cast<Function*>(definer) != nullptr ||
+        dynamic_cast<Import*>(definer) != nullptr) {
+      continue;
+    }
+
+    if (!env.contains(identifier)) {
+      continue;
+    }
+
+    int64_t slot_index = emitter.namedef_to_slot_.size();
+    emitter.namedef_to_slot_[name_def] = slot_index;
+    emitter.Add(Bytecode::MakeLiteral(expr->span(), env.at(identifier)));
+    emitter.Add(
+        Bytecode::MakeStore(expr->span(), Bytecode::SlotIndex(slot_index)));
+  }
+
+  expr->AcceptExpr(&emitter);
+  if (!emitter.status_.ok()) {
+    return emitter.status_;
+  }
+
+  return BytecodeFunction::Create(expr->owner(), type_info,
+                                  std::move(emitter.bytecode_));
 }
 
 void BytecodeEmitter::HandleArray(Array* node) {
@@ -269,9 +400,9 @@ void BytecodeEmitter::HandleCast(Cast* node) {
 
   absl::optional<ConcreteType*> maybe_to = type_info_->GetItem(node);
   if (!maybe_to.has_value()) {
-    status_ = absl::InternalError(
-        absl::StrCat("Could not find concrete type for cast \"to\" type: ",
-                     node->type_annotation()->ToString()));
+    status_ = absl::InternalError(absl::StrCat(
+        "Could not find concrete type for cast \"to\" type: ",
+        node->type_annotation()->ToString(), " : ", node->span().ToString()));
     return;
   }
   ConcreteType* to = maybe_to.value();
@@ -379,105 +510,6 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
   return maybe_value.value();
 }
 
-// Has to be an enum, given the context we're in: looking for _values_.
-absl::StatusOr<EnumDef*> BytecodeEmitter::ResolveTypeDefToEnum(
-    const TypeInfo* type_info, TypeDef* type_def) {
-  TypeDefinition td = type_def;
-  while (absl::holds_alternative<TypeDef*>(td)) {
-    TypeDef* type_def = absl::get<TypeDef*>(td);
-    TypeAnnotation* type = type_def->type_annotation();
-    TypeRefTypeAnnotation* type_ref_type =
-        dynamic_cast<TypeRefTypeAnnotation*>(type);
-    // TODO(rspringer): We'll need to collect parametrics from type_ref_type to
-    // support parametric TypeDefs.
-    XLS_RET_CHECK(type_ref_type != nullptr);
-    td = type_ref_type->type_ref()->type_definition();
-  }
-
-  if (absl::holds_alternative<ColonRef*>(td)) {
-    ColonRef* colon_ref = absl::get<ColonRef*>(td);
-    XLS_ASSIGN_OR_RETURN(auto subject,
-                         ResolveColonRefSubject(type_info, colon_ref));
-    XLS_RET_CHECK(absl::holds_alternative<Module*>(subject));
-    Module* module = absl::get<Module*>(subject);
-    XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
-
-    if (absl::holds_alternative<TypeDef*>(td)) {
-      // We need to get the right type info for the enum's containing module. We
-      // can get the top-level module since [currently?] enums can't be
-      // parameterized.
-      type_info = import_data_->GetRootTypeInfo(module).value();
-      return ResolveTypeDefToEnum(type_info, absl::get<TypeDef*>(td));
-    }
-  }
-
-  if (!absl::holds_alternative<EnumDef*>(td)) {
-    return absl::InternalError(
-        "ResolveTypeDefToEnum() can only be called when the TypeDef "
-        "directory or indirectly refers to an EnumDef.");
-  }
-
-  return absl::get<EnumDef*>(td);
-}
-
-absl::StatusOr<absl::variant<Module*, EnumDef*>>
-BytecodeEmitter::ResolveColonRefSubject(const TypeInfo* type_info,
-                                        ColonRef* node) {
-  if (absl::holds_alternative<NameRef*>(node->subject())) {
-    // Inside a ColonRef, the LHS can't be a BuiltinNameDef.
-    NameRef* name_ref = absl::get<NameRef*>(node->subject());
-    NameDef* name_def = absl::get<NameDef*>(name_ref->name_def());
-
-    if (Import* import = dynamic_cast<Import*>(name_def->definer());
-        import != nullptr) {
-      absl::optional<const ImportedInfo*> imported =
-          type_info->GetImported(import);
-      if (!imported.has_value()) {
-        return absl::InternalError(absl::StrCat(
-            "Could not find Module for Import: ", import->ToString()));
-      }
-      return imported.value()->module;
-    }
-
-    // If the LHS isn't an Import, then it has to be an EnumDef (possibly via a
-    // TypeDef).
-    if (EnumDef* enum_def = dynamic_cast<EnumDef*>(name_def->definer());
-        enum_def != nullptr) {
-      return enum_def;
-    }
-
-    TypeDef* type_def = dynamic_cast<TypeDef*>(name_def->definer());
-    XLS_RET_CHECK(type_def != nullptr);
-
-    if (type_def->owner() != type_info->module()) {
-      // We need to get the right type info for the enum's containing module. We
-      // can get the top-level module since [currently?] enums can't be
-      // parameterized (and we know this must be an enum, per the above).
-      type_info = import_data_->GetRootTypeInfo(type_def->owner()).value();
-    }
-    return ResolveTypeDefToEnum(type_info, type_def);
-  }
-
-  XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(node->subject()));
-  ColonRef* subject = absl::get<ColonRef*>(node->subject());
-  XLS_ASSIGN_OR_RETURN(auto resolved_subject,
-                       ResolveColonRefSubject(type_info, subject));
-  // Has to be a module, since it's a ColonRef inside a ColonRef.
-  XLS_RET_CHECK(absl::holds_alternative<Module*>(resolved_subject));
-  Module* module = absl::get<Module*>(resolved_subject);
-
-  // And the subject has to be a type, namely an enum, since the ColonRef must
-  // be of the form: <MODULE>::SOMETHING::SOMETHING_ELSE. Keep in mind, though,
-  // that we might have to traverse an EnumDef.
-  XLS_ASSIGN_OR_RETURN(TypeDefinition td,
-                       module->GetTypeDefinition(subject->attr()));
-  if (absl::holds_alternative<TypeDef*>(td)) {
-    return ResolveTypeDefToEnum(type_info, absl::get<TypeDef*>(td));
-  }
-
-  return absl::get<EnumDef*>(td);
-}
-
 void BytecodeEmitter::HandleColonRef(ColonRef* node) {
   if (!status_.ok()) {
     return;
@@ -495,7 +527,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
     ColonRef* node) {
   absl::variant<Module*, EnumDef*> resolved_subject;
   XLS_ASSIGN_OR_RETURN(resolved_subject,
-                       ResolveColonRefSubject(type_info_, node));
+                       ResolveColonRefSubject(import_data_, type_info_, node));
 
   if (absl::holds_alternative<EnumDef*>(resolved_subject)) {
     EnumDef* enum_def = absl::get<EnumDef*>(resolved_subject);
@@ -771,7 +803,7 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
       Bytecode::TraceData trace_data;
       trace_data.push_back(absl::StrCat("trace of ",
                                         node->args()[0]->ToString(), " @ ",
-                                        node->span().ToString()));
+                                        node->span().ToString(), ": "));
       trace_data.push_back(FormatPreference::kDefault);
       bytecode_.push_back(
           Bytecode(node->span(), Bytecode::Op::kTrace, trace_data));
@@ -787,11 +819,14 @@ void BytecodeEmitter::HandleInvocation(Invocation* node) {
 
   absl::optional<const SymbolicBindings*> maybe_callee_bindings =
       type_info_->GetInstantiationCalleeBindings(
-          node, caller_bindings_.has_value() ? *caller_bindings_.value()
+          node, caller_bindings_.has_value() ? caller_bindings_.value()
                                              : SymbolicBindings());
-  bytecode_.push_back(
-      Bytecode(node->span(), Bytecode::Op::kCall,
-               Bytecode::InvocationData{node, maybe_callee_bindings}));
+  absl::optional<SymbolicBindings> final_bindings = absl::nullopt;
+  if (maybe_callee_bindings.has_value()) {
+    final_bindings = *maybe_callee_bindings.value();
+  }
+  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCall,
+                               Bytecode::InvocationData{node, final_bindings}));
 }
 
 absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
@@ -936,9 +971,9 @@ BytecodeEmitter::HandleNameRefInternal(NameRef* node) {
 
   if (caller_bindings_.has_value()) {
     absl::flat_hash_map<std::string, InterpValue> bindings_map =
-        caller_bindings_.value()->ToMap();
+        caller_bindings_.value().ToMap();
     if (bindings_map.contains(name_def->identifier())) {
-      return caller_bindings_.value()->ToMap().at(name_def->identifier());
+      return caller_bindings_.value().ToMap().at(name_def->identifier());
     }
   }
 

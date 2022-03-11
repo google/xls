@@ -38,7 +38,7 @@ absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
 
   return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn(),
-                               /*caller_bindings=*/absl::nullopt);
+                               SymbolicBindings());
 }
 
 // Verifies that a baseline translation - of a nearly-minimal test case -
@@ -58,8 +58,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
                            tm.module->GetFunctionOrError("one_plus_one"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f,
-                            /*caller_bindings=*/absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 5);
@@ -142,7 +141,6 @@ fn expect_fail() -> u32{
   ASSERT_TRUE(bc->has_data());
   XLS_ASSERT_OK_AND_ASSIGN(Bytecode::InvocationData invocation_data,
                            bc->invocation_data());
-  EXPECT_NE(invocation_data.bindings, absl::nullopt);
   NameRef* name_ref =
       dynamic_cast<NameRef*>(invocation_data.invocation->callee());
   ASSERT_NE(name_ref, nullptr);
@@ -707,7 +705,7 @@ fn imported_enum_ref() -> import_0::ImportedEnum {
                            tm.module->GetTest("imported_enum_ref"));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), absl::nullopt));
+                                                 tf->fn(), SymbolicBindings()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -743,7 +741,7 @@ fn imported_enum_ref() -> u3 {
                            tm.module->GetTest("imported_enum_ref"));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
                            BytecodeEmitter::Emit(&import_data, tm.type_info,
-                                                 tf->fn(), absl::nullopt));
+                                                 tf->fn(), SymbolicBindings()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 1);
@@ -977,7 +975,7 @@ fn has_params(x: u32, y: u64) -> u48 {
                            tm.module->GetFunctionOrError("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 15);
@@ -1177,10 +1175,9 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, tf->fn(),
-                            /*caller_bindings=*/absl::nullopt));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           BytecodeEmitter::Emit(&import_data, tm.type_info,
+                                                 tf->fn(), SymbolicBindings()));
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 10);

@@ -37,11 +37,16 @@ class BytecodeEmitter : public ExprVisitor {
   // `f` itself. It will be nullopt for non-parametric functions.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
       ImportData* import_data, const TypeInfo* type_info, const Function* f,
-      absl::optional<const SymbolicBindings*> caller_bindings);
+      const absl::optional<SymbolicBindings>& caller_bindings);
+
+  static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitExpression(
+      ImportData* import_data, const TypeInfo* type_info, Expr* expr,
+      const absl::flat_hash_map<std::string, InterpValue>& env,
+      const absl::optional<SymbolicBindings>& caller_bindings);
 
  private:
   BytecodeEmitter(ImportData* import_data, const TypeInfo* type_info,
-                  absl::optional<const SymbolicBindings*> caller_bindings);
+                  const absl::optional<SymbolicBindings>& caller_bindings);
   ~BytecodeEmitter();
   absl::Status Init(const Function* f);
 
@@ -90,10 +95,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status CastBitsToArray(Span span, BitsType* from_bits,
                                ArrayType* to_array);
 
-  // Finds either the Module or EnumDef that a ColonRef ultimately refers to.
-  absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
-      const TypeInfo* type_info, ColonRef* node);
-
   // Given a TypeDef, determines the EnumDef to which it refers.
   absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(const TypeInfo* type_info,
                                                 TypeDef* type_def);
@@ -111,7 +112,7 @@ class BytecodeEmitter : public ExprVisitor {
 
   ImportData* import_data_;
   const TypeInfo* type_info_;
-  absl::optional<const SymbolicBindings*> caller_bindings_;
+  const absl::optional<SymbolicBindings>& caller_bindings_;
 
   absl::Status status_;
   std::vector<Bytecode> bytecode_;

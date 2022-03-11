@@ -16,6 +16,7 @@
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 
 namespace xls::dslx {
@@ -23,6 +24,11 @@ namespace xls::dslx {
 // Finds the Proc identified by the given node (either NameRef or ColonRef),
 // using the associated ImportData for import Module lookup.
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info);
+
+// Returns the basis of the given ColonRef; either a Module for a constant
+// reference or the EnumDef whose attribute is specified.
+absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
+    ImportData* import_data, const TypeInfo* type_info, ColonRef* colon_ref);
 
 }  // namespace xls::dslx
 

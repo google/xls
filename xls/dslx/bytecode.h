@@ -157,7 +157,9 @@ class Bytecode {
   // its concrete implementation.
   struct InvocationData {
     Invocation* invocation;
-    absl::optional<const SymbolicBindings*> bindings;
+    // Can't store a pointer, since the underlying storage isn't guaranteed to
+    // be stable.
+    absl::optional<SymbolicBindings> bindings;
   };
 
   // Encapsulates an element in a MatchArm's NameDefTree. For literals, a
@@ -216,6 +218,7 @@ class Bytecode {
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
+  static Bytecode MakeStore(Span span, SlotIndex slot_index);
   static Bytecode MakeSwap(Span span);
 
   // TODO(rspringer): 2022-02-14: These constructors end up being pretty
@@ -276,10 +279,9 @@ class BytecodeFunction {
   // Note: this is an O(N) operation where N is the number of ops in the
   // bytecode.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Create(
-      const Function* source, const TypeInfo* type_info,
-      std::vector<Bytecode> bytecode);
+      Module* owner, const TypeInfo* type_info, std::vector<Bytecode> bytecode);
 
-  const Function* source() const { return source_; }
+  Module* owner() const { return owner_; }
   const TypeInfo* type_info() const { return type_info_; }
   const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
   // Returns the total number of binding "slots" used by the bytecodes.
@@ -291,11 +293,11 @@ class BytecodeFunction {
   std::string ToString() const;
 
  private:
-  BytecodeFunction(const Function* source, const TypeInfo* type_info,
+  BytecodeFunction(Module* owner, const TypeInfo* type_info,
                    std::vector<Bytecode> bytecode);
   absl::Status Init();
 
-  const Function* source_;
+  Module* owner_;
   const TypeInfo* type_info_;
   std::vector<Bytecode> bytecodes_;
   int64_t num_slots_;

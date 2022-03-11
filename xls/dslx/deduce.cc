@@ -14,6 +14,7 @@
 
 #include "xls/dslx/deduce.h"
 
+#include "absl/cleanup/cleanup.h"
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
@@ -251,6 +252,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     ctx->type_info()->NoteConstExpr(node->value(), constexpr_value.value());
     ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value.value());
   }
+  ctx->type_info()->SetItem(node, *result);
   ctx->type_info()->SetItem(node->name_def(), *result);
   return result;
 }
@@ -655,6 +657,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(Let* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(For* node,
                                                         DeduceCtx* ctx) {
+  ctx->set_inside_for(true);
+  auto cleanup = absl::MakeCleanup([ctx]() { ctx->set_inside_for(false); });
   // Type of the init value to the for loop (also the accumulator type).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> init_type,
                        DeduceAndResolve(node->init(), ctx));
@@ -745,9 +749,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceCast(Cast* node,
         absl::StrFormat("Cannot cast from expression type %s to %s.",
                         expr->ToErrorString(), type->ToErrorString()));
   }
-  ConstexprEvaluator evaluator(ctx, type.get());
-  node->AcceptExpr(&evaluator);
-  XLS_RETURN_IF_ERROR(evaluator.status());
   return type;
 }
 
@@ -880,9 +881,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(Attr* node,
   XLS_RET_CHECK(result.has_value());  // We checked above we had named member.
 
   auto result_type = result.value()->CloneToUnique();
-  ConstexprEvaluator evaluator(ctx, result_type.get());
-  node->AcceptExpr(&evaluator);
-  XLS_RETURN_IF_ERROR(evaluator.status());
   return result_type;
 }
 
@@ -1148,7 +1146,9 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
                           "inferred from slice subject).",
                           start_int, bit_count));
     }
-    ctx->type_info()->SetItem(start, *start_type);
+    ctx->type_info()->SetItem(start, *resolved_start_type);
+    ConstexprEvaluator evaluator(ctx, resolved_start_type.get());
+    start_number->AcceptExpr(&evaluator);
   } else {
     // Aside from a bare literal (with no type) we should be able to deduce the
     // start expression's type.
@@ -1648,9 +1648,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceStructInstance(
       TypeAndBindings tab,
       InstantiateStruct(node->span(), *struct_type, validated.args,
                         validated.member_types, ctx, parametric_constraints));
-  ConstexprEvaluator evaluator(ctx, tab.type.get());
-  node->AcceptExpr(&evaluator);
-  XLS_RETURN_IF_ERROR(evaluator.status());
 
   return std::move(tab.type);
 }
@@ -2633,6 +2630,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
   ctx->type_info()->SetItem(node, *type);
   XLS_VLOG(5) << "Deduced type of " << node->ToString() << " => "
               << type->ToString() << " in " << ctx->type_info();
+
+  if (!ctx->inside_for()) {
+    ConstexprEvaluator evaluator(ctx, type.get());
+    if (Expr* expr = dynamic_cast<Expr*>(node); expr != nullptr) {
+      expr->AcceptExpr(&evaluator);
+    }
+    XLS_RETURN_IF_ERROR(evaluator.status());
+  }
+
   return type;
 }
 

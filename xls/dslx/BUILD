@@ -99,6 +99,7 @@ cc_library(
     hdrs = ["bytecode_emitter.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         ":bytecode",
         ":concrete_type",
         ":import_data",
@@ -181,11 +182,15 @@ cc_library(
     hdrs = ["constexpr_evaluator.h"],
     deps = [
         ":ast",
+        ":ast_utils",
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
         ":deduce_ctx",
         ":evaluate",
         ":interp_value",
-        ":interpreter",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:variant",
     ],
 )
 
@@ -201,6 +206,7 @@ cc_test(
         ":deduce_ctx",
         ":default_dslx_stdlib_path",
         ":import_data",
+        ":parse_and_typecheck",
         ":parser",
         ":type_info",
         ":typecheck",
@@ -393,6 +399,7 @@ cc_library(
         ":concrete_type",
         ":symbolic_bindings",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -505,6 +512,7 @@ cc_library(
     hdrs = ["ast_utils.h"],
     deps = [
         ":ast",
+        ":import_data",
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -920,6 +928,7 @@ cc_library(
         ":scanner",
         ":type_and_bindings",
         "//xls/common/status:ret_check",
+        "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

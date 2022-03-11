@@ -325,6 +325,10 @@ DEF_UNARY_BUILDER(Swap);
   return Bytecode(span, Op::kMatchArm, std::move(item));
 }
 
+/* static */ Bytecode Bytecode::MakeStore(Span span, SlotIndex slot_index) {
+  return Bytecode(span, Op::kStore, slot_index);
+}
+
 absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
@@ -443,7 +447,7 @@ std::string Bytecode::ToString(bool source_locs) const {
       InvocationData iv = absl::get<InvocationData>(data_.value());
       if (iv.bindings.has_value()) {
         data_string = absl::StrCat(iv.invocation->ToString(), " : ",
-                                   iv.bindings.value()->ToString());
+                                   iv.bindings.value().ToString());
       } else {
         data_string = iv.invocation->ToString();
       }
@@ -549,20 +553,16 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
 }
 
 absl::StatusOr<std::unique_ptr<BytecodeFunction>> BytecodeFunction::Create(
-    const Function* source, const TypeInfo* type_info,
-    std::vector<Bytecode> bytecodes) {
+    Module* owner, const TypeInfo* type_info, std::vector<Bytecode> bytecodes) {
   auto bf = absl::WrapUnique(
-      new BytecodeFunction(source, type_info, std::move(bytecodes)));
+      new BytecodeFunction(owner, type_info, std::move(bytecodes)));
   XLS_RETURN_IF_ERROR(bf->Init());
   return bf;
 }
 
-BytecodeFunction::BytecodeFunction(const Function* source,
-                                   const TypeInfo* type_info,
+BytecodeFunction::BytecodeFunction(Module* owner, const TypeInfo* type_info,
                                    std::vector<Bytecode> bytecodes)
-    : source_(source),
-      type_info_(type_info),
-      bytecodes_(std::move(bytecodes)) {}
+    : owner_(owner), type_info_(type_info), bytecodes_(std::move(bytecodes)) {}
 
 absl::Status BytecodeFunction::Init() {
   num_slots_ = 0;

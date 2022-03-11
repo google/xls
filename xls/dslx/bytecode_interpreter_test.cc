@@ -41,7 +41,7 @@ absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
   XLS_ASSIGN_OR_RETURN(Function * f, tm.module->GetFunctionOrError(entry));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(import_data, tm.type_info, f, SymbolicBindings()));
 
   return BytecodeInterpreter::Interpret(import_data, bf.get(), args);
 }
@@ -176,7 +176,7 @@ fn main(x: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
                                                   &import_data, bf.get(),
@@ -212,7 +212,7 @@ fn main(t: (u32, u32)) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   auto tuple_one = InterpValue::MakeTuple(
       {InterpValue::MakeU32(42), InterpValue::MakeU32(64)});
@@ -259,7 +259,7 @@ fn main(x: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
                                                   &import_data, bf.get(),
@@ -288,7 +288,7 @@ fn main(x: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, BytecodeInterpreter::Interpret(
                                                   &import_data, bf.get(),
                                                   {InterpValue::MakeU32(1)}));
@@ -311,7 +311,7 @@ fn main(x: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
   absl::StatusOr<InterpValue> value = BytecodeInterpreter::Interpret(
       &import_data, bf.get(), {InterpValue::MakeU32(2)});
   EXPECT_THAT(value.status(), StatusIs(absl::StatusCode::kInternal,
@@ -337,7 +337,7 @@ fn main(x: u32, y: u32, z: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   InterpValue one(InterpValue::MakeU32(1));
   InterpValue two(InterpValue::MakeU32(2));
@@ -849,7 +849,7 @@ fn cast_bits_to_enum() -> MyEnum {
                            tm.module->GetFunctionOrError("cast_bits_to_enum"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   // Get a modifiable copy of the bytecodes.
   std::vector<Bytecode> bytecodes = bf->CloneBytecodes();
@@ -857,7 +857,8 @@ fn cast_bits_to_enum() -> MyEnum {
   // Clear out the data element of the last bytecode, the cast op.
   bytecodes[bytecodes.size() - 1] = Bytecode(Span::Fake(), Bytecode::Op::kCast);
   XLS_ASSERT_OK_AND_ASSIGN(
-      bf, BytecodeFunction::Create(f, tm.type_info, std::move(bytecodes)));
+      bf,
+      BytecodeFunction::Create(f->owner(), tm.type_info, std::move(bytecodes)));
   absl::StatusOr<InterpValue> value =
       BytecodeInterpreter::Interpret(&import_data, bf.get(), {});
   EXPECT_THAT(value.status(),
@@ -883,7 +884,7 @@ fn has_params(x: u32, y: u64) -> u48 {
                            tm.module->GetFunctionOrError("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   std::vector<InterpValue> params;
   params.push_back(InterpValue::MakeU32(1));
@@ -941,7 +942,7 @@ fn caller(a: u32) -> u32{
                            tm.module->GetFunctionOrError("caller"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
   std::vector<InterpValue> params;
   params.push_back(InterpValue::MakeU32(100));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1153,7 +1154,7 @@ fn main(p: bool, x: u32) -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, f, absl::nullopt));
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       InterpValue value,

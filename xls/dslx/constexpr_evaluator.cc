@@ -13,9 +13,13 @@
 // limitations under the License.
 #include "xls/dslx/constexpr_evaluator.h"
 
+#include "absl/strings/match.h"
+#include "absl/types/variant.h"
+#include "xls/dslx/ast_utils.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/evaluate.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interpreter.h"
 
 namespace xls::dslx {
 namespace {
@@ -48,7 +52,9 @@ bool ConstexprEvaluator::IsConstExpr(Expr* expr) {
 }
 
 void ConstexprEvaluator::HandleAttr(Attr* expr) {
-  status_.Update(SimpleEvaluate(expr));
+  if (IsConstExpr(expr->lhs())) {
+    status_.Update(SimpleEvaluate(expr));
+  }
 }
 
 void ConstexprEvaluator::HandleBinop(Binop* expr) {
@@ -65,8 +71,114 @@ void ConstexprEvaluator::HandleCast(Cast* expr) {
   }
 }
 
+void ConstexprEvaluator::HandleColonRef(ColonRef* expr) {
+  TypeInfo* type_info = ctx_->type_info();
+  absl::StatusOr<absl::variant<Module*, EnumDef*>> subject_or =
+      ResolveColonRefSubject(ctx_->import_data(), type_info, expr);
+  if (!subject_or.ok()) {
+    status_ = subject_or.status();
+    return;
+  }
+
+  auto subject = subject_or.value();
+  if (absl::holds_alternative<EnumDef*>(subject)) {
+    // LHS is an EnumDef! Extract the value of the attr being referenced.
+    EnumDef* enum_def = absl::get<EnumDef*>(subject);
+    absl::StatusOr<Expr*> member_value_expr_or =
+        enum_def->GetValue(expr->attr());
+    if (!member_value_expr_or.ok()) {
+      status_ = member_value_expr_or.status();
+      return;
+    }
+
+    // Since enum defs can't [currently] be parameterized, this is safe.
+    absl::StatusOr<TypeInfo*> type_info_or =
+        ctx_->import_data()->GetRootTypeInfoForNode(enum_def);
+    if (!type_info_or.ok()) {
+      status_ = type_info_or.status();
+      return;
+    }
+    type_info = type_info_or.value();
+
+    Expr* member_value_expr = member_value_expr_or.value();
+    absl::optional<ConcreteType*> maybe_concrete_type =
+        type_info->GetItem(enum_def);
+    if (!maybe_concrete_type.has_value()) {
+      status_ = absl::InternalError(absl::StrCat(
+          "Could not find concrete type for EnumDef: ", enum_def->ToString()));
+      return;
+    }
+
+    absl::optional<InterpValue> maybe_final_value =
+        type_info->GetConstExpr(member_value_expr);
+    if (!maybe_final_value.has_value()) {
+      status_ = absl::InternalError(absl::StrCat(
+          "Failed to constexpr evaluate: ", member_value_expr->ToString()));
+    }
+    ctx_->type_info()->NoteConstExpr(expr, maybe_final_value.value());
+    return;
+  }
+
+  // Ok! The subject is a module. The only case we care about here is if the
+  // attr is a constant.
+  Module* module = absl::get<Module*>(subject);
+  absl::optional<ModuleMember*> maybe_member =
+      module->FindMemberWithName(expr->attr());
+  if (!maybe_member.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrFormat("\"%s\" is not a member of module \"%s\".",
+                        expr->attr(), module->name()));
+    return;
+  }
+  if (!absl::holds_alternative<ConstantDef*>(*maybe_member.value())) {
+    XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
+                << "\" is not constexpr evaluatable.";
+    return;
+  }
+
+  absl::StatusOr<TypeInfo*> type_info_or =
+      ctx_->import_data()->GetRootTypeInfo(module);
+  if (!type_info_or.ok()) {
+    status_ = absl::InternalError(absl::StrCat(
+        "Could not find type info for module \"", module->name(), "\"."));
+    return;
+  }
+  type_info = type_info_or.value();
+
+  ConstantDef* constant_def = absl::get<ConstantDef*>(*maybe_member.value());
+  absl::optional<InterpValue> maybe_value =
+      type_info->GetConstExpr(constant_def->value());
+  if (!maybe_value.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not find constexpr value for ConstantDef \"",
+                     constant_def->ToString(), "\"."));
+    return;
+  }
+
+  ctx_->type_info()->NoteConstExpr(expr, maybe_value.value());
+}
+
 void ConstexprEvaluator::HandleConstRef(ConstRef* expr) {
   return HandleNameRef(expr);
+}
+
+void ConstexprEvaluator::HandleIndex(Index* expr) {
+  XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
+  bool rhs_is_constexpr;
+  if (absl::holds_alternative<Expr*>(expr->rhs())) {
+    rhs_is_constexpr = IsConstExpr(absl::get<Expr*>(expr->rhs()));
+  } else if (absl::holds_alternative<Slice*>(expr->rhs())) {
+    Slice* slice = absl::get<Slice*>(expr->rhs());
+    rhs_is_constexpr =
+        IsConstExpr(slice->start()) && IsConstExpr(slice->limit());
+  } else {
+    WidthSlice* width_slice = absl::get<WidthSlice*>(expr->rhs());
+    rhs_is_constexpr = IsConstExpr(width_slice->start());
+  }
+
+  if (IsConstExpr(expr->lhs()) && rhs_is_constexpr) {
+    status_ = SimpleEvaluate(expr);
+  }
 }
 
 void ConstexprEvaluator::HandleInvocation(Invocation* expr) {
@@ -76,7 +188,16 @@ void ConstexprEvaluator::HandleInvocation(Invocation* expr) {
       return;
     }
   }
+
+  // We don't [yet] have a static assert fn, meaning that we don't want to catch
+  // runtime errors here. If we detect that a program has failed (due to
+  // execution of a `fail!` or unmatched `match`, then just assume we're ok.
   status_ = SimpleEvaluate(expr);
+  if (!status_.ok()) {
+    if (absl::StartsWith(status_.message(), "FailureError")) {
+      status_ = absl::OkStatus();
+    }
+  }
 }
 
 void ConstexprEvaluator::HandleNameRef(NameRef* expr) {
@@ -121,10 +242,10 @@ void ConstexprEvaluator::HandleNumber(Number* expr) {
     temp_type = std::make_unique<BitsType>(false, 8);
     type_ptr = temp_type.get();
   } else {
-    status_ = absl::InternalError(absl::StrCat(
-        "Found undecorated \"other\" type number: ", expr->ToString(),
-        ". Should have been caught earlier in typechecking."));
-    return;
+    // "Undecorated" numbers that make it through typechecking are `usize`,
+    // which currently is u32.
+    temp_type = std::make_unique<BitsType>(false, 32);
+    type_ptr = temp_type.get();
   }
 
   // Evaluating a number with a type context doesn't require bindings or an
@@ -161,13 +282,21 @@ absl::Status ConstexprEvaluator::SimpleEvaluate(Expr* expr) {
     }
   }
 
-  absl::StatusOr<InterpValue> constexpr_value = Interpreter::InterpretExpr(
-      expr->owner(), ctx_->type_info(), ctx_->typecheck_module(),
-      ctx_->import_data(), env, expr,
-      fn_ctx.has_value() ? &fn_ctx.value() : nullptr, concrete_type_);
-  if (constexpr_value.ok()) {
-    ctx_->type_info()->NoteConstExpr(expr, constexpr_value.value());
+  SymbolicBindings symbolic_bindings;
+  if (!ctx_->fn_stack().empty()) {
+    const FnStackEntry& entry = ctx_->fn_stack().back();
+    symbolic_bindings = entry.symbolic_bindings();
   }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::EmitExpression(ctx_->import_data(), ctx_->type_info(),
+                                      expr, env, symbolic_bindings));
+
+  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                       BytecodeInterpreter::Interpret(ctx_->import_data(),
+                                                      bf.get(), /*args=*/{}));
+  ctx_->type_info()->NoteConstExpr(expr, constexpr_value);
 
   return absl::OkStatus();
 }

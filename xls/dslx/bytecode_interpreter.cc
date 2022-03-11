@@ -28,7 +28,7 @@ namespace xls::dslx {
 
 BytecodeInterpreter::Frame::Frame(
     BytecodeFunction* bf, std::vector<InterpValue> args,
-    const TypeInfo* type_info, absl::optional<const SymbolicBindings*> bindings,
+    const TypeInfo* type_info, const absl::optional<SymbolicBindings>& bindings,
     std::unique_ptr<BytecodeFunction> bf_holder)
     : pc_(0),
       slots_(std::move(args)),
@@ -63,9 +63,8 @@ BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
   // In "mission mode" we expect type_info to be non-null in the frame, but for
   // bytecode-level testing we may not have an AST.
   TypeInfo* type_info = nullptr;
-  if (const Function* f = bf->source()) {
-    Module* module = f->owner();
-    type_info = import_data_->GetRootTypeInfo(module).value();
+  if (bf->owner()) {
+    type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
   frames_.push_back(Frame(bf, std::move(args), type_info, absl::nullopt));
 }
@@ -330,7 +329,7 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     Function* f, Invocation* invocation,
-    absl::optional<const SymbolicBindings*> caller_bindings) {
+    const absl::optional<SymbolicBindings>& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* type_info = frame.type_info();
 
@@ -340,13 +339,14 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   }
 
   if (f->IsParametric()) {
+    XLS_RET_CHECK(caller_bindings.has_value());
     absl::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInstantiationTypeInfo(
-            invocation, caller_bindings.has_value() ? *caller_bindings.value()
-                                                    : SymbolicBindings());
+        type_info->GetInstantiationTypeInfo(invocation,
+                                            caller_bindings.value());
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(absl::StrCat(
-          "Could not find type info for invocation ", invocation->ToString()));
+          "Could not find type info for invocation ", invocation->ToString(),
+          " : ", invocation->span().ToString()));
     }
     type_info = maybe_type_info.value();
   } else if (f->owner() != type_info->module()) {
@@ -920,42 +920,39 @@ absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
-  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
-  XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
-  XLS_ASSIGN_OR_RETURN(int64_t basis_bit_count, basis.GetBitCount());
-  XLS_ASSIGN_OR_RETURN(int64_t start_bit_count, start.GetBitCount());
-
   XLS_ASSIGN_OR_RETURN(const ConcreteType* type, bytecode.type_data());
   const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
   XLS_RET_CHECK_NE(bits_type, nullptr);
-  XLS_ASSIGN_OR_RETURN(int64_t length_value, bits_type->size().GetAsInt64());
-  InterpValue length = InterpValue::MakeUBits(start_bit_count, length_value);
+  XLS_ASSIGN_OR_RETURN(int64_t width_value, bits_type->size().GetAsInt64());
 
-  // If start + length > basis length, then we need to truncate.
-  InterpValue basis_length(
-      InterpValue::MakeUBits(start_bit_count, basis_bit_count));
-  XLS_ASSIGN_OR_RETURN(InterpValue end_index, start.Add(length));
-  XLS_ASSIGN_OR_RETURN(InterpValue end_index_ge_basis_length,
-                       end_index.Ge(basis_length));
-  if (end_index_ge_basis_length.IsTrue()) {
-    XLS_ASSIGN_OR_RETURN(length, basis_length.Sub(start));
+  InterpValue oob_value(InterpValue::MakeUBits(width_value, /*value=*/0));
+  XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
+  if (!start.FitsInUint64()) {
+    stack_.push_back(oob_value);
+    return absl::OkStatus();
+  }
+  XLS_ASSIGN_OR_RETURN(uint64_t start_index, start.GetBitValueUint64());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue basis, Pop());
+  XLS_ASSIGN_OR_RETURN(Bits basis_bits, basis.GetBits());
+  XLS_ASSIGN_OR_RETURN(int64_t basis_width, basis.GetBitCount());
+  InterpValue width = InterpValue::MakeUBits(64, width_value);
+
+  if (start_index >= basis_width) {
+    stack_.push_back(oob_value);
+    return absl::OkStatus();
   }
 
-  // Slice requires that the args be UBits, and so is the result. If the target
-  // type is signed, then, we need to update.
-  XLS_ASSIGN_OR_RETURN(InterpValue result, basis.Slice(start, length));
-  if (bits_type->is_signed()) {
-    XLS_ASSIGN_OR_RETURN(Bits bits, result.GetBits());
-    result = InterpValue::MakeSigned(bits);
+  if (start_index + width_value > basis_width) {
+    basis_bits = bits_ops::ZeroExtend(basis_bits, start_index + width_value);
   }
 
-  // If the result is too little, then zero-extend.
-  XLS_ASSIGN_OR_RETURN(int64_t result_bit_count, result.GetBitCount());
-  if (result_bit_count < length_value) {
-    XLS_ASSIGN_OR_RETURN(result, result.ZeroExt(length_value));
-  }
+  Bits result_bits = basis_bits.Slice(start_index, width_value);
+  InterpValueTag tag =
+      bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
+  XLS_ASSIGN_OR_RETURN(InterpValue result,
+                       InterpValue::MakeBits(tag, result_bits));
   stack_.push_back(result);
-
   return absl::OkStatus();
 }
 

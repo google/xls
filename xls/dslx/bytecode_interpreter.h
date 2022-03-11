@@ -49,7 +49,7 @@ class BytecodeInterpreter {
     // For other cases, the BytecodeCache will own BytecodeFunction storage.
     Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
           const TypeInfo* type_info,
-          absl::optional<const SymbolicBindings*> bindings,
+          const absl::optional<SymbolicBindings>& bindings,
           std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
 
     int64_t pc() const { return pc_; }
@@ -58,7 +58,7 @@ class BytecodeInterpreter {
     std::vector<InterpValue>& slots() { return slots_; }
     BytecodeFunction* bf() const { return bf_; }
     const TypeInfo* type_info() const { return type_info_; }
-    absl::optional<const SymbolicBindings*> bindings() const {
+    const absl::optional<SymbolicBindings>& bindings() const {
       return bindings_;
     }
 
@@ -69,7 +69,7 @@ class BytecodeInterpreter {
     std::vector<InterpValue> slots_;
     BytecodeFunction* bf_;
     const TypeInfo* type_info_;
-    absl::optional<const SymbolicBindings*> bindings_;
+    absl::optional<SymbolicBindings> bindings_;
     std::unique_ptr<BytecodeFunction> bf_holder_;
   };
 
@@ -120,8 +120,6 @@ class BytecodeInterpreter {
   absl::Status EvalWidthSlice(const Bytecode& bytecode);
   absl::Status EvalXor(const Bytecode& bytecode);
 
-  absl::StatusOr<BytecodeFunction*> GetBytecodeFn(Module* module,
-                                                  Function* function);
   absl::Status EvalUnop(
       const std::function<absl::StatusOr<InterpValue>(const InterpValue& arg)>&
           op);
@@ -130,7 +128,7 @@ class BytecodeInterpreter {
           const InterpValue& lhs, const InterpValue& rhs)>& op);
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
       Function* function, Invocation* invocation,
-      absl::optional<const SymbolicBindings*> caller_bindings);
+      const absl::optional<SymbolicBindings>& caller_bindings);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
 
