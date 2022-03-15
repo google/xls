@@ -12,7 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//xls/build_rules:xls_build_defs.bzl", "proto_data")
+load(
+    "//xls/build_rules:xls_build_defs.bzl",
+    "proto_data",
+    "xls_benchmark_verilog",
+)
 load(
     "//xls/contrib/xlscc/build_rules:xlscc_build_defs.bzl",
     "xls_cc_ir",
@@ -74,6 +78,11 @@ xls_cc_verilog(
         "top": "PacketSelector_proc",
     },
     verilog_file = "packet_selector_verilog_macro.v",
+)
+
+xls_benchmark_verilog(
+    name = "packet_selector_verilog_benchmark",
+    verilog_target = ":packet_selector_verilog",
 )
 
 ################################################################################

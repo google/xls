@@ -30,6 +30,8 @@ _DEFAULT_EVAL_IR_TARGET = "//xls/tools:eval_ir_main"
 
 _DEFAULT_BENCHMARK_TARGET = "//xls/tools:benchmark_main"
 
+_DEFAULT_BENCHMARK_CODEGEN_TARGET = "//xls/tools:benchmark_codegen_main"
+
 _DEFAULT_CODEGEN_TARGET = "//xls/tools:codegen_main"
 
 _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
@@ -54,6 +56,7 @@ XlsToolchainInfo = provider(
         "ir_equivalence_tool": "File: The IR equivalence executable.",
         "ir_eval_tool": "File: The IR interpreter executable.",
         "benchmark_ir_tool": "File: The benchmark IR executable.",
+        "benchmark_codegen_tool": "File: The benchmark Verilog executable.",
         "codegen_tool": "File: The codegen executable.",
         "jit_wrapper_tool": "File: The JIT wrapper executable.",
     },
@@ -71,6 +74,7 @@ def _xls_toolchain_impl(ctx):
         ir_equivalence_tool = ctx.attr.ir_equivalence_tool.files.to_list()[0],
         ir_eval_tool = ctx.attr.ir_eval_tool.files.to_list()[0],
         benchmark_ir_tool = ctx.attr.benchmark_ir_tool.files.to_list()[0],
+        benchmark_codegen_tool = ctx.attr.benchmark_codegen_tool.files.to_list()[0],
         codegen_tool = ctx.attr.codegen_tool.files.to_list()[0],
         jit_wrapper_tool = ctx.attr.jit_wrapper_tool.files.to_list()[0],
     )
@@ -149,6 +153,13 @@ Examples:
         "benchmark_ir_tool": attr.label(
             doc = "The target of the benchmark IR executable.",
             default = Label(_DEFAULT_BENCHMARK_TARGET),
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
+        ),
+        "benchmark_codegen_tool": attr.label(
+            doc = "The target of the benchmark codegen executable.",
+            default = Label(_DEFAULT_BENCHMARK_CODEGEN_TARGET),
             allow_single_file = True,
             executable = True,
             cfg = "exec",

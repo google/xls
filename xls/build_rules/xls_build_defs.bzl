@@ -24,6 +24,10 @@ load(
     _xls_ir_verilog_macro = "xls_ir_verilog_macro",
 )
 load(
+    "//xls/build_rules:xls_codegen_rules.bzl",
+    _xls_benchmark_verilog = "xls_benchmark_verilog",
+)
+load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     _xls_dslx_library = "xls_dslx_library",
     _xls_dslx_test = "xls_dslx_test",
@@ -85,6 +89,7 @@ xls_dslx_ir = _xls_dslx_ir_macro
 # TODO (vmirian) 1-10-2022 Do not expose xls_ir_opt_ir to user.
 xls_ir_opt_ir = _xls_ir_opt_ir_macro
 xls_ir_verilog = _xls_ir_verilog_macro
+xls_benchmark_verilog = _xls_benchmark_verilog
 xls_dslx_opt_ir = _xls_dslx_opt_ir_macro
 xls_dslx_verilog = _xls_dslx_verilog_macro
 xls_dslx_cpp_type_library = _xls_dslx_cpp_type_library

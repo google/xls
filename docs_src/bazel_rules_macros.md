@@ -210,6 +210,34 @@ Examples:
 | <a id="xls_benchmark_ir-top"></a>top |  The (*mangled*) name of the entry point. See get_mangled_ir_symbol. Defines the 'top' argument of the IR tool/application.   | String | optional | "" |
 
 
+<a id="#xls_benchmark_verilog"></a>
+
+## xls_benchmark_verilog
+
+<pre>
+xls_benchmark_verilog(<a href="#xls_benchmark_verilog-name">name</a>, <a href="#xls_benchmark_verilog-verilog_target">verilog_target</a>)
+</pre>
+
+Computes and prints various metrics about a Verilog target.
+
+Example:
+    ```
+    xls_benchmark_verilog(
+        name = "a_benchmark",
+        verilog_target = "a_verilog_target",
+    )
+    ```
+    
+
+**ATTRIBUTES**
+
+
+| Name  | Description | Type | Mandatory | Default |
+| :------------- | :------------- | :------------- | :------------- | :------------- |
+| <a id="xls_benchmark_verilog-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
+| <a id="xls_benchmark_verilog-verilog_target"></a>verilog_target |  The verilog target to benchmark.   | <a href="https://bazel.build/concepts/labels">Label</a> | optional | None |
+
+
 <a id="#xls_dslx_library"></a>
 
 ## xls_dslx_library

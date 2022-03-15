@@ -244,6 +244,9 @@ def xls_ir_verilog_impl(ctx, src):
             verilog_file = verilog_file,
             module_sig_file = module_sig_file,
             schedule_file = schedule_file,
+            block_ir_file = block_ir_file,
+            delay_model = codegen_args.get("delay_model"),
+            top = codegen_args.get("module_name", codegen_args.get("top")),
         ),
         DefaultInfo(
             files = depset(my_generated_files),
@@ -305,4 +308,74 @@ Examples:
         CONFIG["xls_outs_attrs"],
         xls_toolchain_attr,
     ),
+)
+
+def _xls_benchmark_verilog_impl(ctx):
+    """Implementation of the 'xls_benchmark_verilog' rule.
+
+    Computes and prints various metrics about a Verilog target.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      DefaultInfo provider
+    """
+    benchmark_codegen_tool = get_xls_toolchain_info(ctx).benchmark_codegen_tool
+    codegen_info = ctx.attr.verilog_target[CodegenInfo]
+    if not codegen_info.top:
+        fail("Verilog target '%s' does not provide a top value" %
+             ctx.attr.verilog_target.label.name)
+    cmd = "{} {} {} --top={}".format(
+        benchmark_codegen_tool.short_path,
+        codegen_info.block_ir_file.short_path,
+        codegen_info.verilog_file.short_path,
+        codegen_info.top,
+    )
+    if codegen_info.delay_model:
+        cmd += " --delay_model={}".format(codegen_info.delay_model)
+    runfiles = [
+        codegen_info.block_ir_file,
+        codegen_info.verilog_file,
+        benchmark_codegen_tool,
+    ]
+    executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
+    ctx.actions.write(
+        output = executable_file,
+        content = "\n".join([
+            "#!/bin/bash",
+            "set -e",
+            cmd,
+            "exit 0",
+        ]),
+        is_executable = True,
+    )
+    return [
+        DefaultInfo(
+            runfiles = ctx.runfiles(files = runfiles),
+            files = depset([executable_file]),
+            executable = executable_file,
+        ),
+    ]
+
+xls_benchmark_verilog_attrs = {
+    "verilog_target": attr.label(
+        doc = "The verilog target to benchmark.",
+        providers = [CodegenInfo],
+    ),
+}
+
+xls_benchmark_verilog = rule(
+    doc = """Computes and prints various metrics about a Verilog target.
+
+Example:
+    ```
+    xls_benchmark_verilog(
+        name = "a_benchmark",
+        verilog_target = "a_verilog_target",
+    )
+    ```
+    """,
+    implementation = _xls_benchmark_verilog_impl,
+    attrs = dicts.add(xls_benchmark_verilog_attrs, xls_toolchain_attr),
+    executable = True,
 )
