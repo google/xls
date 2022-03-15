@@ -76,6 +76,21 @@ class CodeGenMainTest(test_base.TestCase):
     self.assertIn('Max reg-to-output delay: 2ps', output)
     self.assertIn('Lines of Verilog: 7', output)
 
+  def test_simple_block_no_delay_model(self):
+    ir_file = self.create_tempfile(content=SIMPLE_IR)
+    verilog_file = self.create_tempfile(content=SIMPLE_VERILOG)
+    output = subprocess.check_output([
+        BENCHMARK_CODEGEN_MAIN_PATH, ir_file.full_path,
+        verilog_file.full_path
+    ]).decode('utf-8')
+
+    self.assertIn('Flop count: 96', output)
+    self.assertIn('Has feedthrough path: false', output)
+    self.assertNotIn('Max reg-to-reg delays', output)
+    self.assertNotIn('Max input-to-reg delay', output)
+    self.assertNotIn('Max reg-to-output delay', output)
+    self.assertIn('Lines of Verilog: 7', output)
+
 
 if __name__ == '__main__':
   absltest.main()

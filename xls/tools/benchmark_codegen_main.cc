@@ -59,7 +59,7 @@ absl::StatusOr<Block*> GetTopBlock(Package* package) {
 }
 
 absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
-                      const DelayEstimator& delay_estimator) {
+                      absl::optional<const DelayEstimator*> delay_estimator) {
   XLS_VLOG(1) << "Reading IR file: " << ir_path;
   XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
 
@@ -72,7 +72,7 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(package.get()));
 
   XLS_ASSIGN_OR_RETURN(verilog::BlockMetricsProto metrics,
-                       verilog::GenerateBlockMetrics(top, &delay_estimator));
+                       verilog::GenerateBlockMetrics(top, delay_estimator));
   std::cout << absl::StreamFormat("Flop count: %d\n", metrics.flop_count());
   std::cout << absl::StreamFormat(
       "Has feedthrough path: %s\n",
@@ -100,14 +100,12 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
   return absl::OkStatus();
 }
 
-absl::StatusOr<const DelayEstimator*> FetchDelayEstimator() {
-  const DelayEstimator* delay_estimator;
+absl::StatusOr<absl::optional<const DelayEstimator*>> FetchDelayEstimator() {
   if (absl::GetFlag(FLAGS_delay_model).empty()) {
-    delay_estimator = &GetStandardDelayEstimator();
-  } else {
-    XLS_ASSIGN_OR_RETURN(delay_estimator,
-                         GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
+    return absl::nullopt;
   }
+  XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
+                       GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
   return delay_estimator;
 }
 
@@ -123,11 +121,11 @@ int main(int argc, char** argv) {
         "Expected invocation:\n  %s IR_FILE VERILOG_FILE", argv[0]);
   }
 
-  absl::StatusOr<const xls::DelayEstimator*> delay_estimator_or =
-      xls::FetchDelayEstimator();
+  absl::StatusOr<absl::optional<const xls::DelayEstimator*>>
+      delay_estimator_or = xls::FetchDelayEstimator();
   XLS_QCHECK_OK(delay_estimator_or.status());
 
   XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], positional_arguments[1],
-                              *delay_estimator_or.value()));
+                              delay_estimator_or.value()));
   return EXIT_SUCCESS;
 }
