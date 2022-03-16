@@ -3453,18 +3453,18 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
     const xls::SourceLocation& loc) {
   if (init == nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Unrolled loop must have an initializer"));
+    return absl::UnimplementedError(absl::StrFormat(
+        "Unrolled loop must have an initializer at %s", LocString(loc)));
   }
 
   if (cond_expr == nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Unrolled loop must have a condition"));
+    return absl::UnimplementedError(absl::StrFormat(
+        "Unrolled loop must have a condition at %s", LocString(loc)));
   }
 
   if (inc == nullptr) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Unrolled loop must have an increment"));
+    return absl::UnimplementedError(absl::StrFormat(
+        "Unrolled loop must have an increment at %s", LocString(loc)));
   }
 
   if (init->getStmtClass() != clang::Stmt::DeclStmtClass) {
@@ -4005,8 +4005,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     selected_context = MakeStructXLS(context_values, *context_ctype, loc);
   }
 
-  // TODO(seanhaskell): Map external channel parameters for pipelined loops in
-  // subroutines (not top function)
   for (const IOOp& op : generated_func.io_ops) {
     if (op.channel->generated != nullptr) {
       continue;
@@ -4535,6 +4533,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->io_ops.size());
 
+  std::vector<xls::BValue> fan_out_tokens;
+
   // The function is first invoked with defaults for any
   //  read() IO Ops.
   // If there are any read() IO Ops, then it will be invoked again
@@ -4559,7 +4559,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       xls::BValue receive =
           pb.ReceiveIf(xls_channel, prepared.token, condition, body_loc);
-      prepared.token = pb.TupleIndex(receive, 0);
+      fan_out_tokens.push_back(pb.TupleIndex(receive, 0));
       xls::BValue in_val = pb.TupleIndex(receive, 1);
 
       prepared.args[arg_index] = in_val;
@@ -4578,9 +4578,12 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
           pb.TupleIndex(send_tup, 1, body_loc,
                         absl::StrFormat("%s_pred", xls_channel->name()));
 
-      prepared.token =
-          pb.SendIf(xls_channel, prepared.token, condition, {val}, body_loc);
+      fan_out_tokens.push_back(
+          pb.SendIf(xls_channel, prepared.token, condition, {val}, body_loc));
     }
+  }
+  if (!fan_out_tokens.empty()) {
+    prepared.token = pb.AfterAll(fan_out_tokens, body_loc);
   }
   return last_ret_val;
 }
