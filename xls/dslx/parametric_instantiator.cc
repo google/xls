@@ -16,10 +16,33 @@
 
 #include "absl/strings/match.h"
 #include "absl/types/variant.h"
-#include "xls/dslx/interpreter.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 
 namespace xls::dslx {
 namespace internal {
+
+absl::StatusOr<InterpValue> InterpretExpr(
+    DeduceCtx* ctx, Expr* expr, const SymbolicBindings& symbolic_bindings) {
+  // If we're interpreting something in another module, switch to its root type
+  // info, otherwise truck on with the current DeduceCtx.
+  std::unique_ptr<DeduceCtx> new_ctx_holder;
+  if (expr->owner() != ctx->module()) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * expr_type_info,
+                         ctx->import_data()->GetRootTypeInfo(expr->owner()));
+    new_ctx_holder = ctx->MakeCtx(expr_type_info, expr->owner());
+    ctx = new_ctx_holder.get();
+  }
+
+  absl::flat_hash_map<std::string, InterpValue> env =
+      MakeConstexprEnv(expr, symbolic_bindings, ctx->type_info());
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::EmitExpression(ctx->import_data(), ctx->type_info(),
+                                      expr, env, absl::nullopt));
+  return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(), {});
+}
 
 ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
@@ -101,15 +124,8 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
     const FnStackEntry& entry = ctx_->fn_stack().back();
     FnCtx fn_ctx{ctx_->module()->name(), entry.name(),
                  entry.symbolic_bindings()};
-    Module* expr_module = expr->owner();
-    XLS_ASSIGN_OR_RETURN(TypeInfo * expr_type_info,
-                         ctx_->import_data()->GetRootTypeInfo(expr_module));
-    absl::flat_hash_map<std::string, InterpValue> constexpr_env =
-        MakeConstexprEnv(expr, SymbolicBindings(symbolic_bindings_),
-                         expr_type_info);
-    absl::StatusOr<InterpValue> result = Interpreter::InterpretExpr(
-        expr_module, expr_type_info, ctx_->typecheck_module(),
-        ctx_->import_data(), constexpr_env, expr, &fn_ctx);
+    absl::StatusOr<InterpValue> result =
+        InterpretExpr(ctx_, expr, SymbolicBindings(symbolic_bindings_));
     XLS_VLOG(5) << "Interpreted expr: " << expr->ToString() << " @ "
                 << expr->span() << " to status: " << result.status();
     if (!result.ok() && result.status().code() == absl::StatusCode::kNotFound &&
@@ -117,6 +133,12 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
                           "Could not find bindings entry for identifier") ||
          absl::StartsWith(result.status().message(),
                           "Could not find callee bindings in type info"))) {
+      // We haven't seen enough bindings to evaluate this constraint yet.
+      continue;
+    }
+    if (!result.ok() && result.status().code() == absl::StatusCode::kInternal &&
+        absl::StartsWith(result.status().message(),
+                         "Could not find slot or binding for name")) {
       // We haven't seen enough bindings to evaluate this constraint yet.
       continue;
     }

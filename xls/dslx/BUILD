@@ -941,9 +941,10 @@ cc_library(
     srcs = ["parametric_instantiator.cc"],
     hdrs = ["parametric_instantiator.h"],
     deps = [
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
         ":concrete_type",
         ":deduce_ctx",
-        ":interpreter",
         ":type_and_bindings",
         ":type_info",
         "@com_google_absl//absl/strings",
