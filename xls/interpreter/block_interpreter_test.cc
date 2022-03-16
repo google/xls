@@ -286,5 +286,76 @@ TEST_F(BlockInterpreterTest, AccumulatorRegister) {
   EXPECT_THAT(outputs.at(4), UnorderedElementsAre(Pair("out", 15)));
 }
 
+TEST_F(BlockInterpreterTest, ChannelizedAccumulatorRegister) {
+  auto package = CreatePackage();
+  BlockBuilder b(TestName(), package.get());
+  XLS_ASSERT_OK(b.block()->AddClockPort("clk"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Register * reg,
+      b.block()->AddRegister("accum", package->GetBitsType(32)));
+
+  BValue x = b.InputPort("x", package->GetBitsType(32));
+  BValue x_vld = b.InputPort("x_vld", package->GetBitsType(1));
+  BValue out_rdy = b.InputPort("out_rdy", package->GetBitsType(1));
+
+  BValue input_valid_and_output_ready = b.And(x_vld, out_rdy);
+  BValue accum = b.RegisterRead(reg);
+  BValue x_add_accum = b.Add(x, accum);
+  BValue next_accum =
+      b.Select(input_valid_and_output_ready, {accum, x_add_accum});
+
+  b.RegisterWrite(reg, next_accum);
+  b.OutputPort("x_rdy", out_rdy);
+  b.OutputPort("out", next_accum);
+  b.OutputPort("out_vld", x_vld);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  // Check that we can simulate the block without any input sequence.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 0.5, block)};
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 0.1, block),
+    };
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+    inputs.resize(100);
+
+    BlockIoResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(block_io, InterpretChannelizedSequentialBlock(
+                                           block, absl::MakeSpan(sources),
+                                           absl::MakeSpan(sinks), inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_EQ(output_sequence.size(), 0);
+  }
+
+  // Provide an input sequence and simulate.
+  {
+    std::vector<ChannelSource> sources{
+        ChannelSource("x", "x_vld", "x_rdy", 0.5, block)};
+    XLS_ASSERT_OK(
+        sources.at(0).SetDataSequence(std::vector<uint64_t>{1, 2, 3, 4, 5}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out", "out_vld", "out_rdy", 0.1, block),
+    };
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+    inputs.resize(100);
+
+    BlockIoResultsAsUint64 block_io;
+    XLS_ASSERT_OK_AND_ASSIGN(block_io, InterpretChannelizedSequentialBlock(
+                                           block, absl::MakeSpan(sources),
+                                           absl::MakeSpan(sinks), inputs));
+
+    XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
+                             sinks.at(0).GetOutputSequenceAsUint64());
+    EXPECT_GT(block_io.outputs.size(), output_sequence.size());
+    EXPECT_EQ(output_sequence, (std::vector<uint64_t>{1, 3, 6, 10, 15}));
+  }
+}
+
 }  // namespace
 }  // namespace xls

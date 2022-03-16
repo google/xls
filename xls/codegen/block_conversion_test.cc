@@ -2518,36 +2518,39 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
   int64_t reset_inactive = 1;
 
   int64_t simulation_cycle_count = 10000;
-  int64_t max_random_cycle = simulation_cycle_count - 10 - 1;
 
-  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
-  XLS_ASSERT_OK(
-      SetSignalsOverCycles(0, 9, {{reset_signal, reset_active}}, inputs));
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> non_streaming_inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{reset_signal, reset_active}},
+                                     non_streaming_inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(10, simulation_cycle_count - 1,
-                                     {{reset_signal, reset_inactive}}, inputs));
+                                     {{reset_signal, reset_inactive}},
+                                     non_streaming_inputs));
 
-  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
-                                                "in0", 1, inputs));
-  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
-                                                "in1", 1, inputs));
+  std::vector<uint64_t> in_values(simulation_cycle_count);
+  std::iota(in_values.begin(), in_values.end(), 0);
 
-  std::minstd_rand rng_engine;
-  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in0_vld", 0, 1,
-                                          rng_engine, inputs));
-  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in1_vld", 0, 1,
-                                          rng_engine, inputs));
-  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "out0_rdy", 0, 1,
-                                          rng_engine, inputs));
-  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "out1_rdy", 0, 1,
-                                          rng_engine, inputs));
+  std::vector<ChannelSource> sources{
+      ChannelSource("in0", "in0_vld", "in0_rdy", 0.5, block),
+      ChannelSource("in1", "in1_vld", "in1_rdy", 0.5, block),
+  };
+  XLS_ASSERT_OK(sources.at(0).SetDataSequence(in_values));
+  XLS_ASSERT_OK(sources.at(1).SetDataSequence(in_values));
 
-  XLS_ASSERT_OK(SetSignalsOverCycles(
-      max_random_cycle + 1, simulation_cycle_count - 1,
-      {{"in0_vld", 0}, {"in1_vld", 0}, {"out0_rdy", 1}, {"out1_rdy", 1}},
-      inputs));
+  std::vector<ChannelSink> sinks{
+      ChannelSink("out0", "out0_vld", "out0_rdy", 0.5, block),
+      ChannelSink("out1", "out1_vld", "out1_rdy", 0.5, block),
+  };
 
-  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
-  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+  BlockIoResultsAsUint64 io_results;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+      io_results.inputs;
+  std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+      io_results.outputs;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      io_results, InterpretChannelizedSequentialBlock(
+                      block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
+                      non_streaming_inputs));
 
   // Add a cycle count for easier comparison with simulation results.
   XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
@@ -2606,9 +2609,16 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
           {reset_signal, SignalType::kInput, active_low_reset}, inputs,
           outputs));
 
+  EXPECT_GT(output0_sequence.size(), 1000);
+  EXPECT_GT(output1_sequence.size(), 1000);
+
+  int64_t min_output_count = output0_sequence.size() > output1_sequence.size()
+                                 ? output1_sequence.size()
+                                 : output0_sequence.size();
+
   int64_t prior_sum = 0;
 
-  for (int64_t i = 0; i < output0_sequence.size(); ++i) {
+  for (int64_t i = 0; i < min_output_count; ++i) {
     int64_t in0_val = input0_sequence.at(i).value;
     int64_t in1_val = input1_sequence.at(i).value;
     int64_t out0_val = output0_sequence.at(i).value;
@@ -2633,7 +2643,7 @@ INSTANTIATE_TEST_SUITE_P(
     MultiIOWithStatePipelinedProcTestSweep,
     MultiIOWithStatePipelinedProcTestSweepFixture,
     testing::Combine(
-        testing::Values(2, 3, 4), testing::Values(false, true),
+        testing::Values(1, 2, 3, 4), testing::Values(false, true),
         testing::Values(false, true),
         testing::Values(CodegenOptions::IOKind::kFlop,
                         CodegenOptions::IOKind::kSkidBuffer,
@@ -2643,18 +2653,6 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
-INSTANTIATE_TEST_SUITE_P(
-    MultiIOWithStateSingleStagePipelinedProcTestSweep,
-    MultiIOWithStatePipelinedProcTestSweepFixture,
-    testing::Combine(
-        testing::Values(1), testing::Values(true), testing::Values(false, true),
-        testing::Values(CodegenOptions::IOKind::kFlop,
-                        CodegenOptions::IOKind::kSkidBuffer,
-                        CodegenOptions::IOKind::kZeroLatencyBuffer),
-        testing::Values(CodegenOptions::IOKind::kFlop,
-                        CodegenOptions::IOKind::kSkidBuffer,
-                        CodegenOptions::IOKind::kZeroLatencyBuffer)),
-    MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

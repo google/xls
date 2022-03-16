@@ -59,6 +59,10 @@ class Block : public FunctionBase {
   absl::Span<InputPort* const> GetInputPorts() const { return input_ports_; }
   absl::Span<OutputPort* const> GetOutputPorts() const { return output_ports_; }
 
+  // Returns a given input/output port by name.
+  absl::StatusOr<InputPort*> GetInputPort(absl::string_view name) const;
+  absl::StatusOr<OutputPort*> GetOutputPort(absl::string_view name) const;
+
   // Adds an input/output port to the block. These methods should be used to add
   // ports rather than FunctionBase::AddNode and FunctionBase::MakeNode (checked
   // later by the verifier).

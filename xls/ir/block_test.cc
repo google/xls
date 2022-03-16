@@ -283,6 +283,11 @@ TEST_F(BlockTest, BlockWithRegisters) {
   EXPECT_THAT(block->GetOutputPorts(), ElementsAre(out.node()));
   EXPECT_THAT(GetOutputPortNames(block), ElementsAre("out"));
 
+  XLS_ASSERT_OK_AND_ASSIGN(Node * x_port, block->GetInputPort("x"));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * out_port, block->GetOutputPort("out"));
+  EXPECT_EQ(x_port, x.node());
+  EXPECT_EQ(out_port, out.node());
+
   ASSERT_TRUE(block->GetClockPort().has_value());
   EXPECT_THAT(block->GetClockPort()->name, "clk");
 

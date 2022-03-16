@@ -257,6 +257,38 @@ absl::Status Block::SetPortNameExactly(absl::string_view name, Node* node) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<InputPort*> Block::GetInputPort(absl::string_view name) const {
+  auto port_iter = ports_by_name_.find(name);
+  if (port_iter == ports_by_name_.end()) {
+    return absl::NotFoundError(
+        absl::StrFormat("Input port %s not found", name));
+  }
+
+  Port port = port_iter->second;
+  if (std::holds_alternative<InputPort*>(port)) {
+    return std::get<InputPort*>(port);
+  }
+
+  return absl::NotFoundError(
+      absl::StrFormat("Port %s is not an input port", name));
+}
+
+absl::StatusOr<OutputPort*> Block::GetOutputPort(absl::string_view name) const {
+  auto port_iter = ports_by_name_.find(name);
+  if (port_iter == ports_by_name_.end()) {
+    return absl::NotFoundError(
+        absl::StrFormat("Output port %s not found", name));
+  }
+
+  Port port = port_iter->second;
+  if (std::holds_alternative<OutputPort*>(port)) {
+    return std::get<OutputPort*>(port);
+  }
+
+  return absl::NotFoundError(
+      absl::StrFormat("Port %s is not an output port", name));
+}
+
 absl::StatusOr<InputPort*> Block::AddInputPort(
     absl::string_view name, Type* type, absl::optional<SourceLocation> loc) {
   if (ports_by_name_.contains(name)) {
