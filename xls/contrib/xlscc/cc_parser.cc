@@ -16,6 +16,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <string_view>
 
 #include "absl/status/status.h"
 #include "absl/synchronization/blocking_counter.h"
@@ -28,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "re2/re2.h"
 
 namespace xlscc {
 
@@ -91,15 +93,20 @@ class DiagnosticInterceptor : public clang::TextDiagnosticPrinter {
 };
 
 Pragma::Pragma(PragmaType type, int64_t argument)
-    : type_(type), argument_(argument) {}
+    : type_(type), int_argument_(argument) {}
 
-Pragma::Pragma(PragmaType type) : type_(type), argument_(-1) {}
+Pragma::Pragma(PragmaType type, std::string argument)
+    : type_(type), str_argument_(std::move(argument)) {}
 
-Pragma::Pragma() : type_(Pragma_Null), argument_(-1) {}
+Pragma::Pragma(PragmaType type) : type_(type), int_argument_(-1) {}
+
+Pragma::Pragma() : type_(Pragma_Null), int_argument_(-1) {}
 
 PragmaType Pragma::type() const { return type_; }
 
-int64_t Pragma::argument() const { return argument_; }
+int64_t Pragma::int_argument() const { return int_argument_; }
+
+std::string_view Pragma::str_argument() const { return str_argument_; }
 
 CCParser::~CCParser() {
   // Allow parser and its thread to be destroyed
@@ -196,11 +203,20 @@ absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
   if (!files_scanned_for_pragmas_.contains(ploc.getFilename())) {
     XLS_RETURN_IF_ERROR(ScanFileForPragmas(ploc.getFilename()));
   }
-  // Look on the line before
-  auto found =
-      hls_pragmas_.find(PragmaLoc(ploc.getFilename(), ploc.getLine() - 1));
-  if (found == hls_pragmas_.end()) return Pragma(Pragma_Null);
-  return found->second;
+  // Look on the line before.
+  PragmaLoc loc(ploc.getFilename(), ploc.getLine() - 1);
+  if (!hls_pragmas_.contains(loc)) {
+    return Pragma(Pragma_Null);
+  }
+
+  // Look for a label there. If found, look at the line before that.
+  if (hls_pragmas_.at(loc).type() == Pragma_Label && std::get<1>(loc) > 0) {
+    loc = PragmaLoc(ploc.getFilename(), ploc.getLine() - 2);
+    if (!hls_pragmas_.contains(loc)) {
+      return Pragma(Pragma_Null);
+    }
+  }
+  return hls_pragmas_.at(loc);
 }
 
 static size_t match_pragma(absl::string_view pragma_string,
@@ -230,9 +246,8 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
   int lineno = 1;
   for (std::string line; std::getline(fin, line); ++lineno) {
     size_t at;
+    const PragmaLoc location(filename, lineno);
     if ((at = line.find("#pragma")) != std::string::npos) {
-      PragmaLoc location(filename, lineno);
-
       if ((at = match_pragma(line, "#pragma hls_no_tuple")) !=
           std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_NoTuples);
@@ -256,6 +271,11 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
         hls_pragmas_[location] = Pragma(Pragma_InitInterval, arg);
       }
       // Ignore unknown pragmas
+    } else {
+      std::string matched;
+      if (RE2::PartialMatch(line, "(\\w+)[\\t\\s]*\\:", &matched)) {
+        hls_pragmas_[location] = Pragma(Pragma_Label, matched);
+      }
     }
   }
 

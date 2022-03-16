@@ -133,7 +133,7 @@ TEST_F(CCParserTest, PragmaSavedLine) {
                            parser.FindPragmaForLoc(loop_loc));
 
   ASSERT_EQ(pragma.type(), xlscc::Pragma_InitInterval);
-  ASSERT_EQ(pragma.argument(), 3);
+  ASSERT_EQ(pragma.int_argument(), 3);
 }
 
 TEST_F(CCParserTest, UnknownPragma) {

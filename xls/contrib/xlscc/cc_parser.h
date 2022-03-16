@@ -37,21 +37,25 @@ enum PragmaType {
   Pragma_NoTuples,
   Pragma_Unroll,
   Pragma_Top,
-  Pragma_InitInterval
+  Pragma_InitInterval,
+  Pragma_Label,
 };
 
 class Pragma {
  private:
   PragmaType type_;
-  int64_t argument_;
+  int64_t int_argument_ = -1;
+  std::string str_argument_ = "";
 
  public:
   Pragma(PragmaType type, int64_t argument);
+  Pragma(PragmaType type, std::string argument);
   Pragma(PragmaType type);
   Pragma();
 
   PragmaType type() const;
-  int64_t argument() const;
+  int64_t int_argument() const;
+  std::string_view str_argument() const;
 };
 
 class CCParser;

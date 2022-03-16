@@ -3435,7 +3435,7 @@ absl::Status Translator::GenerateIR_Loop(
   // Allow no #pragma when inside a pipelined loop body, assuming the loops will
   // be merged via proc inlining
   if (pragma.type() == Pragma_InitInterval || context().in_pipelined_for_body) {
-    int init_interval = pragma.argument();
+    int init_interval = pragma.int_argument();
     if (pragma.type() == Pragma_Null) {
       XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
       init_interval = context().outer_pipelined_loop_init_interval;

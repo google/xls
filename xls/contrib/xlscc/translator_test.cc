@@ -977,6 +977,20 @@ TEST_F(TranslatorTest, ForUnroll) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
+TEST_F(TranslatorTest, ForUnrollLabel) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_unroll yes
+        label:
+        for(int i=1;i<=10;++i) {
+          a += b;
+          a += 2*b;
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
 TEST_F(TranslatorTest, WhileUnroll) {
   const std::string content = R"(
       long long my_package(long long a, long long b) {
