@@ -741,7 +741,7 @@ def main(argv):
       raise app.UsageError("Cannot use block interpreter for non-procs.")
 
     args = [
-        EVAL_IR_PATH, "--entry", function_to_instrument_proto.name.xls_name,
+        EVAL_IR_PATH, "--top", function_to_instrument_proto.name.xls_name,
         "--input_file", inputs_tmp.name, "--expected_file", outputs_tmp.name,
         "--use_llvm_jit" if (FLAGS.backend == "serial_jit")
         else "--nouse_llvm_jit",
