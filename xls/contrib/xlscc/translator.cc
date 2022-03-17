@@ -4533,7 +4533,12 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->io_ops.size());
 
+  // TODO(seanhaskell): Switch back to fan out once proc inlining is fixed
+#define DO_FAN_OUT 0
+
+#if DO_FAN_OUT
   std::vector<xls::BValue> fan_out_tokens;
+#endif
 
   // The function is first invoked with defaults for any
   //  read() IO Ops.
@@ -4559,7 +4564,12 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       xls::BValue receive =
           pb.ReceiveIf(xls_channel, prepared.token, condition, body_loc);
-      fan_out_tokens.push_back(pb.TupleIndex(receive, 0));
+      const xls::BValue new_token = pb.TupleIndex(receive, 0);
+#if DO_FAN_OUT
+      fan_out_tokens.push_back(new_token);
+#else
+      prepared.token = new_token;
+#endif
       xls::BValue in_val = pb.TupleIndex(receive, 1);
 
       prepared.args[arg_index] = in_val;
@@ -4578,13 +4588,20 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
           pb.TupleIndex(send_tup, 1, body_loc,
                         absl::StrFormat("%s_pred", xls_channel->name()));
 
-      fan_out_tokens.push_back(
-          pb.SendIf(xls_channel, prepared.token, condition, {val}, body_loc));
+      const xls::BValue new_token =
+          pb.SendIf(xls_channel, prepared.token, condition, {val}, body_loc);
+#if DO_FAN_OUT
+      fan_out_tokens.push_back(new_token);
+#else
+      prepared.token = new_token;
+#endif
     }
   }
+#if DO_FAN_OUT
   if (!fan_out_tokens.empty()) {
     prepared.token = pb.AfterAll(fan_out_tokens, body_loc);
   }
+#endif
   return last_ret_val;
 }
 
