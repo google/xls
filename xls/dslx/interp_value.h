@@ -297,7 +297,8 @@ class InterpValue {
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const { return absl::get<Bits>(payload_); }
-  const std::shared_ptr<Channel>& GetChannelOrDie() const {
+  absl::StatusOr<std::shared_ptr<Channel>> GetChannel() const;
+  std::shared_ptr<Channel> GetChannelOrDie() const {
     return absl::get<std::shared_ptr<Channel>>(payload_);
   }
 

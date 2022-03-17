@@ -110,6 +110,8 @@ class BytecodeInterpreter {
   absl::Status EvalNegate(const Bytecode& bytecode);
   absl::Status EvalOr(const Bytecode& bytecode);
   absl::Status EvalPop(const Bytecode& bytecode);
+  absl::Status EvalRecv(const Bytecode& bytecode);
+  absl::Status EvalSend(const Bytecode& bytecode);
   absl::Status EvalShl(const Bytecode& bytecode);
   absl::Status EvalShr(const Bytecode& bytecode);
   absl::Status EvalSlice(const Bytecode& bytecode);

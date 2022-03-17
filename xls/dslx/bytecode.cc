@@ -68,6 +68,12 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "negate") {
     return Bytecode::Op::kNegate;
   }
+  if (s == "recv") {
+    return Bytecode::Op::kRecv;
+  }
+  if (s == "send") {
+    return Bytecode::Op::kSend;
+  }
   if (s == "store") {
     return Bytecode::Op::kStore;
   }
@@ -165,6 +171,10 @@ std::string OpToString(Bytecode::Op op) {
       return "or";
     case Bytecode::Op::kPop:
       return "pop";
+    case Bytecode::Op::kRecv:
+      return "recv";
+    case Bytecode::Op::kSend:
+      return "send";
     case Bytecode::Op::kShl:
       return "shl";
     case Bytecode::Op::kShr:
@@ -303,6 +313,8 @@ DEF_UNARY_BUILDER(Invert);
 DEF_UNARY_BUILDER(JumpDest);
 DEF_UNARY_BUILDER(LogicalOr);
 DEF_UNARY_BUILDER(Pop);
+DEF_UNARY_BUILDER(Recv);
+DEF_UNARY_BUILDER(Send);
 DEF_UNARY_BUILDER(Swap);
 
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {

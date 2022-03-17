@@ -53,7 +53,19 @@ absl::Status BytecodeEmitter::Init(const Function* f) {
 BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
                       const Function* f,
                       const absl::optional<SymbolicBindings>& caller_bindings) {
+  return EmitProcNext(import_data, type_info, f, caller_bindings,
+                      /*proc_members=*/{});
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
+BytecodeEmitter::EmitProcNext(
+    ImportData* import_data, const TypeInfo* type_info, const Function* f,
+    const absl::optional<SymbolicBindings>& caller_bindings,
+    const std::vector<NameDef*>& proc_members) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
+  for (const NameDef* name_def : proc_members) {
+    emitter.namedef_to_slot_[name_def] = emitter.namedef_to_slot_.size();
+  }
   XLS_RETURN_IF_ERROR(emitter.Init(f));
   f->body()->AcceptExpr(&emitter);
 
@@ -102,7 +114,10 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(For);
   DEFAULT_HANDLER(FormatMacro);
   absl::Status HandleFunction(Function* n) {
-    return absl::InternalError("Encountered nested Function?");
+    return absl::InternalError(
+        absl::StrFormat(
+            "Encountered nested Function: %s @ %s",
+            n->identifier(), n->span().ToString()));
   }
   DEFAULT_HANDLER(Index);
   DEFAULT_HANDLER(Invocation);
@@ -122,7 +137,10 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(Param);
   DEFAULT_HANDLER(ParametricBinding);
   absl::Status HandleProc(Proc* n) {
-    return absl::InternalError("Encountered nested Proc?");
+    return absl::InternalError(
+        absl::StrFormat(
+            "Encountered nested Proc: %s @ %s",
+            n->identifier(), n->span().ToString()));
   }
   DEFAULT_HANDLER(QuickCheck);
   DEFAULT_HANDLER(Recv);
@@ -135,7 +153,10 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(String);
   DEFAULT_HANDLER(StructDef);
   absl::Status HandleTestFunction(TestFunction* n) {
-    return absl::InternalError("Encountered nested TestFunction?");
+    return absl::InternalError(
+        absl::StrFormat(
+            "Encountered nested TestFunction: %s @ %s",
+            n->identifier(), n->GetSpan()->ToString()));
   }
   absl::Status HandleStructInstance(StructInstance* n) {
     for (const auto& member : n->GetUnorderedMembers()) {
@@ -459,6 +480,10 @@ void BytecodeEmitter::HandleCast(Cast* node) {
 
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
+}
+
+void BytecodeEmitter::HandleChannelDecl(ChannelDecl* node) {
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeChannel()));
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
@@ -1013,6 +1038,19 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
   XLS_ASSIGN_OR_RETURN(int64_t dim_val, dim.GetAsInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(dim_val));
   return InterpValue::MakeBits(bits_type->is_signed(), bits);
+}
+
+void BytecodeEmitter::HandleRecv(Recv* node) {
+  node->token()->AcceptExpr(this);
+  node->channel()->AcceptExpr(this);
+  Add(Bytecode::MakeRecv(node->span()));
+}
+
+void BytecodeEmitter::HandleSend(Send* node) {
+  node->token()->AcceptExpr(this);
+  node->channel()->AcceptExpr(this);
+  node->payload()->AcceptExpr(this);
+  Add(Bytecode::MakeSend(node->span()));
 }
 
 void BytecodeEmitter::HandleString(String* node) {

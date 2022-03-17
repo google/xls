@@ -244,6 +244,14 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalPop(bytecode));
       break;
     }
+    case Bytecode::Op::kRecv: {
+      XLS_RETURN_IF_ERROR(EvalRecv(bytecode));
+      break;
+    }
+    case Bytecode::Op::kSend: {
+      XLS_RETURN_IF_ERROR(EvalSend(bytecode));
+      break;
+    }
     case Bytecode::Op::kShl: {
       XLS_RETURN_IF_ERROR(EvalShl(bytecode));
       break;
@@ -772,6 +780,26 @@ absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
   return Pop().status();
+}
+
+absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
+  // TODO(rspringer): 2022-03-10 Thread safety!
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  if (channel->empty()) {
+    return absl::UnavailableError("Channel is empty.");
+  }
+  stack_.push_back(channel->front());
+  channel->pop_front();
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue payload, Pop());
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  channel->push_back(payload);
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalShl(const Bytecode& bytecode) {

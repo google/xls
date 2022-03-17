@@ -472,6 +472,14 @@ absl::StatusOr<Bits> InterpValue::GetBits() const {
   return absl::InvalidArgumentError("Value does not contain bits.");
 }
 
+absl::StatusOr<std::shared_ptr<InterpValue::Channel>> InterpValue::GetChannel()
+    const {
+  if (absl::holds_alternative<std::shared_ptr<Channel>>(payload_)) {
+    return absl::get<std::shared_ptr<Channel>>(payload_);
+  }
+  return absl::InvalidArgumentError("Value does not contain a channel.");
+}
+
 // Returns the minimum of the given bits value interpreted as an unsigned
 // number and limit.
 static int64_t ClampedUnsignedValue(const Bits& bits, int64_t limit) {

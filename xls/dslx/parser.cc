@@ -1597,9 +1597,10 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
 }
 
 absl::StatusOr<Function*> Parser::ParseProcConfig(
-    Bindings* bindings,
+    Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
     const std::vector<Param*>& proc_members, absl::string_view proc_name) {
+  Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsKeyword(Keyword::kConfig)) {
     return ParseErrorStatus(
@@ -1610,13 +1611,13 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   XLS_RETURN_IF_ERROR(DropToken());
   XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
 
-  auto parse_param = [this, bindings]() -> absl::StatusOr<Param*> {
-    return ParseParam(bindings);
+  auto parse_param = [this, &bindings]() -> absl::StatusOr<Param*> {
+    return ParseParam(&bindings);
   };
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
 
   // TODO(rspringer): 2021-10-13: Rework this when issue #507 is
   // resolved - when let expressions can be processed sequentially instead
@@ -1672,9 +1673,10 @@ bool TypeIsToken(TypeAnnotation* type) {
 }
 
 absl::StatusOr<Function*> Parser::ParseProcNext(
-    Bindings* bindings,
+    Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
     absl::string_view proc_name) {
+  Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsKeyword(Keyword::kNext)) {
     return ParseErrorStatus(peek->span(), absl::StrCat("Expected 'next', got ",
@@ -1683,8 +1685,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   XLS_RETURN_IF_ERROR(DropToken());
   XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));
 
-  auto parse_param = [this, bindings]() -> absl::StatusOr<Param*> {
-    return ParseParam(bindings);
+  auto parse_param = [this, &bindings]() -> absl::StatusOr<Param*> {
+    return ParseParam(&bindings);
   };
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
@@ -1701,7 +1703,9 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
         nullptr) {
       return ParseErrorStatus(param->span(),
                               "Channels cannot be Proc next params.");
-    } else if (TypeIsToken(param->type_annotation())) {
+    }
+
+    if (TypeIsToken(param->type_annotation())) {
       return ParseErrorStatus(
           param->span(),
           "Only the first parameter in a Proc next function may be a token.");
@@ -1710,7 +1714,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
     return_elements.push_back(param->type_annotation());
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
   Span span(oparen.span().start(), cbrace.span().limit());
   TypeAnnotation* return_type =

@@ -112,6 +112,12 @@ class Bytecode {
     kNegate,
     // Performs a bitwise OR of the top two values on the stack.
     kOr,
+    // Pulls a value off of the channel at TOS0, or "blocks" if empty:
+    // terminates execution at the opcode's PC. The interpreter can be
+    // resumed/retried if/when a value becomes available.
+    kRecv,
+    // Inserts the value at TOS0 into the channel at TOS1.
+    kSend,
     // Performs a left shift of the second-to-top stack element by the
     // top element's number.
     kShl,
@@ -218,8 +224,10 @@ class Bytecode {
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
+  static Bytecode MakeRecv(Span span);
   static Bytecode MakeStore(Span span, SlotIndex slot_index);
   static Bytecode MakeSwap(Span span);
+  static Bytecode MakeSend(Span span);
 
   // TODO(rspringer): 2022-02-14: These constructors end up being pretty
   // verbose. Consider a builder?
@@ -276,6 +284,8 @@ std::string OpToString(Bytecode::Op op);
 // Holds all the bytecode implementing a function along with useful metadata.
 class BytecodeFunction {
  public:
+  // We need the function's containing module in order to get the root TypeInfo
+  // for top-level BytecodeFunctions.
   // Note: this is an O(N) operation where N is the number of ops in the
   // bytecode.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Create(

@@ -689,6 +689,21 @@ fn width_slice() -> s16 {
   EXPECT_EQ(int_value, 0xadbe);
 }
 
+TEST(BytecodeInterpreterTest, WidthSliceWithZext) {
+  constexpr absl::string_view kProgram = R"(
+fn width_slice() -> u32 {
+  let a = u32:0xdeadbeef;
+  a[u32:16 +: u32]
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "width_slice"));
+  ASSERT_TRUE(value.IsBits());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value, value.GetBitsOrDie().ToUint64());
+  EXPECT_EQ(int_value, 0x0000dead);
+}
+
 // Tests a slice from both ends: a[-x:-y].
 TEST(BytecodeInterpreterTest, BothNegativeSlice) {
   constexpr absl::string_view kProgram = R"(

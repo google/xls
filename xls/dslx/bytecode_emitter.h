@@ -44,6 +44,13 @@ class BytecodeEmitter : public ExprVisitor {
       const absl::flat_hash_map<std::string, InterpValue>& env,
       const absl::optional<SymbolicBindings>& caller_bindings);
 
+  // Emits a function, just as the above, but reserves the first N slots for
+  // the given proc members.
+  static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcNext(
+      ImportData* import_data, const TypeInfo* type_info, const Function* f,
+      const absl::optional<SymbolicBindings>& caller_bindings,
+      const std::vector<NameDef*>& proc_members);
+
  private:
   BytecodeEmitter(ImportData* import_data, const TypeInfo* type_info,
                   const absl::optional<SymbolicBindings>& caller_bindings);
@@ -56,7 +63,7 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleAttr(Attr* node) override;
   void HandleBinop(Binop* node) override;
   void HandleCast(Cast* node) override;
-  void HandleChannelDecl(ChannelDecl* node) override { DefaultHandler(node); }
+  void HandleChannelDecl(ChannelDecl* node) override;
   void HandleColonRef(ColonRef* node) override;
   absl::StatusOr<InterpValue> HandleColonRefInternal(ColonRef* node);
   void HandleConstRef(ConstRef* node) override;
@@ -72,9 +79,9 @@ class BytecodeEmitter : public ExprVisitor {
   HandleNameRefInternal(NameRef* node);
   void HandleNumber(Number* node) override;
   absl::StatusOr<InterpValue> HandleNumberInternal(Number* node);
-  void HandleRecv(Recv* node) override { DefaultHandler(node); }
+  void HandleRecv(Recv* node) override;
   void HandleRecvIf(RecvIf* node) override { DefaultHandler(node); }
-  void HandleSend(Send* node) override { DefaultHandler(node); }
+  void HandleSend(Send* node) override;
   void HandleSendIf(SendIf* node) override { DefaultHandler(node); }
   void HandleSpawn(Spawn* node) override { DefaultHandler(node); }
   void HandleString(String* node) override;

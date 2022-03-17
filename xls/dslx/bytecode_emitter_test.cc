@@ -38,7 +38,7 @@ absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitBytecodes(
   XLS_ASSIGN_OR_RETURN(TestFunction * tf, tm.module->GetTest(fn_name));
 
   return BytecodeEmitter::Emit(import_data, tm.type_info, tf->fn(),
-                               SymbolicBindings());
+                               absl::nullopt);
 }
 
 // Verifies that a baseline translation - of a nearly-minimal test case -
@@ -1181,6 +1181,166 @@ fn main() -> u32 {
 
   const std::vector<Bytecode>& bytecodes = bf->bytecodes();
   ASSERT_EQ(bytecodes.size(), 10);
+}
+
+TEST(BytecodeEmitterTest, BasicProc) {
+  // We can only test 0-arg procs (both config and next), since procs are only
+  // typechecked if spawned by a top-level (i.e., 0-arg) proc.
+  constexpr absl::string_view kProgram = R"(
+proc Foo {
+  x: chan in u32;
+  y: u32;
+  config() {
+    let (p, c) = chan u32;
+    (p, u32:100)
+  }
+
+  next(tok: token) {
+    ()
+  }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetProcOrError("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, p->config(),
+                            SymbolicBindings()));
+  const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
+  ASSERT_EQ(config_bytecodes.size(), 7);
+  const std::vector<std::string> kConfigExpected = {
+      "literal channel @ test.x:6:18-6:26",
+      "expand_tuple @ test.x:6:9-6:15",
+      "store 0 @ test.x:6:10-6:11",
+      "store 1 @ test.x:6:13-6:14",
+      "load 0 @ test.x:7:6-7:7",
+      "literal u32:100 @ test.x:7:13-7:16",
+      "create_tuple 2 @ test.x:7:5-7:17"};
+
+  for (int i = 0; i < config_bytecodes.size(); i++) {
+    ASSERT_EQ(config_bytecodes[i].ToString(), kConfigExpected[i]);
+  }
+}
+
+TEST(BytecodeEmitterTest, SpawnedProc) {
+  constexpr absl::string_view kProgram = R"(
+proc Child {
+  c: chan in u32;
+  x: u32;
+  y: u64;
+
+  config(c: chan in u32, a: u64, b: uN[128]) {
+    (c, a as u32, (a + b as u64))
+  }
+
+  next(tok: token, a: u64) {
+    let (tok, b) = recv(tok, c);
+    (a + x as u64 + y + b as u64,)
+  }
+}
+
+proc Parent {
+  p: chan out u32;
+  config() {
+    let (p, c) = chan u32;
+    spawn Child(c, u64:100, uN[128]:200)(u64:300);
+    (p,)
+  }
+
+  next(tok: token) {
+    ()
+  }
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetProcOrError("Child"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, p->config(),
+                            SymbolicBindings()));
+  const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
+  ASSERT_EQ(config_bytecodes.size(), 8);
+  const std::vector<std::string> kConfigExpected = {
+      "load 0 @ test.x:8:6-8:7",       "load 1 @ test.x:8:9-8:10",
+      "cast uN[32] @ test.x:8:9-8:17", "load 1 @ test.x:8:20-8:21",
+      "load 2 @ test.x:8:24-8:25",     "cast uN[64] @ test.x:8:24-8:32",
+      "add @ test.x:8:22-8:23",        "create_tuple 3 @ test.x:8:5-8:34"};
+  for (int i = 0; i < config_bytecodes.size(); i++) {
+    ASSERT_EQ(config_bytecodes[i].ToString(), kConfigExpected[i]);
+  }
+
+  std::vector<NameDef*> members;
+  for (const Param* member : p->members()) {
+    members.push_back(member->name_def());
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bf, BytecodeEmitter::EmitProcNext(&import_data, tm.type_info, p->next(),
+                                        SymbolicBindings(), members));
+  const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
+  ASSERT_EQ(next_bytecodes.size(), 16);
+  const std::vector<std::string> kNextExpected = {
+      "load 3 @ test.x:12:25-12:28",      "load 0 @ test.x:12:30-12:31",
+      "recv @ test.x:12:20-12:32",        "expand_tuple @ test.x:12:9-12:17",
+      "store 5 @ test.x:12:10-12:13",     "store 6 @ test.x:12:15-12:16",
+      "load 4 @ test.x:13:6-13:7",        "load 1 @ test.x:13:10-13:11",
+      "cast uN[64] @ test.x:13:10-13:18", "add @ test.x:13:8-13:9",
+      "load 2 @ test.x:13:21-13:22",      "add @ test.x:13:19-13:20",
+      "load 6 @ test.x:13:25-13:26",      "cast uN[64] @ test.x:13:25-13:33",
+      "add @ test.x:13:23-13:24",         "create_tuple 1 @ test.x:13:5-13:35"};
+  for (int i = 0; i < next_bytecodes.size(); i++) {
+    ASSERT_EQ(next_bytecodes[i].ToString(), kNextExpected[i]);
+  }
+}
+
+// Verifies no explosions when calling BytecodeEmitter::EmitExpression with an
+// import in the NameDef environment.
+TEST(BytecodeEmitterTest, EmitExpressionWithImport) {
+  constexpr absl::string_view kImported = R"(
+pub const MY_CONST = u32:4;
+)";
+  constexpr absl::string_view kProgram = R"(
+import imported as mod
+
+#![test]
+fn main() -> u32 {
+  mod::MY_CONST + u32:1
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kImported, "imported.x", "imported", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      tm, ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestFunction * tf, tm.module->GetTest("main"));
+  Function* f = tf->fn();
+  Expr* body = f->body();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::EmitExpression(
+          &import_data, tm.type_info, body, /*env=*/{},
+          /*caller_bindings=*/absl::nullopt));
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 3);
+  const std::vector<std::string> kNextExpected = {
+      "literal u32:4 @ test.x:6:6-6:16",
+      "literal u32:1 @ test.x:6:23-6:24",
+      "add @ test.x:6:17-6:18"};
+  for (int i = 0; i < bytecodes.size(); i++) {
+    ASSERT_EQ(bytecodes[i].ToString(), kNextExpected[i]);
+  }
 }
 
 }  // namespace

@@ -176,6 +176,7 @@ void ConstexprEvaluator::HandleColonRef(ColonRef* expr) {
                         expr->attr(), module->name()));
     return;
   }
+
   if (!absl::holds_alternative<ConstantDef*>(*maybe_member.value())) {
     XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
                 << "\" is not constexpr evaluatable.";
