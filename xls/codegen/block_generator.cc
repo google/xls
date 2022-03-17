@@ -724,7 +724,7 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
       file.Add(file.Make<BlankLine>());
     }
   }
-  std::string text = file.Emit();
+  std::string text = file.Emit(nullptr);
   XLS_VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
 

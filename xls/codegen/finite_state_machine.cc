@@ -80,8 +80,8 @@ ConditionalFsmBlock& ConditionalFsmBlock::ElseOnCondition(
     Expression* condition) {
   XLS_CHECK(next_alternate_ == nullptr && final_alternate_ == nullptr);
   next_alternate_ = std::make_unique<ConditionalFsmBlock>(
-      absl::StrFormat("%s else (%s)", debug_name_, condition->Emit()), file_,
-      condition);
+      absl::StrFormat("%s else (%s)", debug_name_, condition->Emit(nullptr)),
+      file_, condition);
   return *next_alternate_;
 }
 
@@ -264,7 +264,7 @@ absl::Status FsmBlockBase::AddDefaultOutputAssignments(
     if (assignment.lhs == output.logic_ref) {
       XLS_VLOG(3) << absl::StreamFormat(
           "Output is unconditionally assigned %s in block \"%s\"",
-          assignment.rhs->Emit(), debug_name());
+          assignment.rhs->Emit(nullptr), debug_name());
       assignment_count++;
     }
   }
@@ -292,7 +292,8 @@ absl::Status FsmBlockBase::AddDefaultOutputAssignments(
   if (assignment_count == 0) {
     XLS_VLOG(3) << absl::StreamFormat(
         "Adding assignment of %s to default value %s in block \"%s\"",
-        output.logic_ref->Emit(), output.default_value->Emit(), debug_name());
+        output.logic_ref->Emit(nullptr), output.default_value->Emit(nullptr),
+        debug_name());
     AddAssignment(output.logic_ref, output.default_value);
   }
   return absl::OkStatus();
@@ -368,7 +369,7 @@ absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
     if (assignment.lhs == output.logic_ref) {
       XLS_VLOG(3) << absl::StreamFormat(
           "Output is unconditionally assigned %s in block \"%s\"",
-          assignment.rhs->Emit(), debug_name());
+          assignment.rhs->Emit(nullptr), debug_name());
       return assignment.rhs;
     }
   }
@@ -389,7 +390,7 @@ absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
           XLS_VLOG(3) << absl::StreamFormat(
               "Alternate block \"%s\" assigns output %s to %s",
               cond_block.debug_name(), output.logic_ref->GetName(),
-              rhs == nullptr ? "nullptr" : rhs->Emit());
+              rhs == nullptr ? "nullptr" : rhs->Emit(nullptr));
           rhses.push_back(rhs);
           return absl::OkStatus();
         }));
@@ -403,7 +404,7 @@ absl::StatusOr<Expression*> FsmBlockBase::HoistCommonConditionalAssignments(
     XLS_VLOG(3) << absl::StreamFormat(
         "Conditional block assigns output %s to same value %s on all "
         "alternates",
-        output.logic_ref->GetName(), rhses.front()->Emit());
+        output.logic_ref->GetName(), rhses.front()->Emit(nullptr));
     XLS_RETURN_IF_ERROR(cond_block.ForEachAlternate(
         [&](FsmBlockBase* alternate) -> absl::Status {
           return alternate->RemoveAssignment(output.logic_ref);

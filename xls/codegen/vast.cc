@@ -59,9 +59,11 @@ std::string ToString(Direction direction) {
   }
 }
 
-std::string MacroRef::Emit() const { return absl::StrCat("`", name_); }
+std::string MacroRef::Emit(LineInfo* line_info) const {
+  return absl::StrCat("`", name_);
+}
 
-std::string Include::Emit() const {
+std::string Include::Emit(LineInfo* line_info) const {
   return absl::StrFormat("`include \"%s\"", path_);
 }
 
@@ -117,13 +119,13 @@ DataType* VerilogFile::UnpackedArrayType(int64_t element_bit_count,
       /*unpacked_dims=*/dim_exprs, is_signed);
 }
 
-std::string VerilogFile::Emit() const {
-  auto file_member_str = [](const FileMember& member) -> std::string {
+std::string VerilogFile::Emit(LineInfo* line_info) const {
+  auto file_member_str = [=](const FileMember& member) -> std::string {
     return absl::visit(
-        Visitor{[](Include* m) -> std::string { return m->Emit(); },
-                [](Module* m) -> std::string { return m->Emit(); },
-                [](BlankLine* m) -> std::string { return m->Emit(); },
-                [](Comment* m) -> std::string { return m->Emit(); }},
+        Visitor{[=](Include* m) -> std::string { return m->Emit(line_info); },
+                [=](Module* m) -> std::string { return m->Emit(line_info); },
+                [=](BlankLine* m) -> std::string { return m->Emit(line_info); },
+                [=](Comment* m) -> std::string { return m->Emit(line_info); }},
         member);
   };
 
@@ -145,14 +147,14 @@ CaseArm::CaseArm(CaseLabel label, VerilogFile* file)
       label_(label),
       statements_(file->Make<StatementBlock>()) {}
 
-std::string CaseArm::Emit() const {
+std::string CaseArm::Emit(LineInfo* line_info) const {
   return absl::visit(
-      Visitor{[](Expression* named) { return named->Emit(); },
+      Visitor{[=](Expression* named) { return named->Emit(line_info); },
               [](DefaultSentinel) { return std::string("default"); }},
       label_);
 }
 
-std::string StatementBlock::Emit() const {
+std::string StatementBlock::Emit(LineInfo* line_info) const {
   // TODO(meheff): We can probably be smarter about optionally emitting the
   // begin/end.
   if (statements_.empty()) {
@@ -161,7 +163,7 @@ std::string StatementBlock::Emit() const {
   std::string result = "begin\n";
   std::vector<std::string> lines;
   for (const auto& statement : statements_) {
-    lines.push_back(statement->Emit());
+    lines.push_back(statement->Emit(line_info));
   }
   absl::StrAppend(&result, Indent(absl::StrJoin(lines, "\n")), "\nend");
   return result;
@@ -206,28 +208,29 @@ LogicRef* VerilogFunction::return_value_ref() {
   return file()->Make<LogicRef>(return_value_def_);
 }
 
-std::string VerilogFunction::Emit() const {
+std::string VerilogFunction::Emit(LineInfo* line_info) const {
   std::vector<std::string> lines;
   for (RegDef* reg_def : block_reg_defs_) {
-    lines.push_back(reg_def->Emit());
+    lines.push_back(reg_def->Emit(line_info));
   }
-  lines.push_back(statement_block_->Emit());
+  lines.push_back(statement_block_->Emit(line_info));
   return absl::StrCat(
       absl::StrFormat(
           "function automatic%s (%s);\n",
-          return_value_def_->data_type()->EmitWithIdentifier(name()),
+          return_value_def_->data_type()->EmitWithIdentifier(line_info, name()),
           absl::StrJoin(argument_defs_, ", ",
-                        [](std::string* out, RegDef* d) {
-                          absl::StrAppend(out, "input ", d->EmitNoSemi());
+                        [=](std::string* out, RegDef* d) {
+                          absl::StrAppend(out, "input ",
+                                          d->EmitNoSemi(line_info));
                         })),
       Indent(absl::StrJoin(lines, "\n")), "\nendfunction");
 }
 
-std::string VerilogFunctionCall::Emit() const {
+std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
   return absl::StrFormat(
       "%s(%s)", func_->name(),
-      absl::StrJoin(args_, ", ", [](std::string* out, Expression* e) {
-        absl::StrAppend(out, e->Emit());
+      absl::StrJoin(args_, ", ", [=](std::string* out, Expression* e) {
+        absl::StrAppend(out, e->Emit(line_info));
       }));
 }
 
@@ -288,10 +291,12 @@ LogicRef* Expression::AsLogicRefOrDie() {
   return static_cast<LogicRef*>(this);
 }
 
-std::string XSentinel::Emit() const { return absl::StrFormat("%d'dx", width_); }
+std::string XSentinel::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("%d'dx", width_);
+}
 
 // Returns a string representation of the given expression minus one.
-static std::string WidthToLimit(Expression* expr) {
+static std::string WidthToLimit(LineInfo* line_info, Expression* expr) {
   if (expr->IsLiteral()) {
     // If the expression is a literal, then we can emit the value - 1 directly.
     uint64_t value = expr->AsLiteralOrDie()->bits().ToUint64().value();
@@ -299,25 +304,26 @@ static std::string WidthToLimit(Expression* expr) {
   }
   Literal* one = expr->file()->PlainLiteral(1);
   Expression* width_minus_one = expr->file()->Sub(expr, one);
-  return width_minus_one->Emit();
+  return width_minus_one->Emit(line_info);
 }
 
-std::string DataType::EmitWithIdentifier(absl::string_view identifier) const {
+std::string DataType::EmitWithIdentifier(LineInfo* line_info,
+                                         absl::string_view identifier) const {
   std::string result = is_signed_ ? " signed" : "";
   if (width_ != nullptr) {
-    absl::StrAppendFormat(&result, " [%s:0]", WidthToLimit(width()));
+    absl::StrAppendFormat(&result, " [%s:0]", WidthToLimit(line_info, width()));
   }
   for (Expression* dim : packed_dims()) {
-    absl::StrAppendFormat(&result, "[%s:0]", WidthToLimit(dim));
+    absl::StrAppendFormat(&result, "[%s:0]", WidthToLimit(line_info, dim));
   }
   absl::StrAppend(&result, " ", identifier);
   for (Expression* dim : unpacked_dims()) {
     // In SystemVerilog unpacked arrays can be specified using only the size
     // rather than a range.
     if (file()->use_system_verilog()) {
-      absl::StrAppendFormat(&result, "[%s]", dim->Emit());
+      absl::StrAppendFormat(&result, "[%s]", dim->Emit(line_info));
     } else {
-      absl::StrAppendFormat(&result, "[0:%s]", WidthToLimit(dim));
+      absl::StrAppendFormat(&result, "[0:%s]", WidthToLimit(line_info, dim));
     }
   }
   return result;
@@ -331,7 +337,7 @@ absl::StatusOr<int64_t> DataType::WidthAsInt64() const {
 
   if (!width()->IsLiteral()) {
     return absl::FailedPreconditionError("Width is not a literal: " +
-                                         width()->Emit());
+                                         width()->Emit(nullptr));
   }
   return width()->AsLiteralOrDie()->bits().ToUint64();
 }
@@ -341,7 +347,7 @@ absl::StatusOr<int64_t> DataType::FlatBitCountAsInt64() const {
   for (Expression* dim : packed_dims()) {
     if (!dim->IsLiteral()) {
       return absl::FailedPreconditionError(
-          "Packed dimension is not a literal:" + dim->Emit());
+          "Packed dimension is not a literal:" + dim->Emit(nullptr));
     }
     XLS_ASSIGN_OR_RETURN(int64_t dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
@@ -350,7 +356,7 @@ absl::StatusOr<int64_t> DataType::FlatBitCountAsInt64() const {
   for (Expression* dim : unpacked_dims()) {
     if (!dim->IsLiteral()) {
       return absl::FailedPreconditionError(
-          "Unpacked dimension is not a literal:" + dim->Emit());
+          "Unpacked dimension is not a literal:" + dim->Emit(nullptr));
     }
     XLS_ASSIGN_OR_RETURN(int64_t dim_size,
                          dim->AsLiteralOrDie()->bits().ToUint64());
@@ -359,9 +365,11 @@ absl::StatusOr<int64_t> DataType::FlatBitCountAsInt64() const {
   return bit_count;
 }
 
-std::string Def::Emit() const { return EmitNoSemi() + ";"; }
+std::string Def::Emit(LineInfo* line_info) const {
+  return EmitNoSemi(line_info) + ";";
+}
 
-std::string Def::EmitNoSemi() const {
+std::string Def::EmitNoSemi(LineInfo* line_info) const {
   std::string kind_str;
   switch (data_kind()) {
     case DataKind::kReg:
@@ -374,13 +382,14 @@ std::string Def::EmitNoSemi() const {
       kind_str = "logic";
       break;
   }
-  return absl::StrCat(kind_str, data_type()->EmitWithIdentifier(GetName()));
+  return absl::StrCat(kind_str,
+                      data_type()->EmitWithIdentifier(line_info, GetName()));
 }
 
-std::string RegDef::Emit() const {
-  std::string result = Def::EmitNoSemi();
+std::string RegDef::Emit(LineInfo* line_info) const {
+  std::string result = Def::EmitNoSemi(line_info);
   if (init_ != nullptr) {
-    absl::StrAppend(&result, " = ", init_->Emit());
+    absl::StrAppend(&result, " = ", init_->Emit(line_info));
   }
   absl::StrAppend(&result, ";");
   return result;
@@ -389,23 +398,23 @@ std::string RegDef::Emit() const {
 namespace {
 
 // "Match" statement for emitting a ModuleMember.
-std::string EmitModuleMember(const ModuleMember& member) {
+std::string EmitModuleMember(LineInfo* line_info, const ModuleMember& member) {
   return absl::visit(
-      Visitor{[](Def* d) { return d->Emit(); },
-              [](LocalParam* p) { return p->Emit(); },
-              [](Parameter* p) { return p->Emit(); },
-              [](Instantiation* i) { return i->Emit(); },
-              [](ContinuousAssignment* c) { return c->Emit(); },
-              [](Comment* c) { return c->Emit(); },
-              [](BlankLine* b) { return b->Emit(); },
-              [](InlineVerilogStatement* s) { return s->Emit(); },
-              [](StructuredProcedure* sp) { return sp->Emit(); },
-              [](AlwaysComb* ac) { return ac->Emit(); },
-              [](AlwaysFf* af) { return af->Emit(); },
-              [](AlwaysFlop* af) { return af->Emit(); },
-              [](VerilogFunction* f) { return f->Emit(); },
-              [](Cover* c) { return c->Emit(); },
-              [](ModuleSection* s) { return s->Emit(); }},
+      Visitor{[=](Def* d) { return d->Emit(line_info); },
+              [=](LocalParam* p) { return p->Emit(line_info); },
+              [=](Parameter* p) { return p->Emit(line_info); },
+              [=](Instantiation* i) { return i->Emit(line_info); },
+              [=](ContinuousAssignment* c) { return c->Emit(line_info); },
+              [=](Comment* c) { return c->Emit(line_info); },
+              [=](BlankLine* b) { return b->Emit(line_info); },
+              [=](InlineVerilogStatement* s) { return s->Emit(line_info); },
+              [=](StructuredProcedure* sp) { return sp->Emit(line_info); },
+              [=](AlwaysComb* ac) { return ac->Emit(line_info); },
+              [=](AlwaysFf* af) { return af->Emit(line_info); },
+              [=](AlwaysFlop* af) { return af->Emit(line_info); },
+              [=](VerilogFunction* f) { return f->Emit(line_info); },
+              [=](Cover* c) { return c->Emit(line_info); },
+              [=](ModuleSection* s) { return s->Emit(line_info); }},
       member);
 }
 
@@ -426,27 +435,30 @@ std::vector<ModuleMember> ModuleSection::GatherMembers() const {
   return all_members;
 }
 
-std::string ModuleSection::Emit() const {
+std::string ModuleSection::Emit(LineInfo* line_info) const {
   std::vector<std::string> elements;
   for (const ModuleMember& member : GatherMembers()) {
-    elements.push_back(EmitModuleMember(member));
+    elements.push_back(EmitModuleMember(line_info, member));
   }
   return absl::StrJoin(elements, "\n");
 }
 
-std::string ContinuousAssignment::Emit() const {
-  return absl::StrFormat("assign %s = %s;", lhs_->Emit(), rhs_->Emit());
+std::string ContinuousAssignment::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("assign %s = %s;", lhs_->Emit(line_info),
+                         rhs_->Emit(line_info));
 }
 
-std::string Comment::Emit() const {
+std::string Comment::Emit(LineInfo* line_info) const {
   return absl::StrCat("// ", absl::StrReplaceAll(text_, {{"\n", "\n// "}}));
 }
 
-std::string InlineVerilogStatement::Emit() const { return text_; }
+std::string InlineVerilogStatement::Emit(LineInfo* line_info) const {
+  return text_;
+}
 
-std::string InlineVerilogRef::Emit() const { return name_; }
+std::string InlineVerilogRef::Emit(LineInfo* line_info) const { return name_; }
 
-std::string Assert::Emit() const {
+std::string Assert::Emit(LineInfo* line_info) const {
   // The $fatal statement takes finish_number as the first argument which is a
   // value in the set {0, 1, 2}. This value "sets the level of diagnostic
   // information reported by the tool" (from IEEE Std 1800-2017).
@@ -454,44 +466,46 @@ std::string Assert::Emit() const {
   // XLS emits asserts taking combinational inputs, so a deferred
   // immediate assertion is used.
   constexpr int64_t kFinishNumber = 0;
-  return absl::StrFormat(
-      "assert #0 (%s) else $fatal(%d%s);", condition_->Emit(), kFinishNumber,
-      error_message_.empty() ? ""
+  return absl::StrFormat("assert #0 (%s) else $fatal(%d%s);",
+                         condition_->Emit(line_info), kFinishNumber,
+                         error_message_.empty()
+                             ? ""
                              : absl::StrFormat(", \"%s\"", error_message_));
 }
 
-std::string Cover::Emit() const {
+std::string Cover::Emit(LineInfo* line_info) const {
   // Coverpoints don't work without clock sources. Don't emit them in that case.
-  return absl::StrFormat("%s: cover property (%s%s);", label_,
-                         absl::StrCat("@(posedge ", clk_->Emit(), ") "),
-                         condition_->Emit());
+  return absl::StrFormat(
+      "%s: cover property (%s%s);", label_,
+      absl::StrCat("@(posedge ", clk_->Emit(line_info), ") "),
+      condition_->Emit(line_info));
 }
 
-std::string SystemTaskCall::Emit() const {
+std::string SystemTaskCall::Emit(LineInfo* line_info) const {
   if (args_.has_value()) {
     return absl::StrFormat(
         "$%s(%s);", name_,
-        absl::StrJoin(*args_, ", ", [](std::string* out, Expression* e) {
-          absl::StrAppend(out, e->Emit());
+        absl::StrJoin(*args_, ", ", [=](std::string* out, Expression* e) {
+          absl::StrAppend(out, e->Emit(line_info));
         }));
   } else {
     return absl::StrFormat("$%s;", name_);
   }
 }
 
-std::string SystemFunctionCall::Emit() const {
+std::string SystemFunctionCall::Emit(LineInfo* line_info) const {
   if (args_.has_value()) {
     return absl::StrFormat(
         "$%s(%s)", name_,
-        absl::StrJoin(*args_, ", ", [](std::string* out, Expression* e) {
-          absl::StrAppend(out, e->Emit());
+        absl::StrJoin(*args_, ", ", [=](std::string* out, Expression* e) {
+          absl::StrAppend(out, e->Emit(line_info));
         }));
   } else {
     return absl::StrFormat("$%s", name_);
   }
 }
 
-std::string Module::Emit() const {
+std::string Module::Emit(LineInfo* line_info) const {
   std::string result = absl::StrCat("module ", name_);
   if (ports_.empty()) {
     absl::StrAppend(&result, ";\n");
@@ -499,18 +513,18 @@ std::string Module::Emit() const {
     absl::StrAppend(&result, "(\n  ");
     absl::StrAppend(
         &result,
-        absl::StrJoin(ports_, ",\n  ", [](std::string* out, const Port& port) {
+        absl::StrJoin(ports_, ",\n  ", [=](std::string* out, const Port& port) {
           absl::StrAppendFormat(out, "%s %s", ToString(port.direction),
-                                port.wire->EmitNoSemi());
+                                port.wire->EmitNoSemi(line_info));
         }));
     absl::StrAppend(&result, "\n);\n");
   }
-  absl::StrAppend(&result, Indent(top_.Emit()), "\n");
+  absl::StrAppend(&result, Indent(top_.Emit(line_info)), "\n");
   absl::StrAppend(&result, "endmodule");
   return result;
 }
 
-std::string Literal::Emit() const {
+std::string Literal::Emit(LineInfo* line_info) const {
   if (format_ == FormatPreference::kDefault) {
     XLS_CHECK_LE(bits_.bit_count(), 32);
     return absl::StrFormat("%s", bits_.ToString(FormatPreference::kDecimal));
@@ -547,7 +561,7 @@ bool Literal::IsLiteralWithValue(int64_t target) const {
 }
 
 // TODO(meheff): Escape string.
-std::string QuotedString::Emit() const {
+std::string QuotedString::Emit(LineInfo* line_info) const {
   return absl::StrFormat("\"%s\"", str_);
 }
 
@@ -556,36 +570,37 @@ static bool IsScalarLogicRef(IndexableExpression* expr) {
   return logic_ref != nullptr && logic_ref->def()->data_type()->IsScalar();
 }
 
-std::string Slice::Emit() const {
+std::string Slice::Emit(LineInfo* line_info) const {
   if (IsScalarLogicRef(subject_)) {
     // If subject is scalar (no width given in declaration) then avoid slicing
     // as this is invalid Verilog. The only valid hi/lo values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
     // and perform the equivalent logic at a higher abstraction level than VAST.
-    XLS_CHECK(hi_->IsLiteralWithValue(0)) << hi_->Emit();
-    XLS_CHECK(lo_->IsLiteralWithValue(0)) << lo_->Emit();
-    return subject_->Emit();
+    XLS_CHECK(hi_->IsLiteralWithValue(0)) << hi_->Emit(line_info);
+    XLS_CHECK(lo_->IsLiteralWithValue(0)) << lo_->Emit(line_info);
+    return subject_->Emit(line_info);
   }
-  return absl::StrFormat("%s[%s:%s]", subject_->Emit(), hi_->Emit(),
-                         lo_->Emit());
+  return absl::StrFormat("%s[%s:%s]", subject_->Emit(line_info),
+                         hi_->Emit(line_info), lo_->Emit(line_info));
 }
 
-std::string PartSelect::Emit() const {
-  return absl::StrFormat("%s[%s +: %s]", subject_->Emit(), start_->Emit(),
-                         width_->Emit());
+std::string PartSelect::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("%s[%s +: %s]", subject_->Emit(line_info),
+                         start_->Emit(line_info), width_->Emit(line_info));
 }
 
-std::string Index::Emit() const {
+std::string Index::Emit(LineInfo* line_info) const {
   if (IsScalarLogicRef(subject_)) {
     // If subject is scalar (no width given in declaration) then avoid indexing
     // as this is invalid Verilog. The only valid index values are zero.
     // TODO(https://github.com/google/xls/issues/43): Avoid this special case
     // and perform the equivalent logic at a higher abstraction level than VAST.
-    XLS_CHECK(index_->IsLiteralWithValue(0))
-        << absl::StreamFormat("%s[%s]", subject_->Emit(), index_->Emit());
-    return subject_->Emit();
+    XLS_CHECK(index_->IsLiteralWithValue(0)) << absl::StreamFormat(
+        "%s[%s]", subject_->Emit(line_info), index_->Emit(line_info));
+    return subject_->Emit(line_info);
   }
-  return absl::StrFormat("%s[%s]", subject_->Emit(), index_->Emit());
+  return absl::StrFormat("%s[%s]", subject_->Emit(line_info),
+                         index_->Emit(line_info));
 }
 
 // Returns the given string wrappend in parentheses.
@@ -593,81 +608,81 @@ static std::string ParenWrap(absl::string_view s) {
   return absl::StrFormat("(%s)", s);
 }
 
-std::string Ternary::Emit() const {
-  auto maybe_paren_wrap = [this](Expression* e) {
+std::string Ternary::Emit(LineInfo* line_info) const {
+  auto maybe_paren_wrap = [this, line_info](Expression* e) {
     if (e->precedence() <= precedence()) {
-      return ParenWrap(e->Emit());
+      return ParenWrap(e->Emit(line_info));
     }
-    return e->Emit();
+    return e->Emit(line_info);
   };
   return absl::StrFormat("%s ? %s : %s", maybe_paren_wrap(test_),
                          maybe_paren_wrap(consequent_),
                          maybe_paren_wrap(alternate_));
 }
 
-std::string Parameter::Emit() const {
-  return absl::StrFormat("parameter %s = %s;", name_, rhs_->Emit());
+std::string Parameter::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("parameter %s = %s;", name_, rhs_->Emit(line_info));
 }
 
-std::string LocalParamItem::Emit() const {
-  return absl::StrFormat("%s = %s", name_, rhs_->Emit());
+std::string LocalParamItem::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("%s = %s", name_, rhs_->Emit(line_info));
 }
 
-std::string LocalParam::Emit() const {
+std::string LocalParam::Emit(LineInfo* line_info) const {
   std::string result = "localparam";
   if (items_.size() == 1) {
-    absl::StrAppend(&result, " ", items_[0]->Emit(), ";");
+    absl::StrAppend(&result, " ", items_[0]->Emit(line_info), ";");
     return result;
   }
-  auto append_item = [](std::string* out, LocalParamItem* item) {
-    absl::StrAppend(out, item->Emit());
+  auto append_item = [=](std::string* out, LocalParamItem* item) {
+    absl::StrAppend(out, item->Emit(line_info));
   };
   absl::StrAppend(&result, "\n  ", absl::StrJoin(items_, ",\n  ", append_item),
                   ";");
   return result;
 }
 
-std::string BinaryInfix::Emit() const {
+std::string BinaryInfix::Emit(LineInfo* line_info) const {
   // Equal precedence operators are evaluated left-to-right so LHS only needs to
   // be wrapped if its precedence is strictly less than this operators. The
   // RHS, however, must be wrapped if its less than or equal precedence.
   std::string lhs_string = lhs_->precedence() < precedence()
-                               ? ParenWrap(lhs_->Emit())
-                               : lhs_->Emit();
+                               ? ParenWrap(lhs_->Emit(line_info))
+                               : lhs_->Emit(line_info);
   std::string rhs_string = rhs_->precedence() <= precedence()
-                               ? ParenWrap(rhs_->Emit())
-                               : rhs_->Emit();
+                               ? ParenWrap(rhs_->Emit(line_info))
+                               : rhs_->Emit(line_info);
   return absl::StrFormat("%s %s %s", lhs_string, op_, rhs_string);
 }
 
-std::string Concat::Emit() const {
+std::string Concat::Emit(LineInfo* line_info) const {
   std::string arg_string = absl::StrFormat(
-      "{%s}", absl::StrJoin(args_, ", ", [](std::string* out, Expression* e) {
-        absl::StrAppend(out, e->Emit());
+      "{%s}", absl::StrJoin(args_, ", ", [=](std::string* out, Expression* e) {
+        absl::StrAppend(out, e->Emit(line_info));
       }));
 
   if (replication_ != nullptr) {
-    return absl::StrFormat("{%s%s}", replication_->Emit(), arg_string);
+    return absl::StrFormat("{%s%s}", replication_->Emit(line_info), arg_string);
   } else {
     return arg_string;
   }
 }
 
-std::string ArrayAssignmentPattern::Emit() const {
+std::string ArrayAssignmentPattern::Emit(LineInfo* line_info) const {
   return absl::StrFormat(
-      "'{%s}", absl::StrJoin(args_, ", ", [](std::string* out, Expression* e) {
-        absl::StrAppend(out, e->Emit());
+      "'{%s}", absl::StrJoin(args_, ", ", [=](std::string* out, Expression* e) {
+        absl::StrAppend(out, e->Emit(line_info));
       }));
 }
 
-std::string Unary::Emit() const {
+std::string Unary::Emit(LineInfo* line_info) const {
   // Nested unary ops should be wrapped in parentheses as this is required by
   // some consumers of Verilog.
   return absl::StrFormat(
       "%s%s", op_,
       ((arg_->precedence() < precedence()) || arg_->IsUnary())
-          ? ParenWrap(arg_->Emit())
-          : arg_->Emit());
+          ? ParenWrap(arg_->Emit(line_info))
+          : arg_->Emit(line_info));
 }
 
 StatementBlock* Case::AddCaseArm(CaseLabel label) {
@@ -675,12 +690,13 @@ StatementBlock* Case::AddCaseArm(CaseLabel label) {
   return arms_.back()->statements();
 }
 
-std::string Case::Emit() const {
-  std::string result = absl::StrFormat("case (%s)\n", subject_->Emit());
+std::string Case::Emit(LineInfo* line_info) const {
+  std::string result =
+      absl::StrFormat("case (%s)\n", subject_->Emit(line_info));
   for (auto& arm : arms_) {
     absl::StrAppend(&result,
-                    Indent(absl::StrFormat("%s: %s", arm->Emit(),
-                                           arm->statements()->Emit())),
+                    Indent(absl::StrFormat("%s: %s", arm->Emit(line_info),
+                                           arm->statements()->Emit(line_info))),
                     "\n");
   }
   absl::StrAppend(&result, "endcase");
@@ -700,16 +716,17 @@ StatementBlock* Conditional::AddAlternate(Expression* condition) {
   return alternates_.back().second;
 }
 
-std::string Conditional::Emit() const {
+std::string Conditional::Emit(LineInfo* line_info) const {
   std::string result;
-  absl::StrAppendFormat(&result, "if (%s) %s", condition_->Emit(),
-                        consequent()->Emit());
+  absl::StrAppendFormat(&result, "if (%s) %s", condition_->Emit(line_info),
+                        consequent()->Emit(line_info));
   for (auto& alternate : alternates_) {
     absl::StrAppend(&result, " else ");
     if (alternate.first != nullptr) {
-      absl::StrAppendFormat(&result, "if (%s) ", alternate.first->Emit());
+      absl::StrAppendFormat(&result, "if (%s) ",
+                            alternate.first->Emit(line_info));
     }
-    absl::StrAppend(&result, alternate.second->Emit());
+    absl::StrAppend(&result, alternate.second->Emit(line_info));
   }
   return result;
 }
@@ -719,53 +736,56 @@ WhileStatement::WhileStatement(Expression* condition, VerilogFile* file)
       condition_(condition),
       statements_(file->Make<StatementBlock>()) {}
 
-std::string WhileStatement::Emit() const {
-  return absl::StrFormat("while (%s) %s", condition_->Emit(),
-                         statements()->Emit());
+std::string WhileStatement::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("while (%s) %s", condition_->Emit(line_info),
+                         statements()->Emit(line_info));
 }
 
-std::string RepeatStatement::Emit() const {
-  return absl::StrFormat("repeat (%s) %s;", repeat_count_->Emit(),
-                         statement_->Emit());
+std::string RepeatStatement::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("repeat (%s) %s;", repeat_count_->Emit(line_info),
+                         statement_->Emit(line_info));
 }
 
-std::string EventControl::Emit() const {
-  return absl::StrFormat("@(%s);", event_expression_->Emit());
+std::string EventControl::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("@(%s);", event_expression_->Emit(line_info));
 }
 
-std::string PosEdge::Emit() const {
-  return absl::StrFormat("posedge %s", expression_->Emit());
+std::string PosEdge::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("posedge %s", expression_->Emit(line_info));
 }
 
-std::string NegEdge::Emit() const {
-  return absl::StrFormat("negedge %s", expression_->Emit());
+std::string NegEdge::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("negedge %s", expression_->Emit(line_info));
 }
 
-std::string DelayStatement::Emit() const {
+std::string DelayStatement::Emit(LineInfo* line_info) const {
   std::string delay_str = delay_->precedence() < Expression::kMaxPrecedence
-                              ? ParenWrap(delay_->Emit())
-                              : delay_->Emit();
+                              ? ParenWrap(delay_->Emit(line_info))
+                              : delay_->Emit(line_info);
   if (delayed_statement_) {
-    return absl::StrFormat("#%s %s", delay_str, delayed_statement_->Emit());
+    return absl::StrFormat("#%s %s", delay_str,
+                           delayed_statement_->Emit(line_info));
   } else {
     return absl::StrFormat("#%s;", delay_str);
   }
 }
 
-std::string WaitStatement::Emit() const {
-  return absl::StrFormat("wait(%s);", event_->Emit());
+std::string WaitStatement::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("wait(%s);", event_->Emit(line_info));
 }
 
-std::string Forever::Emit() const {
-  return absl::StrCat("forever ", statement_->Emit());
+std::string Forever::Emit(LineInfo* line_info) const {
+  return absl::StrCat("forever ", statement_->Emit(line_info));
 }
 
-std::string BlockingAssignment::Emit() const {
-  return absl::StrFormat("%s = %s;", lhs_->Emit(), rhs_->Emit());
+std::string BlockingAssignment::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("%s = %s;", lhs_->Emit(line_info),
+                         rhs_->Emit(line_info));
 }
 
-std::string NonblockingAssignment::Emit() const {
-  return absl::StrFormat("%s <= %s;", lhs_->Emit(), rhs_->Emit());
+std::string NonblockingAssignment::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("%s <= %s;", lhs_->Emit(line_info),
+                         rhs_->Emit(line_info));
 }
 
 StructuredProcedure::StructuredProcedure(VerilogFile* file)
@@ -773,33 +793,35 @@ StructuredProcedure::StructuredProcedure(VerilogFile* file)
 
 namespace {
 
-std::string EmitSensitivityListElement(const SensitivityListElement& element) {
+std::string EmitSensitivityListElement(LineInfo* line_info,
+                                       const SensitivityListElement& element) {
   return absl::visit(
       Visitor{[](ImplicitEventExpression e) -> std::string { return "*"; },
-              [](PosEdge* p) -> std::string { return p->Emit(); },
-              [](NegEdge* n) -> std::string { return n->Emit(); }},
+              [=](PosEdge* p) -> std::string { return p->Emit(line_info); },
+              [=](NegEdge* n) -> std::string { return n->Emit(line_info); }},
       element);
 }
 
 }  // namespace
 
-std::string AlwaysBase::Emit() const {
+std::string AlwaysBase::Emit(LineInfo* line_info) const {
   return absl::StrFormat(
       "%s @ (%s) %s", name(),
       absl::StrJoin(sensitivity_list_, " or ",
-                    [](std::string* out, const SensitivityListElement& e) {
-                      absl::StrAppend(out, EmitSensitivityListElement(e));
+                    [=](std::string* out, const SensitivityListElement& e) {
+                      absl::StrAppend(out,
+                                      EmitSensitivityListElement(line_info, e));
                     }),
-      statements_->Emit());
+      statements_->Emit(line_info));
 }
 
-std::string AlwaysComb::Emit() const {
-  return absl::StrFormat("%s %s", name(), statements_->Emit());
+std::string AlwaysComb::Emit(LineInfo* line_info) const {
+  return absl::StrFormat("%s %s", name(), statements_->Emit(line_info));
 }
 
-std::string Initial::Emit() const {
+std::string Initial::Emit(LineInfo* line_info) const {
   std::string result = "initial ";
-  absl::StrAppend(&result, statements_->Emit());
+  absl::StrAppend(&result, statements_->Emit(line_info));
   return result;
 }
 
@@ -837,24 +859,25 @@ void AlwaysFlop::AddRegister(LogicRef* reg, Expression* reg_next,
   assignment_block_->Add<NonblockingAssignment>(reg, reg_next);
 }
 
-std::string AlwaysFlop::Emit() const {
+std::string AlwaysFlop::Emit(LineInfo* line_info) const {
   std::string result;
-  std::string sensitivity_list = absl::StrCat("posedge ", clk_->Emit());
+  std::string sensitivity_list =
+      absl::StrCat("posedge ", clk_->Emit(line_info));
   if (rst_.has_value() && rst_->asynchronous) {
     absl::StrAppendFormat(&sensitivity_list, " or %s %s",
                           (rst_->active_low ? "negedge" : "posedge"),
-                          rst_->signal->Emit());
+                          rst_->signal->Emit(line_info));
   }
   absl::StrAppendFormat(&result, "always @ (%s) %s", sensitivity_list,
-                        top_block_->Emit());
+                        top_block_->Emit(line_info));
   return result;
 }
 
-std::string Instantiation::Emit() const {
+std::string Instantiation::Emit(LineInfo* line_info) const {
   std::string result = absl::StrCat(module_name_, " ");
-  auto append_connection = [](std::string* out, const Connection& parameter) {
+  auto append_connection = [=](std::string* out, const Connection& parameter) {
     absl::StrAppendFormat(out, ".%s(%s)", parameter.port_name,
-                          parameter.expression->Emit());
+                          parameter.expression->Emit(line_info));
   };
   if (!parameters_.empty()) {
     absl::StrAppend(&result, "#(\n  ");

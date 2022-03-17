@@ -209,8 +209,8 @@ class FsmBlock : public FsmBlockBase {
   // Returns the resulting conditional block.
   ConditionalFsmBlock& OnCondition(Expression* condition) {
     conditional_blocks_.emplace_back(
-        absl::StrFormat("%s: if (%s)", debug_name(), condition->Emit()), file_,
-        condition);
+        absl::StrFormat("%s: if (%s)", debug_name(), condition->Emit(nullptr)),
+        file_, condition);
     return conditional_blocks_.back();
   }
 

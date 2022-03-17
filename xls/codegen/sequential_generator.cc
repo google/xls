@@ -323,7 +323,7 @@ absl::StatusOr<ModuleGeneratorResult> SequentialModuleBuilder::Build() {
   result.signature = *module_signature();
   result.verilog_text.append(loop_body_pipeline_result_->verilog_text);
   result.verilog_text.append("\n");
-  result.verilog_text.append(module_builder_->module()->Emit());
+  result.verilog_text.append(module_builder_->module()->Emit(nullptr));
 
   return result;
 }

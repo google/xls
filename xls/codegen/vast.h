@@ -45,6 +45,9 @@ class LogicRef;
 class Literal;
 class Unary;
 
+// Abstract type for now.
+class LineInfo;
+
 // Returns a sanitized identifier string based on the given name. Invalid
 // characters are replaced with '_'.
 std::string SanitizeIdentifier(absl::string_view name);
@@ -58,7 +61,7 @@ class VastNode {
   // The file which owns this node.
   VerilogFile* file() const { return file_; }
 
-  virtual std::string Emit() const = 0;
+  virtual std::string Emit(LineInfo* line_info) const = 0;
 
  private:
   VerilogFile* file_;
@@ -145,7 +148,7 @@ class DataType : public VastNode {
 
   bool is_signed() const { return is_signed_; }
 
-  std::string Emit() const override {
+  std::string Emit(LineInfo* line_info) const override {
     XLS_LOG(FATAL) << "EmitWithIdentifier should be called rather than emit";
   }
 
@@ -158,7 +161,8 @@ class DataType : public VastNode {
   //
   // This method is required rather than simply Emit because an identifer string
   // is nested within the string describing the type.
-  std::string EmitWithIdentifier(absl::string_view identifier) const;
+  std::string EmitWithIdentifier(LineInfo* line_info,
+                                 absl::string_view identifier) const;
 
  private:
   Expression* width_;
@@ -184,10 +188,10 @@ class Def : public Statement {
         data_kind_(data_kind),
         data_type_(std::move(data_type)) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
   // Emit the definition without the trailing semicolon.
-  std::string EmitNoSemi() const;
+  std::string EmitNoSemi(LineInfo* line_info) const;
 
   const std::string& GetName() const { return name_; }
   DataKind data_kind() const { return data_kind_; }
@@ -217,7 +221,7 @@ class RegDef : public Def {
          VerilogFile* file)
       : Def(name, DataKind::kReg, std::move(data_type), file), init_(init) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  protected:
   Expression* init_;
@@ -233,7 +237,7 @@ class LogicDef : public Def {
            VerilogFile* file)
       : Def(name, DataKind::kLogic, data_type, file), init_(init) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  protected:
   Expression* init_;
@@ -255,7 +259,7 @@ class DelayStatement : public Statement {
                  VerilogFile* file)
       : Statement(file), delay_(delay), delayed_statement_(delayed_statement) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* delay_;
@@ -268,7 +272,7 @@ class WaitStatement : public Statement {
   WaitStatement(Expression* event, VerilogFile* file)
       : Statement(file), event_(event) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* event_;
@@ -280,7 +284,7 @@ class Forever : public Statement {
   Forever(Statement* statement, VerilogFile* file)
       : Statement(file), statement_(statement) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Statement* statement_;
@@ -292,7 +296,7 @@ class BlockingAssignment : public Statement {
   BlockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file)
       : Statement(file), lhs_(XLS_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* lhs_;
@@ -305,7 +309,7 @@ class NonblockingAssignment : public Statement {
   NonblockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file)
       : Statement(file), lhs_(XLS_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* lhs_;
@@ -324,7 +328,7 @@ class StatementBlock : public VastNode {
   template <typename T, typename... Args>
   inline T* Add(Args&&... args);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::vector<Statement*> statements_;
@@ -341,7 +345,7 @@ class CaseArm : public VastNode {
  public:
   CaseArm(CaseLabel label, VerilogFile* file);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
   StatementBlock* statements() { return statements_; }
 
  private:
@@ -357,7 +361,7 @@ class Case : public Statement {
 
   StatementBlock* AddCaseArm(CaseLabel label);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* subject_;
@@ -377,7 +381,7 @@ class Conditional : public Statement {
   // if a final alternate ("else") clause has been previously added.
   StatementBlock* AddAlternate(Expression* condition = nullptr);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* condition_;
@@ -394,7 +398,7 @@ class WhileStatement : public Statement {
  public:
   WhileStatement(Expression* condition, VerilogFile* file);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
   StatementBlock* statements() const { return statements_; }
 
@@ -410,7 +414,7 @@ class RepeatStatement : public Statement {
                   VerilogFile* file)
       : Statement(file), repeat_count_(repeat_count), statement_(statement) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* repeat_count_;
@@ -424,7 +428,7 @@ class EventControl : public Statement {
   EventControl(Expression* event_expression, VerilogFile* file)
       : Statement(file), event_expression_(event_expression) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* event_expression_;
@@ -495,7 +499,7 @@ class XSentinel : public Expression {
   XSentinel(int64_t width, VerilogFile* file)
       : Expression(file), width_(width) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   int64_t width_;
@@ -518,7 +522,7 @@ class PosEdge : public Expression {
   PosEdge(Expression* expression, VerilogFile* file)
       : Expression(file), expression_(expression) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* expression_;
@@ -530,7 +534,7 @@ class NegEdge : public Expression {
   NegEdge(Expression* expression, VerilogFile* file)
       : Expression(file), expression_(expression) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* expression_;
@@ -555,7 +559,7 @@ class Instantiation : public VastNode {
         parameters_(parameters.begin(), parameters.end()),
         connections_(connections.begin(), connections.end()) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string module_name_;
@@ -570,7 +574,7 @@ class MacroRef : public Expression {
   MacroRef(std::string name, VerilogFile* file)
       : Expression(file), name_(name) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
@@ -582,7 +586,7 @@ class Parameter : public NamedTrait {
   Parameter(absl::string_view name, Expression* rhs, VerilogFile* file)
       : NamedTrait(file), name_(name), rhs_(rhs) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
   std::string GetName() const override { return name_; }
 
  private:
@@ -598,7 +602,7 @@ class LocalParamItem : public NamedTrait {
 
   std::string GetName() const override { return name_; }
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
@@ -611,7 +615,9 @@ class LocalParamItemRef : public Expression {
   LocalParamItemRef(LocalParamItem* item, VerilogFile* file)
       : Expression(file), item_(item) {}
 
-  std::string Emit() const override { return item_->GetName(); }
+  std::string Emit(LineInfo* line_info) const override {
+    return item_->GetName();
+  }
 
  private:
   LocalParamItem* item_;
@@ -623,7 +629,7 @@ class LocalParam : public VastNode {
   using VastNode::VastNode;
   LocalParamItemRef* AddItem(absl::string_view name, Expression* value);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::vector<LocalParamItem*> items_;
@@ -635,7 +641,9 @@ class ParameterRef : public Expression {
   ParameterRef(Parameter* parameter, VerilogFile* file)
       : Expression(file), parameter_(parameter) {}
 
-  std::string Emit() const override { return parameter_->GetName(); }
+  std::string Emit(LineInfo* line_info) const override {
+    return parameter_->GetName();
+  }
 
  private:
   Parameter* parameter_;
@@ -657,7 +665,9 @@ class LogicRef : public IndexableExpression {
 
   bool IsLogicRef() const override { return true; }
 
-  std::string Emit() const override { return def_->GetName(); }
+  std::string Emit(LineInfo* line_info) const override {
+    return def_->GetName();
+  }
 
   // Returns the Def that this LogicRef refers to.
   Def* def() const { return def_; }
@@ -679,7 +689,7 @@ class Unary : public Operator {
 
   bool IsUnary() const override { return true; }
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string op_;
@@ -709,7 +719,7 @@ class AlwaysFlop : public VastNode {
   void AddRegister(LogicRef* reg, Expression* reg_next,
                    Expression* reset_value = nullptr);
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   LogicRef* clk_;
@@ -750,7 +760,7 @@ class AlwaysBase : public StructuredProcedure {
              VerilogFile* file)
       : StructuredProcedure(file),
         sensitivity_list_(sensitivity_list.begin(), sensitivity_list.end()) {}
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  protected:
   virtual std::string name() const = 0;
@@ -773,7 +783,7 @@ class Always : public AlwaysBase {
 class AlwaysComb : public AlwaysBase {
  public:
   explicit AlwaysComb(VerilogFile* file) : AlwaysBase({}, file) {}
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  protected:
   std::string name() const override { return "always_comb"; }
@@ -793,7 +803,7 @@ class Initial : public StructuredProcedure {
  public:
   using StructuredProcedure::StructuredProcedure;
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 };
 
 class Concat : public Expression {
@@ -810,7 +820,7 @@ class Concat : public Expression {
         args_(args.begin(), args.end()),
         replication_(replication) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::vector<Expression*> args_;
@@ -823,7 +833,7 @@ class ArrayAssignmentPattern : public IndexableExpression {
   ArrayAssignmentPattern(absl::Span<Expression* const> args, VerilogFile* file)
       : IndexableExpression(file), args_(args.begin(), args.end()) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::vector<Expression*> args_;
@@ -838,7 +848,7 @@ class BinaryInfix : public Operator {
         lhs_(XLS_DIE_IF_NULL(lhs)),
         rhs_(XLS_DIE_IF_NULL(rhs)) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string op_;
@@ -861,7 +871,7 @@ class Literal : public Expression {
     XLS_CHECK(emit_bit_count_ || bits.bit_count() == 32);
   }
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
   const Bits& bits() const { return bits_; }
 
@@ -883,7 +893,7 @@ class QuotedString : public Expression {
   QuotedString(absl::string_view str, VerilogFile* file)
       : Expression(file), str_(str) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string str_;
@@ -893,7 +903,7 @@ class XLiteral : public Expression {
  public:
   using Expression::Expression;
 
-  std::string Emit() const override { return "'X"; }
+  std::string Emit(LineInfo* line_info) const override { return "'X"; }
 };
 
 // Represents a Verilog slice expression; e.g.
@@ -905,7 +915,7 @@ class Slice : public Expression {
         VerilogFile* file)
       : Expression(file), subject_(subject), hi_(hi), lo_(lo) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   IndexableExpression* subject_;
@@ -922,7 +932,7 @@ class PartSelect : public Expression {
              VerilogFile* file)
       : Expression(file), subject_(subject), start_(start), width_(width) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   IndexableExpression* subject_;
@@ -938,7 +948,7 @@ class Index : public IndexableExpression {
   Index(IndexableExpression* subject, Expression* index, VerilogFile* file)
       : IndexableExpression(file), subject_(subject), index_(index) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   IndexableExpression* subject_;
@@ -957,7 +967,7 @@ class Ternary : public Expression {
         consequent_(consequent),
         alternate_(alternate) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
   int64_t precedence() const override { return 0; }
 
  private:
@@ -977,7 +987,7 @@ class ContinuousAssignment : public VastNode {
   ContinuousAssignment(Expression* lhs, Expression* rhs, VerilogFile* file)
       : VastNode(file), lhs_(lhs), rhs_(rhs) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* lhs_;
@@ -989,7 +999,7 @@ class BlankLine : public Statement {
   BlankLine(VerilogFile* file) : Statement(file) {}
   using Statement::Statement;
 
-  std::string Emit() const override { return ""; }
+  std::string Emit(LineInfo* line_info) const override { return ""; }
 };
 
 // Represents a SystemVerilog simple immediate assert statement of the following
@@ -1004,7 +1014,7 @@ class Assert : public Statement {
          VerilogFile* file)
       : Statement(file), condition_(condition), error_message_(error_message) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   Expression* condition_;
@@ -1025,7 +1035,7 @@ class Cover : public VastNode {
         VerilogFile* file)
       : VastNode(file), clk_(clk), condition_(condition), label_(label) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   LogicRef* clk_;
@@ -1040,7 +1050,7 @@ class Comment : public Statement {
   Comment(absl::string_view text, VerilogFile* file)
       : Statement(file), text_(text) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string text_;
@@ -1052,7 +1062,7 @@ class InlineVerilogStatement : public Statement {
   InlineVerilogStatement(absl::string_view text, VerilogFile* file)
       : Statement(file), text_(text) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string text_;
@@ -1067,7 +1077,7 @@ class InlineVerilogRef : public IndexableExpression {
                    InlineVerilogStatement* raw_statement, VerilogFile* file)
       : IndexableExpression(file), name_(name), raw_statement_(raw_statement) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
@@ -1088,7 +1098,7 @@ class SystemTaskCall : public Statement {
         name_(name),
         args_(std::vector<Expression*>(args.begin(), args.end())) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
@@ -1109,7 +1119,7 @@ class SystemFunctionCall : public Expression {
         name_(name),
         args_(std::vector<Expression*>(args.begin(), args.end())) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
@@ -1187,7 +1197,7 @@ class VerilogFunction : public VastNode {
   // Returns the name of the function.
   std::string name() const { return name_; }
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string name_;
@@ -1213,7 +1223,7 @@ class VerilogFunctionCall : public Expression {
                       VerilogFile* file)
       : Expression(file), func_(func), args_(args.begin(), args.end()) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   VerilogFunction* func_;
@@ -1266,7 +1276,7 @@ class ModuleSection : public VastNode {
   // or any section contained in this section.
   std::vector<ModuleMember> GatherMembers() const;
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::vector<ModuleMember> members_;
@@ -1326,13 +1336,13 @@ class Module : public VastNode {
   absl::Span<const Port> ports() const { return ports_; }
   const std::string& name() const { return name_; }
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   // Add the given Def as a port on the module.
   LogicRef* AddPortDef(Direction direction, Def* def);
 
-  std::string EmitMember(ModuleMember* member);
+  std::string EmitMember(LineInfo* line_info, ModuleMember* member);
 
   std::string name_;
   std::vector<Port> ports_;
@@ -1346,7 +1356,7 @@ class Include : public VastNode {
   Include(absl::string_view path, VerilogFile* file)
       : VastNode(file), path_(path) {}
 
-  std::string Emit() const override;
+  std::string Emit(LineInfo* line_info) const override;
 
  private:
   std::string path_;
@@ -1378,7 +1388,7 @@ class VerilogFile {
     return ptr;
   }
 
-  std::string Emit() const;
+  std::string Emit(LineInfo* line_info = nullptr) const;
 
   verilog::Slice* Slice(IndexableExpression* subject, Expression* hi,
                         Expression* lo) {

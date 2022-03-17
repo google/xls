@@ -847,7 +847,7 @@ absl::Status ModuleBuilder::EmitAssert(
     absl::flat_hash_map<std::string, std::string> supported_placeholders;
     absl::flat_hash_map<std::string, std::string> unsupported_placeholders;
     supported_placeholders["message"] = asrt->message();
-    supported_placeholders["condition"] = condition->Emit();
+    supported_placeholders["condition"] = condition->Emit(nullptr);
     if (asrt->label().has_value()) {
       supported_placeholders["label"] = asrt->label().value();
     } else {
@@ -961,8 +961,8 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
 
   if (fmt_string.has_value()) {
     absl::flat_hash_map<std::string, std::string> placeholders;
-    placeholders["condition"] = condition->Emit();
-    placeholders["input"] = data->Emit();
+    placeholders["condition"] = condition->Emit(nullptr);
+    placeholders["input"] = data->Emit(nullptr);
     placeholders["output"] = ref->GetName();
     placeholders["width"] = absl::StrCat(gate->GetType()->GetFlatBitCount());
     XLS_ASSIGN_OR_RETURN(std::string gate_str,
