@@ -65,13 +65,6 @@ struct PassOptions {
   // optimization pass pipeline which holds this value.
   bool inline_procs = false;
 
-  // Must be specified if inline_procs is true and the package contains any
-  // procs. This is the name of the top-level proc for the purposes of
-  // inlining. All procs will be inlined into this proc.
-  // TODO(https://github.com/google/xls/issues/531) Remove when the package
-  // indicates the top-level proc.
-  absl::optional<std::string> top_level_proc_name;
-
   // If this is not `std::nullopt`, convert array indexes with fewer than or
   // equal to the given number of possible indices (by range analysis) into
   // chains of selects. Otherwise, this optimization is skipped, since it can

@@ -41,9 +41,12 @@ class ProcInliningPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p,
                            std::optional<std::string> top = std::nullopt) {
+    if (top.has_value()) {
+      XLS_RETURN_IF_ERROR(p->SetTopByName(top.value()));
+    }
+
     PassOptions options;
     options.inline_procs = true;
-    options.top_level_proc_name = top;
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          ProcInliningPass().Run(p, options, &results));

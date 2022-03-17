@@ -1137,12 +1137,20 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
     return false;
   }
 
-  if (!options.top_level_proc_name.has_value()) {
+  if (!p->HasTop()) {
     return absl::InvalidArgumentError(
         "Must specify top-level proc name when running proc inlining");
   }
-  XLS_ASSIGN_OR_RETURN(Proc * top,
-                       p->GetProc(options.top_level_proc_name.value()));
+
+  FunctionBase* top_func_base = p->GetTop().value();
+
+  if (!top_func_base->IsProc()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Top level %s should be a proc when running proc inlining",
+        top_func_base->name()));
+  }
+
+  Proc* top = top_func_base->AsProcOrDie();
 
   std::vector<Proc*> procs_to_inline = GetProcsToInline(top);
   if (procs_to_inline.empty()) {

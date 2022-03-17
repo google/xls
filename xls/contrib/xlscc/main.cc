@@ -146,7 +146,7 @@ absl::Status Run(absl::string_view cpp_path) {
     XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
                          translator.GenerateIR_Block(&package, block));
 
-    XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
+    XLS_RETURN_IF_ERROR(package.SetTop(proc));
     if (absl::GetFlag(FLAGS_dump_ir_only)) {
       std::cerr << "Saving Package IR..." << std::endl;
       std::cout << package.DumpIr() << std::endl;
