@@ -1113,6 +1113,100 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 }
 
 absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
+    ImportData* import_data, Module* module, const TypecheckFn& typecheck_fn) {
+  InterpBindings& b = import_data->GetOrCreateTopLevelBindings(module);
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_data->GetRootTypeInfo(module));
+
+  // If they're marked as done in the import cache, we can return them directly.
+  // Otherwise, we'll populate them, and if we populate everything, mark it as
+  // done.
+  if (import_data->IsTopLevelBindingsDone(module)) {
+    return &b;
+  }
+
+  XLS_VLOG(4) << "Making top level bindings for module: " << module->name();
+
+  // Add all the builtin functions.
+  for (Builtin builtin : kAllBuiltins) {
+    b.AddFn(BuiltinToString(builtin), InterpValue::MakeFunction(builtin));
+  }
+
+  // Add all the functions in the top level scope for the module.
+  for (Function* f : module->GetFunctions()) {
+    b.AddFn(f->identifier(),
+            InterpValue::MakeFunction(InterpValue::UserFnData{module, f}));
+  }
+
+  // Add all the type definitions in the top level scope for the module to the
+  // bindings.
+  for (TypeDefinition td : module->GetTypeDefinitions()) {
+    if (absl::holds_alternative<TypeDef*>(td)) {
+      auto* type_def = absl::get<TypeDef*>(td);
+      b.AddTypeDef(type_def->identifier(), type_def);
+    } else if (absl::holds_alternative<StructDef*>(td)) {
+      auto* struct_def = absl::get<StructDef*>(td);
+      b.AddStructDef(struct_def->identifier(), struct_def);
+    } else {
+      auto* enum_def = absl::get<EnumDef*>(td);
+      b.AddEnumDef(enum_def->identifier(), enum_def);
+    }
+  }
+
+  // Add constants/imports present at the top level to the bindings.
+  for (ModuleMember member : module->top()) {
+    XLS_VLOG(3) << "Evaluating module member: " << ToAstNode(member)->ToString()
+                << " (" << ToAstNode(member)->GetNodeTypeName() << ")";
+    if (absl::holds_alternative<ConstantDef*>(member)) {
+      auto* constant_def = absl::get<ConstantDef*>(member);
+      XLS_VLOG(3) << "InitializeTopLevelBindings evaluating: "
+                  << constant_def->ToString();
+      absl::optional<InterpValue> maybe_value =
+          type_info->GetConstExpr(constant_def);
+      if (!maybe_value.has_value()) {
+        return absl::InternalError(
+            absl::StrCat("Missed constexpr constant evaluation: ",
+                         constant_def->ToString()));
+      }
+      InterpValue value = maybe_value.value();
+      b.AddValue(constant_def->identifier(), value);
+      XLS_VLOG(3) << "InitializeTopLevelBindings evaluated: "
+                  << constant_def->ToString() << " to " << value.ToString();
+      continue;
+    }
+
+    if (absl::holds_alternative<Import*>(member)) {
+      auto* import = absl::get<Import*>(member);
+      XLS_VLOG(3) << "InitializeTopLevelBindings importing: "
+                  << import->ToString();
+      absl::optional<InterpBindings::Entry> entry =
+          b.ResolveEntry(import->identifier());
+      if (!entry.has_value()) {
+        XLS_ASSIGN_OR_RETURN(
+            const ModuleInfo* imported,
+            DoImport(typecheck_fn, ImportTokens(import->subject()), import_data,
+                     import->span()));
+        XLS_VLOG(3) << "InitializeTopLevelBindings adding import "
+                    << import->ToString() << " as \"" << import->identifier()
+                    << "\"";
+        b.AddModule(import->identifier(), imported->module.get());
+      }
+      continue;
+    }
+  }
+
+  // Add a "helpful" value to the binding keys -- just to indicate what module
+  // these top level bindings were created for, can be helpful for debugging
+  // when you have an arbitrary InterpBindings and want to understand its
+  // provenance.
+  b.AddValue(absl::StrCat("__top_level_bindings_", module->name()),
+             InterpValue::MakeUnit());
+
+  import_data->MarkTopLevelBindingsDone(module);
+  return &b;
+}
+
+absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
     Module* module, AbstractInterpreter* interp) {
   ImportData* import_data = interp->GetImportData();
   InterpBindings& b = import_data->GetOrCreateTopLevelBindings(module);

@@ -293,7 +293,7 @@ absl::Status Interpreter::RunTest(absl::string_view name, bool bytecode) {
   XLS_ASSIGN_OR_RETURN(TestFunction * test, entry_module_->GetTest(name));
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_level_bindings,
-      InitializeTopLevelBindings(entry_module_, abstract_adapter_.get()));
+      InitializeTopLevelBindings(import_data_, entry_module_, typecheck_));
   InterpBindings bindings(/*parent=*/top_level_bindings);
   bindings.set_fn_ctx(
       FnCtx{entry_module_->name(), absl::StrFormat("%s__test", name)});
@@ -320,7 +320,7 @@ absl::Status Interpreter::RunTestProc(absl::string_view name) {
   Proc* proc = tp->proc();
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_level_bindings,
-      InitializeTopLevelBindings(entry_module_, abstract_adapter_.get()));
+      InitializeTopLevelBindings(import_data_, entry_module_, typecheck_));
   auto bindings =
       std::make_unique<InterpBindings>(/*parent=*/top_level_bindings);
 
@@ -454,7 +454,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
   Interpreter interp(entry_module, typecheck, import_data);
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_level_bindings,
-      InitializeTopLevelBindings(entry_module, interp.abstract_adapter_.get()));
+      InitializeTopLevelBindings(import_data, entry_module, typecheck));
   InterpBindings bindings(/*parent=*/top_level_bindings);
   if (fn_ctx != nullptr) {
     bindings.set_fn_ctx(*fn_ctx);
@@ -730,7 +730,7 @@ absl::Status Interpreter::EvaluateSpawn(Spawn* expr, InterpBindings* bindings,
 
   XLS_ASSIGN_OR_RETURN(
       const InterpBindings* top_level_bindings,
-      InitializeTopLevelBindings(entry_module_, abstract_adapter_.get()));
+      InitializeTopLevelBindings(import_data_, entry_module_, typecheck_));
   auto child_bindings =
       std::make_unique<InterpBindings>(/*parent=*/top_level_bindings);
 

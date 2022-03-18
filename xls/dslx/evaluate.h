@@ -215,20 +215,14 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 // Get-or-creates the top level bindings for a given module (with respect to the
 // interpreter's ImportData as storage).
 //
-// Note that we may not be able to create a *complete* set of bindings in the
-// return value if we've re-entered this routine; e.g. in evaluating a top-level
-// constant we recur to ask "what enums (or similar) are available in the module
-// scope?" -- in those cases we populate as many top level bindings as we can
-// before we reach the work-in-progress point.
+// This call requires that typechecking be complete for the module in question.
 //
 // Args:
+//   import_data: The ImportData for this session.
 //   module: The top-level module to make bindings for.
-//   interp: Provides ability to call back into the interpreter facilities
-//    e.g. on import or for evaluating constant value expressions.
-//
-// Implementation note: the work-in-progress (tracking for re-entrancy as
-// described above) is kept track of via the
-// AbstractInterpreter::{IsWip,NoteWip} functions.
+//   typecheck_fn: The function to use to typecheck a module.
+absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
+    ImportData* import_data, Module* module, const TypecheckFn& typecheck_fn);
 absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
     Module* module, AbstractInterpreter* interp);
 

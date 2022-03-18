@@ -18,6 +18,9 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
@@ -30,6 +33,20 @@
 #include "re2/re2.h"
 
 namespace xls::dslx {
+namespace {
+
+absl::StatusOr<InterpValue> InterpretExpr(
+    ImportData* import_data, TypeInfo* type_info, Expr* expr,
+    const absl::flat_hash_map<std::string, InterpValue>& env) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::EmitExpression(import_data, type_info, expr, env,
+                                      /*caller_bindings=*/absl::nullopt));
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{});
+  return absl::OkStatus();
+}
+
+}  // namespace
 
 // Checks the function's parametrics' and arguments' types.
 static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
@@ -367,10 +384,9 @@ static absl::StatusOr<NameDef*> InstantiateBuiltinParametric(
     auto env = MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(),
                                 ctx->type_info());
 
-    XLS_ASSIGN_OR_RETURN(InterpValue value, Interpreter::InterpretExpr(
-                                                arg->owner(), ctx->type_info(),
-                                                ctx->typecheck_module(),
-                                                ctx->import_data(), env, arg));
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        InterpretExpr(ctx->import_data(), ctx->type_info(), arg, env));
     ctx->type_info()->NoteConstExpr(arg, value);
     return value;
   };
@@ -973,7 +989,7 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
   // top-level bindings with the collected information.
   Interpreter interp(module, ftypecheck, import_data);
   XLS_RETURN_IF_ERROR(
-      InitializeTopLevelBindings(module, interp.abstract_interpreter())
+      InitializeTopLevelBindings(import_data, module, ctx->typecheck_module())
           .status());
 
   return type_info;
@@ -995,6 +1011,7 @@ absl::StatusOr<absl::optional<BuiltinType>> GetAsBuiltinType(
 
     // If the array size/dim is a scalar < 64b, then the element is really an
     // integral type.
+#if 0
     auto typecheck_fn = [import_data](Module* module) {
       return CheckModule(module, import_data);
     };
@@ -1003,6 +1020,10 @@ absl::StatusOr<absl::optional<BuiltinType>> GetAsBuiltinType(
         Interpreter::InterpretExpr(
             module, type_info, typecheck_fn, import_data, {}, array_type->dim(),
             nullptr, type_info->GetItem(array_type->dim()).value()));
+#endif
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue array_dim_value,
+        InterpretExpr(import_data, type_info, array_type->dim(), /*env=*/{}));
 
     if (builtin_type->builtin_type() != BuiltinType::kBits &&
         builtin_type->builtin_type() != BuiltinType::kUN &&

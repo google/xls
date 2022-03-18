@@ -959,6 +959,9 @@ cc_library(
     deps = [
         ":ast",
         ":builtins_metadata",
+        ":bytecode",
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
         ":constexpr_evaluator",
         ":deduce",
         ":deduce_ctx",
