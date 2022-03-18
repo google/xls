@@ -49,12 +49,15 @@ TEST_P(VastTest, SanitizeIdentifier) {
 TEST_P(VastTest, DataTypes) {
   VerilogFile f(UseSystemVerilog());
 
+  LineInfo line_info;
   DataType* scalar = f.ScalarType();
-  EXPECT_EQ(scalar->EmitWithIdentifier(nullptr, "foo"), " foo");
+  EXPECT_EQ(scalar->EmitWithIdentifier(&line_info, "foo"), " foo");
   EXPECT_THAT(scalar->WidthAsInt64(), IsOkAndHolds(1));
   EXPECT_THAT(scalar->FlatBitCountAsInt64(), IsOkAndHolds(1));
   EXPECT_EQ(scalar->width(), nullptr);
   EXPECT_FALSE(scalar->is_signed());
+  EXPECT_EQ(line_info.LookupNode(scalar),
+            std::make_optional(std::vector<LineSpan>{LineSpan(0, 0)}));
 
   // A width 1 data type returned from BitVectorType should be a scalar.
   DataType* u1 = f.BitVectorType(1);
@@ -134,29 +137,31 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
   Module* module = f.Make<Module>("my_module");
   LogicRef* a_ref = module->AddInput("a", f.BitVectorType(1));
   LogicRef* b_ref = module->AddOutput("b", f.BitVectorType(4));
-  module->AddInput("array", f.PackedArrayType(8, {42, 3}));
+  LogicRef* array = module->AddInput("array", f.PackedArrayType(8, {42, 3}));
 
   // Define a bunch of random regs.
-  module->AddReg("r1", f.BitVectorType(1));
-  module->AddReg("r2", f.BitVectorType(2));
-  module->AddReg("r1_init",
-                 f.Make<DataType>(f.PlainLiteral(1), /*is_signed=*/false),
-                 f.PlainLiteral(1));
-  module->AddReg("s", f.BitVectorType(42));
-  module->AddReg("s_init", f.BitVectorType(42), f.Literal(123, 42));
-  module->AddReg(
+  LogicRef* r1 = module->AddReg("r1", f.BitVectorType(1));
+  LogicRef* r2 = module->AddReg("r2", f.BitVectorType(2));
+  LogicRef* r1_init = module->AddReg(
+      "r1_init", f.Make<DataType>(f.PlainLiteral(1), /*is_signed=*/false),
+      f.PlainLiteral(1));
+  LogicRef* s = module->AddReg("s", f.BitVectorType(42));
+  LogicRef* s_init =
+      module->AddReg("s_init", f.BitVectorType(42), f.Literal(123, 42));
+  LogicRef* t = module->AddReg(
       "t", f.Make<DataType>(/*width=*/f.PlainLiteral(42), /*packed_dims=*/
                             std::vector<Expression*>(
                                 {f.PlainLiteral(8),
                                  f.Add(f.PlainLiteral(8), f.PlainLiteral(42))}),
                             /*unpacked_dims=*/std::vector<Expression*>(),
                             /*is_signed=*/false));
-  module->AddReg("signed_foo", f.BitVectorType(8, /*is_signed=*/true));
+  LogicRef* signed_foo =
+      module->AddReg("signed_foo", f.BitVectorType(8, /*is_signed=*/true));
 
   // Define a bunch of random wires.
-  module->AddWire("x", f.BitVectorType(1));
-  module->AddWire("y", f.BitVectorType(1));
-  module->AddWire(
+  LogicRef* x = module->AddWire("x", f.BitVectorType(1));
+  LogicRef* y = module->AddWire("y", f.BitVectorType(1));
+  LogicRef* z = module->AddWire(
       "z", f.Make<DataType>(f.Mul(f.PlainLiteral(3), f.PlainLiteral(3)),
                             /*packed_dims=*/
                             std::vector<Expression*>(
@@ -165,9 +170,10 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
                             /*unpacked_dims=*/std::vector<Expression*>(),
                             /*is_signed=*/true));
 
-  module->Add<ContinuousAssignment>(b_ref,
-                                    f.Concat({a_ref, a_ref, a_ref, a_ref}));
-  EXPECT_EQ(module->Emit(nullptr),
+  VastNode* assign = module->Add<ContinuousAssignment>(
+      b_ref, f.Concat({a_ref, a_ref, a_ref, a_ref}));
+  LineInfo line_info;
+  EXPECT_EQ(module->Emit(&line_info),
             R"(module my_module(
   input wire a,
   output wire [3:0] b,
@@ -185,6 +191,37 @@ TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
   wire signed [3 * 3 - 1:0][7:0][8 + 42 - 1:0] z;
   assign b = {a, a, a, a};
 endmodule)");
+
+  EXPECT_EQ(line_info.LookupNode(module).value(),
+            std::vector<LineSpan>{LineSpan(0, 16)});
+  EXPECT_EQ(line_info.LookupNode(a_ref->def()).value(),
+            std::vector<LineSpan>{LineSpan(1, 1)});
+  EXPECT_EQ(line_info.LookupNode(b_ref->def()).value(),
+            std::vector<LineSpan>{LineSpan(2, 2)});
+  EXPECT_EQ(line_info.LookupNode(array->def()).value(),
+            std::vector<LineSpan>{LineSpan(3, 3)});
+  EXPECT_EQ(line_info.LookupNode(r1->def()).value(),
+            std::vector<LineSpan>{LineSpan(5, 5)});
+  EXPECT_EQ(line_info.LookupNode(r2->def()).value(),
+            std::vector<LineSpan>{LineSpan(6, 6)});
+  EXPECT_EQ(line_info.LookupNode(r1_init->def()).value(),
+            std::vector<LineSpan>{LineSpan(7, 7)});
+  EXPECT_EQ(line_info.LookupNode(s->def()).value(),
+            std::vector<LineSpan>{LineSpan(8, 8)});
+  EXPECT_EQ(line_info.LookupNode(s_init->def()).value(),
+            std::vector<LineSpan>{LineSpan(9, 9)});
+  EXPECT_EQ(line_info.LookupNode(t->def()).value(),
+            std::vector<LineSpan>{LineSpan(10, 10)});
+  EXPECT_EQ(line_info.LookupNode(signed_foo->def()).value(),
+            std::vector<LineSpan>{LineSpan(11, 11)});
+  EXPECT_EQ(line_info.LookupNode(x->def()).value(),
+            std::vector<LineSpan>{LineSpan(12, 12)});
+  EXPECT_EQ(line_info.LookupNode(y->def()).value(),
+            std::vector<LineSpan>{LineSpan(13, 13)});
+  EXPECT_EQ(line_info.LookupNode(z->def()).value(),
+            std::vector<LineSpan>{LineSpan(14, 14)});
+  EXPECT_EQ(line_info.LookupNode(assign).value(),
+            std::vector<LineSpan>{LineSpan(15, 15)});
 }
 
 TEST_P(VastTest, ModuleWithUnpackedArrayRegWithSize) {
@@ -845,7 +882,8 @@ TEST_P(VastTest, ModuleSections) {
   s0->Add<InlineVerilogStatement>("`SOME_MACRO(42);");
   module->AddReg("section_0_reg", f.BitVectorType(42), /*init=*/nullptr,
                  /*section=*/s0);
-  EXPECT_EQ(module->Emit(nullptr),
+  LineInfo line_info;
+  EXPECT_EQ(module->Emit(&line_info),
             R"(module my_module;
   // section 0
   // more stuff in section 0
@@ -857,6 +895,15 @@ TEST_P(VastTest, ModuleSections) {
   // more stuff in section 1
   // random comment at end
 endmodule)");
+
+  EXPECT_EQ(line_info.LookupNode(module).value(),
+            std::vector<LineSpan>{LineSpan(0, 10)});
+  EXPECT_EQ(line_info.LookupNode(s0).value(),
+            std::vector<LineSpan>{LineSpan(1, 4)});
+  EXPECT_EQ(line_info.LookupNode(s1).value(),
+            std::vector<LineSpan>{LineSpan(6, 8)});
+  EXPECT_EQ(line_info.LookupNode(nested_section).value(),
+            std::vector<LineSpan>{LineSpan(7, 7)});
 }
 
 TEST_P(VastTest, VerilogFunction) {
@@ -966,11 +1013,15 @@ TEST_P(VastTest, AssertTest) {
   LogicRef* c_ref = m->AddOutput("c", f.BitVectorType(8));
 
   AlwaysComb* ac = m->Add<AlwaysComb>();
-  ac->statements()->Add<Assert>(f.Equals(a_ref, f.Literal(42, 8)));
-  ac->statements()->Add<BlockingAssignment>(c_ref, f.Add(a_ref, b_ref));
-  ac->statements()->Add<Assert>(f.LessThan(c_ref, f.Literal(100, 8)),
-                                "Oh noes! c is too big");
-  EXPECT_EQ(m->Emit(nullptr),
+  VastNode* assert1 =
+      ac->statements()->Add<Assert>(f.Equals(a_ref, f.Literal(42, 8)));
+  VastNode* assign =
+      ac->statements()->Add<BlockingAssignment>(c_ref, f.Add(a_ref, b_ref));
+  VastNode* assert2 = ac->statements()->Add<Assert>(
+      f.LessThan(c_ref, f.Literal(100, 8)), "Oh noes! c is too big");
+
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
             R"(module top(
   input wire [7:0] a,
   input wire [7:0] b,
@@ -982,6 +1033,15 @@ TEST_P(VastTest, AssertTest) {
     assert #0 (c < 8'h64) else $fatal(0, "Oh noes! c is too big");
   end
 endmodule)");
+
+  EXPECT_EQ(line_info.LookupNode(ac).value(),
+            std::vector<LineSpan>{LineSpan(5, 9)});
+  EXPECT_EQ(line_info.LookupNode(assert1).value(),
+            std::vector<LineSpan>{LineSpan(6, 6)});
+  EXPECT_EQ(line_info.LookupNode(assign).value(),
+            std::vector<LineSpan>{LineSpan(7, 7)});
+  EXPECT_EQ(line_info.LookupNode(assert2).value(),
+            std::vector<LineSpan>{LineSpan(8, 8)});
 }
 
 TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
@@ -1000,8 +1060,8 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
   func->AddArgument("foo", foo_type);
   func->AddArgument("bar", bar_type);
   func->AddArgument("baz", baz_type);
-  func->AddStatement<BlockingAssignment>(func->return_value_ref(),
-                                         f.PlainLiteral(0));
+  VastNode* body = func->AddStatement<BlockingAssignment>(
+      func->return_value_ref(), f.PlainLiteral(0));
 
   LogicRef* a = m->AddReg("a", foo_type);
   LogicRef* b = m->AddWire("b", bar_type);
@@ -1010,7 +1070,8 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
   m->Add<ContinuousAssignment>(
       qux,
       f.Make<VerilogFunctionCall>(func, std::vector<Expression*>{a, b, c}));
-  EXPECT_EQ(m->Emit(nullptr),
+  LineInfo line_info;
+  EXPECT_EQ(m->Emit(&line_info),
             R"(module top;
   function automatic signed [5:0][2:0][32:0] func (input reg foo, input reg signed [6 + 6 - 1:0][110:0] bar, input reg signed [32:0] baz);
     begin
@@ -1023,6 +1084,21 @@ TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
   wire signed [5:0][2:0][32:0] qux;
   assign qux = func(a, b, c);
 endmodule)");
+
+  EXPECT_EQ(line_info.LookupNode(m).value(),
+            std::vector<LineSpan>{LineSpan(0, 11)});
+  EXPECT_EQ(line_info.LookupNode(func).value(),
+            std::vector<LineSpan>{LineSpan(1, 5)});
+  EXPECT_EQ(line_info.LookupNode(body).value(),
+            std::vector<LineSpan>{LineSpan(3, 3)});
+  EXPECT_EQ(line_info.LookupNode(a->def()).value(),
+            std::vector<LineSpan>{LineSpan(6, 6)});
+  EXPECT_EQ(line_info.LookupNode(b->def()).value(),
+            std::vector<LineSpan>{LineSpan(7, 7)});
+  EXPECT_EQ(line_info.LookupNode(c->def()).value(),
+            std::vector<LineSpan>{LineSpan(8, 8)});
+  EXPECT_EQ(line_info.LookupNode(qux->def()).value(),
+            std::vector<LineSpan>{LineSpan(9, 9)});
 }
 
 INSTANTIATE_TEST_SUITE_P(VastTestInstantiation, VastTest,

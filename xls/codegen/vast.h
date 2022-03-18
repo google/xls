@@ -25,6 +25,8 @@
 #include <vector>
 
 #include "absl/algorithm/container.h"
+#include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
@@ -38,6 +40,7 @@ namespace xls {
 namespace verilog {
 
 // Forward declarations.
+class VastNode;
 class VerilogFile;
 class Expression;
 class IndexableExpression;
@@ -45,8 +48,94 @@ class LogicRef;
 class Literal;
 class Unary;
 
-// Abstract type for now.
-class LineInfo;
+class LineSpan {
+ public:
+  LineSpan(int64_t start_line, int64_t end_line)
+      : start_line_(start_line), end_line_(end_line) {}
+
+  int64_t StartLine() const { return start_line_; }
+
+  int64_t EndLine() const { return end_line_; }
+
+  std::string ToString() const {
+    return absl::StrCat("(", StartLine(), ", ", EndLine(), ")");
+  }
+
+  friend bool operator==(const LineSpan& lhs, const LineSpan& rhs) {
+    return lhs.start_line_ == rhs.start_line_ && lhs.end_line_ == rhs.end_line_;
+  }
+
+ private:
+  int64_t start_line_;
+  int64_t end_line_;
+};
+
+// A data structure that keeps track of a set of line spans, along with a
+// "hanging" span that hasn't been ended yet. When `LineInfo::Start` is called,
+// `hanging_start_line` is populated with the current line number, and then when
+// `LineInfo::End` is subsequently called, `hanging_start_line` and the current
+// line number are used to add a `LineSpan` to `completed_spans` and the
+// `hanging_start_line` is set back to `std::nullopt`.
+struct PartialLineSpans {
+  // A set of nonoverlapping spans.
+  std::vector<LineSpan> completed_spans;
+  // The start line number of a span that hasn't been ended yet.
+  std::optional<int64_t> hanging_start_line;
+
+  // Print this as a string.
+  // When there is no `hanging_start_line`, it looks like `[(1, 2), (5, 9)]`.
+  // When there is, it looks like `[(1, 2), (5, 9); 12]`
+  std::string ToString() const;
+};
+
+// A data structure for keeping track of the line numbers that a given VastNode
+// generates into.
+//
+// NOTE: if you don't care about that data, every function in this module that
+// accepts a `LineInfo*` can safely accept a `nullptr`.
+class LineInfo {
+ public:
+  LineInfo() {}
+
+  // Start recording a region in which the given node is active.
+  // CHECK fails if called multiple times with no intervening `End` calls.
+  void Start(const VastNode* node);
+
+  // Stop recording a region in which the given node is active.
+  // CHECK fails if `Start` has not been called an odd number of times on this
+  // node previous to this call.
+  // CHECK fails if called multiple times with no intervening `Start` calls.
+  void End(const VastNode* node);
+
+  // Increase the current line number by the given value.
+  // You may pass in a negative number, but only if that sequence of calls
+  // could equivalently be achieved through only nonnegative numbers.
+  //
+  // For example,
+  // `Start(x), End(x), Increase(4), Increase(-2), Start(y), End(y)`
+  // is a valid sequence of calls, since it is equivalent to
+  // `Start(x), End(x), Increase(2), Start(y), End(y)`.
+  //
+  // On the other hand,
+  // `Start(x), End(x), Increase(-2), Start(y), End(y)`
+  // is an invalid sequence of calls, since there is no semantically equivalent
+  // sequence of calls that does not include negative numbers.
+  void Increase(int64_t delta);
+
+  // Returns the underlying relation between nodes and spans.
+  const absl::flat_hash_map<const VastNode*, PartialLineSpans>& Spans() const {
+    return spans_;
+  }
+
+  // Returns the line spans that a given node covers.
+  // Returns std::nullopt if the given node has a hanging span (Start w/o End).
+  // Returns std::nullopt if the given node was never recorded.
+  std::optional<std::vector<LineSpan>> LookupNode(const VastNode* node) const;
+
+ private:
+  int64_t current_line_number_ = 0;
+  absl::flat_hash_map<const VastNode*, PartialLineSpans> spans_;
+};
 
 // Returns a sanitized identifier string based on the given name. Invalid
 // characters are replaced with '_'.

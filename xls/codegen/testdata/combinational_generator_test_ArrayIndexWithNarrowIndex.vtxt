@@ -8,5 +8,6 @@ module ArrayIndexWithNarrowIndex(
   assign a_unflattened[1] = a[15:8];
   assign a_unflattened[2] = a[23:16];
   assign a_unflattened[3] = a[31:24];
+
   assign out = a_unflattened[idx];
 endmodule

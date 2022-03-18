@@ -7,5 +7,6 @@ module PassThroughArray(
   assign a_unflattened[1] = a[25:13];
   assign a_unflattened[2] = a[38:26];
   assign a_unflattened[3] = a[51:39];
+
   assign out = {a_unflattened[3], a_unflattened[2], a_unflattened[1], a_unflattened[0]};
 endmodule
