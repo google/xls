@@ -39,6 +39,7 @@ class BytecodeEmitter : public ExprVisitor {
       ImportData* import_data, const TypeInfo* type_info, const Function* f,
       const absl::optional<SymbolicBindings>& caller_bindings);
 
+  // TODO(rspringer): 2022-03-16: I think we can delete `caller_bindings`.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitExpression(
       ImportData* import_data, const TypeInfo* type_info, Expr* expr,
       const absl::flat_hash_map<std::string, InterpValue>& env,

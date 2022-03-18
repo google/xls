@@ -223,8 +223,10 @@ cc_library(
     hdrs = ["cpp_transpiler.h"],
     deps = [
         ":ast",
+        ":bytecode",
+        ":bytecode_emitter",
+        ":bytecode_interpreter",
         ":import_data",
-        ":interpreter",
         ":type_info",
         ":typecheck",
         "//xls/common:case_converters",

@@ -419,7 +419,8 @@ void BytecodeEmitter::HandleCast(Cast* node) {
   }
   ConcreteType* from = maybe_from.value();
 
-  absl::optional<ConcreteType*> maybe_to = type_info_->GetItem(node);
+  absl::optional<ConcreteType*> maybe_to =
+      type_info_->GetItem(node->type_annotation());
   if (!maybe_to.has_value()) {
     status_ = absl::InternalError(absl::StrCat(
         "Could not find concrete type for cast \"to\" type: ",
@@ -1028,16 +1029,27 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
         absl::StrCat("Could not find type for number: ", node->ToString()));
   }
 
-  BitsType* bits_type = dynamic_cast<BitsType*>(type_or.value());
-  if (bits_type == nullptr) {
-    return absl::InternalError(
-        "Error in type deduction; number did not have \"bits\" type.");
+  const ConcreteTypeDim* dim = nullptr;
+  bool is_signed = false;
+  if (auto* bits_type = dynamic_cast<BitsType*>(type_or.value());
+      bits_type != nullptr) {
+    dim = &bits_type->size();
+    is_signed = bits_type->is_signed();
+  } else if (auto* enum_type = dynamic_cast<EnumType*>(type_or.value());
+             enum_type != nullptr) {
+    dim = &enum_type->size();
+    if (enum_type->signedness().has_value()) {
+      is_signed = enum_type->signedness().value();
+    }
   }
 
-  ConcreteTypeDim dim = bits_type->size();
-  XLS_ASSIGN_OR_RETURN(int64_t dim_val, dim.GetAsInt64());
+  XLS_RET_CHECK(dim != nullptr) << absl::StrCat(
+      "Error in type deduction; number \"", node->ToString(),
+      "\" did not have bits or enum type: ", type_or.value()->ToString(), ".");
+
+  XLS_ASSIGN_OR_RETURN(int64_t dim_val, dim->GetAsInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(dim_val));
-  return InterpValue::MakeBits(bits_type->is_signed(), bits);
+  return InterpValue::MakeBits(is_signed, bits);
 }
 
 void BytecodeEmitter::HandleRecv(Recv* node) {

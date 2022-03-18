@@ -26,7 +26,9 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/interpreter.h"
+#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/typecheck.h"
 
 namespace xls::dslx {
@@ -38,6 +40,16 @@ struct TranspileData {
   TypeInfo* type_info;
   ImportData* import_data;
 };
+
+absl::StatusOr<InterpValue> InterpretExpr(
+    ImportData* import_data, TypeInfo* type_info, Expr* expr,
+    const absl::flat_hash_map<std::string, InterpValue>& env) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::EmitExpression(import_data, type_info, expr, env,
+                                      /*caller_bindings=*/absl::nullopt));
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*args=*/{});
+}
 
 // Camelizes the input string, unless it's a builtin like "int8_t" or a
 // std::tuple (whose elements have already been Camelized as appropriate.
@@ -80,16 +92,11 @@ absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
 
   std::vector<std::string> members;
   for (const EnumMember& member : enum_def->values()) {
-    auto typecheck_fn = [&xpile_data](Module* module) {
-      return CheckModule(module, xpile_data.import_data);
-    };
-
-    // TODO(rspringer): 2021-06-09 Support parametric values.
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
-        Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
-                                   typecheck_fn, xpile_data.import_data, {},
-                                   member.value));
+        InterpretExpr(xpile_data.import_data, xpile_data.type_info,
+                      member.value, /*env=*/{}));
+
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
     if (bit_count > 64) {
       return absl::InvalidArgumentError(absl::StrFormat(
@@ -169,14 +176,10 @@ absl::StatusOr<std::string> ArrayTypeAnnotationToString(
   if (auto* number = dynamic_cast<Number*>(annot->dim())) {
     XLS_ASSIGN_OR_RETURN(dim_int, number->GetAsUint64());
   } else {
-    auto typecheck_fn = [&xpile_data](Module* module) {
-      return CheckModule(module, xpile_data.import_data);
-    };
     XLS_ASSIGN_OR_RETURN(
         InterpValue dim_value,
-        Interpreter::InterpretExpr(xpile_data.module, xpile_data.type_info,
-                                   typecheck_fn, xpile_data.import_data, {},
-                                   annot->dim()));
+        InterpretExpr(xpile_data.import_data, xpile_data.type_info,
+                      annot->dim(), /*env=*/{}));
     // TODO(rspringer): Handle multidimensional arrays.
     if (!dim_value.IsBits()) {
       return absl::UnimplementedError(
@@ -267,15 +270,10 @@ absl::StatusOr<std::string> GenerateArrayFromValue(
 %s
 %s})";
 
-  auto typecheck_fn = [&xpile_data](Module* module) {
-    return CheckModule(module, xpile_data.import_data);
-  };
   XLS_ASSIGN_OR_RETURN(
       InterpValue array_dim_value,
-      Interpreter::InterpretExpr(
-          xpile_data.module, xpile_data.type_info, typecheck_fn,
-          xpile_data.import_data, {}, array_type->dim(), nullptr,
-          xpile_data.type_info->GetItem(array_type->dim()).value()));
+      InterpretExpr(xpile_data.import_data, xpile_data.type_info,
+                    array_type->dim(), /*env=*/{}));
   if (array_dim_value.IsArray()) {
     return absl::UnimplementedError(
         "Only single-dimensional arrays are currently supported.");
