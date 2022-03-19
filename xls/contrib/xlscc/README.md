@@ -26,6 +26,8 @@ unit tests.
 
 ### Sample Usage ###
 
+(See also https://google.github.io/xls/tutorials/xlscc_overview/ )
+
 To generate some verilog:
 
 ```console
@@ -81,9 +83,9 @@ XlsInt<22, false> test(XlsInt<17, false> x) {
 }" > test.cc
 
 bazel build -c opt //xls/contrib/xlscc:xlscc //xls/tools:opt_main //xls/tools:codegen_main
-bazel-bin/xls/contrib/xlscc/xlscc ~/tmp/test.cc --clang_args_file ~/tmp/clang.args > test.ir
+bazel-bin/xls/contrib/xlscc/xlscc test.cc --clang_args_file clang.args > test.ir
 bazel-bin/xls/tools/opt_main test.ir > test.opt.ir
-bazel-bin/xls/tools/codegen_main test.opt.ir --generator combinational --entry test
+bazel-bin/xls/tools/codegen_main test.opt.ir --generator combinational --top test
 ```
 
 ### Building XLS[cc] with Bazel ###
