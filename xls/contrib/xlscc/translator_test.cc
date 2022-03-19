@@ -3382,6 +3382,121 @@ TEST_F(TranslatorTest, IOProcStaticStruct) {
   }
 }
 
+TEST_F(TranslatorTest, IOShortCircuitAnd) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int zero = 0;
+         int x = in.read();
+         int v = 100;
+         if(zero && x) {
+           v = out.read();
+         }
+         out.write(1 + v);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1000, true)},
+         /*outputs=*/{IOOpTest("out", 101, true)});
+}
+
+TEST_F(TranslatorTest, IOShortCircuitOr) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int one = 1;
+         int x = in.read();
+         int v = 100;
+         if(!(one || x)) {
+           v = out.read();
+         }
+         out.write(1 + v);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1000, true)},
+         /*outputs=*/{IOOpTest("out", 101, true)});
+}
+
+TEST_F(TranslatorTest, IONoShortCircuitAnd) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         const int one = 1;
+         int x = in.read();
+         int v = 100;
+         if(one && x) {
+           v = in.read();
+         }
+         out.write(1 + v);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 0, true), IOOpTest("in", 0, false)},
+         /*outputs=*/{IOOpTest("out", 101, true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 1, true), IOOpTest("in", 1000, true)},
+         /*outputs=*/{IOOpTest("out", 1001, true)});
+}
+
+TEST_F(TranslatorTest, IOConstCondition) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       template<bool direction_read>
+       void read_or_write(__xls_channel<int>& ch, int& val) {
+         if(direction_read) {
+           val = ch.read();
+         } else {
+           ch.write(val);
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int v = 100;
+         read_or_write<true>(in, v);
+         ++v;
+         read_or_write<false>(out, v);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 6, true)});
+}
+
+TEST_F(TranslatorTest, IOConstConditionShortCircuitAnd) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       template<bool direction_read>
+       void read_or_write(__xls_channel<int>& ch, int& val) {
+         if(direction_read) {
+           val = ch.read();
+         } else {
+           if(val > 0) {
+             ch.write(val);
+           }
+         }
+       }
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int v = 100;
+         read_or_write<true>(in, v);
+         ++v;
+         read_or_write<false>(out, v);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 6, true)});
+}
+
 TEST_F(TranslatorTest, ForPipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"

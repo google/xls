@@ -910,6 +910,22 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       xls::BValue op_condition = context().condition_bval(loc);
       XLS_CHECK(op_condition.valid());
 
+      // Ignore IO ops that are definitely condition = 0
+      // XLS opt also does this down-stream, but we try to do it here
+      // for cases like "if(constexpr) {ch.read();} else {ch.write();}
+      // which otherwise confuse XLS[cc] itself.
+      absl::StatusOr<xls::Value> eval_result = EvaluateBVal(op_condition, loc);
+      if (eval_result.ok()) {
+        if (eval_result.value().IsAllZeros()) {
+          IOOpReturn ret;
+          ret.generate_expr = false;
+          XLS_ASSIGN_OR_RETURN(xls::BValue default_bval,
+                               CreateDefaultValue(channel->item_type, loc));
+          ret.value = CValue(default_bval, channel->item_type);
+          return ret;
+        }
+      }
+
       auto call = clang_down_cast<const clang::CallExpr*>(expr);
 
       IOOpReturn ret;
@@ -1471,7 +1487,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                              GenerateIR_Expr(var_decl->getInit(), global_loc));
         if (var_decl->isStaticLocal() || var_decl->isStaticDataMember()) {
           // Statics must have constant initialization
-          if (!EvaluateBVal(value.value()).ok()) {
+          if (!EvaluateBVal(value.value(), global_loc).ok()) {
             return absl::InvalidArgumentError(
                 absl::StrFormat("Statics must have constant initializers at %s",
                                 LocString(loc)));
@@ -3100,16 +3116,70 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
   }
 }
 
-absl::StatusOr<xls::Value> Translator::EvaluateBVal(xls::BValue bval) {
+absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node) {
   xls::IrInterpreter visitor({});
-  XLS_RETURN_IF_ERROR(bval.node()->Accept(&visitor));
-  xls::Value result = visitor.ResolveAsValue(bval.node());
+  XLS_RETURN_IF_ERROR(node->Accept(&visitor));
+  xls::Value result = visitor.ResolveAsValue(node);
   return result;
 }
 
+absl::Status Translator::ShortCircuitNode(
+    xls::Node* node, xls::BValue& top_bval, const xls::SourceLocation& loc,
+    xls::Node* parent, absl::flat_hash_set<xls::Node*>& visited) {
+  if (visited.contains(node)) {
+    return absl::OkStatus();
+  }
+
+  visited.insert(node);
+
+  // Depth-first to allow multi-step short circuits
+  // Index based to avoid modify while iterating
+  for (int oi = 0; oi < node->operand_count(); ++oi) {
+    xls::Node* op = node->operand(oi);
+    XLS_RETURN_IF_ERROR(ShortCircuitNode(op, top_bval, loc, node, visited));
+  }
+
+  if (!((node->op() == xls::Op::kAnd) || (node->op() == xls::Op::kOr))) {
+    return absl::OkStatus();
+  }
+
+  for (xls::Node* op : node->operands()) {
+    absl::StatusOr<xls::Value> const_result = EvaluateNode(op);
+    if (!const_result.ok()) {
+      continue;
+    }
+    if ((node->op() == xls::Op::kAnd) && (!const_result.value().IsAllZeros())) {
+      continue;
+    }
+    if ((node->op() == xls::Op::kOr) && (!const_result.value().IsAllOnes())) {
+      continue;
+    }
+    xls::BValue literal_bval = context().fb->Literal(const_result.value(), loc);
+
+    if (parent != nullptr) {
+      XLS_CHECK(parent->ReplaceOperand(node, literal_bval.node()));
+    } else {
+      top_bval = literal_bval;
+    }
+
+    return absl::OkStatus();
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<xls::Value> Translator::EvaluateBVal(
+    xls::BValue bval, const xls::SourceLocation& loc) {
+  absl::flat_hash_set<xls::Node*> visited;
+  XLS_RETURN_IF_ERROR(
+      ShortCircuitNode(bval.node(), bval, loc, nullptr, visited));
+  return EvaluateNode(bval.node());
+}
+
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
-    const CValue& bvalue) {
-  XLS_ASSIGN_OR_RETURN(xls::Value const_value, EvaluateBVal(bvalue.value()));
+    const CValue& bvalue, const xls::SourceLocation& loc) {
+  XLS_ASSIGN_OR_RETURN(xls::Value const_value,
+                       EvaluateBVal(bvalue.value(), loc));
   return ConstValue(const_value, bvalue.type());
 }
 
@@ -3254,7 +3324,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
             guard.propagate_continue_up = false;
 
             absl::StatusOr<ConstValue> translate_result =
-                TranslateBValToConstVal(translated);
+                TranslateBValToConstVal(translated, loc);
             if (!translate_result.ok()) {
               XLS_LOG(ERROR)
                   << "Failed to evaluate IR as const:"
@@ -3507,7 +3577,8 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     }
     XLS_ASSIGN_OR_RETURN(CValue cond_expr, GenerateIR_Expr(cond_expr, loc));
     XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_expr.type().get()));
-    XLS_ASSIGN_OR_RETURN(xls::Value cond_val, EvaluateBVal(cond_expr.value()));
+    XLS_ASSIGN_OR_RETURN(xls::Value cond_val,
+                         EvaluateBVal(cond_expr.value(), loc));
     if (cond_val.IsAllZeros()) break;
 
     // Generate body
@@ -3535,7 +3606,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     XLS_ASSIGN_OR_RETURN(CValue counter_new_bval,
                          GetIdentifier(counter_namedecl, loc));
     XLS_ASSIGN_OR_RETURN(xls::Value counter_new_val,
-                         EvaluateBVal(counter_new_bval.value()));
+                         EvaluateBVal(counter_new_bval.value(), loc));
 
     CValue flat_counter_val(context().fb->Literal(counter_new_val),
                             counter_new_bval.type());
@@ -4951,6 +5022,8 @@ absl::Status Translator::GenerateMetadataType(const clang::QualType& type_in,
 absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     CValue const& in, std::shared_ptr<CType> out_type,
     const xls::SourceLocation& loc) {
+  XLS_CHECK_NE(in.type().get(), nullptr);
+  XLS_CHECK_NE(out_type.get(), nullptr);
   if (dynamic_cast<const CStructType*>(out_type.get())) {
     return in.value();
   } else if (dynamic_cast<const CVoidType*>(out_type.get())) {

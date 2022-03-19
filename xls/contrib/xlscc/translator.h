@@ -993,8 +993,17 @@ class Translator {
   absl::StatusOr<bool> EvaluateBool(const clang::Expr& expr,
                                     const class clang::ASTContext& ctx,
                                     const xls::SourceLocation& loc);
-  absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval);
-  absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue);
+  absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node);
+
+  absl::Status ShortCircuitNode(xls::Node* node, xls::BValue& top_bval,
+                                const xls::SourceLocation& loc,
+                                xls::Node* parent,
+                                absl::flat_hash_set<xls::Node*>& visited);
+  absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
+                                          const xls::SourceLocation& loc);
+
+  absl::StatusOr<ConstValue> TranslateBValToConstVal(
+      const CValue& bvalue, const xls::SourceLocation& loc);
 
   absl::StatusOr<xls::Op> XLSOpcodeFromClang(clang::BinaryOperatorKind clang_op,
                                              const CType& left_type,
