@@ -78,6 +78,52 @@ A reference build/test environment setup is also provided via `Dockerfile`:
 ~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.
 ```
 
+
+### Quick Build Method without building bazel
+
+This was tested using Debian Stable (Bullseye)
+
+Update system with the following packages:
+
+```
+# Note, this is the same as above, but includes venv
+$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3 python3-venv
+```
+
+Download a binary version of Bazel in 4.x version range. [This](https://github.com/bazelbuild/bazel/releases?q=4.2&expanded=true)
+page has version 4.2.1, in the `Assets` section is a bazel binary for x86_64.  [Download](https://github.com/bazelbuild/bazel/releases/download/4.2.1/bazel-4.2.1-dist.zip), unzip and install to your path.
+
+```
+mkdir ~/bin
+cd ~/bin
+wget https://github.com/bazelbuild/bazel/releases/download/4.2.1/bazel-4.2.1-dist.zip
+unzip bazel-4.2.1-dist.zip
+```
+
+Modify shell to include the new version of bazel
+
+```
+alias alias bazel='/home/${USER}/bin/bazel-4.2.1-linux-x86_64'
+export PATH='/home/${USER}/bin:${PATH}'
+```
+
+Setup venv to build xls
+
+```
+cd xls
+python -m venv venv
+. venv/bin/activate
+python -m pip install -r dependency_support/pip_requirements.txt
+python -c 'import numpy'
+````
+
+Build xls
+
+```
+bazel test -c opt //...
+```
+
+
 ## Stack Diagram and Project Layout
 
 Navigating a new code base can be daunting; the following description provides a
