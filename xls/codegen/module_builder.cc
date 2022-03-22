@@ -66,7 +66,7 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
                                                      VerilogFile* file) {
   XLS_RET_CHECK_GT(value.GetFlatBitCount(), 0);
   if (value.IsBits()) {
-    return file->Literal(value.bits());
+    return file->Literal(value.bits(), std::nullopt);
   }
   // Compound types are represented as a concatenation of their elements.
   std::vector<Value> value_elements;
@@ -88,7 +88,7 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
       elements.push_back(element_expr);
     }
   }
-  return file->Concat(elements);
+  return file->Concat(elements, std::nullopt);
 }
 
 // Returns the given array value as an array assignment pattern. For example,
@@ -114,7 +114,7 @@ absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
     }
     pieces.push_back(element_expr);
   }
-  return file->Make<ArrayAssignmentPattern>(pieces);
+  return file->Make<ArrayAssignmentPattern>(std::nullopt, pieces);
 }
 
 }  // namespace
@@ -142,12 +142,12 @@ absl::Status ModuleBuilder::AddAssignmentToGeneratedExpression(
       std::vector<Expression*> input_elements;
       for (Expression* input : inputs) {
         input_elements.push_back(
-            file_->Index(input->AsIndexableExpressionOrDie(), i));
+            file_->Index(input->AsIndexableExpressionOrDie(), i, std::nullopt));
       }
       XLS_RETURN_IF_ERROR(AddAssignmentToGeneratedExpression(
           array_type->element_type(),
-          file_->Index(lhs->AsIndexableExpressionOrDie(), i), input_elements,
-          gen_rhs_expr, add_assignment, sv_array_expr));
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i, std::nullopt),
+          input_elements, gen_rhs_expr, add_assignment, sv_array_expr));
     }
     return absl::OkStatus();
   }
@@ -168,7 +168,7 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
     } else {
       for (int64_t i = 0; i < value.size(); ++i) {
         XLS_RETURN_IF_ERROR(AddAssignmentFromValue(
-            file_->Index(lhs->AsIndexableExpressionOrDie(), i),
+            file_->Index(lhs->AsIndexableExpressionOrDie(), i, std::nullopt),
             value.element(i), add_assignment));
       }
     }
@@ -188,16 +188,17 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
       file_(file),
       package_("__ModuleBuilder_type_generator"),
       use_system_verilog_(use_system_verilog) {
-  module_ = file_->AddModule(module_name_);
-  functions_section_ = module_->Add<ModuleSection>();
-  constants_section_ = module_->Add<ModuleSection>();
-  input_section_ = module_->Add<ModuleSection>();
-  declaration_and_assignment_section_ = module_->Add<ModuleSection>();
-  instantiation_section_ = module_->Add<ModuleSection>();
-  assert_section_ = module_->Add<ModuleSection>();
-  cover_section_ = module_->Add<ModuleSection>();
-  output_section_ = module_->Add<ModuleSection>();
-  trace_section_ = module_->Add<ModuleSection>();
+  module_ = file_->AddModule(module_name_, std::nullopt);
+  functions_section_ = module_->Add<ModuleSection>(std::nullopt);
+  constants_section_ = module_->Add<ModuleSection>(std::nullopt);
+  input_section_ = module_->Add<ModuleSection>(std::nullopt);
+  declaration_and_assignment_section_ =
+      module_->Add<ModuleSection>(std::nullopt);
+  instantiation_section_ = module_->Add<ModuleSection>(std::nullopt);
+  assert_section_ = module_->Add<ModuleSection>(std::nullopt);
+  cover_section_ = module_->Add<ModuleSection>(std::nullopt);
+  output_section_ = module_->Add<ModuleSection>(std::nullopt);
+  trace_section_ = module_->Add<ModuleSection>(std::nullopt);
 
   NewDeclarationAndAssignmentSections();
 
@@ -215,9 +216,9 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
 
 void ModuleBuilder::NewDeclarationAndAssignmentSections() {
   declaration_subsections_.push_back(
-      declaration_and_assignment_section_->Add<ModuleSection>());
+      declaration_and_assignment_section_->Add<ModuleSection>(std::nullopt));
   assignment_subsections_.push_back(
-      declaration_and_assignment_section_->Add<ModuleSection>());
+      declaration_and_assignment_section_->Add<ModuleSection>(std::nullopt));
 }
 
 absl::Status ModuleBuilder::AssignFromSlice(
@@ -226,17 +227,17 @@ absl::Status ModuleBuilder::AssignFromSlice(
   if (xls_type->IsArray()) {
     ArrayType* array_type = xls_type->AsArrayOrDie();
     for (int64_t i = 0; i < array_type->size(); ++i) {
-      XLS_RETURN_IF_ERROR(
-          AssignFromSlice(file_->Index(lhs->AsIndexableExpressionOrDie(), i),
-                          rhs, array_type->element_type(),
-                          slice_start + GetFlatBitIndexOfElement(array_type, i),
-                          add_assignment));
+      XLS_RETURN_IF_ERROR(AssignFromSlice(
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i, std::nullopt), rhs,
+          array_type->element_type(),
+          slice_start + GetFlatBitIndexOfElement(array_type, i),
+          add_assignment));
     }
   } else {
     add_assignment(
         lhs, file_->Slice(rhs->AsIndexableExpressionOrDie(),
                           /*hi=*/slice_start + xls_type->GetFlatBitCount() - 1,
-                          /*lo=*/slice_start));
+                          /*lo=*/slice_start, std::nullopt));
   }
   return absl::OkStatus();
 }
@@ -251,14 +252,14 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
   // All inputs are flattened so unflatten arrays with a sequence of
   // assignments.
   ArrayType* array_type = type->AsArrayOrDie();
-  LogicRef* ar =
-      module_->AddWire(absl::StrCat(SanitizeIdentifier(name), "_unflattened"),
-                       file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                                NestedArrayBounds(array_type)),
-                       input_section());
+  LogicRef* ar = module_->AddWire(
+      absl::StrCat(SanitizeIdentifier(name), "_unflattened"),
+      file_->UnpackedArrayType(NestedElementWidth(array_type),
+                               NestedArrayBounds(array_type), std::nullopt),
+      std::nullopt, input_section());
   XLS_RETURN_IF_ERROR(AssignFromSlice(
       ar, port, type->AsArrayOrDie(), 0, [&](Expression* lhs, Expression* rhs) {
-        input_section()->Add<ContinuousAssignment>(lhs, rhs);
+        input_section()->Add<ContinuousAssignment>(std::nullopt, lhs, rhs);
       }));
   return ar;
 }
@@ -266,22 +267,27 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
 LogicRef* ModuleBuilder::AddInputPort(absl::string_view name,
                                       int64_t bit_count) {
   return module_->AddInput(SanitizeIdentifier(name),
-                           file_->BitVectorType(bit_count));
+                           file_->BitVectorType(bit_count, std::nullopt),
+                           std::nullopt);
 }
 
 absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
                                           Expression* value) {
   LogicRef* output_port = module_->AddOutput(
-      SanitizeIdentifier(name), file_->BitVectorType(type->GetFlatBitCount()));
+      SanitizeIdentifier(name),
+      file_->BitVectorType(type->GetFlatBitCount(), std::nullopt),
+      std::nullopt);
 
   if (type->IsArray()) {
     // The output is flattened so flatten arrays with a sequence of assignments.
     XLS_RET_CHECK(value->IsIndexableExpression());
     output_section()->Add<ContinuousAssignment>(
-        output_port, FlattenArray(value->AsIndexableExpressionOrDie(),
-                                  type->AsArrayOrDie(), file_));
+        std::nullopt, output_port,
+        FlattenArray(value->AsIndexableExpressionOrDie(), type->AsArrayOrDie(),
+                     file_, std::nullopt));
   } else {
-    output_section()->Add<ContinuousAssignment>(output_port, value);
+    output_section()->Add<ContinuousAssignment>(std::nullopt, output_port,
+                                                value);
   }
   return absl::OkStatus();
 }
@@ -289,9 +295,10 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
 absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
                                           int64_t bit_count,
                                           Expression* value) {
-  LogicRef* output_port = module_->AddOutput(SanitizeIdentifier(name),
-                                             file_->BitVectorType(bit_count));
-  output_section()->Add<ContinuousAssignment>(output_port, value);
+  LogicRef* output_port = module_->AddOutput(
+      SanitizeIdentifier(name), file_->BitVectorType(bit_count, std::nullopt),
+      std::nullopt);
+  output_section()->Add<ContinuousAssignment>(std::nullopt, output_port, value);
   return absl::OkStatus();
 }
 
@@ -304,16 +311,17 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     ref = module_->AddWire(
         SanitizeIdentifier(name),
         file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                 NestedArrayBounds(array_type)),
-        constants_section());
+                                 NestedArrayBounds(array_type), std::nullopt),
+        std::nullopt, constants_section());
   } else {
-    ref = module_->AddWire(SanitizeIdentifier(name),
-                           file_->BitVectorType(type->GetFlatBitCount()),
-                           constants_section());
+    ref = module_->AddWire(
+        SanitizeIdentifier(name),
+        file_->BitVectorType(type->GetFlatBitCount(), std::nullopt),
+        std::nullopt, constants_section());
   }
   XLS_RETURN_IF_ERROR(
       AddAssignmentFromValue(ref, value, [&](Expression* lhs, Expression* rhs) {
-        constants_section()->Add<ContinuousAssignment>(lhs, rhs);
+        constants_section()->Add<ContinuousAssignment>(std::nullopt, lhs, rhs);
       }));
   return ref;
 }
@@ -322,20 +330,21 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
   DataType* data_type;
   if (type->IsArray()) {
     ArrayType* array_type = type->AsArrayOrDie();
-    data_type = file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                         NestedArrayBounds(array_type));
+    data_type =
+        file_->UnpackedArrayType(NestedElementWidth(array_type),
+                                 NestedArrayBounds(array_type), std::nullopt);
   } else {
-    data_type = file_->BitVectorType(type->GetFlatBitCount());
+    data_type = file_->BitVectorType(type->GetFlatBitCount(), std::nullopt);
   }
-  return module_->AddWire(SanitizeIdentifier(name), data_type,
+  return module_->AddWire(SanitizeIdentifier(name), data_type, std::nullopt,
                           declaration_section());
 }
 
 LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
                                          int64_t bit_count) {
   return module_->AddWire(SanitizeIdentifier(name),
-                          file_->BitVectorType(bit_count),
-                          declaration_section());
+                          file_->BitVectorType(bit_count, std::nullopt),
+                          std::nullopt, declaration_section());
 }
 
 bool ModuleBuilder::CanEmitAsInlineExpression(
@@ -388,7 +397,7 @@ absl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
     Node* node, absl::Span<Expression* const> inputs) {
   if (MustEmitAsFunction(node)) {
     XLS_ASSIGN_OR_RETURN(VerilogFunction * func, DefineFunction(node));
-    return file_->Make<VerilogFunctionCall>(func, inputs);
+    return file_->Make<VerilogFunctionCall>(node->loc(), func, inputs);
   }
   return NodeToExpression(node, inputs, file_);
 }
@@ -457,7 +466,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       return a;
     }
     return file_->LogicalAnd(absl::get<Expression*>(a),
-                             absl::get<Expression*>(b));
+                             absl::get<Expression*>(b), std::nullopt);
   };
 
   if (indices.empty()) {
@@ -471,7 +480,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
           /*rhs=*/update_value,
           /*add_assignment=*/
           [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs,
+                                                            rhs);
           });
     } else if (is_statically_false(index_match)) {
       // Indices definitely do *NOT* match the subarray/element being replaced
@@ -483,7 +493,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
           /*rhs=*/rhs,
           /*add_assignment=*/
           [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs,
+                                                            rhs);
           });
     } else {
       // Indices may or may not match the subarray/element being replaced with
@@ -492,7 +503,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
       auto gen_ternary = [&](absl::Span<Expression* const> inputs) {
         return file_->Ternary(absl::get<Expression*>(index_match), inputs[0],
-                              inputs[1]);
+                              inputs[1], std::nullopt);
       };
 
       // Emit a continuous assignment with a ternary select. The ternary
@@ -502,7 +513,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
           xls_type, lhs, /*inputs=*/{update_value, rhs}, gen_ternary,
           /*add_assignment=*/
           [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+            assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs,
+                                                            rhs);
           },
           /*sv_array_expr=*/true);
     }
@@ -524,12 +536,14 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       current_index_match = false;
     } else {
       // Index element is a not literal. The condition is not statically known.
-      current_index_match = file_->Equals(
-          index_type.expression, file_->Literal(UBits(i, index_bit_count)));
+      current_index_match =
+          file_->Equals(index_type.expression,
+                        file_->Literal(UBits(i, index_bit_count), std::nullopt),
+                        std::nullopt);
     }
     XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
-        file_->Index(lhs, i), file_->Index(rhs, i), update_value,
-        indices.subspan(1),
+        file_->Index(lhs, i, std::nullopt), file_->Index(rhs, i, std::nullopt),
+        update_value, indices.subspan(1),
         combine_index_matches(current_index_match, index_match),
         array_type->element_type()));
   }
@@ -555,9 +569,11 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         for (int64_t i = 0; i < inputs.size(); ++i) {
           XLS_RETURN_IF_ERROR(AddAssignment(
               array_type->element_type(),
-              file_->Index(ref, file_->PlainLiteral(i)), inputs[i],
-              [&](Expression* lhs, Expression* rhs) {
-                assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+              file_->Index(ref, file_->PlainLiteral(i, node->loc()),
+                           node->loc()),
+              inputs[i], [&](Expression* lhs, Expression* rhs) {
+                assignment_section()->Add<ContinuousAssignment>(node->loc(),
+                                                                lhs, rhs);
               }));
         }
         break;
@@ -569,7 +585,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
                                  inputs.subspan(1), node->As<ArrayIndex>()));
         XLS_RETURN_IF_ERROR(AddAssignment(
             array_type, ref, rhs, [&](Expression* lhs, Expression* rhs) {
-              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+              assignment_section()->Add<ContinuousAssignment>(node->loc(), lhs,
+                                                              rhs);
             }));
         break;
       }
@@ -591,12 +608,14 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         if (start_width < min_index_width) {
           // Zero-extend start to `min_index_width` bits.
           start_expr = file_->Concat(
-              {file_->Literal(0, min_index_width - start_width), start_expr});
+              {file_->Literal(0, min_index_width - start_width, node->loc()),
+               start_expr},
+              node->loc());
           start_width = min_index_width;
         }
 
         Expression* max_index_expr =
-            file_->Literal(input_array_size - 1, start_width);
+            file_->Literal(input_array_size - 1, start_width, node->loc());
         for (int64_t i = 0; i < array_type->size(); i++) {
           // The index for iteration `i` is out of bounds if the following
           // condition is true:
@@ -610,20 +629,29 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           Expression* element;
           if (input_array_size - 1 - i < 0) {
             // Index is definitely out of bounds.
-            element = file_->Index(input_array, max_index_expr);
+            element = file_->Index(input_array, max_index_expr, node->loc());
           } else {
             // Index might be out of bounds.
-            Expression* oob_condition = file_->GreaterThan(
-                start_expr,
-                file_->Literal(input_array_size - 1 - i, start_width));
+            Expression* oob_condition =
+                file_->GreaterThan(start_expr,
+                                   file_->Literal(input_array_size - 1 - i,
+                                                  start_width, node->loc()),
+                                   node->loc());
             element = file_->Index(
                 input_array,
                 file_->Ternary(
                     oob_condition, max_index_expr,
-                    file_->Add(start_expr, file_->Literal(i, start_width))));
+                    file_->Add(start_expr,
+                               file_->Literal(i, start_width, node->loc()),
+                               node->loc()),
+                    node->loc()),
+                node->loc());
           }
           assignment_section()->Add<ContinuousAssignment>(
-              file_->Index(ref, file_->PlainLiteral(i)), element);
+              node->loc(),
+              file_->Index(ref, file_->PlainLiteral(i, node->loc()),
+                           node->loc()),
+              element);
         }
         break;
       }
@@ -668,11 +696,14 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           for (int64_t j = 0; j < input_size; ++j) {
             XLS_RETURN_IF_ERROR(AddAssignment(
                 input_type->element_type(),
-                file_->Index(ref, file_->PlainLiteral(result_index)),
+                file_->Index(ref,
+                             file_->PlainLiteral(result_index, node->loc()),
+                             node->loc()),
                 file_->Index(input->AsIndexableExpressionOrDie(),
-                             file_->PlainLiteral(j)),
+                             file_->PlainLiteral(j, node->loc()), node->loc()),
                 [&](Expression* lhs, Expression* rhs) {
-                  assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+                  assignment_section()->Add<ContinuousAssignment>(node->loc(),
+                                                                  lhs, rhs);
                 }));
 
             ++result_index;
@@ -681,14 +712,15 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         break;
       }
       case Op::kTupleIndex:
-        XLS_RETURN_IF_ERROR(AssignFromSlice(
-            ref, inputs[0], array_type,
-            GetFlatBitIndexOfElement(
-                node->operand(0)->GetType()->AsTupleOrDie(),
-                node->As<TupleIndex>()->index()),
-            [&](Expression* lhs, Expression* rhs) {
-              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
-            }));
+        XLS_RETURN_IF_ERROR(
+            AssignFromSlice(ref, inputs[0], array_type,
+                            GetFlatBitIndexOfElement(
+                                node->operand(0)->GetType()->AsTupleOrDie(),
+                                node->As<TupleIndex>()->index()),
+                            [&](Expression* lhs, Expression* rhs) {
+                              assignment_section()->Add<ContinuousAssignment>(
+                                  node->loc(), lhs, rhs);
+                            }));
         break;
       case Op::kSel: {
         Select* sel = node->As<Select>();
@@ -714,8 +746,10 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
                       selector,
                       file_->Literal(
                           i,
-                          /*bit_count=*/sel->selector()->BitCountOrDie())),
-                  cases[i], result);
+                          /*bit_count=*/sel->selector()->BitCountOrDie(),
+                          node->loc()),
+                      node->loc()),
+                  cases[i], result, node->loc());
             }
           }
           return result;
@@ -725,7 +759,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             /*gen_rhs_expr=*/select_element,
             /*add_assignment=*/
             [&](Expression* lhs, Expression* rhs) {
-              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+              assignment_section()->Add<ContinuousAssignment>(node->loc(), lhs,
+                                                              rhs);
             },
             /*sv_array_expr=*/true));
         break;
@@ -747,13 +782,19 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
           for (int64_t i = 0; i < inputs.size(); ++i) {
             Expression* masked_input =
                 element_width == 1
-                    ? file_->BitwiseAnd(inputs[i], file_->Index(selector, i))
-                    : file_->BitwiseAnd(inputs[i],
-                                        file_->Concat(
-                                            /*replication=*/element_width,
-                                            {file_->Index(selector, i)}));
-            result = result == nullptr ? masked_input
-                                       : file_->BitwiseOr(result, masked_input);
+                    ? file_->BitwiseAnd(inputs[i],
+                                        file_->Index(selector, i, node->loc()),
+                                        node->loc())
+                    : file_->BitwiseAnd(
+                          inputs[i],
+                          file_->Concat(
+                              /*replication=*/element_width,
+                              {file_->Index(selector, i, node->loc())},
+                              node->loc()),
+                          node->loc());
+            result = result == nullptr
+                         ? masked_input
+                         : file_->BitwiseOr(result, masked_input, node->loc());
           }
           return result;
         };
@@ -764,7 +805,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             array_type, /*lhs=*/ref, /*inputs=*/cases,
             ohs_element, /*add_assignment=*/
             [&](Expression* lhs, Expression* rhs) {
-              assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+              assignment_section()->Add<ContinuousAssignment>(node->loc(), lhs,
+                                                              rhs);
             },
             /*sv_array_expr=*/false));
         break;
@@ -873,7 +915,7 @@ absl::Status ModuleBuilder::EmitAssert(
         std::string assert_str,
         GenerateFormatString(fmt_string.value(), supported_placeholders,
                              unsupported_placeholders));
-    assert_section_->Add<InlineVerilogStatement>(assert_str + ";");
+    assert_section_->Add<InlineVerilogStatement>(asrt->loc(), assert_str + ";");
     return absl::OkStatus();
   }
 
@@ -886,7 +928,7 @@ absl::Status ModuleBuilder::EmitAssert(
   }
   if (assert_always_comb_ == nullptr) {
     // Lazily create the always_comb block.
-    assert_always_comb_ = assert_section_->Add<AlwaysComb>();
+    assert_always_comb_ = assert_section_->Add<AlwaysComb>(asrt->loc());
   }
 
   // Guard the assert with $isunknown to avoid triggering the assert condition
@@ -899,9 +941,11 @@ absl::Status ModuleBuilder::EmitAssert(
   // combinational blocks and asserting only on rising clock edge for
   // non-combinational blocks.
   assert_always_comb_->statements()->Add<Assert>(
-      file_->LogicalOr(file_->Make<SystemFunctionCall>(
-                           "isunknown", std::vector<Expression*>({condition})),
-                       condition),
+      asrt->loc(),
+      file_->LogicalOr(
+          file_->Make<SystemFunctionCall>(
+              asrt->loc(), "isunknown", std::vector<Expression*>({condition})),
+          condition, asrt->loc()),
       asrt->message());
   return absl::OkStatus();
 }
@@ -914,33 +958,34 @@ absl::Status ModuleBuilder::EmitTrace(
     // Make a fresh always_comb or always @* block for combinational traces
     // so that each trace only fires when its own inputs change.
     if (use_system_verilog_) {
-      trace_always = trace_section_->Add<AlwaysComb>();
+      trace_always = trace_section_->Add<AlwaysComb>(trace->loc());
     } else {
       std::vector<SensitivityListElement> sensitivity_list = {
           ImplicitEventExpression{}};
-      trace_always = trace_section_->Add<Always>(sensitivity_list);
+      trace_always =
+          trace_section_->Add<Always>(trace->loc(), sensitivity_list);
     }
   } else {
     // Trigger the trace at every clock if we have one.
     std::vector<SensitivityListElement> sensitivity_list = {
-        file_->Make<PosEdge>(clk_)};
+        file_->Make<PosEdge>(trace->loc(), clk_)};
     // Use an ordinary always block instead of always_ff when targeting
     // SystemVerilog because this is behavioral (not synthesizable) code.
-    trace_always = trace_section_->Add<Always>(sensitivity_list);
+    trace_always = trace_section_->Add<Always>(trace->loc(), sensitivity_list);
   }
 
   Conditional* trace_if =
-      trace_always->statements()->Add<Conditional>(condition);
+      trace_always->statements()->Add<Conditional>(trace->loc(), condition);
 
-  Expression* format_arg =
-      file_->Make<QuotedString>(StepsToVerilogFormatString(trace->format()));
+  Expression* format_arg = file_->Make<QuotedString>(
+      trace->loc(), StepsToVerilogFormatString(trace->format()));
 
   std::vector<Expression*> display_args = {format_arg};
   for (Expression* arg : trace_args) {
     display_args.push_back(arg);
   }
 
-  trace_if->consequent()->Add<Display>(display_args);
+  trace_if->consequent()->Add<Display>(trace->loc(), display_args);
 
   return absl::OkStatus();
 }
@@ -969,8 +1014,10 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
                          GenerateFormatString(fmt_string.value(), placeholders,
                                               /*unsupported_placeholders=*/{}));
     InlineVerilogStatement* raw_statement =
-        assignment_section()->Add<InlineVerilogStatement>(gate_str + ";");
-    return file_->Make<InlineVerilogRef>(ref->GetName(), raw_statement);
+        assignment_section()->Add<InlineVerilogStatement>(gate->loc(),
+                                                          gate_str + ";");
+    return file_->Make<InlineVerilogRef>(gate->loc(), ref->GetName(),
+                                         raw_statement);
   }
 
   // Emit the gate as an AND of the (potentially replicated) condition and the
@@ -982,12 +1029,14 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
   Expression* gate_expr;
   if (gate->GetType()->GetFlatBitCount() == 1) {
     // Data is a single bit. Just AND with the condition.
-    gate_expr = file_->BitwiseAnd(condition, data);
+    gate_expr = file_->BitwiseAnd(condition, data, gate->loc());
   } else {
     // Data is wider than a single bit. Replicate the condition to match the
     // width of the data.
-    gate_expr = file_->BitwiseAnd(
-        file_->Concat(gate->GetType()->GetFlatBitCount(), {condition}), data);
+    gate_expr =
+        file_->BitwiseAnd(file_->Concat(gate->GetType()->GetFlatBitCount(),
+                                        {condition}, gate->loc()),
+                          data, gate->loc());
   }
   XLS_RETURN_IF_ERROR(Assign(ref, gate_expr, gate->GetType()));
   return ref;
@@ -1004,14 +1053,14 @@ absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
     return absl::InvalidArgumentError(
         "Coverpoints require a clock to be present in the module.");
   }
-  cover_section()->Add<Cover>(clk_, condition, cover->label());
+  cover_section()->Add<Cover>(cover->loc(), clk_, condition, cover->label());
   return absl::OkStatus();
 }
 
 absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
   XLS_RETURN_IF_ERROR(
       AddAssignment(type, lhs, rhs, [&](Expression* lhs, Expression* rhs) {
-        assignment_section()->Add<ContinuousAssignment>(lhs, rhs);
+        assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs, rhs);
       }));
   return absl::OkStatus();
 }
@@ -1032,15 +1081,17 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     // Currently, an array register requires SystemVerilog because there is an
     // array assignment in the always flop block.
     ArrayType* array_type = type->AsArrayOrDie();
-    reg =
-        module_->AddReg(SanitizeIdentifier(name),
-                        file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                                 NestedArrayBounds(array_type)),
-                        /*init=*/nullptr, declaration_section());
+    reg = module_->AddReg(
+        SanitizeIdentifier(name),
+        file_->UnpackedArrayType(NestedElementWidth(array_type),
+                                 NestedArrayBounds(array_type), std::nullopt),
+        std::nullopt,
+        /*init=*/nullptr, declaration_section());
   } else {
-    reg = module_->AddReg(SanitizeIdentifier(name),
-                          file_->BitVectorType(type->GetFlatBitCount()),
-                          /*init=*/nullptr, declaration_section());
+    reg = module_->AddReg(
+        SanitizeIdentifier(name),
+        file_->BitVectorType(type->GetFlatBitCount(), std::nullopt),
+        std::nullopt, /*init=*/nullptr, declaration_section());
   }
   return Register{.ref = reg,
                   .next = next,
@@ -1061,8 +1112,9 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
   }
 
   return Register{.ref = module_->AddReg(
-                      SanitizeIdentifier(name), file_->BitVectorType(bit_count),
-                      /*init=*/nullptr, declaration_section()),
+                      SanitizeIdentifier(name),
+                      file_->BitVectorType(bit_count, std::nullopt),
+                      std::nullopt, /*init=*/nullptr, declaration_section()),
                   .next = next,
                   .reset_value = reset_value,
                   .load_enable = nullptr,
@@ -1108,21 +1160,24 @@ absl::Status ModuleBuilder::AssignRegisters(
 
   // Construct an always_ff block.
   std::vector<SensitivityListElement> sensitivity_list;
-  sensitivity_list.push_back(file_->Make<PosEdge>(clk_));
+  sensitivity_list.push_back(file_->Make<PosEdge>(std::nullopt, clk_));
   if (rst_.has_value()) {
     if (rst_->asynchronous) {
       if (rst_->active_low) {
-        sensitivity_list.push_back(file_->Make<NegEdge>(rst_->signal));
+        sensitivity_list.push_back(
+            file_->Make<NegEdge>(std::nullopt, rst_->signal));
       } else {
-        sensitivity_list.push_back(file_->Make<PosEdge>(rst_->signal));
+        sensitivity_list.push_back(
+            file_->Make<PosEdge>(std::nullopt, rst_->signal));
       }
     }
   }
   AlwaysBase* always;
   if (use_system_verilog_) {
-    always = assignment_section()->Add<AlwaysFf>(sensitivity_list);
+    always =
+        assignment_section()->Add<AlwaysFf>(std::nullopt, sensitivity_list);
   } else {
-    always = assignment_section()->Add<Always>(sensitivity_list);
+    always = assignment_section()->Add<Always>(std::nullopt, sensitivity_list);
   }
   // assignment_block is the block in which the foo <= foo_next assignments
   // go. It can either be conditional (if there is a reset signal) or
@@ -1135,22 +1190,23 @@ absl::Status ModuleBuilder::AssignRegisters(
     // on whether the reset signal is asserted.
     Expression* rst_condition;
     if (rst_->active_low) {
-      rst_condition = file_->LogicalNot(rst_->signal);
+      rst_condition = file_->LogicalNot(rst_->signal, std::nullopt);
     } else {
       rst_condition = rst_->signal;
     }
     Conditional* conditional =
-        always->statements()->Add<Conditional>(rst_condition);
+        always->statements()->Add<Conditional>(std::nullopt, rst_condition);
     for (const Register& reg : registers) {
       if (reg.reset_value == nullptr) {
         // Not all registers may have reset values.
         continue;
       }
-      XLS_RETURN_IF_ERROR(AddAssignment(
-          reg.xls_type, reg.ref, reg.reset_value,
-          [&](Expression* lhs, Expression* rhs) {
-            conditional->consequent()->Add<NonblockingAssignment>(lhs, rhs);
-          }));
+      XLS_RETURN_IF_ERROR(
+          AddAssignment(reg.xls_type, reg.ref, reg.reset_value,
+                        [&](Expression* lhs, Expression* rhs) {
+                          conditional->consequent()->Add<NonblockingAssignment>(
+                              std::nullopt, lhs, rhs);
+                        }));
     }
     assignment_block = conditional->AddAlternate();
   }
@@ -1161,9 +1217,10 @@ absl::Status ModuleBuilder::AssignRegisters(
     XLS_RETURN_IF_ERROR(AddAssignment(
         reg.xls_type, reg.ref, reg.next, [&](Expression* lhs, Expression* rhs) {
           assignment_block->Add<NonblockingAssignment>(
-              lhs, reg.load_enable == nullptr
-                       ? rhs
-                       : file_->Ternary(reg.load_enable, rhs, lhs));
+              std::nullopt, lhs,
+              reg.load_enable == nullptr
+                  ? rhs
+                  : file_->Ternary(reg.load_enable, rhs, lhs, std::nullopt));
         }));
   }
   return absl::OkStatus();
@@ -1212,32 +1269,42 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
                                                ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->BitVectorType(slice->BitCountOrDie()));
+      slice->loc(), function_name,
+      file->BitVectorType(slice->BitCountOrDie(), slice->loc()));
   Expression* operand = func->AddArgument(
-      "operand", file->BitVectorType(slice->to_slice()->BitCountOrDie()));
+      "operand",
+      file->BitVectorType(slice->to_slice()->BitCountOrDie(), slice->loc()),
+      slice->loc());
   Expression* start = func->AddArgument(
-      "start", file->BitVectorType(slice->start()->BitCountOrDie()));
+      "start",
+      file->BitVectorType(slice->start()->BitCountOrDie(), slice->loc()),
+      slice->loc());
   int64_t width = slice->width();
 
   LogicRef* zexted_operand = func->AddRegDef(
-      "zexted_operand",
-      file->BitVectorType(slice->to_slice()->BitCountOrDie() + width),
+      slice->loc(), "zexted_operand",
+      file->BitVectorType(slice->to_slice()->BitCountOrDie() + width,
+                          slice->loc()),
       /*init=*/nullptr);
 
-  Expression* zeros = file->Literal(0, width);
+  Expression* zeros = file->Literal(0, width, slice->loc());
   Expression* op_width = file->Literal(
       slice->operand(0)->BitCountOrDie(),
-      Bits::MinBitCountUnsigned(slice->to_slice()->BitCountOrDie()));
+      Bits::MinBitCountUnsigned(slice->to_slice()->BitCountOrDie()),
+      slice->loc());
   // If start of slice is greater than or equal to operand width, result is
   // completely out of bounds and set to all zeros.
-  Expression* out_of_bounds = file->GreaterThanEquals(start, op_width);
+  Expression* out_of_bounds =
+      file->GreaterThanEquals(start, op_width, slice->loc());
   // Pad with width zeros
-  func->AddStatement<BlockingAssignment>(zexted_operand,
-                                         file->Concat({zeros, operand}));
-  Expression* sliced_operand = file->PartSelect(zexted_operand, start, width);
   func->AddStatement<BlockingAssignment>(
-      func->return_value_ref(),
-      file->Ternary(out_of_bounds, zeros, sliced_operand));
+      slice->loc(), zexted_operand,
+      file->Concat({zeros, operand}, slice->loc()));
+  Expression* sliced_operand =
+      file->PartSelect(zexted_operand, start, width, slice->loc());
+  func->AddStatement<BlockingAssignment>(
+      slice->loc(), func->return_value_ref(),
+      file->Ternary(out_of_bounds, zeros, sliced_operand, slice->loc()));
   return func;
 }
 
@@ -1253,27 +1320,34 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
 
   // We purposefully avoid using scalars here, because they cannot be sliced.
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->BitVectorTypeNoScalar(update->BitCountOrDie()));
+      update->loc(), function_name,
+      file->BitVectorTypeNoScalar(update->BitCountOrDie(), update->loc()));
   IndexableExpression* to_update = func->AddArgument(
-      "to_update", file->BitVectorTypeNoScalar(to_update_width));
-  IndexableExpression* start =
-      func->AddArgument("start", file->BitVectorTypeNoScalar(start_width));
+      "to_update", file->BitVectorTypeNoScalar(to_update_width, update->loc()),
+      update->loc());
+  IndexableExpression* start = func->AddArgument(
+      "start", file->BitVectorTypeNoScalar(start_width, update->loc()),
+      update->loc());
   IndexableExpression* update_value = func->AddArgument(
-      "update_value", file->BitVectorTypeNoScalar(update_value_width));
+      "update_value",
+      file->BitVectorTypeNoScalar(update_value_width, update->loc()),
+      update->loc());
 
   Expression* adjusted_update_value;
   if (update_value_width > to_update_width) {
     // Update value is the wider than the value to be updated. Slice update
     // value to match the width.
-    adjusted_update_value =
-        file->Slice(update_value, file->PlainLiteral(to_update_width - 1),
-                    file->PlainLiteral(0));
+    adjusted_update_value = file->Slice(
+        update_value, file->PlainLiteral(to_update_width - 1, update->loc()),
+        file->PlainLiteral(0, update->loc()), update->loc());
   } else if (update_value_width < to_update_width) {
     // Update value is the narrower than the value to be updated. Zero-extend
     // update value to match the width.
     adjusted_update_value =
-        file->Concat({file->Literal(Bits(to_update_width - update_value_width)),
-                      update_value});
+        file->Concat({file->Literal(Bits(to_update_width - update_value_width),
+                                    update->loc()),
+                      update_value},
+                     update->loc());
   } else {
     // Update value is the same width as the value to be updated.
     adjusted_update_value = update_value;
@@ -1294,27 +1368,30 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
   Bits all_ones = bits_ops::ZeroExtend(
       Bits::AllOnes(std::min(update_value_width, to_update_width)),
       to_update_width);
-  Expression* mask =
-      file->BitwiseNot(file->Shll(file->Literal(all_ones), start));
-  Expression* updated_value =
-      file->BitwiseOr(file->Shll(adjusted_update_value, start),
-                      file->BitwiseAnd(mask, to_update));
+  Expression* mask = file->BitwiseNot(
+      file->Shll(file->Literal(all_ones, update->loc()), start, update->loc()),
+      update->loc());
+  Expression* updated_value = file->BitwiseOr(
+      file->Shll(adjusted_update_value, start, update->loc()),
+      file->BitwiseAnd(mask, to_update, update->loc()), update->loc());
 
   if (Bits::MinBitCountUnsigned(to_update_width) > start_width) {
     // Start value is not wide enough to encode the width of the value to
     // update. No need to protect against overshifting.
-    func->AddStatement<BlockingAssignment>(func->return_value_ref(),
-                                           updated_value);
+    func->AddStatement<BlockingAssignment>(
+        update->loc(), func->return_value_ref(), updated_value);
   } else {
     // Start value is wide enough to encode the width of the value to
     // update. Protect against overshifting by selecting the unchanged value to
     // update if start is greater than or equal to width.
     func->AddStatement<BlockingAssignment>(
-        func->return_value_ref(),
-        file->Ternary(
-            file->GreaterThanEquals(
-                start, file->Literal(UBits(to_update_width, start_width))),
-            to_update, updated_value));
+        update->loc(), func->return_value_ref(),
+        file->Ternary(file->GreaterThanEquals(
+                          start,
+                          file->Literal(UBits(to_update_width, start_width),
+                                        update->loc()),
+                          update->loc()),
+                      to_update, updated_value, update->loc()));
   }
   return func;
 }
@@ -1328,41 +1405,47 @@ VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
   ScopedLintDisable lint_disable(section, {Lint::kSignedType, Lint::kMultiply});
 
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->BitVectorType(node->BitCountOrDie()));
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
   XLS_CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
-      "lhs", file->BitVectorType(node->operand(0)->BitCountOrDie()));
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
   Expression* rhs = func->AddArgument(
-      "rhs", file->BitVectorType(node->operand(1)->BitCountOrDie()));
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
   // The code conservatively assigns signed-casted inputs to temporary
   // variables, uses them in the multiply expression which is assigned to
   // another signed temporary. Finally, this is unsign-casted and assigned to
   // the return value of the function. These shenanigans ensure no surprising
   // sign/zero extensions of any values.
-  LogicRef* signed_lhs =
-      func->AddRegDef("signed_lhs",
-                      file->BitVectorType(node->operand(0)->BitCountOrDie(),
-                                          /*is_signed=*/true),
-                      /*init=*/nullptr);
-  LogicRef* signed_rhs =
-      func->AddRegDef("signed_rhs",
-                      file->BitVectorType(node->operand(1)->BitCountOrDie(),
-                                          /*is_signed=*/true),
-                      /*init=*/nullptr);
+  LogicRef* signed_lhs = func->AddRegDef(
+      node->loc(), "signed_lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc(),
+                          /*is_signed=*/true),
+      /*init=*/nullptr);
+  LogicRef* signed_rhs = func->AddRegDef(
+      node->loc(), "signed_rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc(),
+                          /*is_signed=*/true),
+      /*init=*/nullptr);
   LogicRef* signed_result =
-      func->AddRegDef("signed_result",
-                      file->BitVectorType(node->BitCountOrDie(),
+      func->AddRegDef(node->loc(), "signed_result",
+                      file->BitVectorType(node->BitCountOrDie(), node->loc(),
                                           /*is_signed=*/true),
                       /*init=*/nullptr);
-  func->AddStatement<BlockingAssignment>(signed_lhs,
-                                         file->Make<SignedCast>(lhs));
-  func->AddStatement<BlockingAssignment>(signed_rhs,
-                                         file->Make<SignedCast>(rhs));
-  func->AddStatement<BlockingAssignment>(signed_result,
-                                         file->Mul(signed_lhs, signed_rhs));
   func->AddStatement<BlockingAssignment>(
-      func->return_value_ref(), file->Make<UnsignedCast>(signed_result));
-
+      node->loc(), signed_lhs, file->Make<SignedCast>(node->loc(), lhs));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), signed_rhs, file->Make<SignedCast>(node->loc(), rhs));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), signed_result,
+      file->Mul(signed_lhs, signed_rhs, node->loc()));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Make<UnsignedCast>(node->loc(), signed_result));
   return func;
 }
 
@@ -1375,14 +1458,19 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
   ScopedLintDisable lint_disable(section, {Lint::kMultiply});
 
   VerilogFunction* func = section->Add<VerilogFunction>(
-      function_name, file->BitVectorType(node->BitCountOrDie()));
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
   XLS_CHECK_EQ(node->operand_count(), 2);
   Expression* lhs = func->AddArgument(
-      "lhs", file->BitVectorType(node->operand(0)->BitCountOrDie()));
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
   Expression* rhs = func->AddArgument(
-      "rhs", file->BitVectorType(node->operand(1)->BitCountOrDie()));
-  func->AddStatement<BlockingAssignment>(func->return_value_ref(),
-                                         file->Mul(lhs, rhs));
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+  func->AddStatement<BlockingAssignment>(node->loc(), func->return_value_ref(),
+                                         file->Mul(lhs, rhs, node->loc()));
 
   return func;
 }

@@ -120,7 +120,8 @@ int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index) {
 verilog::Expression* UnflattenArrayHelper(int64_t flat_index_offset,
                                           verilog::IndexableExpression* input,
                                           ArrayType* array_type,
-                                          verilog::VerilogFile* file) {
+                                          verilog::VerilogFile* file,
+                                          std::optional<SourceLocation> loc) {
   std::vector<verilog::Expression*> elements;
   const int64_t element_width = array_type->element_type()->GetFlatBitCount();
   for (int64_t i = 0; i < array_type->size(); ++i) {
@@ -129,50 +130,54 @@ verilog::Expression* UnflattenArrayHelper(int64_t flat_index_offset,
     if (array_type->element_type()->IsArray()) {
       elements.push_back(UnflattenArrayHelper(
           element_start, input, array_type->element_type()->AsArrayOrDie(),
-          file));
+          file, loc));
     } else {
-      elements.push_back(
-          file->Slice(input, element_start + element_width - 1, element_start));
+      elements.push_back(file->Slice(input, element_start + element_width - 1,
+                                     element_start, loc));
     }
   }
-  return file->ArrayAssignmentPattern(elements);
+  return file->ArrayAssignmentPattern(elements, loc);
 }
 
 verilog::Expression* UnflattenArray(verilog::IndexableExpression* input,
                                     ArrayType* array_type,
-                                    verilog::VerilogFile* file) {
-  return UnflattenArrayHelper(/*flat_index_offset=*/0, input, array_type, file);
+                                    verilog::VerilogFile* file,
+                                    std::optional<SourceLocation> loc) {
+  return UnflattenArrayHelper(/*flat_index_offset=*/0, input, array_type, file,
+                              loc);
 }
 
 verilog::Expression* UnflattenArrayShapedTupleElement(
     verilog::IndexableExpression* input, TupleType* tuple_type,
-    int64_t tuple_index, verilog::VerilogFile* file) {
+    int64_t tuple_index, verilog::VerilogFile* file,
+    std::optional<SourceLocation> loc) {
   XLS_CHECK(tuple_type->element_type(tuple_index)->IsArray());
   ArrayType* array_type = tuple_type->element_type(tuple_index)->AsArrayOrDie();
   return UnflattenArrayHelper(
       /*flat_index_offset=*/GetFlatBitIndexOfElement(tuple_type, tuple_index),
-      input, array_type, file);
+      input, array_type, file, loc);
 }
 
 verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
                                   ArrayType* array_type,
-                                  verilog::VerilogFile* file) {
+                                  verilog::VerilogFile* file,
+                                  std::optional<SourceLocation> loc) {
   std::vector<verilog::Expression*> elements;
   for (int64_t i = array_type->size() - 1; i >= 0; --i) {
-    verilog::IndexableExpression* element = file->Index(input, i);
+    verilog::IndexableExpression* element = file->Index(input, i, loc);
     if (array_type->element_type()->IsArray()) {
       elements.push_back(FlattenArray(
-          element, array_type->element_type()->AsArrayOrDie(), file));
+          element, array_type->element_type()->AsArrayOrDie(), file, loc));
     } else {
       elements.push_back(element);
     }
   }
-  return file->Concat(elements);
+  return file->Concat(elements, loc);
 }
 
 absl::StatusOr<verilog::Expression*> FlattenTuple(
     absl::Span<verilog::Expression* const> inputs, TupleType* tuple_type,
-    verilog::VerilogFile* file) {
+    verilog::VerilogFile* file, std::optional<SourceLocation> loc) {
   // Tuples are represented as a flat vector of bits. Flatten and concatenate
   // all operands. Only non-zero-width elements of the tuple are represented in
   // inputs.
@@ -190,12 +195,12 @@ absl::StatusOr<verilog::Expression*> FlattenTuple(
     if (element_type->IsArray()) {
       flattened_elements.push_back(
           FlattenArray(element->AsIndexableExpressionOrDie(),
-                       element_type->AsArrayOrDie(), file));
+                       element_type->AsArrayOrDie(), file, loc));
     } else {
       flattened_elements.push_back(element);
     }
   }
-  return file->Concat(flattened_elements);
+  return file->Concat(flattened_elements, loc);
 }
 
 }  // namespace xls

@@ -35,30 +35,37 @@ class ModuleTestbenchTest : public VerilogTestBase {
  protected:
   // Creates and returns a module which simply flops its input twice.
   Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64_t width = 16) {
-    Module* m = f->AddModule("test_module");
-    LogicRef* clk = m->AddInput("clk", f->ScalarType());
-    LogicRef* in = m->AddInput("in", f->BitVectorType(width));
-    LogicRef* out = m->AddOutput("out", f->BitVectorType(width));
+    Module* m = f->AddModule("test_module", std::nullopt);
+    LogicRef* clk =
+        m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+    LogicRef* in =
+        m->AddInput("in", f->BitVectorType(width, std::nullopt), std::nullopt);
+    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, std::nullopt),
+                                 std::nullopt);
 
-    LogicRef* p0 = m->AddReg("p0", f->BitVectorType(width));
-    LogicRef* p1 = m->AddReg("p1", f->BitVectorType(width));
+    LogicRef* p0 =
+        m->AddReg("p0", f->BitVectorType(width, std::nullopt), std::nullopt);
+    LogicRef* p1 =
+        m->AddReg("p1", f->BitVectorType(width, std::nullopt), std::nullopt);
 
-    auto af = m->Add<AlwaysFlop>(clk);
-    af->AddRegister(p0, in);
-    af->AddRegister(p1, p0);
+    auto af = m->Add<AlwaysFlop>(std::nullopt, clk);
+    af->AddRegister(p0, in, std::nullopt);
+    af->AddRegister(p1, p0, std::nullopt);
 
-    m->Add<ContinuousAssignment>(out, p1);
+    m->Add<ContinuousAssignment>(std::nullopt, out, p1);
     return m;
   }
   // Creates and returns a module which simply prints two messages.
   Module* MakeTwoMessageModule(VerilogFile* f) {
-    Module* m = f->AddModule("test_module");
-    m->AddInput("clk", f->ScalarType());
-    Initial* initial = m->Add<Initial>();
-    initial->statements()->Add<Display>(std::vector<Expression*>{
-        f->Make<QuotedString>("This is the first message.")});
-    initial->statements()->Add<Display>(std::vector<Expression*>{
-        f->Make<QuotedString>("This is the second message.")});
+    Module* m = f->AddModule("test_module", std::nullopt);
+    m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+    Initial* initial = m->Add<Initial>(std::nullopt);
+    initial->statements()->Add<Display>(
+        std::nullopt, std::vector<Expression*>{f->Make<QuotedString>(
+                          std::nullopt, "This is the first message.")});
+    initial->statements()->Add<Display>(
+        std::nullopt, std::vector<Expression*>{f->Make<QuotedString>(
+                          std::nullopt, "This is the second message.")});
     return m;
   }
 };
@@ -142,29 +149,38 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
 
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   VerilogFile f(UseSystemVerilog());
-  Module* m = f.AddModule("test_module");
-  LogicRef* clk = m->AddInput("clk", f.ScalarType());
-  LogicRef* x = m->AddInput("x", f.BitVectorType(8));
-  LogicRef* y = m->AddInput("y", f.BitVectorType(8));
-  LogicRef* out0 = m->AddOutput("out0", f.BitVectorType(8));
-  LogicRef* out1 = m->AddOutput("out1", f.BitVectorType(8));
+  Module* m = f.AddModule("test_module", std::nullopt);
+  LogicRef* clk = m->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+  LogicRef* x =
+      m->AddInput("x", f.BitVectorType(8, std::nullopt), std::nullopt);
+  LogicRef* y =
+      m->AddInput("y", f.BitVectorType(8, std::nullopt), std::nullopt);
+  LogicRef* out0 =
+      m->AddOutput("out0", f.BitVectorType(8, std::nullopt), std::nullopt);
+  LogicRef* out1 =
+      m->AddOutput("out1", f.BitVectorType(8, std::nullopt), std::nullopt);
 
-  LogicRef* not_x = m->AddReg("not_x", f.BitVectorType(8));
-  LogicRef* sum = m->AddReg("sum", f.BitVectorType(8));
-  LogicRef* sum_plus_1 = m->AddReg("sum_plus_1", f.BitVectorType(8));
+  LogicRef* not_x =
+      m->AddReg("not_x", f.BitVectorType(8, std::nullopt), std::nullopt);
+  LogicRef* sum =
+      m->AddReg("sum", f.BitVectorType(8, std::nullopt), std::nullopt);
+  LogicRef* sum_plus_1 =
+      m->AddReg("sum_plus_1", f.BitVectorType(8, std::nullopt), std::nullopt);
 
   // Logic is as follows:
   //
   //  out0 <= x        // one-cycle latency.
   //  sum  <= x + y
   //  out1 <= sum + 1  // two-cycle latency.
-  auto af = m->Add<AlwaysFlop>(clk);
-  af->AddRegister(not_x, f.BitwiseNot(x));
-  af->AddRegister(sum, f.Add(x, y));
-  af->AddRegister(sum_plus_1, f.Add(sum, f.PlainLiteral(1)));
+  auto af = m->Add<AlwaysFlop>(std::nullopt, clk);
+  af->AddRegister(not_x, f.BitwiseNot(x, std::nullopt), std::nullopt);
+  af->AddRegister(sum, f.Add(x, y, std::nullopt), std::nullopt);
+  af->AddRegister(sum_plus_1,
+                  f.Add(sum, f.PlainLiteral(1, std::nullopt), std::nullopt),
+                  std::nullopt);
 
-  m->Add<ContinuousAssignment>(out0, not_x);
-  m->Add<ContinuousAssignment>(out1, sum_plus_1);
+  m->Add<ContinuousAssignment>(std::nullopt, out0, not_x);
+  m->Add<ContinuousAssignment>(std::nullopt, out1, sum_plus_1);
 
   Bits out0_captured;
   Bits out1_captured;
@@ -187,10 +203,11 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
 
 TEST_P(ModuleTestbenchTest, TestTimeout) {
   VerilogFile f(UseSystemVerilog());
-  Module* m = f.AddModule("test_module");
-  m->AddInput("clk", f.ScalarType());
-  LogicRef* out = m->AddOutput("out", f.ScalarType());
-  m->Add<ContinuousAssignment>(out, f.PlainLiteral(0));
+  Module* m = f.AddModule("test_module", std::nullopt);
+  m->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+  LogicRef* out = m->AddOutput("out", f.ScalarType(std::nullopt), std::nullopt);
+  m->Add<ContinuousAssignment>(std::nullopt, out,
+                               f.PlainLiteral(0, std::nullopt));
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
   tb.WaitFor("out");

@@ -75,7 +75,7 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
           absl::get<Expression*>(node_exprs.at(operand)));
     }
     return FlattenTuple(nonempty_elements, node->GetType()->AsTupleOrDie(),
-                        mb->file());
+                        mb->file(), node->loc());
   }
   return absl::UnimplementedError(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
@@ -319,15 +319,16 @@ class BlockGenerator {
         mb_.NewDeclarationAndAssignmentSections();
         XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_reads, stage_num));
         if (!stage.registers.empty() || !stage.combinational_nodes.empty()) {
-          mb_.declaration_section()->Add<BlankLine>();
+          mb_.declaration_section()->Add<BlankLine>(std::nullopt);
           mb_.declaration_section()->Add<Comment>(
-              absl::StrFormat("===== Pipe stage %d:", stage_num));
+              std::nullopt, absl::StrFormat("===== Pipe stage %d:", stage_num));
           XLS_RETURN_IF_ERROR(EmitLogic(stage.combinational_nodes, stage_num));
 
           if (!stage.registers.empty()) {
             mb_.NewDeclarationAndAssignmentSections();
-            mb_.declaration_section()->Add<BlankLine>();
+            mb_.declaration_section()->Add<BlankLine>(std::nullopt);
             mb_.declaration_section()->Add<Comment>(
+                std::nullopt,
                 absl::StrFormat("Registers for pipe stage %d:", stage_num));
             XLS_RETURN_IF_ERROR(DeclareRegisters(stage.registers));
             XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_writes, stage_num));
@@ -511,7 +512,7 @@ class BlockGenerator {
         // If the value is a bits type it can be emitted inline. Otherwise emit
         // as a module constant.
         if (reset_value.IsBits()) {
-          reset_expr = mb_.file()->Literal(reset_value.bits());
+          reset_expr = mb_.file()->Literal(reset_value.bits(), std::nullopt);
         } else {
           XLS_ASSIGN_OR_RETURN(
               reset_expr, mb_.DeclareModuleConstant(
@@ -608,7 +609,7 @@ class BlockGenerator {
                          absl::get<Expression*>(node_exprs_.at(output))});
         }
         mb_.instantiation_section()->Add<Instantiation>(
-            block_instantiation->instantiated_block()->name(),
+            std::nullopt, block_instantiation->instantiated_block()->name(),
             block_instantiation->name(),
             /*parameters=*/std::vector<Connection>(), connections);
       }
@@ -722,8 +723,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
   for (Block* block : blocks) {
     XLS_RETURN_IF_ERROR(BlockGenerator::Generate(block, &file, options));
     if (block != blocks.back()) {
-      file.Add(file.Make<BlankLine>());
-      file.Add(file.Make<BlankLine>());
+      file.Add(file.Make<BlankLine>(std::nullopt));
+      file.Add(file.Make<BlankLine>(std::nullopt));
     }
   }
 

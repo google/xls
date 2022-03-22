@@ -38,10 +38,12 @@ TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
   VerilogFile file(UseSystemVerilog());
 
   const std::string kWrappedModuleName = "device_to_wrap";
-  Module* wrapped_m = file.AddModule("device_to_wrap");
-  LogicRef* m_input = wrapped_m->AddInput("in", file.BitVectorType(32));
-  LogicRef* m_output = wrapped_m->AddOutput("out", file.BitVectorType(32));
-  wrapped_m->Add<ContinuousAssignment>(m_output, m_input);
+  Module* wrapped_m = file.AddModule("device_to_wrap", std::nullopt);
+  LogicRef* m_input = wrapped_m->AddInput(
+      "in", file.BitVectorType(32, std::nullopt), std::nullopt);
+  LogicRef* m_output = wrapped_m->AddOutput(
+      "out", file.BitVectorType(32, std::nullopt), std::nullopt);
+  wrapped_m->Add<ContinuousAssignment>(std::nullopt, m_output, m_input);
 
   ModuleSignatureBuilder b(kWrappedModuleName);
   b.AddDataInput(m_input->GetName(), 32);
@@ -65,11 +67,14 @@ TEST_P(WrapIoTest, WrapIoIncrement8b) {
   VerilogFile file(UseSystemVerilog());
 
   const std::string kWrappedModuleName = TestBaseName();
-  Module* wrapped_m = file.AddModule(kWrappedModuleName);
-  LogicRef* m_input = wrapped_m->AddInput("in", file.BitVectorType(8));
-  LogicRef* m_output = wrapped_m->AddOutput("out", file.BitVectorType(8));
-  wrapped_m->Add<ContinuousAssignment>(m_output,
-                                       file.Add(m_input, file.PlainLiteral(1)));
+  Module* wrapped_m = file.AddModule(kWrappedModuleName, std::nullopt);
+  LogicRef* m_input = wrapped_m->AddInput(
+      "in", file.BitVectorType(8, std::nullopt), std::nullopt);
+  LogicRef* m_output = wrapped_m->AddOutput(
+      "out", file.BitVectorType(8, std::nullopt), std::nullopt);
+  wrapped_m->Add<ContinuousAssignment>(
+      std::nullopt, m_output,
+      file.Add(m_input, file.PlainLiteral(1, std::nullopt), std::nullopt));
 
   ModuleSignatureBuilder b(kWrappedModuleName);
   b.AddDataInput(m_input->GetName(), 8);
@@ -98,10 +103,13 @@ TEST_P(WrapIoTest, WrapIoNot16b) {
   VerilogFile file(UseSystemVerilog());
 
   const std::string kWrappedModuleName = TestBaseName();
-  Module* wrapped_m = file.AddModule(kWrappedModuleName);
-  LogicRef* m_input = wrapped_m->AddInput("in", file.BitVectorType(16));
-  LogicRef* m_output = wrapped_m->AddOutput("out", file.BitVectorType(16));
-  wrapped_m->Add<ContinuousAssignment>(m_output, file.BitwiseNot(m_input));
+  Module* wrapped_m = file.AddModule(kWrappedModuleName, std::nullopt);
+  LogicRef* m_input = wrapped_m->AddInput(
+      "in", file.BitVectorType(16, std::nullopt), std::nullopt);
+  LogicRef* m_output = wrapped_m->AddOutput(
+      "out", file.BitVectorType(16, std::nullopt), std::nullopt);
+  wrapped_m->Add<ContinuousAssignment>(std::nullopt, m_output,
+                                       file.BitwiseNot(m_input, std::nullopt));
 
   ModuleSignatureBuilder b(kWrappedModuleName);
   b.AddDataInput(m_input->GetName(), 16);

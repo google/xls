@@ -63,7 +63,8 @@ TEST_P(ModuleBuilderTest, AddTwoNumbers) {
                            mb.AddInputPort("x", p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y,
                            mb.AddInputPort("y", p.GetBitsType(32)));
-  XLS_ASSERT_OK(mb.AddOutputPort("out", p.GetBitsType(32), file.Add(x, y)));
+  XLS_ASSERT_OK(
+      mb.AddOutputPort("out", p.GetBitsType(32), file.Add(x, y, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -79,13 +80,13 @@ TEST_P(ModuleBuilderTest, NewSections) {
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
 
   LogicRef* a = mb.DeclareVariable("a", u32);
-  XLS_ASSERT_OK(mb.Assign(a, file.Add(x, y), u32));
+  XLS_ASSERT_OK(mb.Assign(a, file.Add(x, y, std::nullopt), u32));
 
   mb.NewDeclarationAndAssignmentSections();
   LogicRef* b = mb.DeclareVariable("b", u32);
-  XLS_ASSERT_OK(mb.Assign(b, file.Add(a, y), u32));
+  XLS_ASSERT_OK(mb.Assign(b, file.Add(a, y, std::nullopt), u32));
 
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Negate(b)));
+  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Negate(b, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -101,13 +102,15 @@ TEST_P(ModuleBuilderTest, Registers) {
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
 
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register a,
-                           mb.DeclareRegister("a", u32, file.Add(x, y)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleBuilder::Register a,
+      mb.DeclareRegister("a", u32, file.Add(x, y, std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register b,
                            mb.DeclareRegister("b", u32, y));
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
+  XLS_ASSERT_OK(
+      mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -128,7 +131,8 @@ TEST_P(ModuleBuilderTest, DifferentResetPassedToAssignRegisters) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register has_reset,
-      mb.DeclareRegister("has_reset_reg", u32, x, file.Literal(UBits(0, 32))));
+      mb.DeclareRegister("has_reset_reg", u32, x,
+                         file.Literal(UBits(0, 32), std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register no_reset,
                            mb.DeclareRegister("no_reset_reg", u32, x));
   EXPECT_THAT(
@@ -156,15 +160,18 @@ TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register a,
-      mb.DeclareRegister("a", u32, file.Add(x, y),
-                         /*reset_value=*/file.Literal(UBits(0, 32))));
+      mb.DeclareRegister(
+          "a", u32, file.Add(x, y, std::nullopt),
+          /*reset_value=*/file.Literal(UBits(0, 32), std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register b,
-      mb.DeclareRegister("b", u32, y,
-                         /*reset_value=*/file.Literal(UBits(0x42, 32))));
+      mb.DeclareRegister(
+          "b", u32, y,
+          /*reset_value=*/file.Literal(UBits(0x42, 32), std::nullopt)));
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
+  XLS_ASSERT_OK(
+      mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -186,15 +193,18 @@ TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register a,
-      mb.DeclareRegister("a", u32, file.Add(x, y),
-                         /*reset_value=*/file.Literal(UBits(0, 32))));
+      mb.DeclareRegister(
+          "a", u32, file.Add(x, y, std::nullopt),
+          /*reset_value=*/file.Literal(UBits(0, 32), std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register b,
-      mb.DeclareRegister("b", u32, y,
-                         /*reset_value=*/file.Literal(UBits(0x42, 32))));
+      mb.DeclareRegister(
+          "b", u32, y,
+          /*reset_value=*/file.Literal(UBits(0x42, 32), std::nullopt)));
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
+  XLS_ASSERT_OK(
+      mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -211,15 +221,17 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnable) {
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
   LogicRef* load_enable = mb.AddInputPort("le", 1);
 
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register a,
-                           mb.DeclareRegister("a", u32, file.Add(x, y)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      ModuleBuilder::Register a,
+      mb.DeclareRegister("a", u32, file.Add(x, y, std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleBuilder::Register b,
                            mb.DeclareRegister("b", u32, y));
   a.load_enable = load_enable;
   b.load_enable = load_enable;
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
+  XLS_ASSERT_OK(
+      mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -242,18 +254,21 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register a,
-      mb.DeclareRegister("a", u32, file.Add(x, y),
-                         /*reset_value=*/file.Literal(UBits(0, 32))));
+      mb.DeclareRegister(
+          "a", u32, file.Add(x, y, std::nullopt),
+          /*reset_value=*/file.Literal(UBits(0, 32), std::nullopt)));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleBuilder::Register b,
-      mb.DeclareRegister("b", u32, y,
-                         /*reset_value=*/file.Literal(UBits(0x42, 32))));
+      mb.DeclareRegister(
+          "b", u32, y,
+          /*reset_value=*/file.Literal(UBits(0x42, 32), std::nullopt)));
   a.load_enable = load_enable;
   b.load_enable = load_enable;
 
   XLS_ASSERT_OK(mb.AssignRegisters({a, b}));
 
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref)));
+  XLS_ASSERT_OK(
+      mb.AddOutputPort("out", u32, file.Add(a.ref, b.ref, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());
@@ -268,15 +283,15 @@ TEST_P(ModuleBuilderTest, ComplexComputation) {
                    /*use_system_verilog=*/UseSystemVerilog());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
-  mb.declaration_section()->Add<Comment>("Declaration section.");
-  mb.assignment_section()->Add<Comment>("Assignment section.");
+  mb.declaration_section()->Add<Comment>(std::nullopt, "Declaration section.");
+  mb.assignment_section()->Add<Comment>(std::nullopt, "Assignment section.");
   LogicRef* a = mb.DeclareVariable("a", u32);
   LogicRef* b = mb.DeclareVariable("b", u16);
   LogicRef* c = mb.DeclareVariable("c", u16);
-  XLS_ASSERT_OK(mb.Assign(a, file.Shrl(x, y), u32));
-  XLS_ASSERT_OK(mb.Assign(b, file.Slice(y, 16, 0), u16));
-  XLS_ASSERT_OK(mb.Assign(c, file.Add(b, b), u16));
-  XLS_ASSERT_OK(mb.AddOutputPort("out", u16, file.Add(b, c)));
+  XLS_ASSERT_OK(mb.Assign(a, file.Shrl(x, y, std::nullopt), u32));
+  XLS_ASSERT_OK(mb.Assign(b, file.Slice(y, 16, 0, std::nullopt), u16));
+  XLS_ASSERT_OK(mb.Assign(c, file.Add(b, b, std::nullopt), u16));
+  XLS_ASSERT_OK(mb.AddOutputPort("out", u16, file.Add(b, c, std::nullopt)));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  file.Emit());

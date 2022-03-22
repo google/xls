@@ -120,15 +120,16 @@ absl::StatusOr<Expression*> EmitSel(Select* sel, Expression* selector,
   //   selector ? rhs : case_i
   //
   if (sel->selector()->BitCountOrDie() == 1) {
-    return file->Ternary(selector, rhs, cases[caseno]);
+    return file->Ternary(selector, rhs, cases[caseno], sel->loc());
   }
 
   return file->Ternary(
-      file->Equals(
-          selector,
-          file->Literal(caseno,
-                        /*bit_count=*/sel->selector()->BitCountOrDie())),
-      cases[caseno], rhs);
+      file->Equals(selector,
+                   file->Literal(caseno,
+                                 /*bit_count=*/sel->selector()->BitCountOrDie(),
+                                 sel->loc()),
+                   sel->loc()),
+      cases[caseno], rhs, sel->loc());
 }
 
 absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
@@ -139,15 +140,16 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
   auto do_index_input = [&](int64_t i) {
     int64_t index =
         one_hot->priority() == LsbOrMsb::kLsb ? i : input_width - i - 1;
-    return file->Index(input, index);
+    return file->Index(input, index, one_hot->loc());
   };
   // When LSb has priority, does: x[hi_offset:0]
   // When MSb has priority, does: x[bit_count-1:bit_count-1-hi_offset]
   auto do_slice_input = [&](int64_t hi_offset) {
     if (one_hot->priority() == LsbOrMsb::kLsb) {
-      return file->Slice(input, hi_offset, 0);
+      return file->Slice(input, hi_offset, 0, one_hot->loc());
     }
-    return file->Slice(input, input_width - 1, input_width - 1 - hi_offset);
+    return file->Slice(input, input_width - 1, input_width - 1 - hi_offset,
+                       one_hot->loc());
   };
   std::vector<Expression*> one_hot_bits;
   Expression* all_zero;
@@ -159,15 +161,18 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
 
     Expression* higher_priority_bits_zero;
     if (i == 1) {
-      higher_priority_bits_zero = file->LogicalNot(do_index_input(0));
+      higher_priority_bits_zero =
+          file->LogicalNot(do_index_input(0), one_hot->loc());
     } else {
-      higher_priority_bits_zero = file->Equals(
-          do_slice_input(i - 1), file->Literal(UBits(0, /*bit_count=*/i)));
+      higher_priority_bits_zero =
+          file->Equals(do_slice_input(i - 1),
+                       file->Literal(UBits(0, /*bit_count=*/i), one_hot->loc()),
+                       one_hot->loc());
     }
 
     if (i < output_width - 1) {
-      one_hot_bits.push_back(
-          file->LogicalAnd(do_index_input(i), higher_priority_bits_zero));
+      one_hot_bits.push_back(file->LogicalAnd(
+          do_index_input(i), higher_priority_bits_zero, one_hot->loc()));
     } else {
       // Default case when all inputs are zero.
       all_zero = higher_priority_bits_zero;
@@ -182,7 +187,7 @@ absl::StatusOr<Expression*> EmitOneHot(OneHot* one_hot,
   } else {
     one_hot_bits.insert(one_hot_bits.begin(), all_zero);
   }
-  return file->Concat(one_hot_bits);
+  return file->Concat(one_hot_bits, one_hot->loc());
 }
 
 absl::StatusOr<Expression*> EmitOneHotSelect(
@@ -197,14 +202,18 @@ absl::StatusOr<Expression*> EmitOneHotSelect(
   for (int64_t i = 0; i < inputs.size(); ++i) {
     Expression* masked_input =
         sel_width == 1
-            ? file->BitwiseAnd(inputs[i], file->Index(selector, i))
-            : file->BitwiseAnd(inputs[i], file->Concat(
-                                              /*replication=*/sel_width,
-                                              {file->Index(selector, i)}));
+            ? file->BitwiseAnd(inputs[i], file->Index(selector, i, sel->loc()),
+                               sel->loc())
+            : file->BitwiseAnd(
+                  inputs[i],
+                  file->Concat(
+                      /*replication=*/sel_width,
+                      {file->Index(selector, i, sel->loc())}, sel->loc()),
+                  sel->loc());
     if (sum == nullptr) {
       sum = masked_input;
     } else {
-      sum = file->BitwiseOr(sum, masked_input);
+      sum = file->BitwiseOr(sum, masked_input, sel->loc());
     }
   }
   return sum;
@@ -213,11 +222,12 @@ absl::StatusOr<Expression*> EmitOneHotSelect(
 // Returns an OR reduction of the given expressions. That is:
 //   exprs[0] | exprs[1] | ... | exprs[n]
 absl::StatusOr<Expression*> OrReduction(absl::Span<Expression* const> exprs,
-                                        VerilogFile* file) {
+                                        VerilogFile* file,
+                                        std::optional<SourceLocation> loc) {
   XLS_RET_CHECK(!exprs.empty());
   Expression* reduction = exprs[0];
   for (int i = 1; i < exprs.size(); ++i) {
-    reduction = file->BitwiseOr(reduction, exprs[i]);
+    reduction = file->BitwiseOr(reduction, exprs[i], loc);
   }
   return reduction;
 }
@@ -234,14 +244,15 @@ absl::StatusOr<Expression*> EmitEncode(Encode* encode,
     std::vector<Expression*> elements;
     for (int64_t j = 0; j < encode->operand(0)->BitCountOrDie(); ++j) {
       if (j & (1 << i)) {
-        elements.push_back(file->Index(operand, j));
+        elements.push_back(file->Index(operand, j, encode->loc()));
       }
     }
     XLS_RET_CHECK(!elements.empty());
-    XLS_ASSIGN_OR_RETURN(output_bits[i], OrReduction(elements, file));
+    XLS_ASSIGN_OR_RETURN(output_bits[i],
+                         OrReduction(elements, file, encode->loc()));
   }
   std::reverse(output_bits.begin(), output_bits.end());
-  return file->Concat(output_bits);
+  return file->Concat(output_bits, encode->loc());
 }
 
 // Reverses the order of the bits of the operand.
@@ -253,9 +264,9 @@ absl::StatusOr<Expression*> EmitReverse(Node* reverse,
   for (int64_t i = 0; i < width; ++i) {
     // The concat below naturally reverse bit indices so lhs and rhs can use the
     // same index.
-    output_bits[i] = file->Index(operand, i);
+    output_bits[i] = file->Index(operand, i, reverse->loc());
   }
-  return file->Concat(output_bits);
+  return file->Concat(output_bits, reverse->loc());
 }
 
 // Emits a shift (shll, shrl, shra).
@@ -279,12 +290,13 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
     // is also necessary for correctness of the shift evaluation when the shift
     // appears in a ternary expression because of Verilog type rules.
     shifted_operand = file->Make<UnsignedCast>(
-        file->Shra(file->Make<SignedCast>(operand), shift_amount));
+        shift->loc(), file->Shra(file->Make<SignedCast>(shift->loc(), operand),
+                                 shift_amount, shift->loc()));
   } else if (shift->op() == Op::kShrl) {
-    shifted_operand = file->Shrl(operand, shift_amount);
+    shifted_operand = file->Shrl(operand, shift_amount, shift->loc());
   } else {
     XLS_CHECK_EQ(shift->op(), Op::kShll);
-    shifted_operand = file->Shll(operand, shift_amount);
+    shifted_operand = file->Shll(operand, shift_amount, shift->loc());
   }
 
   // Verilog semantics are not defined for shifting by more than or equal to
@@ -296,27 +308,31 @@ absl::StatusOr<Expression*> EmitShift(Node* shift, Expression* operand,
     return shifted_operand;
   }
 
-  Expression* width_expr =
-      file->Literal(width, /*bit_count=*/shift->operand(1)->BitCountOrDie());
+  Expression* width_expr = file->Literal(
+      width, /*bit_count=*/shift->operand(1)->BitCountOrDie(), shift->loc());
   Expression* overshift_value;
   if (shift->op() == Op::kShra) {
     // Shrl: overshift value is all sign bits.
     overshift_value = file->Concat(
         /*replication=*/width,
-        {file->Index(operand->AsIndexableExpressionOrDie(), width - 1)});
+        {file->Index(operand->AsIndexableExpressionOrDie(), width - 1,
+                     shift->loc())},
+        shift->loc());
   } else {
     // Shll or shrl: overshift value is zero.
-    overshift_value = file->Literal(0, shift->BitCountOrDie());
+    overshift_value = file->Literal(0, shift->BitCountOrDie(), shift->loc());
   }
-  return file->Ternary(file->GreaterThanEquals(shift_amount, width_expr),
-                       overshift_value, shifted_operand);
+  return file->Ternary(
+      file->GreaterThanEquals(shift_amount, width_expr, shift->loc()),
+      overshift_value, shifted_operand, shift->loc());
 }
 
 // Emits a decode instruction.
 absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
                                        VerilogFile* file) {
   Expression* result =
-      file->Shll(file->Literal(1, decode->BitCountOrDie()), operand);
+      file->Shll(file->Literal(1, decode->BitCountOrDie(), decode->loc()),
+                 operand, decode->loc());
   if (Bits::MinBitCountUnsigned(decode->BitCountOrDie()) >
       decode->operand(0)->BitCountOrDie()) {
     // Output is wide enough to accommodate every possible input value. No need
@@ -329,10 +345,15 @@ absl::StatusOr<Expression*> EmitDecode(Decode* decode, Expression* operand,
       file->GreaterThanEquals(
           operand,
           file->Literal(/*value=*/decode->BitCountOrDie(),
-                        /*bit_count=*/decode->operand(0)->BitCountOrDie())),
+                        /*bit_count=*/decode->operand(0)->BitCountOrDie(),
+                        decode->loc()),
+          decode->loc()),
 
-      file->Literal(/*value=*/0, /*bit_count=*/decode->BitCountOrDie()),
-      file->Shll(file->Literal(1, decode->BitCountOrDie()), operand));
+      file->Literal(/*value=*/0, /*bit_count=*/decode->BitCountOrDie(),
+                    decode->loc()),
+      file->Shll(file->Literal(1, decode->BitCountOrDie(), decode->loc()),
+                 operand, decode->loc()),
+      decode->loc());
 }
 
 // Emits an multiply with potentially mixed bit-widths.
@@ -346,9 +367,11 @@ absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
   XLS_RET_CHECK(mul->op() == Op::kUMul || mul->op() == Op::kSMul);
   if (mul->op() == Op::kSMul) {
     return file->Make<UnsignedCast>(
-        file->Mul(file->Make<SignedCast>(lhs), file->Make<SignedCast>(rhs)));
+        mul->loc(),
+        file->Mul(file->Make<SignedCast>(mul->loc(), lhs),
+                  file->Make<SignedCast>(mul->loc(), rhs), mul->loc()));
   } else {
-    return file->Mul(lhs, rhs);
+    return file->Mul(lhs, rhs, mul->loc());
   }
 }
 
@@ -371,13 +394,13 @@ absl::StatusOr<Expression*> NodeToExpression(
       };
   switch (node->op()) {
     case Op::kAdd:
-      return file->Add(inputs[0], inputs[1]);
+      return file->Add(inputs[0], inputs[1], node->loc());
     case Op::kAnd:
-      return do_nary_op([file](Expression* lhs, Expression* rhs) {
-        return file->BitwiseAnd(lhs, rhs);
+      return do_nary_op([file, node](Expression* lhs, Expression* rhs) {
+        return file->BitwiseAnd(lhs, rhs, node->loc());
       });
     case Op::kAndReduce:
-      return file->AndReduce(inputs[0]);
+      return file->AndReduce(inputs[0], node->loc());
     case Op::kAssert:
       return unimplemented();
     case Op::kTrace:
@@ -386,14 +409,16 @@ absl::StatusOr<Expression*> NodeToExpression(
       return unimplemented();
     case Op::kNand:
       return file->BitwiseNot(
-          do_nary_op([file](Expression* lhs, Expression* rhs) {
-            return file->BitwiseAnd(lhs, rhs);
-          }));
+          do_nary_op([file, node](Expression* lhs, Expression* rhs) {
+            return file->BitwiseAnd(lhs, rhs, node->loc());
+          }),
+          node->loc());
     case Op::kNor:
       return file->BitwiseNot(
-          do_nary_op([file](Expression* lhs, Expression* rhs) {
-            return file->BitwiseOr(lhs, rhs);
-          }));
+          do_nary_op([file, node](Expression* lhs, Expression* rhs) {
+            return file->BitwiseOr(lhs, rhs, node->loc());
+          }),
+          node->loc());
     case Op::kAfterAll:
       return absl::UnimplementedError("AfterAll not yet implemented");
     case Op::kReceive:
@@ -402,7 +427,7 @@ absl::StatusOr<Expression*> NodeToExpression(
       return absl::UnimplementedError("Send not yet implemented");
     case Op::kArray: {
       std::vector<Expression*> elements(inputs.begin(), inputs.end());
-      return file->ArrayAssignmentPattern(elements);
+      return file->ArrayAssignmentPattern(elements, node->loc());
     }
     case Op::kArrayIndex:
       return ArrayIndexExpression(inputs[0]->AsIndexableExpressionOrDie(),
@@ -430,10 +455,11 @@ absl::StatusOr<Expression*> NodeToExpression(
       BitSlice* slice = node->As<BitSlice>();
       if (slice->width() == 1) {
         return file->Index(inputs[0]->AsIndexableExpressionOrDie(),
-                           slice->start());
+                           slice->start(), node->loc());
       } else {
         return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
-                           slice->start() + slice->width() - 1, slice->start());
+                           slice->start() + slice->width() - 1, slice->start(),
+                           node->loc());
       }
     }
     case Op::kBitSliceUpdate:
@@ -441,17 +467,17 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kDynamicBitSlice:
       return unimplemented();
     case Op::kConcat:
-      return file->Concat(inputs);
+      return file->Concat(inputs, node->loc());
     case Op::kUDiv:
-      return file->Div(inputs[0], inputs[1]);
+      return file->Div(inputs[0], inputs[1], node->loc());
     case Op::kUMod:
-      return file->Mod(inputs[0], inputs[1]);
+      return file->Mod(inputs[0], inputs[1], node->loc());
     case Op::kEq:
-      return file->Equals(inputs[0], inputs[1]);
+      return file->Equals(inputs[0], inputs[1], node->loc());
     case Op::kUGe:
-      return file->GreaterThanEquals(inputs[0], inputs[1]);
+      return file->GreaterThanEquals(inputs[0], inputs[1], node->loc());
     case Op::kUGt:
-      return file->GreaterThan(inputs[0], inputs[1]);
+      return file->GreaterThan(inputs[0], inputs[1], node->loc());
     case Op::kDecode:
       return EmitDecode(node->As<Decode>(), inputs[0], file);
     case Op::kEncode:
@@ -469,22 +495,23 @@ absl::StatusOr<Expression*> NodeToExpression(
       if (!node->GetType()->IsBits()) {
         return unimplemented();
       }
-      return file->Literal(node->As<xls::Literal>()->value().bits());
+      return file->Literal(node->As<xls::Literal>()->value().bits(),
+                           node->loc());
     case Op::kULe:
-      return file->LessThanEquals(inputs[0], inputs[1]);
+      return file->LessThanEquals(inputs[0], inputs[1], node->loc());
     case Op::kULt:
-      return file->LessThan(inputs[0], inputs[1]);
+      return file->LessThan(inputs[0], inputs[1], node->loc());
     case Op::kMap:
       return unimplemented();
     case Op::kUMul:
     case Op::kSMul:
       return EmitMultiply(node, inputs[0], inputs[1], file);
     case Op::kNe:
-      return file->NotEquals(inputs[0], inputs[1]);
+      return file->NotEquals(inputs[0], inputs[1], node->loc());
     case Op::kNeg:
-      return file->Negate(inputs[0]);
+      return file->Negate(inputs[0], node->loc());
     case Op::kNot:
-      return file->BitwiseNot(inputs[0]);
+      return file->BitwiseNot(inputs[0], node->loc());
     case Op::kOneHot:
       return EmitOneHot(node->As<OneHot>(),
                         inputs[0]->AsIndexableExpressionOrDie(), file);
@@ -493,11 +520,11 @@ absl::StatusOr<Expression*> NodeToExpression(
                               inputs[0]->AsIndexableExpressionOrDie(),
                               inputs.subspan(1), file);
     case Op::kOr:
-      return do_nary_op([file](Expression* lhs, Expression* rhs) {
-        return file->BitwiseOr(lhs, rhs);
+      return do_nary_op([file, node](Expression* lhs, Expression* rhs) {
+        return file->BitwiseOr(lhs, rhs, node->loc());
       });
     case Op::kOrReduce:
-      return file->OrReduce(inputs[0]);
+      return file->OrReduce(inputs[0], node->loc());
     case Op::kParam:
       return unimplemented();
     case Op::kRegisterRead:
@@ -520,7 +547,7 @@ absl::StatusOr<Expression*> NodeToExpression(
       if (node->operand(0)->BitCountOrDie() == 1) {
         // A sign extension of a single-bit value is just replication.
         return file->Concat(
-            /*replication=*/node->BitCountOrDie(), {inputs[0]});
+            /*replication=*/node->BitCountOrDie(), {inputs[0]}, node->loc());
       } else {
         int64_t bits_added =
             node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
@@ -528,63 +555,74 @@ absl::StatusOr<Expression*> NodeToExpression(
             {file->Concat(
                  /*replication=*/bits_added,
                  {file->Index(inputs[0]->AsIndexableExpressionOrDie(),
-                              node->operand(0)->BitCountOrDie() - 1)}),
-             inputs[0]});
+                              node->operand(0)->BitCountOrDie() - 1,
+                              node->loc())},
+                 node->loc()),
+             inputs[0]},
+            node->loc());
       }
     }
     case Op::kSDiv:
       // Wrap the expression in $unsigned to prevent the signed property from
       // leaking out into the rest of the expression.
       return file->Make<UnsignedCast>(
-          file->Div(file->Make<SignedCast>(inputs[0]),
-                    file->Make<SignedCast>(inputs[1])));
+          node->loc(), file->Div(file->Make<SignedCast>(node->loc(), inputs[0]),
+                                 file->Make<SignedCast>(node->loc(), inputs[1]),
+                                 node->loc()));
     case Op::kSMod:
       // Wrap the expression in $unsigned to prevent the signed property from
       // leaking out into the rest of the expression.
       return file->Make<UnsignedCast>(
-          file->Mod(file->Make<SignedCast>(inputs[0]),
-                    file->Make<SignedCast>(inputs[1])));
+          node->loc(), file->Mod(file->Make<SignedCast>(node->loc(), inputs[0]),
+                                 file->Make<SignedCast>(node->loc(), inputs[1]),
+                                 node->loc()));
     case Op::kSGt:
-      return file->GreaterThan(file->Make<SignedCast>(inputs[0]),
-                               file->Make<SignedCast>(inputs[1]));
+      return file->GreaterThan(file->Make<SignedCast>(node->loc(), inputs[0]),
+                               file->Make<SignedCast>(node->loc(), inputs[1]),
+                               node->loc());
     case Op::kSGe:
-      return file->GreaterThanEquals(file->Make<SignedCast>(inputs[0]),
-                                     file->Make<SignedCast>(inputs[1]));
+      return file->GreaterThanEquals(
+          file->Make<SignedCast>(node->loc(), inputs[0]),
+          file->Make<SignedCast>(node->loc(), inputs[1]), node->loc());
     case Op::kSLe:
-      return file->LessThanEquals(file->Make<SignedCast>(inputs[0]),
-                                  file->Make<SignedCast>(inputs[1]));
+      return file->LessThanEquals(
+          file->Make<SignedCast>(node->loc(), inputs[0]),
+          file->Make<SignedCast>(node->loc(), inputs[1]), node->loc());
     case Op::kSLt:
-      return file->LessThan(file->Make<SignedCast>(inputs[0]),
-                            file->Make<SignedCast>(inputs[1]));
+      return file->LessThan(file->Make<SignedCast>(node->loc(), inputs[0]),
+                            file->Make<SignedCast>(node->loc(), inputs[1]),
+                            node->loc());
     case Op::kSub:
-      return file->Sub(inputs[0], inputs[1]);
+      return file->Sub(inputs[0], inputs[1], node->loc());
     case Op::kTupleIndex: {
       if (node->GetType()->IsArray()) {
         return UnflattenArrayShapedTupleElement(
             inputs[0]->AsIndexableExpressionOrDie(),
             node->operand(0)->GetType()->AsTupleOrDie(),
-            node->As<TupleIndex>()->index(), file);
+            node->As<TupleIndex>()->index(), file, node->loc());
       }
       const int64_t start =
           GetFlatBitIndexOfElement(node->operand(0)->GetType()->AsTupleOrDie(),
                                    node->As<TupleIndex>()->index());
       const int64_t width = node->GetType()->GetFlatBitCount();
       return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
-                         start + width - 1, start);
+                         start + width - 1, start, node->loc());
     }
     case Op::kTuple:
-      return FlattenTuple(inputs, node->GetType()->AsTupleOrDie(), file);
+      return FlattenTuple(inputs, node->GetType()->AsTupleOrDie(), file,
+                          node->loc());
     case Op::kXor:
-      return do_nary_op([file](Expression* lhs, Expression* rhs) {
-        return file->BitwiseXor(lhs, rhs);
+      return do_nary_op([file, node](Expression* lhs, Expression* rhs) {
+        return file->BitwiseXor(lhs, rhs, node->loc());
       });
     case Op::kXorReduce:
-      return file->XorReduce(inputs[0]);
+      return file->XorReduce(inputs[0], node->loc());
     case Op::kZeroExt: {
       int64_t bits_added =
           node->BitCountOrDie() - node->operand(0)->BitCountOrDie();
 
-      return file->Concat({file->Literal(0, bits_added), inputs[0]});
+      return file->Concat(
+          {file->Literal(0, bits_added, node->loc()), inputs[0]}, node->loc());
     }
     case Op::kInputPort:
     case Op::kOutputPort:
@@ -633,11 +671,13 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
       clamped_index = index;
     } else {
       Expression* max_index =
-          file->Literal(UBits(array_type->size() - 1, index_type->bit_count()));
+          file->Literal(UBits(array_type->size() - 1, index_type->bit_count()),
+                        array_index->loc());
       clamped_index =
-          file->Ternary(file->GreaterThan(index, max_index), max_index, index);
+          file->Ternary(file->GreaterThan(index, max_index, array_index->loc()),
+                        max_index, index, array_index->loc());
     }
-    value = file->Index(value, clamped_index);
+    value = file->Index(value, clamped_index, array_index->loc());
     type = array_type->element_type();
   }
   return value;

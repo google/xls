@@ -128,7 +128,8 @@ absl::Status SequentialModuleBuilder::AddFsm(
       .NextState(running_state);
   running_state
       ->OnCondition(file_.BitwiseAnd(index_holds_max_inclusive_value,
-                                     fsm_last_pipeline_cycle->logic_ref))
+                                     fsm_last_pipeline_cycle->logic_ref,
+                                     std::nullopt))
       .NextState(done_state);
   done_state->SetOutput(fsm_valid_out, 1)
       .OnCondition(port_references_.ready_out.value())
@@ -148,10 +149,11 @@ absl::Status SequentialModuleBuilder::AddFsm(
 
   // Build and connect.
   XLS_RETURN_IF_ERROR(fsm.Build());
-  module()->Add<BlankLine>();
-  module()->Add<Comment>("FSM driven wires.");
+  module()->Add<BlankLine>(std::nullopt);
+  module()->Add<Comment>(std::nullopt, "FSM driven wires.");
   for (const auto& wire_reg : wire_reg_assignments) {
-    module()->Add<ContinuousAssignment>(wire_reg.first, wire_reg.second);
+    module()->Add<ContinuousAssignment>(std::nullopt, wire_reg.first,
+                                        wire_reg.second);
   }
   return absl::OkStatus();
 }
@@ -195,9 +197,10 @@ absl::Status SequentialModuleBuilder::AddSequentialLogic() {
       Register accumulator_register,
       make_register(
           file_.Ternary(ready_in, port_references_.data_in.at(0),
-                        pipeline_output),
+                        pipeline_output, std::nullopt),
           &module_signature_->data_outputs().at(0),
-          /*load_enable=*/file_.BitwiseOr(ready_in, last_pipeline_cycle)));
+          /*load_enable=*/
+          file_.BitwiseOr(ready_in, last_pipeline_cycle, std::nullopt)));
   XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters({accumulator_register}));
 
   // Add registers for invariants.
@@ -247,12 +250,12 @@ SequentialModuleBuilder::AddStaticStridedCounter(
   }
 
   // Pretty print verilog.
-  module_builder_->declaration_section()->Add<BlankLine>();
+  module_builder_->declaration_section()->Add<BlankLine>(std::nullopt);
   module_builder_->declaration_section()->Add<Comment>(
-      "Declarations for counter " + name);
-  module_builder_->assignment_section()->Add<BlankLine>();
+      std::nullopt, "Declarations for counter " + name);
+  module_builder_->assignment_section()->Add<BlankLine>(std::nullopt);
   module_builder_->assignment_section()->Add<Comment>(
-      "Assignments for counter " + name);
+      std::nullopt, "Assignments for counter " + name);
 
   // Determine counter value limit and the number of bits needed to represent
   // this number.
@@ -268,9 +271,11 @@ SequentialModuleBuilder::AddStaticStridedCounter(
   // register.
   LogicRef* counter_wire =
       module_builder_->DeclareVariable(name + "_wire", num_counter_bits);
-  Expression* counter_next =
-      file_.Ternary(refs.set_zero, file_.PlainLiteral(0),
-                    file_.Add(counter_wire, file_.PlainLiteral(stride)));
+  Expression* counter_next = file_.Ternary(
+      refs.set_zero, file_.PlainLiteral(0, std::nullopt),
+      file_.Add(counter_wire, file_.PlainLiteral(stride, std::nullopt),
+                std::nullopt),
+      std::nullopt);
   XLS_ASSIGN_OR_RETURN(
       ModuleBuilder::Register counter_register,
       module_builder_->DeclareRegister(name, num_counter_bits, counter_next));
@@ -278,13 +283,16 @@ SequentialModuleBuilder::AddStaticStridedCounter(
   refs.value = counter_register.ref;
 
   // Add counter always-block.
-  counter_register.load_enable = file_.BitwiseOr(refs.increment, refs.set_zero);
+  counter_register.load_enable =
+      file_.BitwiseOr(refs.increment, refs.set_zero, std::nullopt);
   XLS_RETURN_IF_ERROR(module_builder_->AssignRegisters({counter_register}));
 
   // Compare counter value to maximum value.
   refs.holds_max_inclusive_value = DeclareVariableAndAssign(
       name + "_holds_max_inclusive_value",
-      file_.Equals(refs.value, file_.PlainLiteral(max_inclusive_value)),
+      file_.Equals(refs.value,
+                   file_.PlainLiteral(max_inclusive_value, std::nullopt),
+                   std::nullopt),
       num_counter_bits);
 
   return refs;
@@ -421,8 +429,9 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
     return module_builder_->AddInputPort(SanitizeIdentifier(name), num_bits);
   };
   auto add_output_port = [&](absl::string_view name, int64_t num_bits) {
-    return module_builder_->module()->AddOutput(SanitizeIdentifier(name),
-                                                file_.BitVectorType(num_bits));
+    return module_builder_->module()->AddOutput(
+        SanitizeIdentifier(name), file_.BitVectorType(num_bits, std::nullopt),
+        std::nullopt);
   };
 
   // Clock.
@@ -510,6 +519,7 @@ absl::Status SequentialModuleBuilder::InstantiateLoopBody(
 
   // Instantiate loop body.
   module_builder_->assignment_section()->Add<Instantiation>(
+      std::nullopt,
       /*module_name=*/loop_body_pipeline_result_->signature.module_name(),
       /*instance_name=*/"loop_body",
       /*parameters=*/std::vector<Connection>(),

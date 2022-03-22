@@ -116,14 +116,18 @@ TEST_F(FlatteningTest, ExpressionFlattening) {
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
   verilog::VerilogFile f(/*use_system_verilog=*/false);
-  verilog::Module* m = f.AddModule(TestName());
+  verilog::Module* m = f.AddModule(TestName(), std::nullopt);
 
   EXPECT_EQ(
-      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {3})), a_of_b5, &f)
+      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {3}, std::nullopt),
+                             std::nullopt),
+                   a_of_b5, &f, std::nullopt)
           ->Emit(nullptr),
       "{foo[2], foo[1], foo[0]}");
   EXPECT_EQ(
-      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {2})), array_2d, &f)
+      FlattenArray(m->AddReg("foo", f.UnpackedArrayType(5, {2}, std::nullopt),
+                             std::nullopt),
+                   array_2d, &f, std::nullopt)
           ->Emit(nullptr),
       "{{foo[1][2], foo[1][1], foo[1][0]}, {foo[0][2], foo[0][1], foo[0][0]}}");
 }
@@ -135,26 +139,34 @@ TEST_F(FlatteningTest, ExpressionUnflattening) {
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
   verilog::VerilogFile f(/*use_system_verilog=*/false);
-  verilog::Module* m = f.AddModule(TestName());
+  verilog::Module* m = f.AddModule(TestName(), std::nullopt);
 
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(15)), a_of_b5, &f)
+  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(15, std::nullopt),
+                                     std::nullopt),
+                           a_of_b5, &f, std::nullopt)
                 ->Emit(nullptr),
             "'{foo[4:0], foo[9:5], foo[14:10]}");
-  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(30)), array_2d, &f)
+  EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(30, std::nullopt),
+                                     std::nullopt),
+                           array_2d, &f, std::nullopt)
                 ->Emit(nullptr),
             "'{'{foo[4:0], foo[9:5], foo[14:10]}, '{foo[19:15], foo[24:20], "
             "foo[29:25]}}");
 
   TupleType* tuple_type = p.GetTupleType({array_2d, b5, a_of_b5});
-  EXPECT_EQ(UnflattenArrayShapedTupleElement(
-                m->AddReg("foo", f.BitVectorType(50)), tuple_type, 0, &f)
-                ->Emit(nullptr),
-            "'{'{foo[24:20], foo[29:25], foo[34:30]}, '{foo[39:35], "
-            "foo[44:40], foo[49:45]}}");
-  EXPECT_EQ(UnflattenArrayShapedTupleElement(
-                m->AddReg("foo", f.BitVectorType(50)), tuple_type, 2, &f)
-                ->Emit(nullptr),
-            "'{foo[4:0], foo[9:5], foo[14:10]}");
+  EXPECT_EQ(
+      UnflattenArrayShapedTupleElement(
+          m->AddReg("foo", f.BitVectorType(50, std::nullopt), std::nullopt),
+          tuple_type, 0, &f, std::nullopt)
+          ->Emit(nullptr),
+      "'{'{foo[24:20], foo[29:25], foo[34:30]}, '{foo[39:35], "
+      "foo[44:40], foo[49:45]}}");
+  EXPECT_EQ(
+      UnflattenArrayShapedTupleElement(
+          m->AddReg("foo", f.BitVectorType(50, std::nullopt), std::nullopt),
+          tuple_type, 2, &f, std::nullopt)
+          ->Emit(nullptr),
+      "'{foo[4:0], foo[9:5], foo[14:10]}");
 }
 
 }  // namespace

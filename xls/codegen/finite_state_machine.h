@@ -180,7 +180,8 @@ class FsmBlock : public FsmBlockBase {
   // Sets the given output to the given value. This occurs immediately and
   // asynchronously.
   T& SetOutput(FsmOutput* output, int64_t value) {
-    return SetOutputAsExpression(output, file_->PlainLiteral(value));
+    return SetOutputAsExpression(output,
+                                 file_->PlainLiteral(value, std::nullopt));
   }
   T& SetOutputAsExpression(FsmOutput* output, Expression* value) {
     AddAssignment(output->logic_ref, value);
@@ -189,7 +190,8 @@ class FsmBlock : public FsmBlockBase {
 
   // Sets the given register to the given value in the next cycle.
   T& SetRegisterNext(FsmRegister* reg, int64_t value) {
-    return SetRegisterNextAsExpression(reg, file_->PlainLiteral(value));
+    return SetRegisterNextAsExpression(
+        reg, file_->PlainLiteral(value, std::nullopt));
   }
   T& SetRegisterNextAsExpression(FsmRegister* reg, Expression* value) {
     AddAssignment(reg->next, value);
@@ -198,7 +200,8 @@ class FsmBlock : public FsmBlockBase {
 
   // Sets the given counter to the given value in the next cycle.
   T& SetCounter(FsmCounter* counter, int64_t value) {
-    return SetCounterAsExpression(counter, file_->PlainLiteral(value));
+    return SetCounterAsExpression(counter,
+                                  file_->PlainLiteral(value, std::nullopt));
   }
   T& SetCounterAsExpression(FsmCounter* counter, Expression* value) {
     AddAssignment(counter->next, value);
@@ -220,7 +223,9 @@ class FsmBlock : public FsmBlockBase {
     conditional_blocks_.emplace_back(
         absl::StrFormat("%s: if counter %s == 0", debug_name(),
                         counter->logic_ref->GetName()),
-        file_, file_->Equals(counter->logic_ref, file_->PlainLiteral(0)));
+        file_,
+        file_->Equals(counter->logic_ref, file_->PlainLiteral(0, std::nullopt),
+                      std::nullopt));
     return conditional_blocks_.back();
   }
 };
@@ -339,15 +344,17 @@ class FsmBuilder {
   // 'name' is added to the module.
   FsmOutput* AddOutput(absl::string_view name, int64_t width,
                        int64_t default_value) {
-    return AddOutputAsExpression(name, file_->BitVectorType(width),
-                                 file_->PlainLiteral(default_value));
+    return AddOutputAsExpression(
+        name, file_->BitVectorType(width, std::nullopt),
+        file_->PlainLiteral(default_value, std::nullopt));
   }
   FsmOutput* AddOutputAsExpression(absl::string_view name, DataType* data_type,
                                    Expression* default_value);
 
   FsmOutput* AddOutput1(absl::string_view name, int64_t default_value) {
-    return AddOutputAsExpression(name, /*data_type=*/file_->ScalarType(),
-                                 file_->PlainLiteral(default_value));
+    return AddOutputAsExpression(
+        name, /*data_type=*/file_->ScalarType(std::nullopt),
+        file_->PlainLiteral(default_value, std::nullopt));
   }
 
   // Overload which adds a previously defined reg as a FSM-controlled signal.
