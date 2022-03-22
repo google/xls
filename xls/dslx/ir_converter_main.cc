@@ -30,10 +30,11 @@
 #include "xls/dslx/typecheck.h"
 
 // LINT.IfChange
-ABSL_FLAG(std::string, entry, "",
-          "Entry name for conversion. When provided, the function/proc is the "
+ABSL_FLAG(std::string, top, "",
+          "The name of the top entity. When provided, the function/proc is the "
           "top entity in the generated IR. When not provided, all functions "
-          "and procs are converted.");
+          "and procs are converted, there is no top entity defined in the "
+          "generated IR.");
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
           "Path to DSLX standard library files.");
 ABSL_FLAG(std::string, dslx_path, "",
@@ -122,7 +123,7 @@ static absl::Status AddPathToPackage(
 }
 
 absl::Status RealMain(absl::Span<const absl::string_view> paths,
-                      absl::optional<absl::string_view> entry,
+                      absl::optional<absl::string_view> top,
                       absl::optional<absl::string_view> package_name,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
@@ -142,7 +143,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
   }
 
   if (paths.size() > 1) {
-    XLS_QCHECK(!entry.has_value())
+    XLS_QCHECK(!top.has_value())
         << "-entry cannot be supplied with multiple input paths (need a single "
            "input path to know where to resolve the entry function)";
   }
@@ -153,7 +154,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
       .verify_ir = verify_ir,
   };
   for (absl::string_view path : paths) {
-    XLS_RETURN_IF_ERROR(AddPathToPackage(path, entry, convert_options,
+    XLS_RETURN_IF_ERROR(AddPathToPackage(path, top, convert_options,
                                          stdlib_path, dslx_paths,
                                          &package.value(), printed_error));
   }
@@ -183,9 +184,9 @@ int main(int argc, char* argv[]) {
     dslx_paths.push_back(std::filesystem::path(path));
   }
 
-  absl::optional<std::string> entry;
-  if (!absl::GetFlag(FLAGS_entry).empty()) {
-    entry = absl::GetFlag(FLAGS_entry);
+  absl::optional<std::string> top;
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    top = absl::GetFlag(FLAGS_top);
   }
 
   absl::optional<std::string> package_name;
@@ -197,7 +198,7 @@ int main(int argc, char* argv[]) {
   bool verify_ir = absl::GetFlag(FLAGS_verify);
   bool printed_error = false;
   absl::Status status =
-      xls::dslx::RealMain(args, entry, package_name, stdlib_path, dslx_paths,
+      xls::dslx::RealMain(args, top, package_name, stdlib_path, dslx_paths,
                           emit_fail_as_assert, verify_ir, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;

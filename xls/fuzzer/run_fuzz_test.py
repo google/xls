@@ -86,7 +86,7 @@ class RunFuzzTest(parameterized.TestCase):
         'fn main(x: u8) -> u8 { -x }',
         sample.SampleOptions(
             input_is_dslx=True,
-            ir_converter_args=['--entry=main'],
+            ir_converter_args=['--top=main'],
             codegen=True,
             codegen_args=('--invalid_flag!!!',)),
         sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
@@ -115,7 +115,7 @@ class RunFuzzTest(parameterized.TestCase):
     s = sample.Sample(
         'fn main(x: u8) -> u8 { -x }',
         sample.SampleOptions(
-            input_is_dslx=True, ir_converter_args=['--entry=main']),
+            input_is_dslx=True, ir_converter_args=['--top=main']),
         sample.parse_args_batch('bits[8]:7\nbits[8]:100'))
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path
@@ -128,7 +128,7 @@ class RunFuzzTest(parameterized.TestCase):
     s = sample.Sample(
         'fn main(x: u8) -> u8 { !x }',
         sample.SampleOptions(
-            input_is_dslx=True, ir_converter_args=['--entry=main']),
+            input_is_dslx=True, ir_converter_args=['--top=main']),
         sample.parse_args_batch('bits[8]:0xff\nbits[8]:0x42'))
     success = test_base.TempFileCleanup.SUCCESS  # type: test_base.TempFileCleanup
     run_dir = self.create_tempdir(cleanup=success).full_path

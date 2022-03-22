@@ -153,7 +153,7 @@ def main(argv):
 
   default_sample_options = sample.SampleOptions(
       input_is_dslx=True,
-      ir_converter_args=['--entry=main'],
+      ir_converter_args=['--top=main'],
       convert_to_ir=True,
       optimize_ir=True,
       use_jit=FLAGS.use_llvm_jit,

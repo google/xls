@@ -130,7 +130,7 @@ def _convert_to_ir(ctx, src, dep_src_list):
     # TODO(vmirian) 2022-02-19 When bypass_dslx_top is removed, modify if
     # statement.
     if not ctx.attr.bypass_dslx_top and ctx.attr.dslx_top:
-        ir_conv_args["entry"] = ctx.attr.dslx_top
+        ir_conv_args["top"] = ctx.attr.dslx_top
     my_args = args_to_string(ir_conv_args)
 
     required_files = [src] + dep_src_list
@@ -474,7 +474,7 @@ xls_dslx_ir_attrs = dicts.add(
     xls_dslx_library_as_input_attrs,
     {
         "dslx_top": attr.string(
-            doc = "Defines the 'entry' argument of the" +
+            doc = "Defines the 'top' argument of the" +
                   "//xls/dslx/ir_converter_main.cc application.",
             mandatory = True,
         ),
@@ -488,7 +488,7 @@ xls_dslx_ir_attrs = dicts.add(
             doc = "Arguments of the IR conversion tool. For details on the " +
                   "arguments, refer to the ir_converter_main application at " +
                   "//xls/dslx/ir_converter_main.cc. Note the " +
-                  "'entry' argument is not assigned using this attribute.",
+                  "'top' argument is not assigned using this attribute.",
         ),
         "ir_file": attr.output(
             doc = "Filename of the generated IR. If not specified, the " +
@@ -554,7 +554,7 @@ Examples:
     )
     ```
 
-1. An IR conversion with an entry defined.
+1. An IR conversion with an top entity defined.
 
     ```
     # Assume a xls_dslx_library target bc_dslx is present.
@@ -604,7 +604,7 @@ xls_ir_opt_ir_attrs = dicts.add(
         "opt_ir_args": attr.string_dict(
             doc = "Arguments of the IR optimizer tool. For details on the" +
                   "arguments, refer to the opt_main application at" +
-                  "//xls/tools/opt_main.cc. The 'entry' " +
+                  "//xls/tools/opt_main.cc. The 'top' " +
                   "argument is not assigned using this attribute.",
         ),
         "opt_ir_file": attr.output(
@@ -632,14 +632,14 @@ xls_ir_opt_ir = rule(
 
 Examples:
 
-1. Optimizing an IR file with an entry defined.
+1. Optimizing an IR file with an top entity defined.
 
     ```
     xls_ir_opt_ir(
         name = "a_opt_ir",
         src = "a.ir",
         opt_ir_args = {
-            "entry" : "a",
+            "top" : "a",
         },
     )
     ```
@@ -817,7 +817,7 @@ xls_eval_ir_test_attrs = {
         doc = "Arguments of the IR interpreter. For details on the " +
               "arguments, refer to the eval_ir_main application at " +
               "//xls/tools/eval_ir_main.cc." +
-              "The 'entry' argument is not assigned using this attribute.",
+              "The 'top' argument is not assigned using this attribute.",
         default = _DEFAULT_IR_EVAL_TEST_ARGS,
     ),
 }

@@ -46,7 +46,10 @@ information:
      IR_FILE
 )";
 
-ABSL_FLAG(std::string, entry, "", "Function to emit delay information about.");
+ABSL_FLAG(
+    std::string, top, "",
+    "The name of the top entity. Currently, only functions are supported. "
+    "Function to emit delay information about.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
 ABSL_FLAG(std::string, schedule_path, "",
@@ -64,10 +67,10 @@ absl::Status RealMain(absl::string_view input_path) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir, input_path));
   Function* function;
-  if (absl::GetFlag(FLAGS_entry).empty()) {
+  if (absl::GetFlag(FLAGS_top).empty()) {
     XLS_ASSIGN_OR_RETURN(function, p->GetTopAsFunction());
   } else {
-    XLS_ASSIGN_OR_RETURN(function, p->GetFunction(absl::GetFlag(FLAGS_entry)));
+    XLS_ASSIGN_OR_RETURN(function, p->GetFunction(absl::GetFlag(FLAGS_top)));
   }
 
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,

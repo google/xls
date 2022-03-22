@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "ir_converter_args": ["--entry=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": false, "simulate": false, "simulator": null}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": false, "simulate": false, "simulator": null}
 // args: bits[8]:0x5; bits[12]:0xe9c; bits[35]:0x5_5540_0000
 
 fn main(p3: u8, p6: u12, p8: s35) -> u8 {

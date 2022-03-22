@@ -59,7 +59,7 @@ def xls_dslx_ir_macro(
         )
         ```
 
-    1. An IR conversion with an entry defined.
+    1. An IR conversion with a top entity defined.
 
         ```
         # Assume a xls_dslx_library target bc_dslx is present.
@@ -79,10 +79,10 @@ def xls_dslx_ir_macro(
       library: A DSLX library target where the direct (non-transitive)
         files of the target are tested. This argument is mutually
         exclusive with the 'srcs' and 'deps' arguments.
-      dslx_top: The entry point to perform the IR conversion.
+      dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'entry'
+        //xls/dslx/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
@@ -145,14 +145,14 @@ def xls_ir_opt_ir_macro(
 
     Examples:
 
-    1. Optimizing an IR file with an entry defined.
+    1. Optimizing an IR file with a top entity defined.
 
         ```
         xls_ir_opt_ir(
             name = "a_opt_ir",
             src = "a.ir",
             opt_ir_args = {
-                "entry" : "a",
+                "top" : "a",
             },
         )
         ```
@@ -177,7 +177,7 @@ def xls_ir_opt_ir_macro(
         must have a '.ir' extension.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
-        //xls/tools/opt_main.cc. Note: the 'entry'
+        //xls/tools/opt_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.

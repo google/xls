@@ -92,14 +92,14 @@ def xls_dslx_verilog_macro(
         exclusive with the 'srcs' and 'deps' arguments.
       verilog_file: The filename of Verilog file generated. The filename must
         have a '.v' extension.
-      dslx_top: The entry point to perform the IR conversion.
+      dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'entry'
+        //xls/dslx/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
-        //xls/tools/opt_main.cc. Note: the 'entry'
+        //xls/tools/opt_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       codegen_args: Arguments of the codegen tool. For details on the arguments,
         refer to the codegen_main application at
@@ -215,14 +215,14 @@ def xls_dslx_opt_ir_macro(
       library: A DSLX library target where the direct (non-transitive)
         files of the target are tested. This argument is mutually
         exclusive with the 'srcs' and 'deps' arguments.
-      dslx_top: The entry point to perform the IR conversion.
+      dslx_top: The top entity to perform the IR conversion.
       ir_conv_args: Arguments of the IR conversion tool. For details on the
         arguments, refer to the ir_converter_main application at
-        //xls/dslx/ir_converter_main.cc. Note: the 'entry'
+        //xls/dslx/ir_converter_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       opt_ir_args: Arguments of the IR optimizer tool. For details on the
         arguments, refer to the opt_main application at
-        //xls/tools/opt_main.cc. Note: the 'entry'
+        //xls/tools/opt_main.cc. Note: the 'top'
         argument is not assigned using this attribute.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.

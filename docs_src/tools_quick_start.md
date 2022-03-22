@@ -51,7 +51,7 @@ $ ./bazel-bin/xls/dslx/interpreter_main /tmp/simple_add.x
 To convert the DSL file to IR, run the following command:
 
 ```
-$ ./bazel-bin/xls/dslx/ir_converter_main /tmp/simple_add.x > /tmp/simple_add.ir
+$ ./bazel-bin/xls/dslx/ir_converter_main --top=add /tmp/simple_add.x > /tmp/simple_add.ir
 ```
 
 ## IR optimization
@@ -67,7 +67,7 @@ eliminated the useless add-with-zero.
 
 ## Verilog RTL generation
 
-To generate RTL from the optimized IR, use the codegen tool:
+To generate RTL from the optimized IR, use the `codegen_main` tool:
 
 ```
 $ ./bazel-bin/xls/tools/codegen_main --pipeline_stages=1 --delay_model=unit /tmp/simple_add.opt.ir > /tmp/simple_add.v

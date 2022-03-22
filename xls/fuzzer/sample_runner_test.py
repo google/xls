@@ -111,7 +111,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 optimize_ir=False)))
     self.assertIn('package sample', _read_file(sample_dir, 'sample.ir'))
 
@@ -124,7 +124,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 optimize_ir=False),
             [[
                 interp_value_from_ir_string('bits[8]:42'),
@@ -150,7 +150,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 optimize_ir=False),
             [[
                 interp_value_from_ir_string('bits[100]:{0:#x}'.format(10**30)),
@@ -180,7 +180,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 optimize_ir=False), [[
                     interp_value_from_ir_string('bits[8]:42'),
                     interp_value_from_ir_string('bits[8]:100').to_signed()
@@ -197,7 +197,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 optimize_ir=False),
             sample.parse_args_batch('bits[8]:0xb0; bits[8]:0x0a')))
     self.assertEqual(
@@ -215,7 +215,7 @@ class SampleRunnerTest(test_base.TestCase):
               dslx_text,
               sample.SampleOptions(
                   input_is_dslx=True,
-                  ir_converter_args=['--entry=main'],
+                  ir_converter_args=['--top=main'],
                   optimize_ir=False), [[
                       interp_value_from_ir_string('bits[8]:42'),
                       interp_value_from_ir_string('bits[8]:100')
@@ -243,7 +243,7 @@ class SampleRunnerTest(test_base.TestCase):
               dslx_text,
               sample.SampleOptions(
                   input_is_dslx=True,
-                  ir_converter_args=['--entry=main'],
+                  ir_converter_args=['--top=main'],
                   optimize_ir=False),
               [[
                   interp_value_from_ir_string('bits[8]:40'),
@@ -275,7 +275,7 @@ class SampleRunnerTest(test_base.TestCase):
               dslx_text,
               sample.SampleOptions(
                   input_is_dslx=True,
-                  ir_converter_args=['--entry=main'],
+                  ir_converter_args=['--top=main'],
                   optimize_ir=False), args_batch))
     self.assertIn(
         'Results for evaluated unopt IR (JIT) has 2 values, interpreted DSLX has 1',
@@ -293,7 +293,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
             ), [[
                 interp_value_from_ir_string('bits[8]:42'),
                 interp_value_from_ir_string('bits[8]:100')
@@ -324,7 +324,7 @@ class SampleRunnerTest(test_base.TestCase):
               dslx_text,
               sample.SampleOptions(
                   input_is_dslx=True,
-                  ir_converter_args=['--entry=main'],
+                  ir_converter_args=['--top=main'],
               ), [[
                   interp_value_from_ir_string('bits[8]:40'),
                   interp_value_from_ir_string('bits[8]:60')
@@ -341,7 +341,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 codegen=True,
                 codegen_args=['--generator=combinational'],
                 simulate=True), [[
@@ -366,7 +366,7 @@ class SampleRunnerTest(test_base.TestCase):
               dslx_text,
               sample.SampleOptions(
                   input_is_dslx=True,
-                  ir_converter_args=['--entry=main'],
+                  ir_converter_args=['--top=main'],
                   codegen=True,
                   codegen_args=['--generator=combinational'],
                   simulate=True,
@@ -388,7 +388,7 @@ class SampleRunnerTest(test_base.TestCase):
             dslx_text,
             sample.SampleOptions(
                 input_is_dslx=True,
-                ir_converter_args=['--entry=main'],
+                ir_converter_args=['--top=main'],
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
                 simulate=True), [[

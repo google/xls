@@ -242,7 +242,7 @@ def run_fuzz(
         ast_generator_options, calls_per_sample,
         sample.SampleOptions(
             input_is_dslx=True,
-            ir_converter_args=['--entry=main'],
+            ir_converter_args=['--top=main'],
             convert_to_ir=True,
             optimize_ir=True,
             codegen=codegen,

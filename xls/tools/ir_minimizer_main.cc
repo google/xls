@@ -118,17 +118,20 @@ ABSL_FLAG(
     "Also, because this option runs a single pass at a time it often results "
     "in more minimization than --use_optimization_pipeline which "
     "which might optimize away the problematic bit of IR entirely.");
-ABSL_FLAG(std::string, entry, "", "Entry function to use during minimization.");
+ABSL_FLAG(
+    std::string, top, "",
+    "The name of the top entity. Currently, only functions are supported. "
+    "Entry function to use during minimization.");
 
 namespace xls {
 namespace {
 
 absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
     absl::string_view ir_text) {
-  if (absl::GetFlag(FLAGS_entry).empty()) {
+  if (absl::GetFlag(FLAGS_top).empty()) {
     return Parser::ParsePackage(ir_text);
   }
-  return Parser::ParsePackageWithEntry(ir_text, absl::GetFlag(FLAGS_entry));
+  return Parser::ParsePackageWithEntry(ir_text, absl::GetFlag(FLAGS_top));
 }
 
 // Return a uniform random number over the interval [0, 1).

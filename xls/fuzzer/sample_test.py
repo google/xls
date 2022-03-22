@@ -67,12 +67,12 @@ class SampleTest(absltest.TestCase):
     json_text = (
         '{"codegen": true, "codegen_args": ["--generator=pipeline", '
         '"--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, '
-        '"ir_converter_args": ["--entry=main"], "optimize_ir": true, '
+        '"ir_converter_args": ["--top=main"], "optimize_ir": true, '
         '"simulate": false, "simulator": null, '
         '"timeout_seconds": 42, "use_jit": true, "use_system_verilog": true}')
     expected_object = sample.SampleOptions(
         input_is_dslx=True,
-        ir_converter_args=['--entry=main'],
+        ir_converter_args=['--top=main'],
         convert_to_ir=True,
         optimize_ir=True,
         use_jit=True,
@@ -104,7 +104,7 @@ class SampleTest(absltest.TestCase):
         'fn main(x: u8, y: u8) -> u8 {\nx + y\n}',
         sample.SampleOptions(
             input_is_dslx=True,
-            ir_converter_args=['--entry=main'],
+            ir_converter_args=['--top=main'],
             codegen=True,
             codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
             simulate=True,
@@ -123,7 +123,7 @@ class SampleTest(absltest.TestCase):
         // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
-        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--entry=main"], "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
+        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {
@@ -136,7 +136,7 @@ class SampleTest(absltest.TestCase):
         'fn main(x: u8, y: u8) -> u8 {\nx + y\n}',
         sample.SampleOptions(
             input_is_dslx=True,
-            ir_converter_args=['--entry=main'],
+            ir_converter_args=['--top=main'],
             codegen=True,
             codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
             simulate=True,
@@ -158,7 +158,7 @@ class SampleTest(absltest.TestCase):
         // I crashed"""), crasher)
     self.assertIn(
         textwrap.dedent("""\
-        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--entry=main"], "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
+        // options: {"codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=2"], "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": true, "simulator": "goat simulator", "timeout_seconds": null, "use_jit": true, "use_system_verilog": true}
         // args: bits[8]:0x2a; bits[8]:0xb
         // args: bits[8]:0x2c; bits[8]:0x63
         fn main(x: u8, y: u8) -> u8 {

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "ir_converter_args": ["--entry=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": false, "simulate": false, "simulator": null}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": false, "simulate": false, "simulator": null}
 // args: bits[45]:0x20; bits[50]:0x2_0b70_1041_0050; bits[38]:0x1_0000; bits[8]:0x5; bits[49]:0x4000_0000_0000; bits[13]:0x1555; bits[12]:0xe9c; bits[14]:0xa08; bits[35]:0x5_5540_0000
 
 type x10 = uN[0x31];

@@ -32,23 +32,25 @@
 #include "../z3/src/api/z3.h"
 #include "../z3/src/api/z3_api.h"
 
-ABSL_FLAG(std::string, function, "",
-          "Function to convert to SMTLIB. If unspecified, a 'best guess' "
-          "will be made to try to find the package's entry function. "
-          "If that fails, an error will be returned.");
+ABSL_FLAG(
+    std::string, top, "",
+    "The name of the top entity. Currently, only functions are supported. "
+    "Function to convert to SMTLIB. If unspecified, a 'best guess' "
+    "will be made to try to find the package's entry function. "
+    "If that fails, an error will be returned.");
 ABSL_FLAG(std::string, ir_path, "", "Path to the XLS IR to process.");
 
 namespace xls {
 
 absl::Status RealMain(const std::filesystem::path& ir_path,
-                      absl::optional<std::string> function_name) {
+                      absl::optional<std::string> top) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   Function* function;
-  if (!function_name) {
+  if (!top) {
     XLS_ASSIGN_OR_RETURN(function, package->GetTopAsFunction());
   } else {
-    XLS_ASSIGN_OR_RETURN(function, package->GetFunction(function_name.value()));
+    XLS_ASSIGN_OR_RETURN(function, package->GetFunction(top.value()));
   }
 
   XLS_ASSIGN_OR_RETURN(auto translator,
@@ -64,10 +66,10 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
 int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
-  absl::optional<std::string> function_name;
-  if (!absl::GetFlag(FLAGS_function).empty()) {
-    function_name = absl::GetFlag(FLAGS_function);
+  absl::optional<std::string> top;
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    top = absl::GetFlag(FLAGS_top);
   }
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_ir_path), function_name));
+  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_ir_path), top));
   return 0;
 }

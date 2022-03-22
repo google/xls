@@ -30,10 +30,10 @@
 
 ABSL_FLAG(
     std::string, top, "",
-    "Name of function to convert to SMTLIB. If unspecified, a 'best guess' "
-    "will be made to try to find the package's entry function. "
-    "If that fails, an error will be returned.");
-ABSL_FLAG(std::string, function, "", "Synonym for 'entry'.");
+    "The name of the top entity. Currently, only functions are supported. "
+    "Name of function to convert to SMTLIB. If flag is not given, the top "
+    "entity specified in the IR will be used or if no top is specified in the "
+    "IR an error is returned.");
 
 ABSL_FLAG(std::string, ir_path, "", "Path to the XLS IR to process.");
 ABSL_FLAG(std::string, output_function_name, "",
@@ -70,12 +70,10 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
 int main(int argc, char* argv[]) {
   xls::InitXls(argv[0], argc, argv);
 
-  absl::optional<std::string> function_name;
+  absl::optional<std::string> top;
   if (!absl::GetFlag(FLAGS_top).empty()) {
-    function_name = absl::GetFlag(FLAGS_top);
-  } else if (!absl::GetFlag(FLAGS_function).empty()) {
-    function_name = absl::GetFlag(FLAGS_function);
+    top = absl::GetFlag(FLAGS_top);
   }
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_ir_path), function_name));
+  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_ir_path), top));
   return 0;
 }

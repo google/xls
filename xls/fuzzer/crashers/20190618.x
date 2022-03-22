@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "ir_converter_args": ["--entry=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "codegen": true, "codegen_args": ["--generator=pipeline", "--pipeline_stages=3"], "simulate": false, "simulator": null}
 // args: bits[5]:0xf; bits[18]:0x150fd; bits[10]:0x28b; bits[30]:0x3cff79e0; bits[9]:0x1c4; bits[17]:0x116fc; bits[29]:0x762b910; bits[27]:0x63c9150; bits[30]:0x2148877a; bits[20]:0x2f476; bits[22]:0x54be6; bits[7]:0xf
 // args: bits[5]:0xa; bits[18]:0x3d907; bits[10]:0x3fc; bits[30]:0x2aaaaaaa; bits[9]:0x53; bits[17]:0x1d962; bits[29]:0x1cbe5c98; bits[27]:0x4170a47; bits[30]:0x12475f3; bits[20]:0x1; bits[22]:0x309ceb; bits[7]:0xe
 // args: bits[5]:0x13; bits[18]:0x27e70; bits[10]:0x3f; bits[30]:0x314b65ef; bits[9]:0x8; bits[17]:0x18dc4; bits[29]:0x2e3016; bits[27]:0x3fdad48; bits[30]:0x2a5e56c3; bits[20]:0x7cd7b; bits[22]:0x284be6; bits[7]:0x0

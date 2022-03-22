@@ -15,7 +15,7 @@
 // Issue: was causing an optimizer hang -- attempts to constant fold the gate op
 // would not converge.
 //
-// options: {"codegen": false, "codegen_args": null, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--entry=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
+// options: {"codegen": false, "codegen_args": null, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": true, "simulate": false, "simulator": null, "use_jit": true, "use_system_verilog": true}
 // args: (); (bits[10]:0x2aa)
 // args: (); (bits[10]:0x3ff)
 // args: (); (bits[10]:0x2aa)

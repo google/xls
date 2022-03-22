@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// options: {"input_is_dslx": true, "ir_converter_args": ["--entry=main"], "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": false, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
+// options: {"input_is_dslx": true, "ir_converter_args": ["--top=main"], "convert_to_ir": true, "optimize_ir": true, "use_jit": true, "codegen": false, "codegen_args": null, "simulate": false, "simulator": null, "use_system_verilog": true}
 // args: bits[32]:0x2000_0000; bits[26]:0x8_0000
 // args: bits[32]:0x8; bits[26]:0x8_0000
 // args: bits[32]:0x200_0000; bits[26]:0x0

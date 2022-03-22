@@ -27,9 +27,11 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 
-ABSL_FLAG(std::string, function, "",
-          "If set, restrict dumping to the given function. "
-          "The name should not be mangled with the Package name.");
+ABSL_FLAG(
+    std::string, top, "",
+    "The name of the top entity. Currently, only functions are supported. "
+    "If set, restrict dumping to the given function. "
+    "The name should not be mangled with the Package name.");
 
 namespace xls {
 
@@ -59,8 +61,8 @@ int main(int argc, char** argv) {
   XLS_QCHECK(positional_args.size() == 1);
 
   absl::optional<std::string> restrict_fn;
-  if (!absl::GetFlag(FLAGS_function).empty()) {
-    restrict_fn = absl::GetFlag(FLAGS_function);
+  if (!absl::GetFlag(FLAGS_top).empty()) {
+    restrict_fn = absl::GetFlag(FLAGS_top);
   }
   XLS_QCHECK_OK(xls::RealMain(positional_args[0], restrict_fn));
   return 0;
