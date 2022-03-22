@@ -86,7 +86,11 @@ def _xls_dslx_opt_ir_impl(ctx):
                 ir_conv_default_info.files.to_list() +
                 ir_opt_default_info.files.to_list(),
             ),
-            # TODO(vmirian) 06-18-2021 Add transitive files.
+            runfiles = ctx.runfiles(
+                files =
+                    ir_conv_default_info.default_runfiles.files.to_list() +
+                    ir_opt_default_info.default_runfiles.files.to_list(),
+            ),
         ),
     ]
 
@@ -133,10 +137,9 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     runfiles = list(dslx_source_files)
 
     # xls_dslx_test
-    runfiles += dslx_source_files
     my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, [dslx_test_file])
     dslx_test_cmd = "\n".join(dslx_test_cmd)
-    runfiles += my_runfiles
+    runfiles += my_runfiles.files.to_list()
 
     # xls_ir_equivalence_test
     my_runfiles, ir_equivalence_test_cmd = get_ir_equivalence_test_cmd(
@@ -144,21 +147,21 @@ def _xls_dslx_opt_ir_test_impl(ctx):
         conv_ir_file,
         opt_ir_file,
     )
-    runfiles += my_runfiles
+    runfiles += my_runfiles.files.to_list()
 
     # xls_eval_ir_test
     my_runfiles, eval_ir_test_cmd = get_eval_ir_test_cmd(
         ctx,
         conv_ir_file,
     )
-    runfiles += my_runfiles
+    runfiles += my_runfiles.files.to_list()
 
     # xls_benchmark_ir
     my_runfiles, benchmark_ir_cmd = get_benchmark_ir_cmd(
         ctx,
         conv_ir_file,
     )
-    runfiles += my_runfiles
+    runfiles += my_runfiles.files.to_list()
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -252,7 +255,7 @@ def _xls_dslx_verilog_impl(ctx):
         dslx_module_info,
         ir_conv_info,
         ir_opt_info,
-        dslx_ir_default_info,
+        dslx_opt_ir_default_info,
     ) = _xls_dslx_opt_ir_impl(ctx)
     codegen_info, codegen_default_info = xls_ir_verilog_impl(
         ctx,
@@ -265,10 +268,16 @@ def _xls_dslx_verilog_impl(ctx):
         codegen_info,
         DefaultInfo(
             files = depset(
-                dslx_ir_default_info.files.to_list() +
+                dslx_opt_ir_default_info.files.to_list() +
                 codegen_default_info.files.to_list(),
             ),
-            # TODO(vmirian) 06-18-2021 Add transitive files.
+            runfiles =
+                ctx.runfiles(
+                    files =
+                        (dslx_opt_ir_default_info.default_runfiles
+                            .files.to_list()) +
+                        codegen_default_info.default_runfiles.files.to_list(),
+                ),
         ),
     ]
 

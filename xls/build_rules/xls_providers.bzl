@@ -31,6 +31,7 @@ DslxInfo = provider(
     },
 )
 
+#TODO(https://github.com/google/xls/issues/560) Remove when issue is fixed.
 DslxModuleInfo = provider(
     doc = "A provider containing DSLX file information for a DSLX module. A " +
           "DSLX module has a single source file representing the top DSLX " +

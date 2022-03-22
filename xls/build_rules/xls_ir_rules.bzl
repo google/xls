@@ -25,6 +25,7 @@ load(
     "append_default_to_args",
     "args_to_string",
     "get_output_filename_value",
+    "get_runfiles_for_xls",
     "is_args_valid",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
@@ -37,6 +38,8 @@ load(
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
+    "get_executable_from",
+    "get_runfiles_from",
     "get_xls_toolchain_info",
     "xls_toolchain_attr",
 )
@@ -100,8 +103,8 @@ def get_xls_ir_opt_ir_generated_files(args):
     """
     return [args.get("opt_ir_file")]
 
-def _convert_to_ir(ctx, src, dep_src_list):
-    """Converts a DSLX source file to an IR file.
+def _convert_to_ir(ctx, src):
+    """Returns the runfiles and a File referencing the converted IR file.
 
     Creates an action in the context to convert a DSLX source file to an
     IR file.
@@ -109,11 +112,14 @@ def _convert_to_ir(ctx, src, dep_src_list):
     Args:
       ctx: The current rule's context object.
       src: The source file.
-      dep_src_list: A list of source file dependencies.
     Returns:
-      A File referencing the IR file.
+      A tuple with two elements. The first element is the runfiles to
+      convert to the IR file. The second element is the reference to the
+      converted IR file.
     """
-    ir_converter_tool = get_xls_toolchain_info(ctx).ir_converter_tool
+    ir_converter_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).ir_converter_tool,
+    )
     IR_CONV_FLAGS = (
         "dslx_path",
         "emit_fail_as_assert",
@@ -133,9 +139,6 @@ def _convert_to_ir(ctx, src, dep_src_list):
         ir_conv_args["top"] = ctx.attr.dslx_top
     my_args = args_to_string(ir_conv_args)
 
-    required_files = [src] + dep_src_list
-    required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
-
     ir_filename = get_output_filename_value(
         ctx,
         "ir_file",
@@ -143,12 +146,18 @@ def _convert_to_ir(ctx, src, dep_src_list):
     )
     ir_file = ctx.actions.declare_file(ir_filename)
 
+    # Get runfiles
+    ir_converter_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).ir_converter_tool,
+    )
+    runfiles = get_runfiles_for_xls(ctx, ir_converter_tool_runfiles + [src])
+
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
         tools = [ir_converter_tool],
         # The files required for converting the DSLX source file.
-        inputs = required_files + [ir_converter_tool],
+        inputs = runfiles.files.to_list(),
         command = "{} {} {} > {}".format(
             ir_converter_tool.path,
             my_args,
@@ -158,21 +167,22 @@ def _convert_to_ir(ctx, src, dep_src_list):
         mnemonic = "ConvertDSLX",
         progress_message = "Converting DSLX file: %s" % (src.path),
     )
-    return ir_file
+    return runfiles, ir_file
 
 def _optimize_ir(ctx, src):
-    """Optimizes an IR file.
+    """Returns the runfiles and a File referencing the optimized IR file.
 
     Creates an action in the context to optimize an IR file.
 
     Args:
       ctx: The current rule's context object.
       src: The source file.
-
     Returns:
-      A File referencing the optimized IR file.
+      A tuple with two elements. The first element is the runfiles to
+      optimize the IR file. The second element is the reference to the
+      optimized IR file.
     """
-    opt_ir_tool = get_xls_toolchain_info(ctx).opt_ir_tool
+    opt_ir_tool = get_executable_from(get_xls_toolchain_info(ctx).opt_ir_tool)
     opt_ir_args = dict(ctx.attr.opt_ir_args)
     IR_OPT_FLAGS = (
         "ir_dump_path",
@@ -195,12 +205,19 @@ def _optimize_ir(ctx, src):
         ctx.attr.name + _OPT_IR_FILE_EXTENSION,
     )
     opt_ir_file = ctx.actions.declare_file(opt_ir_filename)
+
+    # Get runfiles
+    opt_ir_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).opt_ir_tool,
+    )
+    runfiles = get_runfiles_for_xls(ctx, opt_ir_tool_runfiles + [src])
+
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
         tools = [opt_ir_tool],
         # The files required for optimizing the IR file.
-        inputs = [src, opt_ir_tool],
+        inputs = runfiles.files.to_list(),
         command = "{} {} {} > {}".format(
             opt_ir_tool.path,
             src.path,
@@ -210,7 +227,7 @@ def _optimize_ir(ctx, src):
         mnemonic = "OptimizeIR",
         progress_message = "Optimizing IR file: %s" % (src.path),
     )
-    return opt_ir_file
+    return runfiles, opt_ir_file
 
 def get_ir_equivalence_test_cmd(
         ctx,
@@ -230,10 +247,12 @@ def get_ir_equivalence_test_cmd(
         Otherwise, the command-line arguments are not appended.
 
     Returns:
-      A tuple with two elements. The first element is a list of runfiles to
+      A tuple with two elements. The first element is the runfiles to
       execute the command. The second element is the command.
     """
-    ir_equivalence_tool = get_xls_toolchain_info(ctx).ir_equivalence_tool
+    ir_equivalence_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).ir_equivalence_tool,
+    )
     IR_EQUIVALENCE_FLAGS = (
         "timeout",
     )
@@ -255,9 +274,14 @@ def get_ir_equivalence_test_cmd(
     if append_cmd_line_args:
         cmd = append_cmd_line_args_to(cmd)
 
-    # The required runfiles are the source files and the IR equivalence tool
-    # executable.
-    runfiles = [src_0, src_1, ir_equivalence_tool]
+    # Get runfiles
+    ir_equivalence_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).ir_equivalence_tool,
+    )
+    runfiles = get_runfiles_for_xls(
+        ctx,
+        ir_equivalence_tool_runfiles + [src_0, src_1],
+    )
     return runfiles, cmd
 
 def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
@@ -272,10 +296,10 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         Otherwise, the command-line arguments are not appended.
 
     Returns:
-      A tuple with two elements. The first element is a list of runfiles to
+      A tuple with two elements. The first element is the runfiles to
       execute the command. The second element is the command.
     """
-    ir_eval_tool = get_xls_toolchain_info(ctx).ir_eval_tool
+    ir_eval_tool = get_executable_from(get_xls_toolchain_info(ctx).ir_eval_tool)
     IR_EVAL_FLAGS = (
         "input",
         "input_file",
@@ -295,7 +319,7 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         _DEFAULT_IR_EVAL_TEST_ARGS,
     )
 
-    runfiles = []
+    my_runfiles = []
 
     is_args_valid(ir_eval_args, IR_EVAL_FLAGS)
     if ctx.attr.input_validator:
@@ -307,8 +331,8 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
             )
         dslx_source_file = src_files[0]
         ir_eval_args["input_validator_path"] = dslx_source_file.short_path
-        runfiles.append(dslx_source_file)
-        runfiles = runfiles + validator_info.dslx_source_files.to_list()
+        my_runfiles.append(dslx_source_file)
+        my_runfiles = my_runfiles + validator_info.dslx_source_files.to_list()
     elif ctx.attr.input_validator_expr:
         ir_eval_args["input_validator_expr"] = "\"" + ctx.attr.input_validator_expr + "\""
     if ctx.attr.top:
@@ -325,9 +349,15 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     if append_cmd_line_args:
         cmd = append_cmd_line_args_to(cmd)
 
-    # The required runfiles are the source file and the IR interpreter tool
-    # executable.
-    runfiles = runfiles + [src, ir_eval_tool]
+    # Get runfiles
+    ir_eval_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).ir_eval_tool,
+    )
+    runfiles = get_runfiles_for_xls(
+        ctx,
+        ir_eval_tool_runfiles + my_runfiles + [src],
+    )
+
     return runfiles, cmd
 
 def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
@@ -342,10 +372,12 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         Otherwise, the command-line arguments are not appended.
 
     Returns:
-      A tuple with two elements. The first element is a list of runfiles to
+      A tuple with two elements. The first element is the runfiles to
       execute the command. The second element is the command.
     """
-    benchmark_ir_tool = get_xls_toolchain_info(ctx).benchmark_ir_tool
+    benchmark_ir_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).benchmark_ir_tool,
+    )
     BENCHMARK_IR_FLAGS = (
         "clock_period_ps",
         "pipeline_stages",
@@ -375,9 +407,14 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
     if append_cmd_line_args:
         cmd = append_cmd_line_args_to(cmd)
 
-    # The required runfiles are the source files and the IR benchmark tool
-    # executable.
-    runfiles = [src, benchmark_ir_tool]
+    # Get runfiles
+    benchmark_ir_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).benchmark_ir_tool,
+    )
+    runfiles = get_runfiles_for_xls(
+        ctx,
+        benchmark_ir_tool_runfiles + [src],
+    )
     return runfiles, cmd
 
 def get_mangled_ir_symbol(
@@ -511,11 +548,6 @@ def xls_dslx_ir_impl(ctx):
       ConvIRInfo provider
       DefaultInfo provider
     """
-    src = None
-    dep_src_list = []
-    srcs = ctx.files.srcs
-    deps = ctx.attr.deps
-
     srcs, dep_src_list = get_files_from_dslx_library_as_input(ctx)
 
     if srcs and len(srcs) != 1:
@@ -523,7 +555,7 @@ def xls_dslx_ir_impl(ctx):
 
     src = srcs[0]
 
-    ir_file = _convert_to_ir(ctx, src, dep_src_list)
+    runfiles, ir_file = _convert_to_ir(ctx, src)
 
     dslx_module_info = DslxModuleInfo(
         dslx_source_files = dep_src_list,
@@ -534,7 +566,10 @@ def xls_dslx_ir_impl(ctx):
         ConvIRInfo(
             conv_ir_file = ir_file,
         ),
-        DefaultInfo(files = depset([ir_file])),
+        DefaultInfo(
+            files = depset([ir_file]),
+            runfiles = runfiles,
+        ),
     ]
 
 xls_dslx_ir = rule(
@@ -588,14 +623,17 @@ def xls_ir_opt_ir_impl(ctx, src):
       DefaultInfo provider
     """
 
-    opt_ir_file = _optimize_ir(ctx, src)
+    runfiles, opt_ir_file = _optimize_ir(ctx, src)
     return [
         OptIRInfo(
             input_ir_file = src,
             opt_ir_file = opt_ir_file,
             opt_ir_args = ctx.attr.opt_ir_args,
         ),
-        DefaultInfo(files = depset([opt_ir_file])),
+        DefaultInfo(
+            files = depset([opt_ir_file]),
+            runfiles = runfiles,
+        ),
     ]
 
 xls_ir_opt_ir_attrs = dicts.add(
@@ -696,7 +734,7 @@ def _xls_ir_equivalence_test_impl(ctx):
 
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = runfiles),
+            runfiles = runfiles,
             files = depset([executable_file]),
             executable = executable_file,
         ),
@@ -796,7 +834,7 @@ def _xls_eval_ir_test_impl(ctx):
 
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = runfiles),
+            runfiles = runfiles,
             files = depset([executable_file]),
             executable = executable_file,
         ),
@@ -888,7 +926,7 @@ def _xls_benchmark_ir_impl(ctx):
 
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = runfiles),
+            runfiles = runfiles,
             files = depset([executable_file]),
             executable = executable_file,
         ),

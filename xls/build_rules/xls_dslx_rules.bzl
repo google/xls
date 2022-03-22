@@ -20,6 +20,7 @@ load(
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
+    "get_runfiles_for_xls",
     "is_args_valid",
 )
 load(
@@ -28,6 +29,8 @@ load(
 )
 load(
     "//xls/build_rules:xls_toolchains.bzl",
+    "get_executable_from",
+    "get_runfiles_from",
     "get_xls_toolchain_info",
     "xls_toolchain_attr",
 )
@@ -36,7 +39,7 @@ _DEFAULT_DSLX_TEST_ARGS = {
     "compare": "jit",
 }
 
-def get_transitive_dslx_srcs_files_depset(srcs, deps, stdlib):
+def get_transitive_dslx_srcs_files_depset(srcs, deps):
     """Returns a depset representing the transitive DSLX source files.
 
     The macro is used to collect the transitive DSLX source files of a target.
@@ -44,8 +47,6 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps, stdlib):
     Args:
       srcs: a list of DSLX source files (.x)
       deps: a list of targets
-      stdlib: Target (as in Bazel Target object) containing the DSLX stdlib
-          files.
 
     Returns:
       A depset collection where the files from 'srcs' are placed in the 'direct'
@@ -54,8 +55,7 @@ def get_transitive_dslx_srcs_files_depset(srcs, deps, stdlib):
     """
     return depset(
         srcs,
-        transitive = [dep[DslxInfo].dslx_source_files for dep in deps] +
-                     [stdlib.files],
+        transitive = [dep[DslxInfo].dslx_source_files for dep in deps],
     )
 
 def get_transitive_dslx_dummy_files_depset(srcs, deps):
@@ -77,58 +77,6 @@ def get_transitive_dslx_dummy_files_depset(srcs, deps):
         transitive = [dep[DslxInfo].dslx_dummy_files for dep in deps],
     )
 
-#TODO(https://github.com/google/xls/issues/392) 04-14-21
-def parse_and_type_check(ctx, srcs, required_files):
-    """Parses and type checks a list containing DSLX files.
-
-    The macro creates an action in the context that parses and type checks a
-    list containing DSLX files.
-
-    Args:
-      ctx: The current rule's context object.
-      srcs: A list of DSLX files.
-      required_files: A list of DSLX sources files required to
-        perform the parse and type check action.
-
-    Returns:
-      A File referencing the dummy file.
-    """
-    dslx_interpreter_tool = get_xls_toolchain_info(ctx).dslx_interpreter_tool
-    dslx_srcs_str = " ".join([s.path for s in srcs])
-    file = ctx.actions.declare_file(ctx.attr.name + ".dummy")
-    ctx.actions.run_shell(
-        outputs = [file],
-        # The DSLX interpreter executable is a tool needed by the action.
-        tools = [dslx_interpreter_tool],
-        # The files required for parsing and type checking also requires the
-        # DSLX interpreter executable.
-        inputs = required_files + [dslx_interpreter_tool],
-        # Generate a dummy file for the DSLX source file when the source file is
-        # successfully parsed and type checked.
-        # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
-        # TODO (vmirian) 01-05-21 Ideally, create a standalone tool that parses
-        # a DSLX file. (Instead of repurposing the interpreter.)
-        command = "\n".join([
-            "FILES=\"{}\"".format(dslx_srcs_str),
-            "for file in $FILES; do",
-            "{} $file --compare=none --execute=false --dslx_path={}".format(
-                dslx_interpreter_tool.path,
-                ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
-            ),
-            "if [ $? -ne 0 ]; then",
-            "echo \"Error parsing and type checking DSLX source file: $file\"",
-            "exit -1",
-            "fi",
-            "done",
-            "touch {}".format(file.path),
-            "exit 0",
-        ]),
-        mnemonic = "ParseAndTypeCheckDSLXSourceFile",
-        progress_message = "Parsing and type checking DSLX source files of " +
-                           "target %s" % (ctx.attr.name),
-    )
-    return file
-
 def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
     """Returns the command that executes in the xls_dslx_test rule.
 
@@ -143,7 +91,9 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
     Returns:
       The command that executes in the xls_dslx_test rule.
     """
-    dslx_interpreter_tool = get_xls_toolchain_info(ctx).dslx_interpreter_tool
+    dslx_interpreter_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
+    )
     _dslx_test_args = append_default_to_args(
         ctx.attr.dslx_test_args,
         _DEFAULT_DSLX_TEST_ARGS,
@@ -250,6 +200,7 @@ xls_dslx_test_common_attrs = {
     ),
 }
 
+#TODO(https://github.com/google/xls/issues/392) 04-14-21
 def _xls_dslx_library_impl(ctx):
     """The implementation of the 'xls_dslx_library' rule.
 
@@ -265,38 +216,64 @@ def _xls_dslx_library_impl(ctx):
       DslxInfo provider
       DefaultInfo provider
     """
-    my_srcs_list = ctx.files.srcs
-    my_dummy_files = []
-    my_srcs_depset = get_transitive_dslx_srcs_files_depset(
-        ctx.files.srcs,
-        ctx.attr.deps,
-        get_xls_toolchain_info(ctx).dslx_std_lib_target,
-    )
 
-    # The required files are the source files from the current target, the
-    # standard library files, and its transitive dependencies.
-    required_files = my_srcs_depset.to_list()
-    required_files += get_xls_toolchain_info(ctx).dslx_std_lib_list
+    # Get runfiles for task.
+    dslx_interpreter_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
+    )
+    runfiles = get_runfiles_for_xls(ctx, dslx_interpreter_tool_runfiles)
+
+    my_srcs_list = ctx.files.srcs
+    dslx_interpreter_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
+    )
 
     # Parse and type check the DSLX source files.
-    file = parse_and_type_check(ctx, my_srcs_list, required_files)
-    my_dummy_files.append(file)
+    dslx_srcs_str = " ".join([s.path for s in my_srcs_list])
+    dummy_file = ctx.actions.declare_file(ctx.attr.name + ".dummy")
+    ctx.actions.run_shell(
+        outputs = [dummy_file],
+        # The DSLX interpreter executable is a tool needed by the action.
+        tools = [dslx_interpreter_tool],
+        # The files required for parsing and type checking also requires the
+        # DSLX interpreter executable.
+        inputs = runfiles.files.to_list(),
+        # Generate a dummy file for the DSLX source file when the source file is
+        # successfully parsed and type checked.
+        # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
+        # TODO (vmirian) 01-05-21 Ideally, create a standalone tool that parses
+        # a DSLX file. (Instead of repurposing the interpreter.)
+        command = "\n".join([
+            "FILES=\"{}\"".format(dslx_srcs_str),
+            "for file in $FILES; do",
+            "{} $file --compare=none --execute=false --dslx_path={}".format(
+                dslx_interpreter_tool.path,
+                ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
+            ),
+            "if [ $? -ne 0 ]; then",
+            "echo \"Error parsing and type checking DSLX source file: $file\"",
+            "exit -1",
+            "fi",
+            "done",
+            "touch {}".format(dummy_file.path),
+            "exit 0",
+        ]),
+        mnemonic = "ParseAndTypeCheckDSLXSourceFile",
+        progress_message = "Parsing and type checking DSLX source files of " +
+                           "target %s" % (ctx.attr.name),
+    )
 
     dummy_files_depset = get_transitive_dslx_dummy_files_depset(
-        my_dummy_files,
+        [dummy_file],
         ctx.attr.deps,
     )
-
-    runfiles = ctx.runfiles(
-        files = ctx.files.srcs,
-        transitive_files = get_xls_toolchain_info(ctx).dslx_std_lib_target.files,
-    )
-    for dep in ctx.attr.deps:
-        runfiles = runfiles.merge(dep.default_runfiles)
     return [
         DslxInfo(
             target_dslx_source_files = my_srcs_list,
-            dslx_source_files = my_srcs_depset,
+            dslx_source_files = get_transitive_dslx_srcs_files_depset(
+                my_srcs_list,
+                ctx.attr.deps,
+            ),
             dslx_dummy_files = dummy_files_depset,
         ),
         DefaultInfo(
@@ -358,7 +335,7 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
 
     Args:
       ctx: The current rule's context object.
-      src_files_to_test: A list of source files to test..
+      src_files_to_test: A list of source files to test.
 
     Returns:
       A tuple with two elements. The first element is a list of runfiles to
@@ -366,11 +343,14 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
 
     """
 
-    # The required runfiles are the source files, the DSLX std library and
-    # the DSLX interpreter executable.
-    runfiles = list(src_files_to_test)
-    runfiles += get_xls_toolchain_info(ctx).dslx_std_lib_list
-    runfiles.append(get_xls_toolchain_info(ctx).dslx_interpreter_tool)
+    # Get runfiles.
+    dslx_interpreter_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).dslx_interpreter_tool,
+    )
+    runfiles = get_runfiles_for_xls(
+        ctx,
+        dslx_interpreter_tool_runfiles + src_files_to_test,
+    )
 
     cmds = []
     for src in src_files_to_test:
@@ -388,10 +368,9 @@ def _xls_dslx_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    src_files_to_test, runfiles = get_files_from_dslx_library_as_input(ctx)
+    src_files_to_test, _ = get_files_from_dslx_library_as_input(ctx)
 
-    my_runfiles, cmds = get_dslx_test_cmd(ctx, src_files_to_test)
-    runfiles += my_runfiles
+    runfiles, cmds = get_dslx_test_cmd(ctx, src_files_to_test)
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -406,7 +385,7 @@ def _xls_dslx_test_impl(ctx):
     )
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = runfiles),
+            runfiles = runfiles,
             files = depset([executable_file]),
             executable = executable_file,
         ),

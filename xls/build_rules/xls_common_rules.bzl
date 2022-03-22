@@ -175,3 +175,42 @@ def split_filename(filename):
     if "." not in filename:
         return [filename, None]
     return filename.rsplit(".", 1)
+
+def get_runfiles_for_xls(ctx, additional_runfiles_list):
+    """Returns the runfiles from a ctx.
+
+    Returns a runfiles object with": 1) the direct runfiles containing the files
+    from the 'srcs' and 'data' attributes, and the additional runfiles in
+    'additional_runfiles_list', and 2) the transitive runfiles containing the
+    files from the 'srcs', 'deps', 'data' and 'library' attributes.
+
+    Args:
+      ctx: The current rule's context object.
+      additional_runfiles_list: Additional runfiles to be appended to the
+        direct runfiles list.
+
+    Returns:
+      The runfiles from a ctx.
+    """
+    if type(additional_runfiles_list) != type([]):
+        fail("Argument 'additional_runfiles_list' from macro " +
+             "'get_runfiles_from_dslx' must be of 'list' type.")
+    runfiles = ctx.runfiles(files = getattr(ctx.files, "data", []) +
+                                    getattr(ctx.files, "srcs", []) +
+                                    additional_runfiles_list)
+    transitive_runfiles = []
+
+    library = []
+    if getattr(ctx.attr, "library", None):
+        library = [ctx.attr.library]
+    for runfiles_attr in (
+        getattr(ctx.attr, "srcs", []),
+        getattr(ctx.attr, "deps", []),
+        getattr(ctx.attr, "data", []),
+        library,
+    ):
+        for target in runfiles_attr:
+            transitive_runfiles.append(target[DefaultInfo].default_runfiles)
+
+    runfiles = runfiles.merge_all(transitive_runfiles)
+    return runfiles

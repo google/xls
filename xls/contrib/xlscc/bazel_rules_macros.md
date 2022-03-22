@@ -39,10 +39,10 @@ Examples:
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="xls_cc_ir-name"></a>name |  The name of the rule.   |  none |
-| <a id="xls_cc_ir-src"></a>src |  The source file. See 'src' attribute from the 'xls_cc_ir' rule.   |  none |
-| <a id="xls_cc_ir-block"></a>block |  The block file. See 'block' attribute from the 'xls_cc_ir' rule.   |  none |
-| <a id="xls_cc_ir-src_deps"></a>src_deps |  Additional source files. See 'src_deps' attribute from the 'xls_cc_ir' rule.   |  <code>[]</code> |
-| <a id="xls_cc_ir-xlscc_args"></a>xlscc_args |  XlsCc Arguments. See 'xlscc_args' attribute from the 'xls_cc_ir' rule.   |  <code>{}</code> |
+| <a id="xls_cc_ir-src"></a>src |  The C/C++ source file containing the top level block. A single source file must be provided. The file must have a '.cc' extension.   |  none |
+| <a id="xls_cc_ir-block"></a>block |  Protobuf describing top-level block interface. A single source file single source file must be provided. The file must have a '.protobin' or a '.binarypb' extension.   |  none |
+| <a id="xls_cc_ir-src_deps"></a>src_deps |  Additional source files for the rule. The file must have a '.cc', '.h' or '.inc' extension.   |  <code>[]</code> |
+| <a id="xls_cc_ir-xlscc_args"></a>xlscc_args |  Arguments of the XLSCC conversion tool.   |  <code>{}</code> |
 | <a id="xls_cc_ir-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_cc_ir-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
 | <a id="xls_cc_ir-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
@@ -91,13 +91,13 @@ Examples:
 | Name  | Description | Default Value |
 | :------------- | :------------- | :------------- |
 | <a id="xls_cc_verilog-name"></a>name |  The name of the rule.   |  none |
-| <a id="xls_cc_verilog-src"></a>src |  The source file. See 'src' attribute from the 'xls_cc_ir' rule.   |  none |
-| <a id="xls_cc_verilog-block"></a>block |  The block file. See 'block' attribute from the 'xls_cc_ir' rule.   |  none |
-| <a id="xls_cc_verilog-verilog_file"></a>verilog_file |  The generated Verilog file. See 'verilog_file' attribute from the 'xls_ir_verilog' rule.   |  none |
-| <a id="xls_cc_verilog-src_deps"></a>src_deps |  Additional source files. See 'src_deps' attribute from the 'xls_cc_ir' rule.   |  <code>[]</code> |
-| <a id="xls_cc_verilog-xlscc_args"></a>xlscc_args |  XlsCc Arguments. See 'xlscc_args' attribute from the 'xls_cc_ir' rule.   |  <code>{}</code> |
-| <a id="xls_cc_verilog-opt_ir_args"></a>opt_ir_args |  IR optimization Arguments. See 'opt_ir_args' attribute from the 'xls_ir_opt_ir' rule.   |  <code>{}</code> |
-| <a id="xls_cc_verilog-codegen_args"></a>codegen_args |  Codegen Arguments. See 'codegen_args' attribute from the 'xls_ir_verilog' rule.   |  <code>{}</code> |
+| <a id="xls_cc_verilog-src"></a>src |  The C/C++ source file containing the top level block. A single source file must be provided. The file must have a '.cc' extension.   |  none |
+| <a id="xls_cc_verilog-block"></a>block |  Protobuf describing top-level block interface. A single source file single source file must be provided. The file must have a '.protobin' or a '.binarypb' extension.   |  none |
+| <a id="xls_cc_verilog-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a '.v' extension.   |  none |
+| <a id="xls_cc_verilog-src_deps"></a>src_deps |  Additional source files for the rule. The file must have a '.cc', '.h' or '.inc' extension.   |  <code>[]</code> |
+| <a id="xls_cc_verilog-xlscc_args"></a>xlscc_args |  Arguments of the XLSCC conversion tool.   |  <code>{}</code> |
+| <a id="xls_cc_verilog-opt_ir_args"></a>opt_ir_args |  Arguments of the IR optimizer tool. For details on the arguments, refer to the opt_main application at //xls/tools/opt_main.cc. Note: the 'top' argument is not assigned using this attribute.   |  <code>{}</code> |
+| <a id="xls_cc_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   |  <code>{}</code> |
 | <a id="xls_cc_verilog-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_cc_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |
 | <a id="xls_cc_verilog-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |

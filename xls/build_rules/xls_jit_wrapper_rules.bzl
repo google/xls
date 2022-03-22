@@ -17,7 +17,11 @@ This module contains jit-wrapper-related build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("//xls/build_rules:xls_common_rules.bzl", "split_filename")
+load(
+    "//xls/build_rules:xls_common_rules.bzl",
+    "get_runfiles_for_xls",
+    "split_filename",
+)
 load(
     "//xls/build_rules:xls_config_rules.bzl",
     "CONFIG",
@@ -27,6 +31,8 @@ load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
+    "get_executable_from",
+    "get_runfiles_from",
     "get_xls_toolchain_info",
     "xls_toolchain_attr",
 )
@@ -63,7 +69,9 @@ def _xls_ir_jit_wrapper_impl(ctx):
       JitWrapperInfo provider
       DefaultInfo provider
     """
-    jit_wrapper_tool = get_xls_toolchain_info(ctx).jit_wrapper_tool
+    jit_wrapper_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).jit_wrapper_tool,
+    )
 
     # default arguments
     jit_wrapper_args = ctx.attr.jit_wrapper_args
@@ -117,10 +125,17 @@ def _xls_ir_jit_wrapper_impl(ctx):
     # genfiles directory
     jit_wrapper_flags.add("--genfiles_dir", ctx.genfiles_dir.path)
     my_generated_files = [cc_file, h_file]
+
+    # Get runfiles
+    jit_wrapper_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).jit_wrapper_tool,
+    )
+    runfiles = get_runfiles_for_xls(ctx, jit_wrapper_tool_runfiles + [src])
+
     ctx.actions.run(
         outputs = my_generated_files,
         tools = [jit_wrapper_tool],
-        inputs = [src, jit_wrapper_tool],
+        inputs = runfiles.files.to_list(),
         arguments = [jit_wrapper_flags],
         executable = jit_wrapper_tool.path,
         mnemonic = "IRJITWrapper",
@@ -133,6 +148,7 @@ def _xls_ir_jit_wrapper_impl(ctx):
         ),
         DefaultInfo(
             files = depset(my_generated_files),
+            runfiles = runfiles,
         ),
     ]
 

@@ -22,13 +22,16 @@ load(
     "append_default_to_args",
     "args_to_string",
     "get_output_filename_value",
+    "get_runfiles_for_xls",
     "is_args_valid",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
-load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
+load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
+    "get_executable_from",
+    "get_runfiles_from",
     "get_xls_toolchain_info",
     "xls_toolchain_attr",
 )
@@ -153,7 +156,8 @@ def validate_verilog_filename(verilog_filename):
 def xls_ir_verilog_impl(ctx, src):
     """The core implementation of the 'xls_ir_verilog' rule.
 
-    Generates a Verilog file, module signature file, Verilog line map, and schedule file.
+    Generates a Verilog file, module signature file, block file, Verilog line
+    map, and schedule file.
 
     Args:
       ctx: The current rule's context object.
@@ -162,7 +166,7 @@ def xls_ir_verilog_impl(ctx, src):
       CodegenInfo provider
       DefaultInfo provider
     """
-    codegen_tool = get_xls_toolchain_info(ctx).codegen_tool
+    codegen_tool = get_executable_from(get_xls_toolchain_info(ctx).codegen_tool)
     my_generated_files = []
 
     # default arguments
@@ -251,10 +255,16 @@ def xls_ir_verilog_impl(ctx, src):
     my_args += " --output_block_ir_path={}".format(block_ir_file.path)
     my_generated_files.append(block_ir_file)
 
+    # Get runfiles
+    codegen_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).codegen_tool,
+    )
+    runfiles = get_runfiles_for_xls(ctx, codegen_tool_runfiles + [src])
+
     ctx.actions.run_shell(
         outputs = my_generated_files,
         tools = [codegen_tool],
-        inputs = [src, codegen_tool],
+        inputs = runfiles.files.to_list(),
         command = "{} {} {}".format(
             codegen_tool.path,
             src.path,
@@ -275,6 +285,7 @@ def xls_ir_verilog_impl(ctx, src):
         ),
         DefaultInfo(
             files = depset(my_generated_files),
+            runfiles = runfiles,
         ),
     ]
 
@@ -345,7 +356,9 @@ def _xls_benchmark_verilog_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    benchmark_codegen_tool = get_xls_toolchain_info(ctx).benchmark_codegen_tool
+    benchmark_codegen_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).benchmark_codegen_tool,
+    )
     codegen_info = ctx.attr.verilog_target[CodegenInfo]
     if not codegen_info.top:
         fail("Verilog target '%s' does not provide a top value" %
@@ -358,12 +371,21 @@ def _xls_benchmark_verilog_impl(ctx):
     )
     if codegen_info.delay_model:
         cmd += " --delay_model={}".format(codegen_info.delay_model)
-    runfiles = [
-        codegen_info.block_ir_file,
-        codegen_info.verilog_file,
-        benchmark_codegen_tool,
-    ]
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
+
+    # Get runfiles
+    benchmark_codegen_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).benchmark_codegen_tool,
+    )
+    runfiles = get_runfiles_for_xls(
+        ctx,
+        benchmark_codegen_tool_runfiles +
+        [
+            codegen_info.block_ir_file,
+            codegen_info.verilog_file,
+        ],
+    )
+
     ctx.actions.write(
         output = executable_file,
         content = "\n".join([
@@ -376,7 +398,7 @@ def _xls_benchmark_verilog_impl(ctx):
     )
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = runfiles),
+            runfiles = runfiles,
             files = depset([executable_file]),
             executable = executable_file,
         ),

@@ -16,8 +16,6 @@
 This module contains toolchains for XLS.
 """
 
-_DEFAULT_STDLIB_TARGET = "//xls/dslx/stdlib:x_files"
-
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
 _DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx:ir_converter_main"
@@ -39,44 +37,85 @@ _DEFAULT_JIT_WRAPPER_TARGET = "//xls/jit:jit_wrapper_generator_main"
 _DEFAULT_XLS_TOOLCHAIN_TARGET = "//xls/build_rules:default_xls_toolchain"
 
 def get_xls_toolchain_info(ctx):
+    """Returns the XlsToolchainInfo provider of the context.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      Returns the XlsToolchainInfo provider of the context. If the context does
+      not contain the xls_toolchain attribute, returns None.
+    """
+    if not hasattr(ctx.attr, "_xls_toolchain"):
+        return None
     return ctx.attr._xls_toolchain[XlsToolchainInfo]
+
+def get_executable_from(target):
+    """Returns the executable file of the target.
+
+    Args:
+      target: The target to extract the executable file.
+
+    Returns:
+      Returns the executable file of the target. If an executable file does not
+      exist, returns None.
+    """
+    if type(target) != "Target":
+        fail("Argument 'target' from macro 'get_executable_from' must be " +
+             "of 'Target' type.")
+    files_list = target.files.to_list()
+    if len(files_list) != 1:
+        return None
+    return files_list[0]
+
+def get_runfiles_from(target):
+    """Returns a list containing the runfiles of the target.
+
+    Args:
+      target: The target to extract the runfiles.
+
+    Returns:
+      Returns a list containing the runfiles of the target.
+    """
+    if type(target) != "Target":
+        fail("Argument 'target' from macro 'get_runfiles_from' must be " +
+             "of 'Target' type.")
+    runfiles = target[DefaultInfo].default_runfiles
+    if not runfiles:
+        return []
+    return runfiles.files.to_list()
 
 XlsToolchainInfo = provider(
     doc = "A provider containing toolchain information.",
     fields = {
-        # Create a list and target instance for the standard library since
-        # converting a depset to a list is costly. The conversion will be
-        # performed once.
-        "dslx_std_lib_list": "List: The list of files composing the DSLX std " +
-                             "library.",
-        "dslx_std_lib_target": "Target: The target of the DSLX std library.",
-        "dslx_interpreter_tool": "File: The DSLX interpreter executable.",
-        "ir_converter_tool": "File: The IR converter executable.",
-        "opt_ir_tool": "File: The IR optimizer executable.",
-        "ir_equivalence_tool": "File: The IR equivalence executable.",
-        "ir_eval_tool": "File: The IR interpreter executable.",
-        "benchmark_ir_tool": "File: The benchmark IR executable.",
-        "benchmark_codegen_tool": "File: The benchmark Verilog executable.",
-        "codegen_tool": "File: The codegen executable.",
-        "jit_wrapper_tool": "File: The JIT wrapper executable.",
+        "benchmark_ir_tool": "Target: The target of the benchmark IR " +
+                             "executable.",
+        "benchmark_codegen_tool": "Target: The target of the benchmark " +
+                                  "Verilog executable.",
+        "codegen_tool": "Target: The target of the codegen executable.",
+        "dslx_interpreter_tool": "Target: The target of the DSLX interpreter " +
+                                 "executable.",
+        "jit_wrapper_tool": "Target: The target of the JIT wrapper executable.",
+        "ir_converter_tool": "Target: The target of the IR converter " +
+                             "executable.",
+        "ir_equivalence_tool": "Target: The target of the IR equivalence " +
+                               "executable.",
+        "ir_eval_tool": "Target: The target of the IR interpreter executable.",
+        "opt_ir_tool": "Target: The target of the IR optimizer executable.",
     },
 )
 
 def _xls_toolchain_impl(ctx):
     xls_toolchain_info = XlsToolchainInfo(
-        dslx_std_lib_list = ctx.attr.dslx_std_lib.files.to_list(),
-        dslx_std_lib_target = ctx.attr.dslx_std_lib,
-        dslx_interpreter_tool = (
-            ctx.attr.dslx_interpreter_tool.files.to_list()[0]
-        ),
-        ir_converter_tool = ctx.attr.ir_converter_tool.files.to_list()[0],
-        opt_ir_tool = ctx.attr.opt_ir_tool.files.to_list()[0],
-        ir_equivalence_tool = ctx.attr.ir_equivalence_tool.files.to_list()[0],
-        ir_eval_tool = ctx.attr.ir_eval_tool.files.to_list()[0],
-        benchmark_ir_tool = ctx.attr.benchmark_ir_tool.files.to_list()[0],
-        benchmark_codegen_tool = ctx.attr.benchmark_codegen_tool.files.to_list()[0],
-        codegen_tool = ctx.attr.codegen_tool.files.to_list()[0],
-        jit_wrapper_tool = ctx.attr.jit_wrapper_tool.files.to_list()[0],
+        benchmark_ir_tool = ctx.attr.benchmark_ir_tool,
+        benchmark_codegen_tool = ctx.attr.benchmark_codegen_tool,
+        codegen_tool = ctx.attr.codegen_tool,
+        dslx_interpreter_tool = ctx.attr.dslx_interpreter_tool,
+        jit_wrapper_tool = ctx.attr.jit_wrapper_tool,
+        ir_converter_tool = ctx.attr.ir_converter_tool,
+        ir_equivalence_tool = ctx.attr.ir_equivalence_tool,
+        ir_eval_tool = ctx.attr.ir_eval_tool,
+        opt_ir_tool = ctx.attr.opt_ir_tool,
     )
     return [xls_toolchain_info]
 
@@ -85,17 +124,18 @@ xls_toolchain = rule(
 
 Examples:
 
-1. User-defined toolchain with a modified DSLX standard library attribute.
+1. User-defined toolchain with a modified DSLX interpreter tool.
 
     ```
-    filegroup(
-        name = "custom_dslx_std_lib",
-        srcs = glob(["custom_*.x"]),
+    cc_binary(
+        name = "custom_dslx_interpreter_tool",
+        srcs = [...],
+        deps = [...],
     )
 
     xls_toolchain(
         name = "user_defined_xls_toolchain",
-        dslx_std_lib = ":custom_dslx_std_lib",
+        dslx_interpreter_tool = ":custom_dslx_interpreter_tool",
     )
 
     xls_dslx_library(
@@ -110,11 +150,6 @@ Examples:
     implementation = _xls_toolchain_impl,
     provides = [XlsToolchainInfo],
     attrs = {
-        "dslx_std_lib": attr.label(
-            doc = "The target containing the DSLX std library.",
-            default = Label(_DEFAULT_STDLIB_TARGET),
-            cfg = "target",
-        ),
         "dslx_interpreter_tool": attr.label(
             doc = "The target of the DSLX interpreter executable.",
             default = Label(_DEFAULT_INTERPRETER_TARGET),

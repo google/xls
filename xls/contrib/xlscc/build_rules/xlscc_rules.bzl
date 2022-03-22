@@ -48,6 +48,8 @@ _CC_FILE_EXTENSION = ".cc"
 _H_FILE_EXTENSION = ".h"
 _INC_FILE_EXTENSION = ".inc"
 _IR_FILE_EXTENSION = ".ir"
+_PROTOBIN_FILE_EXTENSION = ".protobin"
+_BINARYPB_FILE_EXTENSION = ".binarypb"
 _DEFAULT_XLSCC_ARGS = {
     "dump_ir_only": "True",
     "top": "Run",
@@ -77,6 +79,33 @@ def get_xls_cc_ir_generated_files(args):
     """
     return [args.get("ir_file")]
 
+def get_runfiles_for_xls_cc_ir(ctx):
+    """Returns the runfiles from a 'xls_cc_ir' ctx.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      The runfiles from a 'xls_cc_ir' ctx.
+    """
+    transitive_runfiles = []
+
+    runfiles = ctx.runfiles(files = [ctx.file.src] + [ctx.file.block] +
+                                    ctx.files._default_cc_header_files +
+                                    ctx.files._default_synthesis_header_files +
+                                    ctx.files.src_deps)
+    transitive_runfiles.append(ctx.attr
+        ._xlscc_tool[DefaultInfo].default_runfiles)
+    transitive_runfiles.append(ctx.attr
+        ._default_cc_header_files[DefaultInfo].default_runfiles)
+    transitive_runfiles.append(ctx.attr
+        ._default_synthesis_header_files[DefaultInfo].default_runfiles)
+    for dep in ctx.attr.src_deps:
+        transitive_runfiles.append(dep[DefaultInfo].default_runfiles)
+
+    runfiles = runfiles.merge_all(transitive_runfiles)
+    return runfiles
+
 def _xls_cc_ir_impl(ctx):
     """The implementation of the 'xls_cc_ir' rule.
 
@@ -89,19 +118,6 @@ def _xls_cc_ir_impl(ctx):
       ConvIRInfo provider
       DefaultInfo provider
     """
-
-    xlscc_tool = ctx.executable._xlscc_tool
-    source_file = ctx.attr.src.files.to_list()[0]
-    block_pb_file_list = ctx.attr.block.files.to_list()
-    if len(block_pb_file_list) != 1:
-        fail("Attribute 'block' must contain a single file.")
-    block_pb_file = block_pb_file_list[0]
-    additional_source_files = ctx.files.src_deps
-    default_cc_header_files = ctx.attr._default_cc_header_files.files.to_list()
-    default_synthesis_header_files = (
-        ctx.attr._default_synthesis_header_files.files.to_list()
-    )
-
     XLSCC_FLAGS = (
         "module_name",
         "block_pb",
@@ -137,35 +153,40 @@ def _xls_cc_ir_impl(ctx):
     is_args_valid(xlscc_args, XLSCC_FLAGS)
     my_args = args_to_string(xlscc_args)
 
-    required_files = [source_file, block_pb_file] + additional_source_files
-    required_files += default_cc_header_files + default_synthesis_header_files
     ir_filename = get_output_filename_value(
         ctx,
         "ir_file",
         ctx.attr.name + _IR_FILE_EXTENSION,
     )
     ir_file = ctx.actions.declare_file(ir_filename)
+
+    # Get runfiles
+    runfiles = get_runfiles_for_xls_cc_ir(ctx)
+
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
-        tools = [xlscc_tool],
+        tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
-        inputs = required_files + [xlscc_tool],
+        inputs = runfiles.files.to_list(),
         command = "{} {} --block_pb {} {} > {}".format(
-            xlscc_tool.path,
-            source_file.path,
-            block_pb_file.path,
+            ctx.executable._xlscc_tool.path,
+            ctx.file.src.path,
+            ctx.file.block.path,
             my_args,
             ir_file.path,
         ),
         mnemonic = "ConvertXLSCC",
-        progress_message = "Converting XLSCC file: %s" % (source_file.path),
+        progress_message = "Converting XLSCC file: %s" % (ctx.file.src.path),
     )
     return [
         ConvIRInfo(
             conv_ir_file = ir_file,
         ),
-        DefaultInfo(files = depset([ir_file])),
+        DefaultInfo(
+            files = depset([ir_file]),
+            runfiles = runfiles,
+        ),
     ]
 
 _xls_cc_ir_attrs = {
@@ -177,8 +198,15 @@ _xls_cc_ir_attrs = {
         allow_single_file = [_CC_FILE_EXTENSION],
     ),
     "block": attr.label(
-        doc = "Protobuf describing top-level block interface.",
+        doc = "Protobuf describing top-level block interface. A single " +
+              "source file single source file must be provided. The file " +
+              "must have a '" + _PROTOBIN_FILE_EXTENSION + "' or a '" +
+              _BINARYPB_FILE_EXTENSION + "' extension.",
         mandatory = True,
+        allow_single_file = [
+            _PROTOBIN_FILE_EXTENSION,
+            _BINARYPB_FILE_EXTENSION,
+        ],
     ),
     "src_deps": attr.label_list(
         doc = "Additional source files for the rule. The file must have a " +
@@ -191,14 +219,13 @@ _xls_cc_ir_attrs = {
         ],
     ),
     "xlscc_args": attr.string_dict(
-        doc = "Arguments of the IR conversion tool.",
+        doc = "Arguments of the XLSCC conversion tool.",
     ),
     "ir_file": attr.output(
         doc = "Filename of the generated IR. If not specified, the " +
               "target name of the bazel rule followed by an " +
               _IR_FILE_EXTENSION + " extension is used.",
     ),
-    # TODO(vmirian) If xlscc is part of official release, add to toolchain.
     "_xlscc_tool": attr.label(
         doc = "The target of the XLSCC executable.",
         default = Label("//xls/contrib/xlscc:xlscc"),
@@ -270,12 +297,14 @@ def xls_cc_ir_macro(
 
     Args:
       name: The name of the rule.
-      src: The source file. See 'src' attribute from the 'xls_cc_ir' rule.
-      block: The block file. See 'block' attribute from the 'xls_cc_ir' rule.
-      src_deps: Additional source files. See 'src_deps' attribute from the
-        'xls_cc_ir' rule.
-      xlscc_args: XlsCc Arguments. See 'xlscc_args' attribute from the
-        'xls_cc_ir' rule.
+      src: The C/C++ source file containing the top level block. A single source
+        file must be provided. The file must have a '.cc' extension.
+      block: Protobuf describing top-level block interface. A single source file
+        single source file must be provided. The file must have a '.protobin'
+        or a '.binarypb' extension.
+      src_deps: Additional source files for the rule. The file must have a
+        '.cc', '.h' or '.inc' extension.
+      xlscc_args: Arguments of the XLSCC conversion tool.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -354,7 +383,12 @@ def _xls_cc_verilog_impl(ctx):
                 ir_opt_default_info.files.to_list() +
                 codegen_default_info.files.to_list(),
             ),
-            # TODO(vmirian) 06-18-2021 Add transitive files.
+            runfiles = ctx.runfiles(
+                files =
+                    ir_conv_default_info.default_runfiles.files.to_list() +
+                    ir_opt_default_info.default_runfiles.files.to_list() +
+                    codegen_default_info.default_runfiles.files.to_list(),
+            ),
         ),
     ]
 
@@ -431,18 +465,23 @@ def xls_cc_verilog_macro(
 
     Args:
       name: The name of the rule.
-      src: The source file. See 'src' attribute from the 'xls_cc_ir' rule.
-      block: The block file. See 'block' attribute from the 'xls_cc_ir' rule.
-      verilog_file: The generated Verilog file. See 'verilog_file' attribute
-        from the 'xls_ir_verilog' rule.
-      src_deps: Additional source files. See 'src_deps' attribute from the
-        'xls_cc_ir' rule.
-      xlscc_args: XlsCc Arguments. See 'xlscc_args' attribute from the
-        'xls_cc_ir' rule.
-      opt_ir_args: IR optimization Arguments. See 'opt_ir_args' attribute from
-        the 'xls_ir_opt_ir' rule.
-      codegen_args: Codegen Arguments. See 'codegen_args' attribute from the
-        'xls_ir_verilog' rule.
+      src: The C/C++ source file containing the top level block. A single source
+        file must be provided. The file must have a '.cc' extension.
+      block: Protobuf describing top-level block interface. A single source file
+        single source file must be provided. The file must have a '.protobin'
+        or a '.binarypb' extension.
+      verilog_file: The filename of Verilog file generated. The filename must
+        have a '.v' extension.
+      src_deps: Additional source files for the rule. The file must have a
+        '.cc', '.h' or '.inc' extension.
+      xlscc_args: Arguments of the XLSCC conversion tool.
+      opt_ir_args: Arguments of the IR optimizer tool. For details on the
+        arguments, refer to the opt_main application at
+        //xls/tools/opt_main.cc. Note: the 'top'
+        argument is not assigned using this attribute.
+      codegen_args: Arguments of the codegen tool. For details on the arguments,
+        refer to the codegen_main application at
+        //xls/tools/codegen_main.cc.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
