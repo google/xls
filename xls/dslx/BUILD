@@ -276,6 +276,7 @@ cc_library(
     deps = [
         ":concrete_type",
         ":interp_value",
+        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
         "@com_google_absl//absl/status:statusor",
@@ -877,6 +878,7 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
+        ":interp_value_helpers",
         ":mangle",
         ":type_info",
         "//xls/common/status:ret_check",

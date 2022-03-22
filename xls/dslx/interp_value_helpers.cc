@@ -15,6 +15,7 @@
 
 #include <vector>
 
+#include "xls/common/status/ret_check.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -134,6 +135,67 @@ absl::StatusOr<absl::optional<int64_t>> FindFirstDifferingIndex(
   }
 
   return absl::nullopt;
+}
+
+absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
+                                             const InterpValue& value) {
+  if (auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type)) {
+    XLS_RET_CHECK(value.IsTuple()) << value.ToString();
+    const int64_t tuple_size = value.GetValuesOrDie().size();
+    std::vector<InterpValue> results;
+    for (int64_t i = 0; i < tuple_size; ++i) {
+      const InterpValue& e = value.GetValuesOrDie()[i];
+      const ConcreteType& t = tuple_type->GetMemberType(i);
+      XLS_ASSIGN_OR_RETURN(InterpValue converted, SignConvertValue(t, e));
+      results.push_back(converted);
+    }
+    return InterpValue::MakeTuple(std::move(results));
+  }
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
+    XLS_RET_CHECK(value.IsArray()) << value.ToString();
+    const ConcreteType& t = array_type->element_type();
+    int64_t array_size = value.GetValuesOrDie().size();
+    std::vector<InterpValue> results;
+    for (int64_t i = 0; i < array_size; ++i) {
+      const InterpValue& e = value.GetValuesOrDie()[i];
+      XLS_ASSIGN_OR_RETURN(InterpValue converted, SignConvertValue(t, e));
+      results.push_back(converted);
+    }
+    return InterpValue::MakeArray(std::move(results));
+  }
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
+    XLS_RET_CHECK(value.IsBits()) << value.ToString();
+    if (bits_type->is_signed()) {
+      return InterpValue::MakeBits(InterpValueTag::kSBits,
+                                   value.GetBitsOrDie());
+    }
+    return value;
+  }
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
+    XLS_RET_CHECK(value.IsBits()) << value.ToString();
+    XLS_RET_CHECK(enum_type->signedness().has_value());
+    if (*enum_type->signedness()) {
+      return InterpValue::MakeBits(InterpValueTag::kSBits,
+                                   value.GetBitsOrDie());
+    }
+    return value;
+  }
+  return absl::UnimplementedError("Cannot sign convert type: " +
+                                  concrete_type.ToString());
+}
+
+absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
+    const FunctionType& fn_type, absl::Span<const InterpValue> args) {
+  absl::Span<const std::unique_ptr<ConcreteType>> params = fn_type.params();
+  XLS_RET_CHECK_EQ(params.size(), args.size());
+  std::vector<InterpValue> converted;
+  converted.reserve(args.size());
+  for (int64_t i = 0; i < args.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(InterpValue value,
+                         SignConvertValue(*params[i], args[i]));
+    converted.push_back(value);
+  }
+  return converted;
 }
 
 }  // namespace xls::dslx

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/dslx/interpreter.h"
-
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"
@@ -21,9 +19,13 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/bytecode.h"
+#include "xls/dslx/bytecode_emitter.h"
+#include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
@@ -67,19 +69,18 @@ PYBIND11_MODULE(interpreter, m) {
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                              tm.type_info->GetItemAs<FunctionType>(f));
 
-        Interpreter interpreter(
-            tm.module, /*typecheck=*/nullptr,
-            /*import_data=*/&import_data,
-            /*run_concolic=*/false,
-            /*trace_format_preference=*/FormatPreference::kDefault,
-            /*package=*/nullptr);
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<BytecodeFunction> bf,
+            BytecodeEmitter::Emit(&import_data, tm.type_info, f,
+                                  /*caller_bindings=*/{}));
         std::vector<InterpValue> results;
         results.reserve(args_batch.size());
         for (const std::vector<InterpValue>& unsigned_args : args_batch) {
           XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
                                SignConvertArgs(*fn_type, unsigned_args));
-          XLS_ASSIGN_OR_RETURN(InterpValue result,
-                               interpreter.RunFunction(function_name, args));
+          XLS_ASSIGN_OR_RETURN(
+              InterpValue result,
+              BytecodeInterpreter::Interpret(&import_data, bf.get(), args));
           results.push_back(result);
         }
         return results;

@@ -318,38 +318,6 @@ class Interpreter {
   std::vector<SpawnContext> spawn_stack_;
 };
 
-// Converts the values to matched the signedness of the concrete type.
-//
-// Converts bits-typed Values contained within the given Value to match the
-// signedness of the ConcreteType. Examples:
-//
-// invocation: sign_convert_value(s8, u8:64)
-// returns: s8:64
-//
-// invocation: sign_convert_value(s3, u8:7)
-// returns: s3:-1
-//
-// invocation: sign_convert_value((s8, u8), (u8:42, u8:10))
-// returns: (s8:42, u8:10)
-//
-// This conversion functionality is required because the Values used in the DSLX
-// may be signed while Values in IR interpretation and Verilog simulation are
-// always unsigned.
-//
-// Args:
-//   concrete_type: ConcreteType to match.
-//   value: Input value.
-//
-// Returns:
-//   Sign-converted value.
-absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
-                                             const InterpValue& value);
-
-// As above, but a handy vectorized form for application on parameters of a
-// function.
-absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
-    const FunctionType& fn_type, absl::Span<const InterpValue> args);
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_INTERPRETER_H_
