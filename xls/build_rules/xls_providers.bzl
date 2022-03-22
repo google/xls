@@ -67,6 +67,7 @@ CodegenInfo = provider(
     fields = {
         "verilog_file": "File: The Verilog file.",
         "module_sig_file": "File: The module signature of the Verilog file.",
+        "verilog_line_map_file": "File: The Verilog line map file.",
         "schedule_file": "File: The schedule of the module.",
         "block_ir_file": "File: The block IR file.",
         "delay_model": "Optional(string) Delay model used in codegen.",

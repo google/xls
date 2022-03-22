@@ -90,9 +90,12 @@ absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
                           ->Run(&unit, codegen_pass_options, &results)
                           .status());
   XLS_RET_CHECK(unit.signature.has_value());
-  XLS_ASSIGN_OR_RETURN(std::string verilog, GenerateVerilog(block, options));
+  VerilogLineMap verilog_line_map;
+  XLS_ASSIGN_OR_RETURN(std::string verilog,
+                       GenerateVerilog(block, options, &verilog_line_map));
 
-  return ModuleGeneratorResult{verilog, unit.signature.value()};
+  return ModuleGeneratorResult{verilog, verilog_line_map,
+                               unit.signature.value()};
 }
 
 }  // namespace verilog

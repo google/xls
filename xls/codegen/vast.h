@@ -35,6 +35,7 @@
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/source_location.h"
 
 namespace xls {
 namespace verilog {
@@ -144,16 +145,21 @@ std::string SanitizeIdentifier(absl::string_view name);
 // Base type for a VAST node. All nodes are owned by a VerilogFile.
 class VastNode {
  public:
-  explicit VastNode(VerilogFile* file) : file_(file) {}
+  explicit VastNode(VerilogFile* file,
+                    std::optional<SourceLocation> loc = std::nullopt)
+      : file_(file), loc_(loc) {}
   virtual ~VastNode() = default;
 
   // The file which owns this node.
   VerilogFile* file() const { return file_; }
 
+  const std::optional<SourceLocation>& loc() const { return loc_; }
+
   virtual std::string Emit(LineInfo* line_info) const = 0;
 
  private:
   VerilogFile* file_;
+  std::optional<SourceLocation> loc_;
 };
 
 // Trait used for named entities.
@@ -1336,8 +1342,7 @@ using ModuleMember =
                   BlankLine*,               // Blank line.
                   InlineVerilogStatement*,  // InlineVerilog string statement.
                   VerilogFunction*,         // Function definition
-                  Cover*,
-                  ModuleSection*>;
+                  Cover*, ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may

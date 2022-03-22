@@ -75,7 +75,7 @@ class Node {
   Op op() const { return op_; }
   FunctionBase* function_base() const { return function_base_; }
   Package* package() const;
-  const absl::optional<SourceLocation> loc() const { return loc_; }
+  const absl::optional<SourceLocation>& loc() const { return loc_; }
 
   // Returns the sequence of operands used by this node.
   //

@@ -22,6 +22,7 @@
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
 #include "xls/codegen/vast.h"
+#include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/instantiation.h"
@@ -708,7 +709,8 @@ absl::StatusOr<std::vector<Block*>> GatherInstantiatedBlocks(Block* top) {
 }  // namespace
 
 absl::StatusOr<std::string> GenerateVerilog(Block* top,
-                                            const CodegenOptions& options) {
+                                            const CodegenOptions& options,
+                                            VerilogLineMap* verilog_line_map) {
   XLS_VLOG(2) << absl::StreamFormat(
       "Generating Verilog for packge with with top level block `%s`:",
       top->name());
@@ -724,7 +726,33 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
       file.Add(file.Make<BlankLine>());
     }
   }
-  std::string text = file.Emit(nullptr);
+
+  LineInfo line_info;
+  std::string text = file.Emit(&line_info);
+  if (verilog_line_map != nullptr) {
+    for (const auto& [vast_node, partial_spans] : line_info.Spans()) {
+      std::optional<std::vector<LineSpan>> spans =
+          line_info.LookupNode(vast_node);
+      if (!spans.has_value()) {
+        return absl::InternalError(
+            "Unbalanced calls to LineInfo::{Start, End}");
+      }
+      for (const LineSpan& span : spans.value()) {
+        if (std::optional<SourceLocation> loc = vast_node->loc()) {
+          int64_t line = static_cast<int32_t>(loc.value().lineno());
+          VerilogLineMapping* mapping = verilog_line_map->add_mapping();
+          mapping->set_source_file(
+              top->package()->GetFilename(loc.value().fileno()).value_or(""));
+          mapping->mutable_source_span()->set_line_start(line);
+          mapping->mutable_source_span()->set_line_end(line);
+          mapping->set_verilog_file("");  // to be updated later on
+          mapping->mutable_verilog_span()->set_line_start(span.StartLine());
+          mapping->mutable_verilog_span()->set_line_end(span.EndLine());
+        }
+      }
+    }
+  }
+
   XLS_VLOG(2) << "Verilog output:";
   XLS_VLOG_LINES(2, text);
 

@@ -48,6 +48,7 @@ cc_library(
         ":node_expressions",
         ":signature_generator",
         ":vast",
+        ":verilog_line_map_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -205,6 +206,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
+        "//xls/ir:source_location",
         "@com_github_google_re2//:re2",
     ],
 )
@@ -288,6 +290,7 @@ cc_library(
     deps = [
         ":module_signature_cc_proto",
         ":vast",
+        ":verilog_line_map_cc_proto",
         ":xls_metrics_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -536,6 +539,7 @@ cc_library(
         ":module_builder",
         ":node_expressions",
         ":vast",
+        ":verilog_line_map_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
@@ -612,6 +616,24 @@ xls_py_proto_library(
     srcs = ["xls_metrics.proto"],
     internal_deps = [
         ":xls_metrics_proto",
+    ],
+)
+
+proto_library(
+    name = "verilog_line_map_proto",
+    srcs = ["verilog_line_map.proto"],
+)
+
+cc_proto_library(
+    name = "verilog_line_map_cc_proto",
+    deps = [":verilog_line_map_proto"],
+)
+
+xls_py_proto_library(
+    name = "verilog_line_map_py_pb2",
+    srcs = ["verilog_line_map.proto"],
+    internal_deps = [
+        ":verilog_line_map_proto",
     ],
 )
 

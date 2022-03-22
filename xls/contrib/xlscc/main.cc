@@ -52,6 +52,9 @@ xlscc foo.cc --block_pb block_info.pb
 
 )";
 
+ABSL_FLAG(std::string, out, "",
+          "Path at which to output verilog / IR. Stdout if not specified.");
+
 ABSL_FLAG(std::string, block_pb, "",
           "HLSBlock protobuf for generating as HLS block / XLS proc");
 
@@ -73,6 +76,9 @@ ABSL_FLAG(std::string, meta_out, "",
 
 ABSL_FLAG(bool, dump_ir_only, false,
           "Output proc IR and do not continue to block/verilog generation");
+
+ABSL_FLAG(std::string, verilog_line_map_out, "",
+          "Path at which to output Verilog line map protobuf");
 
 namespace xlscc {
 
@@ -135,13 +141,30 @@ absl::Status Run(absl::string_view cpp_path) {
     package_name = "my_package";
   }
 
+  std::filesystem::path output_file(absl::GetFlag(FLAGS_out));
+
+  std::filesystem::path output_absolute = output_file;
+  if (output_file.is_relative()) {
+    XLS_ASSIGN_OR_RETURN(std::filesystem::path cwd, xls::GetCurrentDirectory());
+    output_absolute = cwd / output_file;
+  }
+
+  auto write_to_output = [&](absl::string_view output) -> absl::Status {
+    if (output_file.empty()) {
+      std::cout << output;
+    } else {
+      XLS_RETURN_IF_ERROR(xls::SetFileContents(output_file, output));
+    }
+    return absl::OkStatus();
+  };
+
   std::cerr << "Generating IR..." << std::endl;
   xls::Package package(package_name);
   if (block_pb_name.empty()) {
     XLS_RETURN_IF_ERROR(translator.GenerateIR_Top_Function(&package).status());
     // TODO(seanhaskell): Simplify IR
     XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
-    std::cout << package.DumpIr() << std::endl;
+    XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
   } else {
     XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
                          translator.GenerateIR_Block(&package, block));
@@ -149,7 +172,8 @@ absl::Status Run(absl::string_view cpp_path) {
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
     if (absl::GetFlag(FLAGS_dump_ir_only)) {
       std::cerr << "Saving Package IR..." << std::endl;
-      std::cout << package.DumpIr() << std::endl;
+      XLS_RETURN_IF_ERROR(
+          write_to_output(absl::StrCat(package.DumpIr(), "\n")));
     } else {
       XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
 
@@ -160,11 +184,24 @@ absl::Status Run(absl::string_view cpp_path) {
                            xls::verilog::ProcToCombinationalBlock(
                                proc, proc->name(), codegen_options));
       std::cerr << "Generating Verilog..." << std::endl;
-      XLS_ASSIGN_OR_RETURN(
-          std::string verilog,
-          xls::verilog::GenerateVerilog(xls_block, codegen_options));
 
-      std::cout << verilog << std::endl;
+      xls::verilog::VerilogLineMap verilog_line_map;
+      XLS_ASSIGN_OR_RETURN(std::string verilog,
+                           xls::verilog::GenerateVerilog(
+                               xls_block, codegen_options, &verilog_line_map));
+
+      for (int64_t i = 0; i < verilog_line_map.mapping_size(); ++i) {
+        verilog_line_map.mutable_mapping(i)->set_verilog_file(output_absolute);
+      }
+
+      std::string verilog_line_map_out_path =
+          absl::GetFlag(FLAGS_verilog_line_map_out);
+      if (!verilog_line_map_out_path.empty()) {
+        XLS_RETURN_IF_ERROR(
+            xls::SetTextProtoFile(verilog_line_map_out_path, verilog_line_map));
+      }
+
+      XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(verilog, "\n")));
     }
   }
 

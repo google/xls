@@ -22,6 +22,7 @@
 #include "absl/types/optional.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/codegen/vast.h"
+#include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/proto_adaptor_utils.h"
 #include "xls/ir/type.h"
@@ -145,6 +146,7 @@ class ModuleSignature {
 // generator.
 struct ModuleGeneratorResult {
   std::string verilog_text;
+  VerilogLineMap verilog_line_map;
   ModuleSignature signature;
 };
 

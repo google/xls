@@ -65,6 +65,9 @@ ABSL_FLAG(
     std::string, output_signature_path, "",
     "Specific output path for the module signature. If not specified then "
     "no module signature is generated.");
+ABSL_FLAG(std::string, output_verilog_line_map_path, "",
+          "Specific output path for Verilog line map. If not specified then "
+          "Verilog line map is not generated.");
 ABSL_FLAG(std::string, top, "",
           "Top entity of the package to generate the (System)Verilog code.");
 ABSL_FLAG(std::string, generator, "pipeline",
@@ -306,6 +309,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
 absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
                       absl::string_view signature_path,
                       absl::string_view schedule_path,
+                      absl::string_view verilog_line_map_path,
                       absl::string_view output_block_ir_path) {
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
@@ -362,6 +366,19 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
     XLS_RETURN_IF_ERROR(
         SetTextProtoFile(signature_path, result.signature.proto()));
   }
+
+  if (!verilog_path.empty()) {
+    std::filesystem::path absolute = std::filesystem::absolute(verilog_path);
+    for (int64_t i = 0; i < result.verilog_line_map.mapping_size(); ++i) {
+      result.verilog_line_map.mutable_mapping(i)->set_verilog_file(absolute);
+    }
+  }
+
+  if (!verilog_line_map_path.empty()) {
+    XLS_RETURN_IF_ERROR(
+        SetTextProtoFile(verilog_line_map_path, result.verilog_line_map));
+  }
+
   if (verilog_path.empty()) {
     std::cout << result.verilog_text;
   } else {
@@ -385,6 +402,7 @@ int main(int argc, char** argv) {
   XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_output_verilog_path),
                               absl::GetFlag(FLAGS_output_signature_path),
                               absl::GetFlag(FLAGS_output_schedule_path),
+                              absl::GetFlag(FLAGS_output_verilog_line_map_path),
                               absl::GetFlag(FLAGS_output_block_ir_path)));
 
   return EXIT_SUCCESS;

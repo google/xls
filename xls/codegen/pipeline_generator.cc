@@ -72,10 +72,13 @@ absl::StatusOr<ModuleGeneratorResult> ToPipelineModuleText(
   XLS_RETURN_IF_ERROR(
       CreateCodegenPassPipeline()->Run(&unit, pass_options, &results).status());
   XLS_RET_CHECK(unit.signature.has_value());
-  XLS_ASSIGN_OR_RETURN(std::string verilog,
-                       GenerateVerilog(block, pass_options.codegen_options));
+  VerilogLineMap verilog_line_map;
+  XLS_ASSIGN_OR_RETURN(
+      std::string verilog,
+      GenerateVerilog(block, pass_options.codegen_options, &verilog_line_map));
 
-  return ModuleGeneratorResult{verilog, unit.signature.value()};
+  return ModuleGeneratorResult{verilog, verilog_line_map,
+                               unit.signature.value()};
 }
 
 }  // namespace verilog

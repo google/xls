@@ -17,6 +17,8 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/vast.h"
+#include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/ir/block.h"
 
 namespace xls {
@@ -25,8 +27,9 @@ namespace verilog {
 // Generates and returns (System)Verilog text implementing the given top-level
 // block. The text will include a Verilog module corresponding to the given
 // block as well as module definitions for any instantiated blocks.
-absl::StatusOr<std::string> GenerateVerilog(Block* top,
-                                            const CodegenOptions& options);
+absl::StatusOr<std::string> GenerateVerilog(
+    Block* top, const CodegenOptions& options,
+    VerilogLineMap* verilog_line_map = nullptr);
 
 }  // namespace verilog
 }  // namespace xls
