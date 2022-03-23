@@ -126,6 +126,8 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
       (convert_array_index_to_select < 0)
           ? std::nullopt
           : std::make_optional(convert_array_index_to_select);
+  // TODO(meheff): 2022/3/23 Add this as a flag and benchmark_ir option.
+  pass_options.inline_procs = true;
   PassResults pass_results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package, pass_options, &pass_results).status());
