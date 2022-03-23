@@ -164,6 +164,7 @@ absl::Status Run(absl::string_view cpp_path) {
     XLS_RETURN_IF_ERROR(translator.GenerateIR_Top_Function(&package).status());
     // TODO(seanhaskell): Simplify IR
     XLS_RETURN_IF_ERROR(package.SetTopByName(top_name));
+    translator.AddSourceInfoToPackage(package);
     XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
   } else {
     XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
@@ -172,11 +173,12 @@ absl::Status Run(absl::string_view cpp_path) {
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
     if (absl::GetFlag(FLAGS_dump_ir_only)) {
       std::cerr << "Saving Package IR..." << std::endl;
+      translator.AddSourceInfoToPackage(package);
       XLS_RETURN_IF_ERROR(
           write_to_output(absl::StrCat(package.DumpIr(), "\n")));
     } else {
       XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
-
+      translator.AddSourceInfoToPackage(package);
       xls::verilog::CodegenOptions codegen_options;
       codegen_options.use_system_verilog(false);
 

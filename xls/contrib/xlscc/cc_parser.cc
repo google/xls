@@ -29,6 +29,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
+#include "xls/ir/block.h"
 #include "re2/re2.h"
 
 namespace xlscc {
@@ -150,6 +151,12 @@ void CCParser::AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output) {
     xlscc_metadata::SourceName* source = output.add_sources();
     source->set_path(path);
     source->set_number(number);
+  }
+}
+
+void CCParser::AddSourceInfoToPackage(xls::Package& package) {
+  for (const auto& [path, number] : file_numbers_) {
+    package.SetFileno(xls::Fileno(number), path);
   }
 }
 

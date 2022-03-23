@@ -72,8 +72,9 @@ std::string PrintCaret(
   if (line_contents.has_value()) {
     line_contents_owned = line_contents.value();
   } else if (path_maybe.has_value()) {
+    int32_t lineZeroBased = std::max(0, line - 1);
     absl::StatusOr<std::string> line_or_status =
-        GetLineFromFile(path_maybe.value(), line);
+        GetLineFromFile(path_maybe.value(), lineZeroBased);
     line_contents_owned =
         line_or_status.ok() ? *line_or_status : unknown_line_contents;
   } else {
@@ -84,7 +85,8 @@ std::string PrintCaret(
   std::string line_number_padding;
   line_number_padding.resize(line_number_width, ' ');
   std::string caret_padding;
-  caret_padding.resize(col, ' ');
+  int32_t colZeroBased = std::max(0, col - 1);
+  caret_padding.resize(colZeroBased, ' ');
 
   std::string path = path_maybe.has_value() ? path_maybe.value() : "«unknown»";
 

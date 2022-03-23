@@ -59,6 +59,10 @@ class XlsccTestBase : public xls::IrTestBase {
       absl::string_view cpp_source,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
+  absl::Status ScanFile(xls::TempFile& temp,
+                        std::vector<absl::string_view> clang_argv = {},
+                        bool io_test_mode = false);
+
   absl::Status ScanFile(absl::string_view cpp_src,
                         std::vector<absl::string_view> clang_argv = {},
                         bool io_test_mode = false);
@@ -66,8 +70,17 @@ class XlsccTestBase : public xls::IrTestBase {
   // Overload which takes a translator as a parameter rather than constructing
   // and using the translator_ data member.
   static absl::Status ScanTempFileWithContent(
+      xls::TempFile& temp, std::vector<absl::string_view> argv,
+      xlscc::CCParser* translator);
+
+  static absl::Status ScanTempFileWithContent(
       absl::string_view cpp_src, std::vector<absl::string_view> argv,
       xlscc::CCParser* translator);
+
+  absl::StatusOr<std::string> SourceToIr(
+      xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,
+      std::vector<absl::string_view> clang_argv = {},
+      bool io_test_mode = false);
 
   absl::StatusOr<std::string> SourceToIr(
       absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,

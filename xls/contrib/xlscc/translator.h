@@ -591,6 +591,7 @@ class Translator {
   absl::Status GenerateFunctionMetadata(
       const clang::FunctionDecl* func,
       xlscc_metadata::FunctionPrototype* output);
+  void AddSourceInfoToPackage(xls::Package& package);
 
   inline void SetIOTestMode() { io_test_mode_ = true; }
 

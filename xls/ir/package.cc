@@ -494,7 +494,14 @@ std::string Package::DumpIr() const {
   absl::StrAppend(&out, "package ", name(), "\n\n");
 
   if (!fileno_to_filename_.empty()) {
+    std::list<xls::Fileno> filenos;
     for (const auto& [fileno, filename] : fileno_to_filename_) {
+      filenos.push_back(fileno);
+    }
+    filenos.sort();
+    // output in sorted order to be deterministic
+    for (const auto& fileno  : filenos) {
+      std::string filename = fileno_to_filename_.at(fileno);
       absl::StrAppend(&out, "file_number ", static_cast<int32_t>(fileno), " ",
                       "\"", filename, "\"\n");
     }

@@ -613,6 +613,10 @@ void Translator::PopContext(bool propagate_up, bool propagate_break_up,
   }
 }
 
+void Translator::AddSourceInfoToPackage(xls::Package& package) {
+  parser_->AddSourceInfoToPackage(package);
+}
+
 TranslationContext& Translator::context() { return context_stack_.top(); }
 
 absl::Status Translator::AssignThis(const CValue& rvalue,

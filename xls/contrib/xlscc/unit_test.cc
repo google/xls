@@ -115,12 +115,12 @@ void XlsccTestBase::RunWithStatics(
   }
 }
 
-absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
+absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
                                      std::vector<absl::string_view> clang_argv,
                                      bool io_test_mode) {
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(
-      ScanTempFileWithContent(cpp_src, clang_argv, parser.get()));
+      ScanTempFileWithContent(temp, clang_argv, parser.get()));
   translator_.reset(new xlscc::Translator(1000, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
@@ -128,11 +128,25 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
   return absl::OkStatus();
 }
 
+absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
+                                     std::vector<absl::string_view> clang_argv,
+                                     bool io_test_mode) {
+  XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
+                       xls::TempFile::CreateWithContent(cpp_src, ".cc"));
+  return ScanFile(temp, clang_argv, io_test_mode);
+}
+
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     absl::string_view cpp_src, std::vector<absl::string_view> argv,
     xlscc::CCParser* translator) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
+  return ScanTempFileWithContent(temp, argv, translator);
+}
+
+/* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
+    xls::TempFile& temp, std::vector<absl::string_view> argv,
+    xlscc::CCParser* translator) {
 
   std::string ps = temp.path();
 
@@ -148,15 +162,24 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
   return absl::OkStatus();
 }
 
+
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
+    std::vector<absl::string_view> clang_argv, bool io_test_mode) {
+  XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
+                       xls::TempFile::CreateWithContent(cpp_src, ".cc"));
+  return SourceToIr(temp, pfunc, clang_argv, io_test_mode);
+}
+
+absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
+    xls::TempFile& temp, xlscc::GeneratedFunction** pfunc,
     std::vector<absl::string_view> clang_argv, bool io_test_mode) {
   std::list<std::string> ir_texts;
   std::string ret_text;
 
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
     XLS_RETURN_IF_ERROR(
-        ScanFile(cpp_src, clang_argv, /* io_test_mode= */ io_test_mode));
+        ScanFile(temp, clang_argv, /* io_test_mode= */ io_test_mode));
     package_.reset(new xls::Package("my_package"));
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(package_.get()));
@@ -164,6 +187,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     if (pfunc) {
       *pfunc = func;
     }
+    translator_->AddSourceInfoToPackage(*package_);
     ret_text = package_->DumpIr();
     ir_texts.push_back(ret_text);
   }

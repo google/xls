@@ -1511,7 +1511,7 @@ absl::Status Parser::ParseFileNumber(Package* package) {
       Token file_path_token,
       scanner_.PopTokenOrError(LexicalTokenType::kQuotedString, "file path"));
   XLS_ASSIGN_OR_RETURN(int64_t file_number, file_number_token.GetValueInt64());
-  if (file_number > (2 >> 30)) {
+  if (file_number > std::numeric_limits<int32_t>::max()) {
     return absl::InternalError("file_number declaration might overflow");
   }
   package->SetFileno(Fileno(static_cast<int32_t>(file_number)),

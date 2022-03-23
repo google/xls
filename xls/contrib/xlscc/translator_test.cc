@@ -5976,6 +5976,23 @@ TEST_F(TranslatorTest, ConditionsPerVariable) {
   EXPECT_TRUE(cases[0]->Is<xls::Param>() || cases[1]->Is<xls::Param>());
 }
 
+TEST_F(TranslatorTest, FileNumbersIncluded) {
+  const std::string content = R"(
+  #include "/xls_builtin.h"
+
+  #pragma hls_top
+  void st(__xls_channel<int>& in,
+           __xls_channel<int>& out) {
+    const int ctrl = in.read();
+    out.write(ctrl + 1);
+  })";
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
+                       xls::TempFile::CreateWithContent(content, ".cc"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(temp));
+
+  ASSERT_TRUE(absl::StrContains(ir, temp.path().string()));
+}
+
 }  // namespace
 
 }  // namespace xlscc

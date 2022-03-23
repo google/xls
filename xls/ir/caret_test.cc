@@ -16,6 +16,9 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/file/temp_file.h"
+#include "xls/common/status/matchers.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 
@@ -34,11 +37,34 @@ TEST(CaretTest, Simple) {
   std::string expected = R"( --> /foo/bar/baz.ir:1:20
   |
 1 | this is a line of code that does stuff
-  |                     ^
+  |                    ^
 )";
   EXPECT_EQ(
       PrintCaret(LookUpInPackage(&p), loc,
                  "this is a line of code that does stuff", std::nullopt, 60),
+      expected);
+}
+
+TEST(CaretTest, FileContent) {
+  Package p("example");
+  constexpr const char* kProgram = R"(int main(void) {
+  this is a line of code that does stuff
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "baz.ir"));
+  SourceLocation loc =
+      p.AddSourceLocation(std::string(temp_file.path()), Lineno(2), Colno(3));
+
+  constexpr const char* expected_format = R"( --> %s:2:3
+  |
+2 |   this is a line of code that does stuff
+  |   ^
+)";
+  std::string expected = absl::StrFormat(expected_format,
+                                         std::string(temp_file.path()));
+  EXPECT_EQ(
+      PrintCaret(LookUpInPackage(&p), loc, std::nullopt, std::nullopt, 60),
       expected);
 }
 
@@ -50,7 +76,7 @@ TEST(CaretTest, LongLineNumber) {
   std::string expected = R"(      --> /foo/bar/baz.ir:123123:20
        |
 123123 | this is a line of code that does stuff
-       |                     ^
+       |                    ^
 )";
   EXPECT_EQ(
       PrintCaret(LookUpInPackage(&p), loc,
@@ -66,9 +92,9 @@ TEST(CaretTest, WithComment) {
   std::string expected = R"(   --> /foo/bar/baz.ir:123:20
     |
 123 | this is a line of code that does stuff
-    |                     ^
-    |                     |
-    |                     this is a comment
+    |                    ^
+    |                    |
+    |                    this is a comment
 )";
   EXPECT_EQ(PrintCaret(LookUpInPackage(&p), loc,
                        "this is a line of code that does stuff",
@@ -84,7 +110,7 @@ TEST(CaretTest, OverhangingLine) {
   std::string expected = R"(   --> /foo/bar/baz.ir:123:20
     |
 123 | this is a really really long line of code that does s…
-    |                     ^
+    |                    ^
 )";
   EXPECT_EQ(
       PrintCaret(LookUpInPackage(&p), loc,
@@ -101,10 +127,10 @@ TEST(CaretTest, OverhangingComment) {
   std::string expected = R"(   --> /foo/bar/baz.ir:123:20
     |
 123 | this is a line of code that does stuff
-    |                     ^
-    |                     |
-    |                     this is a really really quite
-    |                     long comment
+    |                    ^
+    |                    |
+    |                    this is a really really quite
+    |                    long comment
 )";
   EXPECT_EQ(PrintCaret(LookUpInPackage(&p), loc,
                        "this is a line of code that does stuff",
@@ -120,7 +146,7 @@ TEST(CaretTest, UnknownLine) {
   std::string expected = R"(   --> /foo/bar/baz.ir:123:20
     |
 123 | «unknown line contents»
-    |                     ^
+    |                    ^
 )";
   EXPECT_EQ(PrintCaret(LookUpInPackage(&p), loc), expected);
 }

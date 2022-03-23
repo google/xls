@@ -29,6 +29,7 @@
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/source_location.h"
+#include "xls/ir/block.h"
 
 namespace xlscc {
 
@@ -120,7 +121,7 @@ class CCParser {
   absl::StatusOr<const clang::FunctionDecl*> GetTopFunction() const;
 
   void AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output);
-
+  void AddSourceInfoToPackage(xls::Package& package);
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
 
   xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Stmt& stmt);
