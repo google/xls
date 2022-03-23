@@ -106,6 +106,26 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "analyze_critical_path_test",
+    srcs = ["analyze_critical_path_test.cc"],
+    deps = [
+        ":analyze_critical_path",
+        ":delay_estimator",
+        ":delay_estimators",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "delay_heap",
     srcs = ["delay_heap.cc"],

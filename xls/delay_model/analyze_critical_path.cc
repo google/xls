@@ -27,59 +27,83 @@ namespace xls {
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     FunctionBase* f, absl::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator) {
-  absl::flat_hash_map<Node*, std::pair<int64_t, bool>> node_to_output_delay;
+  struct NodeEntry {
+    Node* node;
 
-  auto get_max_operands_delay = [&](Node* node) {
-    int64_t earliest = 0;
-    for (Node* operand : node->operands()) {
-      earliest = std::max(earliest, node_to_output_delay[operand].first);
-    }
-    return earliest;
+    // Delay of the node.
+    int64_t node_delay;
+
+    // The delay of the critical path in the graph up to and including this node
+    // (includes this node's delay).
+    int64_t critical_path_delay;
+
+    // The predecessor on the critical path through this node.
+    absl::optional<Node*> critical_path_predecessor;
+
+    // Whether this node was delayed by a cycle boundary.
+    bool delayed_by_cycle_boundary;
   };
 
+  // Map from each node to it's corresponding entry.
+  absl::flat_hash_map<Node*, NodeEntry> node_entries;
+
+  // The node with the greatest critical path delay.
+  absl::optional<NodeEntry> latest_entry;
+
   for (Node* node : TopoSort(f)) {
-    int64_t earliest = get_max_operands_delay(node);
-    XLS_ASSIGN_OR_RETURN(int64_t node_effort,
-                         delay_estimator.GetOperationDelayInPs(node));
-    bool bumped = false;
-    // If the dependency straddles a clock boundary we have to make our delay
-    // start from the clock time.
-    if (clock_period_ps.has_value() &&
-        (((earliest + node_effort) / clock_period_ps.value()) >
-         (earliest / clock_period_ps.value()))) {
-      int64_t new_earliest =
-          RoundDownToNearest(earliest + node_effort, clock_period_ps.value());
-      XLS_CHECK_GT(new_earliest, earliest);
-      earliest = new_earliest;
-      bumped = true;
-    }
-    node_to_output_delay[node] = {earliest + node_effort, bumped};
-  }
+    NodeEntry& entry = node_entries[node];
+    entry.node = node;
 
-  std::vector<CriticalPathEntry> critical_path;
-
-  Node* n = f->IsFunction() ? f->AsFunctionOrDie()->return_value()
-                            : f->AsProcOrDie()->NextState();
-  while (true) {
-    critical_path.push_back(CriticalPathEntry{
-        n, delay_estimator.GetOperationDelayInPs(n).value(),
-        node_to_output_delay[n].first, node_to_output_delay[n].second});
-    Node* next = nullptr;
-    int64_t next_delay = 0;
-    for (Node* operand : n->operands()) {
-      int64_t operand_delay = node_to_output_delay[operand].first;
-      if (operand_delay > next_delay) {
-        next = operand;
-        next_delay = operand_delay;
+    // The maximum delay from any path up to but not including `node`.
+    int64_t max_path_delay = 0;
+    for (Node* operand : node->operands()) {
+      int64_t operand_path_delay = node_entries.at(operand).critical_path_delay;
+      if (operand_path_delay >= max_path_delay) {
+        max_path_delay = node_entries.at(operand).critical_path_delay;
+        entry.critical_path_predecessor = operand;
       }
     }
-    if (next == nullptr) {
-      break;
+    XLS_ASSIGN_OR_RETURN(entry.node_delay,
+                         delay_estimator.GetOperationDelayInPs(node));
+
+    // If the dependency straddles a clock boundary we have to make our delay
+    // start from the clock time.
+    entry.delayed_by_cycle_boundary = false;
+    if (clock_period_ps.has_value() &&
+        (((max_path_delay + entry.node_delay) / clock_period_ps.value()) >
+         (max_path_delay / clock_period_ps.value()))) {
+      int64_t new_max_path_delay = RoundDownToNearest(
+          max_path_delay + entry.node_delay, clock_period_ps.value());
+      XLS_CHECK_GT(new_max_path_delay, max_path_delay);
+      max_path_delay = new_max_path_delay;
+      entry.delayed_by_cycle_boundary = true;
     }
-    n = next;
+    entry.critical_path_delay = max_path_delay + entry.node_delay;
+
+    if (!latest_entry.has_value() ||
+        latest_entry->critical_path_delay <= entry.critical_path_delay) {
+      latest_entry = entry;
+    }
   }
 
-  return critical_path;
+  // Starting with the operation with the longest pat hdelay, walk back up its
+  // critical path constructing CriticalPathEntry's as we go.
+  std::vector<CriticalPathEntry> critical_path;
+  XLS_RET_CHECK(latest_entry.has_value());
+  NodeEntry* entry = &(latest_entry.value());
+  while (true) {
+    critical_path.push_back(CriticalPathEntry{
+        .node = entry->node,
+        .node_delay_ps = entry->node_delay,
+        .path_delay_ps = entry->critical_path_delay,
+        .delayed_by_cycle_boundary = entry->delayed_by_cycle_boundary});
+    if (!entry->critical_path_predecessor.has_value()) {
+      break;
+    }
+    entry = &node_entries.at(entry->critical_path_predecessor.value());
+  }
+
+  return std::move(critical_path);
 }
 
 std::string CriticalPathToString(
