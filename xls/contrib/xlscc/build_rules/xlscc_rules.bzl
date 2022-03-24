@@ -416,6 +416,7 @@ def _xls_cc_verilog_impl(ctx):
         ctx,
         ir_opt_info.opt_ir_file,
     )
+    runfiles = ir_conv_runfiles.merge_all([opt_ir_runfiles, verilog_runfiles])
     return [
         ir_conv_info,
         ir_opt_info,
@@ -426,12 +427,7 @@ def _xls_cc_verilog_impl(ctx):
                          verilog_built_files,
                 transitive = _get_transitive_built_files_for_xls_cc_ir(ctx),
             ),
-            runfiles = ctx.runfiles(
-                files =
-                    ir_conv_runfiles.files.to_list() +
-                    opt_ir_runfiles.files.to_list() +
-                    verilog_runfiles.files.to_list(),
-            ),
+            runfiles = runfiles,
         ),
     ]
 

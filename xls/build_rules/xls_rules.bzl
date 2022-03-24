@@ -49,7 +49,7 @@ load(
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
-    "DslxModuleInfo",
+    "DslxInfo",
     "OptIRInfo",
 )
 load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
@@ -70,13 +70,13 @@ def _xls_dslx_opt_ir_impl(ctx):
       ctx: The current rule's context object.
     Returns:
       A tuple with the following elements in the order presented:
-        1. The DslxModuleInfo provider
+        1. The DslxInfo provider
         1. The ConvIRInfo provider
         1. The OptIRInfo provider
         1. The list of built files.
         1. The runfiles.
     """
-    dslx_module_info, ir_conv_info, ir_built_files, ir_runfiles = (
+    dslx_info, ir_conv_info, ir_built_files, ir_runfiles = (
         xls_dslx_ir_impl(ctx)
     )
     ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
@@ -84,14 +84,11 @@ def _xls_dslx_opt_ir_impl(ctx):
         ir_conv_info.conv_ir_file,
     )
     return [
-        dslx_module_info,
+        dslx_info,
         ir_conv_info,
         ir_opt_info,
         ir_built_files + opt_ir_built_files,
-        ctx.runfiles(
-            files = ir_runfiles.files.to_list() +
-                    opt_ir_runfiles.files.to_list(),
-        ),
+        ir_runfiles.merge(opt_ir_runfiles),
     ]
 
 def _xls_dslx_opt_ir_impl_wrapper(ctx):
@@ -102,16 +99,16 @@ def _xls_dslx_opt_ir_impl_wrapper(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
-      DslxModuleInfo provider.
+      DslxInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       DefaultInfo provider.
     """
-    dslx_module_info, ir_conv_info, ir_opt_info, built_files, runfiles = (
+    dslx_info, ir_conv_info, ir_opt_info, built_files, runfiles = (
         _xls_dslx_opt_ir_impl(ctx)
     )
     return [
-        dslx_module_info,
+        dslx_info,
         ir_conv_info,
         ir_opt_info,
         DefaultInfo(
@@ -158,17 +155,16 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    dslx_test_file = ctx.attr.dep[DslxModuleInfo].dslx_source_module_file
-    dslx_source_files = ctx.attr.dep[DslxModuleInfo].dslx_source_files
+    dslx_test_file = ctx.attr.dep[DslxInfo].target_dslx_source_files
     conv_ir_file = ctx.attr.dep[ConvIRInfo].conv_ir_file
     opt_ir_file = ctx.attr.dep[OptIRInfo].opt_ir_file
-    opt_ir_args = ctx.attr.dep[OptIRInfo].opt_ir_args
-    runfiles = list(dslx_source_files)
+    runfiles = ctx.runfiles(files = ctx.attr.dep[DslxInfo].dslx_source_files
+        .to_list())
 
     # xls_dslx_test
-    my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, [dslx_test_file])
+    my_runfiles, dslx_test_cmd = get_dslx_test_cmd(ctx, dslx_test_file)
     dslx_test_cmd = "\n".join(dslx_test_cmd)
-    runfiles += my_runfiles.files.to_list()
+    runfiles = runfiles.merge(my_runfiles)
 
     # xls_ir_equivalence_test
     my_runfiles, ir_equivalence_test_cmd = get_ir_equivalence_test_cmd(
@@ -176,21 +172,21 @@ def _xls_dslx_opt_ir_test_impl(ctx):
         conv_ir_file,
         opt_ir_file,
     )
-    runfiles += my_runfiles.files.to_list()
+    runfiles = runfiles.merge(my_runfiles)
 
     # xls_eval_ir_test
     my_runfiles, eval_ir_test_cmd = get_eval_ir_test_cmd(
         ctx,
         conv_ir_file,
     )
-    runfiles += my_runfiles.files.to_list()
+    runfiles = runfiles.merge(my_runfiles)
 
     # xls_benchmark_ir
     my_runfiles, benchmark_ir_cmd = get_benchmark_ir_cmd(
         ctx,
         conv_ir_file,
     )
-    runfiles += my_runfiles.files.to_list()
+    runfiles = runfiles.merge(my_runfiles)
 
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
     ctx.actions.write(
@@ -208,7 +204,7 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     )
     return [
         DefaultInfo(
-            runfiles = ctx.runfiles(files = runfiles),
+            runfiles = runfiles,
             files = depset(
                 direct = [executable_file],
                 transitive = get_transitive_built_files_for_xls(
@@ -224,7 +220,7 @@ _xls_dslx_opt_ir_test_impl_attrs = {
     "dep": attr.label(
         doc = "The xls_dslx_opt_ir target to test.",
         providers = [
-            DslxModuleInfo,
+            DslxInfo,
             ConvIRInfo,
             OptIRInfo,
         ],
@@ -280,14 +276,14 @@ def _xls_dslx_verilog_impl(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
-      DslxModuleInfo provider.
+      DslxInfo provider.
       ConvIRInfo provider.
       OptIRInfo provider.
       CodegenInfo provider.
       DefaultInfo provider.
     """
     (
-        dslx_module_info,
+        dslx_info,
         ir_conv_info,
         ir_opt_info,
         built_files,
@@ -298,7 +294,7 @@ def _xls_dslx_verilog_impl(ctx):
         ir_opt_info.opt_ir_file,
     )
     return [
-        dslx_module_info,
+        dslx_info,
         ir_conv_info,
         ir_opt_info,
         codegen_info,
@@ -307,11 +303,7 @@ def _xls_dslx_verilog_impl(ctx):
                 direct = built_files + verilog_built_files,
                 transitive = get_transitive_built_files_for_xls(ctx),
             ),
-            runfiles =
-                ctx.runfiles(
-                    files = runfiles.files.to_list() +
-                            verilog_runfiles.files.to_list(),
-                ),
+            runfiles = runfiles.merge(verilog_runfiles),
         ),
     ]
 

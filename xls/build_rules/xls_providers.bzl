@@ -15,32 +15,24 @@
 """This module contains the providers for the XLS build rules."""
 
 DslxInfo = provider(
-    doc = "A provider containing DSLX file information for the target. It is " +
-          "created and returned by the xls_dslx_library rule.",
+    doc = "A provider containing DSLX file information for the target. The " +
+          "provider is primarily created and returned by the " +
+          "xls_dslx_library rule.",
     fields = {
-        "target_dslx_source_files": "List: A list containing the DSLX source " +
-                                    "(.x) files of the target.",
-        "dslx_source_files": "Depset: A depset containing the DSLX source " +
-                             "(.x) files of the target and its dependencies.",
         "dslx_dummy_files": "Depset: A depset containing the DSLX generated " +
-                            "dummy (.dummy) files of the target and its " +
-                            "dependencies. A DSLX dummy file is generated " +
-                            "when a DSLX file is successfully parsed and " +
-                            "type checked. It is used to create a dependency " +
-                            "between xls_dslx_library targets.",
-    },
-)
-
-#TODO(https://github.com/google/xls/issues/560) Remove when issue is fixed.
-DslxModuleInfo = provider(
-    doc = "A provider containing DSLX file information for a DSLX module. A " +
-          "DSLX module has a single source file representing the top DSLX " +
-          "and its DSLX source file dependencies.",
-    fields = {
-        "dslx_source_files": "List: A list containing the DSLX source " +
-                             "(.x) files of its dependencies.",
-        "dslx_source_module_file": "File: A file containing the DSLX source " +
-                                   "(.x) files of the target.",
+                            "dummy (.dummy) files of the xls_dslx_library " +
+                            "target and its xls_dslx_library dependencies. " +
+                            "A DSLX dummy file is generated when the DSLX " +
+                            "source files of a xls_dslx_library rule is " +
+                            "successfully parsed and type checked. " +
+                            "It is used to create a dependency between " +
+                            "xls_dslx_library targets.",
+        "dslx_source_files": "Depset: A depset containing the DSLX source " +
+                             "(.x) files of the xls_dslx_library " +
+                             "target and its xls_dslx_library dependencies. ",
+        "target_dslx_source_files": "List: A list containing the DSLX source " +
+                                    "(.x) files of the xls_dslx_library " +
+                                    "target.",
     },
 )
 
@@ -57,8 +49,8 @@ OptIRInfo = provider(
           "target. It is created and returned by the xls_ir_opt_ir rule.",
     fields = {
         "input_ir_file": "File: The IR file input file.",
-        "opt_ir_file": "File: The IR optimized file.",
         "opt_ir_args": "Dictionary: The arguments for the IR optimizer.",
+        "opt_ir_file": "File: The IR optimized file.",
     },
 )
 
@@ -66,15 +58,15 @@ CodegenInfo = provider(
     doc = "A provider containing Codegen file information for the target. It " +
           "is created and returned by the xls_ir_verilog rule.",
     fields = {
-        "verilog_file": "File: The Verilog file.",
-        "module_sig_file": "File: The module signature of the Verilog file.",
-        "verilog_line_map_file": "File: The Verilog line map file.",
-        "schedule_file": "File: The schedule of the module.",
         "block_ir_file": "File: The block IR file.",
         "delay_model": "Optional(string) Delay model used in codegen.",
+        "module_sig_file": "File: The module signature of the Verilog file.",
+        "schedule_file": "File: The schedule of the module.",
         # TODO(meheff): 2022/03/09 Ensure every verilog target passes a top
         # value and make this attribute non-optional.
         "top": "Optional(string) Name of top level block in the IR.",
+        "verilog_line_map_file": "File: The Verilog line map file.",
+        "verilog_file": "File: The Verilog file.",
     },
 )
 
@@ -82,7 +74,7 @@ JitWrapperInfo = provider(
     doc = "A provider containing JIT Wrapper file information for the " +
           "target. It is created and returned by the xls_ir_jit_wrapper rule.",
     fields = {
-        "source_file": "File: The source file.",
         "header_file": "File: The header file.",
+        "source_file": "File: The source file.",
     },
 )

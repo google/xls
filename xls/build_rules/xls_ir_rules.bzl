@@ -27,6 +27,7 @@ load(
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
+    "get_DslxInfo_from_dslx_library_as_input",
     "get_files_from_dslx_library_as_input",
     "xls_dslx_library_as_input_attrs",
 )
@@ -34,7 +35,6 @@ load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
     "DslxInfo",
-    "DslxModuleInfo",
     "OptIRInfo",
 )
 load(
@@ -549,7 +549,7 @@ def xls_dslx_ir_impl(ctx):
 
     Returns:
       A tuple with the following elements in the order presented:
-        1. The DslxModuleInfo provider
+        1. The DslxInfo provider
         1. The ConvIRInfo provider
         1. The list of built files.
         1. The runfiles.
@@ -563,12 +563,9 @@ def xls_dslx_ir_impl(ctx):
 
     runfiles, ir_file = _convert_to_ir(ctx, src)
 
-    dslx_module_info = DslxModuleInfo(
-        dslx_source_files = dep_src_list,
-        dslx_source_module_file = src,
-    )
+    dslx_info = get_DslxInfo_from_dslx_library_as_input(ctx)
     return [
-        dslx_module_info,
+        dslx_info,
         ConvIRInfo(conv_ir_file = ir_file),
         [ir_file],
         runfiles,
@@ -583,15 +580,15 @@ def _xls_dslx_ir_impl_wrapper(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      DslxModuleInfo provider
+      DslxInfo provider
       ConvIRInfo provider
       DefaultInfo provider
     """
-    dslx_module_info, ir_conv_info, built_files, runfiles = (
+    dslx_info, ir_conv_info, built_files, runfiles = (
         xls_dslx_ir_impl(ctx)
     )
     return [
-        dslx_module_info,
+        dslx_info,
         ir_conv_info,
         DefaultInfo(
             files = depset(

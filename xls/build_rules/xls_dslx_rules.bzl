@@ -134,8 +134,8 @@ def get_files_from_dslx_library_as_input(ctx):
 
     Returns:
       A tuple with the following elements in the order presented:
-        1. The direct DSLX files of the rule.
-        1. The transitive DSLX files of the rule.
+        1. A list of direct DSLX files of the rule.
+        1. A list of transitive DSLX files of the rule.
     """
     dslx_src_files = []
     transitive_files = []
@@ -158,6 +158,42 @@ def get_files_from_dslx_library_as_input(ctx):
         fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
 
     return dslx_src_files, transitive_files
+
+def get_DslxInfo_from_dslx_library_as_input(ctx):
+    """Returns the DslxInfo provider of rules using 'xls_dslx_library_as_input_attrs'.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      DslxInfo provider
+    """
+    dslx_info = None
+    count = 0
+
+    if ctx.attr.library:
+        dslx_info = ctx.attr.library[DslxInfo]
+        count += 1
+    if ctx.attr.srcs or ctx.attr.deps:
+        if not ctx.attr.srcs:
+            fail("'srcs' must be defined when 'deps' is defined.")
+        dslx_info = DslxInfo(
+            target_dslx_source_files = ctx.files.srcs,
+            dslx_source_files = get_transitive_dslx_srcs_files_depset(
+                ctx.files.srcs,
+                ctx.attr.deps,
+            ),
+            dslx_dummy_files = get_transitive_dslx_dummy_files_depset(
+                [],
+                ctx.attr.deps,
+            ),
+        )
+        count += 1
+
+    if count != 1:
+        fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
+
+    return dslx_info
 
 # Attributes for the xls_dslx_library rule.
 _xls_dslx_library_attrs = {
