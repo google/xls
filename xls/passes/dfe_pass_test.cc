@@ -28,6 +28,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using status_testing::StatusIs;
 
 class DeadFunctionEliminationPassTest : public IrTestBase {
  protected:
@@ -93,18 +94,81 @@ TEST_F(DeadFunctionEliminationPassTest, OneDeadFunctionButNoEntry) {
 
 TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
   auto p = std::make_unique<Package>(TestName());
-  XLS_ASSERT_OK(MakeFunction("entry", p.get()).status());
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            MakeFunction("called_by_proc", p.get()));
+  XLS_ASSERT_OK(MakeFunction("not_called_by_proc", p.get()).status());
 
   TokenlessProcBuilder b(TestName(), Value(UBits(0, 32)), "tkn", "st", p.get());
   BValue invoke = b.Invoke({b.GetStateParam()}, f);
-  XLS_ASSERT_OK(b.Build(invoke));
-  XLS_ASSERT_OK(p->SetTopByName("entry"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(invoke));
+  XLS_ASSERT_OK(p->SetTop(proc));
 
   EXPECT_EQ(p->functions().size(), 2);
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
-  EXPECT_EQ(p->functions().size(), 2);
+  XLS_EXPECT_OK(p->GetFunction("not_called_by_proc").status());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->functions().size(), 1);
+  EXPECT_THAT(p->GetFunction("not_called_by_proc"),
+              StatusIs(absl::StatusCode::kNotFound));
+}
+
+TEST_F(DeadFunctionEliminationPassTest, MultipleProcs) {
+  auto p = std::make_unique<Package>(TestName());
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in_a,
+      p->CreateStreamingChannel("in_a", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out_a,
+      p->CreateStreamingChannel("out_a", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in_c,
+      p->CreateStreamingChannel("in_c", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out_c,
+      p->CreateStreamingChannel("out_c", ChannelOps::kSendOnly, u32));
+
+  {
+    TokenlessProcBuilder b("A", Value::Tuple({}), "tkn", "st", p.get());
+    b.Send(ch_a_to_b, b.Receive(ch_in_a));
+    b.Send(ch_out_a, b.Receive(ch_b_to_a));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * a, b.Build(b.GetStateParam()));
+    XLS_ASSERT_OK(p->SetTop(a));
+  }
+  {
+    TokenlessProcBuilder b("B", Value::Tuple({}), "tkn", "st", p.get());
+    b.Send(ch_b_to_a, b.Receive(ch_a_to_b));
+    XLS_ASSERT_OK(b.Build(b.GetStateParam()).status());
+  }
+  {
+    TokenlessProcBuilder b("C", Value::Tuple({}), "tkn", "st", p.get());
+    b.Send(ch_out_c, b.Receive(ch_in_c));
+    XLS_ASSERT_OK(b.Build(b.GetStateParam()).status());
+  }
+
+  // Proc "C" should be removed as well as the its channels.
+  EXPECT_EQ(p->procs().size(), 3);
+  XLS_EXPECT_OK(p->GetProc("C").status());
+  EXPECT_EQ(p->channels().size(), 6);
+  XLS_EXPECT_OK(p->GetChannel("in_c").status());
+  XLS_EXPECT_OK(p->GetChannel("out_c").status());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EXPECT_THAT(p->GetProc("C"), StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_EQ(p->channels().size(), 4);
+  EXPECT_THAT(p->GetChannel("in_c").status(),
+              StatusIs(absl::StatusCode::kNotFound));
+  EXPECT_THAT(p->GetChannel("out_c"), StatusIs(absl::StatusCode::kNotFound));
 }
 
 TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
@@ -133,6 +197,41 @@ TEST_F(DeadFunctionEliminationPassTest, MapAndCountedFor) {
   EXPECT_EQ(p->functions().size(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
   EXPECT_EQ(p->functions().size(), 3);
+}
+
+TEST_F(DeadFunctionEliminationPassTest, BlockWithInstantiation) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  auto build_subblock = [&](absl::string_view name) -> absl::StatusOr<Block*> {
+    BlockBuilder bb(name, p.get());
+    bb.OutputPort("out", bb.InputPort("in", u32));
+    return bb.Build();
+  };
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * used_subblock,
+                           build_subblock("used_subblock"));
+  XLS_ASSERT_OK(build_subblock("unused_subblock").status());
+
+  BlockBuilder bb("my_block", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Instantiation * instantiation,
+      bb.block()->AddBlockInstantiation("inst", used_subblock));
+  BValue in = bb.InputPort("in0", u32);
+  bb.InstantiationInput(instantiation, "in", in);
+  BValue inst_out = bb.InstantiationOutput(instantiation, "out");
+  bb.OutputPort("out", inst_out);
+  XLS_ASSERT_OK_AND_ASSIGN(Block * top, bb.Build());
+  XLS_ASSERT_OK(p->SetTop(top));
+
+  EXPECT_EQ(p->blocks().size(), 3);
+  XLS_EXPECT_OK(p->GetBlock("unused_subblock").status());
+
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->blocks().size(), 2);
+  EXPECT_THAT(p->GetBlock("unused_subblock"),
+              StatusIs(absl::StatusCode::kNotFound));
 }
 
 }  // namespace

@@ -359,9 +359,11 @@ cc_library(
     hdrs = ["dfe_pass.h"],
     deps = [
         ":passes",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/ir",
+        "//xls/ir:node_util",
     ],
 )
 

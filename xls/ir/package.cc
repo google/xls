@@ -32,9 +32,6 @@
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
-namespace {
-constexpr char kMain[] = "main";
-}
 
 Package::Package(absl::string_view name) : name_(name) {
   owned_types_.insert(&token_type_);
@@ -193,6 +190,16 @@ std::vector<FunctionBase*> Package::GetFunctionBases() const {
     result.push_back(block.get());
   }
   return result;
+}
+
+absl::Status Package::RemoveFunctionBase(FunctionBase* function_base) {
+  if (function_base->IsFunction()) {
+    return RemoveFunction(function_base->AsFunctionOrDie());
+  }
+  if (function_base->IsProc()) {
+    return RemoveProc(function_base->AsProcOrDie());
+  }
+  return RemoveBlock(function_base->AsBlockOrDie());
 }
 
 absl::Status Package::RemoveFunction(Function* function) {

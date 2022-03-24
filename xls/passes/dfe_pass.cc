@@ -14,15 +14,49 @@
 
 #include "xls/passes/dfe_pass.h"
 
+#include "absl/container/btree_set.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/block.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/proc.h"
 
 namespace xls {
 namespace {
 
-void MarkReachedFunctions(FunctionBase* func,
+// Data structure indicating the proc which holds the send or receive of each
+// channel.
+struct ChannelProcMap {
+  //  Map indices are channel ids to make indexing easier because Send and
+  //  Receive node hold channel IDs not channel pointers.
+  absl::flat_hash_map<int64_t, Proc*> receiving_proc;
+  absl::flat_hash_map<int64_t, Proc*> sending_proc;
+
+  // Map from proc to the IDs of channels which it uses to communicate. Use
+  // btree for stable iteration order.
+  absl::flat_hash_map<Proc*, absl::btree_set<int64_t>> proc_channels;
+};
+
+ChannelProcMap ComputeChannelProcMap(Package* package) {
+  ChannelProcMap channel_map;
+  for (std::unique_ptr<Proc>& proc : package->procs()) {
+    channel_map.proc_channels[proc.get()] = {};
+    for (Node* node : proc->nodes()) {
+      if (node->Is<Receive>()) {
+        int64_t channel_id = node->As<Receive>()->channel_id();
+        channel_map.receiving_proc[channel_id] = proc.get();
+        channel_map.proc_channels[proc.get()].insert(channel_id);
+      } else if (node->Is<Send>()) {
+        int64_t channel_id = node->As<Send>()->channel_id();
+        channel_map.sending_proc[channel_id] = proc.get();
+        channel_map.proc_channels[proc.get()].insert(channel_id);
+      }
+    }
+  }
+  return channel_map;
+}
+
+void MarkReachedFunctions(FunctionBase* func, const ChannelProcMap& channel_map,
                           absl::flat_hash_set<FunctionBase*>* reached) {
   if (reached->contains(func)) {
     return;
@@ -32,16 +66,50 @@ void MarkReachedFunctions(FunctionBase* func,
   for (Node* node : func->nodes()) {
     switch (node->op()) {
       case Op::kCountedFor:
-        MarkReachedFunctions(node->As<CountedFor>()->body(), reached);
+        MarkReachedFunctions(node->As<CountedFor>()->body(), channel_map,
+                             reached);
+        break;
+      case Op::kDynamicCountedFor:
+        MarkReachedFunctions(node->As<DynamicCountedFor>()->body(), channel_map,
+                             reached);
         break;
       case Op::kInvoke:
-        MarkReachedFunctions(node->As<Invoke>()->to_apply(), reached);
+        MarkReachedFunctions(node->As<Invoke>()->to_apply(), channel_map,
+                             reached);
         break;
       case Op::kMap:
-        MarkReachedFunctions(node->As<Map>()->to_apply(), reached);
+        MarkReachedFunctions(node->As<Map>()->to_apply(), channel_map, reached);
         break;
+      case Op::kReceive: {
+        int64_t channel_id = node->As<Receive>()->channel_id();
+        if (channel_map.sending_proc.contains(channel_id)) {
+          MarkReachedFunctions(channel_map.sending_proc.at(channel_id),
+                               channel_map, reached);
+        }
+        break;
+      }
+      case Op::kSend: {
+        int64_t channel_id = node->As<Send>()->channel_id();
+        if (channel_map.receiving_proc.contains(channel_id)) {
+          MarkReachedFunctions(channel_map.receiving_proc.at(channel_id),
+                               channel_map, reached);
+        }
+        break;
+      }
       default:
         break;
+    }
+  }
+
+  // If the FunctionBase is a block, add all instantiated blocks.
+  if (func->IsBlock()) {
+    for (Instantiation* instantiation :
+         func->AsBlockOrDie()->GetInstantiations()) {
+      if (auto block_instantiation =
+              dynamic_cast<BlockInstantiation*>(instantiation)) {
+        MarkReachedFunctions(block_instantiation->instantiated_block(),
+                             channel_map, reached);
+      }
     }
   }
 }
@@ -53,38 +121,42 @@ void MarkReachedFunctions(FunctionBase* func,
 absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     Package* p, const PassOptions& options, PassResults* results) const {
   absl::flat_hash_set<FunctionBase*> reached;
-  // TODO(meheff): Package:EntryFunction check fails if there is not a function
-  // named "main". Ideally as an invariant a Package should always have an entry
-  // function, but for now look for it and bail if it does not exist.
   absl::optional<FunctionBase*> top = p->GetTop();
-  if (!top.has_value() || !top.value()->IsFunction()) {
+  if (!top.has_value()) {
     return false;
   }
-  Function* func = top.value()->AsFunctionOrDie();
-
-  MarkReachedFunctions(func, &reached);
-
-  // Blocks and procs are not deleted from the package so any references from
-  // these constructs must remain.
-  // TODO(https://github.com/google/xls/issues/531): 2021/12/6 Eliminate dead
-  // procs/blocks when the default entry function heuristics are eliminated.
-  for (const std::unique_ptr<Proc>& proc : p->procs()) {
-    MarkReachedFunctions(proc.get(), &reached);
-  }
-  for (const std::unique_ptr<Block>& block : p->blocks()) {
-    MarkReachedFunctions(block.get(), &reached);
-  }
+  ChannelProcMap channel_map = ComputeChannelProcMap(p);
+  MarkReachedFunctions(top.value(), channel_map, &reached);
 
   // Accumulate a list of nodes to unlink.
-  std::vector<Function*> to_unlink;
-  for (std::unique_ptr<Function>& f : p->functions()) {
+  std::vector<FunctionBase*> to_unlink;
+  for (FunctionBase* f : p->GetFunctionBases()) {
     if (!reached.contains(f)) {
-      XLS_VLOG(2) << "Dead Function Elimination: " << f->name();
-      to_unlink.push_back(f.get());
+      to_unlink.push_back(f);
     }
   }
-  for (Function* function : to_unlink) {
-    XLS_RETURN_IF_ERROR(p->RemoveFunction(function));
+  std::vector<Proc*> removed_procs;
+  for (FunctionBase* f : to_unlink) {
+    XLS_VLOG(2) << "Removing: " << f->name();
+    if (f->IsProc()) {
+      removed_procs.push_back(f->AsProcOrDie());
+    }
+    XLS_RETURN_IF_ERROR(p->RemoveFunctionBase(f));
+  }
+
+  // Now remove any channels which were used for communicating between deleted
+  // procs.
+  for (Proc* proc : removed_procs) {
+    // The pointer `proc` is now deallocated but ok to use as a map key.
+    for (int64_t channel_id : channel_map.proc_channels.at(proc)) {
+      // The channel could have been deleted in an earlier iteration of this
+      // loop.
+      if (p->HasChannelWithId(channel_id)) {
+        XLS_ASSIGN_OR_RETURN(Channel * channel, p->GetChannel(channel_id));
+        XLS_VLOG(2) << "Removing channel: " << channel->name();
+        XLS_RETURN_IF_ERROR(p->RemoveChannel(channel));
+      }
+    }
   }
   return !to_unlink.empty();
 }

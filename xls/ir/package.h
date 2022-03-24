@@ -114,6 +114,7 @@ class Package {
   // function, proc, or block must not be the top entity of the package. Use the
   // xls::Package::UnsetTop function to unset the top. The function, proc, or
   // block cannot be nullptr.
+  absl::Status RemoveFunctionBase(FunctionBase* function_base);
   absl::Status RemoveFunction(Function* function);
   absl::Status RemoveProc(Proc* proc);
   absl::Status RemoveBlock(Block* block);
