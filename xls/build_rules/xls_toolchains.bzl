@@ -58,32 +58,29 @@ def get_executable_from(target):
 
     Returns:
       Returns the executable file of the target. If an executable file does not
-      exist, returns None.
+      exist, an error is thrown.
     """
     if type(target) != "Target":
         fail("Argument 'target' from macro 'get_executable_from' must be " +
              "of 'Target' type.")
     files_list = target.files.to_list()
     if len(files_list) != 1:
-        return None
+        fail("Target does not contain a single file.")
     return files_list[0]
 
 def get_runfiles_from(target):
-    """Returns a list containing the runfiles of the target.
+    """Returns the runfiles of the target.
 
     Args:
       target: The target to extract the runfiles.
 
     Returns:
-      Returns a list containing the runfiles of the target.
+      Returns the runfiles of the target.
     """
     if type(target) != "Target":
         fail("Argument 'target' from macro 'get_runfiles_from' must be " +
              "of 'Target' type.")
-    runfiles = target[DefaultInfo].default_runfiles
-    if not runfiles:
-        return []
-    return runfiles.files.to_list()
+    return target[DefaultInfo].default_runfiles
 
 XlsToolchainInfo = provider(
     doc = "A provider containing toolchain information.",

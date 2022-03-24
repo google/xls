@@ -28,7 +28,7 @@ load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "get_DslxInfo_from_dslx_library_as_input",
-    "get_files_from_dslx_library_as_input",
+    "get_src_files_from_dslx_library_as_input",
     "xls_dslx_library_as_input_attrs",
 )
 load(
@@ -151,14 +151,14 @@ def _convert_to_ir(ctx, src):
     ir_converter_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).ir_converter_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, ir_converter_tool_runfiles + [src])
+    runfiles = get_runfiles_for_xls(ctx, [ir_converter_tool_runfiles], [src])
 
     ctx.actions.run_shell(
         outputs = [ir_file],
         # The IR converter executable is a tool needed by the action.
         tools = [ir_converter_tool],
         # The files required for converting the DSLX source file.
-        inputs = runfiles.files.to_list(),
+        inputs = runfiles.files,
         command = "{} {} {} > {}".format(
             ir_converter_tool.path,
             my_args,
@@ -211,14 +211,14 @@ def _optimize_ir(ctx, src):
     opt_ir_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).opt_ir_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, opt_ir_tool_runfiles + [src])
+    runfiles = get_runfiles_for_xls(ctx, [opt_ir_tool_runfiles], [src])
 
     ctx.actions.run_shell(
         outputs = [opt_ir_file],
         # The IR optimization executable is a tool needed by the action.
         tools = [opt_ir_tool],
         # The files required for optimizing the IR file.
-        inputs = runfiles.files.to_list(),
+        inputs = runfiles.files,
         command = "{} {} {} > {}".format(
             opt_ir_tool.path,
             src.path,
@@ -282,7 +282,8 @@ def get_ir_equivalence_test_cmd(
     )
     runfiles = get_runfiles_for_xls(
         ctx,
-        ir_equivalence_tool_runfiles + [src_0, src_1],
+        [ir_equivalence_tool_runfiles],
+        [src_0, src_1],
     )
     return runfiles, cmd
 
@@ -358,7 +359,8 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
     )
     runfiles = get_runfiles_for_xls(
         ctx,
-        ir_eval_tool_runfiles + my_runfiles + [src],
+        [ir_eval_tool_runfiles],
+        my_runfiles + [src],
     )
 
     return runfiles, cmd
@@ -415,10 +417,7 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
     benchmark_ir_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).benchmark_ir_tool,
     )
-    runfiles = get_runfiles_for_xls(
-        ctx,
-        benchmark_ir_tool_runfiles + [src],
-    )
+    runfiles = get_runfiles_for_xls(ctx, [benchmark_ir_tool_runfiles], [src])
     return runfiles, cmd
 
 def get_mangled_ir_symbol(
@@ -554,7 +553,7 @@ def xls_dslx_ir_impl(ctx):
         1. The list of built files.
         1. The runfiles.
     """
-    srcs, dep_src_list = get_files_from_dslx_library_as_input(ctx)
+    srcs = get_src_files_from_dslx_library_as_input(ctx)
 
     if srcs and len(srcs) != 1:
         fail("A single source file must be specified.")

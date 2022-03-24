@@ -197,7 +197,7 @@ def _xls_cc_ir_impl(ctx):
         # The IR converter executable is a tool needed by the action.
         tools = [ctx.executable._xlscc_tool],
         # The files required for converting the C/C++ source file.
-        inputs = runfiles.files.to_list(),
+        inputs = runfiles.files,
         command = "{} {} --block_pb {} {} > {}".format(
             ctx.executable._xlscc_tool.path,
             ctx.file.src.path,

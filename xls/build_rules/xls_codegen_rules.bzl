@@ -263,12 +263,12 @@ def xls_ir_verilog_impl(ctx, src):
     codegen_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).codegen_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, codegen_tool_runfiles + [src])
+    runfiles = get_runfiles_for_xls(ctx, [codegen_tool_runfiles], [src])
 
     ctx.actions.run_shell(
         outputs = my_generated_files,
         tools = [codegen_tool],
-        inputs = runfiles.files.to_list(),
+        inputs = runfiles.files,
         command = "{} {} {}".format(
             codegen_tool.path,
             src.path,
@@ -379,7 +379,7 @@ def _xls_benchmark_verilog_impl(ctx):
     )
     runfiles = get_runfiles_for_xls(
         ctx,
-        benchmark_codegen_tool_runfiles +
+        [benchmark_codegen_tool_runfiles],
         [
             codegen_info.block_ir_file,
             codegen_info.verilog_file,

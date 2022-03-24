@@ -126,38 +126,32 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
 
     return cmd
 
-def get_files_from_dslx_library_as_input(ctx):
-    """Returns the DSLX source files and transitive files of rules using 'xls_dslx_library_as_input_attrs'.
+def get_src_files_from_dslx_library_as_input(ctx):
+    """Returns the DSLX source files of rules using 'xls_dslx_library_as_input_attrs'.
 
     Args:
       ctx: The current rule's context object.
 
     Returns:
-      A tuple with the following elements in the order presented:
-        1. A list of direct DSLX files of the rule.
-        1. A list of transitive DSLX files of the rule.
+      Returns the DSLX source files of rules using 'xls_dslx_library_as_input_attrs'.
     """
     dslx_src_files = []
-    transitive_files = []
     count = 0
 
     if ctx.attr.library:
         dslx_info = ctx.attr.library[DslxInfo]
         dslx_src_files = dslx_info.target_dslx_source_files
-        transitive_files += dslx_info.dslx_source_files.to_list()
         count += 1
     if ctx.attr.srcs or ctx.attr.deps:
         if not ctx.attr.srcs:
             fail("'srcs' must be defined when 'deps' is defined.")
         dslx_src_files = ctx.files.srcs
-        for dep in ctx.attr.deps:
-            transitive_files += dep[DslxInfo].dslx_source_files.to_list()
         count += 1
 
     if count != 1:
         fail("One of: 'library' or ['srcs', 'deps'] must be assigned.")
 
-    return dslx_src_files, transitive_files
+    return dslx_src_files
 
 def get_DslxInfo_from_dslx_library_as_input(ctx):
     """Returns the DslxInfo provider of rules using 'xls_dslx_library_as_input_attrs'.
@@ -259,7 +253,11 @@ def _xls_dslx_library_impl(ctx):
     dslx_interpreter_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).dslx_interpreter_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, dslx_interpreter_tool_runfiles)
+    runfiles = get_runfiles_for_xls(
+        ctx = ctx,
+        additional_runfiles_list = [dslx_interpreter_tool_runfiles],
+        additional_files_list = [],
+    )
 
     my_srcs_list = ctx.files.srcs
     dslx_interpreter_tool = get_executable_from(
@@ -275,7 +273,7 @@ def _xls_dslx_library_impl(ctx):
         tools = [dslx_interpreter_tool],
         # The files required for parsing and type checking also requires the
         # DSLX interpreter executable.
-        inputs = runfiles.files.to_list(),
+        inputs = runfiles.files,
         # Generate a dummy file for the DSLX source file when the source file is
         # successfully parsed and type checked.
         # TODO (vmirian) 01-05-21 Enable the interpreter to take multiple files.
@@ -387,7 +385,8 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
     )
     runfiles = get_runfiles_for_xls(
         ctx,
-        dslx_interpreter_tool_runfiles + src_files_to_test,
+        [dslx_interpreter_tool_runfiles],
+        src_files_to_test,
     )
 
     cmds = []
@@ -406,7 +405,7 @@ def _xls_dslx_test_impl(ctx):
     Returns:
       DefaultInfo provider
     """
-    src_files_to_test, _ = get_files_from_dslx_library_as_input(ctx)
+    src_files_to_test = get_src_files_from_dslx_library_as_input(ctx)
 
     runfiles, cmds = get_dslx_test_cmd(ctx, src_files_to_test)
 

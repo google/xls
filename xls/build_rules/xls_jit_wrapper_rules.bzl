@@ -130,12 +130,12 @@ def _xls_ir_jit_wrapper_impl(ctx):
     jit_wrapper_tool_runfiles = get_runfiles_from(
         get_xls_toolchain_info(ctx).jit_wrapper_tool,
     )
-    runfiles = get_runfiles_for_xls(ctx, jit_wrapper_tool_runfiles + [src])
+    runfiles = get_runfiles_for_xls(ctx, [jit_wrapper_tool_runfiles], [src])
 
     ctx.actions.run(
         outputs = my_generated_files,
         tools = [jit_wrapper_tool],
-        inputs = runfiles.files.to_list(),
+        inputs = runfiles.files,
         arguments = [jit_wrapper_flags],
         executable = jit_wrapper_tool.path,
         mnemonic = "IRJITWrapper",
