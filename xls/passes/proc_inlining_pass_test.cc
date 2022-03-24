@@ -1457,18 +1457,21 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
 
+  int64_t original_proc_state_size =
+      p->procs()[0]->StateType()->GetFlatBitCount() +
+      p->procs()[1]->StateType()->GetFlatBitCount();
+
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  // The fourth element in the tuple holds the variant elements sent along the
-  // single-value channel. This is `x` which is type bits[32].
-  EXPECT_EQ(p->procs()
-                .front()
-                ->StateType()
-                ->AsTupleOrDie()
-                ->element_type(4)
-                ->ToString(),
-            "(bits[32])");
+  // The new proc state includes 35 additional bits::
+  //   A activation bit (1)
+  //   B activation bit (1)
+  //   pass_result channel receive activation bit (1)
+  //   one variant element (32)
+  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+            original_proc_state_size + 35);
+
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
 }
@@ -1536,18 +1539,21 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
 
+  int64_t original_proc_state_size =
+      p->procs()[0]->StateType()->GetFlatBitCount() +
+      p->procs()[1]->StateType()->GetFlatBitCount();
+
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  // The fourth element in the tuple holds the variant elements sent along the
-  // single-value channel. This is `x+1` which is type bits[32].
-  EXPECT_EQ(p->procs()
-                .front()
-                ->StateType()
-                ->AsTupleOrDie()
-                ->element_type(4)
-                ->ToString(),
-            "(bits[32])");
+  // The new proc state includes 35 additional bits::
+  //   A activation bit (1)
+  //   B activation bit (1)
+  //   pass_result channel receive activation bit (1)
+  //   one variant element (32)
+  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+            original_proc_state_size + 35);
+
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
 }
@@ -1614,18 +1620,22 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
 
+  int64_t original_proc_state_size =
+      p->procs()[0]->StateType()->GetFlatBitCount() +
+      p->procs()[1]->StateType()->GetFlatBitCount();
+
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  // The fourth element in the tuple holds the variant elements sent along the
-  // single-value channel. This is `x+y` which is type bits[32].
-  EXPECT_EQ(p->procs()
-                .front()
-                ->StateType()
-                ->AsTupleOrDie()
-                ->element_type(4)
-                ->ToString(),
-            "(bits[32])");
+
+  // The new proc state includes 35 additional bits::
+  //   A activation bit (1)
+  //   B activation bit (1)
+  //   pass_result channel receive activation bit (1)
+  //   one variant element (32)
+  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+            original_proc_state_size + 35);
+
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
 }
@@ -1692,18 +1702,21 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
 
+  int64_t original_proc_state_size =
+      p->procs()[0]->StateType()->GetFlatBitCount() +
+      p->procs()[1]->StateType()->GetFlatBitCount();
+
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  // The fourth element in the tuple holds the variant elements sent along the
-  // single-value channel. This both elements of type bits[32].
-  EXPECT_EQ(p->procs()
-                .front()
-                ->StateType()
-                ->AsTupleOrDie()
-                ->element_type(4)
-                ->ToString(),
-            "(bits[32], bits[32])");
+  // The new proc state includes 67 additional bits:
+  //   A activation bit (1)
+  //   B activation bit (1)
+  //   pass_result channel receive activation bit (1)
+  //   variant elements (64)
+  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+            original_proc_state_size + 67);
+
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
 }
