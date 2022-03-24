@@ -17,13 +17,16 @@ This module contains build rules for XLS.
 """
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
-    "//xls/build_rules:xls_providers.bzl",
-    "ConvIRInfo",
-    "DslxModuleInfo",
-    "OptIRInfo",
+    "//xls/build_rules:xls_codegen_rules.bzl",
+    "xls_ir_verilog_attrs",
+    "xls_ir_verilog_impl",
 )
+load(
+    "//xls/build_rules:xls_common_rules.bzl",
+    "get_transitive_built_files_for_xls",
+)
+load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load(
     "//xls/build_rules:xls_dslx_rules.bzl",
     "get_dslx_test_cmd",
@@ -44,9 +47,10 @@ load(
     "xls_ir_top_attrs",
 )
 load(
-    "//xls/build_rules:xls_codegen_rules.bzl",
-    "xls_ir_verilog_attrs",
-    "xls_ir_verilog_impl",
+    "//xls/build_rules:xls_providers.bzl",
+    "ConvIRInfo",
+    "DslxModuleInfo",
+    "OptIRInfo",
 )
 load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
 
@@ -65,15 +69,17 @@ def _xls_dslx_opt_ir_impl(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
-      DslxModuleInfo provider.
-      ConvIRInfo provider.
-      OptIRInfo provider.
-      DefaultInfo provider.
+      A tuple with the following elements in the order presented:
+        1. The DslxModuleInfo provider
+        1. The ConvIRInfo provider
+        1. The OptIRInfo provider
+        1. The list of built files.
+        1. The runfiles.
     """
-    dslx_module_info, ir_conv_info, ir_conv_default_info = (
+    dslx_module_info, ir_conv_info, ir_built_files, ir_runfiles = (
         xls_dslx_ir_impl(ctx)
     )
-    ir_opt_info, ir_opt_default_info = xls_ir_opt_ir_impl(
+    ir_opt_info, opt_ir_built_files, opt_ir_runfiles = xls_ir_opt_ir_impl(
         ctx,
         ir_conv_info.conv_ir_file,
     )
@@ -81,16 +87,39 @@ def _xls_dslx_opt_ir_impl(ctx):
         dslx_module_info,
         ir_conv_info,
         ir_opt_info,
+        ir_built_files + opt_ir_built_files,
+        ctx.runfiles(
+            files = ir_runfiles.files.to_list() +
+                    opt_ir_runfiles.files.to_list(),
+        ),
+    ]
+
+def _xls_dslx_opt_ir_impl_wrapper(ctx):
+    """The implementation of the 'xls_dslx_opt_ir' rule.
+
+    Converts a DSLX file to an IR and optimizes the IR.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      DslxModuleInfo provider.
+      ConvIRInfo provider.
+      OptIRInfo provider.
+      DefaultInfo provider.
+    """
+    dslx_module_info, ir_conv_info, ir_opt_info, built_files, runfiles = (
+        _xls_dslx_opt_ir_impl(ctx)
+    )
+    return [
+        dslx_module_info,
+        ir_conv_info,
+        ir_opt_info,
         DefaultInfo(
             files = depset(
-                ir_conv_default_info.files.to_list() +
-                ir_opt_default_info.files.to_list(),
+                direct = built_files,
+                transitive = get_transitive_built_files_for_xls(ctx),
             ),
-            runfiles = ctx.runfiles(
-                files =
-                    ir_conv_default_info.default_runfiles.files.to_list() +
-                    ir_opt_default_info.default_runfiles.files.to_list(),
-            ),
+            runfiles = runfiles,
         ),
     ]
 
@@ -111,7 +140,7 @@ Examples:
     )
     ```
     """,
-    implementation = _xls_dslx_opt_ir_impl,
+    implementation = _xls_dslx_opt_ir_impl_wrapper,
     attrs = _xls_dslx_opt_ir_attrs,
 )
 
@@ -180,7 +209,13 @@ def _xls_dslx_opt_ir_test_impl(ctx):
     return [
         DefaultInfo(
             runfiles = ctx.runfiles(files = runfiles),
-            files = depset([executable_file]),
+            files = depset(
+                direct = [executable_file],
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.dep],
+                ),
+            ),
             executable = executable_file,
         ),
     ]
@@ -255,9 +290,10 @@ def _xls_dslx_verilog_impl(ctx):
         dslx_module_info,
         ir_conv_info,
         ir_opt_info,
-        dslx_opt_ir_default_info,
+        built_files,
+        runfiles,
     ) = _xls_dslx_opt_ir_impl(ctx)
-    codegen_info, codegen_default_info = xls_ir_verilog_impl(
+    codegen_info, verilog_built_files, verilog_runfiles = xls_ir_verilog_impl(
         ctx,
         ir_opt_info.opt_ir_file,
     )
@@ -268,15 +304,13 @@ def _xls_dslx_verilog_impl(ctx):
         codegen_info,
         DefaultInfo(
             files = depset(
-                dslx_opt_ir_default_info.files.to_list() +
-                codegen_default_info.files.to_list(),
+                direct = built_files + verilog_built_files,
+                transitive = get_transitive_built_files_for_xls(ctx),
             ),
             runfiles =
                 ctx.runfiles(
-                    files =
-                        (dslx_opt_ir_default_info.default_runfiles
-                            .files.to_list()) +
-                        codegen_default_info.default_runfiles.files.to_list(),
+                    files = runfiles.files.to_list() +
+                            verilog_runfiles.files.to_list(),
                 ),
         ),
     ]
@@ -312,7 +346,3 @@ Examples:
     implementation = _xls_dslx_verilog_impl,
     attrs = _dslx_verilog_attrs,
 )
-
-# TODO(vmirian) 2021-05-20 When https://github.com/google/xls/issues/418 and
-# https://github.com/google/xls/issues/419 are resolved:
-# implement xls_dslx_verilog_test

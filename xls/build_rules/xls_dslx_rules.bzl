@@ -21,6 +21,7 @@ load(
     "append_default_to_args",
     "args_to_string",
     "get_runfiles_for_xls",
+    "get_transitive_built_files_for_xls",
     "is_args_valid",
 )
 load(
@@ -132,8 +133,9 @@ def get_files_from_dslx_library_as_input(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      A tuple with the first element representing the DSLX files and the
-      second element representing the transitive DSLX files of the rule.
+      A tuple with the following elements in the order presented:
+        1. The direct DSLX files of the rule.
+        1. The transitive DSLX files of the rule.
     """
     dslx_src_files = []
     transitive_files = []
@@ -338,9 +340,9 @@ def get_dslx_test_cmd(ctx, src_files_to_test):
       src_files_to_test: A list of source files to test.
 
     Returns:
-      A tuple with two elements. The first element is a list of runfiles to
-      execute the commands. The second element is a list of commands.
-
+      A tuple with the following elements in the order presented:
+        1. The runfiles to execute the commands.
+        1. A list of commands.
     """
 
     # Get runfiles.
@@ -386,7 +388,10 @@ def _xls_dslx_test_impl(ctx):
     return [
         DefaultInfo(
             runfiles = runfiles,
-            files = depset([executable_file]),
+            files = depset(
+                direct = [executable_file],
+                transitive = get_transitive_built_files_for_xls(ctx),
+            ),
             executable = executable_file,
         ),
     ]

@@ -137,11 +137,7 @@ def _check_sha256sum_frozen_impl(ctx):
         mnemonic = "CheckSHA256SumFrozen",
         progress_message = "Checking sha256sum on file: %s" % (src_path),
     )
-    return [
-        DefaultInfo(
-            files = depset(generated_files),
-        ),
-    ]
+    return [DefaultInfo(files = depset(generated_files))]
 
 _check_sha256sum_frozen_attrs = {
     "src": attr.label(
@@ -263,11 +259,7 @@ def _proto_data_impl(ctx):
         mnemonic = "Proto2Bin",
         progress_message = "Checking sha256sum on file: %s" % (src.path),
     )
-    return [
-        DefaultInfo(
-            files = depset([protobin_file]),
-        ),
-    ]
+    return [DefaultInfo(files = depset([protobin_file]))]
 
 _proto_data_attrs = {
     "src": attr.label(

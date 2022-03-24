@@ -27,8 +27,8 @@ load(
     "CONFIG",
     "enable_generated_file_wrapper",
 )
-load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
+load("//xls/build_rules:xls_providers.bzl", "JitWrapperInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "get_executable_from",

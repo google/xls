@@ -179,7 +179,7 @@ def split_filename(filename):
 def get_runfiles_for_xls(ctx, additional_runfiles_list):
     """Returns the runfiles from a ctx.
 
-    Returns a runfiles object with": 1) the direct runfiles containing the files
+    Returns a runfiles object with: 1) the direct runfiles containing the files
     from the 'srcs' and 'data' attributes, and the additional runfiles in
     'additional_runfiles_list', and 2) the transitive runfiles containing the
     files from the 'srcs', 'deps', 'data' and 'library' attributes.
@@ -214,3 +214,38 @@ def get_runfiles_for_xls(ctx, additional_runfiles_list):
 
     runfiles = runfiles.merge_all(transitive_runfiles)
     return runfiles
+
+def get_transitive_built_files_for_xls(ctx, additional_target_list = []):
+    """Returns the transitive built files from a ctx.
+
+    Returns the transitive built files from the targets listed in
+    1) the additional_target_list parameter and 2) the 'srcs', 'deps', 'data'
+    and 'library' attributes.
+
+    Args:
+      ctx: The current rule's context object.
+      additional_target_list: Additional targets to extract transitive built
+        files.
+
+    Returns:
+      The transitive built files from a ctx.
+    """
+    transitive_built_files = []
+
+    library = []
+    if getattr(ctx.attr, "library", None):
+        library = [ctx.attr.library]
+    for transitive_built_files_attr in (
+        getattr(ctx.attr, "srcs", []),
+        getattr(ctx.attr, "deps", []),
+        getattr(ctx.attr, "data", []),
+        library,
+        additional_target_list,
+    ):
+        for target in transitive_built_files_attr:
+            transitive_built_files.append(target[DefaultInfo].files)
+
+    if not transitive_built_files:
+        return None
+
+    return transitive_built_files

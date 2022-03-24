@@ -17,15 +17,15 @@ This module contains codegen-related build macros for XLS.
 """
 
 load(
-    "//xls/build_rules:xls_config_rules.bzl",
-    "enable_generated_file_wrapper",
-)
-load(
     "//xls/build_rules:xls_codegen_rules.bzl",
     "append_xls_ir_verilog_generated_files",
     "get_xls_ir_verilog_generated_files",
     "validate_verilog_filename",
     "xls_ir_verilog",
+)
+load(
+    "//xls/build_rules:xls_config_rules.bzl",
+    "enable_generated_file_wrapper",
 )
 
 def xls_ir_verilog_macro(
@@ -42,9 +42,7 @@ def xls_ir_verilog_macro(
     file and the 'enable_generated_file_wrapper' function. The generated files
     are listed in the outs attribute of the rule.
 
-    Examples:
-
-    1. A file as the source.
+    Example:
 
         ```
         xls_ir_verilog(
@@ -52,24 +50,6 @@ def xls_ir_verilog_macro(
             src = "a.ir",
             codegen_args = {
                 "pipeline_stages": "1",
-                ...
-            },
-        )
-        ```
-
-    1.  A target as the source.
-
-        ```
-        xls_ir_opt_ir(
-            name = "a_opt_ir",
-            src = "a.ir",
-        )
-
-        xls_ir_verilog(
-            name = "a_verilog",
-            src = ":a_opt_ir",
-            codegen_args = {
-                "generator": "combinational",
                 ...
             },
         )

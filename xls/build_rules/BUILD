@@ -153,6 +153,7 @@ bzl_library(
     visibility = ["//visibility:private"],
     deps = [
         ":xls_codegen_rules_bzl",
+        ":xls_common_rules_bzl",
         ":xls_config_rules_bzl",
         ":xls_dslx_rules_bzl",
         ":xls_ir_rules_bzl",

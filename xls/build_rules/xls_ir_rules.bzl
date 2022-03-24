@@ -15,20 +15,21 @@
 
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load(
-    "//xls/build_rules:xls_dslx_rules.bzl",
-    "get_files_from_dslx_library_as_input",
-    "xls_dslx_library_as_input_attrs",
-)
-load(
     "//xls/build_rules:xls_common_rules.bzl",
     "append_cmd_line_args_to",
     "append_default_to_args",
     "args_to_string",
     "get_output_filename_value",
     "get_runfiles_for_xls",
+    "get_transitive_built_files_for_xls",
     "is_args_valid",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
+load(
+    "//xls/build_rules:xls_dslx_rules.bzl",
+    "get_files_from_dslx_library_as_input",
+    "xls_dslx_library_as_input_attrs",
+)
 load(
     "//xls/build_rules:xls_providers.bzl",
     "ConvIRInfo",
@@ -113,9 +114,9 @@ def _convert_to_ir(ctx, src):
       ctx: The current rule's context object.
       src: The source file.
     Returns:
-      A tuple with two elements. The first element is the runfiles to
-      convert to the IR file. The second element is the reference to the
-      converted IR file.
+      A tuple with the following elements in the order presented:
+        1. The runfiles to convert the IR file.
+        1. The converted IR file.
     """
     ir_converter_tool = get_executable_from(
         get_xls_toolchain_info(ctx).ir_converter_tool,
@@ -178,9 +179,9 @@ def _optimize_ir(ctx, src):
       ctx: The current rule's context object.
       src: The source file.
     Returns:
-      A tuple with two elements. The first element is the runfiles to
-      optimize the IR file. The second element is the reference to the
-      optimized IR file.
+      A tuple with the following elements in the order presented:
+        1. The runfiles to optimize the IR file.
+        1. The optimized IR file.
     """
     opt_ir_tool = get_executable_from(get_xls_toolchain_info(ctx).opt_ir_tool)
     opt_ir_args = dict(ctx.attr.opt_ir_args)
@@ -247,8 +248,9 @@ def get_ir_equivalence_test_cmd(
         Otherwise, the command-line arguments are not appended.
 
     Returns:
-      A tuple with two elements. The first element is the runfiles to
-      execute the command. The second element is the command.
+      A tuple with the following elements in the order presented:
+        1. The runfiles to execute the command.
+        1. The command.
     """
     ir_equivalence_tool = get_executable_from(
         get_xls_toolchain_info(ctx).ir_equivalence_tool,
@@ -296,8 +298,9 @@ def get_eval_ir_test_cmd(ctx, src, append_cmd_line_args = True):
         Otherwise, the command-line arguments are not appended.
 
     Returns:
-      A tuple with two elements. The first element is the runfiles to
-      execute the command. The second element is the command.
+      A tuple with the following elements in the order presented:
+        1. The runfiles to execute the command.
+        1. The command.
     """
     ir_eval_tool = get_executable_from(get_xls_toolchain_info(ctx).ir_eval_tool)
     IR_EVAL_FLAGS = (
@@ -372,8 +375,9 @@ def get_benchmark_ir_cmd(ctx, src, append_cmd_line_args = True):
         Otherwise, the command-line arguments are not appended.
 
     Returns:
-      A tuple with two elements. The first element is the runfiles to
-      execute the command. The second element is the command.
+      A tuple with the following elements in the order presented:
+        1. The runfiles to execute the command.
+        1. The command.
     """
     benchmark_ir_tool = get_executable_from(
         get_xls_toolchain_info(ctx).benchmark_ir_tool,
@@ -544,9 +548,11 @@ def xls_dslx_ir_impl(ctx):
       ctx: The current rule's context object.
 
     Returns:
-      DslxModuleInfo provider
-      ConvIRInfo provider
-      DefaultInfo provider
+      A tuple with the following elements in the order presented:
+        1. The DslxModuleInfo provider
+        1. The ConvIRInfo provider
+        1. The list of built files.
+        1. The runfiles.
     """
     srcs, dep_src_list = get_files_from_dslx_library_as_input(ctx)
 
@@ -563,11 +569,35 @@ def xls_dslx_ir_impl(ctx):
     )
     return [
         dslx_module_info,
-        ConvIRInfo(
-            conv_ir_file = ir_file,
-        ),
+        ConvIRInfo(conv_ir_file = ir_file),
+        [ir_file],
+        runfiles,
+    ]
+
+def _xls_dslx_ir_impl_wrapper(ctx):
+    """The implementation of the 'xls_dslx_ir' rule.
+
+    Wrapper for xls_dslx_ir_impl. See: xls_dslx_ir_impl.
+
+    Args:
+      ctx: The current rule's context object.
+
+    Returns:
+      DslxModuleInfo provider
+      ConvIRInfo provider
+      DefaultInfo provider
+    """
+    dslx_module_info, ir_conv_info, built_files, runfiles = (
+        xls_dslx_ir_impl(ctx)
+    )
+    return [
+        dslx_module_info,
+        ir_conv_info,
         DefaultInfo(
-            files = depset([ir_file]),
+            files = depset(
+                direct = built_files,
+                transitive = get_transitive_built_files_for_xls(ctx),
+            ),
             runfiles = runfiles,
         ),
     ]
@@ -576,20 +606,9 @@ xls_dslx_ir = rule(
     doc = """
         A build rule that converts a DSLX source file to an IR file.
 
-Examples:
+Example:
 
-1. A simple IR conversion.
-
-    ```
-    # Assume a xls_dslx_library target bc_dslx is present.
-    xls_dslx_ir(
-        name = "d_ir",
-        srcs = ["d.x"],
-        deps = [":bc_dslx"],
-    )
-    ```
-
-1. An IR conversion with an top entity defined.
+An IR conversion with an top entity defined.
 
     ```
     # Assume a xls_dslx_library target bc_dslx is present.
@@ -601,7 +620,7 @@ Examples:
     )
     ```
     """,
-    implementation = xls_dslx_ir_impl,
+    implementation = _xls_dslx_ir_impl_wrapper,
     attrs = dicts.add(
         xls_dslx_ir_attrs,
         CONFIG["xls_outs_attrs"],
@@ -619,10 +638,11 @@ def xls_ir_opt_ir_impl(ctx, src):
       src: The source file.
 
     Returns:
-      OptIRInfo provider
-      DefaultInfo provider
+      A tuple with the following elements in the order presented:
+        1. The OptIRInfo provider
+        1. The list of built files.
+        1. The runfiles.
     """
-
     runfiles, opt_ir_file = _optimize_ir(ctx, src)
     return [
         OptIRInfo(
@@ -630,10 +650,8 @@ def xls_ir_opt_ir_impl(ctx, src):
             opt_ir_file = opt_ir_file,
             opt_ir_args = ctx.attr.opt_ir_args,
         ),
-        DefaultInfo(
-            files = depset([opt_ir_file]),
-            runfiles = runfiles,
-        ),
+        [opt_ir_file],
+        runfiles,
     ]
 
 xls_ir_opt_ir_attrs = dicts.add(
@@ -660,15 +678,43 @@ def _xls_ir_opt_ir_impl_wrapper(ctx):
 
     Args:
       ctx: The current rule's context object.
+
     Returns:
-      See: xls_ir_opt_ir_impl.
+      OptIRInfo provider
+      DefaultInfo provider
     """
-    return xls_ir_opt_ir_impl(ctx, ctx.file.src)
+    ir_opt_info, built_files_list, runfiles = xls_ir_opt_ir_impl(
+        ctx,
+        ctx.file.src,
+    )
+
+    return [
+        ir_opt_info,
+        DefaultInfo(
+            files = depset(
+                direct = built_files_list,
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.src],
+                ),
+            ),
+            runfiles = runfiles,
+        ),
+    ]
 
 xls_ir_opt_ir = rule(
     doc = """A build rule that optimizes an IR file.
 
 Examples:
+
+1. A simple example.
+
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
+    ```
 
 1. Optimizing an IR file with an top entity defined.
 
@@ -679,20 +725,6 @@ Examples:
         opt_ir_args = {
             "top" : "a",
         },
-    )
-    ```
-
-1. A target as the source.
-
-    ```
-    xls_dslx_ir(
-        name = "a_ir",
-        srcs = ["a.x"],
-    )
-
-    xls_ir_opt_ir(
-        name = "a_opt_ir",
-        src = ":a_ir",
     )
     ```
     """,
@@ -735,7 +767,13 @@ def _xls_ir_equivalence_test_impl(ctx):
     return [
         DefaultInfo(
             runfiles = runfiles,
-            files = depset([executable_file]),
+            files = depset(
+                direct = [executable_file],
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.src_0, ctx.attr.src_1],
+                ),
+            ),
             executable = executable_file,
         ),
     ]
@@ -835,7 +873,13 @@ def _xls_eval_ir_test_impl(ctx):
     return [
         DefaultInfo(
             runfiles = runfiles,
-            files = depset([executable_file]),
+            files = depset(
+                direct = [executable_file],
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.src],
+                ),
+            ),
             executable = executable_file,
         ),
     ]
@@ -927,7 +971,13 @@ def _xls_benchmark_ir_impl(ctx):
     return [
         DefaultInfo(
             runfiles = runfiles,
-            files = depset([executable_file]),
+            files = depset(
+                direct = [executable_file],
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.src],
+                ),
+            ),
             executable = executable_file,
         ),
     ]

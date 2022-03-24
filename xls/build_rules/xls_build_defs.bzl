@@ -45,12 +45,6 @@ load(
     _xls_ir_equivalence_test = "xls_ir_equivalence_test",
 )
 load(
-    "//xls/build_rules:xls_utilities.bzl",
-    _check_sha256sum_frozen = "check_sha256sum_frozen",
-    _check_sha256sum_test = "check_sha256sum_test",
-    _proto_data = "proto_data",
-)
-load(
     "//xls/build_rules:xls_jit_wrapper_rules.bzl",
     _cc_xls_ir_jit_wrapper = "cc_xls_ir_jit_wrapper",
 )
@@ -63,6 +57,12 @@ load(
 load(
     "//xls/build_rules:xls_rules.bzl",
     _xls_dslx_opt_ir_test = "xls_dslx_opt_ir_test",
+)
+load(
+    "//xls/build_rules:xls_utilities.bzl",
+    _check_sha256sum_frozen = "check_sha256sum_frozen",
+    _check_sha256sum_test = "check_sha256sum_test",
+    _proto_data = "proto_data",
 )
 
 # XLS Rules

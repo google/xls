@@ -23,6 +23,7 @@ load(
     "args_to_string",
     "get_output_filename_value",
     "get_runfiles_for_xls",
+    "get_transitive_built_files_for_xls",
     "is_args_valid",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
@@ -162,9 +163,12 @@ def xls_ir_verilog_impl(ctx, src):
     Args:
       ctx: The current rule's context object.
       src: The source file.
+
     Returns:
-      CodegenInfo provider
-      DefaultInfo provider
+      A tuple with the following elements in the order presented:
+        1. The CodegenInfo provider
+        1. The list of built files.
+        1. The runfiles.
     """
     codegen_tool = get_executable_from(get_xls_toolchain_info(ctx).codegen_tool)
     my_generated_files = []
@@ -283,10 +287,8 @@ def xls_ir_verilog_impl(ctx, src):
             delay_model = codegen_args.get("delay_model"),
             top = codegen_args.get("module_name", codegen_args.get("top")),
         ),
-        DefaultInfo(
-            files = depset(my_generated_files),
-            runfiles = runfiles,
-        ),
+        my_generated_files,
+        runfiles,
     ]
 
 def _xls_ir_verilog_impl_wrapper(ctx):
@@ -297,16 +299,32 @@ def _xls_ir_verilog_impl_wrapper(ctx):
     Args:
       ctx: The current rule's context object.
     Returns:
-      See: codegen_impl.
+      CodegenInfo provider
+      DefaultInfo provider
     """
-    return xls_ir_verilog_impl(ctx, ctx.file.src)
+    codegen_info, built_files_list, runfiles = xls_ir_verilog_impl(
+        ctx,
+        ctx.file.src,
+    )
+
+    return [
+        codegen_info,
+        DefaultInfo(
+            files = depset(
+                direct = built_files_list,
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.src],
+                ),
+            ),
+            runfiles = runfiles,
+        ),
+    ]
 
 xls_ir_verilog = rule(
     doc = """A build rule that generates a Verilog file from an IR file.
 
-Examples:
-
-1. A file as the source.
+Example:
 
     ```
     xls_ir_verilog(
@@ -314,24 +332,6 @@ Examples:
         src = "a.ir",
         codegen_args = {
             "pipeline_stages": "1",
-            ...
-        },
-    )
-    ```
-
-1. A target as the source.
-
-    ```
-    xls_ir_opt_ir(
-        name = "a_opt_ir",
-        src = "a.ir",
-    )
-
-    xls_ir_verilog(
-        name = "a_verilog",
-        src = ":a_opt_ir",
-        codegen_args = {
-            "generator": "combinational",
             ...
         },
     )
@@ -399,7 +399,13 @@ def _xls_benchmark_verilog_impl(ctx):
     return [
         DefaultInfo(
             runfiles = runfiles,
-            files = depset([executable_file]),
+            files = depset(
+                direct = [executable_file],
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.verilog_target],
+                ),
+            ),
             executable = executable_file,
         ),
     ]

@@ -262,19 +262,19 @@ xls_dslx_verilog(
 # The 'chaining_example.x' file is the input to the build and test flow.
 #
 # In the build flow, the 'chaining_example.x' file is the input to a
-# xls_dslx_ir rule named 'chaining_example_ir'. The output of the latter is
-# the input to a xls_ir_opt_ir rule named 'chaining_example_opt_ir'. The output
-# of the latter is the input to a xls_ir_verilog rule named
-# 'chaining_example_verilog'.
+# xls_dslx_ir rule named 'chaining_example_ir'. The generated IR file of the
+# latter target is the input to a xls_ir_opt_ir rule named
+# 'chaining_example_opt_ir'. The optimized IR file of the latter target is the
+# input to a xls_ir_verilog rule named 'chaining_example_verilog'.
 #
 # In the test flow, the 'chaining_example.x' file is the input to a
-# xls_dslx_test rule named 'chaining_example_test'. The output of the
-# 'chaining_example_ir' rule is the input to a xls_eval_ir_test rule named
+# xls_dslx_test rule named 'chaining_example_test'. The generated IR file of the
+# 'chaining_example_ir' target is the input to a xls_eval_ir_test rule named
 # 'chaining_example_eval_ir_test', and the input to a xls_ir_equivalence_test
-# rule named chaining_example_ir_equivalence_test. The output of the
-# 'chaining_example_opt_ir' rule is the input to a xls_benchmark_ir rule named
-# 'chaining_example_benchmark_ir', and the input to a xls_ir_equivalence_test
-# rule named chaining_example_ir_equivalence_test.
+# rule named 'chaining_example_ir_equivalence_test'. The optimized IR file of
+# the 'chaining_example_opt_ir' target is the input to a xls_benchmark_ir rule
+# named 'chaining_example_benchmark_ir', and the input to a
+# xls_ir_equivalence_test rule named 'chaining_example_ir_equivalence_test'.
 #
 #           Build Flow                  Test/Execution Flow
 #           ----------                  -------------------
@@ -311,13 +311,13 @@ xls_dslx_ir(
 
 xls_ir_opt_ir(
     name = "chaining_example_opt_ir",
-    src = ":chaining_example_ir",
+    src = ":chaining_example_ir.ir",
     opt_ir_file = "chaining_example_opt_ir.opt.ir",
 )
 
 xls_ir_verilog(
     name = "chaining_example_verilog",
-    src = ":chaining_example_opt_ir",
+    src = ":chaining_example_opt_ir.opt.ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
@@ -326,18 +326,18 @@ xls_ir_verilog(
 
 xls_eval_ir_test(
     name = "chaining_example_eval_ir_test",
-    src = ":chaining_example_ir",
+    src = ":chaining_example_ir.ir",
 )
 
 xls_ir_equivalence_test(
     name = "chaining_example_ir_equivalence_test",
-    src_0 = ":chaining_example_ir",
-    src_1 = ":chaining_example_opt_ir",
+    src_0 = ":chaining_example_ir.ir",
+    src_1 = ":chaining_example_opt_ir.opt.ir",
 )
 
 xls_benchmark_ir(
     name = "chaining_example_benchmark_ir",
-    src = ":chaining_example_opt_ir",
+    src = ":chaining_example_opt_ir.opt.ir",
 )
 
 ################################################################################
@@ -353,19 +353,20 @@ xls_benchmark_ir(
 # input to the cc_xls_ir_jit_wrapper macro named
 # 'chaining_example_opt_ir_jit_wrapper_main_cc'.
 #
-# The 'chaining_example_ir' target is the input to two xls_ir_opt_ir rules named
-# 'chaining_example_double_opt_ir' and
-# 'chaining_example_triple_run_only_opt_ir'. The output of the
+# The generated IR file from the 'chaining_example_ir' target is the input to
+# two xls_ir_opt_ir rules named 'chaining_example_double_opt_ir' and
+# 'chaining_example_triple_run_only_opt_ir'. The optimized IR file from the
 # chaining_example_double_opt_ir target is the input to a
 # cc_xls_ir_jit_wrapper macro named
 # 'chaining_example_opt_ir_jit_wrapper_double_cc'. Note the reuse of the
-# chaining_example_ir target as input to two xls_ir_opt_ir rules using different
-# entry points.
+# generated IR file from the 'chaining_example_ir' target as input to two
+# xls_ir_opt_ir rules using different top entities.
 #
-# The output of the 'chaining_example_triple_run_only_opt_ir' target is the
-# input to a xls_ir_opt_ir rule named
+# The optimized IR file from the 'chaining_example_triple_run_only_opt_ir'
+# target is the input to a xls_ir_opt_ir rule named
 # 'chaining_example_triple_skip_passes_opt_ir'. Note the chaining of two
-# xls_ir_opt_ir rules.
+# xls_ir_opt_ir rules: 'chaining_example_triple_run_only_opt_ir' and
+# 'chaining_example_triple_skip_passes_opt_ir'.
 #
 #           Build Flow
 #           ----------
@@ -402,9 +403,10 @@ xls_benchmark_ir(
 # targets are displayed. The flow is from top to down.
 #
 # Overview:
-# The output of the 'chaining_example_triple_run_only_opt_ir' target and the
-# output of the 'chaining_example_triple_skip_passes_opt_ir' are the inputs to
-# an xls_ir_equivalence_test rule named
+# The optimized IR file from the 'chaining_example_triple_run_only_opt_ir'
+# target and the optimized IR file from the
+# 'chaining_example_triple_skip_passes_opt_ir' are the inputs to an
+# xls_ir_equivalence_test rule named
 # 'chaining_example_triple_skip_passes_opt_ir'.
 #
 #           Test Flow
@@ -427,7 +429,7 @@ cc_xls_ir_jit_wrapper(
 
 xls_ir_opt_ir(
     name = "chaining_example_double_opt_ir",
-    src = ":chaining_example_ir",
+    src = ":chaining_example_ir.ir",
     opt_ir_file = "chaining_example_double_opt_ir.opt.ir",
     top = get_mangled_ir_symbol("chaining_example", "double"),
 )
@@ -443,7 +445,7 @@ cc_xls_ir_jit_wrapper(
 
 xls_ir_opt_ir(
     name = "chaining_example_triple_run_only_opt_ir",
-    src = ":chaining_example_ir",
+    src = ":chaining_example_ir.ir",
     opt_ir_args = {
         "run_only_passes": "arith_simp",
     },
@@ -453,7 +455,7 @@ xls_ir_opt_ir(
 
 xls_ir_opt_ir(
     name = "chaining_example_triple_skip_passes_opt_ir",
-    src = ":chaining_example_triple_run_only_opt_ir",
+    src = ":chaining_example_triple_run_only_opt_ir.opt.ir",
     opt_ir_args = {
         "skip_passes": "arith_simp",
     },
@@ -588,14 +590,14 @@ xls_dslx_ir_native_rule(
 # The target is the native rule form of the 'chaining_example_opt_ir' target.
 xls_ir_opt_ir_native_rule(
     name = "chaining_example_opt_ir_native_rule",
-    src = ":chaining_example_ir",
+    src = ":chaining_example_ir.ir",
     top = get_mangled_ir_symbol("chaining_example", "main"),
 )
 
 # The target is the native rule form of the 'chaining_example_verilog' target.
 xls_ir_verilog_native_rule(
     name = "chaining_example_verilog_native_rule",
-    src = ":chaining_example_opt_ir",
+    src = ":chaining_example_opt_ir.opt.ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
@@ -642,13 +644,13 @@ xls_dslx_ir(
 
 xls_ir_opt_ir(
     name = "user_defined_output_filename_opt_ir",
-    src = ":user_defined_output_filename_ir",
+    src = ":xls_dslx_ir.ir",
     opt_ir_file = "xls_ir_opt_ir.opt.ir",
 )
 
 xls_ir_verilog(
     name = "user_defined_output_filename_verilog",
-    src = ":user_defined_output_filename_opt_ir",
+    src = ":xls_ir_opt_ir.opt.ir",
     codegen_args = {
         "pipeline_stages": "1",
     },
@@ -680,7 +682,7 @@ xls_ir_opt_ir_native_rule(
 
 xls_ir_verilog_native_rule(
     name = "user_defined_output_filename_native_rule_verilog",
-    src = ":user_defined_output_filename_opt_ir",
+    src = ":xls_ir_opt_ir.opt.ir",
     codegen_args = {
         "pipeline_stages": "1",
     },

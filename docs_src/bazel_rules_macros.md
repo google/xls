@@ -600,20 +600,9 @@ The macro instantiates a rule that converts a DSLX source file to an IR
 file. The macro also instantiates the 'enable_generated_file_wrapper'
 function. The generated files are listed in the outs attribute of the rule.
 
-Examples:
+Example:
 
-1. A simple IR conversion.
-
-    ```
-    # Assume a xls_dslx_library target bc_dslx is present.
-    xls_dslx_ir(
-        name = "d_ir",
-        srcs = ["d.x"],
-        deps = [":bc_dslx"],
-    )
-    ```
-
-1. An IR conversion with a top entity defined.
+An IR conversion with a top entity defined.
 
     ```
     # Assume a xls_dslx_library target bc_dslx is present.
@@ -771,7 +760,16 @@ generated files are listed in the outs attribute of the rule.
 
 Examples:
 
-1. Optimizing an IR file with a top entity defined.
+1. A simple example.
+
+    ```
+    xls_ir_opt_ir(
+        name = "a_opt_ir",
+        src = "a.ir",
+    )
+    ```
+
+1. Optimizing an IR file with an top entity defined.
 
     ```
     xls_ir_opt_ir(
@@ -780,20 +778,6 @@ Examples:
         opt_ir_args = {
             "top" : "a",
         },
-    )
-    ```
-
-1. A target as the source.
-
-    ```
-    xls_dslx_ir(
-        name = "a_ir",
-        srcs = ["a.x"],
-    )
-
-    xls_ir_opt_ir(
-        name = "a_opt_ir",
-        src = ":a_ir",
     )
     ```
 
@@ -826,9 +810,7 @@ The macro instantiates a build rule that generate a Verilog file from an IR
 file and the 'enable_generated_file_wrapper' function. The generated files
 are listed in the outs attribute of the rule.
 
-Examples:
-
-1. A file as the source.
+Example:
 
     ```
     xls_ir_verilog(
@@ -836,24 +818,6 @@ Examples:
         src = "a.ir",
         codegen_args = {
             "pipeline_stages": "1",
-            ...
-        },
-    )
-    ```
-
-1.  A target as the source.
-
-    ```
-    xls_ir_opt_ir(
-        name = "a_opt_ir",
-        src = "a.ir",
-    )
-
-    xls_ir_verilog(
-        name = "a_verilog",
-        src = ":a_opt_ir",
-        codegen_args = {
-            "generator": "combinational",
             ...
         },
     )
