@@ -209,7 +209,9 @@ absl::Status Ice40DeviceRpcStrategy::Connect(int64_t device_ordinal) {
   t.c_cc[VEOF] = 0;
   t.c_cc[VTIME] = 0;
   t.c_cc[VMIN] = 1;  // blocking read until 1 character arrives
+#ifdef VSWTC
   t.c_cc[VSWTC] = 0;
+#endif
   t.c_cc[VSTART] = 0;
   t.c_cc[VSTOP] = 0;
   t.c_cc[VSUSP] = 0;
@@ -240,7 +242,9 @@ absl::Status Ice40DeviceRpcStrategy::Connect(int64_t device_ordinal) {
   XLS_VLOG(1) << "control modes: " << ControlModesToString(t.c_cflag);
   XLS_VLOG(1) << "local modes:   " << LocalModesToString(t.c_lflag);
 
+#ifdef LINUX
   XLS_VLOG(1) << "c_line: " << std::hex << static_cast<int>(t.c_line);
+#endif
   for (int i = 0; i < NCCS; ++i) {
     XLS_VLOG(3) << "c_cc[" << i << "]: " << std::hex
                 << static_cast<int>(t.c_cc[i]);
