@@ -125,6 +125,92 @@ TEST(ModuleSignatureTest, ToKwargs) {
                           testing::Pair("y", Value(UBits(0, 2)))));
 }
 
+TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
+  ModuleSignatureBuilder b(TestName());
+
+  b.AddDataInput("single_val_in_port", 32);
+  b.AddDataOutput("single_val_out_port", 64);
+
+  b.AddSingleValueChannel("single_val_in", ChannelOps::kReceiveOnly,
+                          "single_val_in_port");
+  b.AddSingleValueChannel("single_val_out", ChannelOps::kSendOnly,
+                          "single_val_out_port");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  ASSERT_EQ(signature.single_value_channels().size(), 2);
+  ASSERT_EQ(signature.streaming_channels().size(), 0);
+
+  EXPECT_EQ(signature.single_value_channels().at(0).name(), "single_val_in");
+  EXPECT_EQ(signature.single_value_channels().at(0).kind(),
+            CHANNEL_KIND_SINGLE_VALUE);
+  EXPECT_EQ(signature.single_value_channels().at(0).supported_ops(),
+            CHANNEL_OPS_RECEIVE_ONLY);
+  EXPECT_EQ(signature.single_value_channels().at(0).flow_control(),
+            CHANNEL_FLOW_CONTROL_NONE);
+  EXPECT_EQ(signature.single_value_channels().at(0).data_port_name(),
+            "single_val_in_port");
+
+  EXPECT_EQ(signature.single_value_channels().at(1).name(), "single_val_out");
+  EXPECT_EQ(signature.single_value_channels().at(1).kind(),
+            CHANNEL_KIND_SINGLE_VALUE);
+  EXPECT_EQ(signature.single_value_channels().at(1).supported_ops(),
+            CHANNEL_OPS_SEND_ONLY);
+  EXPECT_EQ(signature.single_value_channels().at(1).flow_control(),
+            CHANNEL_FLOW_CONTROL_NONE);
+  EXPECT_EQ(signature.single_value_channels().at(1).data_port_name(),
+            "single_val_out_port");
+}
+
+TEST(ModuleSignatureTest, StreamingChannelsInterface) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataInput("streaming_in_data", 24);
+  b.AddDataInput("streaming_in_valid", 1);
+  b.AddDataOutput("streaming_in_ready", 1);
+
+  b.AddDataOutput("streaming_out_data", 16);
+
+  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, "streaming_in_data",
+                        "streaming_in_valid", "streaming_in_ready");
+
+  b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
+                        FlowControl::kNone, "streaming_out_data");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  ASSERT_EQ(signature.single_value_channels().size(), 0);
+  ASSERT_EQ(signature.streaming_channels().size(), 2);
+
+  EXPECT_EQ(signature.streaming_channels().at(0).name(), "streaming_in");
+  EXPECT_EQ(signature.streaming_channels().at(0).kind(),
+            CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(signature.streaming_channels().at(0).supported_ops(),
+            CHANNEL_OPS_RECEIVE_ONLY);
+  EXPECT_EQ(signature.streaming_channels().at(0).flow_control(),
+            CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(signature.streaming_channels().at(0).data_port_name(),
+            "streaming_in_data");
+  EXPECT_EQ(signature.streaming_channels().at(0).valid_port_name(),
+            "streaming_in_valid");
+  EXPECT_EQ(signature.streaming_channels().at(0).ready_port_name(),
+            "streaming_in_ready");
+
+  EXPECT_EQ(signature.streaming_channels().at(1).name(), "streaming_out");
+  EXPECT_EQ(signature.streaming_channels().at(1).kind(),
+            CHANNEL_KIND_STREAMING);
+  EXPECT_EQ(signature.streaming_channels().at(1).supported_ops(),
+            CHANNEL_OPS_SEND_ONLY);
+  EXPECT_EQ(signature.streaming_channels().at(1).flow_control(),
+            CHANNEL_FLOW_CONTROL_NONE);
+  EXPECT_EQ(signature.streaming_channels().at(1).data_port_name(),
+            "streaming_out_data");
+  EXPECT_FALSE(signature.streaming_channels().at(1).has_valid_port_name());
+  EXPECT_FALSE(signature.streaming_channels().at(1).has_ready_port_name());
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

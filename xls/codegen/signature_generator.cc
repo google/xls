@@ -95,6 +95,35 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
       b.WithFunctionType(
           block->package()->GetFunctionType(input_types, output_types.front()));
     }
+
+    // Adds information on channels.
+    const Package* p = block->package();
+    for (const Channel* const ch : p->channels()) {
+      if (ch->GetBlockName() != block->name()) {
+        continue;
+      }
+
+      if (!ch->HasCompletedBlockPortNames()) {
+        return absl::InternalError(absl::StrFormat(
+            "Unable to generate signature - channel %s associated with "
+            "block %s does not have completed metadata : %s",
+            ch->name(), block->name(), ch->ToString()));
+      }
+
+      XLS_CHECK(ch->kind() == ChannelKind::kStreaming ||
+                ch->kind() == ChannelKind::kSingleValue);
+
+      if (ch->kind() == ChannelKind::kStreaming) {
+        b.AddStreamingChannel(
+            ch->name(), ch->supported_ops(),
+            down_cast<const StreamingChannel*>(ch)->flow_control(),
+            ch->GetDataPortName().value(), ch->GetValidPortName(),
+            ch->GetReadyPortName());
+      } else {
+        b.AddSingleValueChannel(ch->name(), ch->supported_ops(),
+                                ch->GetDataPortName().value());
+      }
+    }
   }
 
   int64_t register_levels = 0;

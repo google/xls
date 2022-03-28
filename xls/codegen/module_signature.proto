@@ -25,6 +25,24 @@ enum DirectionProto {
   DIRECTION_OUTPUT = 2;
 }
 
+enum ChannelKindProto {
+  CHANNEL_KIND_INVALID = 0;
+  CHANNEL_KIND_STREAMING = 1;
+  CHANNEL_KIND_SINGLE_VALUE = 2;
+}
+
+enum ChannelOpsProto {
+  CHANNEL_OPS_INVALID = 0;
+  CHANNEL_OPS_SEND_ONLY = 1;
+  CHANNEL_OPS_RECEIVE_ONLY = 2;
+  CHANNEL_OPS_SEND_RECEIVE = 3;
+}
+
+enum ChannelFlowControlProto {
+  CHANNEL_FLOW_CONTROL_NONE = 0;
+  CHANNEL_FLOW_CONTROL_READY_VALID = 1;
+}
+
 message PortProto {
   optional DirectionProto direction = 1;
   optional string name = 2;
@@ -35,6 +53,17 @@ message PortProto {
   // correspondence between ports in the signature and parameters in the XLS
   // function.
   optional int64 width = 3;
+}
+
+// A module
+message ChannelProto {
+  optional string name = 1;
+  optional ChannelKindProto kind = 2;
+  optional ChannelOpsProto supported_ops = 3;
+  optional ChannelFlowControlProto flow_control = 4;
+  optional string data_port_name = 5;
+  optional string ready_port_name = 6;
+  optional string valid_port_name = 7;
 }
 
 // Module produces its result in a fixed number of cycles without flow control.
@@ -120,6 +149,9 @@ message ModuleSignatureProto {
   // The data ports of the module. This does not include control ports such as
   // clk, ready/valid, etc.
   repeated PortProto data_ports = 2;
+
+  // The channels of the module.  Groups data ports together
+  repeated ChannelProto data_channels = 12;
 
   // Name of the clock port (if any).
   optional string clock_name = 3;

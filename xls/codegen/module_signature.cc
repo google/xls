@@ -120,6 +120,63 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
   return *this;
 }
 
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
+    absl::string_view name, ChannelOps supported_ops,
+    absl::string_view port_name) {
+  ChannelProto* channel = proto_.add_data_channels();
+  channel->set_name(ToProtoString(name));
+  channel->set_kind(CHANNEL_KIND_SINGLE_VALUE);
+
+  if (supported_ops == ChannelOps::kSendOnly) {
+    channel->set_supported_ops(CHANNEL_OPS_SEND_ONLY);
+  } else if (supported_ops == ChannelOps::kReceiveOnly) {
+    channel->set_supported_ops(CHANNEL_OPS_RECEIVE_ONLY);
+  } else {
+    channel->set_supported_ops(CHANNEL_OPS_SEND_RECEIVE);
+  }
+
+  channel->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
+  channel->set_data_port_name(ToProtoString(port_name));
+
+  return *this;
+}
+
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
+    absl::string_view name, ChannelOps supported_ops, FlowControl flow_control,
+    absl::string_view port_name,
+    absl::optional<absl::string_view> valid_port_name,
+    absl::optional<absl::string_view> ready_port_name) {
+  ChannelProto* channel = proto_.add_data_channels();
+  channel->set_name(ToProtoString(name));
+  channel->set_kind(CHANNEL_KIND_STREAMING);
+
+  if (supported_ops == ChannelOps::kSendOnly) {
+    channel->set_supported_ops(CHANNEL_OPS_SEND_ONLY);
+  } else if (supported_ops == ChannelOps::kReceiveOnly) {
+    channel->set_supported_ops(CHANNEL_OPS_RECEIVE_ONLY);
+  } else {
+    channel->set_supported_ops(CHANNEL_OPS_SEND_RECEIVE);
+  }
+
+  if (flow_control == FlowControl::kReadyValid) {
+    channel->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);
+  } else {
+    channel->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
+  }
+
+  channel->set_data_port_name(ToProtoString(port_name));
+
+  if (ready_port_name.has_value()) {
+    channel->set_ready_port_name(ToProtoString(ready_port_name.value()));
+  }
+
+  if (valid_port_name.has_value()) {
+    channel->set_valid_port_name(ToProtoString(valid_port_name.value()));
+  }
+
+  return *this;
+}
+
 absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   return ModuleSignature::FromProto(proto_);
 }
@@ -144,6 +201,17 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
       return absl::InvalidArgumentError("Invalid port direction.");
     }
   }
+
+  for (const ChannelProto& channel : proto.data_channels()) {
+    if (channel.kind() == CHANNEL_KIND_SINGLE_VALUE) {
+      signature.single_value_channels_.push_back(channel);
+    } else if (channel.kind() == CHANNEL_KIND_STREAMING) {
+      signature.streaming_channels_.push_back(channel);
+    } else {
+      return absl::InvalidArgumentError("Invalid channel kind.");
+    }
+  }
+
   return signature;
 }
 

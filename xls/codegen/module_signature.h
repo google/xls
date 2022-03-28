@@ -25,6 +25,8 @@
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/proto_adaptor_utils.h"
+#include "xls/ir/channel.h"
+#include "xls/ir/channel_ops.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -82,6 +84,20 @@ class ModuleSignatureBuilder {
   ModuleSignatureBuilder& AddDataInput(absl::string_view name, int64_t width);
   ModuleSignatureBuilder& AddDataOutput(absl::string_view name, int64_t width);
 
+  // Add a single value channel to the interface.
+  ModuleSignatureBuilder& AddSingleValueChannel(absl::string_view name,
+                                                ChannelOps supported_ops,
+                                                absl::string_view port_name);
+
+  // Add a streaming channel to the interface
+  ModuleSignatureBuilder& AddStreamingChannel(
+      absl::string_view name, ChannelOps supported_ops,
+      FlowControl flow_control, absl::string_view port_name,
+      absl::optional<absl::string_view> valid_port_name =
+          absl::optional<absl::string_view>(),
+      absl::optional<absl::string_view> ready_port_name =
+          absl::optional<absl::string_view>());
+
   absl::StatusOr<ModuleSignature> Build();
 
  private:
@@ -110,6 +126,16 @@ class ModuleSignature {
   // duplicated here for convenience.
   absl::Span<const PortProto> data_inputs() const { return data_inputs_; }
   absl::Span<const PortProto> data_outputs() const { return data_outputs_; }
+
+  // Returns the single value channels of the module.
+  absl::Span<const ChannelProto> single_value_channels() {
+    return single_value_channels_;
+  }
+
+  // Returns the streaming channels of the module.
+  absl::Span<const ChannelProto> streaming_channels() {
+    return streaming_channels_;
+  }
 
   // Returns the total number of bits of the data input/outputs.
   int64_t TotalDataInputBits() const;
@@ -140,6 +166,11 @@ class ModuleSignature {
   // convenience methods data_inputs() and data_outputs().
   std::vector<PortProto> data_inputs_;
   std::vector<PortProto> data_outputs_;
+
+  // These channels also exist in the proto, but are duplicated here to enable
+  // the convenience methods single_value_channels() and streaming_channels()
+  std::vector<ChannelProto> single_value_channels_;
+  std::vector<ChannelProto> streaming_channels_;
 };
 
 // Abstraction gathering the Verilog text and module signature produced by the

@@ -16,8 +16,10 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/codegen/block_conversion.h"
 #include "xls/codegen/codegen_options.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/channel.h"
@@ -186,6 +188,108 @@ TEST(SignatureGeneratorTest, PipelinedFunction) {
             f, schedule));
     ASSERT_TRUE(sig.proto().has_pipeline());
     EXPECT_EQ(sig.proto().pipeline().latency(), 3);
+  }
+}
+
+TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
+  Package package("test");
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_single_val,
+                           package.CreateSingleValueChannel(
+                               "in_single_val", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_streaming_rv,
+      package.CreateStreamingChannel(
+          "in_streaming", ChannelOps::kReceiveOnly, u32,
+          /*initial_values=*/{}, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
+                           package.CreateSingleValueChannel(
+                               "out_single_val", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_streaming_rv,
+      package.CreateStreamingChannel(
+          "out_streaming", ChannelOps::kSendOnly, u32,
+          /*initial_values=*/{}, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb("test", /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue in0 = pb.Receive(in_single_val);
+  BValue in1 = pb.Receive(in_streaming_rv);
+  pb.Send(out_single_val, in0);
+  pb.Send(out_streaming_rv, in1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
+  EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
+  EXPECT_FALSE(in_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
+
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, *estimator,
+                            SchedulingOptions().pipeline_stages(1)));
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
+                           GenerateSignature(options, block, schedule));
+
+  EXPECT_EQ(sig.proto().data_channels_size(), 4);
+  {
+    ChannelProto ch = sig.proto().data_channels(0);
+    EXPECT_EQ(ch.name(), "in_single_val");
+    EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
+    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_RECEIVE_ONLY);
+    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
+    EXPECT_EQ(ch.data_port_name(), "in_single_val");
+    EXPECT_FALSE(ch.has_ready_port_name());
+    EXPECT_FALSE(ch.has_valid_port_name());
+  }
+
+  {
+    ChannelProto ch = sig.proto().data_channels(1);
+    EXPECT_EQ(ch.name(), "in_streaming");
+    EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
+    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_RECEIVE_ONLY);
+    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+    EXPECT_EQ(ch.data_port_name(), "in_streaming_data");
+    EXPECT_EQ(ch.ready_port_name(), "in_streaming_ready");
+    EXPECT_EQ(ch.valid_port_name(), "in_streaming_valid");
+  }
+
+  {
+    ChannelProto ch = sig.proto().data_channels(2);
+    EXPECT_EQ(ch.name(), "out_single_val");
+    EXPECT_EQ(ch.kind(), CHANNEL_KIND_SINGLE_VALUE);
+    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_SEND_ONLY);
+    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_NONE);
+    EXPECT_EQ(ch.data_port_name(), "out_single_val");
+    EXPECT_FALSE(ch.has_ready_port_name());
+    EXPECT_FALSE(ch.has_valid_port_name());
+  }
+
+  {
+    ChannelProto ch = sig.proto().data_channels(3);
+    EXPECT_EQ(ch.name(), "out_streaming");
+    EXPECT_EQ(ch.kind(), CHANNEL_KIND_STREAMING);
+    EXPECT_EQ(ch.supported_ops(), CHANNEL_OPS_SEND_ONLY);
+    EXPECT_EQ(ch.flow_control(), CHANNEL_FLOW_CONTROL_READY_VALID);
+    EXPECT_EQ(ch.data_port_name(), "out_streaming_data");
+    EXPECT_EQ(ch.ready_port_name(), "out_streaming_ready");
+    EXPECT_EQ(ch.valid_port_name(), "out_streaming_valid");
   }
 }
 
