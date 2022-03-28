@@ -547,9 +547,23 @@ struct StreamingOutput {
   absl::optional<Node*> predicate;
 };
 
+// Data structures holding the port representing single value inputs/outputs
+// in the generated block.
+struct SingleValueInput {
+  InputPort* port;
+  Channel* channel;
+};
+
+struct SingleValueOutput {
+  OutputPort* port;
+  Channel* channel;
+};
+
 struct StreamingIoPipeline {
   std::vector<StreamingInput> inputs;
   std::vector<StreamingOutput> outputs;
+  std::vector<SingleValueInput> single_value_inputs;
+  std::vector<SingleValueOutput> single_value_outputs;
   std::vector<PipelineStageRegisters> pipeline_registers;
   absl::optional<StateRegister> state_register;
   absl::optional<OutputPort*> idle_port;
@@ -559,6 +573,60 @@ struct StreamingIoPipeline {
   // See MakeOutputReadyPortsForOutputChannels().
   absl::optional<Node*> all_active_outputs_ready;
 };
+
+// Update io channel metadata with latest information from block conversion.
+absl::Status UpdateChannelMetadata(const StreamingIoPipeline& io,
+                                   Block* block) {
+  for (const StreamingInput& input : io.inputs) {
+    XLS_CHECK_NE(input.port, nullptr);
+    XLS_CHECK_NE(input.port_valid, nullptr);
+    XLS_CHECK_NE(input.port_ready, nullptr);
+    XLS_CHECK_NE(input.channel, nullptr);
+
+    input.channel->SetBlockName(block->name());
+    input.channel->SetDataPortName(input.port->name());
+    input.channel->SetValidPortName(input.port_valid->name());
+    input.channel->SetReadyPortName(input.port_ready->name());
+
+    XLS_CHECK(input.channel->HasCompletedBlockPortNames());
+  }
+
+  for (const StreamingOutput& output : io.outputs) {
+    XLS_CHECK_NE(output.port, nullptr);
+    XLS_CHECK_NE(output.port_valid, nullptr);
+    XLS_CHECK_NE(output.port_ready, nullptr);
+    XLS_CHECK_NE(output.channel, nullptr);
+
+    output.channel->SetBlockName(block->name());
+    output.channel->SetDataPortName(output.port->name());
+    output.channel->SetValidPortName(output.port_valid->name());
+    output.channel->SetReadyPortName(output.port_ready->name());
+
+    XLS_CHECK(output.channel->HasCompletedBlockPortNames());
+  }
+
+  for (const SingleValueInput& input : io.single_value_inputs) {
+    XLS_CHECK_NE(input.port, nullptr);
+    XLS_CHECK_NE(input.channel, nullptr);
+
+    input.channel->SetBlockName(block->name());
+    input.channel->SetDataPortName(input.port->name());
+
+    XLS_CHECK(input.channel->HasCompletedBlockPortNames());
+  }
+
+  for (const SingleValueOutput& output : io.single_value_outputs) {
+    XLS_CHECK_NE(output.port, nullptr);
+    XLS_CHECK_NE(output.channel, nullptr);
+
+    output.channel->SetBlockName(block->name());
+    output.channel->SetDataPortName(output.port->name());
+
+    XLS_CHECK(output.channel->HasCompletedBlockPortNames());
+  }
+
+  return absl::OkStatus();
+}
 
 // For each output streaming channel add a corresponding ready port (input
 // port). Combinationally combine those ready signals with their predicates to
@@ -1893,6 +1961,9 @@ class CloneNodesIntoBlockHandler {
             std::vector<Node*>({node_map_.at(node->operand(0)), input_port})));
 
     if (channel->kind() == ChannelKind::kSingleValue) {
+      result_.single_value_inputs.push_back(
+          SingleValueInput{.port = input_port, .channel = channel});
+
       return next_node;
     }
 
@@ -1900,11 +1971,10 @@ class CloneNodesIntoBlockHandler {
     XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
                      FlowControl::kReadyValid);
 
-    StreamingInput streaming_input;
-    streaming_input.port = input_port;
-    streaming_input.port_valid = nullptr;
-    streaming_input.port_ready = nullptr;
-    streaming_input.channel = channel;
+    StreamingInput streaming_input{.port = input_port,
+                                   .port_valid = nullptr,
+                                   .port_ready = nullptr,
+                                   .channel = channel};
 
     if (receive->predicate().has_value()) {
       streaming_input.predicate = node_map_.at(receive->predicate().value());
@@ -1934,6 +2004,8 @@ class CloneNodesIntoBlockHandler {
     next_node = node_map_.at(send->token());
 
     if (channel->kind() == ChannelKind::kSingleValue) {
+      result_.single_value_outputs.push_back(
+          SingleValueOutput{.port = output_port, .channel = channel});
       return next_node;
     }
 
@@ -1941,11 +2013,11 @@ class CloneNodesIntoBlockHandler {
     XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
                      FlowControl::kReadyValid);
 
-    StreamingOutput streaming_output;
-    streaming_output.port = output_port;
-    streaming_output.port_valid = nullptr;
-    streaming_output.port_ready = nullptr;
-    streaming_output.channel = channel;
+    StreamingOutput streaming_output{.port = output_port,
+                                     .port_valid = nullptr,
+                                     .port_ready = nullptr,
+                                     .channel = channel};
+
     if (send->predicate().has_value()) {
       streaming_output.predicate = node_map_.at(send->predicate().value());
     }
@@ -2318,6 +2390,10 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, block->DumpIr());
 
+  XLS_RETURN_IF_ERROR(UpdateChannelMetadata(streaming_io_and_pipeline, block));
+  XLS_VLOG(3) << "After UpdateChannelMetadata";
+  XLS_VLOG_LINES(3, block->DumpIr());
+
   return block;
 }
 
@@ -2407,8 +2483,13 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
   // TODO(tedhong): 2021-09-23 Remove and add any missing functionality to
   //                codegen pipeline.
   XLS_RETURN_IF_ERROR(RemoveDeadTokenNodes(block));
-
+  XLS_VLOG(3) << "After RemoveDeadTokenNodes";
   XLS_VLOG_LINES(3, block->DumpIr());
+
+  XLS_RETURN_IF_ERROR(UpdateChannelMetadata(streaming_io, block));
+  XLS_VLOG(3) << "After UpdateChannelMetadata";
+  XLS_VLOG_LINES(3, block->DumpIr());
+
   return block;
 }
 

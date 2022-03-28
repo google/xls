@@ -2653,6 +2653,143 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
+TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_single_val,
+                           package.CreateSingleValueChannel(
+                               "in_single_val", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_streaming_rv,
+      package.CreateStreamingChannel(
+          "in_streaming", ChannelOps::kReceiveOnly, u32,
+          /*initial_values=*/{}, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
+                           package.CreateSingleValueChannel(
+                               "out_single_val", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_streaming_rv,
+      package.CreateStreamingChannel(
+          "out_streaming", ChannelOps::kSendOnly, u32,
+          /*initial_values=*/{}, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue in0 = pb.Receive(in_single_val);
+  BValue in1 = pb.Receive(in_streaming_rv);
+  pb.Send(out_single_val, in0);
+  pb.Send(out_streaming_rv, in1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
+  EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
+  EXPECT_FALSE(in_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(1)));
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, false, false);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  EXPECT_TRUE(in_single_val->HasCompletedBlockPortNames());
+  EXPECT_TRUE(out_single_val->HasCompletedBlockPortNames());
+  EXPECT_TRUE(in_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_TRUE(out_streaming_rv->HasCompletedBlockPortNames());
+
+  EXPECT_EQ(in_single_val->GetBlockName().value(), "pipelined_proc");
+  EXPECT_EQ(in_single_val->GetDataPortName().value(), "in_single_val");
+
+  EXPECT_EQ(out_single_val->GetBlockName().value(), "pipelined_proc");
+  EXPECT_EQ(out_single_val->GetDataPortName().value(), "out_single_val");
+
+  EXPECT_EQ(in_streaming_rv->GetBlockName().value(), "pipelined_proc");
+  EXPECT_EQ(in_streaming_rv->GetDataPortName().value(), "in_streaming_data");
+  EXPECT_EQ(in_streaming_rv->GetValidPortName().value(), "in_streaming_valid");
+  EXPECT_EQ(in_streaming_rv->GetReadyPortName().value(), "in_streaming_ready");
+
+  EXPECT_EQ(out_streaming_rv->GetBlockName().value(), "pipelined_proc");
+  EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming_data");
+  EXPECT_EQ(out_streaming_rv->GetValidPortName().value(),
+            "out_streaming_valid");
+  EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(),
+            "out_streaming_ready");
+}
+
+TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in_single_val,
+                           package.CreateSingleValueChannel(
+                               "in_single_val", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_streaming_rv,
+      package.CreateStreamingChannel(
+          "in_streaming", ChannelOps::kReceiveOnly, u32,
+          /*initial_values=*/{}, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
+                           package.CreateSingleValueChannel(
+                               "out_single_val", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_streaming_rv,
+      package.CreateStreamingChannel(
+          "out_streaming", ChannelOps::kSendOnly, u32,
+          /*initial_values=*/{}, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
+                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  BValue in0 = pb.Receive(in_single_val);
+  BValue in1 = pb.Receive(in_streaming_rv);
+  pb.Send(out_single_val, in0);
+  pb.Send(out_streaming_rv, in1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+
+  EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
+  EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
+  EXPECT_FALSE(in_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Block * block,
+      ProcToCombinationalBlock(proc, "the_proc", CodegenOptions()));
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  EXPECT_TRUE(in_single_val->HasCompletedBlockPortNames());
+  EXPECT_TRUE(out_single_val->HasCompletedBlockPortNames());
+  EXPECT_TRUE(in_streaming_rv->HasCompletedBlockPortNames());
+  EXPECT_TRUE(out_streaming_rv->HasCompletedBlockPortNames());
+
+  EXPECT_EQ(in_single_val->GetBlockName().value(), "the_proc");
+  EXPECT_EQ(in_single_val->GetDataPortName().value(), "in_single_val");
+
+  EXPECT_EQ(out_single_val->GetBlockName().value(), "the_proc");
+  EXPECT_EQ(out_single_val->GetDataPortName().value(), "out_single_val");
+
+  EXPECT_EQ(in_streaming_rv->GetBlockName().value(), "the_proc");
+  EXPECT_EQ(in_streaming_rv->GetDataPortName().value(), "in_streaming");
+  EXPECT_EQ(in_streaming_rv->GetValidPortName().value(), "in_streaming_vld");
+  EXPECT_EQ(in_streaming_rv->GetReadyPortName().value(), "in_streaming_rdy");
+
+  EXPECT_EQ(out_streaming_rv->GetBlockName().value(), "the_proc");
+  EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming");
+  EXPECT_EQ(out_streaming_rv->GetValidPortName().value(), "out_streaming_vld");
+  EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(), "out_streaming_rdy");
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

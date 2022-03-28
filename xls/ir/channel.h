@@ -89,6 +89,53 @@ class Channel {
            supported_ops() == ChannelOps::kSendReceive;
   }
 
+  // Returns true if the metadata for block ports is complete.
+  virtual bool HasCompletedBlockPortNames() const = 0;
+
+  // Returns / sets name of block this channel is associated with.
+  void SetBlockName(absl::string_view name) {
+    metadata_.mutable_block_ports()->set_block_name(std::string(name));
+  }
+  absl::optional<std::string> GetBlockName() const {
+    if (metadata_.block_ports().has_block_name()) {
+      return metadata_.block_ports().block_name();
+    }
+    return absl::nullopt;
+  }
+
+  // Returns / sets name of data port this channel is associated with.
+  void SetDataPortName(absl::string_view name) {
+    metadata_.mutable_block_ports()->set_data_port_name(std::string(name));
+  }
+  absl::optional<std::string> GetDataPortName() const {
+    if (metadata_.block_ports().has_data_port_name()) {
+      return metadata_.block_ports().data_port_name();
+    }
+    return absl::nullopt;
+  }
+
+  // Returns / sets name of valid port this channel is associated with.
+  void SetValidPortName(absl::string_view name) {
+    metadata_.mutable_block_ports()->set_valid_port_name(std::string(name));
+  }
+  absl::optional<std::string> GetValidPortName() const {
+    if (metadata_.block_ports().has_valid_port_name()) {
+      return metadata_.block_ports().valid_port_name();
+    }
+    return absl::nullopt;
+  }
+
+  // Returns / sets name of ready port this channel is associated with.
+  void SetReadyPortName(absl::string_view name) {
+    metadata_.mutable_block_ports()->set_ready_port_name(std::string(name));
+  }
+  absl::optional<std::string> GetReadyPortName() const {
+    if (metadata_.block_ports().has_valid_port_name()) {
+      return metadata_.block_ports().ready_port_name();
+    }
+    return absl::nullopt;
+  }
+
   ChannelKind kind() const { return kind_; }
 
   virtual std::string ToString() const;
@@ -133,6 +180,15 @@ class StreamingChannel : public Channel {
                 initial_values, metadata),
         flow_control_(flow_control) {}
 
+  virtual bool HasCompletedBlockPortNames() const override {
+    if (flow_control() == FlowControl::kReadyValid) {
+      return GetBlockName().has_value() && GetDataPortName().has_value() &&
+             GetReadyPortName().has_value() && GetValidPortName().has_value();
+    }
+
+    return GetBlockName().has_value() && GetDataPortName().has_value();
+  }
+
   FlowControl flow_control() const { return flow_control_; }
 
  public:
@@ -149,6 +205,10 @@ class SingleValueChannel : public Channel {
                      const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,
                 /*initial_values=*/{}, metadata) {}
+
+  virtual bool HasCompletedBlockPortNames() const override {
+    return GetBlockName().has_value() && GetDataPortName().has_value();
+  }
 };
 
 }  // namespace xls

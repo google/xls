@@ -2101,6 +2101,111 @@ TEST(IrParserTest, ParseReceiveOnlyChannel) {
   EXPECT_TRUE(ch->metadata().module_port().flopped());
 }
 
+TEST(IrParserTest, ParseStreamingValueChannelWithBlockPortMapping) {
+  // For testing round-trip parsing.
+  std::string ch_ir_text;
+
+  {
+    Package p("my_package");
+    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
+                                               R"(chan meh(bits[32][4], id=0,
+                         kind=streaming, flow_control=ready_valid,
+                         ops=send_only,
+                         metadata="""block_ports { data_port_name : "data",
+                                                   block_name : "blk",
+                                                   ready_port_name : "rdy",
+                                                   valid_port_name: "vld"
+                                                 }"""))",
+                                               &p));
+    EXPECT_EQ(ch->name(), "meh");
+    EXPECT_EQ(ch->id(), 0);
+    EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
+    EXPECT_TRUE(ch->metadata().has_block_ports());
+
+    EXPECT_TRUE(ch->metadata().block_ports().has_data_port_name());
+    EXPECT_TRUE(ch->metadata().block_ports().has_ready_port_name());
+    EXPECT_TRUE(ch->metadata().block_ports().has_valid_port_name());
+
+    EXPECT_EQ(ch->metadata().block_ports().block_name(), "blk");
+    EXPECT_EQ(ch->metadata().block_ports().data_port_name(), "data");
+    EXPECT_EQ(ch->metadata().block_ports().ready_port_name(), "rdy");
+    EXPECT_EQ(ch->metadata().block_ports().valid_port_name(), "vld");
+
+    ch_ir_text = ch->ToString();
+  }
+
+  {
+    Package p("my_package_2");
+    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
+                             Parser::ParseChannel(ch_ir_text, &p));
+    EXPECT_EQ(ch->name(), "meh");
+
+    EXPECT_EQ(ch->id(), 0);
+
+    EXPECT_EQ(ch->supported_ops(), ChannelOps::kSendOnly);
+    EXPECT_TRUE(ch->metadata().has_block_ports());
+
+    EXPECT_TRUE(ch->GetBlockName().has_value());
+    EXPECT_TRUE(ch->GetDataPortName().has_value());
+    EXPECT_TRUE(ch->GetValidPortName().has_value());
+    EXPECT_TRUE(ch->GetReadyPortName().has_value());
+
+    EXPECT_EQ(ch->GetBlockName().value(), "blk");
+    EXPECT_EQ(ch->GetDataPortName().value(), "data");
+    EXPECT_EQ(ch->GetValidPortName().value(), "vld");
+    EXPECT_EQ(ch->GetReadyPortName().value(), "rdy");
+  }
+}
+
+TEST(IrParserTest, ParseSingleValueChannelWithBlockPortMapping) {
+  // For testing round-trip parsing.
+  std::string ch_ir_text;
+
+  {
+    Package p("my_package");
+    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, Parser::ParseChannel(
+                                               R"(chan meh(bits[32][4], id=0,
+                         kind=single_value, ops=receive_only,
+                         metadata="""module_port { flopped: true },
+                                     block_ports { data_port_name : "data",
+                                                   block_name : "blk"}"""))",
+                                               &p));
+    EXPECT_EQ(ch->name(), "meh");
+    EXPECT_EQ(ch->id(), 0);
+    EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
+    EXPECT_EQ(ch->metadata().channel_oneof_case(),
+              ChannelMetadataProto::kModulePort);
+    EXPECT_TRUE(ch->metadata().module_port().flopped());
+
+    EXPECT_TRUE(ch->metadata().has_block_ports());
+    EXPECT_EQ(ch->metadata().block_ports().block_name(), "blk");
+    EXPECT_EQ(ch->metadata().block_ports().data_port_name(), "data");
+    EXPECT_FALSE(ch->metadata().block_ports().has_ready_port_name());
+    EXPECT_FALSE(ch->metadata().block_ports().has_valid_port_name());
+
+    ch_ir_text = ch->ToString();
+  }
+
+  {
+    Package p("my_package_2");
+    XLS_ASSERT_OK_AND_ASSIGN(Channel * ch,
+                             Parser::ParseChannel(ch_ir_text, &p));
+    EXPECT_EQ(ch->name(), "meh");
+
+    EXPECT_EQ(ch->id(), 0);
+    EXPECT_EQ(ch->supported_ops(), ChannelOps::kReceiveOnly);
+    EXPECT_TRUE(ch->metadata().has_block_ports());
+
+    EXPECT_TRUE(ch->GetBlockName().has_value());
+    EXPECT_TRUE(ch->GetDataPortName().has_value());
+    EXPECT_FALSE(ch->GetValidPortName().has_value());
+    EXPECT_FALSE(ch->GetReadyPortName().has_value());
+
+    EXPECT_EQ(ch->GetBlockName().value(), "blk");
+    EXPECT_EQ(ch->GetDataPortName().value(), "data");
+  }
+}
+
 TEST(IrParserTest, ChannelParsingErrors) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseChannel(

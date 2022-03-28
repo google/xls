@@ -128,5 +128,61 @@ TEST(ChannelTest, SingleValueToStringParses) {
   EXPECT_EQ(parsed_ch->id(), 42);
 }
 
+TEST(ChannelTest, SingleValueChannelSetAndGetMetadata) {
+  Package p("my_package");
+
+  SingleValueChannel ch("my_channel", 42, ChannelOps::kReceiveOnly,
+                        p.GetBitsType(32), ChannelMetadataProto());
+
+  EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+  ch.SetBlockName("my_block");
+  EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+  ch.SetDataPortName("my_block_data");
+  EXPECT_TRUE(ch.HasCompletedBlockPortNames());
+
+  EXPECT_EQ(ch.GetBlockName().value(), "my_block");
+  EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
+}
+
+TEST(ChannelTest, StreamingChannelSetAndGetMetadata) {
+  Package p("my_package");
+
+  {
+    StreamingChannel ch("my_channel", 42, ChannelOps::kSendReceive,
+                        p.GetBitsType(32),
+                        /*initial_values=*/{}, FlowControl::kReadyValid,
+                        ChannelMetadataProto());
+
+    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+    ch.SetBlockName("my_block");
+    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+    ch.SetDataPortName("my_block_data");
+    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+    ch.SetReadyPortName("my_block_ready");
+    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+    ch.SetValidPortName("my_block_valid");
+    EXPECT_TRUE(ch.HasCompletedBlockPortNames());
+
+    EXPECT_EQ(ch.GetBlockName().value(), "my_block");
+    EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
+    EXPECT_EQ(ch.GetReadyPortName().value(), "my_block_ready");
+    EXPECT_EQ(ch.GetValidPortName().value(), "my_block_valid");
+  }
+
+  {
+    StreamingChannel ch(
+        "my_channel_2", 45, ChannelOps::kSendOnly, p.GetBitsType(32),
+        /*initial_values=*/{}, FlowControl::kNone, ChannelMetadataProto());
+
+    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+    ch.SetDataPortName("my_block_data");
+    EXPECT_FALSE(ch.HasCompletedBlockPortNames());
+    ch.SetBlockName("my_block");
+    EXPECT_TRUE(ch.HasCompletedBlockPortNames());
+    EXPECT_EQ(ch.GetBlockName().value(), "my_block");
+    EXPECT_EQ(ch.GetDataPortName().value(), "my_block_data");
+  }
+}
+
 }  // namespace
 }  // namespace xls
