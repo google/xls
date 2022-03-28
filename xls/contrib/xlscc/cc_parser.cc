@@ -362,6 +362,7 @@ void LibToolThread::Run() {
   argv.emplace_back("-nostdinc");
   argv.emplace_back("-Wno-unused-label");
   argv.emplace_back("-Wno-constant-logical-operand");
+  argv.emplace_back("-Wno-unused-but-set-variable");
 
   llvm::IntrusiveRefCntPtr<clang::FileManager> libtool_files;
 
