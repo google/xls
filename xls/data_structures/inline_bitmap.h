@@ -77,14 +77,14 @@ class InlineBitmap {
     }
     return true;
   }
-  bool Get(int64_t index) const {
+  inline bool Get(int64_t index) const {
     XLS_DCHECK_GE(index, 0);
     XLS_DCHECK_LT(index, bit_count());
     uint64_t word = data_[index / kWordBits];
     uint64_t bitno = index % kWordBits;
     return (word >> bitno) & 1ULL;
   }
-  void Set(int64_t index, bool value) {
+  inline void Set(int64_t index, bool value) {
     XLS_DCHECK_GE(index, 0);
     XLS_DCHECK_LT(index, bit_count());
     uint64_t& word = data_[index / kWordBits];
@@ -129,6 +129,47 @@ class InlineBitmap {
     XLS_DCHECK_LT(byteno, byte_count());
     // Implementation note: this relies on the endianness of the machine.
     return absl::bit_cast<uint8_t*>(data_.data())[byteno];
+  }
+
+  // Compares against another InlineBitmap as if they were unsigned
+  // two's complement integers. If equal, returns 0. If this is greater than
+  // other, returns 1. If this is less than other, returns -1.
+  int64_t UCmp(const InlineBitmap& other) const {
+    int64_t bit_diff = bit_count_ - other.bit_count_;
+    int64_t bit_min = std::min(bit_count_, other.bit_count_);
+
+    int64_t my_idx = bit_count_ - 1;
+    int64_t other_idx = other.bit_count_ - 1;
+
+    while (bit_diff > 0) {
+      if (Get(my_idx)) {
+        return 1;
+      }
+      my_idx--;
+      bit_diff--;
+    }
+    while (bit_diff < 0) {
+      if (other.Get(other_idx)) {
+        return -1;
+      }
+      other_idx--;
+      bit_diff++;
+    }
+
+    for (int64_t i = 0; i < bit_min; i++) {
+      bool my_word = Get(my_idx);
+      bool other_word = other.Get(other_idx);
+      if (my_word && !other_word) {
+        return 1;
+      }
+      if (!my_word && other_word) {
+        return -1;
+      }
+      my_idx--;
+      other_idx--;
+    }
+
+    return 0;
   }
 
   int64_t byte_count() const { return CeilOfRatio(bit_count_, int64_t{8}); }

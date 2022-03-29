@@ -23,6 +23,33 @@
 namespace xls {
 namespace {
 
+TEST(InlineBitmapTest, FromWord) {
+  {
+    auto b =
+        InlineBitmap::FromWord(/*word=*/0, /*bit_count=*/0, /*fill=*/false);
+    EXPECT_TRUE(b.IsAllZeroes());
+  }
+
+  {
+    auto b = InlineBitmap::FromWord(/*word=*/0xFFFFFFFFFFFFFFFFULL,
+                                    /*bit_count=*/0, /*fill=*/false);
+    EXPECT_TRUE(b.IsAllZeroes());
+  }
+
+  {
+    auto b = InlineBitmap::FromWord(/*word=*/0xFFFFFFFFFFFFFFFFULL,
+                                    /*bit_count=*/1, /*fill=*/false);
+    EXPECT_EQ(b.Get(0), 1);
+    EXPECT_TRUE(b.IsAllOnes());
+  }
+
+  {
+    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
+                                    /*bit_count=*/64, /*fill=*/false);
+    EXPECT_EQ(b.GetWord(0), 0x123456789abcdef0);
+  }
+}
+
 TEST(InlineBitmapTest, OneBitBitmap) {
   InlineBitmap b(/*bit_count=*/1);
 
@@ -159,6 +186,50 @@ TEST(InlineBitmapTest, BytesAndWords) {
     b.SetByte(8, 0x1);
     EXPECT_EQ(b.GetWord(0), 0xff00000000000000) << std::hex << b.GetWord(0);
     EXPECT_EQ(b.GetWord(1), 0x1) << std::hex << b.GetWord(1);
+  }
+}
+
+TEST(InlineBitmapTest, UnsignedComparisons) {
+  {
+    InlineBitmap a(/*bit_count=*/0);
+    InlineBitmap b(/*bit_count=*/65);
+    // a == b
+    EXPECT_EQ(a.UCmp(a), 0);
+    EXPECT_EQ(a.UCmp(b), 0);
+    EXPECT_EQ(b.UCmp(a), 0);
+    EXPECT_EQ(b.UCmp(b), 0);
+  }
+
+  {
+    auto a = InlineBitmap::FromWord(/*word=*/0,
+                                    /*bit_count=*/0, /*fill=*/false);
+    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
+                                    /*bit_count=*/64, /*fill=*/false);
+    // a < b
+    EXPECT_EQ(a.UCmp(b), -1);
+    EXPECT_EQ(b.UCmp(a), 1);
+  }
+
+  {
+    auto a = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
+                                    /*bit_count=*/64, /*fill=*/false);
+    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef1,
+                                    /*bit_count=*/64, /*fill=*/false);
+    // a < b
+    EXPECT_EQ(a.UCmp(b), -1);
+    EXPECT_EQ(b.UCmp(a), 1);
+  }
+
+  {
+    auto a = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
+                                    /*bit_count=*/64, /*fill=*/false);
+    auto b = InlineBitmap::FromWord(/*word=*/0x123456789abcdef0,
+                                    /*bit_count=*/65, /*fill=*/false);
+    // a == b
+    EXPECT_EQ(a.UCmp(b), 0);
+    EXPECT_EQ(a.UCmp(a), 0);
+    EXPECT_EQ(b.UCmp(a), 0);
+    EXPECT_EQ(b.UCmp(b), 0);
   }
 }
 

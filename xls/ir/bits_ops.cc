@@ -299,7 +299,7 @@ Bits SMod(const Bits& lhs, const Bits& rhs) {
 }
 
 bool UEqual(const Bits& lhs, const Bits& rhs) {
-  return BigInt::MakeUnsigned(lhs) == BigInt::MakeUnsigned(rhs);
+  return lhs.bitmap().UCmp(rhs.bitmap()) == 0;
 }
 
 bool UEqual(const Bits& lhs, int64_t rhs) {
@@ -316,12 +316,11 @@ bool UGreaterThan(const Bits& lhs, const Bits& rhs) {
 }
 
 bool ULessThanOrEqual(const Bits& lhs, const Bits& rhs) {
-  return UEqual(lhs, rhs) ||
-         BigInt::LessThan(BigInt::MakeUnsigned(lhs), BigInt::MakeUnsigned(rhs));
+  return lhs.bitmap().UCmp(rhs.bitmap()) <= 0;
 }
 
 bool ULessThan(const Bits& lhs, const Bits& rhs) {
-  return BigInt::LessThan(BigInt::MakeUnsigned(lhs), BigInt::MakeUnsigned(rhs));
+  return lhs.bitmap().UCmp(rhs.bitmap()) < 0;
 }
 
 bool UGreaterThanOrEqual(const Bits& lhs, int64_t rhs) {
