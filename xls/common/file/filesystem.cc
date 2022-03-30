@@ -190,31 +190,48 @@ absl::Status AppendStringToFile(const std::filesystem::path& file_name,
   return SetFileContentsOrAppend(file_name, content, SetOrAppend::kAppend);
 }
 
-absl::Status ParseTextProtoFile(const std::filesystem::path& file_name,
-                                google::protobuf::Message* proto) {
-  XLS_ASSIGN_OR_RETURN(std::string text_proto, GetFileContents(file_name));
-
+absl::Status ParseTextProto(absl::string_view contents,
+                            const std::filesystem::path& file_name,
+                            google::protobuf::Message* proto) {
+  if (proto == nullptr) {
+    return absl::FailedPreconditionError("Invalid pointer value.");
+  }
   ParseTextProtoFileErrorCollector collector(file_name, *proto);
   google::protobuf::TextFormat::Parser parser;
   parser.RecordErrorsTo(&collector);
 
-  const bool success = parser.ParseFromString(text_proto, proto);
+  // Needed for this to compile in OSS, for some reason
+  std::string contents_owned(contents.begin(), contents.end());
+  const bool success = parser.ParseFromString(contents_owned, proto);
   XLS_DCHECK_EQ(success, collector.status().ok());
   return collector.status();
 }
 
-absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
-                               google::protobuf::Message* proto) {
+absl::Status ParseTextProtoFile(const std::filesystem::path& file_name,
+                                google::protobuf::Message* proto) {
+  XLS_ASSIGN_OR_RETURN(std::string text_proto, GetFileContents(file_name));
+  return ParseTextProto(text_proto, file_name, proto);
+}
+
+absl::Status ParseProtobin(absl::string_view contents,
+                           const std::filesystem::path& file_name,
+                           google::protobuf::Message* proto) {
   if (proto == nullptr) {
     return absl::FailedPreconditionError("Invalid pointer value.");
   }
-  XLS_ASSIGN_OR_RETURN(std::string content, GetFileContents(file_name));
-  std::stringstream content_ss(content);
-  if (!proto->ParseFromIstream(&content_ss)) {
+  std::string contents_owned(contents.begin(), contents.end());
+  std::stringstream contents_ss(contents_owned);
+  if (!proto->ParseFromIstream(&contents_ss)) {
     return absl::FailedPreconditionError("Error with parsing file: " +
                                          file_name.string());
   }
   return absl::OkStatus();
+}
+
+absl::Status ParseProtobinFile(const std::filesystem::path& file_name,
+                               google::protobuf::Message* proto) {
+  XLS_ASSIGN_OR_RETURN(std::string protobin, GetFileContents(file_name));
+  return ParseProtobin(protobin, file_name, proto);
 }
 
 absl::Status SetProtobinFile(const std::filesystem::path& file_name,

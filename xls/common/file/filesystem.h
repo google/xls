@@ -113,10 +113,28 @@ absl::Status SetFileContents(const std::filesystem::path& file_name,
 absl::Status AppendStringToFile(const std::filesystem::path& file_name,
                                 absl::string_view content);
 
+// Parses a single text formatted protobuf from the given string which is
+// assumed to have come from the given file.
+//
+// REQUIRES: `contents` is a single text formatted protobuf.
+// REQUIRES: The proto must point to a valid object.
+// Typical return codes (not guaranteed to be exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kFailedPrecondition (the file contents couldn't be parsed as
+//    text proto)
+//
+// *proto will hold the result of parsing the given string of the file as
+// protobuf only if OK is returned.  Regardless of success, the
+// contents of that protobuf may be modified.
+absl::Status ParseTextProto(absl::string_view contents,
+                            const std::filesystem::path& file_name,
+                            google::protobuf::Message* proto);
+
 // Reads a single text formatted protobuf from a file.
 //
 // REQUIRES: `file_name` can be opened for reading.
 // REQUIRES: The contents of `file_name` are a single text formatted protobuf.
+// REQUIRES: The proto must point to a valid object.
 // Typical return codes (not guaranteed to be exhaustive):
 //  * StatusCode::kOk
 //  * StatusCode::kPermissionDenied (file not readable)
@@ -142,6 +160,23 @@ inline absl::StatusOr<T> ParseTextProtoFile(
   }
   return v_or;
 }
+
+// Parses a single binary protobuf from the given string which is assumed to
+// have come from the given file.
+//
+// REQUIRES: `contents` is a single binary protobuf.
+// REQUIRES: The proto must point to a valid object.
+// Typical return codes (not guaranteed to be exhaustive):
+//  * StatusCode::kOk
+//  * StatusCode::kFailedPrecondition (the file contents couldn't be parsed as
+//    binary protobuf)
+//
+// *proto will hold the result of parsing the given string of the file as
+// protobuf only if OK is returned.  Regardless of success, the
+// contents of that protobuf may be modified.
+absl::Status ParseProtobin(absl::string_view contents,
+                           const std::filesystem::path& file_name,
+                           google::protobuf::Message* proto);
 
 // Reads a file containing a single protobuf in binary format.
 //
