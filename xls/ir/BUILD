@@ -772,11 +772,25 @@ genrule(
 
 genrule(
     name = "gen_op_proto",
-    outs = ["op.proto"],
+    outs = ["op.generated.proto"],
     cmd = "$(location :render_specification_against_template) ./xls/ir/op_proto.tmpl > $(OUTS)",
     exec_tools = [
         ":render_specification_against_template",
-        "@llvm_toolchain_llvm//:bin/clang-format",
+    ],
+)
+
+# TODO(taktoa): remove this once py_proto_library supports genrule deps
+sh_test(
+    name = "check_generated_op_proto",
+    size = "small",
+    srcs = ["check_generated_op_proto.sh"],
+    args = [
+        "$(location :op.generated.proto)",
+        "$(location :op.proto)",
+    ],
+    data = [
+        ":op.generated.proto",
+        ":op.proto",
     ],
 )
 

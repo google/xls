@@ -164,6 +164,163 @@ absl::Status SetDelayFields(Block* block, const DelayEstimator& delay_estimator,
   return absl::OkStatus();
 }
 
+BomKindProto OpToBomKind(Op op) {
+  switch (op) {
+    case Op::kAdd:
+    case Op::kSub: {
+      return BOM_KIND_ADDER;
+    }
+
+    case Op::kUMul:
+    case Op::kSMul: {
+      return BOM_KIND_MULTIPLIER;
+    }
+
+    case Op::kUDiv:
+    case Op::kSDiv:
+    case Op::kUMod:
+    case Op::kSMod: {
+      return BOM_KIND_DIVIDER;
+    }
+
+    case Op::kEq:
+    case Op::kNe:
+    case Op::kUGe:
+    case Op::kSGe:
+    case Op::kUGt:
+    case Op::kSGt:
+    case Op::kULe:
+    case Op::kSLe:
+    case Op::kULt:
+    case Op::kSLt: {
+      return BOM_KIND_COMPARISON;
+    }
+
+    case Op::kAnd:
+    case Op::kNand:
+    case Op::kNor:
+    case Op::kNot:
+    case Op::kOr:
+    case Op::kXor: {
+      return BOM_KIND_BITWISE;
+    }
+
+    case Op::kAndReduce:
+    case Op::kOrReduce:
+    case Op::kXorReduce: {
+      return BOM_KIND_BITWISE_REDUCTION;
+    }
+
+    case Op::kShll:
+    case Op::kShrl:
+    case Op::kShra:
+    case Op::kDynamicBitSlice:
+    case Op::kBitSliceUpdate:
+    case Op::kArrayIndex:
+    case Op::kArraySlice:
+    case Op::kArrayUpdate: {
+      return BOM_KIND_SLICE;
+    }
+
+    case Op::kSel: {
+      return BOM_KIND_SELECT;
+    }
+
+    case Op::kOneHotSel: {
+      return BOM_KIND_ONE_HOT_SELECT;
+    }
+
+    case Op::kDecode: {
+      return BOM_KIND_DECODE;
+    }
+
+    case Op::kEncode: {
+      return BOM_KIND_ENCODE;
+    }
+
+    case Op::kOneHot: {
+      return BOM_KIND_ONE_HOT;
+    }
+
+    case Op::kAssert:
+    case Op::kCover:
+    case Op::kAfterAll:
+    case Op::kArray:
+    case Op::kArrayConcat:
+    case Op::kBitSlice:
+    case Op::kConcat:
+    case Op::kIdentity:
+    case Op::kLiteral:
+    case Op::kNeg:
+    case Op::kReverse:
+    case Op::kSignExt:
+    case Op::kTuple:
+    case Op::kTupleIndex:
+    case Op::kZeroExt:
+    case Op::kGate:
+    case Op::kTrace: {
+      return BOM_KIND_INSIGNIFICANT;
+    }
+
+    case Op::kReceive:
+    case Op::kSend:
+    case Op::kCountedFor:
+    case Op::kDynamicCountedFor:
+    case Op::kInvoke:
+    case Op::kInputPort:
+    case Op::kOutputPort:
+    case Op::kMap:
+    case Op::kParam:
+    case Op::kRegisterRead:
+    case Op::kRegisterWrite:
+    case Op::kInstantiationOutput:
+    case Op::kInstantiationInput: {
+      return BOM_KIND_MISC;
+    }
+
+      // We intentionally have no default case here so that the compiler can
+      // warn when we add a new op.
+  }
+
+  XLS_LOG(FATAL) << "OpToBomKind: unsupported op: " << OpToString(op);
+}
+
+// Generate a BOM entry for a single node.
+absl::Status GenerateBomEntry(Node* node, BomEntryProto* proto) {
+  int64_t maximum_input_width = 0;
+  for (Node* operand : node->operands()) {
+    maximum_input_width =
+        std::max(maximum_input_width, operand->GetType()->GetFlatBitCount());
+  }
+
+  proto->set_op(ToOpProto(node->op()));
+  proto->set_kind(OpToBomKind(node->op()));
+  proto->set_output_width(node->GetType()->GetFlatBitCount());
+  proto->set_maximum_input_width(maximum_input_width);
+  proto->set_number_of_arguments(node->operands().size());
+  if (node->loc().has_value()) {
+    SourceLocation loc = node->loc().value();
+    if (std::optional<std::string> file =
+            node->package()->GetFilename(loc.fileno())) {
+      proto->set_source_file(file.value());
+    }
+    proto->set_source_line(static_cast<int32_t>(loc.lineno()));
+    proto->set_source_col(static_cast<int32_t>(loc.colno()));
+  }
+
+  return absl::OkStatus();
+}
+
+// Generate a bill of materials.
+absl::Status GenerateBom(Block* block, BlockMetricsProto* proto) {
+  for (Node* node : block->nodes()) {
+    BomEntryProto* bom_entry = proto->add_bill_of_materials();
+    XLS_RETURN_IF_ERROR(GenerateBomEntry(node, bom_entry));
+  }
+
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
@@ -177,6 +334,9 @@ absl::StatusOr<BlockMetricsProto> GenerateBlockMetrics(
     XLS_RETURN_IF_ERROR(
         SetDelayFields(block, *delay_estimator.value(), &proto));
   }
+
+  XLS_RETURN_IF_ERROR(GenerateBom(block, &proto));
+
   return proto;
 }
 

@@ -16,6 +16,79 @@ syntax = "proto2";
 
 package xls.verilog;
 
+import "xls/ir/op.proto";
+
+enum BomKindProto {
+  BOM_KIND_INVALID = 0;
+  // signed and unsigned adds and subtracts
+  BOM_KIND_ADDER = 1;
+  // signed and unsigned multiplies
+  BOM_KIND_MULTIPLIER = 2;
+  // signed and unsigned division and modulo
+  BOM_KIND_DIVIDER = 3;
+  // signed and unsigned comparison ops
+  BOM_KIND_COMPARISON = 4;
+  // n-ary bitwise and/or/xor/nand/nor/not
+  BOM_KIND_BITWISE = 5;
+  // and/or/xor reduce
+  BOM_KIND_BITWISE_REDUCTION = 6;
+  // ops that can be implemented via dynamic bit slicing:
+  //
+  // shll, shra, shrl, bit_slice_update, dynamic_bit_slice,
+  // array_index, array_slice, array_update
+  BOM_KIND_SLICE = 7;
+  // select
+  BOM_KIND_SELECT = 8;
+  // one_hot_select
+  BOM_KIND_ONE_HOT_SELECT = 9;
+  // binary to one hot conversion
+  BOM_KIND_DECODE = 10;
+  // one hot to binary conversion
+  BOM_KIND_ENCODE = 11;
+  // many hot to one hot conversion (via "priority")
+  BOM_KIND_ONE_HOT = 12;
+  // nodes with insignificant or zero cost (not including wires), like negate or
+  // bit_slice or reverse.
+  BOM_KIND_INSIGNIFICANT = 13;
+  // nodes that are not synthesizable or don't have a well defined notion of
+  // cost when considered in isolation (e.g.: register write/read).
+  BOM_KIND_MISC = 14;
+}
+
+message BomEntryProto {
+  // The operation this node is an instance of.
+  optional OpProto op = 1;
+
+  // The kind of operation. These are categories that provide a useful
+  // hint to people who want to know the cost of an operation.
+  optional BomKindProto kind = 2;
+
+  // The bitwidth of the output of this node.
+  optional int64 output_width = 3;
+
+  // The maximum bitwidth of all inputs of this node.
+  // This is zero if the node has no inputs.
+  // This is a more relevant measure of cost for some nodes, like multipliers.
+  optional int64 maximum_input_width = 4;
+
+  // The number of arguments of this node. Useful for measuring the cost of
+  // n-ary operations (`BOM_KIND_BITWISE`).
+  optional int64 number_of_arguments = 5;
+
+  // The source file from which this node was generated, if one exists.
+  // It is possible for this to not exist even though `source_line` and
+  // `source_col` do exist.
+  optional string source_file = 6;
+
+  // The line number from which this node is generated, if one exists.
+  // If this exists, `source_col` must exist.
+  optional int64 source_line = 7;
+
+  // The column number from which this node is generated, if one exists.
+  // If this exists, `source_line` must exist.
+  optional int64 source_col = 8;
+}
+
 // Metrics collected for the block after block conversion completes.
 message BlockMetricsProto {
   // The total number of registers (in bits) in the block.
@@ -43,6 +116,10 @@ message BlockMetricsProto {
   // The maximum delay in picoseconds of any combinational path from an input
   // port to an output port.
   optional int64 max_feedthrough_path_delay_ps = 7;
+
+  // A bill of materials enumerating the nodes and where they were generated
+  // from (if that information is available).
+  repeated BomEntryProto bill_of_materials = 8;
 }
 
 message XlsMetricsProto {

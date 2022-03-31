@@ -8,6 +8,7 @@ namespace xls {
 
 Op FromOpProto(OpProto op_proto) {
   switch (op_proto) {
+    case OP_INVALID: XLS_LOG(FATAL) << "OP_INVALID received"; break;
 {% for op in spec.OPS -%}
     case OP_{{ op.name.upper() }}: return Op::{{ op.enum_name }};
 {% endfor -%}

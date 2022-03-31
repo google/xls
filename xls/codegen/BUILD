@@ -606,11 +606,14 @@ xls_py_proto_library(
 proto_library(
     name = "xls_metrics_proto",
     srcs = ["xls_metrics.proto"],
+    deps = ["//xls/ir:op_proto"],
 )
 
 cc_proto_library(
     name = "xls_metrics_cc_proto",
-    deps = [":xls_metrics_proto"],
+    deps = [
+        ":xls_metrics_proto",
+    ],
 )
 
 xls_py_proto_library(
@@ -618,6 +621,10 @@ xls_py_proto_library(
     srcs = ["xls_metrics.proto"],
     internal_deps = [
         ":xls_metrics_proto",
+        "//xls/ir:op_proto",
+    ],
+    deps = [
+        "//xls/ir:op_py_pb2",
     ],
 )
 
