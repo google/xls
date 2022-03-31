@@ -99,6 +99,11 @@ class CodegenOptions {
   CodegenOptions& use_system_verilog(bool value);
   bool use_system_verilog() const { return use_system_verilog_; }
 
+  // Whether to emit everything on a separate line, which is useful when
+  // using the area profiler.
+  CodegenOptions& separate_lines(bool value);
+  bool separate_lines() const { return separate_lines_; }
+
   // Whether to flop inputs into a register at the beginning of the pipeline. If
   // true, adds a single cycle to the latency of the pipline.
   CodegenOptions& flop_inputs(bool value);
@@ -244,6 +249,7 @@ class CodegenOptions {
   absl::optional<PipelineControl> pipeline_control_;
   absl::optional<std::string> clock_name_;
   bool use_system_verilog_ = true;
+  bool separate_lines_ = false;
   bool flop_inputs_ = false;
   bool flop_outputs_ = false;
   IOKind flop_inputs_kind_ = IOKind::kFlop;

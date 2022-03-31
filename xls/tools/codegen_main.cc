@@ -135,6 +135,8 @@ ABSL_FLAG(bool, reset_asynchronous, false,
 ABSL_FLAG(bool, reset_data_path, false, "Whether to also reset the datapath.");
 ABSL_FLAG(bool, use_system_verilog, true,
           "If true, emit SystemVerilog otherwise emit Verilog.");
+ABSL_FLAG(bool, separate_lines, false,
+          "If true, emit every subexpression on a separate line.");
 ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
 ABSL_FLAG(std::string, assert_format, "",
           "Format string to use for assertions.");
@@ -262,6 +264,8 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
   }
 
   options.use_system_verilog(absl::GetFlag(FLAGS_use_system_verilog));
+
+  options.separate_lines(absl::GetFlag(FLAGS_separate_lines));
 
   if (!absl::GetFlag(FLAGS_gate_format).empty()) {
     options.gate_format(absl::GetFlag(FLAGS_gate_format));

@@ -85,6 +85,11 @@ CodegenOptions& CodegenOptions::use_system_verilog(bool value) {
   return *this;
 }
 
+CodegenOptions& CodegenOptions::separate_lines(bool value) {
+  separate_lines_ = value;
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::flop_inputs(bool value) {
   flop_inputs_ = value;
   return *this;

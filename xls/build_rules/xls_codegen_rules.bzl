@@ -204,6 +204,7 @@ def xls_ir_verilog_impl(ctx, src):
         "reset_asynchronous",
         "reset_data_path",
         "use_system_verilog",
+        "separate_lines",
         "streaming_channel_data_suffix",
         "streaming_channel_ready_suffix",
         "streaming_channel_valid_suffix",

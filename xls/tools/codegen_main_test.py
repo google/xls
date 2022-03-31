@@ -168,6 +168,25 @@ class CodeGenMainTest(parameterized.TestCase):
       self.assertNotIn('always_ff', verilog)
       self.assertIn('always @ (posedge clk)', verilog)
 
+  def test_separate_lines(self):
+    ir_file = self.create_tempfile(content=NOT_ADD_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        '--top=not_add', '--separate_lines', ir_file.full_path
+    ]).decode('utf-8')
+    self.assertEqual("""module not_add(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  wire [31:0] add_7;
+  wire [31:0] not_8;
+  assign add_7 = x + y;
+  assign not_8 = ~add_7;
+  assign out = not_8;
+endmodule
+""", verilog)
+
   def test_proc_verilog_port_default_suffix(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
     verilog = subprocess.check_output([

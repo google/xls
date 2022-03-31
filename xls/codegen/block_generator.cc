@@ -470,7 +470,7 @@ class BlockGenerator {
             (n->users().size() > 1 &&
              !ShouldInlineExpressionIntoMultipleUses(n)) ||
             n->function_base()->HasImplicitUse(n) ||
-            !mb_.CanEmitAsInlineExpression(n)) {
+            !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
           return true;
         }
         // Emit operands of RegisterWrite's as assignments rather than inline
