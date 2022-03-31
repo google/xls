@@ -16,6 +16,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits_ops.h"
@@ -35,6 +36,22 @@ using solvers::z3::TryProve;
 using status_testing::IsOkAndHolds;
 
 class Z3IrTranslatorTest : public IrTestBase {};
+
+// This parameterized fixture allows a single value-parameterized Z3-based test
+// to be instantiated across a range of different bitwidths. Each individual
+// test may decide how to use this width parameter, e.g., to set the width of
+// a function input.
+class Z3ParameterizedWidthBitVectorIrTranslatorTest : public Z3IrTranslatorTest,
+    public testing::WithParamInterface<int> {
+ protected:
+  int BitWidth() const { return GetParam(); }
+};
+
+// The complexity of the SMT formula underlying a width-parameterized test grows
+// rapidly with width, so this suite picks a sampling of small bitwidths.
+INSTANTIATE_TEST_SUITE_P(Z3BitVectorTestWidthSweep,
+                         Z3ParameterizedWidthBitVectorIrTranslatorTest,
+                         testing::Values(1, 2, 3, 8));
 
 TEST_F(Z3IrTranslatorTest, ZeroIsZero) {
   auto p = CreatePackage();
@@ -454,6 +471,55 @@ fn f(p: bits[1]) -> bits[1] {
   ret result: bits[1] = or(p, np)
 }
 )";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
+TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
+       AndReduceIsEqualToXIsAllOnes) {
+  // Define a miter circuit: the implementation performs an `and_reduce` and the
+  // specification checks for inequality with a bitvector of all ones. The
+  // outputs should be equal across the full space of inputs.
+  constexpr absl::string_view program_template = R"(
+fn f(p: bits[$0]) -> bits[1] {
+  zero: bits[$0] = literal(value=0)
+  all_ones: bits[$0] = not(zero)
+  impl: bits[1] = and_reduce(p)
+  spec: bits[1] = eq(p, all_ones)
+  ret eq: bits[1] = eq(impl, spec)
+}
+)";
+  const std::string program =
+      absl::Substitute(program_template, BitWidth());
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
+TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
+       OrReduceIsEqualToXIsNotZero) {
+  // Define a miter circuit: the implementation performs an `or_reduce` and the
+  // specification checks for inequality with the zero bitvector. The outputs
+  // should be equal across the full space of inputs.
+  constexpr absl::string_view program_template = R"(
+fn f(p: bits[$0]) -> bits[1] {
+  zero: bits[$0] = literal(value=0)
+  impl: bits[1] = or_reduce(p)
+  spec: bits[1] = ne(p, zero)
+  ret eq: bits[1] = eq(impl, spec)
+}
+)";
+  const std::string program =
+      absl::Substitute(program_template, BitWidth());
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(

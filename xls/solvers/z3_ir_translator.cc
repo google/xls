@@ -777,8 +777,11 @@ absl::Status IrTranslator::HandleUnaryViaAbstractEval(Node* op) {
   return seh.status();
 }
 
+// Translates a unary `UnOp` or `BitwiseReductionOp` operator to a Z3 AST format
+// by invoking `f`, the Z3 AST-node generator corresponding to the desired op.
 template <typename FnT>
-absl::Status IrTranslator::HandleUnary(UnOp* op, FnT f) {
+absl::Status IrTranslator::HandleUnary(Node* op, FnT f) {
+  XLS_CHECK_EQ(op->operand_count(), 1);
   ScopedErrorHandler seh(ctx_);
   Z3_ast result = f(ctx_, GetBitVec(op->operand(0)));
   NoteTranslation(op, result);
@@ -1094,21 +1097,12 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
   });
 }
 
+absl::Status IrTranslator::HandleAndReduce(BitwiseReductionOp* and_reduce) {
+  return HandleUnary(and_reduce, Z3_mk_bvredand);
+}
+
 absl::Status IrTranslator::HandleOrReduce(BitwiseReductionOp* or_reduce) {
-  ScopedErrorHandler seh(ctx_);
-  // OrReduce == is any bit set in the value? That's the same as "node != 0".
-  Z3_ast operand = GetValue(or_reduce->operand(0));
-  Z3_ast long_zero = Z3_mk_int(ctx_, 0, Z3_get_sort(ctx_, operand));
-
-  Z3_sort bit_sort = Z3_mk_bv_sort(ctx_, 1);
-  Z3_ast one = Z3_mk_int(ctx_, 1, bit_sort);
-  Z3_ast zero = Z3_mk_int(ctx_, 0, bit_sort);
-
-  Z3_ast eq = Z3_mk_eq(ctx_, operand, long_zero);
-  Z3_ast result = Z3_mk_ite(ctx_, eq, zero, one);
-
-  NoteTranslation(or_reduce, result);
-  return seh.status();
+  return HandleUnary(or_reduce, Z3_mk_bvredor);
 }
 
 void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {

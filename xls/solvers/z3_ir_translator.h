@@ -137,6 +137,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleParam(Param* param) override;
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* one_hot) override;
+  absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSel(Select* sel) override;
@@ -190,7 +191,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   template <typename FnT>
   absl::Status HandleShift(BinOp* shift, FnT f);
   template <typename FnT>
-  absl::Status HandleUnary(UnOp* op, FnT f);
+  absl::Status HandleUnary(Node* op, FnT f);
 
   // Recursive call to translate XLS literals into Z3 form.
   absl::StatusOr<Z3_ast> TranslateLiteralValue(Type* type, const Value& value);
