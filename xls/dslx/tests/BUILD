@@ -260,12 +260,7 @@ xls_dslx_test(
     },
 )
 
-dslx_lang_test(
-    name = "reductions",
-    # TODO(https://github.com/google/xls/issues/565): 2022-02-03 `and_reduce`
-    # not implemented for Z3 conversion.
-    test_ir_equivalence = False,
-)
+dslx_lang_test(name = "reductions")
 
 dslx_lang_test(name = "signed_number_type")
 

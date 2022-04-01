@@ -529,6 +529,30 @@ fn f(p: bits[$0]) -> bits[1] {
   EXPECT_TRUE(proven_nez);
 }
 
+TEST_F(Z3IrTranslatorTest,
+       XorReduceIsEqualToXorOfBits) {
+  // Define a miter circuit: the implementation performs an `xor_reduce` and the
+  // specification checks for inequality with a bitvector of all ones. The
+  // outputs should be equal across the full space of inputs.
+  constexpr absl::string_view program = R"(
+fn f(p: bits[3]) -> bits[1] {
+  impl: bits[1] = xor_reduce(p)
+  b0: bits[1] = bit_slice(p, start=0, width=1)
+  b1: bits[1] = bit_slice(p, start=1, width=1)
+  b2: bits[1] = bit_slice(p, start=2, width=1)
+  spec: bits[1] = xor(b0, b1, b2)
+  ret eq: bits[1] = eq(impl, spec)
+}
+)";
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
+}
+
 TEST_F(Z3IrTranslatorTest, SignExtendBitsAreEqual) {
   const std::string program = R"(
 fn f(p: bits[1]) -> bits[1] {

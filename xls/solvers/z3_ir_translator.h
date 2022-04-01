@@ -139,6 +139,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleOneHotSel(OneHotSelect* one_hot) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* and_reduce) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
+  absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleSignExtend(ExtendOp* sign_ext) override;

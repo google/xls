@@ -1105,6 +1105,10 @@ absl::Status IrTranslator::HandleOrReduce(BitwiseReductionOp* or_reduce) {
   return HandleUnary(or_reduce, Z3_mk_bvredor);
 }
 
+absl::Status IrTranslator::HandleXorReduce(BitwiseReductionOp* xor_reduce) {
+  return HandleUnaryViaAbstractEval(xor_reduce);
+}
+
 void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
