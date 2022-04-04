@@ -75,6 +75,12 @@ TEST(IrParserTest, ParseBitsLiteral) {
 })");
 }
 
+TEST(IrParserTest, ParseTokenLiteral) {
+  ParseFunctionAndCheckDump(R"(fn f() -> token {
+  ret literal.1: token = literal(value=token, id=1)
+})");
+}
+
 TEST(IrParserTest, ParseWideLiteral) {
   ParseFunctionAndCheckDump(R"(fn f() -> bits[96] {
   ret literal.1: bits[96] = literal(value=0xaaaa_bbbb_1234_5678_90ab_cdef, id=1)

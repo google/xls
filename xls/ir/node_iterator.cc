@@ -63,7 +63,7 @@ void NodeIterator::Initialize() {
     int64_t& remaining_users = it->second;
     XLS_CHECK_GT(remaining_users, 0);
     remaining_users -= 1;
-    XLS_VLOG(4) << "Bumped down remaining users for: " << n
+    XLS_VLOG(5) << "Bumped down remaining users for: " << n
                 << "; now: " << remaining_users;
     if (remaining_users == 0) {
       ready.push_back(result.first->first);
@@ -71,7 +71,7 @@ void NodeIterator::Initialize() {
     }
   };
   auto add_to_order = [&](Node* r) {
-    XLS_VLOG(4) << "Adding node to order: " << r;
+    XLS_VLOG(5) << "Adding node to order: " << r;
     XLS_DCHECK(all_users_scheduled(r))
         << r << " users size: " << r->users().size();
     ordered_->push_back(r);
@@ -110,14 +110,14 @@ void NodeIterator::Initialize() {
         return_value = node;
       } else {
         XLS_DCHECK(all_users_scheduled(node));
-        XLS_VLOG(4) << "At start node was ready: " << node;
+        XLS_VLOG(5) << "At start node was ready: " << node;
         seed_ready(node);
       }
     }
   }
 
   if (return_value != nullptr) {
-    XLS_VLOG(4) << "Maybe marking return value as ready: " << return_value;
+    XLS_VLOG(5) << "Maybe marking return value as ready: " << return_value;
     seed_ready(return_value);
   }
 

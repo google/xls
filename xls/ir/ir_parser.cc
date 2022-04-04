@@ -347,13 +347,14 @@ absl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
   } else {
     if (scanner_.PeekTokenIs(LexicalTokenType::kKeyword)) {
       if (scanner_.TryDropKeyword("token")) {
-        type_kind = TypeKind::kToken;
-      } else {
-        type_kind = TypeKind::kBits;
-        XLS_ASSIGN_OR_RETURN(bit_count, ParseBitsTypeAndReturnWidth());
-        XLS_RETURN_IF_ERROR(
-            scanner_.DropTokenOrError(LexicalTokenType::kColon));
+        // A "typed" value of type token is just "token", the same as an
+        // "untyped" value so just return the Value here.
+        return Value::Token();
       }
+
+      type_kind = TypeKind::kBits;
+      XLS_ASSIGN_OR_RETURN(bit_count, ParseBitsTypeAndReturnWidth());
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
     } else if (scanner_.PeekTokenIs(LexicalTokenType::kBracketOpen)) {
       type_kind = TypeKind::kArray;
     } else {
@@ -428,6 +429,7 @@ absl::StatusOr<Value> Parser::ParseValueInternal(absl::optional<Type*> type) {
     return Value::Tuple(values);
   }
   if (type_kind == TypeKind::kToken) {
+    XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("token"));
     return Value::Token();
   }
   return absl::InvalidArgumentError(

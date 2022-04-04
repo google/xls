@@ -126,6 +126,8 @@ Block* FunctionBase::AsBlockOrDie() {
 }
 
 Node* FunctionBase::AddNodeInternal(std::unique_ptr<Node> node) {
+  XLS_VLOG(4) << absl::StrFormat("Adding node %s to FunctionBase %s",
+                                 node->GetName(), name());
   if (node->Is<Param>()) {
     params_.push_back(node->As<Param>());
   }
