@@ -35,7 +35,8 @@ absl::Status FifoChannelQueue::Enqueue(const Value& value) {
 
   absl::MutexLock lock(&mutex_);
   queue_.push_back(value);
-  XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements", size());
+  XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
+                                    queue_.size());
   return absl::OkStatus();
 }
 
@@ -50,7 +51,8 @@ absl::StatusOr<Value> FifoChannelQueue::Dequeue() {
   queue_.pop_front();
   XLS_VLOG(4) << absl::StreamFormat("Dequeuing data on channel %s: %s",
                                     channel_->name(), value.ToString());
-  XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements", size());
+  XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
+                                    queue_.size());
   return std::move(value);
 }
 
