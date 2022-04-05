@@ -336,7 +336,7 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 }
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
-    Function* f, Invocation* invocation,
+    Function* f, const Invocation* invocation,
     const absl::optional<SymbolicBindings>& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* type_info = frame.type_info();

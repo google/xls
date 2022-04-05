@@ -123,7 +123,7 @@ CheckFunctionParams(Function* f, DeduceCtx* ctx) {
 }
 
 absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
-    DeduceCtx* ctx, Invocation* invocation, Function* caller) {
+    DeduceCtx* ctx, const Invocation* invocation, Function* caller) {
   Expr* callee = invocation->callee();
   NameRef* callee_nameref = dynamic_cast<NameRef*>(callee);
 
@@ -234,7 +234,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
 }
 
 absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
-    DeduceCtx* ctx, Invocation* invocation,
+    DeduceCtx* ctx, const Invocation* invocation,
     const SymbolicBindings& caller_bindings) {
   ColonRef* colon_ref = dynamic_cast<ColonRef*>(invocation->callee());
   ColonRef::Subject subject = colon_ref->subject();
@@ -445,7 +445,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
 // Set up parametric constraints and explicit bindings and runs the parametric
 // instantiator.
 absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
-    DeduceCtx* ctx, DeduceCtx* parent_ctx, Invocation* invocation,
+    DeduceCtx* ctx, DeduceCtx* parent_ctx, const Invocation* invocation,
     Function* callee_fn, const FunctionType& fn_type,
     const std::vector<InstantiateArg>& instantiate_args) {
   const std::vector<ParametricBinding*> parametric_bindings =
@@ -585,7 +585,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<TypeAndBindings> CheckInvocation(Invocation* invocation,
+absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
                                                 DeduceCtx* ctx) {
   XLS_VLOG(3) << "Typechecking invocation: " << invocation->ToString();
   Expr* callee = invocation->callee();

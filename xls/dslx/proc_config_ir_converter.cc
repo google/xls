@@ -69,7 +69,7 @@ absl::Status ProcConfigIrConverter::Finalize() {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleChannelDecl(ChannelDecl* node) {
+absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandlesChannelDecl: "
               << node->ToString() << " : " << node->span().ToString();
   std::string name = absl::StrCat(ProcStackToId(proc_id_.proc_stack),
@@ -92,7 +92,7 @@ absl::Status ProcConfigIrConverter::HandleChannelDecl(ChannelDecl* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleFunction(Function* node) {
+absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
   for (int i = 0; i < node->params().size(); i++) {
     XLS_RETURN_IF_ERROR(node->params()[i]->Accept(this));
   }
@@ -100,7 +100,7 @@ absl::Status ProcConfigIrConverter::HandleFunction(Function* node) {
   return node->body()->Accept(this);
 }
 
-absl::Status ProcConfigIrConverter::HandleInvocation(Invocation* node) {
+absl::Status ProcConfigIrConverter::HandleInvocation(const Invocation* node) {
   XLS_LOG(INFO) << "ProcConfigIrConverter::HandleInvocation: "
                 << node->ToString();
   absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
@@ -114,7 +114,7 @@ absl::Status ProcConfigIrConverter::HandleInvocation(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
+absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleLet : " << node->ToString();
   XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
 
@@ -146,7 +146,7 @@ absl::Status ProcConfigIrConverter::HandleLet(Let* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleNameRef(NameRef* node) {
+absl::Status ProcConfigIrConverter::HandleNameRef(const NameRef* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleNameRef : " << node->ToString();
   NameDef* name_def = absl::get<NameDef*>(node->name_def());
   auto rhs = node_to_ir_.at(name_def);
@@ -154,7 +154,7 @@ absl::Status ProcConfigIrConverter::HandleNameRef(NameRef* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleNumber(Number* node) {
+absl::Status ProcConfigIrConverter::HandleNumber(const Number* node) {
   absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
   if (!const_value.has_value()) {
     return absl::InternalError(
@@ -165,7 +165,7 @@ absl::Status ProcConfigIrConverter::HandleNumber(Number* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleParam(Param* node) {
+absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
   // Matches a param AST node to the actual arg for this Proc instance.
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleParam: " << node->ToString();
 
@@ -186,7 +186,7 @@ absl::Status ProcConfigIrConverter::HandleParam(Param* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleSpawn(Spawn* node) {
+absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
   std::vector<ProcConfigValue> args;
   XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), type_info_));
@@ -207,7 +207,8 @@ absl::Status ProcConfigIrConverter::HandleSpawn(Spawn* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleStructInstance(StructInstance* node) {
+absl::Status ProcConfigIrConverter::HandleStructInstance(
+    const StructInstance* node) {
   XLS_VLOG(3) << "ProcConfigIrConverter::HandleStructInstance: "
               << node->ToString();
   absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
@@ -221,7 +222,7 @@ absl::Status ProcConfigIrConverter::HandleStructInstance(StructInstance* node) {
   return absl::OkStatus();
 }
 
-absl::Status ProcConfigIrConverter::HandleXlsTuple(XlsTuple* node) {
+absl::Status ProcConfigIrConverter::HandleXlsTuple(const XlsTuple* node) {
   for (const auto& element : node->members()) {
     XLS_RETURN_IF_ERROR(element->Accept(this));
   }

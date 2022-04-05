@@ -77,7 +77,7 @@ absl::StatusOr<InterpValue> ConcreteTypeConvertValue(
 //  bound_dims: Parametric bindings computed by the typechecker.
 
 absl::Status EvaluateDerivedParametrics(
-    Function* fn, InterpBindings* bindings, AbstractInterpreter* interp,
+    const Function* fn, InterpBindings* bindings, AbstractInterpreter* interp,
     const absl::flat_hash_map<std::string, InterpValue>& bound_dims);
 
 // Evaluates the user defined function fn as an invocation against args.
@@ -102,17 +102,17 @@ absl::StatusOr<InterpValue> EvaluateFunction(
 
 // Note: all interpreter "node evaluators" have the same signature.
 
-absl::StatusOr<InterpValue> EvaluateConstRef(ConstRef* expr,
+absl::StatusOr<InterpValue> EvaluateConstRef(const ConstRef* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
                                              AbstractInterpreter* interp);
 
-absl::StatusOr<InterpValue> EvaluateNameRef(NameRef* expr,
+absl::StatusOr<InterpValue> EvaluateNameRef(const NameRef* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
                                             AbstractInterpreter* interp);
 
-absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
+absl::StatusOr<InterpValue> EvaluateColonRef(const ColonRef* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
                                              AbstractInterpreter* interp);
@@ -132,19 +132,19 @@ absl::StatusOr<InterpValue> EvaluateColonRef(ColonRef* expr,
 // Raises:
 //   EvaluateError: If the type context is missing or inappropriate (e.g. a
 //     tuple cannot be the type for a number).
-absl::StatusOr<InterpValue> EvaluateNumber(Number* expr,
+absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
                                            InterpBindings* bindings,
                                            const ConcreteType* type_context,
                                            AbstractInterpreter* interp);
 
 // Evaluates a string node down to its flat representation as an array of u8s.
-absl::StatusOr<InterpValue> EvaluateString(String* expr,
+absl::StatusOr<InterpValue> EvaluateString(const String* expr,
                                            InterpBindings* bindings,
                                            ConcreteType* type_context,
                                            AbstractInterpreter* interp);
 
 // Evaluates a struct instance expression; e.g. `Foo { field: stuff }`.
-absl::StatusOr<InterpValue> EvaluateStructInstance(StructInstance* expr,
+absl::StatusOr<InterpValue> EvaluateStructInstance(const StructInstance* expr,
                                                    InterpBindings* bindings,
                                                    ConcreteType* type_context,
                                                    AbstractInterpreter* interp);
@@ -152,63 +152,72 @@ absl::StatusOr<InterpValue> EvaluateStructInstance(StructInstance* expr,
 // Evaluates a struct instance expression;
 // e.g. `Foo { field: stuff, ..other_foo }`.
 absl::StatusOr<InterpValue> EvaluateSplatStructInstance(
-    SplatStructInstance* expr, InterpBindings* bindings,
+    const SplatStructInstance* expr, InterpBindings* bindings,
     ConcreteType* type_context, AbstractInterpreter* interp);
 
 // Evaluates a tuple expression; e.g. `(x, y)`.
-absl::StatusOr<InterpValue> EvaluateXlsTuple(XlsTuple* expr,
+absl::StatusOr<InterpValue> EvaluateXlsTuple(const XlsTuple* expr,
                                              InterpBindings* bindings,
                                              ConcreteType* type_context,
                                              AbstractInterpreter* interp);
 
 // Evaluates a let expression; e.g. `let x = y in z`
-absl::StatusOr<InterpValue> EvaluateLet(Let* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateLet(const Let* expr,
+                                        InterpBindings* bindings,
                                         ConcreteType* type_context,
                                         AbstractInterpreter* interp);
 
 // Evaluates a for expression.
-absl::StatusOr<InterpValue> EvaluateFor(For* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateFor(const For* expr,
+                                        InterpBindings* bindings,
                                         ConcreteType* type_context,
                                         AbstractInterpreter* interp);
 
 // Evaluates a cast expression; e.g. `x as u32`.
-absl::StatusOr<InterpValue> EvaluateCast(Cast* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateCast(const Cast* expr,
+                                         InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          AbstractInterpreter* interp);
 
 // Evaluates a unary operation expression; e.g. `-x`.
-absl::StatusOr<InterpValue> EvaluateUnop(Unop* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateUnop(const Unop* expr,
+                                         InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          AbstractInterpreter* interp);
 
 // Evaluates an array expression; e.g. `[a, b, c]`.
-absl::StatusOr<InterpValue> EvaluateArray(Array* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateArray(const Array* expr,
+                                          InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp);
 
 // Evaluates a binary operation expression; e.g. `x + y`.
-absl::StatusOr<InterpValue> EvaluateBinop(Binop* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateBinop(const Binop* expr,
+                                          InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp);
 
 // Evaluates a ternary expression; e.g. `foo if bar else baz`.
-absl::StatusOr<InterpValue> EvaluateTernary(Ternary* expr,
+absl::StatusOr<InterpValue> EvaluateTernary(const Ternary* expr,
                                             InterpBindings* bindings,
                                             ConcreteType* type_context,
                                             AbstractInterpreter* interp);
 
 // Evaluates an attribute expression; e.g. `x.y`.
-absl::StatusOr<InterpValue> EvaluateAttr(Attr* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateAttr(const Attr* expr,
+                                         InterpBindings* bindings,
                                          ConcreteType* type_context,
                                          AbstractInterpreter* interp);
 
 // Evaluates a match expression; e.g. `match x { ... }`.
-absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateMatch(const Match* expr,
+                                          InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp);
 
 // Evaluates an index expression; e.g. `a[i]`.
-absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
+absl::StatusOr<InterpValue> EvaluateIndex(const Index* expr,
+                                          InterpBindings* bindings,
                                           ConcreteType* type_context,
                                           AbstractInterpreter* interp);
 

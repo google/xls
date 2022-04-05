@@ -176,20 +176,21 @@ class Interpreter {
   //   to
   //     print a rough expression-stack-trace for determining the provenance of
   //     an error to ERROR log.
-  absl::StatusOr<InterpValue> Evaluate(Expr* expr, InterpBindings* bindings,
+  absl::StatusOr<InterpValue> Evaluate(const Expr* expr,
+                                       InterpBindings* bindings,
                                        ConcreteType* type_context);
 
   // Evaluates a format macro expression; e.g. `trace_fmt!("x is {}", x)`
-  absl::StatusOr<InterpValue> EvaluateFormatMacro(FormatMacro* expr,
+  absl::StatusOr<InterpValue> EvaluateFormatMacro(const FormatMacro* expr,
                                                   InterpBindings* bindings,
                                                   ConcreteType* type_context);
 
   // Evaluates an Invocation AST node to a value.
-  absl::StatusOr<InterpValue> EvaluateInvocation(Invocation* expr,
+  absl::StatusOr<InterpValue> EvaluateInvocation(const Invocation* expr,
                                                  InterpBindings* bindings,
                                                  ConcreteType* type_context);
 
-  absl::Status EvaluateSpawn(Spawn* expr, InterpBindings* bindings,
+  absl::Status EvaluateSpawn(const Spawn* expr, InterpBindings* bindings,
                              ConcreteType* type_context);
 
   // Wraps function evaluation to compare with JIT execution.
@@ -218,17 +219,17 @@ class Interpreter {
   // info is determined and set externally.
   absl::StatusOr<InterpValue> EvaluateAndCompareInternal(
       Function* f, absl::Span<const InterpValue> args, const Span& span,
-      Invocation* invocation, const SymbolicBindings* symbolic_bindings);
+      const Invocation* invocation, const SymbolicBindings* symbolic_bindings);
 
   // Calls function values, either a builtin or user defined function.
   absl::StatusOr<InterpValue> CallFnValue(
       const InterpValue& fv, absl::Span<InterpValue const> args,
-      const Span& span, Invocation* invocation,
+      const Span& span, const Invocation* invocation,
       const SymbolicBindings* symbolic_bindings);
 
   absl::StatusOr<InterpValue> RunBuiltin(
       Builtin builtin, absl::Span<InterpValue const> args, const Span& span,
-      Invocation* invocation, const SymbolicBindings* symbolic_bindings);
+      const Invocation* invocation, const SymbolicBindings* symbolic_bindings);
 
   // Helpers used for annotating work-in-progress constants on import, in case
   // of recursive calls in to the interpreter (e.g. when evaluating constant

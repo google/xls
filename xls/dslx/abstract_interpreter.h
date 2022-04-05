@@ -39,7 +39,7 @@ class AbstractInterpreter {
   // Calls function values, either builtin or user-defined function.
   virtual absl::StatusOr<InterpValue> CallValue(
       const InterpValue& value, absl::Span<const InterpValue> args,
-      const Span& invocation_span, Invocation* invocation,
+      const Span& invocation_span, const Invocation* invocation,
       const SymbolicBindings* sym_bindings) = 0;
 
   // Returns a typecheck lambda analogous to the DoTypecheck() call above.

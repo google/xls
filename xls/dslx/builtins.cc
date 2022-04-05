@@ -109,7 +109,7 @@ trace_fmt! error: %s
 Expression: %s @ %s
 Actual arguments: (%s))";
 
-static absl::Status PerformTraceFmt(FormatMacro* expr,
+static absl::Status PerformTraceFmt(const FormatMacro* expr,
                                     absl::Span<const InterpValue> arg_values) {
   auto arg_value = arg_values.begin();
   auto make_error = [expr, &arg_values](std::string msg) -> absl::Status {
@@ -159,7 +159,7 @@ void OptionalTrace(Expr* expr, const InterpValue& result,
   // value.
 
   auto query_is_trace_instance = [expr] {
-    auto* invocation = dynamic_cast<Invocation*>(expr);
+    auto* invocation = dynamic_cast<const Invocation*>(expr);
     if (invocation == nullptr) {
       return false;
     }
@@ -179,22 +179,24 @@ void OptionalTrace(Expr* expr, const InterpValue& result,
 }
 
 absl::StatusOr<InterpValue> BuiltinTrace(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings,
+    AbstractInterpreter* interp) {
   XLS_RETURN_IF_ERROR(ArgChecker("trace!", args).size(1).status());
   PerformTrace(expr->FormatArgs(), span, args[0], interp);
   return args[0];
 }
 
 absl::StatusOr<InterpValue> BuiltinTraceFmt(absl::Span<const InterpValue> args,
-                                            FormatMacro* expr) {
+                                            const FormatMacro* expr) {
   XLS_RETURN_IF_ERROR(PerformTraceFmt(expr, args));
   return InterpValue::MakeToken();
 }
 
 absl::StatusOr<InterpValue> BuiltinMap(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings, AbstractInterpreter* interp) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings,
+    AbstractInterpreter* interp) {
   XLS_RETURN_IF_ERROR(ArgChecker("map", args).size(2).status());
   const InterpValue& inputs = args[0];
 
@@ -240,22 +242,22 @@ absl::StatusOr<InterpValue> BuiltinMap(
 }
 
 absl::StatusOr<InterpValue> BuiltinFail(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("fail!", args).size(1).status());
   return FailureErrorStatus(span, args[0].ToString());
 }
 
 absl::StatusOr<InterpValue> BuiltinCover(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("cover!", args).size(2).array(0).status());
   return InterpValue::MakeUnit();
 }
 
 absl::StatusOr<InterpValue> BuiltinGate(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(
       ArgChecker("gate!", args).size(2).ubits(0, 1).bits(1).status());
   const InterpValue& p = args[0];
@@ -267,8 +269,8 @@ absl::StatusOr<InterpValue> BuiltinGate(
 }
 
 absl::StatusOr<InterpValue> BuiltinUpdate(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(
       ArgChecker("update", args).size(3).array(0).bits(1).status());
   const InterpValue& array = args[0];
@@ -278,8 +280,8 @@ absl::StatusOr<InterpValue> BuiltinUpdate(
 }
 
 absl::StatusOr<InterpValue> BuiltinAssertEq(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("assert_eq", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
@@ -307,8 +309,8 @@ absl::StatusOr<InterpValue> BuiltinAssertEq(
 }
 
 absl::StatusOr<InterpValue> BuiltinAssertLt(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("assert_lt", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
@@ -320,8 +322,8 @@ absl::StatusOr<InterpValue> BuiltinAssertLt(
 }
 
 absl::StatusOr<InterpValue> BuiltinAndReduce(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("and_reduce", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
@@ -329,8 +331,8 @@ absl::StatusOr<InterpValue> BuiltinAndReduce(
 }
 
 absl::StatusOr<InterpValue> BuiltinOrReduce(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("or_reduce", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
@@ -338,8 +340,8 @@ absl::StatusOr<InterpValue> BuiltinOrReduce(
 }
 
 absl::StatusOr<InterpValue> BuiltinXorReduce(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("xor_reduce", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits,
@@ -347,16 +349,16 @@ absl::StatusOr<InterpValue> BuiltinXorReduce(
 }
 
 absl::StatusOr<InterpValue> BuiltinRev(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("rev", args).size(1).status());
   XLS_ASSIGN_OR_RETURN(Bits bits, args[0].GetBits());
   return InterpValue::MakeBits(InterpValueTag::kUBits, bits_ops::Reverse(bits));
 }
 
 absl::StatusOr<InterpValue> BuiltinEnumerate(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("enumerate", args).size(1).array(0).status());
   auto& values = args[0].GetValuesOrDie();
   std::vector<InterpValue> results;
@@ -369,8 +371,8 @@ absl::StatusOr<InterpValue> BuiltinEnumerate(
 }
 
 absl::StatusOr<InterpValue> BuiltinRange(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("range", args).size_ge(1).bits(0).status());
   absl::optional<InterpValue> start;
   absl::optional<InterpValue> limit;
@@ -398,8 +400,8 @@ absl::StatusOr<InterpValue> BuiltinRange(
 }
 
 absl::StatusOr<InterpValue> BuiltinBitSlice(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("bit_slice", args).size(3).status());
   const InterpValue& subject = args[0];
   const InterpValue& start = args[1];
@@ -421,8 +423,8 @@ absl::StatusOr<InterpValue> BuiltinBitSlice(
 }
 
 absl::StatusOr<InterpValue> BuiltinBitSliceUpdate(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("bit_slice_update", args)
                           .size(3)
                           .bits(0)
@@ -446,8 +448,8 @@ absl::StatusOr<InterpValue> BuiltinBitSliceUpdate(
 }
 
 absl::StatusOr<InterpValue> BuiltinSlice(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("slice", args).size(3).status());
   const InterpValue& array = args[0];
   const InterpValue& start = args[1];
@@ -456,8 +458,8 @@ absl::StatusOr<InterpValue> BuiltinSlice(
 }
 
 absl::StatusOr<InterpValue> BuiltinAddWithCarry(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("add_with_carry", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];
@@ -465,8 +467,8 @@ absl::StatusOr<InterpValue> BuiltinAddWithCarry(
 }
 
 absl::StatusOr<InterpValue> BuiltinClz(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("clz", args).size(1).status());
   const InterpValue& arg = args[0];
   XLS_ASSIGN_OR_RETURN(Bits bits, arg.GetBits());
@@ -475,8 +477,8 @@ absl::StatusOr<InterpValue> BuiltinClz(
 }
 
 absl::StatusOr<InterpValue> BuiltinCtz(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("ctz", args).size(1).status());
   const InterpValue& arg = args[0];
   XLS_ASSIGN_OR_RETURN(Bits bits, arg.GetBits());
@@ -485,8 +487,8 @@ absl::StatusOr<InterpValue> BuiltinCtz(
 }
 
 absl::StatusOr<InterpValue> BuiltinOneHot(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("one_hot", args).size(2).status());
   const InterpValue& arg = args[0];
   const InterpValue& lsb_prio = args[1];
@@ -499,8 +501,8 @@ absl::StatusOr<InterpValue> BuiltinOneHot(
 }
 
 absl::StatusOr<InterpValue> BuiltinOneHotSel(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("one_hot_sel", args).size(2).status());
   const InterpValue& selector = args[0];
   const InterpValue& cases = args[1];
@@ -524,8 +526,8 @@ absl::StatusOr<InterpValue> BuiltinOneHotSel(
 }
 
 absl::StatusOr<InterpValue> BuiltinSignex(
-    absl::Span<const InterpValue> args, const Span& span, Invocation* expr,
-    const SymbolicBindings* symbolic_bindings) {
+    absl::Span<const InterpValue> args, const Span& span,
+    const Invocation* expr, const SymbolicBindings* symbolic_bindings) {
   XLS_RETURN_IF_ERROR(ArgChecker("signex", args).size(2).status());
   const InterpValue& lhs = args[0];
   const InterpValue& rhs = args[1];

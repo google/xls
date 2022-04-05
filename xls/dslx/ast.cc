@@ -63,7 +63,7 @@ absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node) {
 FreeVariables FreeVariables::DropBuiltinDefs() const {
   FreeVariables result;
   for (const auto& [identifier, name_refs] : values_) {
-    for (NameRef* ref : name_refs) {
+    for (const NameRef* ref : name_refs) {
       auto def = ref->name_def();
       if (absl::holds_alternative<BuiltinNameDef*>(def)) {
         continue;
@@ -78,7 +78,7 @@ std::vector<std::pair<std::string, AnyNameDef>>
 FreeVariables::GetNameDefTuples() const {
   std::vector<std::pair<std::string, AnyNameDef>> result;
   for (const auto& item : values_) {
-    NameRef* ref = item.second[0];
+    const NameRef* ref = item.second[0];
     result.push_back({item.first, ref->name_def()});
   }
   std::sort(result.begin(), result.end(), [](const auto& lhs, const auto& rhs) {
@@ -87,11 +87,11 @@ FreeVariables::GetNameDefTuples() const {
   return result;
 }
 
-std::vector<ConstRef*> FreeVariables::GetConstRefs() {
-  std::vector<ConstRef*> const_refs;
+std::vector<const ConstRef*> FreeVariables::GetConstRefs() {
+  std::vector<const ConstRef*> const_refs;
   for (const auto& [name, refs] : values_) {
-    for (NameRef* name_ref : refs) {
-      if (ConstRef* const_ref = dynamic_cast<ConstRef*>(name_ref)) {
+    for (const NameRef* name_ref : refs) {
+      if (auto* const_ref = dynamic_cast<const ConstRef*>(name_ref)) {
         const_refs.push_back(const_ref);
       }
     }
@@ -107,7 +107,7 @@ std::vector<AnyNameDef> FreeVariables::GetNameDefs() const {
   return result;
 }
 
-void FreeVariables::Add(std::string identifier, NameRef* name_ref) {
+void FreeVariables::Add(std::string identifier, const NameRef* name_ref) {
   auto it = values_.insert({identifier, {name_ref}});
   if (!it.second) {
     it.first->second.push_back(name_ref);
@@ -182,12 +182,12 @@ absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s) {
 
 class DfsIteratorNoTypes {
  public:
-  DfsIteratorNoTypes(AstNode* start) : to_visit_({start}) {}
+  DfsIteratorNoTypes(const AstNode* start) : to_visit_({start}) {}
 
   bool HasNext() const { return !to_visit_.empty(); }
 
-  AstNode* Next() {
-    AstNode* result = to_visit_.front();
+  const AstNode* Next() {
+    const AstNode* result = to_visit_.front();
     to_visit_.pop_front();
     std::vector<AstNode*> children = result->GetChildren(/*want_types=*/false);
     std::reverse(children.begin(), children.end());
@@ -198,15 +198,15 @@ class DfsIteratorNoTypes {
   }
 
  private:
-  std::deque<AstNode*> to_visit_;
+  std::deque<const AstNode*> to_visit_;
 };
 
-FreeVariables AstNode::GetFreeVariables(const Pos* start_pos) {
+FreeVariables AstNode::GetFreeVariables(const Pos* start_pos) const {
   DfsIteratorNoTypes it(this);
   FreeVariables freevars;
   while (it.HasNext()) {
-    AstNode* n = it.Next();
-    if (auto* name_ref = dynamic_cast<NameRef*>(n)) {
+    const AstNode* n = it.Next();
+    if (const auto* name_ref = dynamic_cast<const NameRef*>(n)) {
       // If a start position was given we test whether the name definition
       // occurs before that start positions. (If none was given we accept all
       // name refs.)

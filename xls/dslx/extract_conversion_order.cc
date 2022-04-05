@@ -51,14 +51,15 @@ static std::string ConversionRecordsToString(
 // -- class Callee
 
 /* static */ absl::StatusOr<Callee> Callee::Make(
-    Function* f, Invocation* invocation, Module* module, TypeInfo* type_info,
-    SymbolicBindings sym_bindings, absl::optional<ProcId> proc_id) {
+    Function* f, const Invocation* invocation, Module* module,
+    TypeInfo* type_info, SymbolicBindings sym_bindings,
+    absl::optional<ProcId> proc_id) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, sym_bindings));
   return Callee(f, invocation, module, type_info, std::move(sym_bindings),
                 proc_id);
 }
 
-Callee::Callee(Function* f, Invocation* invocation, Module* m,
+Callee::Callee(Function* f, const Invocation* invocation, Module* m,
                TypeInfo* type_info, SymbolicBindings sym_bindings,
                absl::optional<ProcId> proc_id)
     : f_(f),
@@ -116,9 +117,9 @@ std::string Callee::ToString() const {
 }
 
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
-    Function* f, Invocation* invocation, Module* module, TypeInfo* type_info,
-    SymbolicBindings symbolic_bindings, std::vector<Callee> callees,
-    absl::optional<ProcId> proc_id, bool is_top) {
+    Function* f, const Invocation* invocation, Module* module,
+    TypeInfo* type_info, SymbolicBindings symbolic_bindings,
+    std::vector<Callee> callees, absl::optional<ProcId> proc_id, bool is_top) {
   XLS_RETURN_IF_ERROR(
       ConversionRecord::ValidateParametrics(f, symbolic_bindings));
 
@@ -148,11 +149,11 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
       : module_(module), type_info_(type_info) {
     XLS_CHECK_EQ(type_info_->module(), module_);
   }
-  absl::Status HandleInvocation(Invocation* node) override {
+  absl::Status HandleInvocation(const Invocation* node) override {
     absl::optional<CalleeInfo> callee_info;
-    if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
+    if (auto* colon_ref = dynamic_cast<const ColonRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
-    } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
+    } else if (auto* name_ref = dynamic_cast<const NameRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info,
                            HandleNameRefInvocation(name_ref, node));
     } else {
@@ -190,7 +191,8 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
 
  private:
   // Helper for invocations of ColonRef callees.
-  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(ColonRef* colon_ref) {
+  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
+      const ColonRef* colon_ref) {
     absl::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
     absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
@@ -203,7 +205,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
 
   // Helper for invocations of NameRef callees.
   absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefInvocation(
-      NameRef* name_ref, Invocation* invocation) {
+      const NameRef* name_ref, const Invocation* invocation) {
     Module* this_m = module_;
     // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
     // is fragile due to shadowing. It is also appears in the InvocationVisitor.
@@ -284,7 +286,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     TypeInfo* type_info = nullptr;
   };
 
-  absl::Status HandleInvocation(Invocation* node) override {
+  absl::Status HandleInvocation(const Invocation* node) override {
     absl::optional<CalleeInfo> callee_info;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
@@ -357,7 +359,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleColonRef(ColonRef* node) override {
+  absl::Status HandleColonRef(const ColonRef* node) override {
     // Aside from direct function invocations (handled above), ColonRefs may
     // themselves be defined by arbitrary expressions, which may themselves
     // contain invocations, e.g.,
@@ -416,7 +418,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstRef(ConstRef* node) override {
+  absl::Status HandleConstRef(const ConstRef* node) override {
     XLS_RET_CHECK(node->name_def() != nullptr);
     AstNode* definer = node->name_def()->definer();
     if (definer == nullptr) {
@@ -444,7 +446,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
  private:
   // Helper for invocations of ColonRef callees.
-  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(ColonRef* colon_ref) {
+  absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
+      const ColonRef* colon_ref) {
     absl::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
     absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
@@ -457,7 +460,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
   // Helper for invocations of NameRef callees.
   absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefInvocation(
-      NameRef* name_ref, Invocation* invocation) {
+      const NameRef* name_ref, const Invocation* invocation) {
     Module* this_m = module_;
     TypeInfo* callee_type_info = type_info_;
     // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
@@ -615,7 +618,7 @@ static bool IsReady(absl::variant<Function*, TestFunction*> f, Module* m,
 
 // Forward decl.
 static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
-                               Invocation* invocation, Module* m,
+                               const Invocation* invocation, Module* m,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready,
@@ -647,7 +650,7 @@ static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
 
 // Adds (f, bindings) to conversion order after deps have been added.
 static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
-                               Invocation* invocation, Module* m,
+                               const Invocation* invocation, Module* m,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready,

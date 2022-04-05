@@ -31,10 +31,11 @@ namespace xls::dslx {
 //
 // EvaluateSym* evalautes the node concretely similar to its twin Evaluate*;
 // as well as the expression tree for that node.
-#define DISPATCH_DECL(__expr_type)                                             \
-  absl::StatusOr<InterpValue> EvaluateSym##__expr_type(                        \
-      __expr_type* expr, InterpBindings* bindings, ConcreteType* type_context, \
-      AbstractInterpreter* interp, ConcolicTestGenerator* test_generator);
+#define DISPATCH_DECL(__expr_type)                             \
+  absl::StatusOr<InterpValue> EvaluateSym##__expr_type(        \
+      const __expr_type* expr, InterpBindings* bindings,       \
+      ConcreteType* type_context, AbstractInterpreter* interp, \
+      ConcolicTestGenerator* test_generator);
 
 DISPATCH_DECL(Array)
 DISPATCH_DECL(Attr)
@@ -58,7 +59,7 @@ DISPATCH_DECL(XlsTuple)
 #undef DISPATCH_DECL
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
-    Function* f, absl::Span<const InterpValue> args, const Span& span,
+    const Function* f, absl::Span<const InterpValue> args, const Span& span,
     const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp,
     ConcolicTestGenerator* test_generator);
 

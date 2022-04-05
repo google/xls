@@ -129,7 +129,7 @@ class BytecodeInterpreter {
       const std::function<absl::StatusOr<InterpValue>(
           const InterpValue& lhs, const InterpValue& rhs)>& op);
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
-      Function* function, Invocation* invocation,
+      Function* function, const Invocation* invocation,
       const absl::optional<SymbolicBindings>& caller_bindings);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);

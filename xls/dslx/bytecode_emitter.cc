@@ -82,12 +82,12 @@ BytecodeEmitter::EmitProcNext(
 // InterpValues (in namedef_to_slot_).
 class NameDefCollector : public AstNodeVisitor {
  public:
-  const absl::flat_hash_map<std::string, NameDef*>& name_defs() {
+  const absl::flat_hash_map<std::string, const NameDef*>& name_defs() {
     return name_defs_;
   }
 
 #define DEFAULT_HANDLER(NODE)                                      \
-  absl::Status Handle##NODE(NODE* n) override {                    \
+  absl::Status Handle##NODE(const NODE* n) override {              \
     for (AstNode * child : n->GetChildren(/*want_types=*/false)) { \
       XLS_RETURN_IF_ERROR(child->Accept(this));                    \
     }                                                              \
@@ -96,7 +96,7 @@ class NameDefCollector : public AstNodeVisitor {
 
   DEFAULT_HANDLER(Array);
   DEFAULT_HANDLER(ArrayTypeAnnotation);
-  absl::Status HandleAttr(Attr* n) {
+  absl::Status HandleAttr(const Attr* n) {
     XLS_RETURN_IF_ERROR(n->lhs()->Accept(this));
     return absl::OkStatus();
   }
@@ -113,7 +113,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(EnumDef);
   DEFAULT_HANDLER(For);
   DEFAULT_HANDLER(FormatMacro);
-  absl::Status HandleFunction(Function* n) {
+  absl::Status HandleFunction(const Function* n) {
     return absl::InternalError(
         absl::StrFormat(
             "Encountered nested Function: %s @ %s",
@@ -127,7 +127,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(Match);
   DEFAULT_HANDLER(MatchArm);
   DEFAULT_HANDLER(Module);
-  absl::Status HandleNameDef(NameDef* n) override {
+  absl::Status HandleNameDef(const NameDef* n) override {
     name_defs_[n->identifier()] = n;
     return absl::OkStatus();
   }
@@ -136,7 +136,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(Number);
   DEFAULT_HANDLER(Param);
   DEFAULT_HANDLER(ParametricBinding);
-  absl::Status HandleProc(Proc* n) {
+  absl::Status HandleProc(const Proc* n) {
     return absl::InternalError(
         absl::StrFormat(
             "Encountered nested Proc: %s @ %s",
@@ -152,13 +152,13 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(SplatStructInstance);
   DEFAULT_HANDLER(String);
   DEFAULT_HANDLER(StructDef);
-  absl::Status HandleTestFunction(TestFunction* n) {
+  absl::Status HandleTestFunction(const TestFunction* n) {
     return absl::InternalError(
         absl::StrFormat(
             "Encountered nested TestFunction: %s @ %s",
             n->identifier(), n->GetSpan()->ToString()));
   }
-  absl::Status HandleStructInstance(StructInstance* n) {
+  absl::Status HandleStructInstance(const StructInstance* n) {
     for (const auto& member : n->GetUnorderedMembers()) {
       XLS_RETURN_IF_ERROR(member.second->Accept(this));
     }
@@ -176,12 +176,12 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(XlsTuple);
 
  private:
-  absl::flat_hash_map<std::string, NameDef*> name_defs_;
+  absl::flat_hash_map<std::string, const NameDef*> name_defs_;
 };
 
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::EmitExpression(
-    ImportData* import_data, const TypeInfo* type_info, Expr* expr,
+    ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
     const absl::flat_hash_map<std::string, InterpValue>& env,
     const absl::optional<SymbolicBindings>& caller_bindings) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
@@ -216,7 +216,7 @@ BytecodeEmitter::EmitExpression(
                                   std::move(emitter.bytecode_));
 }
 
-void BytecodeEmitter::HandleArray(Array* node) {
+void BytecodeEmitter::HandleArray(const Array* node) {
   if (!status_.ok()) {
     return;
   }
@@ -252,7 +252,7 @@ void BytecodeEmitter::HandleArray(Array* node) {
                                Bytecode::NumElements(num_members)));
 }
 
-void BytecodeEmitter::HandleAttr(Attr* node) {
+void BytecodeEmitter::HandleAttr(const Attr* node) {
   if (!status_.ok()) {
     return;
   }
@@ -282,7 +282,7 @@ void BytecodeEmitter::HandleAttr(Attr* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
 }
 
-void BytecodeEmitter::HandleBinop(Binop* node) {
+void BytecodeEmitter::HandleBinop(const Binop* node) {
   if (!status_.ok()) {
     return;
   }
@@ -403,7 +403,7 @@ absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
   return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleCast(Cast* node) {
+void BytecodeEmitter::HandleCast(const Cast* node) {
   if (!status_.ok()) {
     return;
   }
@@ -483,12 +483,12 @@ void BytecodeEmitter::HandleCast(Cast* node) {
       Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
 }
 
-void BytecodeEmitter::HandleChannelDecl(ChannelDecl* node) {
+void BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
   Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeChannel()));
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
-    ColonRef* colon_ref, EnumDef* enum_def, const TypeInfo* type_info) {
+    const ColonRef* colon_ref, EnumDef* enum_def, const TypeInfo* type_info) {
   // TODO(rspringer): 2022-01-26 We'll need to pull the right type info during
   // ResolveTypeDefToEnum.
   absl::string_view attr = colon_ref->attr();
@@ -505,7 +505,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
-    Module* module, ColonRef* colon_ref) {
+    Module* module, const ColonRef* colon_ref) {
   // TODO(rspringer): We'll need subject resolution to return the appropriate
   // TypeInfo for parametrics.
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
@@ -536,7 +536,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
   return maybe_value.value();
 }
 
-void BytecodeEmitter::HandleColonRef(ColonRef* node) {
+void BytecodeEmitter::HandleColonRef(const ColonRef* node) {
   if (!status_.ok()) {
     return;
   }
@@ -550,7 +550,7 @@ void BytecodeEmitter::HandleColonRef(ColonRef* node) {
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
-    ColonRef* node) {
+    const ColonRef* node) {
   absl::variant<Module*, EnumDef*> resolved_subject;
   XLS_ASSIGN_OR_RETURN(resolved_subject,
                        ResolveColonRefSubject(import_data_, type_info_, node));
@@ -568,9 +568,11 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
   return HandleColonRefToValue(module, node);
 }
 
-void BytecodeEmitter::HandleConstRef(ConstRef* node) { HandleNameRef(node); }
+void BytecodeEmitter::HandleConstRef(const ConstRef* node) {
+  HandleNameRef(node);
+}
 
-void BytecodeEmitter::HandleFor(For* node) {
+void BytecodeEmitter::HandleFor(const For* node) {
   // Here's how a `for` loop is implemented, in some sort of pseudocode:
   //  - Initialize iterable & index
   //  - Initialize the accumulator
@@ -620,14 +622,15 @@ void BytecodeEmitter::HandleFor(For* node) {
   // We need a means of referencing the loop index and accumulator in the
   // namedef_to_slot_ map, so we pretend that they're NameDefs for uniqueness.
   int iterable_slot = namedef_to_slot_.size();
-  NameDef* fake_name_def = reinterpret_cast<NameDef*>(node->iterable());
+  const NameDef* fake_name_def =
+      reinterpret_cast<const NameDef*>(node->iterable());
   namedef_to_slot_[fake_name_def] = iterable_slot;
   node->iterable()->AcceptExpr(this);
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
                                Bytecode::SlotIndex(iterable_slot)));
 
   int index_slot = namedef_to_slot_.size();
-  fake_name_def = reinterpret_cast<NameDef*>(node);
+  fake_name_def = reinterpret_cast<const NameDef*>(node);
   namedef_to_slot_[fake_name_def] = index_slot;
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kLiteral, InterpValue::MakeU32(0)));
@@ -692,7 +695,7 @@ void BytecodeEmitter::HandleFor(For* node) {
       .PatchJumpTarget(bytecode_.size() - start_jump_idx - 1);
 }
 
-void BytecodeEmitter::HandleFormatMacro(FormatMacro* node) {
+void BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   if (!status_.ok()) {
     return;
   }
@@ -714,7 +717,7 @@ absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
   return maybe_type.value()->GetTotalBitCount()->GetAsInt64();
 }
 
-void BytecodeEmitter::HandleIndex(Index* node) {
+void BytecodeEmitter::HandleIndex(const Index* node) {
   node->lhs()->AcceptExpr(this);
 
   if (absl::holds_alternative<Slice*>(node->rhs())) {
@@ -811,7 +814,7 @@ void BytecodeEmitter::HandleIndex(Index* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
 }
 
-void BytecodeEmitter::HandleInvocation(Invocation* node) {
+void BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (!status_.ok()) {
     return;
   }
@@ -925,7 +928,7 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
   }
 }
 
-void BytecodeEmitter::HandleLet(Let* node) {
+void BytecodeEmitter::HandleLet(const Let* node) {
   if (!status_.ok()) {
     return;
   }
@@ -940,7 +943,7 @@ void BytecodeEmitter::HandleLet(Let* node) {
   node->body()->AcceptExpr(this);
 }
 
-void BytecodeEmitter::HandleNameRef(NameRef* node) {
+void BytecodeEmitter::HandleNameRef(const NameRef* node) {
   if (!status_.ok()) {
     return;
   }
@@ -962,7 +965,7 @@ void BytecodeEmitter::HandleNameRef(NameRef* node) {
 }
 
 absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
-BytecodeEmitter::HandleNameRefInternal(NameRef* node) {
+BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
   if (absl::holds_alternative<BuiltinNameDef*>(node->name_def())) {
     // Builtins don't have NameDefs, so we can't use slots to store them. It's
     // simpler to just emit a literal InterpValue, anyway.
@@ -1007,7 +1010,7 @@ BytecodeEmitter::HandleNameRefInternal(NameRef* node) {
       "Could not find slot or binding for name: ", name_def->ToString()));
 }
 
-void BytecodeEmitter::HandleNumber(Number* node) {
+void BytecodeEmitter::HandleNumber(const Number* node) {
   if (!status_.ok()) {
     return;
   }
@@ -1022,7 +1025,7 @@ void BytecodeEmitter::HandleNumber(Number* node) {
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
-    Number* node) {
+    const Number* node) {
   absl::optional<ConcreteType*> type_or = type_info_->GetItem(node);
   if (!type_or.has_value()) {
     return absl::InternalError(
@@ -1052,20 +1055,20 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
   return InterpValue::MakeBits(is_signed, bits);
 }
 
-void BytecodeEmitter::HandleRecv(Recv* node) {
+void BytecodeEmitter::HandleRecv(const Recv* node) {
   node->token()->AcceptExpr(this);
   node->channel()->AcceptExpr(this);
   Add(Bytecode::MakeRecv(node->span()));
 }
 
-void BytecodeEmitter::HandleSend(Send* node) {
+void BytecodeEmitter::HandleSend(const Send* node) {
   node->token()->AcceptExpr(this);
   node->channel()->AcceptExpr(this);
   node->payload()->AcceptExpr(this);
   Add(Bytecode::MakeSend(node->span()));
 }
 
-void BytecodeEmitter::HandleString(String* node) {
+void BytecodeEmitter::HandleString(const String* node) {
   if (!status_.ok()) {
     return;
   }
@@ -1081,7 +1084,7 @@ void BytecodeEmitter::HandleString(String* node) {
                                Bytecode::NumElements(node->text().size())));
 }
 
-void BytecodeEmitter::HandleStructInstance(StructInstance* node) {
+void BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
   if (!status_.ok()) {
     return;
   }
@@ -1103,7 +1106,8 @@ void BytecodeEmitter::HandleStructInstance(StructInstance* node) {
                                Bytecode::NumElements(struct_def.size())));
 }
 
-void BytecodeEmitter::HandleSplatStructInstance(SplatStructInstance* node) {
+void BytecodeEmitter::HandleSplatStructInstance(
+    const SplatStructInstance* node) {
   // For each field in the struct:
   //   If it's specified in the SplatStructInstance, then use it,
   //   otherwise extract it from the base struct.
@@ -1153,7 +1157,7 @@ void BytecodeEmitter::HandleSplatStructInstance(SplatStructInstance* node) {
                                Bytecode::NumElements(struct_def.size())));
 }
 
-void BytecodeEmitter::HandleUnop(Unop* node) {
+void BytecodeEmitter::HandleUnop(const Unop* node) {
   if (!status_.ok()) {
     return;
   }
@@ -1169,7 +1173,7 @@ void BytecodeEmitter::HandleUnop(Unop* node) {
   }
 }
 
-void BytecodeEmitter::HandleXlsTuple(XlsTuple* node) {
+void BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
   if (!status_.ok()) {
     return;
   }
@@ -1183,7 +1187,7 @@ void BytecodeEmitter::HandleXlsTuple(XlsTuple* node) {
                                Bytecode::NumElements(node->members().size())));
 }
 
-void BytecodeEmitter::HandleTernary(Ternary* node) {
+void BytecodeEmitter::HandleTernary(const Ternary* node) {
   if (!status_.ok()) {
     return;
   }
@@ -1221,7 +1225,7 @@ void BytecodeEmitter::HandleTernary(Ternary* node) {
   bytecode_.at(jump_index).PatchJumpTarget(jumpdest_index - jump_index);
 }
 
-void BytecodeEmitter::HandleMatch(Match* node) {
+void BytecodeEmitter::HandleMatch(const Match* node) {
   if (!status_.ok()) {
     return;
   }

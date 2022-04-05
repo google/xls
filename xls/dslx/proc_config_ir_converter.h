@@ -41,16 +41,16 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
       absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members,
       const SymbolicBindings& bindings, const ProcId& proc_id);
 
-  absl::Status HandleChannelDecl(ChannelDecl* node);
-  absl::Status HandleFunction(Function* node);
-  absl::Status HandleInvocation(Invocation* node);
-  absl::Status HandleLet(Let* node);
-  absl::Status HandleNameRef(NameRef* node);
-  absl::Status HandleNumber(Number* node);
-  absl::Status HandleParam(Param* node);
-  absl::Status HandleSpawn(Spawn* node);
-  absl::Status HandleStructInstance(StructInstance* node);
-  absl::Status HandleXlsTuple(XlsTuple* node);
+  absl::Status HandleChannelDecl(const ChannelDecl* node);
+  absl::Status HandleFunction(const Function* node);
+  absl::Status HandleInvocation(const Invocation* node);
+  absl::Status HandleLet(const Let* node);
+  absl::Status HandleNameRef(const NameRef* node);
+  absl::Status HandleNumber(const Number* node);
+  absl::Status HandleParam(const Param* node);
+  absl::Status HandleSpawn(const Spawn* node);
+  absl::Status HandleStructInstance(const StructInstance* node);
+  absl::Status HandleXlsTuple(const XlsTuple* node);
 
   // Sets the mapping from the elements in the config-ending tuple to the
   // corresponding Proc members.
@@ -69,11 +69,11 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   const SymbolicBindings& bindings_;
   ProcId proc_id_;
 
-  absl::flat_hash_map<AstNode*, ProcConfigValue> node_to_ir_;
+  absl::flat_hash_map<const AstNode*, ProcConfigValue> node_to_ir_;
 
   // Stores the last tuple created in this Function. Used to destructure any
   // output to match with Proc members.
-  XlsTuple* final_tuple_;
+  const XlsTuple* final_tuple_;
 };
 
 }  // namespace xls::dslx

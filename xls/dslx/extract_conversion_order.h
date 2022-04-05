@@ -74,14 +74,14 @@ class Callee {
   // This is conceptually similar to the instantiation of parametric functions,
   // except that even non-parametric Procs need instantiation details to be
   // converted to IR.
-  static absl::StatusOr<Callee> Make(Function* f, Invocation* invocation,
+  static absl::StatusOr<Callee> Make(Function* f, const Invocation* invocation,
                                      Module* m, TypeInfo* type_info,
                                      SymbolicBindings sym_bindings,
                                      absl::optional<ProcId> proc_id);
 
   bool IsFunction() const;
   Function* f() const { return f_; }
-  Invocation* invocation() const { return invocation_; }
+  const Invocation* invocation() const { return invocation_; }
   Module* m() const { return m_; }
   TypeInfo* type_info() const { return type_info_; }
   const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
@@ -90,11 +90,12 @@ class Callee {
   std::string ToString() const;
 
  private:
-  Callee(Function* f, Invocation* invocation, Module* m, TypeInfo* type_info,
-         SymbolicBindings sym_bindings, absl::optional<ProcId> proc_id);
+  Callee(Function* f, const Invocation* invocation, Module* m,
+         TypeInfo* type_info, SymbolicBindings sym_bindings,
+         absl::optional<ProcId> proc_id);
 
   Function* f_;
-  Invocation* invocation_;
+  const Invocation* invocation_;
   Module* m_;
   TypeInfo* type_info_;
   SymbolicBindings sym_bindings_;
@@ -119,9 +120,9 @@ class ConversionRecord {
  public:
   // Note: performs ValidateParametrics() to potentially return an error status.
   static absl::StatusOr<ConversionRecord> Make(
-      Function* f, Invocation* invocation, Module* module, TypeInfo* type_info,
-      SymbolicBindings symbolic_bindings, std::vector<Callee> callees,
-      absl::optional<ProcId> proc_id, bool is_top);
+      Function* f, const Invocation* invocation, Module* module,
+      TypeInfo* type_info, SymbolicBindings symbolic_bindings,
+      std::vector<Callee> callees, absl::optional<ProcId> proc_id, bool is_top);
 
   // Integrity-checks that the symbolic_bindings provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -130,7 +131,7 @@ class ConversionRecord {
       Function* f, const SymbolicBindings& symbolic_bindings);
 
   Function* f() const { return f_; }
-  Invocation* invocation() const { return invocation_; }
+  const Invocation* invocation() const { return invocation_; }
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
   const SymbolicBindings& symbolic_bindings() const {
@@ -144,7 +145,7 @@ class ConversionRecord {
   std::string ToString() const;
 
  private:
-  ConversionRecord(Function* f, Invocation* invocation, Module* module,
+  ConversionRecord(Function* f, const Invocation* invocation, Module* module,
                    TypeInfo* type_info, SymbolicBindings symbolic_bindings,
                    std::vector<Callee> callees, absl::optional<ProcId> proc_id,
                    bool is_top)
@@ -158,7 +159,7 @@ class ConversionRecord {
         is_top_(is_top) {}
 
   Function* f_;
-  Invocation* invocation_;
+  const Invocation* invocation_;
   Module* module_;
   TypeInfo* type_info_;
   SymbolicBindings symbolic_bindings_;

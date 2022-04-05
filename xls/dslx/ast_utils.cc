@@ -113,7 +113,8 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info) {
 }
 
 absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
-    ImportData* import_data, const TypeInfo* type_info, ColonRef* colon_ref) {
+    ImportData* import_data, const TypeInfo* type_info,
+    const ColonRef* colon_ref) {
   if (absl::holds_alternative<NameRef*>(colon_ref->subject())) {
     // Inside a ColonRef, the LHS can't be a BuiltinNameDef.
     NameRef* name_ref = absl::get<NameRef*>(colon_ref->subject());

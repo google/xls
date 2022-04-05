@@ -104,7 +104,7 @@ class InterpBindings {
       absl::string_view identifier, const Span* ref_span = nullptr) const;
 
   // Resolves a name reference to an interpreter value.
-  absl::StatusOr<InterpValue> ResolveValue(NameRef* name_ref) const {
+  absl::StatusOr<InterpValue> ResolveValue(const NameRef* name_ref) const {
     return ResolveValueFromIdentifier(name_ref->identifier(),
                                       &name_ref->span());
   }

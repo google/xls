@@ -49,7 +49,7 @@ struct SliceData {
 // node.
 struct InstantiationData {
   // Invocation/Spawn AST node.
-  Instantiation* node;
+  const Instantiation* node;
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
   absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbolic_bindings_map;
@@ -101,7 +101,7 @@ class TypeInfo {
   TypeInfo* parent() const { return parent_; }
 
   // Returns if there's type info at 'invocation' with given caller bindings.
-  bool HasInstantiation(Instantiation* instantiation,
+  bool HasInstantiation(const Instantiation* instantiation,
                         const SymbolicBindings& caller) const;
 
   // Notes start/width for a slice operation found during type inference.
@@ -123,7 +123,7 @@ class TypeInfo {
   //     instantiation.
   //   caller: The caller's symbolic bindings at the point of invocation.
   //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInstantiationCallBindings(Instantiation* call,
+  void AddInstantiationCallBindings(const Instantiation* call,
                                     SymbolicBindings caller,
                                     SymbolicBindings callee);
 
@@ -144,23 +144,23 @@ class TypeInfo {
   //
   // Note that the type_info may be nullptr in special cases, like when mapping
   // a callee which is not parametric.
-  void SetInstantiationTypeInfo(Instantiation* instantiation,
+  void SetInstantiationTypeInfo(const Instantiation* instantiation,
                                 SymbolicBindings caller, TypeInfo* type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
   absl::optional<TypeInfo*> GetInstantiationTypeInfo(
-      Instantiation* instantiation, const SymbolicBindings& caller) const;
+      const Instantiation* instantiation, const SymbolicBindings& caller) const;
 
   // Sets the type associated with the given AST node.
-  void SetItem(AstNode* key, const ConcreteType& value) {
+  void SetItem(const AstNode* key, const ConcreteType& value) {
     XLS_CHECK_EQ(key->owner(), module_);
     dict_[key] = value.CloneToUnique();
   }
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
-  absl::optional<ConcreteType*> GetItem(AstNode* key) const;
+  absl::optional<ConcreteType*> GetItem(const AstNode* key) const;
 
   // Attempts to resolve AST node 'key' to a type with subtype T; e.g:
   //
@@ -170,7 +170,7 @@ class TypeInfo {
   // If the value is not present, or it is not of the expected type, returns an
   // error status.
   template <typename T>
-  absl::StatusOr<T*> GetItemAs(AstNode* key) const;
+  absl::StatusOr<T*> GetItemAs(const AstNode* key) const;
 
   bool Contains(AstNode* key) const;
 
@@ -204,12 +204,12 @@ class TypeInfo {
   //
   // When calling a non-parametric callee, the record will be absent.
   absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
-      Instantiation* instantiation, const SymbolicBindings& caller) const;
+      const Instantiation* instantiation, const SymbolicBindings& caller) const;
 
   Module* module() const { return module_; }
 
   // Notes a constant definition associated with a given NameDef AST node.
-  void NoteConstant(NameDef* name_def, ConstantDef* constant_def) {
+  void NoteConstant(const NameDef* name_def, const ConstantDef* constant_def) {
     name_to_const_[name_def] = constant_def;
   }
 
@@ -228,22 +228,22 @@ class TypeInfo {
   //
   // Note that these index over AstNodes instead of Exprs so that NameDefs can
   // be used as constexpr keys.
-  void NoteConstExpr(AstNode* const_expr, InterpValue value);
+  void NoteConstExpr(const AstNode* const_expr, InterpValue value);
   absl::optional<InterpValue> GetConstExpr(const AstNode* const_expr) const;
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
 
-  const absl::flat_hash_map<Instantiation*, InstantiationData>& instantiations()
-      const {
+  const absl::flat_hash_map<const Instantiation*, InstantiationData>&
+  instantiations() const {
     return instantiations_;
   }
 
   // Returns a reference to the underlying mapping that associates an AST node
   // with its deduced type.
-  const absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>>& dict()
-      const {
+  const absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>>&
+  dict() const {
     return dict_;
   }
 
@@ -274,12 +274,12 @@ class TypeInfo {
   }
 
   Module* module_;
-  absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>> dict_;
+  absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
-  absl::flat_hash_map<NameDef*, ConstantDef*> name_to_const_;
-  absl::flat_hash_map<Instantiation*, InstantiationData> instantiations_;
+  absl::flat_hash_map<const NameDef*, const ConstantDef*> name_to_const_;
+  absl::flat_hash_map<const Instantiation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  absl::flat_hash_map<AstNode*, InterpValue> const_exprs_;
+  absl::flat_hash_map<const AstNode*, InterpValue> const_exprs_;
   absl::flat_hash_map<Function*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
@@ -287,7 +287,7 @@ class TypeInfo {
 // -- Inlines
 
 template <typename T>
-inline absl::StatusOr<T*> TypeInfo::GetItemAs(AstNode* key) const {
+inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
   absl::optional<ConcreteType*> t = GetItem(key);
   if (!t.has_value()) {
     return absl::NotFoundError(

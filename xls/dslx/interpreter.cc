@@ -63,7 +63,7 @@ class Evaluator : public ExprVisitor {
         run_concolic_(run_concolic) {}
 
 #define DISPATCH(__expr_type)                                                 \
-  void Handle##__expr_type(__expr_type* expr) override {                      \
+  void Handle##__expr_type(const __expr_type* expr) override {                \
     value_ =                                                                  \
         run_concolic_                                                         \
             ? EvaluateSym##__expr_type(expr, bindings_, type_context_,        \
@@ -92,32 +92,32 @@ class Evaluator : public ExprVisitor {
 
 #undef DISPATCH
 
-  void HandleChannelDecl(ChannelDecl* expr) override {
+  void HandleChannelDecl(const ChannelDecl* expr) override {
     // All send/recvs check their argument channels for proper directionality,
     // so we don't need to re-do that check here (or downstream).
     auto channel = InterpValue::MakeChannel();
     value_ = InterpValue::MakeTuple({channel, channel});
   }
-  void HandleFormatMacro(FormatMacro* expr) override {
+  void HandleFormatMacro(const FormatMacro* expr) override {
     value_ = parent_->EvaluateFormatMacro(expr, bindings_, type_context_);
   }
-  void HandleInvocation(Invocation* expr) override {
+  void HandleInvocation(const Invocation* expr) override {
     value_ = parent_->EvaluateInvocation(expr, bindings_, type_context_);
   }
-  void HandleRecv(Recv* expr) override {
+  void HandleRecv(const Recv* expr) override {
     // TODO(rspringer): 2021-11-08: Correctly implement recv. This will require
     // returning some sort of "BLOCKED" InterpValue if the recv queue is empty.
     value_ = InterpValue::MakeTuple(
         {InterpValue::MakeToken(), InterpValue::MakeU32(0xbeef)});
   }
-  void HandleRecvIf(RecvIf* expr) override {
+  void HandleRecvIf(const RecvIf* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "RecvIf expression is unhandled @ %s", expr->span().ToString()));
   }
 
-  void HandleSend(Send* expr) override { HandleSendInternal(expr); }
+  void HandleSend(const Send* expr) override { HandleSendInternal(expr); }
 
-  void HandleSendIf(SendIf* expr) override {
+  void HandleSendIf(const SendIf* expr) override {
     auto status_or_predicate =
         parent_->Evaluate(expr->condition(), bindings_, type_context_);
     if (!status_or_predicate.ok()) {
@@ -132,11 +132,11 @@ class Evaluator : public ExprVisitor {
     }
   }
 
-  void HandleJoin(Join* expr) override {
+  void HandleJoin(const Join* expr) override {
     value_ = absl::UnimplementedError(absl::StrFormat(
         "Join expression is unhandled @ %s", expr->span().ToString()));
   }
-  void HandleSpawn(Spawn* expr) override {
+  void HandleSpawn(const Spawn* expr) override {
     absl::Status status =
         parent_->EvaluateSpawn(expr, bindings_, type_context_);
     if (!status.ok()) {
@@ -207,7 +207,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   }
   absl::StatusOr<InterpValue> CallValue(
       const InterpValue& value, absl::Span<const InterpValue> args,
-      const Span& invocation_span, Invocation* invocation,
+      const Span& invocation_span, const Invocation* invocation,
       const SymbolicBindings* sym_bindings) override {
     return interp_->CallFnValue(value, args, invocation_span, invocation,
                                 sym_bindings);
@@ -420,7 +420,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateLiteral(Expr* expr) {
   return Evaluate(expr, &bindings, /*type_context=*/nullptr);
 }
 
-absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
+absl::StatusOr<InterpValue> Interpreter::Evaluate(const Expr* expr,
                                                   InterpBindings* bindings,
                                                   ConcreteType* type_context) {
   XLS_RET_CHECK(current_type_info_ != nullptr);
@@ -494,7 +494,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 
 absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
     Builtin builtin, absl::Span<InterpValue const> args, const Span& span,
-    Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
+    const Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
   switch (builtin) {
 #define CASE(__name)       \
   case Builtin::k##__name: \
@@ -536,7 +536,7 @@ absl::StatusOr<InterpValue> Interpreter::RunBuiltin(
 
 absl::StatusOr<InterpValue> Interpreter::CallFnValue(
     const InterpValue& fv, absl::Span<InterpValue const> args, const Span& span,
-    Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
+    const Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
   XLS_RET_CHECK(current_type_info_ != nullptr);
   if (fv.IsBuiltinFunction()) {
     auto builtin = absl::get<Builtin>(fv.GetFunctionOrDie());
@@ -553,7 +553,7 @@ absl::StatusOr<InterpValue> Interpreter::CallFnValue(
 
 absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
     Function* f, absl::Span<const InterpValue> args, const Span& span,
-    Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
+    const Invocation* invocation, const SymbolicBindings* symbolic_bindings) {
   XLS_ASSIGN_OR_RETURN(
       InterpValue interpreter_value,
       run_concolic_
@@ -576,7 +576,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateAndCompareInternal(
 }
 
 absl::StatusOr<InterpValue> Interpreter::EvaluateFormatMacro(
-    FormatMacro* expr, InterpBindings* bindings, ConcreteType* type_context) {
+    const FormatMacro* expr, InterpBindings* bindings,
+    ConcreteType* type_context) {
   XLS_VLOG(3) << absl::StreamFormat("EvaluateFormatMacro: `%s` @ %s",
                                     expr->ToString(), expr->span().ToString());
 
@@ -597,7 +598,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateFormatMacro(
 }
 
 absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
-    Invocation* expr, InterpBindings* bindings, ConcreteType* type_context) {
+    const Invocation* expr, InterpBindings* bindings,
+    ConcreteType* type_context) {
   XLS_VLOG(3) << absl::StreamFormat("EvaluateInvocation: `%s` @ %s",
                                     expr->ToString(), expr->span().ToString());
 
@@ -681,7 +683,7 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
   absl::StatusOr<InterpValue> result = CallFnValue(
       callee_value, arg_values, expr->span(), expr, fn_symbolic_bindings);
   if (!result.ok()) {
-    Invocation* invocation = dynamic_cast<Invocation*>(expr);
+    const Invocation* invocation = dynamic_cast<const Invocation*>(expr);
 
     std::string invoking_fn_name;
     if (bindings->fn_ctx().has_value()) {
@@ -699,7 +701,8 @@ absl::StatusOr<InterpValue> Interpreter::EvaluateInvocation(
   return result;
 }
 
-absl::Status Interpreter::EvaluateSpawn(Spawn* expr, InterpBindings* bindings,
+absl::Status Interpreter::EvaluateSpawn(const Spawn* expr,
+                                        InterpBindings* bindings,
                                         ConcreteType* type_context) {
   XLS_VLOG(3) << absl::StreamFormat("EvaluateSpawn: `%s` @ %s",
                                     expr->ToString(), expr->span().ToString());

@@ -41,7 +41,7 @@ class BytecodeEmitter : public ExprVisitor {
 
   // TODO(rspringer): 2022-03-16: I think we can delete `caller_bindings`.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitExpression(
-      ImportData* import_data, const TypeInfo* type_info, Expr* expr,
+      ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
       const absl::flat_hash_map<std::string, InterpValue>& env,
       const absl::optional<SymbolicBindings>& caller_bindings);
 
@@ -60,39 +60,39 @@ class BytecodeEmitter : public ExprVisitor {
 
   // Adds the given bytecode to the program.
   void Add(Bytecode bytecode) { bytecode_.push_back(std::move(bytecode)); }
-  void HandleArray(Array* node) override;
-  void HandleAttr(Attr* node) override;
-  void HandleBinop(Binop* node) override;
-  void HandleCast(Cast* node) override;
-  void HandleChannelDecl(ChannelDecl* node) override;
-  void HandleColonRef(ColonRef* node) override;
-  absl::StatusOr<InterpValue> HandleColonRefInternal(ColonRef* node);
-  void HandleConstRef(ConstRef* node) override;
-  void HandleFor(For* node) override;
-  void HandleFormatMacro(FormatMacro* node) override;
-  void HandleIndex(Index* node) override;
-  void HandleInvocation(Invocation* node) override;
-  void HandleJoin(Join* node) override { DefaultHandler(node); }
-  void HandleLet(Let* node) override;
-  void HandleMatch(Match* node) override;
-  void HandleNameRef(NameRef* node) override;
+  void HandleArray(const Array* node) override;
+  void HandleAttr(const Attr* node) override;
+  void HandleBinop(const Binop* node) override;
+  void HandleCast(const Cast* node) override;
+  void HandleChannelDecl(const ChannelDecl* node) override;
+  void HandleColonRef(const ColonRef* node) override;
+  absl::StatusOr<InterpValue> HandleColonRefInternal(const ColonRef* node);
+  void HandleConstRef(const ConstRef* node) override;
+  void HandleFor(const For* node) override;
+  void HandleFormatMacro(const FormatMacro* node) override;
+  void HandleIndex(const Index* node) override;
+  void HandleInvocation(const Invocation* node) override;
+  void HandleJoin(const Join* node) override { DefaultHandler(node); }
+  void HandleLet(const Let* node) override;
+  void HandleMatch(const Match* node) override;
+  void HandleNameRef(const NameRef* node) override;
   absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
-  HandleNameRefInternal(NameRef* node);
-  void HandleNumber(Number* node) override;
-  absl::StatusOr<InterpValue> HandleNumberInternal(Number* node);
-  void HandleRecv(Recv* node) override;
-  void HandleRecvIf(RecvIf* node) override { DefaultHandler(node); }
-  void HandleSend(Send* node) override;
-  void HandleSendIf(SendIf* node) override { DefaultHandler(node); }
-  void HandleSpawn(Spawn* node) override { DefaultHandler(node); }
-  void HandleString(String* node) override;
-  void HandleStructInstance(StructInstance* node) override;
-  void HandleSplatStructInstance(SplatStructInstance* node) override;
-  void HandleTernary(Ternary* node) override;
-  void HandleUnop(Unop* node) override;
-  void HandleXlsTuple(XlsTuple* node) override;
+  HandleNameRefInternal(const NameRef* node);
+  void HandleNumber(const Number* node) override;
+  absl::StatusOr<InterpValue> HandleNumberInternal(const Number* node);
+  void HandleRecv(const Recv* node) override;
+  void HandleRecvIf(const RecvIf* node) override { DefaultHandler(node); }
+  void HandleSend(const Send* node) override;
+  void HandleSendIf(const SendIf* node) override { DefaultHandler(node); }
+  void HandleSpawn(const Spawn* node) override { DefaultHandler(node); }
+  void HandleString(const String* node) override;
+  void HandleStructInstance(const StructInstance* node) override;
+  void HandleSplatStructInstance(const SplatStructInstance* node) override;
+  void HandleTernary(const Ternary* node) override;
+  void HandleUnop(const Unop* node) override;
+  void HandleXlsTuple(const XlsTuple* node) override;
 
-  void DefaultHandler(Expr* node) {
+  void DefaultHandler(const Expr* node) {
     status_ = absl::UnimplementedError(
         absl::StrFormat("Unhandled node kind: %s: %s", node->GetNodeTypeName(),
                         node->ToString()));
@@ -107,11 +107,11 @@ class BytecodeEmitter : public ExprVisitor {
   absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(const TypeInfo* type_info,
                                                 TypeDef* type_def);
 
-  absl::StatusOr<InterpValue> HandleColonRefToEnum(ColonRef* colon_ref,
+  absl::StatusOr<InterpValue> HandleColonRefToEnum(const ColonRef* colon_ref,
                                                    EnumDef* enum_def,
                                                    const TypeInfo* type_info);
   absl::StatusOr<InterpValue> HandleColonRefToValue(Module* module,
-                                                    ColonRef* colon_ref);
+                                                    const ColonRef* colon_ref);
 
   absl::StatusOr<Bytecode::MatchArmItem> HandleNameDefTreeExpr(
       NameDefTree* tree);

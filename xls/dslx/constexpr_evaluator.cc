@@ -51,13 +51,13 @@ bool ConstexprEvaluator::IsConstExpr(const Expr* expr) {
   return ctx_->type_info()->GetConstExpr(expr).has_value();
 }
 
-void ConstexprEvaluator::HandleAttr(Attr* expr) {
+void ConstexprEvaluator::HandleAttr(const Attr* expr) {
   if (IsConstExpr(expr->lhs())) {
     status_.Update(SimpleEvaluate(expr));
   }
 }
 
-void ConstexprEvaluator::HandleArray(Array* expr) {
+void ConstexprEvaluator::HandleArray(const Array* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     absl::optional<InterpValue> maybe_value =
@@ -103,21 +103,21 @@ void ConstexprEvaluator::HandleArray(Array* expr) {
   ctx_->type_info()->NoteConstExpr(expr, array_or.value());
 }
 
-void ConstexprEvaluator::HandleBinop(Binop* expr) {
+void ConstexprEvaluator::HandleBinop(const Binop* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
   if (IsConstExpr(expr->lhs()) && IsConstExpr(expr->rhs())) {
     status_.Update(SimpleEvaluate(expr));
   }
 }
 
-void ConstexprEvaluator::HandleCast(Cast* expr) {
+void ConstexprEvaluator::HandleCast(const Cast* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
   if (IsConstExpr(expr->expr())) {
     status_ = SimpleEvaluate(expr);
   }
 }
 
-void ConstexprEvaluator::HandleColonRef(ColonRef* expr) {
+void ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   TypeInfo* type_info = ctx_->type_info();
   absl::StatusOr<absl::variant<Module*, EnumDef*>> subject_or =
       ResolveColonRefSubject(ctx_->import_data(), type_info, expr);
@@ -205,11 +205,11 @@ void ConstexprEvaluator::HandleColonRef(ColonRef* expr) {
   ctx_->type_info()->NoteConstExpr(expr, maybe_value.value());
 }
 
-void ConstexprEvaluator::HandleConstRef(ConstRef* expr) {
+void ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
   return HandleNameRef(expr);
 }
 
-void ConstexprEvaluator::HandleIndex(Index* expr) {
+void ConstexprEvaluator::HandleIndex(const Index* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   bool rhs_is_constexpr;
   if (absl::holds_alternative<Expr*>(expr->rhs())) {
@@ -228,7 +228,7 @@ void ConstexprEvaluator::HandleIndex(Index* expr) {
   }
 }
 
-void ConstexprEvaluator::HandleInvocation(Invocation* expr) {
+void ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   // Map "invocations" are special - only the first (of two) args must be
   // constexpr (the second must be a fn to apply).
   auto* callee_name_ref = dynamic_cast<NameRef*>(expr->callee());
@@ -258,7 +258,7 @@ void ConstexprEvaluator::HandleInvocation(Invocation* expr) {
   }
 }
 
-void ConstexprEvaluator::HandleNameRef(NameRef* expr) {
+void ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
   absl::optional<InterpValue> constexpr_value =
       ctx_->type_info()->GetConstExpr(ToAstNode(expr->name_def()));
 
@@ -267,7 +267,7 @@ void ConstexprEvaluator::HandleNameRef(NameRef* expr) {
   }
 }
 
-void ConstexprEvaluator::HandleNumber(Number* expr) {
+void ConstexprEvaluator::HandleNumber(const Number* expr) {
   // Numbers should always be [constexpr] evaluatable.
   absl::flat_hash_map<std::string, InterpValue> env;
   if (!ctx_->fn_stack().empty()) {
@@ -318,7 +318,7 @@ void ConstexprEvaluator::HandleNumber(Number* expr) {
   }
 }
 
-void ConstexprEvaluator::HandleStructInstance(StructInstance* expr) {
+void ConstexprEvaluator::HandleStructInstance(const StructInstance* expr) {
   // A struct instance is constexpr iff all its members are constexpr.
   for (const auto& [k, v] : expr->GetUnorderedMembers()) {
     if (!IsConstExpr(v)) {
@@ -328,7 +328,7 @@ void ConstexprEvaluator::HandleStructInstance(StructInstance* expr) {
   status_ = SimpleEvaluate(expr);
 }
 
-void ConstexprEvaluator::HandleTernary(Ternary* expr) {
+void ConstexprEvaluator::HandleTernary(const Ternary* expr) {
   // Simple enough that we don't need to invoke the interpreter.
   if (!IsConstExpr(expr->test()) || !IsConstExpr(expr->consequent()) ||
       !IsConstExpr(expr->alternate())) {
@@ -346,7 +346,7 @@ void ConstexprEvaluator::HandleTernary(Ternary* expr) {
   }
 }
 
-void ConstexprEvaluator::HandleXlsTuple(XlsTuple* expr) {
+void ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     absl::optional<InterpValue> maybe_value =
@@ -362,7 +362,7 @@ void ConstexprEvaluator::HandleXlsTuple(XlsTuple* expr) {
   ctx_->type_info()->NoteConstExpr(expr, InterpValue::MakeTuple(values));
 }
 
-absl::Status ConstexprEvaluator::SimpleEvaluate(Expr* expr) {
+absl::Status ConstexprEvaluator::SimpleEvaluate(const Expr* expr) {
   absl::optional<FnCtx> fn_ctx;
   absl::flat_hash_map<std::string, InterpValue> env;
   if (!ctx_->fn_stack().empty()) {

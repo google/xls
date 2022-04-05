@@ -23,11 +23,12 @@
 
 namespace xls::dslx {
 
-#define DISPATCH_DEF(__expr_type)                                              \
-  absl::StatusOr<InterpValue> EvaluateSym##__expr_type(                        \
-      __expr_type* expr, InterpBindings* bindings, ConcreteType* type_context, \
-      AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {    \
-    return Evaluate##__expr_type(expr, bindings, type_context, interp);        \
+#define DISPATCH_DEF(__expr_type)                                       \
+  absl::StatusOr<InterpValue> EvaluateSym##__expr_type(                 \
+      const __expr_type* expr, InterpBindings* bindings,                \
+      ConcreteType* type_context, AbstractInterpreter* interp,          \
+      ConcolicTestGenerator* test_generator) {                          \
+    return Evaluate##__expr_type(expr, bindings, type_context, interp); \
   }
 
 DISPATCH_DEF(ConstRef)
@@ -48,7 +49,7 @@ InterpValue AddSymToValue(InterpValue concrete_value,
 }
 
 absl::StatusOr<InterpValue> EvaluateSymAttr(
-    Attr* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Attr* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   TypeInfo* type_info = interp->GetCurrentTypeInfo();
   XLS_RET_CHECK_EQ(expr->owner(), type_info->module());
@@ -81,7 +82,7 @@ absl::StatusOr<InterpValue> EvaluateSymAttr(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymCast(
-    Cast* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Cast* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue cast_result,
                        EvaluateCast(expr, bindings, type_context, interp));
@@ -107,7 +108,7 @@ absl::StatusOr<InterpValue> EvaluateSymCast(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymIndex(
-    Index* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Index* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
   if (lhs.IsBits()) {
@@ -163,8 +164,9 @@ absl::StatusOr<InterpValue> EvaluateSymIndex(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymStructInstance(
-    StructInstance* expr, InterpBindings* bindings, ConcreteType* type_context,
-    AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
+    const StructInstance* expr, InterpBindings* bindings,
+    ConcreteType* type_context, AbstractInterpreter* interp,
+    ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(
       InterpValue struct_value,
       EvaluateStructInstance(expr, bindings, type_context, interp));
@@ -196,7 +198,7 @@ absl::StatusOr<InterpValue> EvaluateSymStructInstance(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymArray(
-    Array* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Array* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateArray(expr, bindings, type_context, interp));
@@ -212,7 +214,7 @@ absl::StatusOr<InterpValue> EvaluateSymArray(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymXlsTuple(
-    XlsTuple* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const XlsTuple* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateXlsTuple(expr, bindings, type_context, interp));
@@ -228,7 +230,7 @@ absl::StatusOr<InterpValue> EvaluateSymXlsTuple(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymTernary(
-    Ternary* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Ternary* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue test, interp->Eval(expr->test(), bindings));
   XLS_RET_CHECK(test.IsBits() && test.GetBitCount().value() == 1);
@@ -262,7 +264,7 @@ absl::StatusOr<InterpValue> EvaluateSymTernary(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymNumber(
-    Number* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Number* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateNumber(expr, bindings, type_context, interp));
@@ -412,7 +414,7 @@ static absl::StatusOr<MatcherResults> EvaluateSymMatcher(
 // For each pattern in the match expression, solves the constraint corresponding
 // to that pattern.
 absl::StatusOr<InterpValue> EvaluateSymMatch(
-    Match* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Match* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   bool found_match = false;
   Expr* matched_expr = nullptr;
@@ -454,7 +456,7 @@ absl::StatusOr<InterpValue> EvaluateSymMatch(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymFor(
-    For* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const For* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue iterable,
                        interp->Eval(expr->iterable(), bindings));
@@ -503,7 +505,7 @@ absl::StatusOr<InterpValue> EvaluateSymFor(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymColonRef(
-    ColonRef* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const ColonRef* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue result,
                        EvaluateColonRef(expr, bindings, type_context, interp));
@@ -551,7 +553,7 @@ std::vector<SymbolicType*> MarkMembersAsParam(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymFunction(
-    Function* f, absl::Span<const InterpValue> args, const Span& span,
+    const Function* f, absl::Span<const InterpValue> args, const Span& span,
     const SymbolicBindings& symbolic_bindings, AbstractInterpreter* interp,
     ConcolicTestGenerator* test_generator) {
   XLS_RET_CHECK_EQ(f->owner(), interp->GetCurrentTypeInfo()->module());
@@ -625,7 +627,7 @@ absl::StatusOr<InterpValue> EvaluateSymFunction(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymUnop(
-    Unop* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Unop* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_ASSIGN_OR_RETURN(InterpValue arg,
                        interp->Eval(expr->operand(), bindings));
@@ -652,7 +654,7 @@ absl::StatusOr<InterpValue> EvaluateSymUnop(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymShift(
-    Binop* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Binop* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   XLS_VLOG(6) << "EvaluateShift: " << expr->ToString() << " @ " << expr->span();
   XLS_ASSIGN_OR_RETURN(InterpValue lhs, interp->Eval(expr->lhs(), bindings));
@@ -700,7 +702,7 @@ absl::StatusOr<InterpValue> EvaluateSymShift(
 }
 
 absl::StatusOr<InterpValue> EvaluateSymBinop(
-    Binop* expr, InterpBindings* bindings, ConcreteType* type_context,
+    const Binop* expr, InterpBindings* bindings, ConcreteType* type_context,
     AbstractInterpreter* interp, ConcolicTestGenerator* test_generator) {
   if (GetBinopShifts().contains(expr->binop_kind())) {
     return EvaluateSymShift(expr, bindings, type_context, interp,

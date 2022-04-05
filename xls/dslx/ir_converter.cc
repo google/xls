@@ -132,7 +132,8 @@ class FunctionConverter {
       Function* node, TypeInfo* type_info,
       const SymbolicBindings* symbolic_bindings);
 
-  absl::Status HandleProcNextFunction(Function* pf, Invocation* invocation,
+  absl::Status HandleProcNextFunction(Function* pf,
+                                      const Invocation* invocation,
                                       TypeInfo* type_info,
                                       ImportData* import_data,
                                       const SymbolicBindings* symbolic_bindings,
@@ -210,24 +211,25 @@ class FunctionConverter {
   // whatever 'from' has as an IR value.
   //
   // Returns the aliased IR BValue both AST nodes now map to.
-  absl::Status DefAlias(AstNode* from, AstNode* to);
+  absl::Status DefAlias(const AstNode* from, const AstNode* to);
 
   // Returns the BValue previously noted as corresponding to "node" (via a
   // Def/DefAlias).
   absl::StatusOr<BValue> Use(AstNode* node) const;
 
-  void SetNodeToIr(AstNode* node, IrValue value);
-  absl::optional<IrValue> GetNodeToIr(AstNode* node) const;
+  void SetNodeToIr(const AstNode* node, IrValue value);
+  absl::optional<IrValue> GetNodeToIr(const AstNode* node) const;
 
   // Returns the constant value corresponding to the IrValue of "node", or
   // returns an error if it is not present (or not constant).
-  absl::StatusOr<Value> GetConstValue(AstNode* node) const;
+  absl::StatusOr<Value> GetConstValue(const AstNode* node) const;
 
   // As above, but also checks it is a constant Bits value.
-  absl::StatusOr<Bits> GetConstBits(AstNode* node) const;
+  absl::StatusOr<Bits> GetConstBits(const AstNode* node) const;
 
   // Resolves node's type and resolves all of its dimensions via `ResolveDim()`.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(AstNode* node);
+  absl::StatusOr<std::unique_ptr<ConcreteType>> ResolveType(
+      const AstNode* node);
 
   // Helper that composes ResolveType() and TypeToIr().
   absl::StatusOr<xls::Type*> ResolveTypeToIr(AstNode* node);
@@ -289,7 +291,7 @@ class FunctionConverter {
   //  The symbolic bindings for the given instantiation (function call or proc
   //  spawn).
   absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
-      Instantiation* instantiation) const {
+      const Instantiation* instantiation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
     return import_data_->GetRootTypeInfo(instantiation->owner())
         .value()
@@ -297,9 +299,9 @@ class FunctionConverter {
   }
 
   // Helpers for HandleBinop().
-  absl::Status HandleConcat(Binop* node, BValue lhs, BValue rhs);
-  absl::Status HandleEq(Binop* node, BValue lhs, BValue rhs);
-  absl::Status HandleNe(Binop* node, BValue lhs, BValue rhs);
+  absl::Status HandleConcat(const Binop* node, BValue lhs, BValue rhs);
+  absl::Status HandleEq(const Binop* node, BValue lhs, BValue rhs);
+  absl::Status HandleNe(const Binop* node, BValue lhs, BValue rhs);
 
   using BuildTermFn =
       std::function<xls::BValue(xls::BValue lhs, xls::BValue rhs)>;
@@ -313,46 +315,46 @@ class FunctionConverter {
                                    const BuildTermFn& build_term);
 
   // AstNode handlers.
-  absl::Status HandleBinop(Binop* node);
-  absl::Status HandleConstRef(ConstRef* node);
-  absl::Status HandleNameRef(NameRef* node);
-  absl::Status HandleNumber(Number* node);
-  absl::Status HandleParam(Param* node);
-  absl::Status HandleString(String* node);
-  absl::Status HandleUnop(Unop* node);
-  absl::Status HandleXlsTuple(XlsTuple* node);
+  absl::Status HandleBinop(const Binop* node);
+  absl::Status HandleConstRef(const ConstRef* node);
+  absl::Status HandleNameRef(const NameRef* node);
+  absl::Status HandleNumber(const Number* node);
+  absl::Status HandleParam(const Param* node);
+  absl::Status HandleString(const String* node);
+  absl::Status HandleUnop(const Unop* node);
+  absl::Status HandleXlsTuple(const XlsTuple* node);
 
   // AstNode handlers that recur "manually" internal to the handler.
-  absl::Status HandleJoin(Join* node);
-  absl::Status HandleArray(Array* node);
-  absl::Status HandleAttr(Attr* node);
-  absl::Status HandleCast(Cast* node);
-  absl::Status HandleColonRef(ColonRef* node);
-  absl::Status HandleConstantArray(ConstantArray* node);
-  absl::Status HandleConstantDef(ConstantDef* node);
-  absl::Status HandleFor(For* node);
-  absl::Status HandleIndex(Index* node);
-  absl::Status HandleInvocation(Invocation* node);
-  absl::Status HandleFormatMacro(FormatMacro* node);
-  absl::Status HandleLet(Let* node);
-  absl::Status HandleMatch(Match* node);
-  absl::Status HandleRecv(Recv* node);
-  absl::Status HandleRecvIf(RecvIf* node);
-  absl::Status HandleSend(Send* node);
-  absl::Status HandleSendIf(SendIf* node);
-  absl::Status HandleSplatStructInstance(SplatStructInstance* node);
-  absl::Status HandleStructInstance(StructInstance* node);
-  absl::Status HandleTernary(Ternary* node);
+  absl::Status HandleJoin(const Join* node);
+  absl::Status HandleArray(const Array* node);
+  absl::Status HandleAttr(const Attr* node);
+  absl::Status HandleCast(const Cast* node);
+  absl::Status HandleColonRef(const ColonRef* node);
+  absl::Status HandleConstantArray(const ConstantArray* node);
+  absl::Status HandleConstantDef(const ConstantDef* node);
+  absl::Status HandleFor(const For* node);
+  absl::Status HandleIndex(const Index* node);
+  absl::Status HandleInvocation(const Invocation* node);
+  absl::Status HandleFormatMacro(const FormatMacro* node);
+  absl::Status HandleLet(const Let* node);
+  absl::Status HandleMatch(const Match* node);
+  absl::Status HandleRecv(const Recv* node);
+  absl::Status HandleRecvIf(const RecvIf* node);
+  absl::Status HandleSend(const Send* node);
+  absl::Status HandleSendIf(const SendIf* node);
+  absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
+  absl::Status HandleStructInstance(const StructInstance* node);
+  absl::Status HandleTernary(const Ternary* node);
 
   // Handles invocation of a user-defined function (UDF).
-  absl::Status HandleUdfInvocation(Invocation* node, xls::Function* f,
+  absl::Status HandleUdfInvocation(const Invocation* node, xls::Function* f,
                                    std::vector<BValue> args);
 
   // Handles the fail!() builtin invocation.
-  absl::Status HandleFailBuiltin(Invocation* node, BValue arg);
+  absl::Status HandleFailBuiltin(const Invocation* node, BValue arg);
 
   // Handles the cover!() builtin invocation.
-  absl::Status HandleCoverBuiltin(Invocation* node, BValue condition);
+  absl::Status HandleCoverBuiltin(const Invocation* node, BValue condition);
 
   // Handles an arm of a match expression.
   absl::StatusOr<BValue> HandleMatcher(NameDefTree* matcher,
@@ -362,7 +364,7 @@ class FunctionConverter {
 
   // Makes the specified builtin available to the package.
   absl::StatusOr<BValue> DefMapWithBuiltin(
-      Invocation* parent_node, NameRef* node, AstNode* arg,
+      const Invocation* parent_node, NameRef* node, AstNode* arg,
       const SymbolicBindings& symbolic_bindings);
 
   // Evaluates a constexpr AST Invocation via the DSLX interpreter.
@@ -376,27 +378,27 @@ class FunctionConverter {
   //
   // Returns:
   //   The XLS (IR) Value containing the result.
-  absl::StatusOr<Value> EvaluateConstFunction(Invocation* node);
+  absl::StatusOr<Value> EvaluateConstFunction(const Invocation* node);
 
-  absl::StatusOr<BValue> HandleMap(Invocation* node);
+  absl::StatusOr<BValue> HandleMap(const Invocation* node);
 
-  absl::StatusOr<BValue> HandleFail(Invocation* node);
+  absl::StatusOr<BValue> HandleFail(const Invocation* node);
 
   // Builtin invocation handlers.
-  absl::Status HandleBuiltinAndReduce(Invocation* node);
-  absl::Status HandleBuiltinArraySlice(Invocation* node);
-  absl::Status HandleBuiltinBitSlice(Invocation* node);
-  absl::Status HandleBuiltinBitSliceUpdate(Invocation* node);
-  absl::Status HandleBuiltinClz(Invocation* node);
-  absl::Status HandleBuiltinCtz(Invocation* node);
-  absl::Status HandleBuiltinGate(Invocation* node);
-  absl::Status HandleBuiltinOneHot(Invocation* node);
-  absl::Status HandleBuiltinOneHotSel(Invocation* node);
-  absl::Status HandleBuiltinOrReduce(Invocation* node);
-  absl::Status HandleBuiltinRev(Invocation* node);
-  absl::Status HandleBuiltinSignex(Invocation* node);
-  absl::Status HandleBuiltinUpdate(Invocation* node);
-  absl::Status HandleBuiltinXorReduce(Invocation* node);
+  absl::Status HandleBuiltinAndReduce(const Invocation* node);
+  absl::Status HandleBuiltinArraySlice(const Invocation* node);
+  absl::Status HandleBuiltinBitSlice(const Invocation* node);
+  absl::Status HandleBuiltinBitSliceUpdate(const Invocation* node);
+  absl::Status HandleBuiltinClz(const Invocation* node);
+  absl::Status HandleBuiltinCtz(const Invocation* node);
+  absl::Status HandleBuiltinGate(const Invocation* node);
+  absl::Status HandleBuiltinOneHot(const Invocation* node);
+  absl::Status HandleBuiltinOneHotSel(const Invocation* node);
+  absl::Status HandleBuiltinOrReduce(const Invocation* node);
+  absl::Status HandleBuiltinRev(const Invocation* node);
+  absl::Status HandleBuiltinSignex(const Invocation* node);
+  absl::Status HandleBuiltinUpdate(const Invocation* node);
+  absl::Status HandleBuiltinXorReduce(const Invocation* node);
 
   // Derefences the type definition to a struct definition.
   absl::StatusOr<StructDef*> DerefStruct(TypeDefinition node);
@@ -412,19 +414,19 @@ class FunctionConverter {
         name_ref, [this](TypeDefinition td) { return DerefEnum(td); });
   }
 
-  absl::Status CastToArray(Cast* node, const ArrayType& output_type);
-  absl::Status CastFromArray(Cast* node, const ConcreteType& output_type);
+  absl::Status CastToArray(const Cast* node, const ArrayType& output_type);
+  absl::Status CastFromArray(const Cast* node, const ConcreteType& output_type);
 
   // Returns the fully resolved (mangled) name for the callee of the given node,
   // with parametric values mangled in appropriately.
-  absl::StatusOr<std::string> GetCalleeIdentifier(Invocation* node);
+  absl::StatusOr<std::string> GetCalleeIdentifier(const Invocation* node);
 
   // Determines whether the for loop node is of the general form:
   //
   //  `for ... in range(0, N)`
   //
   // Returns the value of N if so, or a conversion error if it is not.
-  absl::StatusOr<int64_t> QueryConstRangeCall(For* node);
+  absl::StatusOr<int64_t> QueryConstRangeCall(const For* node);
 
   template <typename T>
   absl::StatusOr<T> DerefStructOrEnumFromNameRef(
@@ -458,17 +460,17 @@ class FunctionConverter {
   // Defines "node" to map the result of running "ir_func" with "args" -- if
   // emit_positions is on grabs the span from the node and uses it in the call.
   absl::StatusOr<BValue> DefWithStatus(
-      AstNode* node, const std::function<absl::StatusOr<BValue>(
-                         absl::optional<SourceLocation>)>& ir_func);
+      const AstNode* node, const std::function<absl::StatusOr<BValue>(
+                               absl::optional<SourceLocation>)>& ir_func);
 
   // Specialization for Def() above when the "ir_func" is infallible.
   BValue Def(
-      AstNode* node,
+      const AstNode* node,
       const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
 
   // Def(), but for constant/constexpr values, adds a literal as the IR
   // function.
-  CValue DefConst(AstNode* node, Value ir_value);
+  CValue DefConst(const AstNode* node, Value ir_value);
 
   absl::Status Visit(AstNode* node);
 
@@ -501,7 +503,7 @@ class FunctionConverter {
   ImportData* import_data_;
 
   // Mapping from AST node to its corresponding IR value.
-  absl::flat_hash_map<AstNode*, IrValue> node_to_ir_;
+  absl::flat_hash_map<const AstNode*, IrValue> node_to_ir_;
 
   // Various conversion options; e.g. whether or not to emit source code
   // positions into the XLS IR.
@@ -651,7 +653,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   }
 
   // Causes all children of "node" to accept this visitor.
-  absl::Status VisitChildren(AstNode* node) {
+  absl::Status VisitChildren(const AstNode* node) {
     for (AstNode* child : node->GetChildren(/*want_types=*/false)) {
       XLS_RETURN_IF_ERROR(Visit(child));
     }
@@ -660,10 +662,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // A macro used for AST types where we want to visit all children, then call
   // the FunctionConverter handler (i.e. postorder traversal).
-#define TRAVERSE_DISPATCH(__type)                      \
-  absl::Status Handle##__type(__type* node) override { \
-    XLS_RETURN_IF_ERROR(VisitChildren(node));          \
-    return converter_->Handle##__type(node);           \
+#define TRAVERSE_DISPATCH(__type)                            \
+  absl::Status Handle##__type(const __type* node) override { \
+    XLS_RETURN_IF_ERROR(VisitChildren(node));                \
+    return converter_->Handle##__type(node);                 \
   }
 
   TRAVERSE_DISPATCH(Unop)
@@ -672,9 +674,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
-#define NO_TRAVERSE_DISPATCH(__type)                   \
-  absl::Status Handle##__type(__type* node) override { \
-    return converter_->Handle##__type(node);           \
+#define NO_TRAVERSE_DISPATCH(__type)                         \
+  absl::Status Handle##__type(const __type* node) override { \
+    return converter_->Handle##__type(node);                 \
   }
 
   NO_TRAVERSE_DISPATCH(Param)
@@ -685,9 +687,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // A macro used for AST types where we don't want to visit any children, just
   // call the FunctionConverter handler.
-#define NO_TRAVERSE_DISPATCH_VISIT(__type)             \
-  absl::Status Handle##__type(__type* node) override { \
-    return converter_->Handle##__type(node);           \
+#define NO_TRAVERSE_DISPATCH_VISIT(__type)                   \
+  absl::Status Handle##__type(const __type* node) override { \
+    return converter_->Handle##__type(node);                 \
   }
 
   NO_TRAVERSE_DISPATCH_VISIT(Attr)
@@ -713,8 +715,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // A macro used for AST types that we never expect to visit (if we do we
   // provide an error message noting it was unexpected).
-#define INVALID(__type) \
-  absl::Status Handle##__type(__type* node) override { return Invalid(node); }
+#define INVALID(__type)                                      \
+  absl::Status Handle##__type(const __type* node) override { \
+    return Invalid(node);                                    \
+  }
 
   // These are always custom-visited (i.e. traversed to in a specialized way
   // from their parent nodes).
@@ -749,7 +753,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
  private:
   // Called when we visit a node we don't expect to observe in the traversal.
-  absl::Status Invalid(AstNode* node) {
+  absl::Status Invalid(const AstNode* node) {
     return absl::UnimplementedError(absl::StrFormat(
         "AST node unsupported for IR conversion: %s @ %s",
         node->GetNodeTypeName(), SpanToString(node->GetSpan())));
@@ -799,7 +803,8 @@ void FunctionConverter::AddConstantDep(ConstantDef* constant_def) {
   constant_deps_.push_back(constant_def);
 }
 
-absl::Status FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
+absl::Status FunctionConverter::DefAlias(const AstNode* from,
+                                         const AstNode* to) {
   XLS_RET_CHECK_NE(from, to);
   auto it = node_to_ir_.find(from);
   if (it == node_to_ir_.end()) {
@@ -815,7 +820,7 @@ absl::Status FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
       to->GetNodeTypeName(), from->ToString(), from->GetNodeTypeName(),
       ToString(value));
   node_to_ir_[to] = std::move(value);
-  if (auto* name_def = dynamic_cast<NameDef*>(to)) {
+  if (const auto* name_def = dynamic_cast<const NameDef*>(to)) {
     // Name the aliased node based on the identifier in the NameDef.
     if (absl::holds_alternative<BValue>(node_to_ir_.at(from))) {
       BValue ir_node = absl::get<BValue>(node_to_ir_.at(from));
@@ -832,7 +837,7 @@ absl::Status FunctionConverter::DefAlias(AstNode* from, AstNode* to) {
 }
 
 absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
-    AstNode* node,
+    const AstNode* node,
     const std::function<absl::StatusOr<BValue>(absl::optional<SourceLocation>)>&
         ir_func) {
   absl::optional<SourceLocation> loc = ToSourceLocation(node->GetSpan());
@@ -845,7 +850,7 @@ absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
 }
 
 BValue FunctionConverter::Def(
-    AstNode* node,
+    const AstNode* node,
     const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
   return DefWithStatus(node,
                        [&ir_func](absl::optional<SourceLocation> loc)
@@ -853,7 +858,7 @@ BValue FunctionConverter::Def(
       .value();
 }
 
-FunctionConverter::CValue FunctionConverter::DefConst(AstNode* node,
+FunctionConverter::CValue FunctionConverter::DefConst(const AstNode* node,
                                                       xls::Value ir_value) {
   auto ir_func = [&](absl::optional<SourceLocation> loc) {
     return function_builder_->Literal(ir_value, loc);
@@ -881,14 +886,14 @@ absl::StatusOr<BValue> FunctionConverter::Use(AstNode* node) const {
   return absl::get<CValue>(ir_value).value;
 }
 
-void FunctionConverter::SetNodeToIr(AstNode* node, IrValue value) {
+void FunctionConverter::SetNodeToIr(const AstNode* node, IrValue value) {
   XLS_VLOG(6) << absl::StreamFormat("Setting node '%s' (%p) to IR value %s.",
                                     node->ToString(), node, ToString(value));
   node_to_ir_[node] = value;
 }
 
 absl::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
-    AstNode* node) const {
+    const AstNode* node) const {
   auto it = node_to_ir_.find(node);
   if (it == node_to_ir_.end()) {
     return absl::nullopt;
@@ -896,7 +901,7 @@ absl::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
   return it->second;
 }
 
-absl::Status FunctionConverter::HandleUnop(Unop* node) {
+absl::Status FunctionConverter::HandleUnop(const Unop* node) {
   XLS_ASSIGN_OR_RETURN(BValue operand, Use(node->operand()));
   switch (node->unop_kind()) {
     case UnopKind::kNegate: {
@@ -916,7 +921,7 @@ absl::Status FunctionConverter::HandleUnop(Unop* node) {
       absl::StrCat("Invalid UnopKind: ", static_cast<int64_t>(node->kind())));
 }
 
-absl::Status FunctionConverter::HandleConcat(Binop* node, BValue lhs,
+absl::Status FunctionConverter::HandleConcat(const Binop* node, BValue lhs,
                                              BValue rhs) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
                        ResolveType(node));
@@ -1012,7 +1017,8 @@ absl::StatusOr<BValue> FunctionConverter::BuildTest(
   }
 }
 
-absl::Status FunctionConverter::HandleEq(Binop* node, BValue lhs, BValue rhs) {
+absl::Status FunctionConverter::HandleEq(const Binop* node, BValue lhs,
+                                         BValue rhs) {
   return DefWithStatus(
              node,
              [&](absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
@@ -1024,7 +1030,8 @@ absl::Status FunctionConverter::HandleEq(Binop* node, BValue lhs, BValue rhs) {
       .status();
 }
 
-absl::Status FunctionConverter::HandleNe(Binop* node, BValue lhs, BValue rhs) {
+absl::Status FunctionConverter::HandleNe(const Binop* node, BValue lhs,
+                                         BValue rhs) {
   return DefWithStatus(
              node,
              [&](absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
@@ -1051,7 +1058,7 @@ SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
   return SymbolicBindings(std::move(sans_module_level_constants));
 }
 
-absl::Status FunctionConverter::HandleNumber(Number* node) {
+absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
@@ -1061,7 +1068,7 @@ absl::Status FunctionConverter::HandleNumber(Number* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleString(String* node) {
+absl::Status FunctionConverter::HandleString(const String* node) {
   std::vector<Value> elements;
   for (const char letter : node->text()) {
     elements.push_back(Value(UBits(letter, /*bit_count=*/8)));
@@ -1071,7 +1078,7 @@ absl::Status FunctionConverter::HandleString(String* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleXlsTuple(XlsTuple* node) {
+absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
   std::vector<BValue> operands;
   for (Expr* o : node->members()) {
     XLS_ASSIGN_OR_RETURN(BValue v, Use(o));
@@ -1083,7 +1090,7 @@ absl::Status FunctionConverter::HandleXlsTuple(XlsTuple* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleParam(Param* node) {
+absl::Status FunctionConverter::HandleParam(const Param* node) {
   XLS_VLOG(5) << "HandleParam: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        ResolveTypeToIr(node->type_annotation()));
@@ -1093,11 +1100,11 @@ absl::Status FunctionConverter::HandleParam(Param* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleConstRef(ConstRef* node) {
+absl::Status FunctionConverter::HandleConstRef(const ConstRef* node) {
   return DefAlias(node->name_def(), /*to=*/node);
 }
 
-absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
+absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
   AstNode* from = ToAstNode(node->name_def());
 
   if (!node_to_ir_.contains(from)) {
@@ -1122,7 +1129,7 @@ absl::Status FunctionConverter::HandleNameRef(NameRef* node) {
   return DefAlias(from, /*to=*/node);
 }
 
-absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
+absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
   XLS_VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->value()));
   XLS_VLOG(5) << "Aliasing NameDef for constant: "
@@ -1130,7 +1137,7 @@ absl::Status FunctionConverter::HandleConstantDef(ConstantDef* node) {
   return DefAlias(node->value(), /*to=*/node->name_def());
 }
 
-absl::Status FunctionConverter::HandleLet(Let* node) {
+absl::Status FunctionConverter::HandleLet(const Let* node) {
   // XLS_LOG(INFO) << "HandleLet: " << node->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
@@ -1197,7 +1204,7 @@ absl::Status FunctionConverter::HandleLet(Let* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleCast(Cast* node) {
+absl::Status FunctionConverter::HandleCast(const Cast* node) {
   XLS_RETURN_IF_ERROR(Visit(node->expr()));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
                        ResolveType(node));
@@ -1245,7 +1252,7 @@ absl::Status FunctionConverter::HandleCast(Cast* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleMatch(Match* node) {
+absl::Status FunctionConverter::HandleMatch(const Match* node) {
   if (node->arms().empty() ||
       !node->arms().back()->patterns()[0]->IsIrrefutable()) {
     return ConversionErrorStatus(
@@ -1358,7 +1365,8 @@ absl::Status FunctionConverter::HandleMatch(Match* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(For* node) {
+absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(
+    const For* node) {
   auto error = [&] {
     return absl::InvalidArgumentError(
         absl::StrFormat("ConversionError: %s For-loop is of an unsupported "
@@ -1413,7 +1421,7 @@ static AstNode* ToAstNode(
   return ToAstNode(absl::get<NameDefTree::Leaf>(x));
 }
 
-absl::Status FunctionConverter::HandleFor(For* node) {
+absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_RETURN_IF_ERROR(Visit(node->init()));
 
   // TODO(leary): We currently only support counted loops with fixed upper
@@ -1675,7 +1683,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
 }
 
 absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
-    Invocation* parent_node, NameRef* node, AstNode* arg,
+    const Invocation* parent_node, NameRef* node, AstNode* arg,
     const SymbolicBindings& symbolic_bindings) {
   // Builtins always use the "typical" calling convention (are never "implicit
   // token").
@@ -1709,7 +1717,7 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
   });
 }
 
-absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
+absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   for (Expr* arg : node->args().subspan(0, node->args().size() - 1)) {
     XLS_RETURN_IF_ERROR(Visit(arg));
   }
@@ -1757,7 +1765,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(Invocation* node) {
   });
 }
 
-absl::Status FunctionConverter::HandleIndex(Index* node) {
+absl::Status FunctionConverter::HandleIndex(const Index* node) {
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
 
@@ -1806,7 +1814,7 @@ absl::Status FunctionConverter::HandleIndex(Index* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleArray(Array* node) {
+absl::Status FunctionConverter::HandleArray(const Array* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   const ArrayType* array_type = dynamic_cast<ArrayType*>(type.get());
   XLS_RET_CHECK(array_type != nullptr);
@@ -1831,7 +1839,7 @@ absl::Status FunctionConverter::HandleArray(Array* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleUdfInvocation(Invocation* node,
+absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
                                                     xls::Function* f,
                                                     std::vector<BValue> args) {
   XLS_VLOG(5) << "HandleUdfInvocation: " << f->name() << " via "
@@ -1875,7 +1883,7 @@ absl::Status FunctionConverter::HandleUdfInvocation(Invocation* node,
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
+absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
                                                   BValue arg) {
   if (options_.emit_fail_as_assert) {
     // For a fail node we both create a predicate that corresponds to the
@@ -1901,7 +1909,7 @@ absl::Status FunctionConverter::HandleFailBuiltin(Invocation* node,
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleFormatMacro(FormatMacro* node) {
+absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   XLS_RET_CHECK(implicit_token_data_.has_value())
       << "Invoking trace_fmt!(), but no implicit token is present for caller @ "
       << node->span();
@@ -1926,7 +1934,7 @@ absl::Status FunctionConverter::HandleFormatMacro(FormatMacro* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleCoverBuiltin(Invocation* node,
+absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
                                                    BValue condition) {
   // TODO(https://github.com/google/xls/issues/232): 2021-05-21: Control cover!
   // emission with the same flag as fail!, since they share a good amount of
@@ -1956,7 +1964,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(Invocation* node,
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
+absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
   auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
     std::vector<BValue> values;
@@ -2031,7 +2039,7 @@ absl::Status FunctionConverter::HandleInvocation(Invocation* node) {
   return (this->*f)(node);
 }
 
-absl::Status FunctionConverter::HandleSend(Send* node) {
+absl::Status FunctionConverter::HandleSend(const Send* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -2059,7 +2067,7 @@ absl::Status FunctionConverter::HandleSend(Send* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleSendIf(SendIf* node) {
+absl::Status FunctionConverter::HandleSendIf(const SendIf* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -2092,7 +2100,7 @@ absl::Status FunctionConverter::HandleSendIf(SendIf* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleRecv(Recv* node) {
+absl::Status FunctionConverter::HandleRecv(const Recv* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -2118,7 +2126,7 @@ absl::Status FunctionConverter::HandleRecv(Recv* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleRecvIf(RecvIf* node) {
+absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -2147,7 +2155,7 @@ absl::Status FunctionConverter::HandleRecvIf(RecvIf* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleJoin(Join* node) {
+absl::Status FunctionConverter::HandleJoin(const Join* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
   if (builder_ptr == nullptr) {
@@ -2412,8 +2420,9 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
 // needed to define the initial state of the Proc (and are thus part of the
 // creation interface for the ProcBuilder).
 absl::StatusOr<std::vector<Value>> GetProcInitialValues(
-    Module* module, Proc* node, Invocation* invocation, TypeInfo* type_info,
-    ImportData* import_data, const SymbolicBindings* bindings) {
+    Module* module, const Proc* node, const Invocation* invocation,
+    TypeInfo* type_info, ImportData* import_data,
+    const SymbolicBindings* bindings) {
   std::vector<Value> elements;
   if (invocation == nullptr) {
     return elements;
@@ -2436,7 +2445,7 @@ absl::StatusOr<std::vector<Value>> GetProcInitialValues(
 }
 
 absl::Status FunctionConverter::HandleProcNextFunction(
-    Function* f, Invocation* invocation, TypeInfo* type_info,
+    Function* f, const Invocation* invocation, TypeInfo* type_info,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ProcId& proc_id) {
   XLS_RET_CHECK(type_info != nullptr);
@@ -2529,7 +2538,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
+absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
@@ -2578,7 +2587,7 @@ absl::Status FunctionConverter::HandleColonRef(ColonRef* node) {
 }
 
 absl::Status FunctionConverter::HandleSplatStructInstance(
-    SplatStructInstance* node) {
+    const SplatStructInstance* node) {
   XLS_RETURN_IF_ERROR(Visit(node->splatted()));
   XLS_ASSIGN_OR_RETURN(BValue original, Use(node->splatted()));
 
@@ -2606,7 +2615,8 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleStructInstance(StructInstance* node) {
+absl::Status FunctionConverter::HandleStructInstance(
+    const StructInstance* node) {
   std::vector<BValue> operands;
   XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
                        DerefStruct(ToTypeDefinition(node->struct_def())));
@@ -2624,7 +2634,7 @@ absl::Status FunctionConverter::HandleStructInstance(StructInstance* node) {
 }
 
 absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
-    Invocation* node) {
+    const Invocation* node) {
   XLS_VLOG(5) << "Getting callee identifier for invocation: "
               << node->ToString();
   Expr* callee = node->callee();
@@ -2672,7 +2682,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
                         resolved_symbolic_bindings.value());
 }
 
-absl::Status FunctionConverter::HandleBinop(Binop* node) {
+absl::Status FunctionConverter::HandleBinop(const Binop* node) {
   XLS_VLOG(5) << "HandleBinop: " << node->ToString();
   absl::optional<const ConcreteType*> lhs_type =
       current_type_info_->GetItem(node->lhs());
@@ -2800,7 +2810,7 @@ absl::Status FunctionConverter::HandleBinop(Binop* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleAttr(Attr* node) {
+absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   absl::optional<const ConcreteType*> lhs_type =
       current_type_info_->GetItem(node->lhs());
@@ -2821,7 +2831,7 @@ absl::Status FunctionConverter::HandleAttr(Attr* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleTernary(Ternary* node) {
+absl::Status FunctionConverter::HandleTernary(const Ternary* node) {
   XLS_RETURN_IF_ERROR(Visit(node->test()));
   XLS_ASSIGN_OR_RETURN(BValue arg0, Use(node->test()));
 
@@ -2856,7 +2866,7 @@ absl::Status FunctionConverter::HandleTernary(Ternary* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinAndReduce(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinAndReduce(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
@@ -2865,7 +2875,8 @@ absl::Status FunctionConverter::HandleBuiltinAndReduce(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinArraySlice(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinArraySlice(
+    const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue start, Use(node->args()[1]));
@@ -2884,7 +2895,7 @@ absl::Status FunctionConverter::HandleBuiltinArraySlice(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinBitSlice(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinBitSlice(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(Bits start_bits, GetConstBits(node->args()[1]));
@@ -2897,7 +2908,8 @@ absl::Status FunctionConverter::HandleBuiltinBitSlice(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinBitSliceUpdate(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinBitSliceUpdate(
+    const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue start, Use(node->args()[1]));
@@ -2908,7 +2920,7 @@ absl::Status FunctionConverter::HandleBuiltinBitSliceUpdate(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinClz(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinClz(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
@@ -2917,7 +2929,7 @@ absl::Status FunctionConverter::HandleBuiltinClz(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinCtz(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinCtz(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
@@ -2926,7 +2938,7 @@ absl::Status FunctionConverter::HandleBuiltinCtz(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinGate(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinGate(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue value, Use(node->args()[1]));
@@ -2936,7 +2948,7 @@ absl::Status FunctionConverter::HandleBuiltinGate(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinOneHot(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinOneHot(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue input, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(Bits lsb_prio, GetConstBits(node->args()[1]));
@@ -2949,7 +2961,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHot(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinOneHotSel(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue selector, Use(node->args()[0]));
 
@@ -2968,7 +2980,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinOrReduce(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinOrReduce(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
@@ -2977,7 +2989,7 @@ absl::Status FunctionConverter::HandleBuiltinOrReduce(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinRev(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinRev(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
@@ -2986,7 +2998,7 @@ absl::Status FunctionConverter::HandleBuiltinRev(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinSignex(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
 
@@ -3005,7 +3017,7 @@ absl::Status FunctionConverter::HandleBuiltinSignex(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinUpdate(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
@@ -3016,7 +3028,7 @@ absl::Status FunctionConverter::HandleBuiltinUpdate(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleBuiltinXorReduce(Invocation* node) {
+absl::Status FunctionConverter::HandleBuiltinXorReduce(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Def(node, [&](absl::optional<SourceLocation> loc) {
@@ -3025,7 +3037,7 @@ absl::Status FunctionConverter::HandleBuiltinXorReduce(Invocation* node) {
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::CastToArray(Cast* node,
+absl::Status FunctionConverter::CastToArray(const Cast* node,
                                             const ArrayType& output_type) {
   XLS_ASSIGN_OR_RETURN(BValue bits, Use(node->expr()));
   std::vector<BValue> slices;
@@ -3049,7 +3061,7 @@ absl::Status FunctionConverter::CastToArray(Cast* node,
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::CastFromArray(Cast* node,
+absl::Status FunctionConverter::CastFromArray(const Cast* node,
                                               const ConcreteType& output_type) {
   XLS_ASSIGN_OR_RETURN(BValue array, Use(node->expr()));
   XLS_ASSIGN_OR_RETURN(xls::Type * input_type, ResolveTypeToIr(node->expr()));
@@ -3115,7 +3127,7 @@ absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
-    AstNode* node) {
+    const AstNode* node) {
   XLS_RET_CHECK(current_type_info_ != nullptr);
   absl::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
@@ -3132,7 +3144,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   });
 }
 
-absl::StatusOr<Value> FunctionConverter::GetConstValue(AstNode* node) const {
+absl::StatusOr<Value> FunctionConverter::GetConstValue(
+    const AstNode* node) const {
   absl::optional<IrValue> ir_value = GetNodeToIr(node);
   if (!ir_value.has_value()) {
     return absl::InternalError(
@@ -3146,12 +3159,13 @@ absl::StatusOr<Value> FunctionConverter::GetConstValue(AstNode* node) const {
   return absl::get<CValue>(*ir_value).ir_value;
 }
 
-absl::StatusOr<Bits> FunctionConverter::GetConstBits(AstNode* node) const {
+absl::StatusOr<Bits> FunctionConverter::GetConstBits(
+    const AstNode* node) const {
   XLS_ASSIGN_OR_RETURN(Value value, GetConstValue(node));
   return value.GetBitsWithStatus();
 }
 
-absl::Status FunctionConverter::HandleConstantArray(ConstantArray* node) {
+absl::Status FunctionConverter::HandleConstantArray(const ConstantArray* node) {
   // Note: previously we would force constant evaluation here, but because all
   // constexprs should be evaluated during typechecking, we shouldn't need to
   // forcibly do constant evaluation at IR conversion time; therefore, we just
@@ -3195,7 +3209,9 @@ absl::Status ConvertOneFunctionInternal(
     XLS_RETURN_IF_ERROR(f->Accept(&converter));
     XLS_RETURN_IF_ERROR(converter.Finalize());
     return absl::OkStatus();
-  } else if (f->tag() == Function::Tag::kProcNext) {
+  }
+
+  if (f->tag() == Function::Tag::kProcNext) {
     return converter.HandleProcNextFunction(
         f, record.invocation(), record.type_info(), import_data,
         &record.symbolic_bindings(), record.proc_id().value());

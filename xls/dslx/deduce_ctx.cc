@@ -71,7 +71,7 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                       lhs.ToErrorString(), rhs.ToErrorString(), message));
 }
 
-absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user) {
+absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user) {
   std::string span_string;
   if (user != nullptr) {
     span_string = SpanToString(user->GetSpan()) + " ";
@@ -104,7 +104,7 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
 }
 
 absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
-    Expr* node, const SymbolicBindings& symbolic_bindings,
+    const Expr* node, const SymbolicBindings& symbolic_bindings,
     TypeInfo* type_info) {
   XLS_CHECK_EQ(node->owner(), type_info->module())
       << "expr `" << node->ToString()
@@ -141,7 +141,7 @@ absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
     }
   }
 
-  for (ConstRef* const_ref : freevars.GetConstRefs()) {
+  for (const ConstRef* const_ref : freevars.GetConstRefs()) {
     ConstantDef* constant_def = const_ref->GetConstantDef();
     XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString()
                 << " def: " << constant_def->ToString();

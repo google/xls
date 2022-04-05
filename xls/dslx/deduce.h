@@ -33,7 +33,7 @@ namespace xls::dslx {
 // with all the deductions that were necessary to determine (deduce) the
 // resulting type of `node`.
 // TODO(https://github.com/google/xls/issues/601): 2022-03-22 Make `node` const.
-absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
+absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
                                                      DeduceCtx* ctx);
 
 // Resolves "type_" via provided symbolic bindings.

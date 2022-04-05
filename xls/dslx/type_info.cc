@@ -62,7 +62,7 @@ absl::StatusOr<TypeInfo*> TypeInfoOwner::GetRootTypeInfo(Module* module) {
 
 // -- class TypeInfo
 
-void TypeInfo::NoteConstExpr(AstNode* const_expr, InterpValue value) {
+void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   const_exprs_.insert({const_expr, value});
 }
 
@@ -95,7 +95,7 @@ std::string TypeInfo::GetImportsDebugString() const {
       }));
 }
 
-absl::optional<ConcreteType*> TypeInfo::GetItem(AstNode* key) const {
+absl::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
   XLS_CHECK_EQ(key->owner(), module_)
       << key->owner()->name() << " vs " << module_->name()
       << " key: " << key->ToString();
@@ -109,7 +109,7 @@ absl::optional<ConcreteType*> TypeInfo::GetItem(AstNode* key) const {
   return absl::nullopt;
 }
 
-void TypeInfo::AddInstantiationCallBindings(Instantiation* call,
+void TypeInfo::AddInstantiationCallBindings(const Instantiation* call,
                                             SymbolicBindings caller,
                                             SymbolicBindings callee) {
   XLS_CHECK_EQ(call->owner(), module_);
@@ -132,7 +132,7 @@ void TypeInfo::AddInstantiationCallBindings(Instantiation* call,
   data.symbolic_bindings_map.emplace(std::move(caller), std::move(callee));
 }
 
-bool TypeInfo::HasInstantiation(Instantiation* instantiation,
+bool TypeInfo::HasInstantiation(const Instantiation* instantiation,
                                 const SymbolicBindings& caller) const {
   XLS_CHECK_EQ(instantiation->owner(), module_)
       << instantiation->owner()->name() << " vs " << module_->name() << " @ "
@@ -166,7 +166,7 @@ void TypeInfo::NoteRequiresImplicitToken(Function* f, bool is_required) {
 }
 
 absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
-    Instantiation* instantiation, const SymbolicBindings& caller) const {
+    const Instantiation* instantiation, const SymbolicBindings& caller) const {
   XLS_CHECK_EQ(instantiation->owner(), module_)
       << instantiation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
@@ -187,7 +187,7 @@ absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
   return it2->second;
 }
 
-void TypeInfo::SetInstantiationTypeInfo(Instantiation* instantiation,
+void TypeInfo::SetInstantiationTypeInfo(const Instantiation* instantiation,
                                         SymbolicBindings caller,
                                         TypeInfo* type_info) {
   XLS_CHECK_EQ(instantiation->owner(), module_);
@@ -197,7 +197,7 @@ void TypeInfo::SetInstantiationTypeInfo(Instantiation* instantiation,
 }
 
 absl::optional<const SymbolicBindings*>
-TypeInfo::GetInstantiationCalleeBindings(Instantiation* instantiation,
+TypeInfo::GetInstantiationCalleeBindings(const Instantiation* instantiation,
                                          const SymbolicBindings& caller) const {
   XLS_CHECK_EQ(instantiation->owner(), module_)
       << instantiation->owner()->name() << " vs " << module_->name();

@@ -1019,18 +1019,18 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
    public:
     IsConstVisitor(TypeInfo* type_info) : type_info_(type_info) {}
 
-    absl::Status HandleFunction(Function* node) {
+    absl::Status HandleFunction(const Function* node) {
       XLS_RETURN_IF_ERROR(node->body()->Accept(this));
       return absl::OkStatus();
     }
 
-    absl::Status HandleLet(Let* node) {
+    absl::Status HandleLet(const Let* node) {
       XLS_RETURN_IF_ERROR(node->rhs()->Accept(this));
       XLS_RETURN_IF_ERROR(node->body()->Accept(this));
       return absl::OkStatus();
     }
 
-    absl::Status HandleNumber(Number* node) {
+    absl::Status HandleNumber(const Number* node) {
       if (!type_info_->GetConstExpr(node).has_value()) {
         all_numbers_constexpr_ = false;
       }

@@ -162,7 +162,7 @@ class Bytecode {
   // Data needed to resolve a potentially parametric Function invocation to
   // its concrete implementation.
   struct InvocationData {
-    Invocation* invocation;
+    const Invocation* invocation;
     // Can't store a pointer, since the underlying storage isn't guaranteed to
     // be stable.
     absl::optional<SymbolicBindings> bindings;

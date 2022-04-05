@@ -42,7 +42,8 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info);
 // Returns the basis of the given ColonRef; either a Module for a constant
 // reference or the EnumDef whose attribute is specified.
 absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
-    ImportData* import_data, const TypeInfo* type_info, ColonRef* colon_ref);
+    ImportData* import_data, const TypeInfo* type_info,
+    const ColonRef* colon_ref);
 
 }  // namespace xls::dslx
 

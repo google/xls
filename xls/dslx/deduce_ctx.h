@@ -73,15 +73,15 @@ class DeduceCtx;  // Forward decl.
 
 // Callback signature for the "top level" of the node type-deduction process.
 using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
-    AstNode*, DeduceCtx*)>;
+    const AstNode*, DeduceCtx*)>;
 
 // Signature used for typechecking a single function within a module (this is
 // generally used for typechecking parametric instantiations).
 using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 
 // Similar to TypecheckFunctionFn, but for a [parametric] invocation.
-using TypecheckInvocationFn =
-    std::function<absl::StatusOr<TypeAndBindings>(Invocation*, DeduceCtx*)>;
+using TypecheckInvocationFn = std::function<absl::StatusOr<TypeAndBindings>(
+    const Invocation*, DeduceCtx*)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.
@@ -106,7 +106,7 @@ class DeduceCtx {
 
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
-  absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node) {
+  absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node) {
     XLS_RET_CHECK_EQ(node->owner(), type_info()->module());
     return deduce_function_(node, this);
   }
@@ -230,7 +230,7 @@ struct NodeAndUser {
 // its type missing) and user (which found that its type was missing). User will
 // often be null at the start, and the using deduction rule will later populate
 // it into an updated status.
-absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user);
+absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
 
 // Returns whether the "status" is a TypeMissingErrorStatus().
 //
@@ -254,7 +254,8 @@ absl::Status InvalidIdentifierErrorStatus(const Span& span,
 // `type_info` is required to look up the value of previously computed
 // constexprs.
 absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
-    Expr* node, const SymbolicBindings& symbolic_bindings, TypeInfo* type_info);
+    const Expr* node, const SymbolicBindings& symbolic_bindings,
+    TypeInfo* type_info);
 
 }  // namespace xls::dslx
 

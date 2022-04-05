@@ -38,39 +38,39 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
 
-  void HandleJoin(Join* expr) override {}
-  void HandleArray(Array* expr) override;
-  void HandleAttr(Attr* expr) override;
-  void HandleBinop(Binop* expr) override;
-  void HandleCast(Cast* expr) override;
-  void HandleChannelDecl(ChannelDecl* expr) override {}
-  void HandleColonRef(ColonRef* expr) override;
-  void HandleConstRef(ConstRef* expr) override;
-  void HandleFor(For* expr) override {}
-  void HandleFormatMacro(FormatMacro* expr) override {}
-  void HandleIndex(Index* expr) override;
-  void HandleInvocation(Invocation* expr) override;
-  void HandleLet(Let* expr) override {}
-  void HandleMatch(Match* expr) override {}
-  void HandleNameRef(NameRef* expr) override;
-  void HandleNumber(Number* expr) override;
-  void HandleRecv(Recv* expr) override {}
-  void HandleRecvIf(RecvIf* expr) override {}
-  void HandleSend(Send* expr) override {}
-  void HandleSendIf(SendIf* expr) override {}
-  void HandleSpawn(Spawn* expr) override {}
-  void HandleString(String* expr) override {}
-  void HandleStructInstance(StructInstance* expr) override;
-  void HandleSplatStructInstance(SplatStructInstance* expr) override {}
-  void HandleTernary(Ternary* expr) override;
-  void HandleUnop(Unop* expr) override {}
-  void HandleXlsTuple(XlsTuple* expr) override;
+  void HandleJoin(const Join* expr) override {}
+  void HandleArray(const Array* expr) override;
+  void HandleAttr(const Attr* expr) override;
+  void HandleBinop(const Binop* expr) override;
+  void HandleCast(const Cast* expr) override;
+  void HandleChannelDecl(const ChannelDecl* expr) override {}
+  void HandleColonRef(const ColonRef* expr) override;
+  void HandleConstRef(const ConstRef* expr) override;
+  void HandleFor(const For* expr) override {}
+  void HandleFormatMacro(const FormatMacro* expr) override {}
+  void HandleIndex(const Index* expr) override;
+  void HandleInvocation(const Invocation* expr) override;
+  void HandleLet(const Let* expr) override {}
+  void HandleMatch(const Match* expr) override {}
+  void HandleNameRef(const NameRef* expr) override;
+  void HandleNumber(const Number* expr) override;
+  void HandleRecv(const Recv* expr) override {}
+  void HandleRecvIf(const RecvIf* expr) override {}
+  void HandleSend(const Send* expr) override {}
+  void HandleSendIf(const SendIf* expr) override {}
+  void HandleSpawn(const Spawn* expr) override {}
+  void HandleString(const String* expr) override {}
+  void HandleStructInstance(const StructInstance* expr) override;
+  void HandleSplatStructInstance(const SplatStructInstance* expr) override {}
+  void HandleTernary(const Ternary* expr) override;
+  void HandleUnop(const Unop* expr) override {}
+  void HandleXlsTuple(const XlsTuple* expr) override;
 
   absl::Status status() { return status_; }
 
  private:
   bool IsConstExpr(const Expr* expr);
-  absl::Status SimpleEvaluate(Expr* expr);
+  absl::Status SimpleEvaluate(const Expr* expr);
 
   DeduceCtx* ctx_;
   const ConcreteType* concrete_type_;
