@@ -63,8 +63,8 @@ pub fn apfloat_mul_2<
   let y_fraction = (y.fraction as uN[WIDE_FRACTION]) | (uN[WIDE_FRACTION]:1 << (FRACTION_SZ as uN[WIDE_FRACTION]));
 
   // 1a. Flush subnorms to 0.
-  let x_fraction = if x.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { x_fraction };
-  let y_fraction = if y.bexp == uN[EXP_SZ]:0 { uN[WIDE_FRACTION]:0 } else { y_fraction };
+  let x_fraction = if is_zero(x) { uN[WIDE_FRACTION]:0 } else { x_fraction };
+  let y_fraction = if is_zero(y) { uN[WIDE_FRACTION]:0 } else { y_fraction };
 
   // 2. Multiply integer mantissas.
   let fraction = x_fraction * y_fraction;
