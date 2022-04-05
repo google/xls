@@ -1389,8 +1389,10 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
       // Clang generates an ImplicitCast to bool for the parameters to
       //  logical expressions (eg && ||), so logical ops (eg & |) are sufficient
       case clang::BinaryOperatorKind::BO_LAnd:
+      case clang::BinaryOperatorKind::BO_AndAssign:
         return xls::Op::kAnd;
       case clang::BinaryOperatorKind::BO_LOr:
+      case clang::BinaryOperatorKind::BO_OrAssign:
         return xls::Op::kOr;
       default:
         return absl::UnimplementedError(absl::StrFormat(

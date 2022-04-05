@@ -5993,6 +5993,28 @@ TEST_F(TranslatorTest, FileNumbersIncluded) {
   ASSERT_TRUE(absl::StrContains(ir, temp.path().string()));
 }
 
+TEST_F(TranslatorTest, BooleanOrAssign) {
+  const std::string content = R"(
+  #pragma hls_top
+  bool st(bool b) {
+    b |= false;
+    return b;
+  })";
+  Run({{"b", false}}, false, content);
+  Run({{"b", true}}, true, content);
+}
+
+TEST_F(TranslatorTest, BooleanAndAssign) {
+  const std::string content = R"(
+  #pragma hls_top
+  bool st(bool b) {
+    b &= true;
+    return b;
+  })";
+  Run({{"b", true}}, true, content);
+  Run({{"b", false}}, false, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
