@@ -1113,7 +1113,8 @@ absl::StatusOr<InterpValue> EvaluateMatch(Match* expr, InterpBindings* bindings,
 }
 
 absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
-    ImportData* import_data, Module* module, const TypecheckFn& typecheck_fn) {
+    ImportData* import_data, Module* module,
+    const TypecheckModuleFn& typecheck_fn) {
   InterpBindings& b = import_data->GetOrCreateTopLevelBindings(module);
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->GetRootTypeInfo(module));

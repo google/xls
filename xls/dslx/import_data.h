@@ -152,6 +152,7 @@ class ImportData {
   friend std::unique_ptr<ImportData> CreateImportDataPtr(
       std::string, absl::Span<const std::filesystem::path>);
   friend ImportData CreateImportDataForTest();
+  friend std::unique_ptr<ImportData> CreateImportDataPtrForTest();
 
   ImportData(std::string stdlib_path,
              absl::Span<const std::filesystem::path> additional_search_paths)

@@ -222,7 +222,8 @@ absl::StatusOr<InterpValue> EvaluateIndex(Index* expr, InterpBindings* bindings,
 //   module: The top-level module to make bindings for.
 //   typecheck_fn: The function to use to typecheck a module.
 absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
-    ImportData* import_data, Module* module, const TypecheckFn& typecheck_fn);
+    ImportData* import_data, Module* module,
+    const TypecheckModuleFn& typecheck_fn);
 absl::StatusOr<const InterpBindings*> InitializeTopLevelBindings(
     Module* module, AbstractInterpreter* interp);
 

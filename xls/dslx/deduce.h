@@ -32,6 +32,7 @@ namespace xls::dslx {
 // Note: due to transitivity, as a side effect the type_info mapping is filled
 // with all the deductions that were necessary to determine (deduce) the
 // resulting type of `node`.
+// TODO(https://github.com/google/xls/issues/601): 2022-03-22 Make `node` const.
 absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(AstNode* node,
                                                      DeduceCtx* ctx);
 

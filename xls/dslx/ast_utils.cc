@@ -64,6 +64,39 @@ absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(ImportData* import_data,
 
 }  // namespace
 
+bool IsBuiltinFn(Expr* callee) {
+  NameRef* name_ref = dynamic_cast<NameRef*>(callee);
+  if (name_ref == nullptr) {
+    return false;
+  }
+
+  return absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def());
+}
+
+absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {
+  if (!IsBuiltinFn(callee)) {
+    return absl::InvalidArgumentError("Callee is not a builtin function.");
+  }
+
+  NameRef* name_ref = dynamic_cast<NameRef*>(callee);
+  return name_ref->identifier();
+}
+
+absl::StatusOr<Function*> ResolveFunction(Expr* callee, TypeInfo* type_info) {
+  if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
+    return name_ref->owner()->GetFunctionOrError(name_ref->identifier());
+  }
+
+  auto* colon_ref = dynamic_cast<ColonRef*>(callee);
+  XLS_RET_CHECK_NE(colon_ref, nullptr);
+  absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+  XLS_RET_CHECK(import.has_value())
+      << "ColonRef did not refer to an import: " << colon_ref->ToString();
+  absl::optional<const ImportedInfo*> imported_info =
+      type_info->GetImported(*import);
+  return imported_info.value()->module->GetFunctionOrError(colon_ref->attr());
+}
+
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
     return name_ref->owner()->GetProcOrError(name_ref->identifier());

@@ -22,6 +22,7 @@
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
+#include "xls/dslx/type_and_bindings.h"
 
 namespace xls::dslx {
 
@@ -78,13 +79,19 @@ using DeduceFn = std::function<absl::StatusOr<std::unique_ptr<ConcreteType>>(
 // generally used for typechecking parametric instantiations).
 using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 
+// Similar to TypecheckFunctionFn, but for a [parametric] invocation.
+using TypecheckInvocationFn =
+    std::function<absl::StatusOr<TypeAndBindings>(Invocation*, DeduceCtx*)>;
+
 // A single object that contains all the state/callbacks used in the
 // typechecking process.
 class DeduceCtx {
  public:
   DeduceCtx(TypeInfo* type_info, Module* module, DeduceFn deduce_function,
             TypecheckFunctionFn typecheck_function,
-            TypecheckFn typecheck_module, ImportData* import_data);
+            TypecheckModuleFn typecheck_module,
+            TypecheckInvocationFn typecheck_invocation,
+            ImportData* import_data);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
   // Uses the same callbacks as this current context.
@@ -92,9 +99,9 @@ class DeduceCtx {
   // Note that the resulting DeduceCtx has an empty fn_stack.
   std::unique_ptr<DeduceCtx> MakeCtx(TypeInfo* new_type_info,
                                      Module* new_module) const {
-    return std::make_unique<DeduceCtx>(new_type_info, new_module,
-                                       deduce_function_, typecheck_function_,
-                                       typecheck_module_, import_data_);
+    return std::make_unique<DeduceCtx>(
+        new_type_info, new_module, deduce_function_, typecheck_function_,
+        typecheck_module_, typecheck_invocation_, import_data_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
@@ -139,9 +146,14 @@ class DeduceCtx {
     return result;
   }
 
-  const TypecheckFn& typecheck_module() const { return typecheck_module_; }
+  const TypecheckModuleFn& typecheck_module() const {
+    return typecheck_module_;
+  }
   const TypecheckFunctionFn& typecheck_function() const {
     return typecheck_function_;
+  }
+  const TypecheckInvocationFn& typecheck_invocation() const {
+    return typecheck_invocation_;
   }
 
   ImportData* import_data() const { return import_data_; }
@@ -164,11 +176,9 @@ class DeduceCtx {
   // Callback used to enter the top-level deduction routine.
   DeduceFn deduce_function_;
 
-  // Typechecks parametric functions that are not in this module.
   TypecheckFunctionFn typecheck_function_;
-
-  // Callback used to typecheck a module and get its type info (e.g. on import).
-  TypecheckFn typecheck_module_;
+  TypecheckModuleFn typecheck_module_;
+  TypecheckInvocationFn typecheck_invocation_;
 
   // Cache used for imported modules, may be nullptr.
   ImportData* import_data_;
@@ -215,13 +225,6 @@ struct NodeAndUser {
   AstNode* node;
   AstNode* user;
 };
-
-// Parses the AST node values out of the TypeMissingError message.
-//
-// TODO(leary): 2020-12-14 This is totally horrific (laundering these pointer
-// values through Statuses that get thrown as Python exceptions), but it will
-// get us through the port...
-NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s);
 
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing). User will

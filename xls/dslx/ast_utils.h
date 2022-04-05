@@ -21,8 +21,22 @@
 
 namespace xls::dslx {
 
+// Returns true if `callee` refers to a builtin function. If `callee` isn't a
+// NameRef, then this always returns false.
+bool IsBuiltinFn(Expr* callee);
+
+// Returns the name of `callee` if it's a builtin function and an error
+// otherwise.
+absl::StatusOr<std::string> GetBuiltinName(Expr* callee);
+
+// Finds the Function identified by the given node (either NameRef or ColonRef),
+// using the associated ImportData for import Module lookup.
+// The target function must have been typechecked prior to this call.
+absl::StatusOr<Function*> ResolveFunction(Expr* callee, TypeInfo* type_info);
+
 // Finds the Proc identified by the given node (either NameRef or ColonRef),
 // using the associated ImportData for import Module lookup.
+// The target proc must have been typechecked prior to this call.
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info);
 
 // Returns the basis of the given ColonRef; either a Module for a constant

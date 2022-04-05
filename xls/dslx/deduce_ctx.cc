@@ -30,12 +30,15 @@ std::string FnStackEntry::ToReprString() const {
 DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
                      DeduceFn deduce_function,
                      TypecheckFunctionFn typecheck_function,
-                     TypecheckFn typecheck_module, ImportData* import_data)
+                     TypecheckModuleFn typecheck_module,
+                     TypecheckInvocationFn typecheck_invocation,
+                     ImportData* import_data)
     : type_info_(type_info),
       module_(module),
       deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
       typecheck_function_(std::move(typecheck_function)),
       typecheck_module_(std::move(typecheck_module)),
+      typecheck_invocation_(std::move(typecheck_invocation)),
       import_data_(import_data) {}
 
 // Helper that converts the symbolic bindings to a parametric expression
@@ -68,22 +71,6 @@ absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                       lhs.ToErrorString(), rhs.ToErrorString(), message));
 }
 
-NodeAndUser ParseTypeMissingErrorMessage(absl::string_view s) {
-  (void)absl::ConsumePrefix(&s, "TypeMissingError: ");
-  std::vector<absl::string_view> pieces =
-      absl::StrSplit(s, absl::MaxSplits(' ', 3));
-  XLS_CHECK_EQ(pieces.size(), 4);
-  int64_t node = 0;
-  if (pieces[1] != "(nil)") {
-    node = StrTo64Base(pieces[1], 16).value();
-  }
-  int64_t user = 0;
-  if (pieces[2] != "(nil)") {
-    user = StrTo64Base(pieces[2], 16).value();
-  }
-  return {absl::bit_cast<AstNode*>(node), absl::bit_cast<AstNode*>(user)};
-}
-
 absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user) {
   std::string span_string;
   if (user != nullptr) {
@@ -93,7 +80,8 @@ absl::Status TypeMissingErrorStatus(AstNode* node, AstNode* user) {
   }
   return absl::InternalError(
       absl::StrFormat("TypeMissingError: %s%p %p internal error: AST node is "
-                      "missing a corresponding type: %s (%s) defined @ %s",
+                      "missing a corresponding type: %s (%s) defined @ %s. "
+                      "This may be due to recursion, which is not supported.",
                       span_string, node, user, node->ToString(),
                       node->GetNodeTypeName(), SpanToString(node->GetSpan())));
 }

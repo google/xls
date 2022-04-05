@@ -886,20 +886,6 @@ cc_library(
     ],
 )
 
-cc_test(
-    name = "interpreter_test",
-    srcs = ["interpreter_test.cc"],
-    deps = [
-        ":create_import_data",
-        ":interpreter",
-        ":parse_and_typecheck",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
 cc_library(
     name = "deduce_ctx",
     srcs = ["deduce_ctx.cc"],
@@ -908,6 +894,7 @@ cc_library(
         ":concrete_type",
         ":import_routines",
         ":interp_bindings",
+        ":type_and_bindings",
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/strings",
@@ -921,12 +908,14 @@ cc_library(
     hdrs = ["deduce.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         ":builtins_metadata",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":concrete_type",
         ":constexpr_evaluator",
         ":deduce_ctx",
+        ":dslx_builtins",
         ":import_routines",
         ":interp_bindings",
         ":parametric_instantiator",
@@ -962,6 +951,7 @@ cc_library(
     hdrs = ["typecheck.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         ":builtins_metadata",
         ":bytecode",
         ":bytecode_emitter",

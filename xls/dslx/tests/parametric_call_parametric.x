@@ -46,7 +46,7 @@ fn parametric_call_local_parametric() {
   ()
 }
 
-// #2: Test invoking a imported ("ModRef") parametric.
+// #2: Test invoking a imported ("ColonRef") parametric.
 import std
 
 fn dot_product_modref<BITCOUNT: u32, LENGTH: u32,

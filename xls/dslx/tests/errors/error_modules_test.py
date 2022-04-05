@@ -160,15 +160,13 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_self_recursion(self):
     stderr = self._run('xls/dslx/tests/errors/self_recursion.x')
-    self.assertIn('xls/dslx/tests/errors/self_recursion.x:15:4-15:21', stderr)
-    self.assertIn(
-        "Recursion detected while typechecking; name: 'regular_recursion'",
-        stderr)
+    self.assertIn('xls/dslx/tests/errors/self_recursion.x:17:16-17:33', stderr)
+    self.assertIn('This may be due to recursion', stderr)
 
   def test_tail_call(self):
     stderr = self._run('xls/dslx/tests/errors/tail_call.x')
-    self.assertIn('xls/dslx/tests/errors/tail_call.x:15:4-15:5', stderr)
-    self.assertIn("Recursion detected while typechecking; name: 'f'", stderr)
+    self.assertIn('xls/dslx/tests/errors/tail_call.x:16:34-16:35', stderr)
+    self.assertIn('This may be due to recursion', stderr)
 
   def test_let_destructure_same_name(self):
     stderr = self._run('xls/dslx/tests/errors/let_destructure_same_name.x')
@@ -235,8 +233,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_colon_ref_of_type_alias(self):
     stderr = self._run('xls/dslx/tests/errors/colon_ref_of_type_alias.x')
-    self.assertIn("Cannot use '::' on 'F32', it is not an enum or module",
-                  stderr)
+    self.assertIn('ColonRef did not refer to an import', stderr)
 
   def test_cast_int_to_struct(self):
     stderr = self._run('xls/dslx/tests/errors/cast_int_to_struct.x')

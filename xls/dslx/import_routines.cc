@@ -120,9 +120,10 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
                       GetCurrentDirectory().value(), stdlib_path));
 }
 
-absl::StatusOr<const ModuleInfo*> DoImport(
-    const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    ImportData* import_data, const Span& import_span) {
+absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
+                                           const ImportTokens& subject,
+                                           ImportData* import_data,
+                                           const Span& import_span) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {
     return import_data->Get(subject);

@@ -25,7 +25,7 @@
 namespace xls::dslx {
 
 // Type-checking callback lambda.
-using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
+using TypecheckModuleFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 
 // Imports the module identified (globally) by 'subject'.
 //
@@ -44,9 +44,10 @@ using TypecheckFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //
 // Returns:
 //  The imported module information.
-absl::StatusOr<const ModuleInfo*> DoImport(
-    const TypecheckFn& ftypecheck, const ImportTokens& subject,
-    ImportData* import_data, const Span& import_span);
+absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
+                                           const ImportTokens& subject,
+                                           ImportData* import_data,
+                                           const Span& import_span);
 
 }  // namespace xls::dslx
 

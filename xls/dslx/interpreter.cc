@@ -21,6 +21,7 @@
 #include "xls/dslx/builtins.h"
 #include "xls/dslx/evaluate.h"
 #include "xls/dslx/evaluate_sym.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/mangle.h"
 
 namespace xls::dslx {
@@ -211,7 +212,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
     return interp_->CallFnValue(value, args, invocation_span, invocation,
                                 sym_bindings);
   }
-  TypecheckFn GetTypecheckFn() override { return interp_->typecheck_; }
+  TypecheckModuleFn GetTypecheckFn() override { return interp_->typecheck_; }
   bool IsWip(AstNode* node) override { return interp_->IsWip(node); }
   absl::optional<InterpValue> NoteWip(
       AstNode* node, absl::optional<InterpValue> value) override {
@@ -232,7 +233,7 @@ class AbstractInterpreterAdapter : public AbstractInterpreter {
   Interpreter* interp_;
 };
 
-Interpreter::Interpreter(Module* entry_module, TypecheckFn typecheck,
+Interpreter::Interpreter(Module* entry_module, TypecheckModuleFn typecheck,
                          ImportData* import_data, bool run_concolic,
                          FormatPreference trace_format_preference,
                          PostFnEvalHook post_fn_eval_hook)
@@ -437,7 +438,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 }
 
 /* static */ absl::StatusOr<InterpValue> Interpreter::InterpretExpr(
-    Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
+    Module* entry_module, TypeInfo* type_info, TypecheckModuleFn typecheck,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {
@@ -472,7 +473,7 @@ absl::StatusOr<InterpValue> Interpreter::Evaluate(Expr* expr,
 }
 
 /* static */ absl::StatusOr<Bits> Interpreter::InterpretExprToBits(
-    Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
+    Module* entry_module, TypeInfo* type_info, TypecheckModuleFn typecheck,
     ImportData* import_data,
     const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
     const FnCtx* fn_ctx, ConcreteType* type_context) {

@@ -950,16 +950,18 @@ std::string EnumDef::ToString() const {
 // -- class Instantiation
 
 Instantiation::Instantiation(Module* owner, Span span, Expr* callee,
-                             const std::vector<Expr*>& parametrics)
-    : Expr(owner, span), callee_(callee), parametrics_(parametrics) {}
+                             const std::vector<Expr*>& explicit_parametrics)
+    : Expr(owner, span),
+      callee_(callee),
+      explicit_parametrics_(explicit_parametrics) {}
 
 std::string Instantiation::FormatParametrics() const {
-  if (parametrics_.empty()) {
+  if (explicit_parametrics_.empty()) {
     return "";
   }
 
   return absl::StrCat("<",
-                      absl::StrJoin(parametrics_, ", ",
+                      absl::StrJoin(explicit_parametrics_, ", ",
                                     [](std::string* out, Expr* e) {
                                       absl::StrAppend(out, e->ToString());
                                     }),
@@ -969,8 +971,9 @@ std::string Instantiation::FormatParametrics() const {
 // -- class Invocation
 
 Invocation::Invocation(Module* owner, Span span, Expr* callee,
-                       std::vector<Expr*> args, std::vector<Expr*> parametrics)
-    : Instantiation(owner, std::move(span), callee, parametrics),
+                       std::vector<Expr*> args,
+                       std::vector<Expr*> explicit_parametrics)
+    : Instantiation(owner, std::move(span), callee, explicit_parametrics),
       args_(std::move(args)) {}
 
 std::vector<AstNode*> Invocation::GetChildren(bool want_types) const {
@@ -989,8 +992,9 @@ std::string Invocation::FormatArgs() const {
 
 // -- class Spawn
 Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-             Invocation* next, std::vector<Expr*> parametrics, Expr* body)
-    : Instantiation(owner, std::move(span), callee, parametrics),
+             Invocation* next, std::vector<Expr*> explicit_parametrics,
+             Expr* body)
+    : Instantiation(owner, std::move(span), callee, explicit_parametrics),
       config_(config),
       next_(next),
       body_(body) {}
@@ -1005,7 +1009,7 @@ std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
 
 std::string Spawn::ToString() const {
   std::string param_str;
-  if (!parametrics().empty()) {
+  if (!explicit_parametrics().empty()) {
     param_str = FormatParametrics();
   }
 

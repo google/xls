@@ -27,8 +27,15 @@ namespace xls::dslx {
 using TopNode =
     absl::variant<Function*, Proc*, TestFunction*, StructDef*, TypeDef*>;
 
-// Type-checks function f in the given module.
-absl::Status CheckTopNodeInModule(TopNode f, DeduceCtx* ctx);
+// Assigns concrete types and validates such on all elements of `f`, which must
+// be a non-parametric user-defined function.
+absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
+
+// Assigns concrete types and validates such on all elements of the function
+// "invoked" by the given invocation. The target function may be builtin and/or
+// parametric.
+absl::StatusOr<TypeAndBindings> CheckInvocation(Invocation* invocation,
+                                                DeduceCtx* ctx);
 
 // Validates type annotations on all functions within "module".
 //

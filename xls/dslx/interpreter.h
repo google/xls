@@ -53,14 +53,14 @@ class Interpreter {
   //  expr: (Derived parametric) expression to evaluate.
   //  fn_ctx: Current function context.
   static absl::StatusOr<InterpValue> InterpretExpr(
-      Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
+      Module* entry_module, TypeInfo* type_info, TypecheckModuleFn typecheck,
       ImportData* import_data,
       const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
       const FnCtx* fn_ctx = nullptr, ConcreteType* type_context = nullptr);
 
   // The same as above, but ensures the returned value is Bits-typed.
   static absl::StatusOr<Bits> InterpretExprToBits(
-      Module* entry_module, TypeInfo* type_info, TypecheckFn typecheck,
+      Module* entry_module, TypeInfo* type_info, TypecheckModuleFn typecheck,
       ImportData* import_data,
       const absl::flat_hash_map<std::string, InterpValue>& env, Expr* expr,
       const FnCtx* fn_ctx = nullptr, ConcreteType* type_context = nullptr);
@@ -86,8 +86,8 @@ class Interpreter {
   //  post_fn_eval: Optional callback run after function evaluation. See
   //    PostFnEvalHook above.
   Interpreter(
-      Module* entry_module, TypecheckFn typecheck, ImportData* import_data,
-      bool run_concolic = false,
+      Module* entry_module, TypecheckModuleFn typecheck,
+      ImportData* import_data, bool run_concolic = false,
       FormatPreference trace_format_preference = FormatPreference::kDefault,
       PostFnEvalHook post_fn_eval = nullptr);
 
@@ -269,7 +269,7 @@ class Interpreter {
   TypeInfo* current_type_info_;
 
   PostFnEvalHook post_fn_eval_hook_;
-  TypecheckFn typecheck_;
+  TypecheckModuleFn typecheck_;
   ImportData* import_data_;
   bool run_concolic_;
   FormatPreference trace_format_preference_;

@@ -35,8 +35,7 @@ absl::Status Typecheck(absl::string_view text) {
                        ParseAndTypecheck(text, "fake.x", "fake", &import_data));
   // Ensure that we can convert all the type information in the unit tests into
   // its protobuf form.
-  XLS_ASSIGN_OR_RETURN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
-  (void)tip;
+  XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
   return absl::Status();
 }
 
@@ -193,8 +192,8 @@ fn f() -> u32 { id(u32:42) }
 TEST(TypecheckTest, RecursionCausesError) {
   std::string program = "fn f(x: u32) -> u32 { f(x) }";
   EXPECT_THAT(Typecheck(program),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Recursion detected while typechecking")));
+              StatusIs(absl::StatusCode::kInternal,
+                       HasSubstr("This may be due to recursion")));
 }
 
 TEST(TypecheckTest, ParametricRecursionCausesError) {
@@ -910,8 +909,8 @@ fn g() -> Point {
 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("parameter type name: 'Point'; argument type "
-                                 "name: 'OtherPoint'")));
+                       HasSubstr("struct 'Point' structure: Point { x: sN[8], "
+                                 "y: uN[32] } vs struct 'OtherPoint'")));
 }
 
 TEST(TypecheckTest, ParametricWithConstantArrayEllipsis) {
@@ -1223,9 +1222,8 @@ fn g() -> (s8, u32) {
   f(p)
 }
 )"),
-      StatusIs(
-          absl::StatusCode::kInvalidArgument,
-          HasSubstr("argument types are different kinds (tuple vs struct)")));
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("(sN[8], uN[32]) vs struct 'Point' structure")));
 }
 
 TEST(TypecheckStructInstanceTest, SplatWithDuplicate) {

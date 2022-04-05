@@ -34,4 +34,13 @@ ImportData CreateImportDataForTest() {
   return import_data;
 }
 
+std::unique_ptr<ImportData> CreateImportDataPtrForTest() {
+  auto import_data =
+      absl::WrapUnique(new ImportData(xls::kDefaultDslxStdlibPath,
+                                      /*additional_search_paths=*/{}));
+  import_data->SetBytecodeCache(
+      std::make_unique<BytecodeCache>(import_data.get()));
+  return import_data;
+}
+
 }  // namespace xls::dslx

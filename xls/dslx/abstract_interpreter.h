@@ -43,7 +43,7 @@ class AbstractInterpreter {
       const SymbolicBindings* sym_bindings) = 0;
 
   // Returns a typecheck lambda analogous to the DoTypecheck() call above.
-  virtual TypecheckFn GetTypecheckFn() = 0;
+  virtual TypecheckModuleFn GetTypecheckFn() = 0;
 
   // Determines if a node (at the module scope) is in the process of being
   // evaluated -- this lets us detect re-entry (i.e.  a top level constant that

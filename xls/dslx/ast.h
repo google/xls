@@ -1499,7 +1499,7 @@ class Attr : public Expr {
 class Instantiation : public Expr {
  public:
   Instantiation(Module* owner, Span span, Expr* callee,
-                const std::vector<Expr*>& parametrics);
+                const std::vector<Expr*>& explicit_parametrics);
 
   AstNodeKind kind() const override { return AstNodeKind::kInstantiation; }
 
@@ -1510,14 +1510,16 @@ class Instantiation : public Expr {
   //    f<a, b, c>()
   //
   // The expressions a, b, c would be in this sequence.
-  const std::vector<Expr*>& parametrics() const { return parametrics_; }
+  const std::vector<Expr*>& explicit_parametrics() const {
+    return explicit_parametrics_;
+  }
 
  protected:
   std::string FormatParametrics() const;
 
  private:
   Expr* callee_;
-  std::vector<Expr*> parametrics_;
+  std::vector<Expr*> explicit_parametrics_;
 };
 
 // Represents an invocation expression; e.g. `f(a, b, c)` or an implicit
@@ -1525,7 +1527,7 @@ class Instantiation : public Expr {
 class Invocation : public Instantiation {
  public:
   Invocation(Module* owner, Span span, Expr* callee, std::vector<Expr*> args,
-             std::vector<Expr*> parametrics = std::vector<Expr*>({}));
+             std::vector<Expr*> explicit_parametrics = std::vector<Expr*>({}));
 
   AstNodeKind kind() const override { return AstNodeKind::kInvocation; }
 
@@ -1557,7 +1559,7 @@ class Invocation : public Instantiation {
 class Spawn : public Instantiation {
  public:
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
-        Invocation* next, std::vector<Expr*> parametrics, Expr* body);
+        Invocation* next, std::vector<Expr*> explicit_parametrics, Expr* body);
 
   AstNodeKind kind() const override { return AstNodeKind::kSpawn; }
 
@@ -1572,7 +1574,7 @@ class Spawn : public Instantiation {
 
   Invocation* config() { return config_; }
   Invocation* next() { return next_; }
-  bool IsParametric() { return !parametrics().empty(); }
+  bool IsParametric() { return !explicit_parametrics().empty(); }
   Expr* body() { return body_; }
 
  private:
@@ -2171,7 +2173,7 @@ class TestProc : public AstNode {
   Proc* proc() const { return proc_; }
   absl::optional<Span> GetSpan() const override { return proc_->span(); }
 
-  const std::vector<Expr*>& next_args() { return next_args_; }
+  const std::vector<Expr*>& next_args() const { return next_args_; }
 
  private:
   Proc* proc_;
