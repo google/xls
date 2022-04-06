@@ -530,6 +530,7 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandCountGt(index, 0));
     XLS_RETURN_IF_ERROR(VerifyMultidimensionalArrayIndex(
         index->indices(), index->array()->GetType(), index));
+    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(index));
     XLS_ASSIGN_OR_RETURN(Type * indexed_type,
                          GetIndexedElementType(index->array()->GetType(),
                                                index->indices().size()));
@@ -546,6 +547,7 @@ class NodeChecker : public DfsVisitor {
     int64_t width = slice->width();
     XLS_RETURN_IF_ERROR(ExpectOperandHasArrayType(slice, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(slice, 1));
+    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(slice));
     XLS_RETURN_IF_ERROR(ExpectHasArrayType(
         slice, array->GetType()->AsArrayOrDie()->element_type(), width));
     if (array->GetType()->AsArrayOrDie()->size() == 0) {
@@ -745,6 +747,7 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Expected %s to have at least 2 operands", sel->GetName()));
     }
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(sel, /*operand_no=*/0));
+    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(sel));
     int64_t selector_width = sel->selector()->BitCountOrDie();
     if (selector_width != sel->cases().size()) {
       return absl::InternalError(StrFormat("Selector has %d bits for %d cases",
@@ -780,6 +783,7 @@ class NodeChecker : public DfsVisitor {
     }
 
     XLS_RETURN_IF_ERROR(ExpectHasBitsType(sel->selector()));
+    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(sel));
     const int64_t selector_width = sel->selector()->BitCountOrDie();
     const int64_t minimum_selector_width =
         Bits::MinBitCountUnsigned(sel->cases().size() - 1);
@@ -1025,6 +1029,29 @@ class NodeChecker : public DfsVisitor {
           StrFormat("Expected operand %d of %s to have type %s, has type %s.",
                     operand_no, node->GetName(), type->ToString(),
                     node->operand(operand_no)->GetType()->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ExpectDoesNotContainToken(Node* node) {
+    Type* type = node->GetType();
+    if (TypeHasToken(type)) {
+      return absl::InternalError(
+          StrFormat("Expected %s to not contain a token in its type; "
+                    "type is %s",
+                    node->GetName(), type->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status ExpectOperandDoesNotContainToken(Node* node,
+                                                int64_t operand_no) {
+    Type* operand_type = node->operand(operand_no)->GetType();
+    if (TypeHasToken(operand_type)) {
+      return absl::InternalError(
+          StrFormat("Expected operand %d of %s to not contain a token in its "
+                    "type; type is %s",
+                    operand_no, node->GetName(), operand_type->ToString()));
     }
     return absl::OkStatus();
   }

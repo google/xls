@@ -283,18 +283,28 @@ absl::StatusOr<Node*> RollIntoProcPass::ReplaceReceiveWithConditionalReceive(
                                                proc->TokenParam(),
                                                receive_condition,
                                                original_receive->channel_id()));
-  // Tuple the proc state receive value with the ReceiveIf token. If we don't do
-  // it this way then the IR compiler gets mad. Token can't be in proc state.
-  std::vector<Node*> receive_tuple = {new_receive->token(),
-                                      on_condition_false};
-  XLS_ASSIGN_OR_RETURN(auto receive_proc_state,
-                       proc->MakeNode<Tuple>(absl::nullopt, receive_tuple));
-  // Rewire the ReceiveIf into a select with the proc state.
-  std::vector<Node*> next_receive_val = {receive_proc_state, new_receive};
-  XLS_ASSIGN_OR_RETURN(auto receive_select,
-                       proc->MakeNode<Select>(original_receive->loc(),
-                                              receive_condition,
-                                              next_receive_val, absl::nullopt));
+  XLS_ASSIGN_OR_RETURN(
+      auto new_receive_token,
+      proc->MakeNode<TupleIndex>(original_receive->loc(), new_receive, 0));
+  XLS_ASSIGN_OR_RETURN(
+      auto new_receive_value,
+      proc->MakeNode<TupleIndex>(original_receive->loc(), new_receive, 1));
+  XLS_ASSIGN_OR_RETURN(
+      auto receive_select_value,
+      proc->MakeNode<Select>(
+          original_receive->loc(), receive_condition,
+          std::vector<Node*>{on_condition_false, new_receive_value},
+          absl::nullopt));
+  XLS_ASSIGN_OR_RETURN(
+      auto receive_select_token,
+      proc->MakeNode<AfterAll>(
+          original_receive->loc(),
+          std::vector<Node*>{new_receive->token(), new_receive_token}));
+  XLS_ASSIGN_OR_RETURN(
+      auto receive_select,
+      proc->MakeNode<Tuple>(
+          original_receive->loc(),
+          std::vector<Node*>{receive_select_token, receive_select_value}));
   XLS_RETURN_IF_ERROR(original_receive->ReplaceUsesWith(receive_select));
   XLS_RETURN_IF_ERROR(proc->RemoveNode(original_receive));
   return receive_select;
