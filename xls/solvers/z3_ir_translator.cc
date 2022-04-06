@@ -178,20 +178,21 @@ class Z3AbstractEvaluator
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    Function* function) {
+    FunctionBase* function_base) {
+  XLS_RET_CHECK(!function_base->IsBlock());
   Z3_config config = Z3_mk_config();
   Z3_set_param_value(config, "proof", "true");
-  auto translator = absl::WrapUnique(new IrTranslator(config, function));
-  XLS_RETURN_IF_ERROR(function->Accept(translator.get()));
+  auto translator = absl::WrapUnique(new IrTranslator(config, function_base));
+  XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
   return translator;
 }
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    Z3_context ctx, Function* function,
+    Z3_context ctx, FunctionBase* function_base,
     absl::Span<const Z3_ast> imported_params) {
   auto translator =
-      absl::WrapUnique(new IrTranslator(ctx, function, imported_params));
-  XLS_RETURN_IF_ERROR(function->Accept(translator.get()));
+      absl::WrapUnique(new IrTranslator(ctx, function_base, imported_params));
+  XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
   return translator;
 }
 
@@ -202,13 +203,13 @@ absl::Status IrTranslator::Retranslate(
   return xls_function_->Accept(this);
 }
 
-IrTranslator::IrTranslator(Z3_config config, Function* xls_function)
+IrTranslator::IrTranslator(Z3_config config, FunctionBase* xls_function)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
       borrowed_context_(false),
       xls_function_(xls_function) {}
 
-IrTranslator::IrTranslator(Z3_context ctx, Function* xls_function,
+IrTranslator::IrTranslator(Z3_context ctx, FunctionBase* xls_function,
                            absl::Span<const Z3_ast> imported_params)
     : ctx_(ctx),
       borrowed_context_(true),
@@ -227,7 +228,8 @@ Z3_ast IrTranslator::GetTranslation(const Node* source) {
 }
 
 Z3_ast IrTranslator::GetReturnNode() {
-  return GetTranslation(xls_function_->return_value());
+  XLS_CHECK(xls_function_->IsFunction());
+  return GetTranslation(xls_function_->AsFunctionOrDie()->return_value());
 }
 
 Z3_sort_kind IrTranslator::GetValueKind(Z3_ast value) {

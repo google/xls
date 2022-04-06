@@ -45,7 +45,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Creates a translator and uses it to translate the given function into a Z3
   // AST.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      Function* function);
+      FunctionBase* function_base);
 
   // Translates the given function into a Z3 AST using a preexisting context
   // (i.e., that used by another Z3Translator). This binds the given function
@@ -53,7 +53,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // versions of the same function to be compared against the same inputs,
   // usually for equivalence checking.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      Z3_context ctx, Function* function,
+      Z3_context ctx, FunctionBase* function_base,
       absl::Span<const Z3_ast> imported_params);
   ~IrTranslator() override;
 
@@ -161,12 +161,12 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUMul(ArithOp* mul) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
-  Function* xls_function() { return xls_function_; }
+  FunctionBase* xls_function() { return xls_function_; }
 
  private:
-  IrTranslator(Z3_config config, Function* xls_function);
+  IrTranslator(Z3_config config, FunctionBase* xls_function);
 
-  IrTranslator(Z3_context ctx, Function* xls_function,
+  IrTranslator(Z3_context ctx, FunctionBase* xls_function,
                absl::Span<const Z3_ast> imported_params);
 
   // Returns the index with the proper bitwidth for the given array_type.
@@ -254,7 +254,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Parameters already translated in a separate function traversal that should
   // be used as this translation's parameter set.
   absl::optional<absl::Span<const Z3_ast>> imported_params_;
-  Function* xls_function_;
+  FunctionBase* xls_function_;
 };
 
 // Describes a predicate to compute about a subject node in an XLS IR function.
