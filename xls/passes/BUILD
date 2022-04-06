@@ -608,6 +608,25 @@ cc_library(
 )
 
 cc_library(
+    name = "token_provenance_analysis",
+    srcs = ["token_provenance_analysis.cc"],
+    hdrs = ["token_provenance_analysis.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/memory",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:ret_check",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:type",
+    ],
+)
+
+cc_library(
     name = "bdd_function",
     srcs = ["bdd_function.cc"],
     hdrs = ["bdd_function.h"],
@@ -1175,6 +1194,30 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "token_provenance_analysis_test",
+    srcs = ["token_provenance_analysis_test.cc"],
+    deps = [
+        ":token_provenance_analysis",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:channel",
+        "//xls/ir:channel_ops",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:type",
+        "//xls/ir:value",
         "@com_google_googletest//:gtest",
     ],
 )
