@@ -33,6 +33,20 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 
+TEST(FixedPointOfSPO, Simple) {
+  absl::flat_hash_map<std::string, std::string> spo;
+  spo["foo"] = "bar";
+  spo["bar"] = "baz";
+  spo["qux"] = "qux";
+  spo["a"] = "b";
+
+  absl::flat_hash_map<std::string, std::string> result = FixedPointOfSPO(spo);
+  EXPECT_EQ(result.at("foo"), "baz");
+  EXPECT_EQ(result.at("bar"), "baz");
+  EXPECT_EQ(result.at("qux"), "qux");
+  EXPECT_EQ(result.at("a"), "b");
+}
+
 class CsePassTest : public IrTestBase {
  protected:
   CsePassTest() = default;

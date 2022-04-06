@@ -51,8 +51,8 @@ absl::Span<Node* const> GetOperandsForCse(
 
 }  // namespace
 
-absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
-    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+absl::StatusOr<bool> RunCse(FunctionBase* f,
+                            absl::flat_hash_map<Node*, Node*>* replacements) {
   // To improve efficiency, bucket potentially common nodes together. The
   // bucketing is done via an int64_t hash value which is constructed from the
   // op() of the node and the uid's of the node's operands.
@@ -94,6 +94,9 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
             "Replacing %s with equivalent node %s", node->GetName(),
             candidate->GetName());
         XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(candidate));
+        if (replacements != nullptr) {
+          (*replacements)[node] = candidate;
+        }
         changed = true;
         replaced = true;
         break;
@@ -105,6 +108,11 @@ absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
   }
 
   return changed;
+}
+
+absl::StatusOr<bool> CsePass::RunOnFunctionBaseInternal(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+  return RunCse(f, nullptr);
 }
 
 }  // namespace xls
