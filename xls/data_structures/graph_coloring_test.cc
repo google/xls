@@ -43,6 +43,24 @@ std::vector<absl::flat_hash_set<V>> RLFFromMap(
       });
 }
 
+std::vector<absl::flat_hash_set<V>> Z3FromMap(
+    const absl::flat_hash_map<V, absl::flat_hash_set<V>>& neighborhood) {
+  absl::flat_hash_map<V, absl::flat_hash_set<V>> symmetric_neighborhood;
+  absl::flat_hash_set<V> nodes;
+  for (const auto& [node, neighbors] : neighborhood) {
+    for (const auto& neighbor : neighbors) {
+      nodes.insert(node);
+      nodes.insert(neighbor);
+      symmetric_neighborhood[node].insert(neighbor);
+      symmetric_neighborhood[neighbor].insert(node);
+    }
+  }
+
+  return Z3Coloring<V>(nodes, [&](const V& node) -> absl::flat_hash_set<V> {
+    return symmetric_neighborhood.at(node);
+  });
+}
+
 bool IsValidColoring(
     const absl::flat_hash_map<V, absl::flat_hash_set<V>>& neighborhood,
     const std::vector<absl::flat_hash_set<V>>& coloring) {
@@ -75,6 +93,8 @@ TEST(GraphColoringTest, Bipartite) {
   graph["c"].insert("w");
   EXPECT_LE(RLFFromMap(graph).size(), 2);
   EXPECT_TRUE(IsValidColoring(graph, RLFFromMap(graph)));
+  EXPECT_LE(Z3FromMap(graph).size(), 2);
+  EXPECT_TRUE(IsValidColoring(graph, Z3FromMap(graph)));
 }
 
 TEST(GraphColoringTest, Cycle) {
@@ -86,11 +106,15 @@ TEST(GraphColoringTest, Cycle) {
   graph["e"].insert("a");
   EXPECT_EQ(RLFFromMap(graph).size(), 3);
   EXPECT_TRUE(IsValidColoring(graph, RLFFromMap(graph)));
+  EXPECT_EQ(Z3FromMap(graph).size(), 3);
+  EXPECT_TRUE(IsValidColoring(graph, Z3FromMap(graph)));
   graph.erase("e");
   graph["d"].erase("e");
   graph["d"].insert("a");
   EXPECT_EQ(RLFFromMap(graph).size(), 2);
   EXPECT_TRUE(IsValidColoring(graph, RLFFromMap(graph)));
+  EXPECT_EQ(Z3FromMap(graph).size(), 2);
+  EXPECT_TRUE(IsValidColoring(graph, Z3FromMap(graph)));
 }
 
 TEST(GraphColoringTest, Wheel) {
@@ -113,6 +137,8 @@ TEST(GraphColoringTest, Wheel) {
   graph["center"].erase("e");
   EXPECT_EQ(RLFFromMap(graph).size(), 3);
   EXPECT_TRUE(IsValidColoring(graph, RLFFromMap(graph)));
+  EXPECT_EQ(Z3FromMap(graph).size(), 3);
+  EXPECT_TRUE(IsValidColoring(graph, Z3FromMap(graph)));
 }
 
 }  // namespace

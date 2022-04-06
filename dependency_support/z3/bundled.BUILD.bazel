@@ -266,6 +266,9 @@ cc_library(
         ],
     ),
     deps = [":z3lib"],
+    includes = [
+        "src/api",
+    ],
     visibility = ["//visibility:public"],
 )
 
