@@ -739,6 +739,15 @@ class ProcBuilder : public BuilderBase {
 // the builder interface.
 class TokenlessProcBuilder : public ProcBuilder {
  public:
+  // Builder for xls::Procs. 'should_verify' is a test-only argument which can
+  // be set to false in tests that wish to build malformed IR. Proc starts with
+  // no state elements.
+  TokenlessProcBuilder(absl::string_view name, absl::string_view token_name,
+                       Package* package, bool should_verify = true)
+      : ProcBuilder(name, token_name, package, should_verify) {}
+
+  // Builder which starts with a single state element.
+  // TODO(https://github.com/google/xls/issues/548): Remove.
   TokenlessProcBuilder(absl::string_view name, const Value& init_value,
                        absl::string_view token_name,
                        absl::string_view state_name, Package* package,
@@ -747,10 +756,14 @@ class TokenlessProcBuilder : public ProcBuilder {
                     should_verify) {}
   virtual ~TokenlessProcBuilder() = default;
 
-  // Build the proc using the given BValue as the recurrent state
-  // respectively. The recurrent token value is a constructed as an AfterAll
-  // operation whose operands are all of the tokens from the
-  // send(if)/receive(if) operations in the proc.
+  // Build the proc using the given BValues as the recurrent state. The
+  // recurrent token value is a constructed as an AfterAll operation whose
+  // operands are all of the tokens from the send(if)/receive(if) operations in
+  // the proc.
+  absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state);
+
+  // Build method for a proc with a single state element.
+  // TODO(https://github.com/google/xls/issues/548): Remove.
   absl::StatusOr<Proc*> Build(BValue next_state);
 
   // Add a receive operation. The type of the data value received is determined

@@ -758,14 +758,14 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
   BValue dir = pb.Receive(ch_dir);
   BValue a = pb.ReceiveIf(ch_a, dir);
   BValue b = pb.ReceiveIf(ch_b, pb.Not(dir));
   pb.Send(ch_out, pb.Select(dir, {b, a}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(/*next_state=*/std::vector<BValue>()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
@@ -835,14 +835,14 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
       Channel * ch_b,
       package.CreateStreamingChannel("b", ChannelOps::kSendOnly, u32));
 
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
   BValue dir = pb.Receive(ch_dir);
   BValue in = pb.Receive(ch_in);
   pb.SendIf(ch_a, dir, in);
   pb.SendIf(ch_b, pb.Not(dir), in);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(/*next_state=*/std::vector<BValue>()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
@@ -960,15 +960,15 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
         Channel * ch_out,
         package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-    TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                            /*token_name=*/"tkn", /*state_name=*/"st",
-                            &package);
+    TokenlessProcBuilder pb(TestName(),
+                            /*token_name=*/"tkn", &package);
 
     BValue in_val = pb.Receive(ch_in);
 
     BValue buffered_in_val = pb.Not(pb.Not(in_val));
     pb.Send(ch_out, buffered_in_val);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+    XLS_ASSIGN_OR_RETURN(Proc * proc,
+                         pb.Build(/*next_state=*/std::vector<BValue>()));
 
     XLS_VLOG(2) << "Simple streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -1508,7 +1508,7 @@ class SimpleRunningCounterProcTestSweepFixture
                             &package);
 
     BValue in_val = pb.Receive(ch_in);
-    BValue state = pb.GetUniqueStateParam();
+    BValue state = pb.GetStateParam(0);
 
     BValue next_state = pb.Add(in_val, state, absl::nullopt, "increment");
 
@@ -1701,16 +1701,15 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
         Channel * ch_out,
         package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-    TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                            /*token_name=*/"tkn", /*state_name=*/"st",
-                            &package);
+    TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
 
     BValue sum_val = pb.Add(in0_val, in1_val);
     pb.Send(ch_out, sum_val);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+    XLS_ASSIGN_OR_RETURN(Proc * proc,
+                         pb.Build(/*next_state=*/std::vector<BValue>()));
 
     XLS_VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -2117,7 +2116,7 @@ TEST_F(MultiInputPipelinedProcTest, IdleSignalNoFlops) {
 }
 
 // Fixture used to test pipelined BlockConversion on a multi input block,
-// that has state.
+// that has multiple state elements.
 class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
  protected:
   absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
@@ -2138,19 +2137,21 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
         package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
     Value initial_state = Value(UBits(0, 32));
-    TokenlessProcBuilder pb(TestName(), /*init_value=*/initial_state,
-                            /*token_name=*/"tkn", /*state_name=*/"st",
-                            &package);
+    TokenlessProcBuilder pb(TestName(),
+                            /*token_name=*/"tkn", &package);
+
+    BValue accum0 = pb.StateElement("accum0", Value(UBits(0, 32)));
+    BValue accum1 = pb.StateElement("accum1", Value(UBits(0, 32)));
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
-    BValue state = pb.GetUniqueStateParam();
 
-    BValue increment = pb.Add(in0_val, in1_val);
-    BValue next_state = pb.Add(state, increment);
+    BValue next_accum0 = pb.Add(accum0, in0_val);
+    BValue next_accum1 = pb.Add(accum1, in1_val);
+    BValue sum = pb.Add(next_accum0, next_accum1);
 
-    pb.Send(ch_out, next_state);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(next_state));
+    pb.Send(ch_out, sum);
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build({next_accum0, next_accum1}));
 
     XLS_VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -2352,8 +2353,7 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
       package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
 
   Value initial_state = Value(UBits(0, 32));
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
   BValue in_val = pb.Receive(in);
 
@@ -2363,7 +2363,8 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
   pb.SendIf(out0, pb.ULt(in_val, two), in_val);
   pb.SendIf(out1, pb.ULt(in_val, three), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(/*next_state=*/std::vector<BValue>()));
 
   XLS_VLOG_LINES(2, proc->DumpIr());
 
@@ -2426,7 +2427,7 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
-    BValue state = pb.GetUniqueStateParam();
+    BValue state = pb.GetStateParam(0);
 
     BValue increment = pb.Add(in0_val, in1_val);
     BValue next_state = pb.Add(state, increment);
@@ -2674,13 +2675,14 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
           "out_streaming", ChannelOps::kSendOnly, u32,
           /*initial_values=*/{}, FlowControl::kReadyValid));
 
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(),
+                          /*token_name=*/"tkn", &package);
   BValue in0 = pb.Receive(in_single_val);
   BValue in1 = pb.Receive(in_streaming_rv);
   pb.Send(out_single_val, in0);
   pb.Send(out_streaming_rv, in1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(/*next_state=*/std::vector<BValue>()));
 
   EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
   EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
@@ -2749,14 +2751,15 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
           "out_streaming", ChannelOps::kSendOnly, u32,
           /*initial_values=*/{}, FlowControl::kReadyValid));
 
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(),
+                          /*token_name=*/"tkn", &package);
   BValue in0 = pb.Receive(in_single_val);
   BValue in1 = pb.Receive(in_streaming_rv);
   pb.Send(out_single_val, in0);
   pb.Send(out_streaming_rv, in1);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(/*next_state=*/std::vector<BValue>()));
 
   EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
   EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());

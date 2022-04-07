@@ -142,7 +142,8 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
 }
 
 // Returns the nodes of `f` which must be scheduled in the first stage of a
-// pipeline. For functions this is parameters. For procs, this is receive nodes.
+// pipeline. For functions this is parameters. For procs, this is receive nodes
+// and next state nodes.
 // TODO(meheff): 2021/09/22 Enable receives to be scheduled in cycles other than
 // the initial cycle.
 std::vector<Node*> FirstStageNodes(FunctionBase* f) {
@@ -156,7 +157,9 @@ std::vector<Node*> FirstStageNodes(FunctionBase* f) {
       // TODO(tedhong): 2021/10/14 Make this more flexible (ex. for ii>N),
       // where the next state node must be scheduled before a specific state
       // but not necessarily the 1st stage.
-      if (node->Is<Receive>() || (node == proc->GetUniqueNextState())) {
+      if (node->Is<Receive>() ||
+          std::find(proc->NextState().begin(), proc->NextState().end(), node) !=
+              proc->NextState().end()) {
         nodes.push_back(node);
       }
     }

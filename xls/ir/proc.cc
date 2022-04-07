@@ -51,6 +51,15 @@ std::string Proc::DumpIr() const {
   return res;
 }
 
+absl::StatusOr<int64_t> Proc::GetStateParamIndex(Param* param) const {
+  auto it = std::find(StateParams().begin(), StateParams().end(), param);
+  if (it == StateParams().end()) {
+    return absl::InvalidArgumentError(
+        "Given param is a state parameter of this proc: " + param->ToString());
+  }
+  return std::distance(StateParams().begin(), it);
+}
+
 absl::Status Proc::SetNextToken(Node* next) {
   if (!next->GetType()->IsToken()) {
     return absl::InvalidArgumentError(absl::StrFormat(

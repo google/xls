@@ -59,9 +59,15 @@ class Proc : public FunctionBase {
   // Returns the token parameter node.
   Param* TokenParam() const { return params().at(0); }
 
+  int64_t GetStateElementCount() const { return StateParams().size(); }
+
   // Returns the state parameter node(s).
   absl::Span<Param* const> StateParams() const { return params().subspan(1); }
   Param* GetStateParam(int64_t index) const { return StateParams().at(index); }
+
+  // Returns the element index (in the vector of state parameters) of the given
+  // state parameter.
+  absl::StatusOr<int64_t> GetStateParamIndex(Param* param) const;
 
   // Returns the node holding the next recurrent token value.
   Node* NextToken() const { return next_token_; }

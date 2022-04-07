@@ -19,6 +19,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_join.h"
 #include "xls/codegen/bdd_io_analysis.h"
 #include "xls/codegen/codegen_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
@@ -302,7 +303,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
     Node* initial_output_ready_node, const ResetInfo& reset_info,
     absl::Span<Node*> pipeline_valid_nodes,
     absl::Span<PipelineStageRegisters> pipeline_data_registers,
-    absl::optional<StateRegister>& state_register, Block* block) {
+    absl::Span<absl::optional<StateRegister>> state_registers, Block* block) {
   // Create enable signals for each pipeline stage.
   //   - the last enable signal is the initial_output_ready_node.
   //     enable_signals[N] = initial_output_ready_node
@@ -389,18 +390,21 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
 
     // Also update the state register and share the enable signal
     // with the data registers.
-    if (stage == 0 && state_register.has_value()) {
-      XLS_ASSIGN_OR_RETURN(
-          RegisterWrite * new_reg_write,
-          block->MakeNode<RegisterWrite>(
-              /*loc=*/state_register->reg_write->loc(),
-              /*data=*/state_register->reg_write->data(),
-              /*load_enable=*/data_enable,
-              /*reset=*/state_register->reg_write->reset(),
-              /*reg=*/state_register->reg_write->GetRegister()));
-
-      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
-      state_register->reg_write = new_reg_write;
+    if (stage == 0) {
+      for (std::optional<StateRegister>& state_register : state_registers) {
+        if (state_register.has_value()) {
+          XLS_ASSIGN_OR_RETURN(
+              RegisterWrite * new_reg_write,
+              block->MakeNode<RegisterWrite>(
+                  /*loc=*/state_register->reg_write->loc(),
+                  /*data=*/state_register->reg_write->data(),
+                  /*load_enable=*/data_enable,
+                  /*reset=*/state_register->reg_write->reset(),
+                  /*reg=*/state_register->reg_write->GetRegister()));
+          XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
+          state_register->reg_write = new_reg_write;
+        }
+      }
     }
   }
 
@@ -426,7 +430,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
 //
 static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
     Node* all_active_outputs_ready, Node* all_active_inputs_valid,
-    absl::optional<StateRegister>& state_register_opt, Block* block) {
+    absl::Span<absl::optional<StateRegister>> state_registers, Block* block) {
   std::vector<Node*> operands = {all_active_outputs_ready,
                                  all_active_inputs_valid};
   XLS_ASSIGN_OR_RETURN(
@@ -434,18 +438,19 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
       block->MakeNodeWithName<NaryOp>(absl::nullopt, operands, Op::kAnd,
                                       "pipeline_enable"));
 
-  if (state_register_opt.has_value()) {
-    StateRegister& state_register = state_register_opt.value();
-    XLS_ASSIGN_OR_RETURN(RegisterWrite * new_reg_write,
-                         block->MakeNode<RegisterWrite>(
-                             /*loc=*/state_register.reg_write->loc(),
-                             /*data=*/state_register.reg_write->data(),
-                             /*load_enable=*/pipeline_enable,
-                             /*reset=*/state_register.reg_write->reset(),
-                             /*reg=*/state_register.reg_write->GetRegister()));
-
-    XLS_RETURN_IF_ERROR(block->RemoveNode(state_register.reg_write));
-    state_register.reg_write = new_reg_write;
+  for (std::optional<StateRegister>& state_register : state_registers) {
+    if (state_register.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          RegisterWrite * new_reg_write,
+          block->MakeNode<RegisterWrite>(
+              /*loc=*/state_register->reg_write->loc(),
+              /*data=*/state_register->reg_write->data(),
+              /*load_enable=*/pipeline_enable,
+              /*reset=*/state_register->reg_write->reset(),
+              /*reg=*/state_register->reg_write->GetRegister()));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
+      state_register->reg_write = new_reg_write;
+    }
   }
 
   return pipeline_enable;
@@ -565,7 +570,9 @@ struct StreamingIoPipeline {
   std::vector<SingleValueInput> single_value_inputs;
   std::vector<SingleValueOutput> single_value_outputs;
   std::vector<PipelineStageRegisters> pipeline_registers;
-  absl::optional<StateRegister> state_register;
+  // `state_registers` includes an element for each state element in the
+  // proc. The vector element is nullopt if the state element is an empty tuple.
+  std::vector<absl::optional<StateRegister>> state_registers;
   absl::optional<OutputPort*> idle_port;
 
   // Node in block that represents when all output channels (that
@@ -1594,9 +1601,12 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After Valids";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  if (streaming_io.state_register.has_value()) {
-    XLS_RETURN_IF_ERROR(UpdateStateRegisterWithReset(
-        reset_info, streaming_io.state_register.value(), block));
+  for (std::optional<StateRegister>& state_register :
+       streaming_io.state_registers) {
+    if (state_register.has_value()) {
+      XLS_RETURN_IF_ERROR(UpdateStateRegisterWithReset(
+          reset_info, state_register.value(), block));
+    }
   }
 
   XLS_VLOG(3) << "After State Updated";
@@ -1626,22 +1636,24 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
   XLS_VLOG(3) << "After Outputs Ready";
   XLS_VLOG_LINES(3, block->DumpIr());
 
-  XLS_ASSIGN_OR_RETURN(Node * input_stage_enable,
-                       UpdatePipelineWithBubbleFlowControl(
-                           all_active_outputs_ready, reset_info,
-                           absl::MakeSpan(pipelined_valids),
-                           absl::MakeSpan(streaming_io.pipeline_registers),
-                           streaming_io.state_register, block));
+  XLS_ASSIGN_OR_RETURN(
+      Node * input_stage_enable,
+      UpdatePipelineWithBubbleFlowControl(
+          all_active_outputs_ready, reset_info,
+          absl::MakeSpan(pipelined_valids),
+          absl::MakeSpan(streaming_io.pipeline_registers),
+          absl::MakeSpan(streaming_io.state_registers), block));
 
   XLS_VLOG(3) << "After Bubble Flow Control (pipeline)";
   XLS_VLOG_LINES(3, block->DumpIr());
 
   // Handle flow control for the single pipeline stage case.
   if (streaming_io.pipeline_registers.empty()) {
-    XLS_ASSIGN_OR_RETURN(input_stage_enable,
-                         UpdateSingleStagePipelineWithFlowControl(
-                             input_stage_enable, pipelined_valids.at(0),
-                             streaming_io.state_register, block));
+    XLS_ASSIGN_OR_RETURN(
+        input_stage_enable,
+        UpdateSingleStagePipelineWithFlowControl(
+            input_stage_enable, pipelined_valids.at(0),
+            absl::MakeSpan(streaming_io.state_registers), block));
   }
 
   XLS_VLOG(3) << "After Single Stage Flow Control (state)";
@@ -1777,17 +1789,16 @@ class CloneNodesIntoBlockHandler {
       : is_proc_(proc_or_function->IsProc()),
         function_base_(proc_or_function),
         token_param_(nullptr),
-        state_param_(nullptr),
-        next_state_node_(nullptr),
         options_(options),
         block_(block) {
     if (is_proc_) {
       Proc* proc = function_base_->AsProcOrDie();
       token_param_ = proc->TokenParam();
-      state_param_ = proc->GetUniqueStateParam();
-      next_state_node_ = proc->GetUniqueNextState();
+      for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+        next_state_nodes_[proc->GetNextStateElement(i)] = i;
+      }
+      result_.state_registers.resize(proc->GetStateElementCount());
     }
-
     if (stage_count > 1) {
       result_.pipeline_registers.resize(stage_count - 1);
     }
@@ -1805,8 +1816,11 @@ class CloneNodesIntoBlockHandler {
             XLS_ASSIGN_OR_RETURN(next_node, HandleTokenParam(node));
           } else {
             XLS_RET_CHECK_EQ(stage, 0);
-            XLS_RET_CHECK(node == state_param_);
-            XLS_ASSIGN_OR_RETURN(next_node, HandleStateParam(node));
+            XLS_ASSIGN_OR_RETURN(
+                int64_t index,
+                node->function_base()->AsProcOrDie()->GetStateParamIndex(
+                    node->As<Param>()));
+            XLS_ASSIGN_OR_RETURN(next_node, HandleStateParam(node, index));
           }
         } else {
           XLS_RET_CHECK_EQ(stage, 0);
@@ -1818,10 +1832,11 @@ class CloneNodesIntoBlockHandler {
       } else if (node->Is<Send>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_ASSIGN_OR_RETURN(next_node, HandleSendNode(node));
-      } else if (node == next_state_node_) {
+      } else if (next_state_nodes_.contains(node)) {
         XLS_RET_CHECK(is_proc_);
         XLS_RET_CHECK_EQ(stage, 0);
-        XLS_ASSIGN_OR_RETURN(next_node, HandleNextStateNode(node));
+        XLS_ASSIGN_OR_RETURN(
+            next_node, HandleNextStateNode(node, next_state_nodes_.at(node)));
       } else {
         XLS_ASSIGN_OR_RETURN(next_node, HandleGeneralNode(node));
       }
@@ -1895,16 +1910,16 @@ class CloneNodesIntoBlockHandler {
     return block_->MakeNode<AfterAll>(node->loc(), std::vector<Node*>());
   }
 
-  // Replace state parameter with Literal empty tuple.
-  absl::StatusOr<Node*> HandleStateParam(Node* node) {
+  // Replace state parameter at the given index with Literal empty tuple.
+  absl::StatusOr<Node*> HandleStateParam(Node* node, int64_t index) {
     Proc* proc = function_base_->AsProcOrDie();
 
     if (node->GetType()->GetFlatBitCount() == 0) {
       if (node->GetType() != proc->package()->GetTupleType({})) {
         return absl::UnimplementedError(
-            absl::StrFormat("Proc has no state, but (state type is not"
-                            "empty tuple), instead got %s.",
-                            node->GetType()->ToString()));
+            absl::StrFormat("Proc has zero-width state element %d, but type is "
+                            "not empty tuple, instead got %s.",
+                            index, node->GetType()->ToString()));
       }
 
       return block_->MakeNode<xls::Literal>(node->loc(), Value::Tuple({}));
@@ -1914,7 +1929,7 @@ class CloneNodesIntoBlockHandler {
     // and updated.  That register should be created with the
     // state parameter's name.  See UpdateStateRegisterWithReset().
     std::string name = block_->UniquifyNodeName(
-        absl::StrCat("__", proc->GetUniqueStateParam()->name()));
+        absl::StrCat("__", proc->GetStateParam(index)->name()));
 
     XLS_ASSIGN_OR_RETURN(Register * reg,
                          block_->AddRegister(name, node->GetType()));
@@ -1925,9 +1940,9 @@ class CloneNodesIntoBlockHandler {
         block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
                                                /*name=*/reg->name()));
 
-    result_.state_register =
-        StateRegister{std::string(proc->GetUniqueStateParam()->name()),
-                      proc->GetUniqueInitValue(), reg,
+    result_.state_registers[index] =
+        StateRegister{std::string(proc->GetStateParam(index)->name()),
+                      proc->GetInitValueElement(index), reg,
                       /*reg_write=*/nullptr, reg_read};
 
     return reg_read;
@@ -2029,7 +2044,7 @@ class CloneNodesIntoBlockHandler {
   }
 
   // Clone the operation and then write to the state register.
-  absl::StatusOr<Node*> HandleNextStateNode(Node* node) {
+  absl::StatusOr<Node*> HandleNextStateNode(Node* node, int64_t index) {
     XLS_ASSIGN_OR_RETURN(Node * next_state, HandleGeneralNode(node));
 
     if (node->GetType()->GetFlatBitCount() == 0) {
@@ -2045,22 +2060,22 @@ class CloneNodesIntoBlockHandler {
       return next_state;
     }
 
-    if (!result_.state_register.has_value()) {
+    if (!result_.state_registers.at(index).has_value()) {
       return absl::InternalError(
           absl::StrFormat("Expected next state node %s to be dependent "
                           "on state",
                           node->ToString()));
     }
 
+    StateRegister& state_register = result_.state_registers.at(index).value();
     // There should only be one next state node.
-    XLS_CHECK_EQ(result_.state_register->reg_write, nullptr);
+    XLS_CHECK_EQ(state_register.reg_write, nullptr);
 
-    XLS_ASSIGN_OR_RETURN(
-        result_.state_register->reg_write,
-        block_->MakeNode<RegisterWrite>(node->loc(), next_state,
-                                        /*load_enable=*/absl::nullopt,
-                                        /*reset=*/absl::nullopt,
-                                        result_.state_register->reg));
+    XLS_ASSIGN_OR_RETURN(state_register.reg_write,
+                         block_->MakeNode<RegisterWrite>(
+                             node->loc(), next_state,
+                             /*load_enable=*/absl::nullopt,
+                             /*reset=*/absl::nullopt, state_register.reg));
 
     // For propagation in the fanout, the next_state data in is used
     // instead of the register.
@@ -2168,8 +2183,9 @@ class CloneNodesIntoBlockHandler {
   bool is_proc_;
   FunctionBase* function_base_;
   Node* token_param_;
-  Node* state_param_;
-  Node* next_state_node_;
+  std::vector<Node*> state_params_;
+  // A map from each next state node to it's index in the state element vector.
+  absl::flat_hash_map<Node*, int64_t> next_state_nodes_;
 
   const CodegenOptions& options_;
 
@@ -2443,12 +2459,18 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
 
   // In a combinational module, the proc cannot have any state to avoid
   // combinational loops. That is, the loop state must be an empty tuple.
-  if (proc->GetUniqueStateType() != proc->package()->GetTupleType({})) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Proc must have no state (state type is empty tuple) "
-                        "when lowering to a combinational block. "
-                        "Proc state is: %s",
-                        proc->GetUniqueStateType()->ToString()));
+  if (proc->GetStateElementCount() > 1 &&
+      !std::all_of(proc->StateParams().begin(), proc->StateParams().end(),
+                   [&](Param* p) {
+                     return p->GetType() == proc->package()->GetTupleType({});
+                   })) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Proc must have no state (or state type is all empty tuples) when "
+        "lowering to a combinational block. Proc state type is: {%s}",
+        absl::StrJoin(proc->StateParams(), ", ",
+                      [](std::string* out, Param* p) {
+                        absl::StrAppend(out, p->GetType()->ToString());
+                      })));
   }
 
   Block* block = proc->package()->AddBlock(

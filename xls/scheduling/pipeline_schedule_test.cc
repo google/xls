@@ -589,7 +589,7 @@ TEST_F(PipelineScheduleTest, ProcSchedule) {
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -598,6 +598,63 @@ TEST_F(PipelineScheduleTest, ProcSchedule) {
 
   EXPECT_EQ(schedule.length(), 3);
 
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, StatelessProcSchedule) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue rcv = pb.Receive(in_ch);
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  BValue send = pb.Send(out_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(std::vector<BValue>({})));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(1)));
+
+  EXPECT_EQ(schedule.length(), 3);
+
+  EXPECT_EQ(schedule.cycle(rcv.node()), 0);
+  EXPECT_EQ(schedule.cycle(send.node()), 2);
+}
+
+TEST_F(PipelineScheduleTest, MultistateProcSchedule) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue st0 = pb.StateElement("st0", Value(UBits(0, 16)));
+  BValue st1 = pb.StateElement("st1", Value(UBits(0, 16)));
+  BValue rcv = pb.Receive(in_ch);
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  BValue send = pb.Send(out_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({pb.Add(st0, rcv), pb.Subtract(st1, rcv)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().clock_period_ps(1)));
+
+  EXPECT_EQ(schedule.length(), 3);
+
+  EXPECT_EQ(schedule.cycle(st0.node()), 0);
+  EXPECT_EQ(schedule.cycle(st1.node()), 0);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
@@ -618,7 +675,7 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
   BValue rcv = pb.ReceiveIf(in_ch, cond);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -649,7 +706,7 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
   BValue rcv = pb.ReceiveIf(in_ch, cond, absl::nullopt, "rcv");
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
 
   ASSERT_THAT(
       PipelineSchedule::Run(proc, TestDelayEstimator(),
@@ -677,8 +734,7 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   BValue rcv = pb.Receive(ch_in, pb.GetTokenParam());
   BValue send = pb.Send(ch_out, /*token=*/pb.TupleIndex(rcv, 0),
                         /*data=*/pb.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(send, pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, pb.GetStateParam(0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -709,7 +765,7 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   BValue out = pb.Negate(pb.Not(pb.Negate(pb.Not(pb.Negate(rcv)))));
   BValue send = pb.Send(out_ch, out);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,

@@ -1432,12 +1432,16 @@ BValue TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
   return asrt;
 }
 
-absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
+absl::StatusOr<Proc*> TokenlessProcBuilder::Build(
+    absl::Span<const BValue> next_state) {
   if (tokens_.empty()) {
     return ProcBuilder::Build(GetTokenParam(), next_state);
-  } else {
-    return ProcBuilder::Build(AfterAll(tokens_), next_state);
   }
+  return ProcBuilder::Build(AfterAll(tokens_), next_state);
+}
+
+absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
+  return Build(std::vector<BValue>({next_state}));
 }
 
 BValue BlockBuilder::Param(absl::string_view name, Type* type,

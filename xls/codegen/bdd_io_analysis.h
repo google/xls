@@ -23,7 +23,6 @@
 namespace xls {
 
 // Determines if streaming outputs are mutually exclusive.
-// into equivalence classes.
 //
 // TODO(tedhong): 2022-02-09 Add analysis of I/O dependencies
 // TODO(tedhong): 2022-02-09 Add additional exclusivity analysis
