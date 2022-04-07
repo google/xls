@@ -435,6 +435,61 @@ struct ActivationNode {
   std::optional<Node*> stall_condition;
 };
 
+// Verifies that any data-dependency from a receive node to any other
+// side-effecting node also includes a token path. This is required by proc
+// inlining to ensure the receive executes before the dependent side-effecting
+// node in the proc thread after inlining.
+absl::Status VerifyTokenDependencies(Proc* proc) {
+  // For each node in the proc, this is the set of receives which are
+  // predecessors of the node.
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Receive*>> predecessors;
+  // For each node in the proc, this is the set of receives which are
+  // predecessors of the node along paths with tokens.
+  absl::flat_hash_map<Node*, absl::flat_hash_set<Receive*>> token_predecessors;
+
+  XLS_VLOG(4) << "VerifyTokenDependencies:";
+  for (Node* node : TopoSort(proc)) {
+    predecessors[node] = {};
+    token_predecessors[node] = {};
+    for (Node* operand : node->operands()) {
+      predecessors[node].insert(predecessors.at(operand).begin(),
+                                predecessors.at(operand).end());
+      if (TypeHasToken(operand->GetType())) {
+        token_predecessors[node].insert(token_predecessors.at(operand).begin(),
+                                        token_predecessors.at(operand).end());
+      }
+    }
+
+    XLS_VLOG(4) << absl::StrFormat(
+        "Receive predecessors of %s      : {%s}", node->GetName(),
+        absl::StrJoin(predecessors.at(node), ", ", NodeFormatter));
+    XLS_VLOG(4) << absl::StrFormat(
+        "Receive token predecessors of %s: {%s}", node->GetName(),
+        absl::StrJoin(token_predecessors.at(node), ", ", NodeFormatter));
+
+    // For side-effecting operations, the receives which are data predecessors
+    // of `node` must be a subset of the token predecessors of `node`.
+    if (TypeHasToken(node->GetType()) && OpIsSideEffecting(node->op())) {
+      for (Receive* predecessor : predecessors.at(node)) {
+        if (!token_predecessors.at(node).contains(predecessor)) {
+          return absl::UnimplementedError(
+              absl::StrFormat("Node %s is data-dependent on receive %s but no "
+                              "token path exists between them",
+                              node->GetName(), predecessor->GetName()));
+        }
+      }
+    }
+
+    if (node->Is<Receive>()) {
+      Receive* receive = node->As<Receive>();
+      predecessors[node].insert(receive);
+      token_predecessors[node].insert(receive);
+      continue;
+    }
+  }
+  return absl::OkStatus();
+}
+
 // Abstraction representing a proc thread. A proc thread contains the logic
 // required to virtually evaluate a proc (the "inlined proc") within another
 // proc (the "container proc"). An activation bit is threaded through the proc's
@@ -449,6 +504,8 @@ class ProcThread {
     ProcThread proc_thread;
     proc_thread.inlined_proc_ = inlined_proc;
     proc_thread.container_proc_ = container_proc;
+
+    XLS_RETURN_IF_ERROR(VerifyTokenDependencies(inlined_proc));
 
     // Create the state element to hold the state of the inlined proc.
     XLS_ASSIGN_OR_RETURN(proc_thread.proc_state_,

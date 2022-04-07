@@ -2267,9 +2267,7 @@ TEST_F(NewProcInliningPassTest, RandomProcNetworks) {
   }
 }
 
-// TODO(meheff): 2022/4/4 Add check for a data-depedency between send/receives
-// without a token dependency.
-TEST_F(NewProcInliningPassTest, DISABLED_DataDependencyWithoutTokenDependency) {
+TEST_F(NewProcInliningPassTest, DataDependencyWithoutTokenDependency) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -2307,10 +2305,9 @@ TEST_F(NewProcInliningPassTest, DISABLED_DataDependencyWithoutTokenDependency) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
-
-  EXPECT_EQ(p->procs().size(), 1);
-  EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
+  EXPECT_THAT(Run(p.get(), /*top=*/"A"),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("no token path exists")));
 }
 
 }  // namespace
