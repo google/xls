@@ -96,7 +96,7 @@ TEST_F(RollIntoProcPassTest, NoCountedFor) {
                                proc_state_type));
 
   BValue lit1 = pb.Literal(UBits(1, 32));
-  BValue adder = pb.Add(pb.GetStateParam(), lit1);
+  BValue adder = pb.Add(pb.GetUniqueStateParam(), lit1);
   BValue out = pb.Send(ch1, pb.GetTokenParam(), adder);
   BValue after_all = pb.AfterAll({out,  pb.TupleIndex(in, 0)});
   BValue next_state = adder;
@@ -133,10 +133,10 @@ TEST_F(RollIntoProcPassTest, NoReceive) {
   BValue accumulator = pb.Literal(ZeroOfType(proc_state_type));
 
   BValue result =
-      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetStateParam()});
+      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetUniqueStateParam()});
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({out});
-  BValue next_state = pb.GetStateParam();
+  BValue next_state = pb.GetUniqueStateParam();
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(false));
@@ -171,7 +171,7 @@ TEST_F(RollIntoProcPassTest, NoSend) {
   BValue accumulator = pb.Literal(ZeroOfType(proc_state_type));
 
   BValue result =
-      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetStateParam()});
+      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetUniqueStateParam()});
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0)});
   BValue next_state = result;
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));

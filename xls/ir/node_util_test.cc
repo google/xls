@@ -203,9 +203,9 @@ TEST_F(NodeUtilTest, ChannelNodes) {
   ProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", &p);
   BValue rcv = b.Receive(ch0, b.GetTokenParam());
   BValue send = b.Send(ch1, b.GetTokenParam(), b.Literal(Value(UBits(42, 32))));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc,
-      b.Build(b.AfterAll({b.TupleIndex(rcv, 0), send}), b.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           b.Build(b.AfterAll({b.TupleIndex(rcv, 0), send}),
+                                   b.GetUniqueStateParam()));
 
   EXPECT_TRUE(IsChannelNode(rcv.node()));
   EXPECT_TRUE(IsChannelNode(send.node()));

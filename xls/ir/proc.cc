@@ -88,7 +88,7 @@ absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
   }
   for (int64_t i = 0; i < state_param_names.size(); ++i) {
     XLS_RETURN_IF_ERROR(
-        AppendStateElement(state_param_names[i], init_values[i]));
+        AppendStateElement(state_param_names[i], init_values[i]).status());
   }
   return absl::OkStatus();
 }
@@ -108,16 +108,16 @@ absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
         state_param_names.size(), next_state.size(), init_values.size()));
   }
   for (int64_t i = 0; i < state_param_names.size(); ++i) {
-    XLS_RETURN_IF_ERROR(AppendStateElement(state_param_names[i], init_values[i],
-                                           next_state[i]));
+    XLS_RETURN_IF_ERROR(
+        AppendStateElement(state_param_names[i], init_values[i], next_state[i])
+            .status());
   }
   return absl::OkStatus();
 }
 
-absl::Status Proc::ReplaceStateElement(int64_t index,
-                                       absl::string_view state_param_name,
-                                       const Value& init_value,
-                                       std::optional<Node*> next_state) {
+absl::StatusOr<Param*> Proc::ReplaceStateElement(
+    int64_t index, absl::string_view state_param_name, const Value& init_value,
+    std::optional<Node*> next_state) {
   // Copy name to a string and value to avoid the use-after-free footgun of
   // `state_param_name` or `init_value` referring to the existing to-be-removed
   // state element.
@@ -142,17 +142,16 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
   return absl::OkStatus();
 }
 
-absl::Status Proc::AppendStateElement(absl::string_view state_param_name,
-                                      const Value& init_value,
-                                      std::optional<Node*> next_state) {
+absl::StatusOr<Param*> Proc::AppendStateElement(
+    absl::string_view state_param_name, const Value& init_value,
+    std::optional<Node*> next_state) {
   return InsertStateElement(StateParams().size(), state_param_name, init_value,
                             next_state);
 }
 
-absl::Status Proc::InsertStateElement(int64_t index,
-                                      absl::string_view state_param_name,
-                                      const Value& init_value,
-                                      std::optional<Node*> next_state) {
+absl::StatusOr<Param*> Proc::InsertStateElement(
+    int64_t index, absl::string_view state_param_name, const Value& init_value,
+    std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, StateParams().size());
   XLS_ASSIGN_OR_RETURN(
       Param * param,
@@ -172,7 +171,7 @@ absl::Status Proc::InsertStateElement(int64_t index,
     next_state_.insert(next_state_.begin() + index, param);
   }
   init_values_.insert(init_values_.begin() + index, init_value);
-  return absl::OkStatus();
+  return param;
 }
 
 absl::Status Proc::SetUniqueNextState(Node* next) {
@@ -184,7 +183,8 @@ absl::Status Proc::ReplaceUniqueState(absl::string_view state_param_name,
                                       Node* next_state,
                                       const Value& init_value) {
   XLS_RET_CHECK_EQ(StateParams().size(), 1);
-  return ReplaceStateElement(0, state_param_name, init_value, next_state);
+  return ReplaceStateElement(0, state_param_name, init_value, next_state)
+      .status();
 }
 
 absl::StatusOr<Proc*> Proc::Clone(

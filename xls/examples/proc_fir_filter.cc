@@ -98,8 +98,8 @@ absl::StatusOr<Proc*> CreateFirFilter(absl::string_view name,
   BValue shiftreg_slicer =
       pb.Literal(UBits(0, 32), absl::nullopt, "shiftreg_slicer");
 
-  BValue x_slice =
-      pb.ArraySlice(pb.GetStateParam(), shiftreg_slicer, kernel_value.size()-1);
+  BValue x_slice = pb.ArraySlice(pb.GetUniqueStateParam(), shiftreg_slicer,
+                                 kernel_value.size() - 1);
   BValue new_x = pb.Array({pb.TupleIndex(in, 1)}, kernel_type->element_type(),
                           absl::nullopt, "new_x");
   BValue x = pb.ArrayConcat({new_x, x_slice}, absl::nullopt, "x");

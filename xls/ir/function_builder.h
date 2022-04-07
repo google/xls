@@ -642,7 +642,13 @@ class FunctionBuilder : public BuilderBase {
 class ProcBuilder : public BuilderBase {
  public:
   // Builder for xls::Procs. 'should_verify' is a test-only argument which can
-  // be set to false in tests that wish to build malformed IR.
+  // be set to false in tests that wish to build malformed IR. Proc starts with
+  // no state elements.
+  ProcBuilder(absl::string_view name, absl::string_view token_name,
+              Package* package, bool should_verify = true);
+
+  // Builder for xls::Procs which starts with a single state element.
+  // TODO(https://github.com/google/xls/issues/548): Remove.
   ProcBuilder(absl::string_view name, const Value& init_value,
               absl::string_view token_name, absl::string_view state_name,
               Package* package, bool should_verify = true);
@@ -651,17 +657,39 @@ class ProcBuilder : public BuilderBase {
   // Returns the Proc being constructed.
   Proc* proc() const;
 
-  // Returns the Param BValue for the state or token parameter. Unlike
+  // Returns the Param BValue for the state or token parameters. Unlike
   // BuilderBase::Param this does add a Param node to the Proc. Rather the state
   // and token parameters are added to the Proc at construction time and these
   // methods return references to these parameters.
-  BValue GetStateParam() const { return state_param_; }
   BValue GetTokenParam() const { return token_param_; }
+  BValue GetStateParam(int64_t index) const { return state_params_.at(index); }
+
+  // Return the unique state element. Check fails if the proc does not have
+  // exactly one state element.
+  // TODO(https://github.com/google/xls/issues/548): Remove.
+  BValue GetUniqueStateParam() const {
+    XLS_CHECK_EQ(state_params_.size(), 1);
+    return state_params_.at(0);
+  }
 
   // Build the proc using the given BValues as the recurrent token and state
-  // respectively.
+  // respectively. The proc must only have a single state element.
+  // TODO(https://github.com/google/xls/issues/548): Remove.
   absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
 
+  // Build the proc using the given BValues as the recurrent token and next
+  // state values respectively. The number of recurrent state eleemnts in
+  // `next_state` must match the number of state parameters.
+  absl::StatusOr<Proc*> Build(BValue token,
+                              absl::Span<const BValue> next_state);
+
+  // Adds a state element to the proc with the given initial value. Returns the
+  // newly added state parameter.
+  BValue StateElement(absl::string_view name, const Value initial_value,
+                      absl::optional<SourceLocation> loc = absl::nullopt);
+
+  // Overriden Param method is explicitly disabled (returns an error). Use
+  // StateElement method to add state elements.
   BValue Param(absl::string_view name, Type* type,
                absl::optional<SourceLocation> loc = absl::nullopt) override;
 
@@ -693,8 +721,8 @@ class ProcBuilder : public BuilderBase {
   // The BValue of the token parameter (parameter 0).
   BValue token_param_;
 
-  // The BValue of the state parameter (parameter 1).
-  BValue state_param_;
+  // The BValues of the state parameters (parameter 1 and up).
+  std::vector<BValue> state_params_;
 };
 
 // A derived ProcBuilder which automatically manages tokens internally.  This

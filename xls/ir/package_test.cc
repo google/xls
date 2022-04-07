@@ -351,7 +351,7 @@ TEST_F(PackageTest, ChannelRemoval) {
                                               p.GetBitsType(32)));
   TokenlessProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", &p);
   b.Send(ch0, b.Literal(Value(UBits(42, 32))));
-  XLS_ASSERT_OK(b.Build(b.GetStateParam()).status());
+  XLS_ASSERT_OK(b.Build(b.GetUniqueStateParam()).status());
 
   Package other_p("other");
   XLS_ASSERT_OK_AND_ASSIGN(

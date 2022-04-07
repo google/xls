@@ -218,7 +218,7 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
   BValue in1 = pb.Receive(in_streaming_rv);
   pb.Send(out_single_val, in0);
   pb.Send(out_streaming_rv, in1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
   EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());

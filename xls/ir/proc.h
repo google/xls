@@ -29,6 +29,13 @@ namespace xls {
 // TODO(meheff): Add link to documentation when we have some.
 class Proc : public FunctionBase {
  public:
+  // Constructor for a proc with a no state.
+  Proc(absl::string_view name, absl::string_view token_param_name,
+       Package* package)
+      : FunctionBase(name, package),
+        next_token_(AddNode(std::make_unique<Param>(
+            absl::nullopt, token_param_name, package->GetTokenType(), this))) {}
+
   // Constructor for a proc with a single state element.
   Proc(absl::string_view name, const Value& init_value,
        absl::string_view token_param_name, absl::string_view state_param_name,
@@ -95,8 +102,8 @@ class Proc : public FunctionBase {
   // Replace the state element at the given index with a new state parameter,
   // initial value, and next state value. If `next_state` is not given then the
   // next state node for this state element is set to the newly created state
-  // parameter node.
-  absl::Status ReplaceStateElement(
+  // parameter node. Returns the newly created parameter node.
+  absl::StatusOr<Param*> ReplaceStateElement(
       int64_t index, absl::string_view state_param_name,
       const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 
@@ -108,13 +115,15 @@ class Proc : public FunctionBase {
   // Appends a state element with the given parameter name, next state value,
   // and initial value. If `next_state` is not given then the next state node
   // for this state element is set to the newly created state parameter node.
-  absl::Status AppendStateElement(
+  // Returns the newly created parameter node.
+  absl::StatusOr<Param*> AppendStateElement(
       absl::string_view state_param_name, const Value& init_value,
       std::optional<Node*> next_state = std::nullopt);
 
   // Adds a state element at the given index. Current state elements at the
-  // given index or higher will be shifted up.
-  absl::Status InsertStateElement(
+  // given index or higher will be shifted up. Returns the newly created
+  // parameter node.
+  absl::StatusOr<Param*> InsertStateElement(
       int64_t index, absl::string_view state_param_name,
       const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 

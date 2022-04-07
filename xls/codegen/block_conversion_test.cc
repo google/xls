@@ -765,7 +765,7 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
   BValue b = pb.ReceiveIf(ch_b, pb.Not(dir));
   pb.Send(ch_out, pb.Select(dir, {b, a}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
@@ -842,7 +842,7 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
   pb.SendIf(ch_a, dir, in);
   pb.SendIf(ch_b, pb.Not(dir), in);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Block * block,
@@ -968,7 +968,7 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
 
     BValue buffered_in_val = pb.Not(pb.Not(in_val));
     pb.Send(ch_out, buffered_in_val);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetStateParam()));
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
     XLS_VLOG(2) << "Simple streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -1508,7 +1508,7 @@ class SimpleRunningCounterProcTestSweepFixture
                             &package);
 
     BValue in_val = pb.Receive(ch_in);
-    BValue state = pb.GetStateParam();
+    BValue state = pb.GetUniqueStateParam();
 
     BValue next_state = pb.Add(in_val, state, absl::nullopt, "increment");
 
@@ -1710,7 +1710,7 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
 
     BValue sum_val = pb.Add(in0_val, in1_val);
     pb.Send(ch_out, sum_val);
-    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetStateParam()));
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
     XLS_VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
@@ -2144,7 +2144,7 @@ class MultiInputWithStatePipelinedProcTest : public ProcConversionTestFixture {
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
-    BValue state = pb.GetStateParam();
+    BValue state = pb.GetUniqueStateParam();
 
     BValue increment = pb.Add(in0_val, in1_val);
     BValue next_state = pb.Add(state, increment);
@@ -2363,7 +2363,7 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
   pb.SendIf(out0, pb.ULt(in_val, two), in_val);
   pb.SendIf(out1, pb.ULt(in_val, three), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_VLOG_LINES(2, proc->DumpIr());
 
@@ -2426,7 +2426,7 @@ class MultiIOWithStatePipelinedProcTest : public ProcConversionTestFixture {
 
     BValue in0_val = pb.Receive(ch_in0);
     BValue in1_val = pb.Receive(ch_in1);
-    BValue state = pb.GetStateParam();
+    BValue state = pb.GetUniqueStateParam();
 
     BValue increment = pb.Add(in0_val, in1_val);
     BValue next_state = pb.Add(state, increment);
@@ -2680,7 +2680,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
   BValue in1 = pb.Receive(in_streaming_rv);
   pb.Send(out_single_val, in0);
   pb.Send(out_streaming_rv, in1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
   EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());
@@ -2756,7 +2756,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
   pb.Send(out_single_val, in0);
   pb.Send(out_streaming_rv, in1);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
   EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());

@@ -163,7 +163,7 @@ class NewProcInliningPassTest : public IrTestBase {
     ProcBuilder b(name, Value::Tuple({}), "tkn", "st", p);
     BValue rcv = b.Receive(in, b.GetTokenParam());
     BValue send = b.Send(out, b.TupleIndex(rcv, 0), b.TupleIndex(rcv, 1));
-    return b.Build(send, b.GetStateParam());
+    return b.Build(send, b.GetUniqueStateParam());
   }
 
   // Make a proc which receives data on channel `in` and sends back the data on
@@ -175,8 +175,8 @@ class NewProcInliningPassTest : public IrTestBase {
     ProcBuilder b(name,
                   Value::Tuple({Value(UBits(0, 32)), Value(UBits(0, 32))}),
                   "tkn", "st", p);
-    BValue cnt = b.TupleIndex(b.GetStateParam(), 0);
-    BValue data = b.TupleIndex(b.GetStateParam(), 1);
+    BValue cnt = b.TupleIndex(b.GetUniqueStateParam(), 0);
+    BValue data = b.TupleIndex(b.GetUniqueStateParam(), 1);
 
     BValue cnt_eq_0 = b.Eq(cnt, b.Literal(UBits(0, 32)));
     BValue cnt_last = b.Eq(cnt, b.Literal(UBits(delay - 1, 32)));
@@ -201,7 +201,7 @@ class NewProcInliningPassTest : public IrTestBase {
     BValue rcv = b.Receive(in, b.GetTokenParam());
     BValue data = b.TupleIndex(rcv, 1);
     BValue send = b.Send(out, b.TupleIndex(rcv, 0), b.Add(data, data));
-    return b.Build(send, b.GetStateParam());
+    return b.Build(send, b.GetUniqueStateParam());
   }
 
   // Make a proc which receives data on channel `a_in` and sends the data on
@@ -221,7 +221,7 @@ class NewProcInliningPassTest : public IrTestBase {
     BValue rcv_b = b.Receive(b_in, send_a);
     BValue send_b =
         b.Send(b_out, b.TupleIndex(rcv_b, 0), b.TupleIndex(rcv_b, 1));
-    return b.Build(send_b, b.GetStateParam());
+    return b.Build(send_b, b.GetUniqueStateParam());
   }
 
   // Make a proc which loops `iteration` times. It receives on the first
@@ -256,8 +256,8 @@ class NewProcInliningPassTest : public IrTestBase {
     ProcBuilder b(
         name, ZeroOfType(p->GetTupleType({input_ch->type(), input_ch->type()})),
         "tkn", "st", p);
-    BValue i = b.TupleIndex(b.GetStateParam(), 0, loc, "i");
-    BValue accum = b.TupleIndex(b.GetStateParam(), 1, loc, "accum");
+    BValue i = b.TupleIndex(b.GetUniqueStateParam(), 0, loc, "i");
+    BValue accum = b.TupleIndex(b.GetUniqueStateParam(), 1, loc, "accum");
 
     BValue zero = b.Literal(UBits(0, bit_count), loc, "zero");
     BValue one = b.Literal(UBits(1, bit_count), loc, "one");
@@ -305,7 +305,7 @@ class NewProcInliningPassTest : public IrTestBase {
     BValue send_x_minus_y =
         b.Send(x_minus_y_out, send_x_plus_y, b.Subtract(x, y));
 
-    return b.Build(send_x_minus_y, b.GetStateParam());
+    return b.Build(send_x_minus_y, b.GetUniqueStateParam());
   }
 
   // Make a proc which receives data values `x` and `y` and sends out the sum.
@@ -321,7 +321,7 @@ class NewProcInliningPassTest : public IrTestBase {
     BValue y = b.TupleIndex(y_rcv, 1);
     BValue send_out = b.Send(out, b.TupleIndex(y_rcv, 0), b.Add(x, y));
 
-    return b.Build(send_out, b.GetStateParam());
+    return b.Build(send_out, b.GetUniqueStateParam());
   }
 
   // Make a proc which receives a tuple of data and loops twice accumulating the
@@ -349,9 +349,9 @@ class NewProcInliningPassTest : public IrTestBase {
         Value::Tuple({Value(UBits(0, 1)), Value(UBits(0, x_bit_count)),
                       Value(UBits(0, y_bit_count))}),
         "tkn", "st", p);
-    BValue cnt = b.TupleIndex(b.GetStateParam(), 0);
-    BValue x_accum = b.TupleIndex(b.GetStateParam(), 1);
-    BValue y_accum = b.TupleIndex(b.GetStateParam(), 2);
+    BValue cnt = b.TupleIndex(b.GetUniqueStateParam(), 0);
+    BValue x_accum = b.TupleIndex(b.GetUniqueStateParam(), 1);
+    BValue y_accum = b.TupleIndex(b.GetUniqueStateParam(), 2);
 
     BValue rcv_x_y = b.Receive(in, b.GetTokenParam());
     BValue rcv_x_y_data = b.TupleIndex(rcv_x_y, 1);
@@ -391,7 +391,7 @@ TEST_F(NewProcInliningPassTest, SingleProc) {
   ProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", p.get());
   BValue rcv = b.Receive(ch_in, b.GetTokenParam());
   BValue send = b.Send(ch_out, b.TupleIndex(rcv, 0), b.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send, b.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send, b.GetUniqueStateParam()));
 
   EXPECT_THAT(Run(p.get(), proc->name()), IsOkAndHolds(false));
 }
@@ -488,7 +488,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
   BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
   BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
                             ab.TupleIndex(rcv_from_b, 1));
-  XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+  XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
 
   XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
 
@@ -560,7 +560,7 @@ TEST_F(NewProcInliningPassTest, NestedProcDelayedPassThrough) {
   BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
   BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
                             ab.Add(in_data, ab.TupleIndex(rcv_from_b, 1)));
-  XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+  XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
 
   XLS_ASSERT_OK(
       MakeDelayedLoopbackProc("B", /*delay=*/3, a_to_b, b_to_a, p.get())
@@ -643,11 +643,11 @@ TEST_F(NewProcInliningPassTest, NestedProcsTrivialInnerLoop) {
     //    st = !st
     ProcBuilder bb("B", Value(UBits(1, 1)), "tkn", "st", p.get());
     BValue rcv_from_a =
-        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetStateParam());
+        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetUniqueStateParam());
     BValue send_to_a =
         bb.SendIf(b_to_a, bb.TupleIndex(rcv_from_a, 0),
-                  bb.Not(bb.GetStateParam()), bb.Literal(UBits(42, 32)));
-    XLS_ASSERT_OK(bb.Build(send_to_a, bb.Not(bb.GetStateParam())));
+                  bb.Not(bb.GetUniqueStateParam()), bb.Literal(UBits(42, 32)));
+    XLS_ASSERT_OK(bb.Build(send_to_a, bb.Not(bb.GetUniqueStateParam())));
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -678,14 +678,15 @@ TEST_F(NewProcInliningPassTest, NestedProcsIota) {
     BValue rcv_from_b = ab.Receive(b_to_a, ab.GetTokenParam());
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
                               ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   {
     ProcBuilder bb("B", Value(UBits(42, 32)), "tkn", "st", p.get());
-    BValue send_to_a = bb.Send(b_to_a, bb.GetTokenParam(), bb.GetStateParam());
+    BValue send_to_a =
+        bb.Send(b_to_a, bb.GetTokenParam(), bb.GetUniqueStateParam());
     XLS_ASSERT_OK(bb.Build(
-        send_to_a, bb.Add(bb.GetStateParam(), bb.Literal(UBits(1, 32)))));
+        send_to_a, bb.Add(bb.GetUniqueStateParam(), bb.Literal(UBits(1, 32)))));
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -715,17 +716,17 @@ TEST_F(NewProcInliningPassTest, NestedProcsOddIota) {
     BValue rcv_from_b = ab.Receive(b_to_a, ab.GetTokenParam());
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
                               ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   {
     ProcBuilder bb("B", Value(UBits(42, 32)), "tkn", "st", p.get());
-    BValue send_to_a =
-        bb.SendIf(b_to_a, bb.GetTokenParam(),
-                  bb.BitSlice(bb.GetStateParam(), /*start=*/0, /*width=*/1),
-                  bb.GetStateParam());
+    BValue send_to_a = bb.SendIf(
+        b_to_a, bb.GetTokenParam(),
+        bb.BitSlice(bb.GetUniqueStateParam(), /*start=*/0, /*width=*/1),
+        bb.GetUniqueStateParam());
     XLS_ASSERT_OK(bb.Build(
-        send_to_a, bb.Add(bb.GetStateParam(), bb.Literal(UBits(1, 32)))));
+        send_to_a, bb.Add(bb.GetUniqueStateParam(), bb.Literal(UBits(1, 32)))));
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -769,14 +770,17 @@ TEST_F(NewProcInliningPassTest, SynchronizedNestedProcs) {
     //      send(out, y)
     //    st = !st
     ProcBuilder ab("A", Value(UBits(0, 1)), "tkn", "st", p.get());
-    BValue rcv_in = ab.ReceiveIf(ch_in, ab.GetTokenParam(), ab.GetStateParam());
-    BValue send_to_b = ab.SendIf(a_to_b, ab.TupleIndex(rcv_in, 0),
-                                 ab.GetStateParam(), ab.TupleIndex(rcv_in, 1));
-    BValue rcv_from_b = ab.ReceiveIf(b_to_a, send_to_b, ab.GetStateParam());
+    BValue rcv_in =
+        ab.ReceiveIf(ch_in, ab.GetTokenParam(), ab.GetUniqueStateParam());
+    BValue send_to_b =
+        ab.SendIf(a_to_b, ab.TupleIndex(rcv_in, 0), ab.GetUniqueStateParam(),
+                  ab.TupleIndex(rcv_in, 1));
+    BValue rcv_from_b =
+        ab.ReceiveIf(b_to_a, send_to_b, ab.GetUniqueStateParam());
     BValue send_out =
-        ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.GetStateParam(),
-                  ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.Not(ab.GetStateParam())));
+        ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0),
+                  ab.GetUniqueStateParam(), ab.TupleIndex(rcv_from_b, 1));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.Not(ab.GetUniqueStateParam())));
   }
 
   {
@@ -790,11 +794,11 @@ TEST_F(NewProcInliningPassTest, SynchronizedNestedProcs) {
     //    st = !st
     ProcBuilder bb("B", Value(UBits(0, 1)), "tkn", "st", p.get());
     BValue rcv_from_a =
-        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetStateParam());
+        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetUniqueStateParam());
     BValue send_to_a = bb.SendIf(
-        b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.GetStateParam(),
+        b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.GetUniqueStateParam(),
         bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
-    XLS_ASSERT_OK(bb.Build(send_to_a, bb.Not(bb.GetStateParam())));
+    XLS_ASSERT_OK(bb.Build(send_to_a, bb.Not(bb.GetUniqueStateParam())));
   }
 
   EXPECT_EQ(p->procs().size(), 2);
@@ -838,8 +842,8 @@ TEST_F(NewProcInliningPassTest, NestedProcsNontrivialInnerLoop) {
     //   snd(x)
     ProcBuilder bb("B", Value::Tuple({Value(UBits(0, 2)), Value(UBits(0, 32))}),
                    "tkn", "st", p.get());
-    BValue cnt = bb.TupleIndex(bb.GetStateParam(), 0);
-    BValue accum = bb.TupleIndex(bb.GetStateParam(), 1);
+    BValue cnt = bb.TupleIndex(bb.GetUniqueStateParam(), 0);
+    BValue accum = bb.TupleIndex(bb.GetUniqueStateParam(), 1);
     BValue cnt_eq_0 = bb.Eq(cnt, bb.Literal(UBits(0, 2)));
     BValue cnt_eq_3 = bb.Eq(cnt, bb.Literal(UBits(3, 2)));
 
@@ -946,7 +950,7 @@ TEST_F(NewProcInliningPassTest, SequentialNestedProcsPassThrough) {
 
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_c, 0),
                               ab.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1015,7 +1019,7 @@ TEST_F(NewProcInliningPassTest, SequentialNestedLoopingProcsWithState) {
 
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_d, 0),
                               ab.TupleIndex(rcv_from_d, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1078,7 +1082,7 @@ TEST_F(NewProcInliningPassTest, SequentialNestedProcsWithLoops) {
 
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_c, 0),
                               ab.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1140,8 +1144,8 @@ TEST_F(NewProcInliningPassTest, DoubleNestedLoops) {
     //    cnt = !cnt
     ProcBuilder bb("B", Value::Tuple({Value(UBits(1, 1)), Value(UBits(0, 32))}),
                    "tkn", "st", p.get());
-    BValue cnt = bb.TupleIndex(bb.GetStateParam(), 0);
-    BValue accum = bb.TupleIndex(bb.GetStateParam(), 1);
+    BValue cnt = bb.TupleIndex(bb.GetUniqueStateParam(), 0);
+    BValue accum = bb.TupleIndex(bb.GetUniqueStateParam(), 1);
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.GetTokenParam(), cnt);
     BValue next_accum = bb.Add(accum, bb.TupleIndex(rcv_from_a, 1),
                                absl::nullopt, "B_accum_next");
@@ -1170,8 +1174,8 @@ TEST_F(NewProcInliningPassTest, DoubleNestedLoops) {
     //   cnt += 1
     ProcBuilder cb("C", Value::Tuple({Value(UBits(0, 2)), Value(UBits(0, 32))}),
                    "tkn", "st", p.get());
-    BValue cnt = cb.TupleIndex(cb.GetStateParam(), 0);
-    BValue accum = cb.TupleIndex(cb.GetStateParam(), 1);
+    BValue cnt = cb.TupleIndex(cb.GetUniqueStateParam(), 0);
+    BValue accum = cb.TupleIndex(cb.GetUniqueStateParam(), 1);
     BValue cnt_eq_0 = cb.Eq(cnt, cb.Literal(UBits(0, 2)));
     BValue cnt_eq_3 = cb.Eq(cnt, cb.Literal(UBits(3, 2)));
 
@@ -1249,7 +1253,7 @@ TEST_F(NewProcInliningPassTest, MultiIO) {
                               ab.TupleIndex(rcv_sum, 1));
     BValue send_diff =
         ab.Send(x_minus_y_out, send_sum, ab.TupleIndex(rcv_diff, 1));
-    XLS_ASSERT_OK(ab.Build(send_diff, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_diff, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(MakeSumAndDifferenceProc("B", pass_x, pass_y, x_plus_y,
@@ -1304,7 +1308,7 @@ TEST_F(NewProcInliningPassTest, InlinedProcsWithExternalStreamingIO) {
     BValue rcv_sum = ab.Receive(x_plus_y, send_x);
     BValue send_sum = ab.Send(x_plus_y_out, ab.TupleIndex(rcv_sum, 0),
                               ab.TupleIndex(rcv_sum, 1));
-    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetUniqueStateParam()));
   }
 
   // Proc "B" will be inlined and has internal communication with "A" (pass_x
@@ -1361,7 +1365,7 @@ TEST_F(NewProcInliningPassTest, InlinedProcsWithExternalSingleValueIO) {
     BValue rcv_sum = ab.Receive(x_plus_y, send_x);
     BValue send_sum = ab.Send(x_plus_y_out, ab.TupleIndex(rcv_sum, 0),
                               ab.TupleIndex(rcv_sum, 1));
-    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetUniqueStateParam()));
   }
 
   // Proc "B" will be inlined and has internal communication with "A" (pass_x
@@ -1419,7 +1423,7 @@ TEST_F(NewProcInliningPassTest, SingleValueAndStreamingChannels) {
     BValue rcv_sum = ab.Receive(pass_sum, send_sv);
     BValue send_sum =
         ab.Send(sum_out, ab.TupleIndex(rcv_sum, 0), ab.TupleIndex(rcv_sum, 1));
-    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_sum, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(MakeSumProc("B", pass_x, pass_sv, pass_sum, p.get()));
@@ -1483,7 +1487,7 @@ TEST_F(NewProcInliningPassTest, TriangleProcNetwork) {
 
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_c, 0),
                               ab.TupleIndex(rcv_from_c, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   {
@@ -1494,7 +1498,7 @@ TEST_F(NewProcInliningPassTest, TriangleProcNetwork) {
     BValue send_to_b = bb.Send(b_to_a, bb.TupleIndex(rcv_a, 0), rcv_data);
     BValue send_to_c =
         bb.Send(b_to_c, send_to_b, bb.Shll(rcv_data, bb.Literal(UBits(1, 32))));
-    XLS_ASSERT_OK(bb.Build(send_to_c, bb.GetStateParam()));
+    XLS_ASSERT_OK(bb.Build(send_to_c, bb.GetUniqueStateParam()));
   }
 
   {
@@ -1507,7 +1511,7 @@ TEST_F(NewProcInliningPassTest, TriangleProcNetwork) {
 
     BValue send = cb.Send(c_to_a, cb.TupleIndex(rcv_b, 0),
                           cb.Add(rcv_a_data, rcv_b_data));
-    XLS_ASSERT_OK(cb.Build(send, cb.GetStateParam()));
+    XLS_ASSERT_OK(cb.Build(send, cb.GetUniqueStateParam()));
   }
 
   EXPECT_EQ(p->procs().size(), 3);
@@ -1551,9 +1555,9 @@ TEST_F(NewProcInliningPassTest, DelayedReceive) {
     //    st = 1
     ProcBuilder bb("B", Value(UBits(0, 1)), "tkn", "st", p.get());
     BValue rcv_from_a =
-        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetStateParam());
+        bb.ReceiveIf(a_to_b, bb.GetTokenParam(), bb.GetUniqueStateParam());
     BValue send_to_a = bb.SendIf(
-        b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.GetStateParam(),
+        b_to_a, bb.TupleIndex(rcv_from_a, 0), bb.GetUniqueStateParam(),
         bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
     XLS_ASSERT_OK(bb.Build(send_to_a, bb.Literal(UBits(1, 1))));
   }
@@ -1601,10 +1605,11 @@ TEST_F(NewProcInliningPassTest, DataLoss) {
   BValue in_data = ab.TupleIndex(rcv_in, 1);
   BValue send_to_b = ab.Send(a_to_b, ab.TupleIndex(rcv_in, 0), in_data);
 
-  BValue rcv_from_b = ab.ReceiveIf(b_to_a, send_to_b, ab.GetStateParam());
-  BValue send_out = ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0),
-                              ab.GetStateParam(), ab.TupleIndex(rcv_from_b, 1));
-  XLS_ASSERT_OK(ab.Build(send_out, ab.Not(ab.GetStateParam())));
+  BValue rcv_from_b = ab.ReceiveIf(b_to_a, send_to_b, ab.GetUniqueStateParam());
+  BValue send_out =
+      ab.SendIf(ch_out, ab.TupleIndex(rcv_from_b, 0), ab.GetUniqueStateParam(),
+                ab.TupleIndex(rcv_from_b, 1));
+  XLS_ASSERT_OK(ab.Build(send_out, ab.Not(ab.GetUniqueStateParam())));
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, b_to_a, p.get()).status());
 
@@ -1650,8 +1655,9 @@ TEST_F(NewProcInliningPassTest, DataLossDueToReceiveNotActivated) {
     //    st = 1
     ProcBuilder ab("A", Value(UBits(0, 1)), "tkn", "st", p.get());
     BValue rcv = ab.Receive(ch_in, ab.GetTokenParam());
-    BValue send0 = ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), ab.GetStateParam(),
-                             ab.Literal(UBits(0, 32)));
+    BValue send0 =
+        ab.SendIf(a_to_b0, ab.TupleIndex(rcv, 0), ab.GetUniqueStateParam(),
+                  ab.Literal(UBits(0, 32)));
     BValue send1 = ab.Send(a_to_b1, send0, ab.Literal(UBits(0, 32)));
     XLS_ASSERT_OK(ab.Build(send1, ab.Literal(UBits(1, 1))).status());
   }
@@ -1666,7 +1672,7 @@ TEST_F(NewProcInliningPassTest, DataLossDueToReceiveNotActivated) {
     ProcBuilder bb("B", Value::Tuple({}), "tkn", "st", p.get());
     BValue rcv0 = bb.Receive(a_to_b0, bb.GetTokenParam());
     BValue rcv1 = bb.Receive(a_to_b1, bb.TupleIndex(rcv0, 0));
-    XLS_ASSERT_OK(bb.Build(bb.TupleIndex(rcv1, 0), bb.GetStateParam()));
+    XLS_ASSERT_OK(bb.Build(bb.TupleIndex(rcv1, 0), bb.GetUniqueStateParam()));
   }
 
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
@@ -1733,7 +1739,7 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements1) {
     BValue send_result1 =
         ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1804,7 +1810,7 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements2) {
     BValue send_result1 =
         ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1874,7 +1880,7 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements3) {
     BValue send_result1 =
         ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1944,7 +1950,7 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements4) {
     BValue send_result1 =
         ab.Send(result1_out, send_result0, ab.TupleIndex(rcv_result_data, 1));
 
-    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_result1, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -1996,7 +2002,7 @@ TEST_F(NewProcInliningPassTest, TokenFanIn) {
     BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
     BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
                               ab.TupleIndex(rcv_from_b, 1));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, b_to_a, p.get()).status());
@@ -2062,7 +2068,7 @@ TEST_F(NewProcInliningPassTest, TokenFanOut) {
     BValue send_out = ab.Send(
         ch_out, tkn_join,
         ab.Add(ab.TupleIndex(rcv_from_b, 1), ab.TupleIndex(rcv_from_c, 1)));
-    XLS_ASSERT_OK(ab.Build(send_out, ab.GetStateParam()));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.GetUniqueStateParam()));
   }
 
   XLS_ASSERT_OK(
@@ -2233,7 +2239,8 @@ TEST_F(NewProcInliningPassTest, RandomProcNetworks) {
     }
 
     BValue send_out = b.Send(ch_out, join_tokens(tokens), sum);
-    XLS_ASSERT_OK_AND_ASSIGN(Proc * top, b.Build(send_out, b.GetStateParam()));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * top,
+                             b.Build(send_out, b.GetUniqueStateParam()));
     XLS_ASSERT_OK(p->SetTop(top));
 
     XLS_VLOG(1) << "Sample " << sample << " (before inlining):\n"
@@ -2296,7 +2303,7 @@ TEST_F(NewProcInliningPassTest, DataDependencyWithoutTokenDependency) {
                             ab.Add(in_data, ab.TupleIndex(rcv_from_b, 1)));
 
   XLS_ASSERT_OK(ab.Build(ab.AfterAll({send_out, ab.TupleIndex(rcv_from_b, 0)}),
-                         ab.GetStateParam()));
+                         ab.GetUniqueStateParam()));
 
   XLS_ASSERT_OK(
       MakeDelayedLoopbackProc("B", /*delay=*/3, a_to_b, b_to_a, p.get())

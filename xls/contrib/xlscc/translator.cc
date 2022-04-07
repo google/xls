@@ -4038,7 +4038,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
 
   xls::BValue token = pb.GetTokenParam();
 
-  xls::BValue first_iter_state_in = pb.TupleIndex(pb.GetStateParam(), 0, loc);
+  xls::BValue first_iter_state_in =
+      pb.TupleIndex(pb.GetUniqueStateParam(), 0, loc);
 
   xls::BValue recv_condition = first_iter_state_in;
 
@@ -4075,7 +4076,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       xls::BValue context_val =
           GetStructFieldXLS(received_context, field_idx, *context_ctype, loc);
       xls::BValue prev_state_val =
-          pb.TupleIndex(pb.GetStateParam(), state_tup_idx++, loc);
+          pb.TupleIndex(pb.GetUniqueStateParam(), state_tup_idx++, loc);
       context_values[field_idx] =
           pb.Select(first_iter_state_in, context_val, prev_state_val, loc);
     }
@@ -4819,7 +4820,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
         const uint64_t static_idx =
             prepared.state_index_for_static.at(param.static_value);
         prepared.args.push_back(
-            pb.TupleIndex(pb.GetStateParam(), static_idx, body_loc));
+            pb.TupleIndex(pb.GetUniqueStateParam(), static_idx, body_loc));
         break;
       }
       default: {

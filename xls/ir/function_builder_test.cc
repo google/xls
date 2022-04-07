@@ -396,10 +396,11 @@ TEST(FunctionBuilderTest, SendAndReceive) {
 
   ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
                 /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
-  BValue send = b.Send(ch0, b.GetTokenParam(), b.GetStateParam());
+  BValue send = b.Send(ch0, b.GetTokenParam(), b.GetUniqueStateParam());
   BValue receive = b.Receive(ch1, b.GetTokenParam());
   BValue pred = b.Literal(UBits(1, 1));
-  BValue send_if = b.SendIf(ch2, b.GetTokenParam(), pred, b.GetStateParam());
+  BValue send_if =
+      b.SendIf(ch2, b.GetTokenParam(), pred, b.GetUniqueStateParam());
   BValue receive_if = b.ReceiveIf(ch3, b.GetTokenParam(), pred);
   BValue after_all = b.AfterAll(
       {send, b.TupleIndex(receive, 0), send_if, b.TupleIndex(receive_if, 0)});
@@ -660,9 +661,10 @@ TEST(FunctionBuilderTest, AddParamToProc) {
   ProcBuilder b("param_proc", Value(UBits(42, 32)),
                 /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
   b.Param("x", p.GetBitsType(32));
-  EXPECT_THAT(b.Build(b.GetTokenParam(), b.GetStateParam()).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Cannot add parameters to procs")));
+  EXPECT_THAT(
+      b.Build(b.GetTokenParam(), b.GetUniqueStateParam()).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Use StateElement to add state parameters to procs")));
 }
 
 TEST(FunctionBuilderTest, TokenlessProcBuilder) {
@@ -679,7 +681,7 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
   BValue a_plus_b = pb.Add(pb.Receive(a_ch), pb.Receive(b_ch));
-  pb.Send(out_ch, pb.Add(pb.GetStateParam(), a_plus_b));
+  pb.Send(out_ch, pb.Add(pb.GetUniqueStateParam(), a_plus_b));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(a_plus_b));
 
   EXPECT_THAT(proc->NextToken(), m::AfterAll(m::TupleIndex(m::Receive(), 0),
@@ -690,10 +692,45 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
                      m::TupleIndex(m::Receive(m::Channel("b")), 1)));
 }
 
+TEST(FunctionBuilderTest, StatelessProcBuilder) {
+  Package p("p");
+  ProcBuilder pb("the_proc", "tkn", &p);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc,
+      pb.Build(pb.GetTokenParam(), /*next_state=*/absl::Span<const BValue>()));
+  EXPECT_TRUE(proc->StateParams().empty());
+}
+
+TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
+  Package p("p");
+  ProcBuilder pb("the_proc", "tkn", &p);
+  BValue x = pb.StateElement("x", Value(UBits(1, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(2, 32)));
+  BValue z = pb.StateElement("z", Value(UBits(3, 32)));
+
+  EXPECT_EQ(pb.GetStateParam(0).node()->GetName(), "x");
+  EXPECT_EQ(pb.GetStateParam(1).node()->GetName(), "y");
+  EXPECT_EQ(pb.GetStateParam(2).node()->GetName(), "z");
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, pb.Build(pb.GetTokenParam(), /*next_state=*/{
+                                x, pb.Add(x, y, std::nullopt, "x_plus_y"), z}));
+  EXPECT_EQ(proc->StateParams().size(), 3);
+  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
+  EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
+  EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
+  EXPECT_THAT(proc->DumpIr(),
+              HasSubstr("proc the_proc(tkn: token, x: bits[32], y: bits[32], "
+                        "z: bits[32], init={1, 2, 3})"));
+  EXPECT_EQ(proc->GetNextStateElement(0)->GetName(), "x");
+  EXPECT_EQ(proc->GetNextStateElement(1)->GetName(), "x_plus_y");
+  EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "z");
+}
+
 TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   Package p("p");
   TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
   EXPECT_THAT(proc->GetUniqueNextState(), m::Param("st"));

@@ -99,7 +99,7 @@ TEST_F(DeadFunctionEliminationPassTest, ProcCallingFunction) {
   XLS_ASSERT_OK(MakeFunction("not_called_by_proc", p.get()).status());
 
   TokenlessProcBuilder b(TestName(), Value(UBits(0, 32)), "tkn", "st", p.get());
-  BValue invoke = b.Invoke({b.GetStateParam()}, f);
+  BValue invoke = b.Invoke({b.GetUniqueStateParam()}, f);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(invoke));
   XLS_ASSERT_OK(p->SetTop(proc));
 
@@ -140,18 +140,18 @@ TEST_F(DeadFunctionEliminationPassTest, MultipleProcs) {
     TokenlessProcBuilder b("A", Value::Tuple({}), "tkn", "st", p.get());
     b.Send(ch_a_to_b, b.Receive(ch_in_a));
     b.Send(ch_out_a, b.Receive(ch_b_to_a));
-    XLS_ASSERT_OK_AND_ASSIGN(Proc * a, b.Build(b.GetStateParam()));
+    XLS_ASSERT_OK_AND_ASSIGN(Proc * a, b.Build(b.GetUniqueStateParam()));
     XLS_ASSERT_OK(p->SetTop(a));
   }
   {
     TokenlessProcBuilder b("B", Value::Tuple({}), "tkn", "st", p.get());
     b.Send(ch_b_to_a, b.Receive(ch_a_to_b));
-    XLS_ASSERT_OK(b.Build(b.GetStateParam()).status());
+    XLS_ASSERT_OK(b.Build(b.GetUniqueStateParam()).status());
   }
   {
     TokenlessProcBuilder b("C", Value::Tuple({}), "tkn", "st", p.get());
     b.Send(ch_out_c, b.Receive(ch_in_c));
-    XLS_ASSERT_OK(b.Build(b.GetStateParam()).status());
+    XLS_ASSERT_OK(b.Build(b.GetUniqueStateParam()).status());
   }
 
   // Proc "C" should be removed as well as the its channels.

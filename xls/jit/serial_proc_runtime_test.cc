@@ -421,7 +421,7 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
   BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(
-      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam())
+      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetUniqueStateParam())
           .status());
 
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
@@ -455,7 +455,7 @@ TEST(SerialProcRuntimeTest, StateReset) {
   ProcBuilder pb("state_reset",
                  /*init_value=*/Value::Tuple({Value(SBits(11, 32))}),
                  /*token_name=*/"tkn", /*state_name=*/"st", &package);
-  BValue in_tuple = pb.TupleIndex(pb.GetStateParam(), 0);
+  BValue in_tuple = pb.TupleIndex(pb.GetUniqueStateParam(), 0);
   BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), in_tuple);
   BValue add_lit = pb.Literal(SBits(3, 32));
   BValue next_int = pb.Add(in_tuple, add_lit);

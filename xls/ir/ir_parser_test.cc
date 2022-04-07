@@ -1883,6 +1883,34 @@ proc foo(my_token: token, my_state: bits[32], init={42}) {
   EXPECT_EQ(proc->GetUniqueStateParam()->GetName(), "my_state");
 }
 
+TEST(IrParserTest, StatelessProcWithInit) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, init={}) {
+  next (my_token)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  EXPECT_EQ(proc->node_count(), 1);
+  EXPECT_TRUE(proc->StateParams().empty());
+}
+
+TEST(IrParserTest, StatelessProcWithoutInit) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token) {
+  next (my_token)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  EXPECT_EQ(proc->node_count(), 1);
+  EXPECT_TRUE(proc->StateParams().empty());
+}
+
 TEST(IrParserTest, FunctionAndProc) {
   std::string program = R"(
 package test
@@ -1905,17 +1933,89 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   EXPECT_EQ(proc->name(), "my_proc");
 }
 
-TEST(IrParserTest, ProcWrongParameterCount) {
+TEST(IrParserTest, ProcWithMultipleStateElements) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
+  sum: bits[32] = add(x, z)
+  next (my_token, x, y, sum)
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
+  EXPECT_EQ(proc->StateParams().size(), 3);
+}
+
+TEST(IrParserTest, ProcTooFewInitialValues) {
   std::string program = R"(
 package test
 
 proc foo(my_token: token, my_state: bits[32], total_garbage: bits[1], init={42}) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
+  next (my_token, my_state, total_garbage)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(program).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected 'init' attribute")));
+                       HasSubstr("Too few initial values given")));
+}
+
+TEST(IrParserTest, ProcTooManyInitialValues) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, my_state: bits[32], init={42, 1, 2, 3}) {
+  next (my_token, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Too many initial values given")));
+}
+
+TEST(IrParserTest, ProcWithMissingInitValues) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, my_state: bits[32]) {
+  next (my_token, my_state)
+}
+)";
+  EXPECT_THAT(Parser::ParsePackage(program).status(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("Expected initial state values")));
+}
+
+TEST(IrParserTest, ProcWithTooFewNextStateElements) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
+  next (my_token, x, y)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Number of recurrent state elements given (2) does equal "
+                    "the number of state elements in the proc (3)")));
+}
+
+TEST(IrParserTest, ProcWithTooManyNextStateElements) {
+  std::string program = R"(
+package test
+
+proc foo(my_token: token, x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
+  next (my_token, x, y, z, z)
+}
+)";
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Number of recurrent state elements given (4) does equal "
+                    "the number of state elements in the proc (3)")));
 }
 
 TEST(IrParserTest, ProcWrongTokenType) {
@@ -1923,7 +2023,7 @@ TEST(IrParserTest, ProcWrongTokenType) {
 package test
 
 proc foo(my_token: bits[1], my_state: bits[32], init={42}) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
+  next (my_token, my_state)
 }
 )";
   EXPECT_THAT(
@@ -1937,7 +2037,7 @@ TEST(IrParserTest, ProcWrongInitValueType) {
 package test
 
 proc foo(my_token: token, my_state: bits[32], init={(1, 2, 3)}) {
-  ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
+  next (my_token, my_state)
 }
 )";
   EXPECT_THAT(Parser::ParsePackage(program).status(),

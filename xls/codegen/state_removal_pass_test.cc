@@ -44,7 +44,7 @@ TEST_F(StateRemovalPassTest, SimpleProc) {
   auto p = CreatePackage();
   ProcBuilder pb(TestName(), /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), add));
 
   EXPECT_EQ(proc->GetUniqueStateType(), p->GetBitsType(32));

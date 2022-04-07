@@ -2488,7 +2488,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   // Now bind all iter args to their elements in the recurrent state.
   // We need to shift indices by one to handle the token arg.
-  BValue state = builder_ptr->GetStateParam();
+  BValue state = builder_ptr->GetUniqueStateParam();
   for (int i = 1; i < f->params().size(); i++) {
     auto* param = f->params()[i];
     BValue element = builder_ptr->TupleIndex(state, i - 1, absl::nullopt,

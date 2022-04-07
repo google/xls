@@ -1270,7 +1270,7 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
       }
 
       // Parse 'next' statement:
-      //  next (tkn, state)
+      //  next (tkn, next_state0, next_state1, ...)
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
       XLS_ASSIGN_OR_RETURN(Token next_token_name,
@@ -1281,21 +1281,23 @@ absl::StatusOr<Parser::BodyResult> Parser::ParseBody(
             "Proc next token name @ %s  was not previously defined: \"%s\"",
             next_token_name.pos().ToHumanString(), next_token_name.value()));
       }
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-      XLS_ASSIGN_OR_RETURN(Token next_state_name,
-                           scanner_.PopTokenOrError(LexicalTokenType::kIdent,
-                                                    "proc next state name"));
-      if (!name_to_value->contains(next_state_name.value())) {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Proc next state name @ %s  was not previously defined: \"%s\"",
-            next_state_name.pos().ToHumanString(), next_state_name.value()));
+      std::vector<BValue> next_state;
+      while (scanner_.TryDropToken(LexicalTokenType::kComma)) {
+        XLS_ASSIGN_OR_RETURN(Token next_state_name,
+                             scanner_.PopTokenOrError(LexicalTokenType::kIdent,
+                                                      "proc next state name"));
+        if (!name_to_value->contains(next_state_name.value())) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "Proc next state name @ %s  was not previously defined: \"%s\"",
+              next_state_name.pos().ToHumanString(), next_state_name.value()));
+        }
+        next_state.push_back(name_to_value->at(next_state_name.value()));
       }
-
       XLS_RETURN_IF_ERROR(
           scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
       result =
           ProcNext{.next_token = name_to_value->at(next_token_name.value()),
-                   .next_state = name_to_value->at(next_state_name.value())};
+                   .next_state = next_state};
       continue;
     }
 
@@ -1411,43 +1413,88 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         token_type->ToString(), token_type_pos.ToHumanString()));
   }
 
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-
-  // Parse the state parameter.
-  XLS_ASSIGN_OR_RETURN(Token state_name,
-                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
-  XLS_ASSIGN_OR_RETURN(Type * state_type, ParseType(package));
-
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-
-  // Parse "init={VALUE, VALUE, ...}".
-  XLS_ASSIGN_OR_RETURN(
-      Token init_name,
-      scanner_.PopTokenOrError(LexicalTokenType::kIdent, "argument"));
-  if (init_name.value() != "init") {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Expected 'init' attribute @ %s", token_type_pos.ToHumanString()));
+  bool has_init = false;
+  std::vector<std::string> state_names;
+  std::vector<Type*> state_types;
+  while (scanner_.TryDropToken(LexicalTokenType::kComma)) {
+    if (scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
+      // No init values.
+      break;
+    }
+    if ((scanner_.PeekTokenIs(LexicalTokenType::kIdent) &&
+         scanner_.PeekTokenOrDie().value() == "init")) {
+      has_init = true;
+      break;
+    }
+    XLS_ASSIGN_OR_RETURN(Token state_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+    XLS_ASSIGN_OR_RETURN(Type * state_type, ParseType(package));
+    state_names.push_back(state_name.value());
+    state_types.push_back(state_type);
   }
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
-                                                "start of init_values"));
-  XLS_ASSIGN_OR_RETURN(Value init_value, ParseValueInternal(state_type));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
-                                                "end of init_values"));
 
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
+  std::vector<Value> init_values;
+  if (has_init) {
+    // Parse "init={VALUE, VALUE, ...}".
+    XLS_ASSIGN_OR_RETURN(
+        Token init_name,
+        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "argument"));
+    if (init_name.value() != "init") {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Expected 'init' attribute @ %s", init_name.pos().ToHumanString()));
+    }
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
+                                                  "start of init_values"));
+    while (!scanner_.TryDropToken(LexicalTokenType::kCurlClose)) {
+      if (!init_values.empty()) {
+        XLS_RETURN_IF_ERROR(
+            scanner_.DropTokenOrError(LexicalTokenType::kComma));
+      }
+      if (init_values.size() >= state_types.size()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Too many initial values given @ %s",
+                            init_name.pos().ToHumanString()));
+      }
+      XLS_ASSIGN_OR_RETURN(Value value,
+                           ParseValueInternal(state_types[init_values.size()]));
+      init_values.push_back(value);
+    }
+
+    if (init_values.size() != state_types.size()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Too few initial values given, expected %d, got %d @ %s",
+          state_types.size(), init_values.size(),
+          init_name.pos().ToHumanString()));
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(Token paren_close,
+                       scanner_.PopTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in proc parameters"));
+  if (!has_init) {
+    // No init values given.
+    if (!state_types.empty()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Expected initial state values @ %s",
+                          paren_close.pos().ToHumanString()));
+    }
+  }
+
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
                                                 "start of proc body"));
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
-  auto builder = std::make_unique<ProcBuilder>(
-      name.value(), init_value, token_name.value(), state_name.value(), package,
-      /*should_verify=*/false);
+  auto builder =
+      std::make_unique<ProcBuilder>(name.value(), token_name.value(), package,
+                                    /*should_verify=*/false);
   (*name_to_value)[token_name.value()] = builder->GetTokenParam();
-  (*name_to_value)[state_name.value()] = builder->GetStateParam();
+  for (int64_t i = 0; i < state_names.size(); ++i) {
+    (*name_to_value)[state_names[i]] =
+        builder->StateElement(state_names[i], init_values[i]);
+  }
 
   return std::move(builder);
 }

@@ -104,7 +104,7 @@ TEST_F(AnalyzeCriticalPathTest, MultipathFunction) {
 TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
   auto p = CreatePackage();
   TokenlessProcBuilder b(TestName(), Value(UBits(0, 32)), "tkn", "st", p.get());
-  auto neg = b.Negate(b.GetStateParam());
+  auto neg = b.Negate(b.GetUniqueStateParam());
   auto rev = b.Reverse(neg);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(rev));
 
@@ -138,7 +138,7 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {
   auto neg = b.Negate(in);
   auto rev = b.Reverse(neg);
   auto send = b.Send(ch_out, rev);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(b.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(b.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,

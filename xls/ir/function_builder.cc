@@ -969,6 +969,12 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   return f;
 }
 
+ProcBuilder::ProcBuilder(absl::string_view name, absl::string_view token_name,
+                         Package* package, bool should_verify)
+    : BuilderBase(std::make_unique<Proc>(name, token_name, package),
+                  should_verify),
+      token_param_(proc()->TokenParam(), this) {}
+
 ProcBuilder::ProcBuilder(absl::string_view name, const Value& init_value,
                          absl::string_view token_name,
                          absl::string_view state_name, Package* package,
@@ -976,15 +982,13 @@ ProcBuilder::ProcBuilder(absl::string_view name, const Value& init_value,
     : BuilderBase(std::make_unique<Proc>(name, init_value, token_name,
                                          state_name, package),
                   should_verify),
-      // The parameter nodes are added at construction time. Create a BValue
-      // for each param node so they may be used in construction of
-      // expressions.
       token_param_(proc()->TokenParam(), this),
-      state_param_(proc()->GetUniqueStateParam(), this) {}
+      state_params_({BValue{proc()->GetUniqueStateParam(), this}}) {}
 
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 
-absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
+absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
+                                         absl::Span<const BValue> next_state) {
   if (ErrorPending()) {
     std::string msg = error_msg_ + " ";
     if (error_loc_.has_value()) {
@@ -1000,11 +1004,20 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
         absl::StrFormat("Recurrent token of proc must be token type, is: %s.",
                         GetType(token)->ToString()));
   }
-  if (GetType(next_state) != GetType(GetStateParam())) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Recurrent state type %s does not match proc "
-        "parameter state type %s.",
-        GetType(GetStateParam())->ToString(), GetType(next_state)->ToString()));
+  if (next_state.size() != state_params_.size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Number of recurrent state elements given (%d) does "
+                        "equal the number of state elements in the proc (%d)",
+                        next_state.size(), state_params_.size()));
+  }
+  for (int64_t i = 0; i < state_params_.size(); ++i) {
+    if (GetType(next_state[i]) != GetType(GetStateParam(i))) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Recurrent state type %s does not match proc "
+                          "parameter state type %s for element %d.",
+                          GetType(GetStateParam(i))->ToString(),
+                          GetType(next_state[i])->ToString(), i));
+    }
   }
 
   // down_cast the FunctionBase* to Proc*. We know this is safe because
@@ -1013,11 +1026,31 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
   XLS_RETURN_IF_ERROR(proc->SetNextToken(token.node()));
-  XLS_RETURN_IF_ERROR(proc->SetUniqueNextState(next_state.node()));
+  for (int64_t i = 0; i < next_state.size(); ++i) {
+    XLS_RETURN_IF_ERROR(proc->SetNextStateElement(i, next_state[i].node()));
+  }
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }
   return proc;
+}
+
+absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
+  return Build(token, std::vector<BValue>({next_state}));
+}
+
+BValue ProcBuilder::StateElement(absl::string_view name,
+                                 const Value initial_value,
+                                 absl::optional<SourceLocation> loc) {
+  absl::StatusOr<xls::Param*> param_or =
+      proc()->AppendStateElement(name, initial_value);
+  if (!param_or.ok()) {
+    return SetError(absl::StrFormat("Unable to add state element: %s",
+                                    param_or.status().message()),
+                    loc);
+  }
+  state_params_.push_back(CreateBValue(param_or.value(), loc));
+  return state_params_.back();
 }
 
 BValue ProcBuilder::Param(absl::string_view name, Type* type,
@@ -1025,7 +1058,7 @@ BValue ProcBuilder::Param(absl::string_view name, Type* type,
   if (ErrorPending()) {
     return BValue();
   }
-  return SetError("Cannot add parameters to procs", loc);
+  return SetError("Use StateElement to add state parameters to procs", loc);
 }
 
 BuilderBase::BuilderBase(std::unique_ptr<FunctionBase> function,

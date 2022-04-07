@@ -36,7 +36,7 @@ TEST_F(ProcTest, SimpleProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), add));
 
   EXPECT_FALSE(proc->IsFunction());
@@ -54,7 +54,7 @@ TEST_F(ProcTest, MutateProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
   BValue after_all = pb.AfterAll({pb.GetTokenParam()});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, add));
 
@@ -83,7 +83,7 @@ TEST_F(ProcTest, MutateProc) {
 TEST_F(ProcTest, AddAndRemoveState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "x", p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam(),
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam(),
                       absl::nullopt, "my_add");
   BValue after_all =
       pb.AfterAll({pb.GetTokenParam()}, absl::nullopt, "my_after_all");
@@ -143,7 +143,7 @@ TEST_F(ProcTest, AddAndRemoveState) {
               HasSubstr("proc p(tkn: token, foo: bits[32], x: bits[32], baz: "
                         "(), bar: bits[64], init={123, 42, (), 1}"));
   EXPECT_THAT(proc->DumpIr(),
-              HasSubstr("next (my_after_all, foo, my_add, baz, bar)"));
+              HasSubstr("next (my_after_all, foo, my_add, baz, bar"));
 }
 
 TEST_F(ProcTest, ReplaceState) {
@@ -182,7 +182,7 @@ TEST_F(ProcTest, InvalidTokenType) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
 
@@ -198,7 +198,7 @@ TEST_F(ProcTest, InvalidStateType) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
 
@@ -213,7 +213,7 @@ TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
   // intentionally create a malformed proc.
   Package p(TestName());
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st", &p);
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam(0));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
 
@@ -254,7 +254,7 @@ TEST_F(ProcTest, Clone) {
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
                  p.get());
   BValue recv = pb.Receive(channel, pb.GetTokenParam());
-  BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
+  BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
   BValue add2 = pb.Add(add1, pb.TupleIndex(recv, 1));
   BValue send = pb.Send(channel, pb.TupleIndex(recv, 0), add2);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, add2));

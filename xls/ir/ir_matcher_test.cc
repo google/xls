@@ -291,11 +291,11 @@ TEST(IrMatchersTest, SendOps) {
                                ChannelMetadataProto(), 123));
 
   ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
-  auto send = b.Send(ch42, b.GetTokenParam(), {b.GetStateParam()});
+  auto send = b.Send(ch42, b.GetTokenParam(), {b.GetUniqueStateParam()});
   auto send_if = b.SendIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)),
-                          {b.GetStateParam()});
+                          {b.GetUniqueStateParam()});
   XLS_ASSERT_OK(
-      b.Build(b.AfterAll({send, send_if}), b.GetStateParam()).status());
+      b.Build(b.AfterAll({send, send_if}), b.GetUniqueStateParam()).status());
 
   EXPECT_THAT(send.node(), m::Send());
   EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
@@ -328,7 +328,7 @@ TEST(IrMatchersTest, ReceiveOps) {
       b.ReceiveIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)));
   XLS_ASSERT_OK(b.Build(b.AfterAll({b.TupleIndex(receive, 0),
                                     b.TupleIndex(receive_if, 0)}),
-                        b.GetStateParam())
+                        b.GetUniqueStateParam())
                     .status());
 
   EXPECT_THAT(receive.node(), m::Receive());

@@ -212,7 +212,7 @@ class Parser {
 
   struct ProcNext {
     BValue next_token;
-    BValue next_state;
+    std::vector<BValue> next_state;
   };
   using BodyResult = absl::variant<BValue, ProcNext>;
   // Parses the line-statements in the body of a function/proc. Returns the

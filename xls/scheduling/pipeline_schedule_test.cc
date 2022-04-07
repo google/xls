@@ -589,7 +589,7 @@ TEST_F(PipelineScheduleTest, ProcSchedule) {
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -618,7 +618,7 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
   BValue rcv = pb.ReceiveIf(in_ch, cond);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -649,7 +649,7 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
   BValue rcv = pb.ReceiveIf(in_ch, cond, absl::nullopt, "rcv");
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   ASSERT_THAT(
       PipelineSchedule::Run(proc, TestDelayEstimator(),
@@ -677,7 +677,8 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
   BValue rcv = pb.Receive(ch_in, pb.GetTokenParam());
   BValue send = pb.Send(ch_out, /*token=*/pb.TupleIndex(rcv, 0),
                         /*data=*/pb.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(send, pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -708,7 +709,7 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
   BValue out = pb.Negate(pb.Not(pb.Negate(pb.Not(pb.Negate(rcv)))));
   BValue send = pb.Send(out_ch, out);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,

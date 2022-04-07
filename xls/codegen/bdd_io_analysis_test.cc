@@ -70,7 +70,7 @@ TEST_F(BddIOAnalysisPassTest, SingleStreamingSend) {
   pb.Send(out0, in_val);
   pb.Send(out1, in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -103,7 +103,7 @@ TEST_F(BddIOAnalysisPassTest, StreamingSendWithSendIf) {
   pb.Send(out0, in_val);
   pb.SendIf(out1, pb.Eq(in_val, one), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -146,7 +146,7 @@ TEST_F(BddIOAnalysisPassTest, MutuallyExclusiveSendIf) {
   pb.SendIf(out1, pb.Eq(sel_val, one), in_val);
   pb.SendIf(out2, pb.Eq(sel_val, two), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -183,7 +183,7 @@ TEST_F(BddIOAnalysisPassTest, MutuallyExclusiveSendIfWithRange) {
   pb.SendIf(out0, pb.ULt(sel_val, one_zero_two_four), in_val);
   pb.SendIf(out1, pb.UGt(sel_val, one_zero_two_four), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -225,7 +225,7 @@ TEST_F(BddIOAnalysisPassTest, NonMutuallyExclusiveSendIf) {
   pb.SendIf(out1, pb.Eq(sel_val, one), in_val);
   pb.SendIf(out2, pb.Eq(sel_val, one), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
