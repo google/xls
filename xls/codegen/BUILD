@@ -388,21 +388,6 @@ cc_library(
 )
 
 cc_library(
-    name = "state_removal_pass",
-    srcs = ["state_removal_pass.cc"],
-    hdrs = ["state_removal_pass.h"],
-    deps = [
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/ir",
-        "//xls/ir:channel",
-        "//xls/passes",
-        "//xls/passes:pass_base",
-    ],
-)
-
-cc_library(
     name = "block_conversion",
     srcs = ["block_conversion.cc"],
     hdrs = ["block_conversion.h"],
@@ -712,21 +697,6 @@ cc_test(
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/simulation:verilog_test_base",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "state_removal_pass_test",
-    srcs = ["state_removal_pass_test.cc"],
-    deps = [
-        ":state_removal_pass",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:proc_network_interpreter",
-        "//xls/ir:ir_matcher",
-        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
