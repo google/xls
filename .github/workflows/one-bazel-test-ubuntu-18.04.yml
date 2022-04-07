@@ -26,14 +26,19 @@ jobs:
     timeout-minutes: 600
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          key: bazel-cache-nightly-18_04
       - name: Install bazelisk
         run: |
           curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
           mkdir -p "${GITHUB_WORKSPACE}/bin/"
           mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
           chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
-      - name: Install dependencies via apt
-        run: sudo apt-get install python3 python3-distutils python3-dev libtinfo5
       - name: Install more modern toolchain (GCC 10)
         run: |
           sudo apt-get install -y software-properties-common
@@ -42,11 +47,6 @@ jobs:
           sudo apt-get install -y gcc-10 g++-10
           sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
           sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10
-      - name: Put Python binary in PATH for Bazel Python env
-        run: |
-          mkdir -p ~/opt/bin
-          ln -s $(which python3) ~/opt/bin/python
-          echo "~/opt/bin/" >> ${GITHUB_PATH}
       - name: Bazel Test Target (opt)
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST --test_arg=--logtostderr --test_arg=--v=3 -- $BAZEL_TARGET  -//xls/contrib/xlscc/...
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt --action_env="PYTHON_BIN_PATH=$(which python3)" --test_output=all --runs_per_test=$BAZEL_RUNS_PER_TEST --test_arg=--logtostderr --test_arg=--v=3 -- $BAZEL_TARGET  -//xls/contrib/xlscc/...
