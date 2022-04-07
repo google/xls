@@ -547,6 +547,7 @@ cc_binary(
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir:ir_parser",
+        "//xls/ir:value_helpers",
         "//xls/jit:ir_jit",
         "//xls/passes",
         "//xls/passes:standard_pipeline",

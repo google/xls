@@ -19,11 +19,13 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/interpreter/proc_network_interpreter.h"
+#include "xls/ir/value_helpers.h"
 
 using xls::status_testing::IsOkAndHolds;
 
@@ -362,7 +364,10 @@ void XlsccTestBase::ProcTest(
                 value_or.status().code() == absl::StatusCode::kNotFound);
       XLS_LOG(INFO) << absl::StrFormat(
           "[%s]: %s", proc->name(),
-          (value_or.ok() ? value_or.value().ToString() : "(none)"));
+          (value_or.ok()
+               ? absl::StrFormat("{%s}", absl::StrJoin(value_or.value(), ", ",
+                                                       xls::ValueFormatter))
+               : "(none)"));
     }
 
     // Check as we go

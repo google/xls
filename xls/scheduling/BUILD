@@ -76,6 +76,7 @@ cc_library(
         "//xls/data_structures:binary_search",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
+        "//xls/ir:node_util",
     ],
 )
 

@@ -81,13 +81,12 @@ class ProcInterpreter {
   bool IsIterationComplete() const;
 
   Proc* proc() { return proc_; }
-  absl::StatusOr<Value> ResolveState() {
-    xls::Node* n = proc_->GetUniqueNextState();
-    if (!visitor_->HasResult(n)) {
-      return absl::NotFoundError("Proc has no current state");
-    }
-    return visitor_->ResolveAsValue(n);
-  }
+
+  // Returns the computed next state values. Returns NotFoundError if not all
+  // next state values have been computed (due to a blocked channel).
+  absl::StatusOr<std::vector<Value>> ResolveState() const;
+
+  // Resets the proc state elements to their initial values.
   void ResetState();
 
  private:

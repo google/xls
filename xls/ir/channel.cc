@@ -18,6 +18,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
 
@@ -50,12 +51,9 @@ std::string Channel::ToString() const {
   std::string result = absl::StrFormat("chan %s(", name());
   absl::StrAppendFormat(&result, "%s, ", type()->ToString());
   if (!initial_values().empty()) {
-    absl::StrAppendFormat(&result, "initial_values={%s}, ",
-                          absl::StrJoin(initial_values(), ", ",
-                                        [](std::string* out, const Value& v) {
-                                          absl::StrAppend(out,
-                                                          v.ToHumanString());
-                                        }));
+    absl::StrAppendFormat(
+        &result, "initial_values={%s}, ",
+        absl::StrJoin(initial_values(), ", ", UntypedValueFormatter));
   }
   absl::StrAppendFormat(&result, "id=%d, kind=%s, ops=%s, ", id(),
                         ChannelKindToString(kind_),

@@ -35,6 +35,7 @@
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value_helpers.h"
 #include "xls/jit/ir_jit.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
@@ -155,9 +156,7 @@ struct ArgSet {
 
 // Returns the given arguments as a semicolon-separated string.
 std::string ArgsToString(absl::Span<const Value> args) {
-  return absl::StrJoin(args, "; ", [](std::string* s, const Value& v) {
-    absl::StrAppend(s, v.ToString(FormatPreference::kHex));
-  });
+  return absl::StrJoin(args, "; ", ValueFormatterHex);
 }
 
 // Evaluates the function with the given ArgSets. Returns an error if the result

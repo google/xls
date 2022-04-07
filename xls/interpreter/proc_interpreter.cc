@@ -29,8 +29,11 @@ namespace {
 class ProcIrInterpreter : public IrInterpreter {
  public:
   // "state" is the value to use for the proc state during interpretation.
-  ProcIrInterpreter(const Value& state, ChannelQueueManager* queue_manager)
-      : IrInterpreter(), state_(state), queue_manager_(queue_manager) {}
+  ProcIrInterpreter(absl::Span<const Value> state,
+                    ChannelQueueManager* queue_manager)
+      : IrInterpreter(),
+        state_(state.begin(), state.end()),
+        queue_manager_(queue_manager) {}
 
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
@@ -66,16 +69,15 @@ class ProcIrInterpreter : public IrInterpreter {
   absl::Status HandleParam(Param* param) override {
     XLS_ASSIGN_OR_RETURN(int64_t index,
                          param->function_base()->GetParamIndex(param));
-    XLS_RET_CHECK(index == 0 || index == 1);
     if (index == 0) {
       return SetValueResult(param, Value::Token());
-    } else {
-      return SetValueResult(param, state_);
     }
+    // Params from 1 on are state.
+    return SetValueResult(param, state_[index - 1]);
   }
 
  private:
-  Value state_;
+  std::vector<Value> state_;
 
   ChannelQueueManager* queue_manager_;
 };
@@ -102,8 +104,21 @@ ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
 
 bool ProcInterpreter::IsIterationComplete() const {
   return visitor_ == nullptr ||
-         (visitor_->IsVisited(proc_->GetUniqueNextState()) &&
+         (std::all_of(proc_->NextState().begin(), proc_->NextState().end(),
+                      [&](Node* n) { return visitor_->IsVisited(n); }) &&
           visitor_->IsVisited(proc_->NextToken()));
+}
+
+absl::StatusOr<std::vector<Value>> ProcInterpreter::ResolveState() const {
+  std::vector<Value> results;
+  for (Node* next_node : proc_->NextState()) {
+    if (!visitor_->HasResult(next_node)) {
+      return absl::NotFoundError(absl::StrFormat(
+          "Proc next state has not been computed: %s", next_node->GetName()));
+    }
+    results.push_back(visitor_->ResolveAsValue(next_node));
+  }
+  return results;
 }
 
 absl::StatusOr<ProcInterpreter::RunResult>
@@ -122,8 +137,7 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
       // This is the first time the proc has run. Proc state is the init value.
       ResetState();
     } else {
-      const Value& next_state =
-          visitor_->ResolveAsValue(proc_->GetUniqueNextState());
+      XLS_ASSIGN_OR_RETURN(std::vector<Value> next_state, ResolveState());
       visitor_ =
           std::make_unique<ProcIrInterpreter>(next_state, queue_manager_);
     }
@@ -195,8 +209,8 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
 }
 
 void ProcInterpreter::ResetState() {
-  visitor_ = std::make_unique<ProcIrInterpreter>(proc_->GetUniqueInitValue(),
-                                                 queue_manager_);
+  visitor_ =
+      std::make_unique<ProcIrInterpreter>(proc_->InitValues(), queue_manager_);
 }
 
 std::string ProcInterpreter::RunResult::ToString() const {

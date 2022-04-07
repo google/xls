@@ -27,6 +27,7 @@
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -111,7 +112,7 @@ absl::Status RunIrInterpreter(
       XLS_RETURN_IF_ERROR(interpreter->Tick());
 
       // Sort the keys for stable print order.
-      absl::flat_hash_map<Proc*, absl::StatusOr<Value>> states =
+      absl::flat_hash_map<Proc*, absl::StatusOr<std::vector<Value>>> states =
           interpreter->ResolveState();
       std::vector<Proc*> sorted_procs;
       for (const auto& [k, v] : states) {
@@ -125,8 +126,11 @@ absl::Status RunIrInterpreter(
         XLS_CHECK(value_or.ok() ||
                   value_or.status().code() == absl::StatusCode::kNotFound);
         XLS_VLOG(1) << "Proc " << proc->name() << " : "
-                    << (value_or.ok() ? value_or.value().ToString()
-                                      : std::string("(none)"));
+                    << (value_or.ok()
+                            ? absl::StrFormat(
+                                  "{%s}", absl::StrJoin(value_or.value(), ", ",
+                                                        ValueFormatter))
+                            : "(none)");
       }
     }
   }

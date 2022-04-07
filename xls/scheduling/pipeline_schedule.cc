@@ -23,6 +23,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/data_structures/binary_search.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/scheduling/function_partition.h"
 #include "xls/scheduling/schedule_bounds.h"
 
@@ -243,10 +244,7 @@ absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
         "Impossible to schedule Function/Proc %s; the following "
         "node(s) must be scheduled in the final cycle but that "
         "is impossible due to users of these node(s): %s",
-        f->name(),
-        absl::StrJoin(FinalStageNodes(f), ", ", [](std::string* out, Node* n) {
-          absl::StrAppend(out, n->GetName());
-        })));
+        f->name(), absl::StrJoin(FinalStageNodes(f), ", ", NodeFormatter)));
   }
 
   // Set and propagate upper bounds.

@@ -1083,6 +1083,7 @@ cc_library(
         ":channel_ops",
         ":type",
         ":value",
+        ":value_helpers",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

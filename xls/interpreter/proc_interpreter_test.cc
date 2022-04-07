@@ -28,7 +28,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
-
+using testing::ElementsAre;
 class ProcInterpreterTest : public IrTestBase {};
 
 TEST_F(ProcInterpreterTest, ProcIota) {
@@ -41,9 +41,9 @@ TEST_F(ProcInterpreterTest, ProcIota) {
   // Create an output-only proc which counts up by 7 starting at 42.
   ProcBuilder pb("iota", /*init_value=*/Value(UBits(42, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", package.get());
-  BValue send_token =
-      pb.Send(channel, pb.GetTokenParam(), {pb.GetUniqueStateParam()});
-  BValue new_value = pb.Add(pb.GetUniqueStateParam(), pb.Literal(UBits(7, 32)));
+  BValue counter = pb.GetStateParam(0);
+  BValue send_token = pb.Send(channel, pb.GetTokenParam(), counter);
+  BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK(pb.Build(send_token, new_value).status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -109,7 +109,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   BValue token_input = pb.Receive(ch_in, pb.GetTokenParam());
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
-  BValue send_token = pb.Send(ch_out, recv_token, {pb.GetUniqueStateParam()});
+  BValue send_token = pb.Send(ch_out, recv_token, {pb.GetStateParam(0)});
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, input));
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -186,13 +186,13 @@ TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
                                                  package.GetBitsType(32)));
 
   BValue receive_if = pb.ReceiveIf(ch_in, /*token=*/pb.GetTokenParam(),
-                                   /*pred=*/pb.GetUniqueStateParam());
+                                   /*pred=*/pb.GetStateParam(0));
   BValue rx_token = pb.TupleIndex(receive_if, 0);
   BValue rx_data = pb.TupleIndex(receive_if, 1);
   BValue send = pb.Send(ch_out, rx_token, {rx_data});
   // Next state value is the inverse of the current state value.
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(send, pb.Not(pb.GetUniqueStateParam())));
+                           pb.Build(send, pb.Not(pb.GetStateParam(0))));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -251,11 +251,11 @@ TEST_F(ProcInterpreterTest, ConditionalSendProc) {
   ProcBuilder pb("even", /*init_value=*/Value(UBits(0, 32)),
                  /*token_name=*/"tok", /*state_name=*/"prev", &package);
   BValue is_even =
-      pb.Eq(pb.BitSlice(pb.GetUniqueStateParam(), /*start=*/0, /*width=*/1),
+      pb.Eq(pb.BitSlice(pb.GetStateParam(0), /*start=*/0, /*width=*/1),
             pb.Literal(UBits(0, 1)));
-  BValue send_if = pb.SendIf(channel, pb.GetTokenParam(), is_even,
-                             {pb.GetUniqueStateParam()});
-  BValue new_value = pb.Add(pb.GetUniqueStateParam(), pb.Literal(UBits(1, 32)));
+  BValue send_if =
+      pb.SendIf(channel, pb.GetTokenParam(), is_even, {pb.GetStateParam(0)});
+  BValue new_value = pb.Add(pb.GetStateParam(0), pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK(pb.Build(send_if, new_value).status());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -308,7 +308,7 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
   pb.SendIf(ch_a, dir, in);
   pb.SendIf(ch_b, pb.Not(dir), in);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,
@@ -370,7 +370,7 @@ TEST_F(ProcInterpreterTest, StateReset) {
   ProcBuilder pb(TestName(),
                  /*init_value=*/Value::Tuple({Value(SBits(11, 32))}),
                  /*token_name=*/"tkn", /*state_name=*/"st", &package);
-  BValue in_tuple = pb.TupleIndex(pb.GetUniqueStateParam(), 0);
+  BValue in_tuple = pb.TupleIndex(pb.GetStateParam(0), 0);
   BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), in_tuple);
   BValue add_lit = pb.Literal(SBits(3, 32));
   BValue next_int = pb.Add(in_tuple, add_lit);
@@ -403,6 +403,86 @@ TEST_F(ProcInterpreterTest, StateReset) {
   ASSERT_FALSE(out_queue->empty());
   EXPECT_THAT(out_queue->Dequeue(), IsOkAndHolds(Value(UBits(11, 32))));
   EXPECT_TRUE(out_queue->empty());
+}
+
+TEST_F(ProcInterpreterTest, StatelessProc) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_in,
+      package->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_out,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  ProcBuilder pb("stateless", /*token_name=*/"tok", package.get());
+  BValue receive = pb.Receive(channel_in, pb.GetTokenParam());
+  BValue send =
+      pb.Send(channel_out, pb.TupleIndex(receive, 0),
+              pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, std::vector<BValue>()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, package.get()));
+  ProcInterpreter interpreter(proc, queue_manager.get());
+  ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
+  ChannelQueue& output_queue = queue_manager->GetQueue(channel_out);
+
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(1, 32))}));
+  ASSERT_THAT(
+      interpreter.RunIterationUntilCompleteOrBlocked(),
+      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
+                                              .progress_made = true,
+                                              .blocked_channels = {}}));
+  EXPECT_TRUE(interpreter.IsIterationComplete());
+  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
+
+  // The next state should be empty.
+  EXPECT_THAT(interpreter.ResolveState(), IsOkAndHolds(ElementsAre()));
+}
+
+TEST_F(ProcInterpreterTest, MultiStateElementProc) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_in,
+      package->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+
+  // Proc has two state elements:
+  //  a: accumulator starting at 0
+  //  b: de-cumulator starting at 100
+  ProcBuilder pb("multistate", /*token_name=*/"tok", package.get());
+  BValue a_state = pb.StateElement("a", Value(UBits(0, 32)));
+  BValue b_state = pb.StateElement("b", Value(UBits(100, 32)));
+  BValue receive = pb.Receive(channel_in, pb.GetTokenParam());
+  BValue data = pb.TupleIndex(receive, 1);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.TupleIndex(receive, 0),
+                                                 {pb.Add(a_state, data),
+                                                  pb.Subtract(b_state, data)}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(/*user_defined_queues=*/{}, package.get()));
+  ProcInterpreter interpreter(proc, queue_manager.get());
+  ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(10, 32))}));
+  XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(20, 32))}));
+
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_THAT(
+      interpreter.ResolveState(),
+      IsOkAndHolds(ElementsAre(Value(UBits(1, 32)), Value(UBits(99, 32)))));
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_THAT(
+      interpreter.ResolveState(),
+      IsOkAndHolds(ElementsAre(Value(UBits(11, 32)), Value(UBits(89, 32)))));
+  XLS_ASSERT_OK(interpreter.RunIterationUntilCompleteOrBlocked().status());
+  EXPECT_THAT(
+      interpreter.ResolveState(),
+      IsOkAndHolds(ElementsAre(Value(UBits(31, 32)), Value(UBits(69, 32)))));
 }
 
 }  // namespace

@@ -28,6 +28,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_helpers.h"
 #include "xls/jit/ir_jit.h"
 
 const char kUsage[] = R"(
@@ -86,10 +87,7 @@ absl::Status RealMain(absl::string_view ir_path,
     XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> interpreter_result,
                          InterpretFunction(f, args));
     if (jit_result.value != interpreter_result.value) {
-      std::cout << absl::StrJoin(
-          args, "; ", [](std::string* s, const Value& v) {
-            absl::StrAppend(s, v.ToString(FormatPreference::kHex));
-          });
+      std::cout << absl::StrJoin(args, "; ", ValueFormatterHex);
       return absl::OkStatus();
     }
   }

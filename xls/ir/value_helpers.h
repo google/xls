@@ -32,12 +32,23 @@ Value ZeroOfType(Type* type);
 // As above, but fills bits with all-ones pattern.
 Value AllOnesOfType(Type* type);
 
-// For use in e.g. StrJoin as a lambda.
+// Formatter for emitting values with type prefix (e.g, "42").
 inline void ValueFormatter(std::string* out, const Value& value) {
   absl::StrAppend(out, value.ToString());
 }
+
+// Formatter for emitting values without type prefix (e.g, "42" for a value of
+// bits[32]:42).
+inline void UntypedValueFormatter(std::string* out, const Value& value) {
+  absl::StrAppend(out, value.ToHumanString());
+}
+
 inline void ValueFormatterBinary(std::string* out, const Value& value) {
   absl::StrAppend(out, value.ToString(FormatPreference::kBinary));
+}
+
+inline void ValueFormatterHex(std::string* out, const Value& value) {
+  absl::StrAppend(out, value.ToString(FormatPreference::kHex));
 }
 
 // Returns whether "value" conforms to type "type" -- this lets us avoid

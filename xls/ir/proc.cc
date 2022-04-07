@@ -35,9 +35,7 @@ std::string Proc::DumpIr() const {
   }
   absl::StrAppendFormat(
       &res, ", init={%s}) {\n",
-      absl::StrJoin(InitValues(), ", ", [](std::string* out, const Value& v) {
-        absl::StrAppend(out, v.ToHumanString());
-      }));
+      absl::StrJoin(InitValues(), ", ", UntypedValueFormatter));
 
   for (Node* node : TopoSort(const_cast<Proc*>(this))) {
     if (node->op() == Op::kParam) {
