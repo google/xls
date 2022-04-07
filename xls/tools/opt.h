@@ -40,6 +40,7 @@ struct OptOptions {
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
   bool inline_procs;
+  bool use_new_proc_inliner;
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular

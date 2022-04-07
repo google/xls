@@ -21,6 +21,7 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/new_proc_inlining_pass.h"
 
 namespace xls {
 namespace {
@@ -1153,6 +1154,13 @@ absl::Status ReplaceProcState(Proc* proc,
 absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
                                                    const PassOptions& options,
                                                    PassResults* results) const {
+  // TODO(meheff): 2022/4/4 Remove when proc state optimization lands and flop
+  // count with new proc inliner is comparable to the old one.
+  if (options.use_new_proc_inliner) {
+    NewProcInliningPass new_proc_inlining_pass;
+    return new_proc_inlining_pass.RunInternal(p, options, results);
+  }
+
   if (!options.inline_procs || p->procs().empty()) {
     return false;
   }

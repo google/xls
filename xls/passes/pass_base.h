@@ -65,6 +65,10 @@ struct PassOptions {
   // optimization pass pipeline which holds this value.
   bool inline_procs = false;
 
+  // TODO(meheff): 2022/4/4 Remove when proc state optimization lands and flop
+  // count with new proc inliner is comparable to the old one.
+  bool use_new_proc_inliner = false;
+
   // If this is not `std::nullopt`, convert array indexes with fewer than or
   // equal to the given number of possible indices (by range analysis) into
   // chains of selects. Otherwise, this optimization is skipped, since it can

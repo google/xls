@@ -49,6 +49,7 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
       .run_only_passes = options.run_only_passes,
       .skip_passes = options.skip_passes,
       .inline_procs = options.inline_procs,
+      .use_new_proc_inliner = options.use_new_proc_inliner,
       .convert_array_index_to_select = options.convert_array_index_to_select,
   };
   PassResults results;
