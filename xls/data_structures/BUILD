@@ -98,6 +98,33 @@ cc_test(
 )
 
 cc_library(
+    name = "transitive_closure",
+    hdrs = ["transitive_closure.h"],
+    deps = [
+        "@com_google_absl//absl/container:btree",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/logging:log_message",
+    ],
+)
+
+cc_test(
+    name = "transitive_closure_test",
+    srcs = ["transitive_closure_test.cc"],
+    deps = [
+        ":transitive_closure",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_message",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "inline_bitmap",
     hdrs = ["inline_bitmap.h"],
     deps = [
