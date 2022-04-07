@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# pytype tests are present in this file
+# pytype test and library
 load("//dependency_support/pybind11:pybind11.bzl", "xls_pybind_extension")
 
 package(
@@ -38,6 +38,27 @@ py_test(
     python_version = "PY3",
     deps = [
         ":runtime_build_actions",
+        "@com_google_absl_py//absl/testing:absltest",
+        "//xls/common/python:init_xls",
+    ],
+)
+
+py_library(
+    name = "builder",
+    srcs = ["builder.py"],
+    srcs_version = "PY3",
+    deps = [
+        "//xls/ir/python:function_builder",
+        "//xls/ir/python:package",
+    ],
+)
+
+py_test(
+    name = "builder_test",
+    srcs = ["builder_test.py"],
+    python_version = "PY3",
+    deps = [
+        ":builder",
         "@com_google_absl_py//absl/testing:absltest",
         "//xls/common/python:init_xls",
     ],
