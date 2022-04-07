@@ -176,6 +176,44 @@ fn id(x: bits[32], y: bits[32]) -> bits[32] {
   EXPECT_EQ(func->GetType(), updated);
 }
 
+TEST_F(FunctionTest, MoveParams) {
+  auto p = CreatePackage();
+  FunctionBuilder b("f", p.get());
+  auto x = b.Param("x", p->GetBitsType(32));
+  auto y = b.Param("y", p->GetBitsType(32));
+  auto z = b.Param("z", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.BuildWithReturnValue(z));
+
+  EXPECT_EQ(func->params()[0]->GetName(), "x");
+  EXPECT_EQ(func->params()[1]->GetName(), "y");
+  EXPECT_EQ(func->params()[2]->GetName(), "z");
+
+  // Nop move.
+  XLS_ASSERT_OK(func->MoveParamToIndex(x.node()->As<Param>(), 0));
+
+  EXPECT_EQ(func->params()[0]->GetName(), "x");
+  EXPECT_EQ(func->params()[1]->GetName(), "y");
+  EXPECT_EQ(func->params()[2]->GetName(), "z");
+
+  XLS_ASSERT_OK(func->MoveParamToIndex(x.node()->As<Param>(), 1));
+
+  EXPECT_EQ(func->params()[0]->GetName(), "y");
+  EXPECT_EQ(func->params()[1]->GetName(), "x");
+  EXPECT_EQ(func->params()[2]->GetName(), "z");
+
+  XLS_ASSERT_OK(func->MoveParamToIndex(z.node()->As<Param>(), 0));
+
+  EXPECT_EQ(func->params()[0]->GetName(), "z");
+  EXPECT_EQ(func->params()[1]->GetName(), "y");
+  EXPECT_EQ(func->params()[2]->GetName(), "x");
+
+  XLS_ASSERT_OK(func->MoveParamToIndex(y.node()->As<Param>(), 2));
+
+  EXPECT_EQ(func->params()[0]->GetName(), "z");
+  EXPECT_EQ(func->params()[1]->GetName(), "x");
+  EXPECT_EQ(func->params()[2]->GetName(), "y");
+}
+
 TEST_F(FunctionTest, MakeInvalidNode) {
   Package p(TestName());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, ParseFunction(R"(

@@ -123,7 +123,7 @@ TEST_F(UselessIORemovalPassTest, RemoveReceiveIfLiteralFalse) {
   auto tuple = m::Tuple(
       m::TupleIndex(m::Receive(proc->TokenParam(), channel), 0), m::Literal(0));
   EXPECT_THAT(proc->NextToken(), m::TupleIndex(tuple, 0));
-  EXPECT_THAT(proc->NextState(), m::TupleIndex(tuple, 1));
+  EXPECT_THAT(proc->GetUniqueNextState(), m::TupleIndex(tuple, 1));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
@@ -141,7 +141,7 @@ TEST_F(UselessIORemovalPassTest, RemoveSendPredIfLiteralTrue) {
   EXPECT_THAT(Run(p.get()), status_testing::IsOkAndHolds(true));
   EXPECT_EQ(proc->node_count(), 5);
   EXPECT_THAT(proc->NextToken(), m::Send(proc->TokenParam(), m::Literal(1)));
-  EXPECT_THAT(proc->NextState(), m::Literal(0));
+  EXPECT_THAT(proc->GetUniqueNextState(), m::Literal(0));
 }
 
 TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
@@ -161,7 +161,7 @@ TEST_F(UselessIORemovalPassTest, RemoveReceivePredIfLiteralTrue) {
   EXPECT_EQ(proc->node_count(), 5);
   auto tuple = m::Receive(proc->TokenParam(), channel);
   EXPECT_THAT(proc->NextToken(), m::TupleIndex(tuple, 0));
-  EXPECT_THAT(proc->NextState(), m::TupleIndex(tuple, 1));
+  EXPECT_THAT(proc->GetUniqueNextState(), m::TupleIndex(tuple, 1));
 }
 
 }  // namespace

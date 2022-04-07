@@ -1784,8 +1784,8 @@ class CloneNodesIntoBlockHandler {
     if (is_proc_) {
       Proc* proc = function_base_->AsProcOrDie();
       token_param_ = proc->TokenParam();
-      state_param_ = proc->StateParam();
-      next_state_node_ = proc->NextState();
+      state_param_ = proc->GetUniqueStateParam();
+      next_state_node_ = proc->GetUniqueNextState();
     }
 
     if (stage_count > 1) {
@@ -1914,7 +1914,7 @@ class CloneNodesIntoBlockHandler {
     // and updated.  That register should be created with the
     // state parameter's name.  See UpdateStateRegisterWithReset().
     std::string name = block_->UniquifyNodeName(
-        absl::StrCat("__", proc->StateParam()->name()));
+        absl::StrCat("__", proc->GetUniqueStateParam()->name()));
 
     XLS_ASSIGN_OR_RETURN(Register * reg,
                          block_->AddRegister(name, node->GetType()));
@@ -1925,9 +1925,10 @@ class CloneNodesIntoBlockHandler {
         block_->MakeNodeWithName<RegisterRead>(node->loc(), reg,
                                                /*name=*/reg->name()));
 
-    result_.state_register = StateRegister{
-        std::string(proc->StateParam()->name()), proc->InitValue(), reg,
-        /*reg_write=*/nullptr, reg_read};
+    result_.state_register =
+        StateRegister{std::string(proc->GetUniqueStateParam()->name()),
+                      proc->GetUniqueInitValue(), reg,
+                      /*reg_write=*/nullptr, reg_read};
 
     return reg_read;
   }
@@ -2442,12 +2443,12 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
 
   // In a combinational module, the proc cannot have any state to avoid
   // combinational loops. That is, the loop state must be an empty tuple.
-  if (proc->StateType() != proc->package()->GetTupleType({})) {
+  if (proc->GetUniqueStateType() != proc->package()->GetTupleType({})) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Proc must have no state (state type is empty tuple) "
                         "when lowering to a combinational block. "
                         "Proc state is: %s",
-                        proc->StateType()->ToString()));
+                        proc->GetUniqueStateType()->ToString()));
   }
 
   Block* block = proc->package()->AddBlock(

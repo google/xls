@@ -118,7 +118,7 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
   EXPECT_EQ(cp[0].path_delay_ps, 2);
   EXPECT_EQ(cp[1].node, neg.node());
   EXPECT_EQ(cp[1].path_delay_ps, 1);
-  EXPECT_EQ(cp[2].node, proc->StateParam());
+  EXPECT_EQ(cp[2].node, proc->GetUniqueStateParam());
   EXPECT_EQ(cp[2].path_delay_ps, 0);
 }
 

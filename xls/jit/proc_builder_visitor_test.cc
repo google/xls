@@ -248,7 +248,7 @@ package p
 chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
 chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc the_proc(my_token: token, state: (), init=()) {
+proc the_proc(my_token: token, state: (), init={()}) {
   literal.1: bits[32] = literal(value=3)
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -298,7 +298,7 @@ package p
 chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
 chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc the_proc(my_token: token, state: bits[1], init=0) {
+proc the_proc(my_token: token, state: bits[1], init={0}) {
   receive.2: (token, bits[32]) = receive(my_token, predicate=state, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
@@ -348,7 +348,7 @@ package p
 chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
 chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc the_proc(my_token: token, state: bits[1], init=0) {
+proc the_proc(my_token: token, state: bits[1], init={0}) {
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
@@ -416,7 +416,7 @@ package p
 chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
 chan c_o(bits[32], id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc the_proc(my_token: token, state: (), init=()) {
+proc the_proc(my_token: token, state: (), init={()}) {
   literal.1: bits[32] = literal(value=3)
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -469,7 +469,7 @@ chan c_sv(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan c_i(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=none, metadata="")
 chan c_o(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc the_proc(my_token: token, state: (), init=()) {
+proc the_proc(my_token: token, state: (), init={()}) {
   recv_sv: (token, bits[32]) = receive(my_token, channel_id=0)
   tkn0: token = tuple_index(recv_sv, index=0)
   single_value: bits[32] = tuple_index(recv_sv, index=1)

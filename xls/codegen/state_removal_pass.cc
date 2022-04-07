@@ -25,31 +25,32 @@ namespace xls {
 absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
     Proc* proc, const PassOptions& options, PassResults* results) const {
   // If state is empty then just return.
-  if (proc->StateType() == proc->package()->GetTupleType({})) {
+  if (proc->GetUniqueStateType() == proc->package()->GetTupleType({})) {
     return false;
   }
 
-  if (proc->StateType()->GetFlatBitCount() == 0) {
+  if (proc->GetUniqueStateType()->GetFlatBitCount() == 0) {
     return absl::UnimplementedError(absl::StrFormat(
-        "Unsupported state type: %s", proc->StateType()->ToString()));
+        "Unsupported state type: %s", proc->GetUniqueStateType()->ToString()));
   }
 
   // Replace state param with streaming channel.
   XLS_ASSIGN_OR_RETURN(
       Channel * state_channel,
       proc->package()->CreateStreamingChannel(
-          proc->StateParam()->GetName(), ChannelOps::kSendReceive,
-          proc->StateType(), {proc->InitValue()}));
+          proc->GetUniqueStateParam()->GetName(), ChannelOps::kSendReceive,
+          proc->GetUniqueStateType(), {proc->GetUniqueInitValue()}));
 
   // Create a receive of the recurrent state and replace current uses of the
   // state param with the received state data.
   XLS_ASSIGN_OR_RETURN(
       Receive * state_receive,
-      proc->MakeNode<Receive>(proc->StateParam()->loc(), proc->TokenParam(),
+      proc->MakeNode<Receive>(proc->GetUniqueStateParam()->loc(),
+                              proc->TokenParam(),
                               /*predicate=*/absl::nullopt,
                               /*channel_id=*/state_channel->id()));
   XLS_RETURN_IF_ERROR(
-      proc->StateParam()
+      proc->GetUniqueStateParam()
           ->ReplaceUsesWithNew<TupleIndex>(state_receive, /*index=*/1)
           .status());
 
@@ -61,7 +62,7 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
   XLS_ASSIGN_OR_RETURN(
       Send * state_send,
       proc->MakeNode<Send>(/*loc=*/absl::nullopt, receive_token,
-                           /*data=*/proc->NextState(),
+                           /*data=*/proc->GetUniqueNextState(),
                            /*predicate=*/absl::nullopt,
                            /*channel_id=*/state_channel->id()));
 
@@ -77,8 +78,8 @@ absl::StatusOr<bool> StateRemovalPass::RunOnProcInternal(
   XLS_ASSIGN_OR_RETURN(
       Node * nil_state,
       proc->MakeNode<Tuple>(/*loc=*/absl::nullopt, std::vector<Node*>()));
-  XLS_RETURN_IF_ERROR(proc->ReplaceState(/*state_param_name=*/"nil_state",
-                                         nil_state, Value::Tuple({})));
+  XLS_RETURN_IF_ERROR(proc->ReplaceUniqueState(/*state_param_name=*/"nil_state",
+                                               nil_state, Value::Tuple({})));
 
   return true;
 }

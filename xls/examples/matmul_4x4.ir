@@ -78,7 +78,7 @@ chan c_3_3_o(bits[32], id=47, kind=streaming, ops=send_only, flow_control=none, 
 
 // tile_0_0 has comments for each step, but the remainder elide them,
 // as their functionality is essentially the same.
-proc tile_0_0(my_token: token, state: (), init=()) {
+proc tile_0_0(my_token: token, state: (), init={()}) {
   // Our baked-in weight/gain.
   literal.1: bits[32] = literal(value=2)
 
@@ -99,7 +99,7 @@ proc tile_0_0(my_token: token, state: (), init=()) {
   next (send.7, state)
 }
 
-proc tile_0_1(my_token: token, state: (), init=()) {
+proc tile_0_1(my_token: token, state: (), init={()}) {
   literal.101: bits[32] = literal(value=0)
   receive.102: (token, bits[32]) = receive(my_token, channel_id=1)
   tuple_index.103: token = tuple_index(receive.102, index=0)
@@ -110,7 +110,7 @@ proc tile_0_1(my_token: token, state: (), init=()) {
   next (send.107, state)
 }
 
-proc tile_0_2(my_token: token, state: (), init=()) {
+proc tile_0_2(my_token: token, state: (), init={()}) {
   literal.201: bits[32] = literal(value=0)
   receive.202: (token, bits[32]) = receive(my_token, channel_id=2)
   tuple_index.203: token = tuple_index(receive.202, index=0)
@@ -121,7 +121,7 @@ proc tile_0_2(my_token: token, state: (), init=()) {
   next (send.207, state)
 }
 
-proc tile_0_3(my_token: token, state: (), init=()) {
+proc tile_0_3(my_token: token, state: (), init={()}) {
   literal.301: bits[32] = literal(value=0)
   receive.302: (token, bits[32]) = receive(my_token, channel_id=3)
   tuple_index.303: token = tuple_index(receive.302, index=0)
@@ -132,7 +132,7 @@ proc tile_0_3(my_token: token, state: (), init=()) {
   next (send.306, state)
 }
 
-proc tile_1_0(my_token: token, state: (), init=()) {
+proc tile_1_0(my_token: token, state: (), init={()}) {
   literal.1001: bits[32] = literal(value=0)
   receive.1002: (token, bits[32]) = receive(my_token, channel_id=10)
   tuple_index.1003: token = tuple_index(receive.1002, index=0)
@@ -147,7 +147,7 @@ proc tile_1_0(my_token: token, state: (), init=()) {
   next (send.1011, state)
 }
 
-proc tile_1_1(my_token: token, state: (), init=()) {
+proc tile_1_1(my_token: token, state: (), init={()}) {
   literal.1101: bits[32] = literal(value=2)
   receive.1102: (token, bits[32]) = receive(my_token, channel_id=11)
   tuple_index.1103: token = tuple_index(receive.1102, index=0)
@@ -162,7 +162,7 @@ proc tile_1_1(my_token: token, state: (), init=()) {
   next (send.1111, state)
 }
 
-proc tile_1_2(my_token: token, state: (), init=()) {
+proc tile_1_2(my_token: token, state: (), init={()}) {
   literal.1201: bits[32] = literal(value=0)
   receive.1202: (token, bits[32]) = receive(my_token, channel_id=12)
   tuple_index.1203: token = tuple_index(receive.1202, index=0)
@@ -177,7 +177,7 @@ proc tile_1_2(my_token: token, state: (), init=()) {
   next (send.1211, state)
 }
 
-proc tile_1_3(my_token: token, state: (), init=()) {
+proc tile_1_3(my_token: token, state: (), init={()}) {
   literal.1301: bits[32] = literal(value=0)
   receive.1302: (token, bits[32]) = receive(my_token, channel_id=13)
   tuple_index.1303: token = tuple_index(receive.1302, index=0)
@@ -192,7 +192,7 @@ proc tile_1_3(my_token: token, state: (), init=()) {
   next (send.1310, state)
 }
 
-proc tile_2_0(my_token: token, state: (), init=()) {
+proc tile_2_0(my_token: token, state: (), init={()}) {
   literal.2001: bits[32] = literal(value=0)
   receive.2002: (token, bits[32]) = receive(my_token, channel_id=20)
   tuple_index.2003: token = tuple_index(receive.2002, index=0)
@@ -207,7 +207,7 @@ proc tile_2_0(my_token: token, state: (), init=()) {
   next (send.2011, state)
 }
 
-proc tile_2_1(my_token: token, state: (), init=()) {
+proc tile_2_1(my_token: token, state: (), init={()}) {
   literal.2101: bits[32] = literal(value=0)
   receive.2102: (token, bits[32]) = receive(my_token, channel_id=21)
   tuple_index.2103: token = tuple_index(receive.2102, index=0)
@@ -222,7 +222,7 @@ proc tile_2_1(my_token: token, state: (), init=()) {
   next (send.2111, state)
 }
 
-proc tile_2_2(my_token: token, state: (), init=()) {
+proc tile_2_2(my_token: token, state: (), init={()}) {
   literal.2201: bits[32] = literal(value=2)
   receive.2202: (token, bits[32]) = receive(my_token, channel_id=22)
   tuple_index.2203: token = tuple_index(receive.2202, index=0)
@@ -237,7 +237,7 @@ proc tile_2_2(my_token: token, state: (), init=()) {
   next (send.2211, state)
 }
 
-proc tile_2_3(my_token: token, state: (), init=()) {
+proc tile_2_3(my_token: token, state: (), init={()}) {
   literal.2301: bits[32] = literal(value=0)
   receive.2302: (token, bits[32]) = receive(my_token, channel_id=23)
   tuple_index.2303: token = tuple_index(receive.2302, index=0)
@@ -252,7 +252,7 @@ proc tile_2_3(my_token: token, state: (), init=()) {
   next (send.2310, state)
 }
 
-proc tile_3_0(my_token: token, state: (), init=()) {
+proc tile_3_0(my_token: token, state: (), init={()}) {
   literal.3001: bits[32] = literal(value=0)
   receive.3002: (token, bits[32]) = receive(my_token, channel_id=30)
   tuple_index.3003: token = tuple_index(receive.3002, index=0)
@@ -267,7 +267,7 @@ proc tile_3_0(my_token: token, state: (), init=()) {
   next (send.3011, state)
 }
 
-proc tile_3_1(my_token: token, state: (), init=()) {
+proc tile_3_1(my_token: token, state: (), init={()}) {
   literal.3101: bits[32] = literal(value=0)
   receive.3102: (token, bits[32]) = receive(my_token, channel_id=31)
   tuple_index.3103: token = tuple_index(receive.3102, index=0)
@@ -282,7 +282,7 @@ proc tile_3_1(my_token: token, state: (), init=()) {
   next (send.3111, state)
 }
 
-proc tile_3_2(my_token: token, state: (), init=()) {
+proc tile_3_2(my_token: token, state: (), init={()}) {
   literal.3201: bits[32] = literal(value=0)
   receive.3202: (token, bits[32]) = receive(my_token, channel_id=32)
   tuple_index.3203: token = tuple_index(receive.3202, index=0)
@@ -297,7 +297,7 @@ proc tile_3_2(my_token: token, state: (), init=()) {
   next (send.3211, state)
 }
 
-proc tile_3_3(my_token: token, state: (), init=()) {
+proc tile_3_3(my_token: token, state: (), init={()}) {
   literal.3301: bits[32] = literal(value=2)
   receive.3302: (token, bits[32]) = receive(my_token, channel_id=33)
   tuple_index.3303: token = tuple_index(receive.3302, index=0)

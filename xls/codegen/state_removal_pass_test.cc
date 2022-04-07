@@ -47,11 +47,11 @@ TEST_F(StateRemovalPassTest, SimpleProc) {
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam());
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), add));
 
-  EXPECT_EQ(proc->StateType(), p->GetBitsType(32));
+  EXPECT_EQ(proc->GetUniqueStateType(), p->GetBitsType(32));
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
 
-  EXPECT_EQ(proc->StateType(), p->GetTupleType({}));
+  EXPECT_EQ(proc->GetUniqueStateType(), p->GetTupleType({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel * state_channel, p->GetChannel("st"));
   EXPECT_EQ(state_channel->name(), "st");
@@ -84,7 +84,7 @@ package test
 chan in(bits[32], kind=streaming, id=0, ops=receive_only, flow_control=none, metadata="")
 chan out(bits[32], kind=streaming, id=1, ops=send_only, flow_control=none, metadata="")
 
-proc accumulator(tkn: token, accum: bits[32], init=100) {
+proc accumulator(tkn: token, accum: bits[32], init={100}) {
   input_recv: (token, bits[32]) = receive(tkn, channel_id=0)
   input: bits[32] = tuple_index(input_recv, index=1)
   new_accum: bits[32] = add(input, accum)
@@ -122,7 +122,7 @@ proc accumulator(tkn: token, accum: bits[32], init=100) {
   }
 
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
-  EXPECT_EQ(proc->StateType(), p->GetTupleType({}));
+  EXPECT_EQ(proc->GetUniqueStateType(), p->GetTupleType({}));
 
   {
     // Verify results after transformation.

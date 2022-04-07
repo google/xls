@@ -29,52 +29,118 @@ namespace xls {
 // TODO(meheff): Add link to documentation when we have some.
 class Proc : public FunctionBase {
  public:
+  // Constructor for a proc with a single state element.
   Proc(absl::string_view name, const Value& init_value,
        absl::string_view token_param_name, absl::string_view state_param_name,
        Package* package)
       : FunctionBase(name, package),
-        init_value_(init_value),
-        token_param_(AddNode(std::make_unique<Param>(
+        init_values_({init_value}),
+        next_token_(AddNode(std::make_unique<Param>(
             absl::nullopt, token_param_name, package->GetTokenType(), this))),
-        state_param_(AddNode(std::make_unique<Param>(
+        next_state_({AddNode(std::make_unique<Param>(
             absl::nullopt, state_param_name,
-            package->GetTypeForValue(init_value_), this))),
-        next_token_(token_param_),
-        next_state_(state_param_) {}
+            package->GetTypeForValue(init_value), this))}) {}
 
   virtual ~Proc() = default;
 
-  // Returns the initial value of the state variable.
-  const Value& InitValue() const { return init_value_; }
+  // Returns the initial values of the state variables.
+  absl::Span<const Value> InitValues() const { return init_values_; }
+  const Value& GetInitValueElement(int64_t index) const {
+    return init_values_.at(index);
+  }
 
-  // Returns the type of the recurrent state variable.
-  Type* StateType() const { return StateParam()->GetType(); }
+  // Returns the token parameter node.
+  Param* TokenParam() const { return params().at(0); }
 
-  // Returns the state (or token) parameter node. These are the only Params of
-  // the Proc.
-  Param* StateParam() const { return state_param_; }
-  Param* TokenParam() const { return token_param_; }
+  // Returns the state parameter node(s).
+  absl::Span<Param* const> StateParams() const { return params().subspan(1); }
+  Param* GetStateParam(int64_t index) const { return StateParams().at(index); }
 
-  // Returns the node holding the next recurrent token/state value.
+  // Returns the node holding the next recurrent token value.
   Node* NextToken() const { return next_token_; }
-  Node* NextState() const { return next_state_; }
 
-  // Sets the next recurrent token value. Node must be token typed.
+  // Returns the nodes holding the next recurrent state value.
+  absl::Span<Node* const> NextState() const { return next_state_; }
+  Node* GetNextStateElement(int64_t index) const {
+    return NextState().at(index);
+  }
+
+  // Returns the type of the given state element.
+  Type* GetStateElementType(int64_t index) const {
+    return StateParams().at(index)->GetType();
+  }
+
+  // Sets the next token value.
   absl::Status SetNextToken(Node* next);
 
-  // Sets the next recurrent state value. Node type must match the type of the
-  // state of the proc.
-  absl::Status SetNextState(Node* next);
+  // Sets the next recurrent state value for the state element of the given
+  // index. Node type must match the type of the state element.
+  absl::Status SetNextStateElement(int64_t index, Node* next);
 
-  // Removes the existing state param node and creates a new one with the given
-  // name and type matching next_state (which may be any type). Replaces the
-  // proc's next recurrent state with the given next_state. The existing state
-  // param must have no uses.
-  absl::Status ReplaceState(absl::string_view state_param_name,
-                            Node* next_state, const Value& init_value);
+  // Replace all state elements with new state parameters and the given initial
+  // values. The next state nodes are set to the newly created state parameter
+  // nodes.
+  absl::Status ReplaceState(absl::Span<const std::string> state_param_names,
+                            absl::Span<const Value> init_values);
+
+  // Replace all state elements with new state parameters and the given initial
+  // values, and the next state values. This is defined as an overload rather
+  // than as a std::optional `next_state` argument because initializer lists do
+  // not explicitly convert to std::optional<absl::Span> making callsites
+  // verbose.
+  absl::Status ReplaceState(absl::Span<const std::string> state_param_names,
+                            absl::Span<const Value> init_values,
+                            absl::Span<Node* const> next_state);
+
+  // Replace the state element at the given index with a new state parameter,
+  // initial value, and next state value. If `next_state` is not given then the
+  // next state node for this state element is set to the newly created state
+  // parameter node.
+  absl::Status ReplaceStateElement(
+      int64_t index, absl::string_view state_param_name,
+      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
+
+  // Remove the state element at the given index. All state elements higher than
+  // `index` are shifted down one to fill the hole. The state parameter at the
+  // index must have no uses.
+  absl::Status RemoveStateElement(int64_t index);
+
+  // Appends a state element with the given parameter name, next state value,
+  // and initial value. If `next_state` is not given then the next state node
+  // for this state element is set to the newly created state parameter node.
+  absl::Status AppendStateElement(
+      absl::string_view state_param_name, const Value& init_value,
+      std::optional<Node*> next_state = std::nullopt);
+
+  // Adds a state element at the given index. Current state elements at the
+  // given index or higher will be shifted up.
+  absl::Status InsertStateElement(
+      int64_t index, absl::string_view state_param_name,
+      const Value& init_value, std::optional<Node*> next_state = std::nullopt);
+
+  // Methods which only work when the proc has a single state element.
+  // TODO(https://github.com/google/xls/issues/548): Remove.
+  const Value& GetUniqueInitValue() const {
+    XLS_CHECK_EQ(init_values_.size(), 1);
+    return init_values_.front();
+  }
+  Param* GetUniqueStateParam() const {
+    XLS_CHECK_EQ(StateParams().size(), 1);
+    return StateParams().front();
+  }
+  Node* GetUniqueNextState() const {
+    XLS_CHECK_EQ(next_state_.size(), 1);
+    return next_state_.front();
+  }
+  Type* GetUniqueStateType() const { return GetUniqueNextState()->GetType(); }
+  absl::Status SetUniqueNextState(Node* next);
+  absl::Status ReplaceUniqueState(absl::string_view state_param_name,
+                                  Node* next_state, const Value& init_value);
 
   bool HasImplicitUse(Node* node) const override {
-    return node == NextToken() || node == NextState();
+    return node == NextToken() ||
+           std::find(next_state_.begin(), next_state_.end(), node) !=
+               next_state_.end();
   }
 
   // Creates a clone of the proc with the new name `new_name`. Proc is
@@ -88,17 +154,12 @@ class Proc : public FunctionBase {
   std::string DumpIr() const override;
 
  private:
-  Value init_value_;
-
-  // State and token parameters. Procs have fixed set of parameters (state data
-  // and an input token) which are added at construction time.
-  Param* token_param_;
-  Param* state_param_;
+  std::vector<Value> init_values_;
 
   // The nodes representing the token/state values for the next iteration of the
   // proc.
   Node* next_token_;
-  Node* next_state_;
+  std::vector<Node*> next_state_;
 };
 
 }  // namespace xls

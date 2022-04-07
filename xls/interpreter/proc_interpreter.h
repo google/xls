@@ -82,7 +82,7 @@ class ProcInterpreter {
 
   Proc* proc() { return proc_; }
   absl::StatusOr<Value> ResolveState() {
-    xls::Node* n = proc_->NextState();
+    xls::Node* n = proc_->GetUniqueNextState();
     if (!visitor_->HasResult(n)) {
       return absl::NotFoundError("Proc has no current state");
     }

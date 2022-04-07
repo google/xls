@@ -757,8 +757,8 @@ absl::StatusOr<bool> Node::ReplaceImplicitUsesWith(Node* replacement) {
       XLS_RETURN_IF_ERROR(proc->SetNextToken(replacement));
       changed = true;
     }
-    if (this == proc->NextState()) {
-      XLS_RETURN_IF_ERROR(proc->SetNextState(replacement));
+    if (this == proc->GetUniqueNextState()) {
+      XLS_RETURN_IF_ERROR(proc->SetUniqueNextState(replacement));
       changed = true;
     }
   } else {

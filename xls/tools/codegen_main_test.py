@@ -43,7 +43,7 @@ chan in(bits[32], id=0, kind=streaming, ops=receive_only,
 chan out(bits[32], id=1, kind=streaming, ops=send_only,
         flow_control=ready_valid, metadata="")
 
-proc neg_proc(my_token: token, my_state: (), init=()) {
+proc neg_proc(my_token: token, my_state: (), init={()}) {
   rcv: (token, bits[32]) = receive(my_token, channel_id=0)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)

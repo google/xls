@@ -383,7 +383,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init=42) {
+proc my_proc(tkn: token, st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
   next (tkn, add.4)
@@ -468,7 +468,7 @@ top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init=42) {
+proc my_proc(tkn: token, st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
   next (tkn, add.4)
@@ -499,7 +499,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-top proc my_proc(tkn: token, st: bits[32], init=42) {
+top proc my_proc(tkn: token, st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
   next (tkn, add.4)
@@ -530,7 +530,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init=42) {
+proc my_proc(tkn: token, st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
   next (tkn, add.4)
@@ -561,7 +561,7 @@ fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
   ret add.1: bits[32] = add(x, y)
 }
 
-proc my_proc(tkn: token, st: bits[32], init=42) {
+proc my_proc(tkn: token, st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
   next (tkn, add.4)

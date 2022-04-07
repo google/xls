@@ -1177,7 +1177,7 @@ TEST(IrParserTest, ParseSimpleProc) {
 
 chan ch(bits[32], id=0, kind=streaming, ops=send_receive, flow_control=none, metadata="""""")
 
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
+proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   send.1: token = send(my_token, my_state, channel_id=0, id=1)
   literal.2: bits[1] = literal(value=1, id=2)
   receive.3: (token, bits[32]) = receive(send.1, predicate=literal.2, channel_id=0, id=3)
@@ -1867,7 +1867,7 @@ TEST(IrParserTest, TrivialProc) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], init=42) {
+proc foo(my_token: token, my_state: bits[32], init={42}) {
   next (my_token, my_state)
 }
 )";
@@ -1877,10 +1877,10 @@ proc foo(my_token: token, my_state: bits[32], init=42) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 2);
   EXPECT_EQ(proc->params().size(), 2);
-  EXPECT_EQ(proc->InitValue().ToString(), "bits[32]:42");
-  EXPECT_EQ(proc->StateType()->ToString(), "bits[32]");
+  EXPECT_EQ(proc->GetUniqueInitValue().ToString(), "bits[32]:42");
+  EXPECT_EQ(proc->GetUniqueStateType()->ToString(), "bits[32]");
   EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
-  EXPECT_EQ(proc->StateParam()->GetName(), "my_state");
+  EXPECT_EQ(proc->GetUniqueStateParam()->GetName(), "my_state");
 }
 
 TEST(IrParserTest, FunctionAndProc) {
@@ -1891,7 +1891,7 @@ fn my_function() -> bits[1] {
   ret literal.1: bits[1] = literal(value=0, id=1)
 }
 
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
+proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   next (my_token, my_state)
 }
 )";
@@ -1909,7 +1909,7 @@ TEST(IrParserTest, ProcWrongParameterCount) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], total_garbage: bits[1], init=42) {
+proc foo(my_token: token, my_state: bits[32], total_garbage: bits[1], init={42}) {
   ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
@@ -1922,7 +1922,7 @@ TEST(IrParserTest, ProcWrongTokenType) {
   std::string program = R"(
 package test
 
-proc foo(my_token: bits[1], my_state: bits[32], init=42) {
+proc foo(my_token: bits[1], my_state: bits[32], init={42}) {
   ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
@@ -1936,7 +1936,7 @@ TEST(IrParserTest, ProcWrongInitValueType) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], init=(1, 2, 3)) {
+proc foo(my_token: token, my_state: bits[32], init={(1, 2, 3)}) {
   ret tuple.1: (token, bits[32]) = tuple(my_token, my_state, id=1)
 }
 )";
@@ -1949,7 +1949,7 @@ TEST(IrParserTest, ProcWrongReturnType) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], init=42) {
+proc foo(my_token: token, my_state: bits[32], init={42}) {
   literal.1: bits[32] = literal(value=123, id=1)
   next (literal.1, my_state)
 }
@@ -1966,7 +1966,7 @@ TEST(IrParserTest, ProcWithRet) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], init=42) {
+proc foo(my_token: token, my_state: bits[32], init={42}) {
   ret literal.1: bits[32] = literal(value=123, id=1)
 }
 )";
@@ -1992,7 +1992,7 @@ TEST(IrParserTest, ProcWithBogusNextToken) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], init=42) {
+proc foo(my_token: token, my_state: bits[32], init={42}) {
   next (foobar, my_state)
 }
 )";
@@ -2007,7 +2007,7 @@ TEST(IrParserTest, ProcWithBogusNextState) {
   std::string program = R"(
 package test
 
-proc foo(my_token: token, my_state: bits[32], init=42) {
+proc foo(my_token: token, my_state: bits[32], init={42}) {
   next (my_token, sfsdfsfd)
 }
 )";
@@ -2312,7 +2312,7 @@ chan hbo(bits[32], id=0, kind=streaming, flow_control=none, ops=receive_only,
 chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
             metadata="module_port { flopped: true }")
 
-proc my_proc(my_token: token, my_state: bits[32], init=42) {
+proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1, id=3)
@@ -2772,7 +2772,7 @@ top fn my_function(x: bits[32], y: bits[32]) -> bits[32] {
 TEST(IrParserTest, ParseTopProc) {
   const std::string input = R"(package test
 
-top proc my_proc(tkn: token, st: bits[32], init=42) {
+top proc my_proc(tkn: token, st: bits[32], init={42}) {
   literal: bits[32] = literal(value=1)
   add: bits[32] = add(literal, st)
   next (tkn, add)

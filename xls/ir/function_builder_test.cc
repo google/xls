@@ -412,13 +412,13 @@ TEST(FunctionBuilderTest, SendAndReceive) {
               m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
                           m::Send(m::Param(), m::Param(), m::Literal(1)),
                           m::TupleIndex(m::Receive())));
-  EXPECT_THAT(proc->NextState(),
+  EXPECT_THAT(proc->GetUniqueNextState(),
               m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::Receive())));
 
-  EXPECT_EQ(proc->InitValue(), Value(UBits(42, 32)));
-  EXPECT_EQ(proc->StateParam()->GetName(), "my_state");
+  EXPECT_EQ(proc->GetUniqueInitValue(), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetUniqueStateParam()->GetName(), "my_state");
   EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
-  EXPECT_EQ(proc->StateType(), p.GetBitsType(32));
+  EXPECT_EQ(proc->GetUniqueStateType(), p.GetBitsType(32));
 
   EXPECT_EQ(send.node()->GetType(), p.GetTokenType());
   EXPECT_EQ(send_if.node()->GetType(), p.GetTokenType());
@@ -685,7 +685,7 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
   EXPECT_THAT(proc->NextToken(), m::AfterAll(m::TupleIndex(m::Receive(), 0),
                                              m::TupleIndex(m::Receive(), 0),
                                              m::Send(m::Channel("out"))));
-  EXPECT_THAT(proc->NextState(),
+  EXPECT_THAT(proc->GetUniqueNextState(),
               m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
                      m::TupleIndex(m::Receive(m::Channel("b")), 1)));
 }
@@ -696,7 +696,7 @@ TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam()));
 
   EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
-  EXPECT_THAT(proc->NextState(), m::Param("st"));
+  EXPECT_THAT(proc->GetUniqueNextState(), m::Param("st"));
 }
 
 TEST(FunctionBuilderTest, Assert) {

@@ -1421,7 +1421,7 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
 
-  // Parse "init=VALUE".
+  // Parse "init={VALUE, VALUE, ...}".
   XLS_ASSIGN_OR_RETURN(
       Token init_name,
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "argument"));
@@ -1430,7 +1430,11 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         "Expected 'init' attribute @ %s", token_type_pos.ToHumanString()));
   }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
+                                                "start of init_values"));
   XLS_ASSIGN_OR_RETURN(Value init_value, ParseValueInternal(state_type));
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlClose,
+                                                "end of init_values"));
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in proc parameters"));

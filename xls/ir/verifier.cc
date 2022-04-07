@@ -32,6 +32,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
+#include "xls/ir/value_helpers.h"
 
 namespace xls {
 namespace {
@@ -1685,10 +1686,8 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
 
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
 
-  // A Proc should have two parameters: a token (parameter 0), and the recurent
-  // state (parameter 1).
-  XLS_RET_CHECK_EQ(proc->params().size(), 2) << absl::StreamFormat(
-      "Proc %s does not have two parameters", proc->name());
+  // A Proc has a single token parameter and zero or more state paramers.
+  XLS_RET_CHECK_EQ(proc->params().size(), proc->StateParams().size() + 1);
 
   XLS_RET_CHECK_EQ(proc->param(0), proc->TokenParam());
   XLS_RET_CHECK_EQ(proc->param(0)->GetType(), proc->package()->GetTokenType())
@@ -1696,18 +1695,29 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
                             proc->name(),
                             proc->param(1)->GetType()->ToString());
 
-  XLS_RET_CHECK_EQ(proc->param(1), proc->StateParam());
-  XLS_RET_CHECK_EQ(proc->param(1)->GetType(), proc->StateType())
-      << absl::StreamFormat(
-             "Parameter 1 of a proc %s does not match state type %s, is %s",
-             proc->name(), proc->StateType()->ToString(),
-             proc->param(1)->GetType()->ToString());
+  XLS_RET_CHECK_EQ(proc->StateParams().size(), proc->InitValues().size());
+  XLS_RET_CHECK_EQ(proc->StateParams().size(), proc->NextState().size());
+  for (int64_t i = 0; i < proc->StateParams().size(); ++i) {
+    // Verify that the order of parameters matches the state element order.
+    XLS_RET_CHECK_EQ(proc->param(i + 1), proc->GetStateParam(i));
+
+    // Verify type of state param matches type of the corresponding initial
+    // value and next state element.
+    XLS_RET_CHECK_EQ(proc->GetStateParam(i)->GetType(),
+                     proc->GetNextStateElement(i)->GetType())
+        << absl::StreamFormat(
+               "State parameter %d of proc %s does not match next state type "
+               "%s, is %s",
+               i, proc->name(),
+               proc->GetNextStateElement(i)->GetType()->ToString(),
+               proc->GetStateParam(i)->GetType()->ToString());
+
+    XLS_RET_CHECK(ValueConformsToType(proc->GetInitValueElement(i),
+                                      proc->GetStateParam(i)->GetType()));
+  }
 
   // Next token must be token type.
   XLS_RET_CHECK(proc->NextToken()->GetType()->IsToken());
-
-  // Next state must be state type.
-  XLS_RET_CHECK_EQ(proc->NextState()->GetType(), proc->StateType());
 
   // Verify that all side-effecting operations which produce tokens are
   // connected to the token parameter and the return value via paths of tokens.

@@ -261,7 +261,7 @@ absl::StatusOr<Value> SerialProcRuntime::SerialProcRuntime::ProcState(
 
   XLS_ASSIGN_OR_RETURN(Proc * p, proc(index));
   return threads_[index]->jit->runtime()->UnpackBuffer(
-      threads_[index]->proc_state.get(), p->StateType());
+      threads_[index]->proc_state.get(), p->GetUniqueStateType());
 }
 
 void SerialProcRuntime::ResetState() {
@@ -272,7 +272,7 @@ void SerialProcRuntime::ResetState() {
     thread->proc_state_size = jit->GetReturnTypeSize();
     thread->proc_state = std::make_unique<uint8_t[]>(thread->proc_state_size);
     jit->runtime()->BlitValueToBuffer(
-        proc->InitValue(),
+        proc->GetUniqueInitValue(),
         FunctionBuilderVisitor::GetEffectiveReturnValue(proc)->GetType(),
         absl::MakeSpan(thread->proc_state.get(), jit->GetReturnTypeSize()));
   }

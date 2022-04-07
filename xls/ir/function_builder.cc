@@ -980,7 +980,7 @@ ProcBuilder::ProcBuilder(absl::string_view name, const Value& init_value,
       // for each param node so they may be used in construction of
       // expressions.
       token_param_(proc()->TokenParam(), this),
-      state_param_(proc()->StateParam(), this) {}
+      state_param_(proc()->GetUniqueStateParam(), this) {}
 
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 
@@ -1013,7 +1013,7 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
   Proc* proc = package()->AddProc(
       absl::WrapUnique(down_cast<Proc*>(function_.release())));
   XLS_RETURN_IF_ERROR(proc->SetNextToken(token.node()));
-  XLS_RETURN_IF_ERROR(proc->SetNextState(next_state.node()));
+  XLS_RETURN_IF_ERROR(proc->SetUniqueNextState(next_state.node()));
   if (should_verify_) {
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }

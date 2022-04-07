@@ -209,11 +209,11 @@ TEST_F(NodeUtilTest, ChannelNodes) {
 
   EXPECT_TRUE(IsChannelNode(rcv.node()));
   EXPECT_TRUE(IsChannelNode(send.node()));
-  EXPECT_FALSE(IsChannelNode(proc->StateParam()));
+  EXPECT_FALSE(IsChannelNode(proc->GetUniqueStateParam()));
 
   EXPECT_THAT(GetChannelUsedByNode(rcv.node()), IsOkAndHolds(ch0));
   EXPECT_THAT(GetChannelUsedByNode(send.node()), IsOkAndHolds(ch1));
-  EXPECT_THAT(GetChannelUsedByNode(proc->StateParam()),
+  EXPECT_THAT(GetChannelUsedByNode(proc->GetUniqueStateParam()),
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("No channel associated with node")));
 }

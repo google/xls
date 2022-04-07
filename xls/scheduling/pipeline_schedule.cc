@@ -155,7 +155,7 @@ std::vector<Node*> FirstStageNodes(FunctionBase* f) {
       // TODO(tedhong): 2021/10/14 Make this more flexible (ex. for ii>N),
       // where the next state node must be scheduled before a specific state
       // but not necessarily the 1st stage.
-      if (node->Is<Receive>() || (node == proc->NextState())) {
+      if (node->Is<Receive>() || (node == proc->GetUniqueNextState())) {
         nodes.push_back(node);
       }
     }

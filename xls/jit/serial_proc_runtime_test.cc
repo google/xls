@@ -51,7 +51,7 @@ chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, m
 chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
 chan b_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc a(my_token: token, state: (), init=()) {
+proc a(my_token: token, state: (), init={()}) {
   literal.1: bits[32] = literal(value=2)
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -61,7 +61,7 @@ proc a(my_token: token, state: (), init=()) {
   next (send.6, state)
 }
 
-proc b(my_token: token, state: (), init=()) {
+proc b(my_token: token, state: (), init={()}) {
   literal.100: bits[32] = literal(value=3)
   receive.200: (token, bits[32]) = receive(my_token, channel_id=1)
   tuple_index.300: token = tuple_index(receive.200, index=0)
@@ -124,7 +124,7 @@ chan c_e(bits[32], id=5, kind=streaming, ops=send_receive, flow_control=none, me
 chan d_o(bits[32], id=6, kind=streaming, ops=send_only, flow_control=none, metadata="")
 chan e_o(bits[32], id=7, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc a(my_token: token, state: (), init=()) {
+proc a(my_token: token, state: (), init={()}) {
   literal.1: bits[32] = literal(value=1)
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -134,7 +134,7 @@ proc a(my_token: token, state: (), init=()) {
   next (send.6, state)
 }
 
-proc b(my_token: token, state: (), init=()) {
+proc b(my_token: token, state: (), init={()}) {
   literal.101: bits[32] = literal(value=2)
   receive.102: (token, bits[32]) = receive(my_token, channel_id=1)
   tuple_index.103: token = tuple_index(receive.102, index=0)
@@ -144,7 +144,7 @@ proc b(my_token: token, state: (), init=()) {
   next (send.106, state)
 }
 
-proc c(my_token: token, state: (), init=()) {
+proc c(my_token: token, state: (), init={()}) {
   literal.201: bits[32] = literal(value=3)
   receive.202: (token, bits[32]) = receive(my_token, channel_id=2)
   tuple_index.203: token = tuple_index(receive.202, index=0)
@@ -159,7 +159,7 @@ proc c(my_token: token, state: (), init=()) {
   next (send.211, state)
 }
 
-proc d(my_token: token, state: (), init=()) {
+proc d(my_token: token, state: (), init={()}) {
   literal.301: bits[32] = literal(value=4)
   receive.302: (token, bits[32]) = receive(my_token, channel_id=4)
   tuple_index.303: token = tuple_index(receive.302, index=0)
@@ -169,7 +169,7 @@ proc d(my_token: token, state: (), init=()) {
   next (send.306, state)
 }
 
-proc e(my_token: token, state: (), init=()) {
+proc e(my_token: token, state: (), init={()}) {
   literal.401: bits[32] = literal(value=5)
   receive.402: (token, bits[32]) = receive(my_token, channel_id=5)
   tuple_index.403: token = tuple_index(receive.402, index=0)
@@ -219,7 +219,7 @@ chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, m
 chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
 chan b_out(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc a(my_token: token, state: (bits[32]), init=(1)) {
+proc a(my_token: token, state: (bits[32]), init={(1)}) {
   tuple_index.1: bits[32] = tuple_index(state, index=0)
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
@@ -232,7 +232,7 @@ proc a(my_token: token, state: (bits[32]), init=(1)) {
   next (send.6, tuple.9)
 }
 
-proc b(my_token: token, state: (bits[32]), init=()) {
+proc b(my_token: token, state: (bits[32]), init={()}) {
   literal.100: bits[32] = literal(value=3)
   receive.200: (token, bits[32]) = receive(my_token, channel_id=1)
   tuple_index.300: token = tuple_index(receive.200, index=0)
@@ -277,14 +277,14 @@ package p
 chan first(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
 chan second(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none, metadata="")
 
-proc a(my_token: token, state: bits[1], init=0) {
+proc a(my_token: token, state: bits[1], init={0}) {
   literal.1: bits[32] = literal(value=1)
   send.3: token = send(my_token, literal.1, channel_id=1)
   send.4: token = send(send.3, literal.1, predicate=state, channel_id=2)
   next (send.4, state)
 }
 
-proc b(my_token: token, state: (), init=()) {
+proc b(my_token: token, state: (), init={()}) {
   receive.101: (token, bits[32]) = receive(my_token, channel_id=1)
   tuple_index.102: token = tuple_index(receive.101, index=0)
   receive.103: (token, bits[32]) = receive(tuple_index.102, channel_id=2)
@@ -308,7 +308,7 @@ chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none, 
 chan a_to_b(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
 chan output(bits[32], id=2, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc a(my_token: token, state: (), init=()) {
+proc a(my_token: token, state: (), init={()}) {
   receive.1: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.2: token = tuple_index(receive.1, index=0)
   tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
@@ -316,7 +316,7 @@ proc a(my_token: token, state: (), init=()) {
   next (send.4, state)
 }
 
-proc b(my_token: token, state: (), init=()) {
+proc b(my_token: token, state: (), init={()}) {
   receive.101: (token, bits[32]) = receive(my_token, channel_id=1)
   tuple_index.102: token = tuple_index(receive.101, index=0)
   tuple_index.103: bits[32] = tuple_index(receive.101, index=1)
@@ -352,7 +352,7 @@ package p
 chan in((bits[132], bits[217]), id=0, kind=streaming, ops=receive_only, flow_control=none, metadata="")
 chan out((bits[132], bits[217]), id=1, kind=streaming, ops=send_only, flow_control=none, metadata="")
 
-proc a(my_token: token, state: (), init=()) {
+proc a(my_token: token, state: (), init={()}) {
   rcv: (token, (bits[132], bits[217])) = receive(my_token, channel_id=0)
   rcv_tkn: token = tuple_index(rcv, index=0)
   rcv_data: (bits[132], bits[217]) = tuple_index(rcv, index=1)

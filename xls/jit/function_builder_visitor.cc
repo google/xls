@@ -1894,7 +1894,7 @@ void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
     return function_base->AsFunctionOrDie()->return_value();
   }
   XLS_CHECK(function_base->IsProc());
-  return function_base->AsProcOrDie()->NextState();
+  return function_base->AsProcOrDie()->GetUniqueNextState();
 }
 
 }  // namespace xls

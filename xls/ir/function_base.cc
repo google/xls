@@ -50,6 +50,19 @@ absl::StatusOr<int64_t> FunctionBase::GetParamIndex(Param* param) const {
   return std::distance(params_.begin(), it);
 }
 
+absl::Status FunctionBase::MoveParamToIndex(Param* param, int64_t index) {
+  XLS_RET_CHECK_LT(index, params_.size());
+  auto it = std::find(params_.begin(), params_.end(), param);
+  if (it == params_.end()) {
+    return absl::InvalidArgumentError(
+        "Given param is not a member of this function base: " +
+        param->ToString());
+  }
+  params_.erase(it);
+  params_.insert(params_.begin() + index, param);
+  return absl::OkStatus();
+}
+
 absl::StatusOr<Node*> FunctionBase::GetNode(
     absl::string_view standard_node_name) {
   for (Node* node : nodes()) {

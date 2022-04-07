@@ -511,7 +511,7 @@ class ProcThread {
     XLS_ASSIGN_OR_RETURN(proc_thread.proc_state_,
                          proc_thread.AllocateState(
                              absl::StrFormat("%s_state", inlined_proc->name()),
-                             inlined_proc->InitValue()));
+                             inlined_proc->GetUniqueInitValue()));
 
     // Create the state element for the activation bit of the proc thread.
     XLS_ASSIGN_OR_RETURN(
@@ -1060,8 +1060,8 @@ absl::StatusOr<ProcThread> ConvertToProcThread(
     absl::flat_hash_map<Channel*, VirtualChannel>& virtual_channels) {
   XLS_ASSIGN_OR_RETURN(ProcThread proc_thread, ProcThread::Create(proc, proc));
 
-  XLS_RETURN_IF_ERROR(
-      proc->StateParam()->ReplaceUsesWith(proc_thread.GetDummyState()));
+  XLS_RETURN_IF_ERROR(proc->GetUniqueStateParam()->ReplaceUsesWith(
+      proc_thread.GetDummyState()));
 
   for (Node* node : TopoSort(proc)) {
     if (node->Is<Send>()) {
@@ -1092,7 +1092,7 @@ absl::StatusOr<ProcThread> ConvertToProcThread(
   }
 
   XLS_RETURN_IF_ERROR(proc_thread.Finalize(
-      /*next_state=*/proc->NextState(),
+      /*next_state=*/proc->GetUniqueNextState(),
       /*proc_tick_complete=*/proc_thread.GetActivationBit(proc->NextToken())));
 
   return std::move(proc_thread);
@@ -1120,7 +1120,7 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   for (Node* node : TopoSort(proc_to_inline)) {
     XLS_VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
     if (node->Is<Param>()) {
-      if (node == proc_to_inline->StateParam()) {
+      if (node == proc_to_inline->GetUniqueStateParam()) {
         // The dummy state value will later be replaced with an element from the
         // container proc state.
         node_map[node] = proc_thread.GetDummyState();
@@ -1168,7 +1168,7 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   }
 
   XLS_RETURN_IF_ERROR(proc_thread.Finalize(
-      /*next_state=*/node_map.at(proc_to_inline->NextState()),
+      /*next_state=*/node_map.at(proc_to_inline->GetUniqueNextState()),
       /*proc_tick_complete=*/proc_thread.GetActivationBit(
           node_map.at(proc_to_inline->NextToken()))));
 
@@ -1212,15 +1212,15 @@ absl::Status ReplaceProcState(Proc* proc,
       Node * next,
       proc->MakeNodeWithName<Tuple>(
           absl::nullopt, nexts,
-          absl::StrFormat("%s_next", proc->StateParam()->GetName())));
-  XLS_RETURN_IF_ERROR(
-      proc->ReplaceState(proc->StateParam()->name(), next, initial_value));
+          absl::StrFormat("%s_next", proc->GetUniqueStateParam()->GetName())));
+  XLS_RETURN_IF_ERROR(proc->ReplaceUniqueState(
+      proc->GetUniqueStateParam()->name(), next, initial_value));
 
   for (int64_t i = 0; i < elements.size(); ++i) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * state_element,
-        proc->MakeNodeWithName<TupleIndex>(absl::nullopt, proc->StateParam(), i,
-                                           elements[i].GetName()));
+    XLS_ASSIGN_OR_RETURN(Node * state_element,
+                         proc->MakeNodeWithName<TupleIndex>(
+                             absl::nullopt, proc->GetUniqueStateParam(), i,
+                             elements[i].GetName()));
     XLS_RETURN_IF_ERROR(elements[i].GetState()->ReplaceUsesWith(state_element));
   }
   return absl::OkStatus();

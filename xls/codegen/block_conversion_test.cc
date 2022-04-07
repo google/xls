@@ -508,7 +508,7 @@ chan in(bits[32], id=0, kind=single_value, ops=receive_only,
 chan out(bits[32], id=1, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
-proc my_proc(my_token: token, my_state: (), init=()) {
+proc my_proc(my_token: token, my_state: (), init={()}) {
   rcv: (token, bits[32]) = receive(my_token, channel_id=0)
   data: bits[32] = tuple_index(rcv, index=1)
   negate: bits[32] = neg(data)
@@ -538,7 +538,7 @@ chan out(bits[32], id=1, kind=streaming, ops=send_only,
 chan in2(bits[32], id=2, kind=single_value, ops=receive_only, metadata="")
 chan out2(bits[32], id=3, kind=single_value, ops=send_only, metadata="")
 
-proc my_proc(my_token: token, my_state: (), init=()) {
+proc my_proc(my_token: token, my_state: (), init={()}) {
   rcv: (token, bits[32]) = receive(my_token, channel_id=0)
   rcv2: (token, bits[32]) = receive(my_token, channel_id=2)
 
@@ -622,7 +622,7 @@ chan in2(bits[32], id=2, kind=single_value, ops=receive_only,
 chan out(bits[32], id=3, kind=single_value, ops=send_only,
          metadata="""module_port { flopped: false,  port_order: 0 }""")
 
-proc my_proc(my_token: token, my_state: (), init=()) {
+proc my_proc(my_token: token, my_state: (), init={()}) {
   rcv0: (token, bits[32]) = receive(my_token, channel_id=0)
   rcv0_token: token = tuple_index(rcv0, index=0)
   rcv1: (token, bits[32]) = receive(rcv0_token, channel_id=1)
@@ -661,7 +661,7 @@ TEST_F(BlockConversionTest, OnlyFIFOOutProc) {
 chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc my_proc(tkn: token, st: (), init=()) {
+proc my_proc(tkn: token, st: (), init={()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
@@ -690,7 +690,7 @@ flow_control=ready_valid, metadata="""module_port { flopped: false
 port_order: 0 }""") chan out(bits[32], id=1, kind=single_value,
 ops=send_only, metadata="""module_port { flopped: false port_order: 1 }""")
 
-proc my_proc(tkn: token, st: (), init=()) {
+proc my_proc(tkn: token, st: (), init={()}) {
   literal.21: bits[1] = literal(value=1, id=21, pos=1,8,3)
   receive.13: (token, bits[32]) = receive(tkn, predicate=literal.21, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
@@ -719,7 +719,7 @@ TEST_F(BlockConversionTest, UnconditionalSendRdyVldProc) {
 chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="")
 
-proc my_proc(tkn: token, st: (), init=()) {
+proc my_proc(tkn: token, st: (), init={()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)
@@ -890,7 +890,7 @@ TEST_F(BlockConversionTest, FlopSingleValueChannelProc) {
 chan in(bits[32], id=0, kind=single_value, ops=receive_only, metadata="")
 chan out(bits[32], id=1, kind=single_value, ops=send_only, metadata="")
 
-proc my_proc(tkn: token, st: (), init=()) {
+proc my_proc(tkn: token, st: (), init={()}) {
   receive.13: (token, bits[32]) = receive(tkn, channel_id=0, id=13)
   tuple_index.14: token = tuple_index(receive.13, index=0, id=14)
   tuple_index.15: bits[32] = tuple_index(receive.13, index=1, id=15)

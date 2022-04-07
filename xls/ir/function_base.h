@@ -68,6 +68,9 @@ class FunctionBase {
 
   absl::StatusOr<int64_t> GetParamIndex(Param* param) const;
 
+  // Moves the given param to the given index in the parameter list.
+  absl::Status MoveParamToIndex(Param* param, int64_t index);
+
   int64_t node_count() const { return nodes_.size(); }
 
   // Expose Nodes, so that transformation passes can operate

@@ -101,8 +101,9 @@ ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
       current_iteration_(0) {}
 
 bool ProcInterpreter::IsIterationComplete() const {
-  return visitor_ == nullptr || (visitor_->IsVisited(proc_->NextState()) &&
-                                 visitor_->IsVisited(proc_->NextToken()));
+  return visitor_ == nullptr ||
+         (visitor_->IsVisited(proc_->GetUniqueNextState()) &&
+          visitor_->IsVisited(proc_->NextToken()));
 }
 
 absl::StatusOr<ProcInterpreter::RunResult>
@@ -121,7 +122,8 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
       // This is the first time the proc has run. Proc state is the init value.
       ResetState();
     } else {
-      const Value& next_state = visitor_->ResolveAsValue(proc_->NextState());
+      const Value& next_state =
+          visitor_->ResolveAsValue(proc_->GetUniqueNextState());
       visitor_ =
           std::make_unique<ProcIrInterpreter>(next_state, queue_manager_);
     }
@@ -193,8 +195,8 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
 }
 
 void ProcInterpreter::ResetState() {
-  visitor_ =
-      std::make_unique<ProcIrInterpreter>(proc_->InitValue(), queue_manager_);
+  visitor_ = std::make_unique<ProcIrInterpreter>(proc_->GetUniqueInitValue(),
+                                                 queue_manager_);
 }
 
 std::string ProcInterpreter::RunResult::ToString() const {

@@ -30,7 +30,7 @@ chan in_ch_2(bits[64], id=2, kind=streaming, ops=receive_only, flow_control=read
 chan out_ch(bits[64], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 chan out_ch_2(bits[64], id=4, kind=streaming, ops=send_only, flow_control=ready_valid, metadata=\"\"\"\"\"\")
 
-proc test_proc(tkn: token, st: (bits[64]), init=(10)) {
+proc test_proc(tkn: token, st: (bits[64]), init={(10)}) {
   receive.1: (token, bits[64]) = receive(tkn, channel_id=1, id=1)
 
   literal.21: bits[64] = literal(value=10, id=21)

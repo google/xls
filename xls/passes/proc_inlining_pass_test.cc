@@ -1458,8 +1458,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
 
   int64_t original_proc_state_size =
-      p->procs()[0]->StateType()->GetFlatBitCount() +
-      p->procs()[1]->StateType()->GetFlatBitCount();
+      p->procs()[0]->GetUniqueStateType()->GetFlatBitCount() +
+      p->procs()[1]->GetUniqueStateType()->GetFlatBitCount();
 
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
@@ -1469,7 +1469,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements1) {
   //   B activation bit (1)
   //   pass_result channel receive activation bit (1)
   //   one variant element (32)
-  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+  EXPECT_EQ(p->procs().front()->GetUniqueStateType()->GetFlatBitCount(),
             original_proc_state_size + 35);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
@@ -1540,8 +1540,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
                 {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
 
   int64_t original_proc_state_size =
-      p->procs()[0]->StateType()->GetFlatBitCount() +
-      p->procs()[1]->StateType()->GetFlatBitCount();
+      p->procs()[0]->GetUniqueStateType()->GetFlatBitCount() +
+      p->procs()[1]->GetUniqueStateType()->GetFlatBitCount();
 
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
@@ -1551,7 +1551,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements2) {
   //   B activation bit (1)
   //   pass_result channel receive activation bit (1)
   //   one variant element (32)
-  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+  EXPECT_EQ(p->procs().front()->GetUniqueStateType()->GetFlatBitCount(),
             original_proc_state_size + 35);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
@@ -1621,8 +1621,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
                 {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
 
   int64_t original_proc_state_size =
-      p->procs()[0]->StateType()->GetFlatBitCount() +
-      p->procs()[1]->StateType()->GetFlatBitCount();
+      p->procs()[0]->GetUniqueStateType()->GetFlatBitCount() +
+      p->procs()[1]->GetUniqueStateType()->GetFlatBitCount();
 
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
@@ -1633,7 +1633,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements3) {
   //   B activation bit (1)
   //   pass_result channel receive activation bit (1)
   //   one variant element (32)
-  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+  EXPECT_EQ(p->procs().front()->GetUniqueStateType()->GetFlatBitCount(),
             original_proc_state_size + 35);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
@@ -1703,8 +1703,8 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
 
   int64_t original_proc_state_size =
-      p->procs()[0]->StateType()->GetFlatBitCount() +
-      p->procs()[1]->StateType()->GetFlatBitCount();
+      p->procs()[0]->GetUniqueStateType()->GetFlatBitCount() +
+      p->procs()[1]->GetUniqueStateType()->GetFlatBitCount();
 
   EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
@@ -1714,7 +1714,7 @@ TEST_F(ProcInliningPassTest, SingleValueChannelWithVariantElements4) {
   //   B activation bit (1)
   //   pass_result channel receive activation bit (1)
   //   variant elements (64)
-  EXPECT_EQ(p->procs().front()->StateType()->GetFlatBitCount(),
+  EXPECT_EQ(p->procs().front()->GetUniqueStateType()->GetFlatBitCount(),
             original_proc_state_size + 67);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
