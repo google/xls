@@ -83,7 +83,7 @@ void XlsccTestBase::RunWithStatics(
        pfunc->side_effecting_parameters) {
     XLS_CHECK(param.type == xlscc::SideEffectingParameterType::kStatic);
     const xls::Value& init_value =
-        pfunc->static_values.at(param.static_value).value();
+        pfunc->static_values.at(param.static_value).rvalue();
     static_param_names[param.static_value] = param.param_name;
     XLS_CHECK(!static_state.contains(param.static_value));
     static_state[param.static_value] = init_value;

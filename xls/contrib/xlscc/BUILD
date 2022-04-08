@@ -229,6 +229,34 @@ cc_test(
 )
 
 cc_test(
+    name = "translator_pointer_test",
+    srcs = ["translator_pointer_test.cc"],
+    deps = [
+        ":translator",
+        ":unit_test",
+        "//xls/codegen:block_conversion",
+        "//xls/codegen:block_generator",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:combinational_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:proc_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
     name = "translator_metadata_test",
     srcs = ["translator_metadata_test.cc"],
     deps = [

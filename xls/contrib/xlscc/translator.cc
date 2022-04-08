@@ -152,10 +152,7 @@ absl::Status CVoidType::GetMetadataValue(Translator& translator,
 
 CVoidType::operator std::string() const { return "void"; }
 
-bool CVoidType::operator==(const CType& o) const {
-  const auto* o_derived = dynamic_cast<const CVoidType*>(&o);
-  return o_derived != nullptr;
-}
+bool CVoidType::operator==(const CType& o) const { return o.Is<CVoidType>(); }
 
 CBitsType::CBitsType(int width) : width_(width) {}
 
@@ -176,7 +173,7 @@ absl::Status CBitsType::GetMetadata(Translator& translator,
 absl::Status CBitsType::GetMetadataValue(Translator& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
-  vector<uint8_t> bytes = const_value.value().bits().ToBytes();
+  vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
   output->set_as_bits(bytes.data(), bytes.size());
   return absl::OkStatus();
 }
@@ -184,8 +181,8 @@ absl::Status CBitsType::GetMetadataValue(Translator& translator,
 bool CBitsType::StoredAsXLSBits() const { return true; }
 
 bool CBitsType::operator==(const CType& o) const {
-  const auto* o_derived = dynamic_cast<const CBitsType*>(&o);
-  if (o_derived == nullptr) return false;
+  if (!o.Is<CBitsType>()) return false;
+  const auto* o_derived = o.As<CBitsType>();
   return width_ == o_derived->width_;
 }
 
@@ -201,8 +198,8 @@ xls::Type* CIntType::GetXLSType(xls::Package* package) const {
 }
 
 bool CIntType::operator==(const CType& o) const {
-  const auto* o_derived = dynamic_cast<const CIntType*>(&o);
-  if (o_derived == nullptr) return false;
+  if (!o.Is<CIntType>()) return false;
+  const auto* o_derived = o.As<CIntType>();
   if (width_ != o_derived->width_) return false;
   return is_signed_ == o_derived->is_signed_;
 }
@@ -242,7 +239,7 @@ absl::Status CIntType::GetMetadata(Translator& translator,
 absl::Status CIntType::GetMetadataValue(Translator& translator,
                                         const ConstValue const_value,
                                         xlscc_metadata::Value* output) const {
-  auto value = const_value.value();
+  auto value = const_value.rvalue();
   XLS_CHECK(value.IsBits());
   if (is_signed()) {
     XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
@@ -269,17 +266,14 @@ absl::Status CBoolType::GetMetadata(Translator& translator,
 absl::Status CBoolType::GetMetadataValue(Translator& translator,
                                          const ConstValue const_value,
                                          xlscc_metadata::Value* output) const {
-  auto value = const_value.value();
+  auto value = const_value.rvalue();
   XLS_CHECK(value.IsBits());
   XLS_ASSIGN_OR_RETURN(uint64_t bool_value, value.bits().ToUint64());
   output->set_as_bool(bool_value == 1);
   return absl::OkStatus();
 }
 
-bool CBoolType::operator==(const CType& o) const {
-  const auto* o_derived = dynamic_cast<const CBoolType*>(&o);
-  return o_derived != nullptr;
-}
+bool CBoolType::operator==(const CType& o) const { return o.Is<CBoolType>(); }
 
 bool CBoolType::StoredAsXLSBits() const { return true; }
 
@@ -346,7 +340,7 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
   if (struct_type == nullptr) {
     XLS_CHECK_EQ(base_->getNameAsString(), "__xls_bits");
 
-    vector<uint8_t> bytes = const_value.value().bits().ToBytes();
+    vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
     output->set_as_bits(bytes.data(), bytes.size());
 
     return absl::OkStatus();
@@ -363,11 +357,8 @@ int CInstantiableTypeAlias::GetBitWidth() const {
 }
 
 bool CInstantiableTypeAlias::operator==(const CType& o) const {
-  const auto* o_derived = dynamic_cast<const CInstantiableTypeAlias*>(&o);
-  // Different type
-  if (o_derived == nullptr) {
-    return false;
-  }
+  if (!o.Is<CInstantiableTypeAlias>()) return false;
+  const auto* o_derived = o.As<CInstantiableTypeAlias>();
   return base_ == o_derived->base_;
 }
 
@@ -425,7 +416,7 @@ absl::Status CStructType::GetMetadataValue(
     name_out->set_id(reinterpret_cast<uint64_t>(field.first));
     XLS_ASSIGN_OR_RETURN(
         xls::Value elem_value,
-        Translator::GetStructFieldXLS(const_value.value(), i, *this));
+        Translator::GetStructFieldXLS(const_value.rvalue(), i, *this));
     XLS_RETURN_IF_ERROR(field.second->type()->GetMetadataValue(
         translator, ConstValue(elem_value, field.second->type()),
         struct_field_value->mutable_value()));
@@ -493,11 +484,13 @@ const clang::NamedDecl* CField::name() const { return name_; }
 std::shared_ptr<CType> CField::type() const { return type_; }
 
 CArrayType::CArrayType(std::shared_ptr<CType> element, int size)
-    : element_(element), size_(size) {}
+    : element_(element), size_(size) {
+  XLS_CHECK(size_ > 0);
+}
 
 bool CArrayType::operator==(const CType& o) const {
-  const auto* o_derived = dynamic_cast<const CArrayType*>(&o);
-  if (o_derived == nullptr) return false;
+  if (!o.Is<CArrayType>()) return false;
+  const auto* o_derived = o.As<CArrayType>();
   return *element_ == *o_derived->element_ && size_ == o_derived->size_;
 }
 
@@ -529,12 +522,44 @@ absl::Status CArrayType::GetMetadata(Translator& translator,
 absl::Status CArrayType::GetMetadataValue(Translator& translator,
                                           const ConstValue const_value,
                                           xlscc_metadata::Value* output) const {
-  vector<xls::Value> values = const_value.value().GetElements().value();
+  vector<xls::Value> values = const_value.rvalue().GetElements().value();
   for (auto& val : values) {
     XLS_RETURN_IF_ERROR(element_->GetMetadataValue(
         translator, ConstValue(val, element_),
         output->mutable_as_array()->add_element_values()));
   }
+  return absl::OkStatus();
+}
+
+CPointerType::CPointerType(std::shared_ptr<CType> pointee_type)
+    : pointee_type_(pointee_type) {}
+
+bool CPointerType::operator==(const CType& o) const {
+  if (!o.Is<CPointerType>()) return false;
+  const auto* o_derived = o.As<CPointerType>();
+  return *pointee_type_ == *o_derived->pointee_type_;
+}
+
+int CPointerType::GetBitWidth() const { return pointee_type_->GetBitWidth(); }
+
+std::shared_ptr<CType> CPointerType::GetPointeeType() const {
+  return pointee_type_;
+}
+
+CPointerType::operator std::string() const {
+  return absl::StrFormat("%s*", string(*pointee_type_));
+}
+
+absl::Status CPointerType::GetMetadata(Translator& translator,
+                                       xlscc_metadata::Type* output) const {
+  XLS_CHECK(false) << "TODO: Metadata for pointers";
+  return absl::OkStatus();
+}
+
+absl::Status CPointerType::GetMetadataValue(
+    Translator& translator, const ConstValue const_value,
+    xlscc_metadata::Value* output) const {
+  XLS_CHECK(false) << "TODO: Metadata for pointers";
   return absl::OkStatus();
 }
 
@@ -621,7 +646,7 @@ TranslationContext& Translator::context() { return context_stack_.top(); }
 
 absl::Status Translator::AssignThis(const CValue& rvalue,
                                     const xls::SourceLocation& loc) {
-  XLS_CHECK(context().this_val.value().valid());
+  XLS_CHECK(context().this_val.rvalue().valid());
   if (*context().this_val.type() != *rvalue.type()) {
     return absl::UnimplementedError(absl::StrFormat(
         "Assignment to this with type %s which is not the class type %s at %s",
@@ -666,7 +691,7 @@ absl::StatusOr<xls::BValue> Translator::StructUpdate(
     if (fp->index() != cfield.index()) {
       bval = GetStructFieldXLS(struct_before, fp->index(), stype, loc);
     } else {
-      bval = rvalue.value();
+      bval = rvalue.rvalue();
     }
     bvals.push_back(bval);
   }
@@ -829,7 +854,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
     SideEffectingParameter side_effecting_param;
     side_effecting_param.type = SideEffectingParameterType::kIOOp;
     side_effecting_param.param_name =
-        op.input_value.value().node()->As<xls::Param>()->GetName();
+        op.input_value.rvalue().node()->As<xls::Param>()->GetName();
     side_effecting_param.io_op = &context().sf->io_ops.back();
     context().sf->side_effecting_parameters.push_back(side_effecting_param);
   }
@@ -948,7 +973,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
         XLS_ASSIGN_OR_RETURN(CValue out_val,
                              GenerateIR_Expr(call->getArg(0), loc));
-        std::vector<xls::BValue> sp = {out_val.value(), op_condition};
+        std::vector<xls::BValue> sp = {out_val.rvalue(), op_condition};
         op.ret_value = context().fb->Tuple(sp);
         op.op = OpType::kSend;
 
@@ -1137,7 +1162,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       XLS_CHECK(indices_to_update.find(found->second->index()) ==
                 indices_to_update.end());
       XLS_CHECK(*found->second->type() == *rvalue.type());
-      indices_to_update[found->second->index()] = rvalue.value();
+      indices_to_update[found->second->index()] = rvalue.rvalue();
     }
 
     std::vector<xls::BValue> bvals;
@@ -1149,7 +1174,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       if (found != indices_to_update.end()) {
         bval = found->second;
       } else {
-        bval = GetStructFieldXLS(context().this_val.value(), field->index(),
+        bval = GetStructFieldXLS(context().this_val.rvalue(), field->index(),
                                  *struct_type, GetLoc(*constructor));
       }
       bvals.push_back(bval);
@@ -1173,12 +1198,12 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   for (const clang::NamedDecl* decl :
        context().sf->GetDeterministicallyOrderedStaticValues()) {
     XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, body_loc));
-    return_bvals.push_back(value.value());
+    return_bvals.push_back(value.rvalue());
   }
 
   // Then this return
   if (add_this_return) {
-    return_bvals.push_back(context().this_val.value());
+    return_bvals.push_back(context().this_val.rvalue());
   }
 
   // Then explicit return
@@ -1189,7 +1214,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   // Then reference parameter returns
   for (const clang::NamedDecl* ret_ident : ref_returns) {
     XLS_ASSIGN_OR_RETURN(CValue found, GetIdentifier(ret_ident, body_loc));
-    return_bvals.emplace_back(found.value());
+    return_bvals.emplace_back(found.rvalue());
   }
 
   // IO returns
@@ -1324,7 +1349,8 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
 absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
     clang::BinaryOperatorKind clang_op, const CType& left_type,
     const CType& result_type, const xls::SourceLocation& loc) {
-  if (auto result_int_type = dynamic_cast<const CIntType*>(&result_type)) {
+  if (result_type.Is<CIntType>()) {
+    auto result_int_type = result_type.As<CIntType>();
     switch (clang_op) {
       case clang::BinaryOperatorKind::BO_Assign:
         return xls::Op::kIdentity;
@@ -1364,8 +1390,9 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
             std::string(result_type), LocString(loc)));
     }
   }
-  if (dynamic_cast<const CBoolType*>(&result_type) != nullptr) {
-    if (auto input_int_type = dynamic_cast<const CIntType*>(&left_type)) {
+  if (result_type.Is<CBoolType>()) {
+    if (left_type.Is<CIntType>()) {
+      auto input_int_type = left_type.As<CIntType>();
       switch (clang_op) {
         case clang::BinaryOperatorKind::BO_GT:
           return input_int_type->is_signed() ? xls::Op::kSGt : xls::Op::kUGt;
@@ -1401,12 +1428,20 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
             clang_op, std::string(result_type), std::string(left_type),
             LocString(loc)));
     }
-  } else {
-    return absl::UnimplementedError(
-        absl::StrFormat("Binary operators on types other than builtin-int "
-                        "unimplemented for type %s at %s",
-                        std::string(result_type), LocString(loc)));
   }
+
+  if (result_type.Is<CPointerType>()) {
+    if (clang_op == clang::BinaryOperatorKind::BO_Assign) {
+      return xls::Op::kIdentity;
+    }
+    return absl::UnimplementedError(
+        absl::StrFormat("Unimplemented binary operator %i for pointer, at %s",
+                        clang_op, LocString(loc)));
+  }
+
+  return absl::UnimplementedError(
+      absl::StrFormat("Binary operators unimplemented for type %s at %s",
+                      std::string(result_type), LocString(loc)));
 }
 
 absl::StatusOr<CValue> Translator::TranslateVarDecl(
@@ -1415,14 +1450,23 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
                        TranslateTypeFromClang(decl->getType(), loc));
 
   const clang::Expr* initializer = decl->getAnyInitializer();
+  const clang::Expr* lvalue = nullptr;
   xls::BValue init_val;
   if (initializer) {
+    LValueModeGuard lvalue_mode(*this);
     XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
     XLS_ASSIGN_OR_RETURN(init_val, GenTypeConvert(cv, ctype, loc));
+    lvalue = cv.lvalue();
+    if (ctype->Is<CPointerType>() && !lvalue) {
+      return absl::UnimplementedError(
+          absl::StrFormat("Initializer for pointer has no lvalue (unsupported "
+                          "construct such as ternary?) at %s",
+                          LocString(loc)));
+    }
   } else {
     XLS_ASSIGN_OR_RETURN(init_val, CreateDefaultValue(ctype, loc));
   }
-  return CValue(init_val, ctype);
+  return CValue(init_val, ctype, /*disable_type_check=*/false, lvalue);
 }
 
 absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
@@ -1493,7 +1537,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                              GenerateIR_Expr(var_decl->getInit(), global_loc));
         if (var_decl->isStaticLocal() || var_decl->isStaticDataMember()) {
           // Statics must have constant initialization
-          if (!EvaluateBVal(value.value(), global_loc).ok()) {
+          if (!EvaluateBVal(value.rvalue(), global_loc).ok()) {
             return absl::InvalidArgumentError(
                 absl::StrFormat("Statics must have constant initializers at %s",
                                 LocString(loc)));
@@ -1518,16 +1562,43 @@ absl::StatusOr<CValue> Translator::PrepareRValueForAssignment(
     const clang::NamedDecl* lvalue_decl, const CValue& lvalue,
     const CValue& rvalue, const xls::SourceLocation& loc) {
   CValue rvalue_to_use = lvalue;
+
   if (!context().mask_assignments) {
     rvalue_to_use = rvalue;
     xls::BValue var_cond =
         lvalue_decl ? context().variable_assignment_conditions.at(lvalue_decl)
                     : context().context_condition;
     if (var_cond.valid() && (!context().unconditional_assignment)) {
-      auto cond_sel =
-          context().fb->Select(var_cond, rvalue.value(), lvalue.value(), loc);
+      bool overwrite_pointer_without_select = false;
 
-      rvalue_to_use = CValue(cond_sel, rvalue_to_use.type());
+      if (lvalue.type()->Is<CPointerType>()) {
+        absl::StatusOr<xls::Value> const_var_cond = EvaluateBVal(var_cond, loc);
+        if (const_var_cond.ok() && const_var_cond.value().IsAllOnes()) {
+          overwrite_pointer_without_select = true;
+        } else {
+          if (lvalue.lvalue()) {
+            return absl::UnimplementedError(absl::StrFormat(
+                "Conditional assignments to pointers not yet supported at %s",
+                LocString(loc)));
+          }
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Conditional assignment to uninitialized pointer "
+                              "leaves lvalue undefined at %s",
+                              LocString(loc)));
+        }
+      }
+
+      if (!overwrite_pointer_without_select) {
+        XLS_CHECK(rvalue.rvalue().valid());
+        XLS_CHECK(lvalue.rvalue().valid());
+        XLS_CHECK_EQ(rvalue.rvalue().GetType()->kind(),
+                     lvalue.rvalue().GetType()->kind());
+        auto cond_sel = context().fb->Select(var_cond, rvalue.rvalue(),
+                                             lvalue.rvalue(), loc);
+        rvalue_to_use =
+            CValue(cond_sel, rvalue_to_use.type(),
+                   /*disable_type_check=*/false, rvalue_to_use.lvalue());
+      }
     }
   }
   return rvalue_to_use;
@@ -1549,6 +1620,50 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
   }
 
   XLS_ASSIGN_OR_RETURN(CValue found, GetIdentifier(lvalue, loc, true));
+
+  if (found.type()->Is<CPointerType>()) {
+    // If re-assigning the pointer, then treat it as usual
+    if (rvalue.type()->Is<CPointerType>()) {
+      if (rvalue.lvalue() == nullptr) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Initializer for pointer has no lvalue "
+                            "(unsupported construct such as ternary?) at %s",
+                            LocString(loc)));
+      }
+      XLS_CHECK(context().variable_assignment_conditions.contains(lvalue));
+      xls::BValue condition =
+          context().variable_assignment_conditions.at(lvalue);
+      absl::StatusOr<xls::Value> condition_eval =
+          EvaluateBValAsCondition(condition, loc);
+      if (!condition_eval.ok()) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Only compile-time constant condition 1 supported "
+                            "for pointer assignment at %s",
+                            LocString(loc)));
+      }
+      if (condition_eval.value().IsAllZeros()) {
+        // Condition is known to be false
+        return absl::OkStatus();
+      }
+    } else {
+      XLS_CHECK(rvalue.rvalue().valid());
+
+      // Otherwise, assign to the lvalue pointed to. This is necessary for
+      // array-slicing, for example: void foo(int arr[4])
+      // ...
+      // foo(&arr[2]); // Modifies indices 2-6
+      if (found.lvalue() == nullptr) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Pointer is uninitialized (no lvalue associated) at %s",
+            LocString(loc)));
+      }
+      return Assign(found.lvalue(), rvalue, loc);
+    }
+  } else {
+    // Not a pointer assignment
+    XLS_CHECK(rvalue.rvalue().valid());
+  }
+
   if (*found.type() != *rvalue.type()) {
     lvalue->dump();
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -1569,10 +1684,64 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
   XLS_CHECK(context().variables.contains(lvalue));
   XLS_CHECK(context().variable_assignment_conditions.contains(lvalue));
 
-  XLS_ASSIGN_OR_RETURN(context().variables.at(lvalue),
+  XLS_ASSIGN_OR_RETURN(CValue prepared,
                        PrepareRValueForAssignment(lvalue, found, rvalue, loc));
 
+  context().variables.at(lvalue) = prepared;
+
   return absl::OkStatus();
+}
+
+int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
+  xls::Type* type = array_bval.node()->GetType();
+  XLS_CHECK(type->IsArray());
+  return type->AsArrayOrDie()->size();
+}
+
+absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
+    xls::BValue array_to_update, xls::BValue start_index,
+    xls::BValue slice_to_write, const xls::SourceLocation& loc) {
+  XLS_ASSIGN_OR_RETURN(xls::Value start_index_val,
+                       EvaluateBVal(start_index, loc));
+  XLS_CHECK(start_index_val.IsBits());
+  XLS_ASSIGN_OR_RETURN(int64_t const_index, start_index_val.bits().ToInt64());
+
+  const int64_t total_width = ArrayBValueWidth(array_to_update);
+  const int64_t slice_width = ArrayBValueWidth(slice_to_write);
+
+  if (total_width < (const_index + slice_width)) {
+    return absl::OutOfRangeError(
+        absl::StrFormat("Array slice out of bounds at %s", LocString(loc)));
+  }
+
+  int64_t remaining_width = total_width;
+
+  std::vector<xls::BValue> parts;
+
+  if (const_index > 0) {
+    parts.push_back(context().fb->ArraySlice(
+        array_to_update, context().fb->Literal(xls::SBits(0, 32), loc),
+        const_index, loc));
+    remaining_width -= const_index;
+  }
+
+  parts.push_back(slice_to_write);
+  remaining_width -= slice_width;
+
+  if (remaining_width > 0) {
+    parts.push_back(context().fb->ArraySlice(
+        array_to_update,
+        context().fb->Literal(xls::SBits(total_width - remaining_width, 32),
+                              loc),
+        remaining_width, loc));
+  }
+
+  xls::BValue updated_array = context().fb->ArrayConcat(parts, loc);
+  const int64_t updated_array_width = ArrayBValueWidth(updated_array);
+
+  XLS_CHECK_EQ(total_width, updated_array_width);
+
+  return updated_array;
 }
 
 absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
@@ -1607,11 +1776,6 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
 
       auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
 
-      // Avoid decay of array to pointer, pointers are unsupported
-      if (from_arr_type && cast->getType()->isPointerType()) {
-        return Assign(cast->getSubExpr(), rvalue, loc);
-      }
-
       // Inheritance
       XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
                            TranslateTypeFromClang(cast->getType(), loc));
@@ -1627,7 +1791,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
         XLS_CHECK((*rvalue.type()) == *inheritance.base_field->type());
         XLS_ASSIGN_OR_RETURN(
             xls::BValue updated_derived,
-            StructUpdate(sub.value(), rvalue, inheritance.base_field_name,
+            StructUpdate(sub.rvalue(), rvalue, inheritance.base_field_name,
                          *inheritance.resolved_struct, loc));
         adjusted_rvalue = CValue(updated_derived, sub.type());
       }
@@ -1650,11 +1814,10 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
 
       auto* cast = clang_down_cast<const clang::ArraySubscriptExpr*>(lvalue);
       XLS_ASSIGN_OR_RETURN(CValue arr_val,
-                           GenerateIR_Expr(cast->getLHS(), loc));
-      auto arr_type = dynamic_cast<CArrayType*>(arr_val.type().get());
-      XLS_CHECK(arr_type != nullptr);
+                           GenerateIR_Expr(cast->getBase(), loc));
+      auto arr_type = arr_val.type()->As<CArrayType>();
       XLS_ASSIGN_OR_RETURN(CValue idx_val,
-                           GenerateIR_Expr(cast->getRHS(), loc));
+                           GenerateIR_Expr(cast->getIdx(), loc));
       if (*rvalue.type() != *arr_type->GetElementType()) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Cannot assign rvalue of type %s to element of array of type %s at "
@@ -1663,10 +1826,10 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
             std::string(*arr_type->GetElementType()), LocString(loc)));
       }
       auto arr_rvalue =
-          CValue(context().fb->ArrayUpdate(arr_val.value(), rvalue.value(),
-                                           {idx_val.value()}, loc),
+          CValue(context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
+                                           {idx_val.rvalue()}, loc),
                  arr_val.type());
-      return Assign(cast->getLHS(), arr_rvalue, loc);
+      return Assign(cast->getBase(), arr_rvalue, loc);
     }
     // Assign to a struct element
     // (...).member = rvalue
@@ -1694,7 +1857,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
 
         XLS_ASSIGN_OR_RETURN(
             xls::BValue new_tuple,
-            StructUpdate(struct_prev_val.value(), rvalue,
+            StructUpdate(struct_prev_val.rvalue(), rvalue,
                          // Up cast to NamedDecl because NamedDecl pointers
                          //  are used to track identifiers
                          absl::implicit_cast<const clang::NamedDecl*>(field),
@@ -1711,20 +1874,52 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     }
     case clang::Stmt::UnaryOperatorClass: {
       auto uop = clang_down_cast<const clang::UnaryOperator*>(lvalue);
-      // Deref is the pointer dereferencing operator: *ptr
-      // We simply ignore this for "this", so *this just evaluates to the
-      //  "this" BValue from the TranslationContext
-      if ((uop->getOpcode() == clang::UnaryOperatorKind::UO_Deref) &&
-          (uop->getSubExpr()->getStmtClass() ==
-           clang::Stmt::CXXThisExprClass)) {
-        return AssignThis(rvalue, loc);
+      if (uop->getOpcode() == clang::UnaryOperatorKind::UO_AddrOf) {
+        if (uop->getSubExpr()->getStmtClass() !=
+            clang::Stmt::ArraySubscriptExprClass) {
+          return absl::UnimplementedError(absl::StrFormat(
+              "Only assignment to array slices supported via pointers at %s",
+              LocString(loc)));
+        }
+        const clang::ArraySubscriptExpr* subscript_sub_expr =
+            clang_down_cast<const clang::ArraySubscriptExpr*>(
+                uop->getSubExpr());
 
-      } else {
+        XLS_ASSIGN_OR_RETURN(
+            CValue base_cv,
+            GenerateIR_Expr(subscript_sub_expr->getBase(), loc));
+        XLS_CHECK(base_cv.type()->Is<CArrayType>());
+        XLS_ASSIGN_OR_RETURN(
+            CValue index_cv,
+            GenerateIR_Expr(subscript_sub_expr->getIdx(), loc));
+        XLS_CHECK(index_cv.type()->Is<CIntType>());
+
+        XLS_ASSIGN_OR_RETURN(
+            xls::BValue updated_array,
+            UpdateArraySlice(base_cv.rvalue(), index_cv.rvalue(),
+                             rvalue.rvalue(), loc));
+
+        return Assign(subscript_sub_expr->getBase(),
+                      CValue(updated_array, base_cv.type()), loc);
+      }
+      if (uop->getOpcode() != clang::UnaryOperatorKind::UO_Deref) {
         return absl::UnimplementedError(
             absl::StrFormat("Unimplemented assignment to unary operator lvalue "
                             "with opcode %i at %s",
                             uop->getOpcode(), LocString(loc)));
       }
+
+      // Deref is the pointer dereferencing operator: *ptr
+      // We simply ignore this for "this", so *this just evaluates to the
+      //  "this" BValue from the TranslationContext
+      if (uop->getSubExpr()->getStmtClass() == clang::Stmt::CXXThisExprClass) {
+        return AssignThis(rvalue, loc);
+      }
+
+      return absl::UnimplementedError(absl::StrFormat(
+          "Unsupported assignment to dereference of statement of class %i at "
+          "%s",
+          (int)uop->getSubExpr()->getStmtClass(), LocString(loc)));
     }
     case clang::Stmt::CXXThisExprClass: {
       return AssignThis(rvalue, loc);
@@ -1805,13 +2000,13 @@ absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
   xls::BValue literal_one = context().fb->Literal(
       sub_type->is_signed() ? xls::SBits(1, width) : xls::UBits(1, width));
   xls::BValue result_val =
-      context().fb->AddBinOp(xls_op, sub_value.value(), literal_one, loc);
+      context().fb->AddBinOp(xls_op, sub_value.rvalue(), literal_one, loc);
   // No extra bits because this is only for built-ins
   std::shared_ptr<CType> result_type = sub_value.type();
 
   XLS_RETURN_IF_ERROR(Assign(sub_expr, CValue(result_val, result_type), loc));
 
-  xls::BValue return_val = is_pre ? result_val : sub_value.value();
+  xls::BValue return_val = is_pre ? result_val : sub_value.rvalue();
   return CValue(return_val, result_type);
 }
 
@@ -1819,13 +2014,68 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     const clang::UnaryOperator* uop, const xls::SourceLocation& loc) {
   auto clang_op = uop->getOpcode();
 
+  XLS_ASSIGN_OR_RETURN(CValue lhs_cv, GenerateIR_Expr(uop->getSubExpr(), loc));
   XLS_ASSIGN_OR_RETURN(
       shared_ptr<CType> result_type,
       TranslateTypeFromClang(uop->getType().getCanonicalType(), loc));
+
+  if (clang_op == clang::UnaryOperatorKind::UO_AddrOf) {
+    auto result_pointer_type =
+        std::dynamic_pointer_cast<CPointerType>(result_type);
+    XLS_CHECK_NE(result_pointer_type.get(), nullptr);
+
+    if (context().lvalue_mode) {
+      // Include & in the lvalue expression, so that Assign()
+      // can just look for that
+      return CValue(xls::BValue(), result_pointer_type,
+                    /*disable_type_check=*/false, uop);
+    }
+
+    const clang::Expr* sub_expr = uop->getSubExpr();
+    if (sub_expr->getStmtClass() != clang::Stmt::ArraySubscriptExprClass) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Address of sub expression of class %i at %s",
+          static_cast<int>(sub_expr->getStmtClass()), LocString(loc)));
+    }
+    auto array_subscript_expr =
+        clang_down_cast<const clang::ArraySubscriptExpr*>(sub_expr);
+
+    const clang::Expr* base_expr = array_subscript_expr->getBase();
+    XLS_ASSIGN_OR_RETURN(CValue base_cv, GenerateIR_Expr(base_expr, loc));
+
+    XLS_ASSIGN_OR_RETURN(CValue array_idx_cv,
+                         GenerateIR_Expr(array_subscript_expr->getIdx(), loc));
+    auto array_int_type =
+        std::dynamic_pointer_cast<CIntType>(array_idx_cv.type());
+    if (array_int_type == nullptr) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Array index must be an integer at %s", LocString(loc)));
+    }
+
+    std::shared_ptr<CType> pointee_type = result_pointer_type->GetPointeeType();
+
+    XLS_CHECK(*lhs_cv.type() == *pointee_type);
+
+    xls::BValue array_slice_in = base_cv.rvalue();
+
+    XLS_CHECK(array_slice_in.GetType()->IsArray());
+
+    // Out of bounds slices wrap around
+    const int64_t array_slice_in_size =
+        array_slice_in.GetType()->AsArrayOrDie()->size();
+
+    xls::BValue sliced_array = context().fb->ArraySlice(
+        array_slice_in, array_idx_cv.rvalue(), array_slice_in_size, loc);
+
+    XLS_CHECK(sliced_array.GetType()->IsArray());
+
+    return CValue(sliced_array, std::make_shared<CArrayType>(
+                                    pointee_type, array_slice_in_size));
+  }
+
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> resolved_type,
                        ResolveTypeInstance(result_type));
 
-  XLS_ASSIGN_OR_RETURN(CValue lhs_cv, GenerateIR_Expr(uop->getSubExpr(), loc));
   XLS_ASSIGN_OR_RETURN(xls::BValue lhs_cvc,
                        GenTypeConvert(lhs_cv, result_type, loc));
   CValue lhs_cvcv(lhs_cvc, lhs_cv.type());
@@ -1834,12 +2084,12 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     switch (clang_op) {
       case clang::UnaryOperatorKind::UO_Minus:
         return CValue(
-            context().fb->AddUnOp(xls::Op::kNeg, lhs_cvcv.value(), loc),
+            context().fb->AddUnOp(xls::Op::kNeg, lhs_cvcv.rvalue(), loc),
             result_type);
       case clang::UnaryOperatorKind::UO_LNot:
       case clang::UnaryOperatorKind::UO_Not:
         return CValue(
-            context().fb->AddUnOp(xls::Op::kNot, lhs_cvcv.value(), loc),
+            context().fb->AddUnOp(xls::Op::kNot, lhs_cvcv.rvalue(), loc),
             result_type);
       case clang::UnaryOperatorKind::UO_PreInc:
         return Generate_Synthetic_ByOne(xls::Op::kAdd, true, lhs_cvcv,
@@ -1870,7 +2120,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     switch (clang_op) {
       case clang::UnaryOperatorKind::UO_LNot:
         return CValue(
-            context().fb->AddUnOp(xls::Op::kNot, lhs_cvcv.value(), loc),
+            context().fb->AddUnOp(xls::Op::kNot, lhs_cvcv.rvalue(), loc),
             result_type);
       default:
         return absl::UnimplementedError(absl::StrFormat(
@@ -1907,7 +2157,7 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
 
     // Don't reduce operands to logical boolean operators to 1 bit.
     std::shared_ptr<CType> input_type = result_type;
-    if (dynamic_cast<const CBoolType*>(input_type.get())) {
+    if (input_type->Is<CBoolType>()) {
       XLS_ASSIGN_OR_RETURN(input_type,
                            TranslateTypeFromClang(lhs->getType(), loc));
     }
@@ -1916,11 +2166,17 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
         xls::Op xls_op,
         XLSOpcodeFromClang(clang_op, *input_type, *result_type, loc));
 
-    XLS_ASSIGN_OR_RETURN(CValue rhs_cv, GenerateIR_Expr(rhs, loc));
+    CValue rhs_cv;
+    {
+      // For pointer assignments
+      LValueModeGuard lvalue_mode(*this);
+      XLS_ASSIGN_OR_RETURN(rhs_cv, GenerateIR_Expr(rhs, loc));
+    }
 
     XLS_ASSIGN_OR_RETURN(xls::BValue rhs_cvc,
                          GenTypeConvert(rhs_cv, input_type, loc));
-    CValue rhs_cvcv(rhs_cvc, input_type);
+    CValue rhs_cvcv(rhs_cvc, input_type, /*disable_type_check=*/false,
+                    rhs_cv.lvalue());
 
     result = rhs_cvcv;
 
@@ -1931,23 +2187,23 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
       CValue lhs_cvcv(lhs_cvc, lhs_cv.type());
 
       if (xls::IsOpClass<xls::CompareOp>(xls_op)) {
-        result = CValue(context().fb->AddCompareOp(xls_op, lhs_cvcv.value(),
-                                                   rhs_cvcv.value(), loc),
+        result = CValue(context().fb->AddCompareOp(xls_op, lhs_cvcv.rvalue(),
+                                                   rhs_cvcv.rvalue(), loc),
                         result_type);
       } else if (xls::IsOpClass<xls::ArithOp>(xls_op)) {
-        result = CValue(
-            context().fb->AddArithOp(xls_op, lhs_cvcv.value(), rhs_cvcv.value(),
-                                     result_type->GetBitWidth(), loc),
-            result_type);
+        result = CValue(context().fb->AddArithOp(
+                            xls_op, lhs_cvcv.rvalue(), rhs_cvcv.rvalue(),
+                            result_type->GetBitWidth(), loc),
+                        result_type);
       } else if (xls::IsOpClass<xls::BinOp>(xls_op)) {
-        result = CValue(context().fb->AddBinOp(xls_op, lhs_cvcv.value(),
-                                               rhs_cvcv.value(), loc),
+        result = CValue(context().fb->AddBinOp(xls_op, lhs_cvcv.rvalue(),
+                                               rhs_cvcv.rvalue(), loc),
                         result_type);
       } else if (xls::IsOpClass<xls::NaryOp>(xls_op)) {
         result = CValue(
             context().fb->AddNaryOp(
                 xls_op,
-                std::vector<xls::BValue>{lhs_cvcv.value(), rhs_cvcv.value()},
+                std::vector<xls::BValue>{lhs_cvcv.rvalue(), rhs_cvcv.rvalue()},
                 loc),
             result_type);
 
@@ -1972,21 +2228,21 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
   PushContextGuard fork_guard(*this, loc);
   context().in_fork = true;
 
+  if (result_type->Is<CPointerType>()) {
+    // TODO: Support ternaries on pointers
+    return CValue(xls::BValue(), result_type);
+  }
+
   XLS_ASSIGN_OR_RETURN(CValue sel_val, GenerateIR_Expr(cond_expr, loc));
-  XLS_CHECK(dynamic_cast<CBoolType*>(sel_val.type().get()));
+  XLS_CHECK(sel_val.type()->Is<CBoolType>());
   XLS_ASSIGN_OR_RETURN(CValue true_cv, GenerateIR_Expr(true_expr, loc));
   XLS_ASSIGN_OR_RETURN(CValue false_cv, GenerateIR_Expr(false_expr, loc));
   XLS_ASSIGN_OR_RETURN(xls::BValue true_val,
                        GenTypeConvert(true_cv, result_type, loc));
   XLS_ASSIGN_OR_RETURN(xls::BValue false_val,
                        GenTypeConvert(false_cv, result_type, loc));
-  // Regenerate in opposite order to detect unsequenced errors
-  if (unsequenced_gen_backwards_) {
-    XLS_RETURN_IF_ERROR(GenTypeConvert(true_cv, result_type, loc).status());
-    XLS_RETURN_IF_ERROR(GenerateIR_Expr(cond_expr, loc).status());
-  }
   xls::BValue ret_val =
-      context().fb->Select(sel_val.value(), true_val, false_val, loc);
+      context().fb->Select(sel_val.rvalue(), true_val, false_val, loc);
   return CValue(ret_val, result_type);
 }
 
@@ -2153,7 +2409,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       XLS_ASSIGN_OR_RETURN(this_value_orig, GenerateIR_Expr(this_expr, loc));
     }
 
-    thisval = this_value_orig.value();
+    thisval = this_value_orig.rvalue();
     pthisval = &thisval;
   }
 
@@ -2219,7 +2475,7 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
 
       XLS_ASSIGN_OR_RETURN(CValue lvalue_initial, GenerateIR_Expr(lvalue, loc));
 
-      xls::BValue this_inout = lvalue_initial.value();
+      xls::BValue this_inout = lvalue_initial.rvalue();
       XLS_ASSIGN_OR_RETURN(
           CValue f_return,
           GenerateIR_Call(to_call, {ivalue, rvalue}, &this_inout, loc,
@@ -2341,9 +2597,60 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     XLS_ASSIGN_OR_RETURN(CValue argv, GenerateIR_Expr(expr_args[pi], loc));
-    XLS_ASSIGN_OR_RETURN(auto argt, TranslateTypeFromClang(stripped.base, loc));
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> argt,
+                         TranslateTypeFromClang(stripped.base, loc));
 
-    if (*argv.type() != *argt) {
+    xls::BValue pass_bval = argv.rvalue();
+    std::shared_ptr<CType> pass_type = argv.type();
+
+    if (argv.type()->Is<CPointerType>() || argv.type()->Is<CArrayType>()) {
+      auto arg_arr_type = argt->As<CArrayType>();
+
+      // Pointer to array
+      if (argv.type()->Is<CPointerType>()) {
+        if (argv.lvalue() == nullptr) {
+          return absl::UnimplementedError(
+              absl::StrFormat("Pointer value has no lvalue (unsupported "
+                              "construct such as ternary?) at %s",
+                              LocString(loc)));
+        }
+        XLS_ASSIGN_OR_RETURN(CValue pass_rval,
+                             GenerateIR_Expr(argv.lvalue(), loc));
+        pass_bval = pass_rval.rvalue();
+      }
+
+      XLS_CHECK(pass_bval.valid());
+
+      int64_t pass_bval_arr_size = ArrayBValueWidth(pass_bval);
+
+      if (pass_bval_arr_size < arg_arr_type->GetSize()) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Array slice out of bounds at %s", LocString(loc)));
+      }
+
+      if (pass_bval_arr_size != arg_arr_type->GetSize()) {
+        pass_bval = context().fb->ArraySlice(
+            pass_bval, context().fb->Literal(xls::SBits(0, 32), loc),
+            arg_arr_type->GetSize(), loc);
+      }
+
+      std::shared_ptr<CType> element_type;
+
+      if (argv.type()->Is<CPointerType>()) {
+        auto argv_pointer_type = argv.type()->As<CPointerType>();
+        element_type = argv_pointer_type->GetPointeeType();
+      } else if (argv.type()->Is<CArrayType>()) {
+        auto argv_array_type = argv.type()->As<CArrayType>();
+        element_type = argv_array_type->GetElementType();
+      } else {
+        XLS_CHECK_EQ("Internal consistency failure", nullptr);
+      }
+
+      pass_type =
+          std::make_shared<CArrayType>(element_type, arg_arr_type->GetSize());
+    }
+
+    if (*pass_type != *argt) {
       return absl::InternalError(
           absl::StrFormat("Internal error: expression type %s doesn't match "
                           "parameter type %s in function %s at %s",
@@ -2351,7 +2658,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
                           funcdecl->getNameAsString(), LocString(loc)));
     }
 
-    args.push_back(argv.value());
+    args.push_back(pass_bval);
   }
 
   // Map callee IO ops
@@ -2452,8 +2759,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
              ++caller_it) {
           IOOp* caller_op = caller_it->second;
           XLS_CHECK(caller_op->op == OpType::kRecv);
-          XLS_CHECK(caller_op->input_value.value().valid());
-          args.push_back(caller_op->input_value.value());
+          XLS_CHECK(caller_op->input_value.rvalue().valid());
+          args.push_back(caller_op->input_value.rvalue());
           // Expected return already expected in above loop
         }
         break;
@@ -2470,8 +2777,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         XLS_ASSIGN_OR_RETURN(
             CValue value,
             GetIdentifier(side_effecting_param.static_value, loc));
-        XLS_CHECK(value.value().valid());
-        args.push_back(value.value());
+        XLS_CHECK(value.rvalue().valid());
+        args.push_back(value.rvalue());
         // Count expected static returns
         ++expected_returns;
         break;
@@ -2484,9 +2791,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   xls::BValue raw_return = context().fb->Invoke(args, func->xls_func, loc);
+  XLS_CHECK(expected_returns == 0 || raw_return.valid());
 
   list<xls::BValue> unpacked_returns;
-
   if (expected_returns == 1) {
     unpacked_returns.emplace_back(raw_return);
   } else {
@@ -2691,31 +2998,40 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
     case clang::Stmt::ImplicitCastExprClass: {
       // For converting this pointer from base to derived
       auto cast = clang_down_cast<const clang::CastExpr*>(expr);
-
       // Don't generate pointer errors for C++ "this" keyword
       IgnorePointersGuard ignore_pointers(*this);
       if (cast->getSubExpr()->getStmtClass() == clang::Stmt::CXXThisExprClass) {
         ignore_pointers.enable();
       }
 
+      XLS_ASSIGN_OR_RETURN(CValue sub,
+                           GenerateIR_Expr(cast->getSubExpr(), loc));
+
+      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
+                           TranslateTypeFromClang(cast->getType(), loc));
+
+      if (to_type->Is<CVoidType>()) {
+        return CValue(xls::BValue(), to_type);
+      }
+
+      const clang::Expr* lvalue = sub.lvalue();
+
       // Sometimes array types are converted to pointer types via ImplicitCast,
       // even nested as in mutable array -> mutable pointer -> const pointer.
-      // Since we don't support pointers, this case is short-circuited, and
-      // the nested expression is evaluated directly, ignoring the casts.
+      // Since we don't generally support pointers (except for array slicing),
+      // this case is short-circuited, and the nested expression is evaluated
+      // directly, ignoring the casts.
       {
         // Ignore nested ImplicitCastExprs. This case breaks the logic below.
         auto nested_implicit = cast;
+
         while (nested_implicit->getSubExpr()->getStmtClass() ==
                clang::Stmt::ImplicitCastExprClass) {
           nested_implicit = clang_down_cast<const clang::CastExpr*>(
               nested_implicit->getSubExpr());
         }
 
-        XLS_ASSIGN_OR_RETURN(
-            std::shared_ptr<CType> sub_type,
-            TranslateTypeFromClang(nested_implicit->getSubExpr()->getType(),
-                                   loc));
-        auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub_type);
+        auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
 
         // Avoid decay of array to pointer, pointers are unsupported
         if (from_arr_type && nested_implicit->getType()->isPointerType()) {
@@ -2726,12 +3042,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
         }
       }
 
-      XLS_ASSIGN_OR_RETURN(CValue sub,
-                           GenerateIR_Expr(cast->getSubExpr(), loc));
-
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
-                           TranslateTypeFromClang(cast->getType(), loc));
-
       XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
                            ResolveInheritance(sub.type(), to_type));
 
@@ -2740,13 +3050,28 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
         XLS_CHECK(inheritance.resolved_struct != nullptr);
 
         xls::BValue val =
-            GetStructFieldXLS(sub.value(), inheritance.base_field->index(),
+            GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
                               *inheritance.resolved_struct, loc);
+
         return CValue(val, to_type);
       }
 
+      // Pointer conversions
+      if (sub.type()->Is<CPointerType>()) {
+        if (to_type->Is<CPointerType>()) {
+          return sub;
+        }
+        if (to_type->Is<CArrayType>()) {
+          return GenerateIR_Expr(sub.lvalue(), loc);
+        }
+        return absl::UnimplementedError(absl::StrFormat(
+            "Don't know how to convert %s to pointer type at %s",
+            std::string(*sub.type()), LocString(loc)));
+      }
+
       XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
-      return CValue(subc, to_type);
+
+      return CValue(subc, to_type, /*disable_type_check=*/true, lvalue);
     }
     case clang::Stmt::CXXThisExprClass: {
       return context().this_val;
@@ -2776,7 +3101,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
                            ResolveTypeInstance(octype));
 
       // A struct/class is being constructed
-      if (dynamic_cast<const CStructType*>(ctype.get()) != nullptr) {
+      if (ctype->Is<CStructType>()) {
         XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
         std::vector<const clang::Expr*> args;
         args.reserve(cast->getNumArgs());
@@ -2785,7 +3110,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
         }
         XLS_ASSIGN_OR_RETURN(CValue ret, GenerateIR_Call(cast->getConstructor(),
                                                          args, &dv, loc));
-        XLS_CHECK(dynamic_cast<const CVoidType*>(ret.type().get()));
+        XLS_CHECK(ret.type()->Is<CVoidType>());
         return CValue(dv, octype);
       }
 
@@ -2810,23 +3135,17 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       context().in_fork = true;
       auto* cast = clang_down_cast<const clang::ArraySubscriptExpr*>(expr);
       XLS_ASSIGN_OR_RETURN(CValue arr_val,
-                           GenerateIR_Expr(cast->getLHS(), loc));
-      auto arr_type = dynamic_cast<CArrayType*>(arr_val.type().get());
-      XLS_CHECK(arr_type != nullptr);
-      XLS_ASSIGN_OR_RETURN(CValue idx_val,
-                           GenerateIR_Expr(cast->getRHS(), loc));
-
-      // Generate the other way around to detect unsequenced errors,
-      //  and to get the lhs type
-      // unsequenced_gen_backwards_ should only be turned off for debugging
-      if (unsequenced_gen_backwards_) {
-        MaskAssignmentsGuard no_assignments(*this);
-        XLS_ASSIGN_OR_RETURN(CValue ignore,
-                             GenerateIR_Expr(cast->getLHS(), loc));
+                           GenerateIR_Expr(cast->getBase(), loc));
+      // Implicit dereference
+      if (arr_val.type()->Is<CPointerType>()) {
+        XLS_CHECK_NE(arr_val.lvalue(), nullptr);
+        XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
       }
-
+      auto arr_type = arr_val.type()->As<CArrayType>();
+      XLS_ASSIGN_OR_RETURN(CValue idx_val,
+                           GenerateIR_Expr(cast->getIdx(), loc));
       return CValue(
-          context().fb->ArrayIndex(arr_val.value(), {idx_val.value()}, loc),
+          context().fb->ArrayIndex(arr_val.rvalue(), {idx_val.rvalue()}, loc),
           arr_type->GetElementType());
     }
     // Access to a struct member, for example: x.foo
@@ -3022,31 +3341,38 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   XLS_CHECK_EQ(cfield.name(),
                absl::implicit_cast<const clang::NamedDecl*>(field));
   xls::BValue bval =
-      GetStructFieldXLS(leftval.value(), cfield.index(), *sitype, loc);
+      GetStructFieldXLS(leftval.rvalue(), cfield.index(), *sitype, loc);
   return CValue(bval, cfield.type());
 }
 
 absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
     std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
+  if (t->Is<CPointerType>()) {
+    return xls::BValue();
+  }
+
   XLS_ASSIGN_OR_RETURN(xls::Value value, CreateDefaultRawValue(t, loc));
   return context().fb->Literal(value, loc);
 }
 
 absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
     std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
-  if (auto it = dynamic_cast<const CIntType*>(t.get())) {
-    return xls::Value(xls::UBits(0, it->width()));
-  } else if (auto it = dynamic_cast<const CBitsType*>(t.get())) {
+  if (t->Is<CIntType>()) {
+    return xls::Value(xls::UBits(0, t->As<CIntType>()->width()));
+  } else if (t->Is<CBitsType>()) {
+    auto it = t->As<CBitsType>();
     return xls::Value(xls::UBits(0, it->GetBitWidth()));
-  } else if (dynamic_cast<const CBoolType*>(t.get()) != nullptr) {
+  } else if (t->Is<CBoolType>()) {
     return xls::Value(xls::UBits(0, 1));
-  } else if (auto it = dynamic_cast<const CArrayType*>(t.get())) {
+  } else if (t->Is<CArrayType>()) {
+    auto it = t->As<CArrayType>();
     std::vector<xls::Value> element_vals;
     XLS_ASSIGN_OR_RETURN(xls::Value default_elem_val,
                          CreateDefaultRawValue(it->GetElementType(), loc));
     element_vals.resize(it->GetSize(), default_elem_val);
     return xls::Value::ArrayOrDie(element_vals);
-  } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
+  } else if (t->Is<CStructType>()) {
+    auto it = t->As<CStructType>();
     vector<xls::Value> args;
     for (const std::shared_ptr<CField>& field : it->fields()) {
       XLS_ASSIGN_OR_RETURN(xls::Value fval,
@@ -3054,9 +3380,12 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
       args.push_back(fval);
     }
     return MakeStructXLS(args, *it);
-  } else if (dynamic_cast<const CInstantiableTypeAlias*>(t.get()) != nullptr) {
+  } else if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeInstance(t));
     return CreateDefaultRawValue(resolved, loc);
+  } else if (t->Is<CPointerType>()) {
+    const CPointerType* pointer_type = t->As<CPointerType>();
+    return CreateDefaultRawValue(pointer_type->GetPointeeType(), loc);
   } else {
     return absl::UnimplementedError(
         absl::StrFormat("Don't know how to make default for type %s at %s",
@@ -3067,7 +3396,8 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
 absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
     const xls::SourceLocation& loc) {
-  if (auto array_t = dynamic_cast<const CArrayType*>(t.get())) {
+  if (t->Is<CArrayType>()) {
+    auto array_t = t->As<CArrayType>();
     if (array_t->GetSize() != init_list->getNumInits()) {
       return absl::UnimplementedError(absl::StrFormat(
           "Wrong number of initializers at %s", LocString(loc)));
@@ -3093,7 +3423,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
               absl::StrFormat("Wrong initializer type %s at %s",
                               string(*expr_val.type()), LocString(loc)));
         }
-        this_val = expr_val.value();
+        this_val = expr_val.rvalue();
       }
       element_vals.push_back(this_val);
     }
@@ -3101,10 +3431,10 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
                          TranslateTypeToXLS(array_t->GetElementType(), loc));
     return context().fb->Array(element_vals, xls_elem_type, loc);
   }
-  if (dynamic_cast<const CInstantiableTypeAlias*>(t.get())) {
+  if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> struct_type,
                          ResolveTypeInstance(t));
-    auto struct_type_ptr = dynamic_cast<const CStructType*>(struct_type.get());
+    auto struct_type_ptr = struct_type->As<CStructType>();
     XLS_CHECK_NE(nullptr, struct_type_ptr);
     XLS_CHECK_EQ(struct_type_ptr->fields().size(), init_list->getNumInits());
     std::vector<xls::BValue> field_vals;
@@ -3112,7 +3442,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
       XLS_ASSIGN_OR_RETURN(CValue value,
                            GenerateIR_Expr(init_list->getInit(i), loc));
       XLS_CHECK(*value.type() == *struct_type_ptr->fields().at(i)->type());
-      field_vals.push_back(value.value());
+      field_vals.push_back(value.rvalue());
     }
     return MakeStructXLS(field_vals, *struct_type_ptr, loc);
   } else {
@@ -3182,10 +3512,18 @@ absl::StatusOr<xls::Value> Translator::EvaluateBVal(
   return EvaluateNode(bval.node());
 }
 
+absl::StatusOr<xls::Value> Translator::EvaluateBValAsCondition(
+    xls::BValue bval, const xls::SourceLocation& loc) {
+  if (!bval.valid()) {
+    return xls::Value(xls::UBits(1, 1));
+  }
+  return EvaluateBVal(bval, loc);
+}
+
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
     const CValue& bvalue, const xls::SourceLocation& loc) {
   XLS_ASSIGN_OR_RETURN(xls::Value const_value,
-                       EvaluateBVal(bvalue.value(), loc));
+                       EvaluateBVal(bvalue.rvalue(), loc));
   return ConstValue(const_value, bvalue.type());
 }
 
@@ -3334,7 +3672,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
             if (!translate_result.ok()) {
               XLS_LOG(ERROR)
                   << "Failed to evaluate IR as const:"
-                  << translated.value().ToString() << " at " << LocString(loc);
+                  << translated.rvalue().ToString() << " at " << LocString(loc);
               return translate_result.status();
             }
             init = translate_result.value();
@@ -3364,7 +3702,7 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
               absl::StrCat(val));
         } else {
           XLS_ASSIGN_OR_RETURN(CValue ret, GenerateIR_Expr(expr, loc));
-          args.emplace_back(ret.value());
+          args.emplace_back(ret.rvalue());
         }
       }
 
@@ -3404,17 +3742,17 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     case clang::Stmt::IfStmtClass: {
       const auto* ifst = clang_down_cast<const clang::IfStmt*>(stmt);
       XLS_ASSIGN_OR_RETURN(CValue cond, GenerateIR_Expr(ifst->getCond(), loc));
-      XLS_CHECK(dynamic_cast<CBoolType*>(cond.type().get()));
+      XLS_CHECK(cond.type()->Is<CBoolType>());
       if (ifst->getInit()) {
         return absl::UnimplementedError(absl::StrFormat(
             "Unimplemented C++17 if initializers at %s", LocString(loc)));
       }
       if (ifst->getThen()) {
-        PushContextGuard context_guard(*this, cond.value(), loc);
+        PushContextGuard context_guard(*this, cond.rvalue(), loc);
         XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getThen(), ctx));
       }
       if (ifst->getElse()) {
-        PushContextGuard context_guard(*this, context().fb->Not(cond.value()),
+        PushContextGuard context_guard(*this, context().fb->Not(cond.rvalue()),
                                        loc);
         XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getElse(), ctx));
       }
@@ -3582,9 +3920,9 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
                           max_unroll_iters_, LocString(loc)));
     }
     XLS_ASSIGN_OR_RETURN(CValue cond_expr, GenerateIR_Expr(cond_expr, loc));
-    XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_expr.type().get()));
+    XLS_CHECK(cond_expr.type()->Is<CBoolType>());
     XLS_ASSIGN_OR_RETURN(xls::Value cond_val,
-                         EvaluateBVal(cond_expr.value(), loc));
+                         EvaluateBVal(cond_expr.rvalue(), loc));
     if (cond_val.IsAllZeros()) break;
 
     // Generate body
@@ -3612,7 +3950,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     XLS_ASSIGN_OR_RETURN(CValue counter_new_bval,
                          GetIdentifier(counter_namedecl, loc));
     XLS_ASSIGN_OR_RETURN(xls::Value counter_new_val,
-                         EvaluateBVal(counter_new_bval.value(), loc));
+                         EvaluateBVal(counter_new_bval.rvalue(), loc));
 
     CValue flat_counter_val(context().fb->Literal(counter_new_val),
                             counter_new_bval.type());
@@ -3655,7 +3993,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         "Only initiation interval 1 supported at %s", LocString(loc)));
   }
 
-  if (context().this_val.value().valid()) {
+  if (context().this_val.rvalue().valid()) {
     return absl::UnimplementedError(absl::StrFormat(
         "Pipelined loops in methods unsupported at %s", LocString(loc)));
   }
@@ -3672,9 +4010,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   // Condition must be checked at the start
   if (cond_expr != nullptr) {
     XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
-    XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_cval.type().get()));
+    XLS_CHECK(cond_cval.type()->Is<CBoolType>());
 
-    context().and_condition(cond_cval.value(), loc);
+    context().and_condition(cond_cval.rvalue(), loc);
   }
 
   // Pack context tuple
@@ -3686,8 +4024,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     std::vector<std::shared_ptr<CField>> fields;
     std::vector<xls::BValue> tuple_values;
 
-    if (context().this_val.value().valid()) {
-      tuple_values.push_back(context().this_val.value());
+    if (context().this_val.rvalue().valid()) {
+      tuple_values.push_back(context().this_val.rvalue());
       const uint64_t field_idx = fields.size();
       auto field_ptr = std::make_shared<CField>(nullptr, field_idx,
                                                 context().this_val.type());
@@ -3704,10 +4042,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const CValue& cvalue = context().variables.at(decl);
-      XLS_CHECK(cvalue.value().valid());
+      XLS_CHECK(cvalue.rvalue().valid());
       const uint64_t field_idx = tuple_values.size();
       variable_field_indices[decl] = field_idx;
-      tuple_values.push_back(cvalue.value());
+      tuple_values.push_back(cvalue.rvalue());
       auto field_ptr = std::make_shared<CField>(decl, field_idx, cvalue.type());
       fields.push_back(field_ptr);
     }
@@ -3719,7 +4057,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   // Create synthetic channels and IO ops
-  xls::Type* context_xls_type = context_tuple_out.value().GetType();
+  xls::Type* context_xls_type = context_tuple_out.rvalue().GetType();
 
   std::vector<xls::Type*> empty_elements;
   xls::TupleType* ctrl_xls_type = package_->GetTupleType(empty_elements);
@@ -3795,7 +4133,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     IOOp op;
     op.op = OpType::kSend;
-    std::vector<xls::BValue> sp = {context_tuple_out.value(),
+    std::vector<xls::BValue> sp = {context_tuple_out.rvalue(),
                                    context().condition_bval(loc)};
     op.ret_value = context().fb->Tuple(sp);
     XLS_RETURN_IF_ERROR(AddOpToChannel(op, context_out_channel, loc).status());
@@ -3835,9 +4173,9 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       loc));
 
   // Unpack context tuple
-  xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.value();
+  xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
   {
-    XLS_CHECK(!context().this_val.value().valid());
+    XLS_CHECK(!context().this_val.rvalue().valid());
 
     // Don't assign to variables that aren't changed in the loop body,
     // as this creates extra state
@@ -3908,7 +4246,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     // Context in
     absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> prev_vars;
 
-    XLS_CHECK(!prev_context.this_val.value().valid());
+    XLS_CHECK(!prev_context.this_val.rvalue().valid());
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const uint64_t field_idx = variable_field_indices.at(decl);
       const CValue& outer_value = prev_context.variables.at(decl);
@@ -3955,23 +4293,22 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     // Check condition
     if (cond_expr != nullptr) {
       XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
-      XLS_CHECK_NE(nullptr, dynamic_cast<CBoolType*>(cond_cval.type().get()));
-      xls::BValue break_on_cond_val = context().fb->Not(cond_cval.value());
+      XLS_CHECK(cond_cval.type()->Is<CBoolType>());
+      xls::BValue break_on_cond_val = context().fb->Not(cond_cval.rvalue());
 
       do_break = context().fb->Or(do_break, break_on_cond_val, loc);
     }
 
     // Context out
-    XLS_CHECK(!prev_context.this_val.value().valid());
+    XLS_CHECK(!prev_context.this_val.rvalue().valid());
     std::vector<xls::BValue> tuple_values;
     tuple_values.resize(total_context_values);
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const uint64_t field_idx = variable_field_indices.at(decl);
-      tuple_values[field_idx] = context().variables.at(decl).value();
+      tuple_values[field_idx] = context().variables.at(decl).rvalue();
     }
 
-
-    XLS_CHECK(!prev_context.this_val.value().valid());
+    XLS_CHECK(!prev_context.this_val.rvalue().valid());
     xls::BValue ret_ctx = MakeStructXLS(tuple_values, *context_ctype, loc);
     std::vector<xls::BValue> return_bvals = {ret_ctx, do_break};
 
@@ -3982,7 +4319,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     for (const clang::NamedDecl* decl :
          generated_func.GetDeterministicallyOrderedStaticValues()) {
       XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, loc));
-      return_bvals.push_back(value.value());
+      return_bvals.push_back(value.rvalue());
     }
 
     // IO returns
@@ -3999,7 +4336,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     // Analyze context variables changed
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const xls::BValue& prev_bval = prev_vars.at(decl);
-      const xls::BValue& curr_bval = context().variables.at(decl).value();
+      const xls::BValue& curr_bval = context().variables.at(decl).rvalue();
       if (prev_bval.node() != curr_bval.node()) {
         vars_changed_in_body.push_back(decl);
       }
@@ -4025,7 +4362,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   for (const clang::NamedDecl* namedecl :
        generated_func.GetDeterministicallyOrderedStaticValues()) {
     const ConstValue& initval = generated_func.static_values.at(namedecl);
-    init_values.push_back(initval.value());
+    init_values.push_back(initval.rvalue());
   }
 
   xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
@@ -4182,7 +4519,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   }
   XLS_ASSIGN_OR_RETURN(CValue switch_val,
                        GenerateIR_Expr(switchst->getCond(), loc));
-  if (!dynamic_cast<CIntType*>(switch_val.type().get())) {
+  if (!switch_val.type()->Is<CIntType>()) {
     return absl::UnimplementedError(
         absl::StrFormat("Switch on non-integers at %s", LocString(loc)));
   }
@@ -4212,7 +4549,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
             absl::StrFormat("Case RHS at %s", LocString(loc)));
       }
       xls::BValue case_condition =
-          context().fb->Eq(switch_val.value(), case_val.value(), loc);
+          context().fb->Eq(switch_val.rvalue(), case_val.rvalue(), loc);
       case_conds.emplace_back(case_condition);
     }
   }
@@ -4371,7 +4708,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     auto array = clang_down_cast<const clang::ConstantArrayType*>(type);
     XLS_ASSIGN_OR_RETURN(shared_ptr<CType> type,
                          TranslateTypeFromClang(array->getElementType(), loc));
-    return shared_ptr<CType>(
+    return std::shared_ptr<CType>(
         new CArrayType(type, array->getSize().getZExtValue()));
   } else if (type->getTypeClass() == clang::Type::TypeClass::Typedef) {
     auto td = clang_down_cast<const clang::TypedefType*>(type);
@@ -4400,12 +4737,12 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     return TranslateTypeFromClang(lval->desugar(), loc);
   } else if (type->getTypeClass() == clang::Type::TypeClass::Pointer) {
     auto lval = clang_down_cast<const clang::PointerType*>(type);
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> pointee_type,
+                         TranslateTypeFromClang(lval->getPointeeType(), loc));
     if (context().ignore_pointers) {
-      return TranslateTypeFromClang(lval->getPointeeType(), loc);
+      return pointee_type;
     }
-    lval->dump();
-    return absl::UnimplementedError(
-        absl::StrFormat("Pointers are unsupported at %s", LocString(loc)));
+    return std::shared_ptr<CType>(new CPointerType(pointee_type));
   } else {
     type->dump();
     return absl::UnimplementedError(
@@ -4416,16 +4753,19 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
 
 absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
-  if (auto it = dynamic_cast<const CIntType*>(t.get())) {
+  if (t->Is<CIntType>()) {
+    auto it = t->As<CIntType>();
     return package_->GetBitsType(it->width());
-  } else if (auto it = dynamic_cast<const CBitsType*>(t.get())) {
+  } else if (t->Is<CBitsType>()) {
+    auto it = t->As<CBitsType>();
     return package_->GetBitsType(it->GetBitWidth());
-  } else if (dynamic_cast<const CBoolType*>(t.get()) != nullptr) {
+  } else if (t->Is<CBoolType>()) {
     return package_->GetBitsType(1);
-  } else if (dynamic_cast<const CInstantiableTypeAlias*>(t.get()) != nullptr) {
+  } else if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto ctype, ResolveTypeInstance(t));
     return TranslateTypeToXLS(ctype, loc);
-  } else if (auto it = dynamic_cast<const CStructType*>(t.get())) {
+  } else if (t->Is<CStructType>()) {
+    auto it = t->As<CStructType>();
     std::vector<xls::Type*> members;
     for (auto it2 = it->fields().rbegin(); it2 != it->fields().rend(); it2++) {
       std::shared_ptr<CField> field = *it2;
@@ -4434,7 +4774,8 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
       members.push_back(ft);
     }
     return GetStructXLSType(members, *it, loc);
-  } else if (auto it = dynamic_cast<const CArrayType*>(t.get())) {
+  } else if (t->Is<CArrayType>()) {
+    auto it = t->As<CArrayType>();
     XLS_ASSIGN_OR_RETURN(auto xls_elem_type,
                          TranslateTypeToXLS(it->GetElementType(), loc));
     return package_->GetArrayType(it->GetSize(), xls_elem_type);
@@ -4570,7 +4911,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   for (const clang::NamedDecl* namedecl :
        prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
     const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
-    static_init_values.push_back(initval.value());
+    static_init_values.push_back(initval.rvalue());
   }
 
   xls::ProcBuilder pb(block.name() + "_proc",
@@ -5031,17 +5372,19 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     const xls::SourceLocation& loc) {
   XLS_CHECK_NE(in.type().get(), nullptr);
   XLS_CHECK_NE(out_type.get(), nullptr);
-  if (dynamic_cast<const CStructType*>(out_type.get())) {
-    return in.value();
-  } else if (dynamic_cast<const CVoidType*>(out_type.get())) {
+  if (*in.type() == *out_type) {
+    return in.rvalue();
+  }
+  if (out_type->Is<CStructType>()) {
+    return in.rvalue();
+  } else if (out_type->Is<CVoidType>()) {
     return xls::BValue();
-  } else if (dynamic_cast<const CArrayType*>(out_type.get())) {
-    return in.value();
-  } else if (auto out_bits_type =
-                 dynamic_cast<const CBitsType*>(out_type.get())) {
+  } else if (out_type->Is<CArrayType>()) {
+    return in.rvalue();
+  } else if (out_type->Is<CBitsType>()) {
+    auto out_bits_type = out_type->As<CBitsType>();
     XLS_ASSIGN_OR_RETURN(auto conv_type, ResolveTypeInstance(in.type()));
-    auto in_bits_type = dynamic_cast<const CBitsType*>(conv_type.get());
-    if (!in_bits_type) {
+    if (!conv_type->Is<CBitsType>()) {
       return absl::UnimplementedError(
           absl::StrFormat("Cannot convert type %s to bits at %s",
                           std::string(*in.type()), LocString(loc)));
@@ -5052,12 +5395,11 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
           "%s",
           std::string(*in.type()), std::string(*out_type), LocString(loc)));
     }
-    return in.value();
-  } else if (dynamic_cast<const CBoolType*>(out_type.get())) {
+    return in.rvalue();
+  } else if (out_type->Is<CBoolType>()) {
     return GenBoolConvert(in, loc);
-  } else if (dynamic_cast<const CIntType*>(out_type.get()) != nullptr) {
-    if (!(dynamic_cast<const CBoolType*>(in.type().get()) != nullptr ||
-          dynamic_cast<const CIntType*>(in.type().get()) != nullptr)) {
+  } else if (out_type->Is<CIntType>()) {
+    if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
       return absl::UnimplementedError(
           absl::StrFormat("Cannot convert type %s to int at %s",
                           std::string(*in.type()), LocString(loc)));
@@ -5065,47 +5407,44 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
 
     const int expr_width = in.type()->GetBitWidth();
     if (expr_width == out_type->GetBitWidth()) {
-      return in.value();
+      return in.rvalue();
     } else if (expr_width < out_type->GetBitWidth()) {
       auto p_in_int = std::dynamic_pointer_cast<const CIntType>(in.type());
-      if ((dynamic_cast<const CBoolType*>(in.type().get()) == nullptr) &&
+      if ((!in.type()->Is<CBoolType>()) &&
           (p_in_int != nullptr && p_in_int->is_signed())) {
-        return context().fb->SignExtend(in.value(), out_type->GetBitWidth(),
+        return context().fb->SignExtend(in.rvalue(), out_type->GetBitWidth(),
                                         loc);
       } else {
-        return context().fb->ZeroExtend(in.value(), out_type->GetBitWidth(),
+        return context().fb->ZeroExtend(in.rvalue(), out_type->GetBitWidth(),
                                         loc);
       }
     } else {
-      return context().fb->BitSlice(in.value(), 0, out_type->GetBitWidth(),
+      return context().fb->BitSlice(in.rvalue(), 0, out_type->GetBitWidth(),
                                     loc);
     }
-  } else if (dynamic_cast<const CInstantiableTypeAlias*>(out_type.get()) !=
-             nullptr) {
+  } else if (out_type->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto t, ResolveTypeInstance(out_type));
     return GenTypeConvert(in, t, loc);
-  } else {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Don't know how to convert %s to type %s at %s",
-        std::string(*in.type()), std::string(*out_type), LocString(loc)));
   }
+  return absl::UnimplementedError(absl::StrFormat(
+      "Don't know how to convert %s to type %s at %s", std::string(*in.type()),
+      std::string(*out_type), LocString(loc)));
 }
 
 absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
     CValue const& in, const xls::SourceLocation& loc) {
-  if (!((dynamic_cast<const CBoolType*>(in.type().get()) != nullptr) ||
-        (dynamic_cast<CIntType*>(in.type().get()) != nullptr))) {
+  if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
     return absl::UnimplementedError(
         absl::StrFormat("Cannot convert type %s to bool at %s",
                         std::string(*in.type()), LocString(loc)));
   }
   XLS_CHECK_GT(in.type()->GetBitWidth(), 0);
   if (in.type()->GetBitWidth() == 1) {
-    return in.value();
+    return in.rvalue();
   } else {
     xls::BValue const0 =
         context().fb->Literal(xls::UBits(0, in.type()->GetBitWidth()), loc);
-    return context().fb->Ne(in.value(), const0, loc);
+    return context().fb->Ne(in.rvalue(), const0, loc);
   }
 }
 

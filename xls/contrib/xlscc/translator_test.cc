@@ -643,6 +643,22 @@ TEST_F(TranslatorTest, OpAssignmentResult) {
   Run({{"a", 100}}, 105, content);
 }
 
+TEST_F(TranslatorTest, UndefinedConditionalAssign) {
+  const std::string content = R"(
+      int my_package(int a) {
+        int ret;
+        if(a) {
+          ret = 11;
+        }
+        return ret;
+      })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kFailedPrecondition,
+                                    testing::HasSubstr("Unable to parse")));
+}
+
 TEST_F(TranslatorTest, IfStmt) {
   const std::string content = R"(
       long long my_package(long long a) {

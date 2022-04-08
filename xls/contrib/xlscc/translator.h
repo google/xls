@@ -33,6 +33,7 @@
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Mangle.h"
+#include "clang/include/clang/AST/OperationKinds.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/AST/Type.h"
@@ -74,6 +75,17 @@ class CType {
   virtual absl::Status GetMetadataValue(Translator& translator,
                                         const ConstValue const_value,
                                         xlscc_metadata::Value* output) const;
+
+  template <typename Derived>
+  const Derived* As() const {
+    XLS_CHECK(Is<Derived>());
+    return dynamic_cast<const Derived*>(this);
+  }
+
+  template <typename Derived>
+  bool Is() const {
+    return typeid(*this) == typeid(Derived);
+  }
 };
 
 // C/C++ void
@@ -266,26 +278,72 @@ class CArrayType : public CType {
   int size_;
 };
 
+// Pointer or reference in C/C++
+class CPointerType : public CType {
+ public:
+  CPointerType(std::shared_ptr<CType> pointee_type);
+  bool operator==(const CType& o) const override;
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator,
+                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  std::shared_ptr<CType> GetPointeeType() const;
+
+ private:
+  std::shared_ptr<CType> pointee_type_;
+};
+
 // Immutable object representing an XLS[cc] value. The class associates an
 //  XLS IR value expression with an XLS[cc] type (derived from C/C++).
 // This class is necessary because an XLS "bits[16]" might be a native short
 //  native unsigned short, __xls_bits, or a class containing a single __xls_bits
 //  And each of these types implies different translation behaviors.
+// For types other than pointers, only rvalue is used. For pointers, only lvalue
+//  is used.
 class CValue {
  public:
   CValue() {}
-  CValue(xls::BValue value, std::shared_ptr<CType> type,
-         bool disable_type_check = false)
-      : value_(value), type_(std::move(type)) {
+  CValue(xls::BValue rvalue, std::shared_ptr<CType> type,
+         bool disable_type_check = false, const clang::Expr* lvalue = nullptr)
+      : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
     XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
-              value.BitCountOrDie() == type_->GetBitWidth());
+              rvalue.BitCountOrDie() == type_->GetBitWidth());
+    XLS_CHECK(!(lvalue && !dynamic_cast<CPointerType*>(type_.get())));
+    XLS_CHECK(!(lvalue && rvalue.valid()));
+    // Only supporting lvalues of the form &... for pointers
+    if (dynamic_cast<CPointerType*>(type_.get()) != nullptr) {
+      // Always get rvalue from lvalue, otherwise changes to the original won't
+      //  be reflected when the pointer is dereferenced.
+      XLS_CHECK(!rvalue.valid());
+      if (lvalue != nullptr) {
+        XLS_CHECK(lvalue->getStmtClass() == clang::Stmt::UnaryOperatorClass);
+        XLS_CHECK(
+            static_cast<const clang::UnaryOperator*>(lvalue)->getOpcode() ==
+            clang::UO_AddrOf);
+      }
+    } else if (dynamic_cast<CVoidType*>(type_.get()) == nullptr) {
+      XLS_CHECK(rvalue.valid());
+    } else {
+      // It's a void
+      XLS_CHECK(!rvalue.valid() && lvalue == nullptr);
+    }
   }
 
-  xls::BValue value() const { return value_; }
+  xls::BValue rvalue() const { return rvalue_; }
   std::shared_ptr<CType> type() const { return type_; }
+  const clang::Expr* lvalue() const { return lvalue_; }
+  std::string debug_string() const {
+    return absl::StrFormat("(rval=%s, type=%s, lval=%p)", rvalue_.ToString(),
+                           std::string(*type_), lvalue_);
+  }
 
  private:
-  xls::BValue value_;
+  xls::BValue rvalue_;
+  const clang::Expr* lvalue_;
   std::shared_ptr<CType> type_;
 };
 
@@ -304,7 +362,7 @@ class ConstValue {
     return lhs.value_ == rhs.value_ && (*lhs.type_) == (*rhs.type_);
   }
 
-  xls::Value value() const { return value_; }
+  xls::Value rvalue() const { return value_; }
   std::shared_ptr<CType> type() const { return type_; }
 
  private:
@@ -462,7 +520,7 @@ struct TranslationContext {
     std::cerr << "  vars:" << std::endl;
     for (const auto& var : variables) {
       std::cerr << "  -- " << var.first->getNameAsString() << ": "
-                << var.second.value().ToString() << std::endl;
+                << var.second.rvalue().ToString() << std::endl;
     }
     std::cerr << "}" << std::endl;
   }
@@ -541,6 +599,10 @@ struct TranslationContext {
   // TODO(seanhaskell): Remove once all features are supported
   bool in_pipelined_for_body = false;
   int64_t outer_pipelined_loop_init_interval = -1;
+
+  // When set to true, the expression is evaluated as an lvalue, for pointer
+  // assignments
+  bool lvalue_mode = false;
 };
 
 class Translator {
@@ -695,6 +757,19 @@ class Translator {
     ~MaskAssignmentsGuard() {
       translator.context().mask_assignments = prev_val;
     }
+
+    Translator& translator;
+    bool prev_val;
+  };
+
+  // This guard evaluates pointer expressions as lvalues, for a period
+  // determined by RAII.
+  struct LValueModeGuard {
+    explicit LValueModeGuard(Translator& translator)
+        : translator(translator), prev_val(translator.context().lvalue_mode) {
+      translator.context().lvalue_mode = true;
+    }
+    ~LValueModeGuard() { translator.context().lvalue_mode = prev_val; }
 
     Translator& translator;
     bool prev_val;
@@ -1002,6 +1077,8 @@ class Translator {
                                 absl::flat_hash_set<xls::Node*>& visited);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
                                           const xls::SourceLocation& loc);
+  absl::StatusOr<xls::Value> EvaluateBValAsCondition(
+      xls::BValue bval, const xls::SourceLocation& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(
       const CValue& bvalue, const xls::SourceLocation& loc);
@@ -1050,6 +1127,14 @@ class Translator {
   xls::BValue GetStructFieldXLS(xls::BValue val, int index,
                                 const CStructType& type,
                                 const xls::SourceLocation& loc);
+
+  // Returns a BValue for a copy of array_to_update with slice_to_write replaced
+  // at start_index.
+  absl::StatusOr<xls::BValue> UpdateArraySlice(xls::BValue array_to_update,
+                                               xls::BValue start_index,
+                                               xls::BValue slice_to_write,
+                                               const xls::SourceLocation& loc);
+  int64_t ArrayBValueWidth(xls::BValue array_bval);
 
  public:
   // This version is public because it needs to be accessed by CStructType
