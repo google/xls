@@ -35,6 +35,15 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
                         uint64_t expected, absl::string_view cpp_source,
                         xabsl::SourceLocation loc,
                         std::vector<absl::string_view> clang_argv) {
+  if (XLS_VLOG_IS_ON(1)) {
+    std::ostringstream input_str;
+    for (const auto& [key, val] : args) {
+      input_str << key << ":" << val << " ";
+    }
+    XLS_VLOG(1) << absl::StrFormat("Run test in (%s) out %i", input_str.str(),
+                                   expected)
+                << std::endl;
+  }
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
                            SourceToIr(cpp_source, nullptr, clang_argv));

@@ -40,6 +40,7 @@
 #include "clang/include/clang/Basic/IdentifierTable.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "llvm/include/llvm/ADT/APInt.h"
+#include "xls/common/logging/logging.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
@@ -297,6 +298,44 @@ class CPointerType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
+// In general, the original clang::Expr used to assign the pointer is saved
+// as an lvalue. However, it's necessary to create synthetic selects for
+// conditional assignments to pointers. Ternaries are also generated this way
+// for consistency.
+class LValue {
+ public:
+  LValue() {}
+  LValue(const clang::Expr* leaf) : leaf_(leaf) {
+    XLS_CHECK_NE(leaf_, nullptr);
+    XLS_CHECK(leaf_->getStmtClass() == clang::Stmt::UnaryOperatorClass);
+    XLS_CHECK(static_cast<const clang::UnaryOperator*>(leaf_)->getOpcode() ==
+              clang::UO_AddrOf);
+  }
+  LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
+         std::shared_ptr<LValue> lvalue_false)
+      : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
+    XLS_CHECK(cond_.valid());
+    XLS_CHECK(cond_.GetType()->IsBits());
+    XLS_CHECK(cond_.BitCountOrDie() == 1);
+    XLS_CHECK_NE(lvalue_true_.get(), nullptr);
+    XLS_CHECK_NE(lvalue_false_.get(), nullptr);
+  }
+
+  bool is_select() const { return cond_.valid(); }
+  xls::BValue cond() const { return cond_; }
+  std::shared_ptr<LValue> lvalue_true() const { return lvalue_true_; }
+  std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }
+
+  const clang::Expr* leaf() const { return leaf_; }
+
+ private:
+  const clang::Expr* leaf_ = nullptr;
+
+  xls::BValue cond_;
+  std::shared_ptr<LValue> lvalue_true_ = nullptr;
+  std::shared_ptr<LValue> lvalue_false_ = nullptr;
+};
+
 // Immutable object representing an XLS[cc] value. The class associates an
 //  XLS IR value expression with an XLS[cc] type (derived from C/C++).
 // This class is necessary because an XLS "bits[16]" might be a native short
@@ -308,7 +347,8 @@ class CValue {
  public:
   CValue() {}
   CValue(xls::BValue rvalue, std::shared_ptr<CType> type,
-         bool disable_type_check = false, const clang::Expr* lvalue = nullptr)
+         bool disable_type_check = false,
+         std::shared_ptr<LValue> lvalue = nullptr)
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
     XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
               rvalue.BitCountOrDie() == type_->GetBitWidth());
@@ -319,12 +359,6 @@ class CValue {
       // Always get rvalue from lvalue, otherwise changes to the original won't
       //  be reflected when the pointer is dereferenced.
       XLS_CHECK(!rvalue.valid());
-      if (lvalue != nullptr) {
-        XLS_CHECK(lvalue->getStmtClass() == clang::Stmt::UnaryOperatorClass);
-        XLS_CHECK(
-            static_cast<const clang::UnaryOperator*>(lvalue)->getOpcode() ==
-            clang::UO_AddrOf);
-      }
     } else if (dynamic_cast<CVoidType*>(type_.get()) == nullptr) {
       XLS_CHECK(rvalue.valid());
     } else {
@@ -335,15 +369,15 @@ class CValue {
 
   xls::BValue rvalue() const { return rvalue_; }
   std::shared_ptr<CType> type() const { return type_; }
-  const clang::Expr* lvalue() const { return lvalue_; }
+  std::shared_ptr<LValue> lvalue() const { return lvalue_; }
   std::string debug_string() const {
     return absl::StrFormat("(rval=%s, type=%s, lval=%p)", rvalue_.ToString(),
-                           std::string(*type_), lvalue_);
+                           std::string(*type_), lvalue_.get());
   }
 
  private:
   xls::BValue rvalue_;
-  const clang::Expr* lvalue_;
+  std::shared_ptr<LValue> lvalue_;
   std::shared_ptr<CType> type_;
 };
 
@@ -859,12 +893,21 @@ class Translator {
       clang::BinaryOperator::Opcode clang_op, bool is_assignment,
       std::shared_ptr<CType> result_type, const clang::Expr* lhs,
       const clang::Expr* rhs, const xls::SourceLocation& loc);
+  absl::Status MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
+                                  std::shared_ptr<CType>& result_type,
+                                  const xls::SourceLocation& loc);
+  absl::StatusOr<CValue> Generate_TernaryOp(xls::BValue cond, CValue true_cv,
+                                            CValue false_cv,
+                                            std::shared_ptr<CType> result_type,
+                                            const xls::SourceLocation& loc);
   absl::StatusOr<CValue> Generate_TernaryOp(std::shared_ptr<CType> result_type,
                                             const clang::Expr* cond_expr,
                                             const clang::Expr* true_expr,
                                             const clang::Expr* false_expr,
                                             const xls::SourceLocation& loc);
   absl::StatusOr<CValue> GenerateIR_Expr(const clang::Expr* expr,
+                                         const xls::SourceLocation& loc);
+  absl::StatusOr<CValue> GenerateIR_Expr(std::shared_ptr<LValue> expr,
                                          const xls::SourceLocation& loc);
   absl::StatusOr<CValue> GenerateIR_MemberExpr(const clang::MemberExpr* expr,
                                                const xls::SourceLocation& loc);
@@ -1019,6 +1062,8 @@ class Translator {
   absl::Status Assign(const clang::NamedDecl* lvalue, const CValue& rvalue,
                       const xls::SourceLocation& loc);
   absl::Status Assign(const clang::Expr* lvalue, const CValue& rvalue,
+                      const xls::SourceLocation& loc);
+  absl::Status Assign(std::shared_ptr<LValue> lvalue, const CValue& rvalue,
                       const xls::SourceLocation& loc);
   absl::Status AssignThis(const CValue& rvalue, const xls::SourceLocation& loc);
   absl::StatusOr<CValue> PrepareRValueForAssignment(

@@ -1450,7 +1450,7 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
                        TranslateTypeFromClang(decl->getType(), loc));
 
   const clang::Expr* initializer = decl->getAnyInitializer();
-  const clang::Expr* lvalue = nullptr;
+  std::shared_ptr<LValue> lvalue = nullptr;
   xls::BValue init_val;
   if (initializer) {
     LValueModeGuard lvalue_mode(*this);
@@ -1561,45 +1561,49 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
 absl::StatusOr<CValue> Translator::PrepareRValueForAssignment(
     const clang::NamedDecl* lvalue_decl, const CValue& lvalue,
     const CValue& rvalue, const xls::SourceLocation& loc) {
-  CValue rvalue_to_use = lvalue;
+  if (context().mask_assignments) {
+    return lvalue;
+  }
 
-  if (!context().mask_assignments) {
-    rvalue_to_use = rvalue;
-    xls::BValue var_cond =
-        lvalue_decl ? context().variable_assignment_conditions.at(lvalue_decl)
-                    : context().context_condition;
-    if (var_cond.valid() && (!context().unconditional_assignment)) {
-      bool overwrite_pointer_without_select = false;
+  CValue rvalue_to_use = rvalue;
 
-      if (lvalue.type()->Is<CPointerType>()) {
-        absl::StatusOr<xls::Value> const_var_cond = EvaluateBVal(var_cond, loc);
-        if (const_var_cond.ok() && const_var_cond.value().IsAllOnes()) {
-          overwrite_pointer_without_select = true;
-        } else {
-          if (lvalue.lvalue()) {
-            return absl::UnimplementedError(absl::StrFormat(
-                "Conditional assignments to pointers not yet supported at %s",
-                LocString(loc)));
-          }
-          return absl::InvalidArgumentError(
-              absl::StrFormat("Conditional assignment to uninitialized pointer "
-                              "leaves lvalue undefined at %s",
-                              LocString(loc)));
-        }
-      }
+  if (context().unconditional_assignment) {
+    return rvalue_to_use;
+  }
 
-      if (!overwrite_pointer_without_select) {
-        XLS_CHECK(rvalue.rvalue().valid());
-        XLS_CHECK(lvalue.rvalue().valid());
-        XLS_CHECK_EQ(rvalue.rvalue().GetType()->kind(),
-                     lvalue.rvalue().GetType()->kind());
-        auto cond_sel = context().fb->Select(var_cond, rvalue.rvalue(),
-                                             lvalue.rvalue(), loc);
-        rvalue_to_use =
-            CValue(cond_sel, rvalue_to_use.type(),
-                   /*disable_type_check=*/false, rvalue_to_use.lvalue());
-      }
-    }
+  // lvalue_decl is nullptr when assigning to "this"
+  xls::BValue var_cond =
+      lvalue_decl ? context().variable_assignment_conditions.at(lvalue_decl)
+                  : context().context_condition;
+
+  // Avoid generating unnecessary selects
+  // If !var_cond.valid(), EvaluateBValAsCondition() will return constant 1
+  absl::StatusOr<xls::Value> const_var_cond =
+      EvaluateBValAsCondition(var_cond, loc);
+  if (const_var_cond.ok() && const_var_cond.value().IsAllOnes()) {
+    return rvalue_to_use;
+  }
+
+  // Typical rvalue case
+  if (!lvalue.type()->Is<CPointerType>()) {
+    XLS_CHECK(rvalue.rvalue().valid());
+    XLS_CHECK(lvalue.rvalue().valid());
+    XLS_CHECK_EQ(rvalue.rvalue().GetType()->kind(),
+                 lvalue.rvalue().GetType()->kind());
+    XLS_CHECK_EQ(rvalue_to_use.lvalue(), nullptr);
+    auto cond_sel =
+        context().fb->Select(var_cond, rvalue.rvalue(), lvalue.rvalue(), loc);
+    rvalue_to_use = CValue(cond_sel, rvalue_to_use.type());
+  } else {
+    // LValue (pointer) case
+    XLS_CHECK_NE(rvalue_to_use.lvalue(), nullptr);
+    XLS_CHECK_NE(lvalue.lvalue(), nullptr);
+
+    auto select_lvalue = std::make_shared<LValue>(
+        var_cond, rvalue_to_use.lvalue(), lvalue.lvalue());
+
+    rvalue_to_use = CValue(xls::BValue(), rvalue_to_use.type(),
+                           /*disable_type_check=*/false, select_lvalue);
   }
   return rvalue_to_use;
 }
@@ -1629,21 +1633,6 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
             absl::StrFormat("Initializer for pointer has no lvalue "
                             "(unsupported construct such as ternary?) at %s",
                             LocString(loc)));
-      }
-      XLS_CHECK(context().variable_assignment_conditions.contains(lvalue));
-      xls::BValue condition =
-          context().variable_assignment_conditions.at(lvalue);
-      absl::StatusOr<xls::Value> condition_eval =
-          EvaluateBValAsCondition(condition, loc);
-      if (!condition_eval.ok()) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Only compile-time constant condition 1 supported "
-                            "for pointer assignment at %s",
-                            LocString(loc)));
-      }
-      if (condition_eval.value().IsAllZeros()) {
-        // Condition is known to be false
-        return absl::OkStatus();
       }
     } else {
       XLS_CHECK(rvalue.rvalue().valid());
@@ -1744,6 +1733,30 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
   return updated_array;
 }
 
+absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
+                                const CValue& rvalue,
+                                const xls::SourceLocation& loc) {
+  if (!lvalue->is_select()) {
+    return Assign(lvalue->leaf(), rvalue, loc);
+  }
+
+  // Apply the select condition to assign to true expression
+  {
+    PushContextGuard condition_guard(*this, loc);
+    context().and_condition(lvalue->cond(), loc);
+    XLS_RETURN_IF_ERROR(Assign(lvalue->lvalue_true(), rvalue, loc));
+  }
+  // Apply ! the select condition to assign to false expression
+  {
+    xls::BValue sel_cond = context().fb->Not(lvalue->cond(), loc);
+    PushContextGuard condition_guard(*this, loc);
+    context().and_condition(sel_cond, loc);
+    XLS_RETURN_IF_ERROR(Assign(lvalue->lvalue_false(), rvalue, loc));
+  }
+
+  return absl::OkStatus();
+}
+
 absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
                                 const xls::SourceLocation& loc) {
   switch (lvalue->getStmtClass()) {
@@ -1815,6 +1828,12 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       auto* cast = clang_down_cast<const clang::ArraySubscriptExpr*>(lvalue);
       XLS_ASSIGN_OR_RETURN(CValue arr_val,
                            GenerateIR_Expr(cast->getBase(), loc));
+      if (!arr_val.type()->Is<CArrayType>()) {
+        return absl::UnimplementedError(
+            absl::StrFormat("Only array subscript assignments directly to "
+                            "arrays supported (not pointers, yet) at %s",
+                            LocString(loc)));
+      }
       auto arr_type = arr_val.type()->As<CArrayType>();
       XLS_ASSIGN_OR_RETURN(CValue idx_val,
                            GenerateIR_Expr(cast->getIdx(), loc));
@@ -1924,6 +1943,19 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     case clang::Stmt::CXXThisExprClass: {
       return AssignThis(rvalue, loc);
     }
+    case clang::Stmt::ConditionalOperatorClass: {
+      auto cond = clang_down_cast<const clang::ConditionalOperator*>(lvalue);
+      XLS_ASSIGN_OR_RETURN(
+          shared_ptr<CType> result_type,
+          TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
+      XLS_CHECK(result_type->Is<CPointerType>());
+      XLS_ASSIGN_OR_RETURN(
+          CValue lcv,
+          Generate_TernaryOp(result_type, cond->getCond(), cond->getTrueExpr(),
+                             cond->getFalseExpr(), loc));
+      XLS_CHECK_NE(lcv.lvalue().get(), nullptr);
+      return Assign(lcv.lvalue(), rvalue, loc);
+    }
     default: {
       lvalue->dump();
       return absl::UnimplementedError(
@@ -2028,7 +2060,8 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
       // Include & in the lvalue expression, so that Assign()
       // can just look for that
       return CValue(xls::BValue(), result_pointer_type,
-                    /*disable_type_check=*/false, uop);
+                    /*disable_type_check=*/false,
+                    std::make_shared<LValue>(uop));
     }
 
     const clang::Expr* sub_expr = uop->getSubExpr();
@@ -2042,6 +2075,13 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
 
     const clang::Expr* base_expr = array_subscript_expr->getBase();
     XLS_ASSIGN_OR_RETURN(CValue base_cv, GenerateIR_Expr(base_expr, loc));
+
+    if (!base_cv.type()->Is<CArrayType>()) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Address-of (&) operator only supported on arrays, "
+                          "for array slicing at %s",
+                          LocString(loc)));
+    }
 
     XLS_ASSIGN_OR_RETURN(CValue array_idx_cv,
                          GenerateIR_Expr(array_subscript_expr->getIdx(), loc));
@@ -2228,21 +2268,38 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
   PushContextGuard fork_guard(*this, loc);
   context().in_fork = true;
 
-  if (result_type->Is<CPointerType>()) {
-    // TODO: Support ternaries on pointers
-    return CValue(xls::BValue(), result_type);
-  }
-
   XLS_ASSIGN_OR_RETURN(CValue sel_val, GenerateIR_Expr(cond_expr, loc));
   XLS_CHECK(sel_val.type()->Is<CBoolType>());
+
   XLS_ASSIGN_OR_RETURN(CValue true_cv, GenerateIR_Expr(true_expr, loc));
   XLS_ASSIGN_OR_RETURN(CValue false_cv, GenerateIR_Expr(false_expr, loc));
+
+  if (result_type->Is<CPointerType>()) {
+    if (context().lvalue_mode) {
+      XLS_CHECK_NE(true_cv.lvalue(), nullptr);
+      XLS_CHECK_NE(false_cv.lvalue(), nullptr);
+      auto select_lvalue = std::make_shared<LValue>(
+          sel_val.rvalue(), true_cv.lvalue(), false_cv.lvalue());
+      return CValue(xls::BValue(), result_type, /*disable_type_check=*/false,
+                    select_lvalue);
+    }
+    // RValue mode
+    XLS_RETURN_IF_ERROR(
+        MinSizeArraySlices(true_cv, false_cv, result_type, loc));
+  }
+
+  return Generate_TernaryOp(sel_val.rvalue(), true_cv, false_cv, result_type,
+                            loc);
+}
+
+absl::StatusOr<CValue> Translator::Generate_TernaryOp(
+    xls::BValue cond, CValue true_cv, CValue false_cv,
+    std::shared_ptr<CType> result_type, const xls::SourceLocation& loc) {
   XLS_ASSIGN_OR_RETURN(xls::BValue true_val,
                        GenTypeConvert(true_cv, result_type, loc));
   XLS_ASSIGN_OR_RETURN(xls::BValue false_val,
                        GenTypeConvert(false_cv, result_type, loc));
-  xls::BValue ret_val =
-      context().fb->Select(sel_val.rvalue(), true_val, false_val, loc);
+  xls::BValue ret_val = context().fb->Select(cond, true_val, false_val, loc);
   return CValue(ret_val, result_type);
 }
 
@@ -2852,6 +2909,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     // Const references don't need a return
     if (stripped.is_ref && (!stripped.base.isConstQualified())) {
       XLS_CHECK(!unpacked_returns.empty());
+      LValueModeGuard lvalue_guard(*this);
       XLS_RETURN_IF_ERROR(
           Assign(expr_args[pi], CValue(unpacked_returns.front(), ctype), loc));
       unpacked_returns.pop_front();
@@ -3014,8 +3072,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
         return CValue(xls::BValue(), to_type);
       }
 
-      const clang::Expr* lvalue = sub.lvalue();
-
       // Sometimes array types are converted to pointer types via ImplicitCast,
       // even nested as in mutable array -> mutable pointer -> const pointer.
       // Since we don't generally support pointers (except for array slicing),
@@ -3071,7 +3127,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
 
       XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
 
-      return CValue(subc, to_type, /*disable_type_check=*/true, lvalue);
+      return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
     }
     case clang::Stmt::CXXThisExprClass: {
       return context().this_val;
@@ -3292,6 +3348,57 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
                           expr->getStmtClassName(), LocString(loc)));
     }
   }
+}
+
+absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
+                                            std::shared_ptr<CType>& result_type,
+                                            const xls::SourceLocation& loc) {
+  // Array slices are the size of source arrays, and indices just wrap around.
+  // Take the smaller size
+  if (true_cv.type()->Is<CArrayType>() && false_cv.type()->Is<CArrayType>() &&
+      (*true_cv.type()->As<CArrayType>()->GetElementType() ==
+       *false_cv.type()->As<CArrayType>()->GetElementType())) {
+    int64_t min_size = std::min(true_cv.type()->As<CArrayType>()->GetSize(),
+                                false_cv.type()->As<CArrayType>()->GetSize());
+    result_type = std::make_shared<CArrayType>(
+        true_cv.type()->As<CArrayType>()->GetElementType(), min_size);
+    XLS_CHECK(true_cv.rvalue().valid());
+    XLS_CHECK(false_cv.rvalue().valid());
+    xls::BValue bval_0 = context().fb->Literal(xls::UBits(0, 32), loc);
+    true_cv = CValue(
+        context().fb->ArraySlice(true_cv.rvalue(), bval_0, min_size, loc),
+        result_type);
+    false_cv = CValue(
+        context().fb->ArraySlice(false_cv.rvalue(), bval_0, min_size, loc),
+        result_type);
+  } else {
+    return absl::UnimplementedError(
+        absl::StrFormat("Select on different lvalue types %s vs %s at %s",
+                        std::string(*true_cv.type()),
+                        std::string(*false_cv.type()), LocString(loc)));
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<CValue> Translator::GenerateIR_Expr(
+    std::shared_ptr<LValue> expr, const xls::SourceLocation& loc) {
+  if (!expr->is_select()) {
+    return GenerateIR_Expr(expr->leaf(), loc);
+  }
+
+  XLS_ASSIGN_OR_RETURN(CValue true_cv,
+                       GenerateIR_Expr(expr->lvalue_true(), loc));
+  XLS_ASSIGN_OR_RETURN(CValue false_cv,
+                       GenerateIR_Expr(expr->lvalue_false(), loc));
+
+  std::shared_ptr<CType> result_type = true_cv.type();
+
+  if (*true_cv.type() != *false_cv.type()) {
+    XLS_RETURN_IF_ERROR(
+        MinSizeArraySlices(true_cv, false_cv, result_type, loc));
+  }
+
+  return Generate_TernaryOp(expr->cond(), true_cv, false_cv, result_type, loc);
 }
 
 absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
