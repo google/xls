@@ -355,9 +355,12 @@ class ArrayType : public ConcreteType {
 // Represents an enum type.
 class EnumType : public ConcreteType {
  public:
-  EnumType(const EnumDef& enum_def, ConcreteTypeDim bit_count,
+  EnumType(const EnumDef& enum_def, ConcreteTypeDim bit_count, bool is_signed,
            const std::vector<InterpValue>& members)
-      : enum_def_(enum_def), size_(std::move(bit_count)), members_(members) {}
+      : enum_def_(enum_def),
+        size_(std::move(bit_count)),
+        is_signed_(is_signed),
+        members_(members) {}
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
       const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
@@ -372,23 +375,26 @@ class EnumType : public ConcreteType {
   }
   bool operator==(const ConcreteType& other) const override {
     if (auto* o = dynamic_cast<const EnumType*>(&other)) {
-      return &enum_def_ == &o->enum_def_ && size_ == o->size_;
+      return &enum_def_ == &o->enum_def_ && size_ == o->size_ &&
+             is_signed_ == o->is_signed_;
     }
     return false;
   }
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
-    return std::make_unique<EnumType>(enum_def_, size_.Clone(), members_);
+    return std::make_unique<EnumType>(enum_def_, size_.Clone(), is_signed_,
+                                      members_);
   }
 
   const EnumDef& nominal_type() const { return enum_def_; }
   const ConcreteTypeDim& size() const { return size_; }
   const std::vector<InterpValue>& members() const { return members_; }
 
-  absl::optional<bool> signedness() const { return enum_def_.signedness(); }
+  bool signedness() const { return is_signed_; }
 
  private:
   const EnumDef& enum_def_;  // Definition AST node.
   ConcreteTypeDim size_;     // Underlying size in bits.
+  bool is_signed_;           // Signedness of the underlying bits type.
   std::vector<InterpValue> members_;  // Member values of the enum.
 };
 

@@ -1041,9 +1041,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
   } else if (auto* enum_type = dynamic_cast<EnumType*>(type_or.value());
              enum_type != nullptr) {
     dim = &enum_type->size();
-    if (enum_type->signedness().has_value()) {
-      is_signed = enum_type->signedness().value();
-    }
+    is_signed = enum_type->signedness();
   }
 
   XLS_RET_CHECK(dim != nullptr) << absl::StrCat(

@@ -171,7 +171,8 @@ message EnumDefProto {
 message EnumTypeProto {
   optional ConcreteTypeDimProto size = 1;
   optional EnumDefProto enum_def = 2;
-  repeated InterpValueProto members = 3;
+  optional bool is_signed = 3;
+  repeated InterpValueProto members = 4;
 }
 
 message TokenTypeProto {

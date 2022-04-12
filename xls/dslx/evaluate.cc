@@ -157,9 +157,8 @@ absl::StatusOr<InterpValue> EvaluateXlsTuple(const XlsTuple* expr,
 //  enum_def: AST node (enum definition) to convert.
 //  bit_count: The bit count of the underlying bits type for the enum
 //    definition, as determined by type inference or interpretation.
-static std::unique_ptr<ConcreteType> StrengthReduceEnum(const EnumDef& enum_def,
+static std::unique_ptr<ConcreteType> StrengthReduceEnum(bool is_signed,
                                                         int64_t bit_count) {
-  bool is_signed = enum_def.signedness().value();
   return std::make_unique<BitsType>(is_signed, bit_count);
 }
 
@@ -195,7 +194,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteTypeFromValue(
       return std::make_unique<TupleType>(std::move(members));
     }
     case InterpValueTag::kEnum:
-      return StrengthReduceEnum(*value.type(), value.GetBitCount().value());
+      return StrengthReduceEnum(value.IsSigned(), value.GetBitCount().value());
     case InterpValueTag::kFunction:
     case InterpValueTag::kToken:
     case InterpValueTag::kChannel:
@@ -259,7 +258,7 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
   // they're identical.
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
       enum_type != nullptr && value.tag() == InterpValueTag::kEnum) {
-    return &enum_type->nominal_type() == value.type();
+    return &enum_type->nominal_type() == value.GetEnumData().value().def;
   }
 
   if (auto* bits_type = dynamic_cast<const BitsType*>(&type)) {
@@ -274,7 +273,7 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
     // Enum values can be converted to bits type if the signedness/bit counts
     // line up.
     if (value.tag() == InterpValueTag::kEnum) {
-      return value.type()->signedness().value() == bits_type->is_signed() &&
+      return value.IsSigned() == bits_type->is_signed() &&
              BitCountMatches(value, bits_type->size());
     }
 
@@ -290,8 +289,7 @@ absl::StatusOr<bool> ValueCompatibleWithType(const ConcreteType& type,
 
   if (auto* enum_type = dynamic_cast<const EnumType*>(&type);
       enum_type != nullptr && value.IsBits()) {
-    return enum_type->signedness().value() ==
-               (value.tag() == InterpValueTag::kSBits) &&
+    return enum_type->signedness() == (value.tag() == InterpValueTag::kSBits) &&
            BitCountMatches(value, enum_type->GetTotalBitCount().value());
   }
 
@@ -550,11 +548,11 @@ absl::StatusOr<InterpValue> EvaluateCast(const Cast* expr,
                                                        type->CloneToUnique()));
   XLS_ASSIGN_OR_RETURN(absl::optional<std::vector<InterpValue>> enum_values,
                        GetEnumValues(*type, bindings, interp));
+  absl::optional<InterpValue::EnumData> enum_data = value.GetEnumData();
   return ConcreteTypeConvertValue(
       *type, value, expr->span(), std::move(enum_values),
-      value.type() == nullptr
-          ? absl::nullopt
-          : absl::make_optional(value.type()->signedness().value()));
+      enum_data.has_value() ? absl::make_optional(enum_data.value().is_signed)
+                            : absl::nullopt);
 }
 
 absl::StatusOr<InterpValue> EvaluateLet(const Let* expr,
@@ -688,7 +686,8 @@ static absl::StatusOr<InterpValue> EvaluateEnumRefHelper(
   AbstractInterpreter::ScopedTypeInfoSwap stis_value(interp, value_node);
   XLS_ASSIGN_OR_RETURN(InterpValue raw_value,
                        interp->Eval(value_node, &fresh_bindings));
-  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), &enum_def);
+  return InterpValue::MakeEnum(raw_value.GetBitsOrDie(), raw_value.IsSigned(),
+                               &enum_def);
 }
 
 // This resolves the "LHS" entity for this colon ref -- following resolving the
@@ -1480,7 +1479,10 @@ ConcretizeTypeRefTypeAnnotation(TypeRefTypeAnnotation* type_ref,
                            interp->Eval(member.value, bindings));
       members.push_back(std::move(value));
     }
-    return std::make_unique<EnumType>(*enum_def, bit_count, members);
+
+    BitsType* bits_type = down_cast<BitsType*>(underlying_type.get());
+    return std::make_unique<EnumType>(*enum_def, bit_count,
+                                      bits_type->is_signed(), members);
   }
 
   // Start with the parametrics that are given in the type reference, and then

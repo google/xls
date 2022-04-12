@@ -71,7 +71,8 @@ TEST(ConcreteTypeTest, TestEnum) {
                             /*values=*/std::vector<EnumMember>{},
                             /*is_public=*/false);
   my_enum->set_definer(e);
-  EnumType t(*e, /*bit_count=*/ConcreteTypeDim::CreateU32(2), {});
+  EnumType t(*e, /*bit_count=*/ConcreteTypeDim::CreateU32(2),
+             /*is_signed=*/false, {});
   EXPECT_TRUE(t.HasEnum());
   EXPECT_EQ(std::vector<ConcreteTypeDim>{ConcreteTypeDim::CreateU32(2)},
             t.GetAllDims());

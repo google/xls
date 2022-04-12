@@ -20,6 +20,7 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/solvers/z3_utils.h"
 
 namespace xls::dslx {
@@ -74,13 +75,14 @@ absl::StatusOr<std::string> InterpValueToString(InterpValue value) {
           absl::StrCat(value.IsSigned() ? "s" : "u",
                        std::to_string(value.GetBitCount().value()), ":",
                        value.GetBitsOrDie().ToString());
-      for (const EnumMember& m : value.type()->values()) {
+      InterpValue::EnumData enum_data = value.GetEnumData().value();
+      for (const EnumMember& m : enum_data.def->values()) {
         if (m.value->ToString() == bits_string) {
-          return absl::StrFormat("%s::%s", value.type()->identifier(),
+          return absl::StrFormat("%s::%s", enum_data.def->identifier(),
                                  m.name_def->ToString());
         }
       }
-      return absl::StrFormat("%s:%s", value.type()->identifier(), bits_string);
+      return absl::StrFormat("%s:%s", enum_data.def->identifier(), bits_string);
     }
     default:
       return absl::InvalidArgumentError(
@@ -131,13 +133,15 @@ absl::StatusOr<InterpValue> Z3AstToInterpValue(
                           : value_int,
                       bit_count);
     if (value.IsEnum()) {
-      return InterpValue::MakeEnum(bits, value.type());
+      return InterpValue::MakeEnum(bits, /*is_signed=*/true,
+                                   value.GetEnumData().value().def);
     }
     return InterpValue::MakeBits(/*is_signed=*/true, bits);
   }
   Bits bits = UBits(value_int, bit_count);
   if (value.IsEnum()) {
-    return InterpValue::MakeEnum(bits, value.type());
+    return InterpValue::MakeEnum(bits, /*is_signed=*/false,
+                                 value.GetEnumData().value().def);
   }
   return InterpValue::MakeBits(/*is_signed=*/false, bits);
 }

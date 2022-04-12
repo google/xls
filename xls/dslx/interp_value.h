@@ -126,8 +126,9 @@ class InterpValue {
   static InterpValue MakeU64(uint64_t value) {
     return MakeUBits(/*bit_count=*/64, value);
   }
-  static InterpValue MakeEnum(Bits bits, const EnumDef* type) {
-    return InterpValue(InterpValueTag::kEnum, std::move(bits), type);
+  static InterpValue MakeEnum(Bits bits, bool is_signed, const EnumDef* def) {
+    return InterpValue(InterpValueTag::kEnum,
+                       EnumData{def, is_signed, std::move(bits)});
   }
   static InterpValue MakeSigned(Bits bits) {
     return InterpValue(InterpValueTag::kSBits, std::move(bits));
@@ -191,7 +192,12 @@ class InterpValue {
 
   bool IsSigned() const {
     XLS_CHECK(IsBits() || IsEnum());
-    return IsSBits() || (IsEnum() && type()->signedness().value());
+    if (IsEnum()) {
+      EnumData enum_data = absl::get<EnumData>(payload_);
+      return enum_data.is_signed;
+    }
+
+    return IsSBits();
   }
 
   // Note that this equality for bit value holding tags ignores the tag and just
@@ -296,20 +302,36 @@ class InterpValue {
   }
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
   absl::StatusOr<Bits> GetBits() const;
-  const Bits& GetBitsOrDie() const { return absl::get<Bits>(payload_); }
+  const Bits& GetBitsOrDie() const;
   absl::StatusOr<std::shared_ptr<Channel>> GetChannel() const;
   std::shared_ptr<Channel> GetChannelOrDie() const {
     return absl::get<std::shared_ptr<Channel>>(payload_);
   }
 
-  // For enum values, the enum that the bit pattern is interpreted by is
-  // referred to by the interpreter value.
-  const EnumDef* type() const { return type_; }
+  // For enum values, returns the enum that the bit pattern is interpreted by is
+  // referred to by the interpreter value, along with type metadata.
+  struct EnumData {
+    const EnumDef* def;
+    bool is_signed;
+    Bits value;
+  };
+
+  absl::optional<EnumData> GetEnumData() const {
+    if (IsEnum()) {
+      return absl::get<EnumData>(payload_);
+    }
+
+    return absl::nullopt;
+  }
 
   // Note: different from IsBits() which is checking whether the tag is sbits or
   // ubits; this is checking whether there are bits in the payload, which would
   // apply to enum values as well.
-  bool HasBits() const { return absl::holds_alternative<Bits>(payload_); }
+  bool HasBits() const {
+    return absl::holds_alternative<Bits>(payload_) ||
+           absl::holds_alternative<EnumData>(payload_);
+  }
+
   bool HasValues() const {
     return absl::holds_alternative<std::vector<InterpValue>>(payload_);
   }
@@ -366,12 +388,11 @@ class InterpValue {
   // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
   // easily make an interpreter scoped lifetime that InterpValues can live in.
   using Payload =
-      absl::variant<Bits, std::vector<InterpValue>, FnData,
+      absl::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
                     std::shared_ptr<TokenData>, std::shared_ptr<Channel>>;
 
-  InterpValue(InterpValueTag tag, Payload payload,
-              const EnumDef* type = nullptr)
-      : tag_(tag), payload_(std::move(payload)), type_(type) {}
+  InterpValue(InterpValueTag tag, Payload payload)
+      : tag_(tag), payload_(std::move(payload)) {}
 
   InterpValue(InterpValueTag tag, Payload payload, SymbolicType* sym)
       : tag_(tag), payload_(std::move(payload)), sym_tree_(sym) {}
@@ -385,12 +406,6 @@ class InterpValue {
 
   InterpValueTag tag_;
   Payload payload_;
-
-  // For enum values (where we refer to the enum definition) we keep the module
-  // holding the enum AST node alive via the shared_ptr. When the DSL is fully
-  // migrated to C++ we can use lifetime assumptions as is more typical in C++
-  // land, this is done for Python interop.
-  const EnumDef* type_ = nullptr;
 
   // Represents the expression tree for the intrepreter value. We keep the
   // pointer alive via the unique_ptr stored in the bindings

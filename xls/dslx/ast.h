@@ -1707,12 +1707,6 @@ class EnumDef : public AstNode {
     return values_.at(i).name_def->identifier();
   }
 
-  // The signedness of the enum is populated in the type inference phase, it is
-  // not known at parse time (hence absl::optional<bool> / set_signedness).
-
-  void set_signedness(bool is_signed) { is_signed_ = is_signed; }
-  absl::optional<bool> signedness() const { return is_signed_; }
-
  private:
   Span span_;
   NameDef* name_def_;

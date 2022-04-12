@@ -261,6 +261,7 @@ absl::StatusOr<EnumTypeProto> ToProto(const EnumType& enum_type) {
   XLS_ASSIGN_OR_RETURN(*proto.mutable_enum_def(),
                        ToProto(enum_type.nominal_type()));
   XLS_ASSIGN_OR_RETURN(*proto.mutable_size(), ToProto(enum_type.size()));
+  proto.set_is_signed(enum_type.signedness());
   return proto;
 }
 
@@ -425,7 +426,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FromProto(
         members.push_back(member);
       }
 
-      return std::make_unique<EnumType>(*enum_def, std::move(size), members);
+      return std::make_unique<EnumType>(*enum_def, std::move(size),
+                                        /*is_signed=*/etp.is_signed(), members);
     }
     case ConcreteTypeProto::ConcreteTypeOneofCase::kFnType: {
       const FunctionTypeProto& ftp = ctp.fn_type();

@@ -441,10 +441,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
   }
 
   // Grab the bit count of the Enum's underlying type.
-  // TODO(https://github.com/google/xls/issues/602): 2022-04-04: Eliminate this
-  // gross const_cast.
   const ConcreteTypeDim& bit_count = bits_type->size();
-  const_cast<EnumDef*>(node)->set_signedness(bits_type->is_signed());
 
   std::vector<InterpValue> members;
   members.reserve(node->values().size());
@@ -462,7 +459,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
     members.push_back(constexpr_value.value());
   }
 
-  auto result = std::make_unique<EnumType>(*node, bit_count, members);
+  auto result = std::make_unique<EnumType>(*node, bit_count,
+                                           bits_type->is_signed(), members);
 
   for (const EnumMember& member : node->values()) {
     ctx->type_info()->SetItem(ToAstNode(member.value), *result);

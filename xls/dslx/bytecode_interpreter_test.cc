@@ -837,8 +837,8 @@ fn cast_bits_to_enum() -> MyEnum {
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, Interpret(&import_data, kProgram,
                                                         "cast_bits_to_enum"));
-  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, bits.ToUint64());
+  InterpValue::EnumData enum_data = value.GetEnumData().value();
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_val, enum_data.value.ToUint64());
   EXPECT_EQ(int_val, 2);
 }
 

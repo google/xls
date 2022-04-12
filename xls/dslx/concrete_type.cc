@@ -511,7 +511,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> EnumType::MapSize(
     const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
     const {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim new_size, f(size_));
-  return std::make_unique<EnumType>(enum_def_, std::move(new_size), members_);
+  return std::make_unique<EnumType>(enum_def_, std::move(new_size), is_signed_,
+                                    members_);
 }
 
 std::string EnumType::ToString() const { return enum_def_.identifier(); }

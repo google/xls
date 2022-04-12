@@ -61,7 +61,8 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
         absl::StrFormat("FailureError: Value is not valid for enum %s: %s",
                         enum_def.identifier(), bits_value.ToString()));
   }
-  return InterpValue::MakeEnum(bits_value.GetBitsOrDie(), &enum_def);
+  return InterpValue::MakeEnum(bits_value.GetBitsOrDie(), bits_value.IsSigned(),
+                               &enum_def);
 }
 
 absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value) {
@@ -173,8 +174,7 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
     XLS_RET_CHECK(value.IsBits()) << value.ToString();
-    XLS_RET_CHECK(enum_type->signedness().has_value());
-    if (*enum_type->signedness()) {
+    if (enum_type->signedness()) {
       return InterpValue::MakeBits(InterpValueTag::kSBits,
                                    value.GetBitsOrDie());
     }

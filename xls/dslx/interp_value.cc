@@ -161,9 +161,11 @@ std::string InterpValue::ToString(bool humanize,
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:
       return absl::StrFormat("(%s)", make_guts());
-    case InterpValueTag::kEnum:
-      return absl::StrFormat("%s:%s", type_->identifier(),
-                             GetBitsOrDie().ToString());
+    case InterpValueTag::kEnum: {
+      EnumData enum_data = absl::get<EnumData>(payload_);
+      return absl::StrFormat("%s:%s", enum_data.def->identifier(),
+                             enum_data.value.ToString());
+    }
     case InterpValueTag::kFunction:
       if (absl::holds_alternative<Builtin>(GetFunctionOrDie())) {
         return absl::StrCat(
@@ -209,8 +211,9 @@ bool InterpValue::Eq(const InterpValue& other) const {
     // bit value can be used in any place an enum type is annotated.
     case InterpValueTag::kSBits:
     case InterpValueTag::kUBits:
-    case InterpValueTag::kEnum:
+    case InterpValueTag::kEnum: {
       return other.HasBits() && GetBitsOrDie() == other.GetBitsOrDie();
+    }
     case InterpValueTag::kToken:
       return other.IsToken() && GetTokenData() == other.GetTokenData();
     case InterpValueTag::kArray: {
@@ -469,7 +472,20 @@ absl::StatusOr<Bits> InterpValue::GetBits() const {
   if (absl::holds_alternative<Bits>(payload_)) {
     return absl::get<Bits>(payload_);
   }
+
+  if (absl::holds_alternative<EnumData>(payload_)) {
+    return absl::get<EnumData>(payload_).value;
+  }
+
   return absl::InvalidArgumentError("Value does not contain bits.");
+}
+
+const Bits& InterpValue::GetBitsOrDie() const {
+  if (absl::holds_alternative<Bits>(payload_)) {
+    return absl::get<Bits>(payload_);
+  }
+
+  return absl::get<EnumData>(payload_).value;
 }
 
 absl::StatusOr<std::shared_ptr<InterpValue::Channel>> InterpValue::GetChannel()
@@ -602,12 +618,19 @@ absl::StatusOr<int64_t> InterpValue::GetBitCount() const {
 }
 
 absl::StatusOr<int64_t> InterpValue::GetBitValueCheckSign() const {
-  if (IsSBits() || (IsEnum() && type_->signedness().value())) {
+  if (IsEnum()) {
+    EnumData enum_data = absl::get<EnumData>(payload_);
+    if (enum_data.is_signed) {
+      return GetBitValueInt64();
+    }
+
+    return GetBitValueUint64();
+  }
+  if (IsSBits()) {
     return GetBitValueInt64();
   }
-  if (IsUBits() || (IsEnum() && !type_->signedness().value())) {
-    XLS_ASSIGN_OR_RETURN(uint64_t x, GetBitValueUint64());
-    return x;
+  if (IsUBits()) {
+    return GetBitValueUint64();
   }
   return absl::InvalidArgumentError("Value cannot be converted to bits: " +
                                     ToHumanString());

@@ -66,14 +66,15 @@ TEST(InterpValueHelpersTest, CastBitsToEnum) {
                                            members, /*is_public=*/true);
 
   EnumType enum_type(*enum_def, ConcreteTypeDim::CreateU32(kBitCount),
-                     member_values);
+                     /*is_signed=*/false, member_values);
 
   InterpValue bits_value(InterpValue::MakeUBits(kBitCount, 11));
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue converted,
                            CastBitsToEnum(bits_value, enum_type));
   ASSERT_TRUE(converted.IsEnum());
-  ASSERT_EQ(converted.type(), enum_def);
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value, converted.GetBitValueUint64());
+  InterpValue::EnumData enum_data = converted.GetEnumData().value();
+  ASSERT_EQ(enum_data.def, enum_def);
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t int_value, enum_data.value.ToUint64());
   ASSERT_EQ(int_value, 11);
 }
 
