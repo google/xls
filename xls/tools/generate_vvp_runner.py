@@ -1,4 +1,3 @@
-# Lint as: python3
 #
 # Copyright 2020 The XLS Authors
 #
