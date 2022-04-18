@@ -45,6 +45,8 @@ cc_library(
         ":narrowing_pass",
         ":passes",
         ":proc_inlining_pass",
+        ":proc_state_flattening_pass",
+        ":proc_state_optimization_pass",
         ":reassociation_pass",
         ":select_simplification_pass",
         ":sparsify_select_pass",
@@ -968,6 +970,72 @@ cc_library(
         "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "proc_state_optimization_pass",
+    srcs = ["proc_state_optimization_pass.cc"],
+    hdrs = ["proc_state_optimization_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "proc_state_flattening_pass",
+    srcs = ["proc_state_flattening_pass.cc"],
+    hdrs = ["proc_state_flattening_pass.h"],
+    deps = [
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:type",
+        "//xls/ir:value_helpers",
+    ],
+)
+
+cc_test(
+    name = "proc_state_flattening_pass_test",
+    srcs = ["proc_state_flattening_pass_test.cc"],
+    deps = [
+        ":dce_pass",
+        ":proc_state_flattening_pass",
+        ":tuple_simplification_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "proc_state_optimization_pass_test",
+    srcs = ["proc_state_optimization_pass_test.cc"],
+    deps = [
+        ":proc_state_optimization_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 

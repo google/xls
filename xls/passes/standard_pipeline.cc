@@ -38,6 +38,8 @@
 #include "xls/passes/map_inlining_pass.h"
 #include "xls/passes/narrowing_pass.h"
 #include "xls/passes/proc_inlining_pass.h"
+#include "xls/passes/proc_state_flattening_pass.h"
+#include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/reassociation_pass.h"
 #include "xls/passes/select_simplification_pass.h"
 #include "xls/passes/sparsify_select_pass.h"
@@ -134,6 +136,13 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<ProcInliningPass>();
+
+  // After proc inlining flatten and optimize the proc state. Run tuple
+  // simpilification to simplify tuple structures left over from flattening.
+  // TODO(meheff): Consider running proc state optimization more than once.
+  top->Add<ProcStateFlatteningPass>();
+  top->Add<TupleSimplificationPass>();
+  top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<BddSimplificationPass>(std::min(int64_t{3}, opt_level));
@@ -145,6 +154,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<SimplificationPass>(std::min(int64_t{3}, opt_level));
+
   top->Add<UselessAssertRemovalPass>();
   top->Add<UselessIORemovalPass>();
   top->Add<DeadCodeEliminationPass>();
