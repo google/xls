@@ -60,6 +60,16 @@ absl::StatusOr<int64_t> Proc::GetStateParamIndex(Param* param) const {
   return std::distance(StateParams().begin(), it);
 }
 
+std::vector<int64_t> Proc::GetNextStateIndices(Node* node) const {
+  std::vector<int64_t> indices;
+  for (int64_t i = 0; i < GetStateElementCount(); ++i) {
+    if (node == GetNextStateElement(i)) {
+      indices.push_back(i);
+    }
+  }
+  return indices;
+}
+
 absl::Status Proc::SetNextToken(Node* next) {
   if (!next->GetType()->IsToken()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -84,7 +94,7 @@ absl::Status Proc::SetNextStateElement(int64_t index, Node* next) {
 
 absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
                                 absl::Span<const Value> init_values) {
-  for (int64_t i = StateParams().size() - 1; i >= 0; --i) {
+  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
     XLS_RETURN_IF_ERROR(RemoveStateElement(i));
   }
   if (state_param_names.size() != init_values.size()) {
@@ -103,7 +113,7 @@ absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
 absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
                                 absl::Span<const Value> init_values,
                                 absl::Span<Node* const> next_state) {
-  for (int64_t i = StateParams().size() - 1; i >= 0; --i) {
+  for (int64_t i = GetStateElementCount() - 1; i >= 0; --i) {
     XLS_RETURN_IF_ERROR(RemoveStateElement(i));
   }
   // Verify next values match the type of the initial values.
@@ -135,7 +145,7 @@ absl::StatusOr<Param*> Proc::ReplaceStateElement(
 }
 
 absl::Status Proc::RemoveStateElement(int64_t index) {
-  XLS_RET_CHECK_LT(index, StateParams().size());
+  XLS_RET_CHECK_LT(index, GetStateElementCount());
   next_state_.erase(next_state_.begin() + index);
   if (!StateParams()[index]->users().empty()) {
     return absl::InvalidArgumentError(
@@ -152,14 +162,14 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
 absl::StatusOr<Param*> Proc::AppendStateElement(
     absl::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
-  return InsertStateElement(StateParams().size(), state_param_name, init_value,
-                            next_state);
+  return InsertStateElement(GetStateElementCount(), state_param_name,
+                            init_value, next_state);
 }
 
 absl::StatusOr<Param*> Proc::InsertStateElement(
     int64_t index, absl::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
-  XLS_RET_CHECK_LE(index, StateParams().size());
+  XLS_RET_CHECK_LE(index, GetStateElementCount());
   XLS_ASSIGN_OR_RETURN(
       Param * param,
       MakeNodeWithName<Param>(/*loc=*/absl::nullopt, state_param_name,
@@ -182,14 +192,14 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
 }
 
 absl::Status Proc::SetUniqueNextState(Node* next) {
-  XLS_RET_CHECK_EQ(StateParams().size(), 1);
+  XLS_RET_CHECK_EQ(GetStateElementCount(), 1);
   return SetNextStateElement(0, next);
 }
 
 absl::Status Proc::ReplaceUniqueState(absl::string_view state_param_name,
                                       Node* next_state,
                                       const Value& init_value) {
-  XLS_RET_CHECK_EQ(StateParams().size(), 1);
+  XLS_RET_CHECK_EQ(GetStateElementCount(), 1);
   return ReplaceStateElement(0, state_param_name, init_value, next_state)
       .status();
 }

@@ -1944,7 +1944,7 @@ proc foo(my_token: token, x: bits[32], y: (), z: bits[32], init={42, (), 123}) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
-  EXPECT_EQ(proc->StateParams().size(), 3);
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
 }
 
 TEST(IrParserTest, ProcTooFewInitialValues) {

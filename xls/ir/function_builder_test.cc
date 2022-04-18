@@ -715,7 +715,7 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, pb.Build(pb.GetTokenParam(), /*next_state=*/{
                                 x, pb.Add(x, y, std::nullopt, "x_plus_y"), z}));
-  EXPECT_EQ(proc->StateParams().size(), 3);
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");

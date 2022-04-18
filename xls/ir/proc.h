@@ -78,6 +78,10 @@ class Proc : public FunctionBase {
     return NextState().at(index);
   }
 
+  // Return the state element indices for which the given `node` is the next
+  // recurrent state value for that element.
+  std::vector<int64_t> GetNextStateIndices(Node* node) const;
+
   // Returns the type of the given state element.
   Type* GetStateElementType(int64_t index) const {
     return StateParams().at(index)->GetType();
@@ -140,7 +144,7 @@ class Proc : public FunctionBase {
     return init_values_.front();
   }
   Param* GetUniqueStateParam() const {
-    XLS_CHECK_EQ(StateParams().size(), 1);
+    XLS_CHECK_EQ(GetStateElementCount(), 1);
     return StateParams().front();
   }
   Node* GetUniqueNextState() const {

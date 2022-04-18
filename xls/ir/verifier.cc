@@ -1687,7 +1687,7 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
   XLS_RETURN_IF_ERROR(VerifyFunctionBase(proc));
 
   // A Proc has a single token parameter and zero or more state paramers.
-  XLS_RET_CHECK_EQ(proc->params().size(), proc->StateParams().size() + 1);
+  XLS_RET_CHECK_EQ(proc->params().size(), proc->GetStateElementCount() + 1);
 
   XLS_RET_CHECK_EQ(proc->param(0), proc->TokenParam());
   XLS_RET_CHECK_EQ(proc->param(0)->GetType(), proc->package()->GetTokenType())
@@ -1695,9 +1695,9 @@ absl::Status VerifyProc(Proc* proc, bool codegen) {
                             proc->name(),
                             proc->param(1)->GetType()->ToString());
 
-  XLS_RET_CHECK_EQ(proc->StateParams().size(), proc->InitValues().size());
-  XLS_RET_CHECK_EQ(proc->StateParams().size(), proc->NextState().size());
-  for (int64_t i = 0; i < proc->StateParams().size(); ++i) {
+  XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->InitValues().size());
+  XLS_RET_CHECK_EQ(proc->GetStateElementCount(), proc->NextState().size());
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
     // Verify that the order of parameters matches the state element order.
     XLS_RET_CHECK_EQ(proc->param(i + 1), proc->GetStateParam(i));
 

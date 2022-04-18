@@ -25,7 +25,6 @@ namespace m = ::xls::op_matchers;
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
@@ -89,12 +88,12 @@ TEST_F(ProcTest, AddAndRemoveState) {
       pb.AfterAll({pb.GetTokenParam()}, absl::nullopt, "my_after_all");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, add));
 
-  EXPECT_EQ(proc->StateParams().size(), 1);
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
 
   XLS_ASSERT_OK(proc->AppendStateElement("y", Value(UBits(100, 32))));
-  EXPECT_EQ(proc->StateParams().size(), 2);
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
   EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
@@ -103,7 +102,7 @@ TEST_F(ProcTest, AddAndRemoveState) {
   // Add a state element with a specifed next state (the state parameter "x").
   XLS_ASSERT_OK(proc->AppendStateElement(
       "z", Value(UBits(123, 32)), /*next_state=*/proc->GetStateParam(0)));
-  EXPECT_EQ(proc->StateParams().size(), 3);
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
@@ -115,25 +114,25 @@ TEST_F(ProcTest, AddAndRemoveState) {
   EXPECT_EQ(proc->GetNextStateElement(2)->GetName(), "x");
 
   XLS_ASSERT_OK(proc->RemoveStateElement(1));
-  EXPECT_EQ(proc->StateParams().size(), 2);
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "z");
 
   XLS_ASSERT_OK(proc->InsertStateElement(0, "foo", Value(UBits(123, 32))));
-  EXPECT_EQ(proc->StateParams().size(), 3);
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
 
   XLS_ASSERT_OK(proc->InsertStateElement(3, "bar", Value(UBits(1, 64))));
-  EXPECT_EQ(proc->StateParams().size(), 4);
+  EXPECT_EQ(proc->GetStateElementCount(), 4);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "z");
   EXPECT_EQ(proc->GetStateParam(3)->GetName(), "bar");
 
   XLS_ASSERT_OK(proc->ReplaceStateElement(2, "baz", Value::Tuple({})));
-  EXPECT_EQ(proc->StateParams().size(), 4);
+  EXPECT_EQ(proc->GetStateElementCount(), 4);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "foo");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(2)->GetName(), "baz");
@@ -152,11 +151,14 @@ TEST_F(ProcTest, ReplaceState) {
   BValue forty_two = pb.Literal(UBits(42, 32), absl::nullopt, "forty_two");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(pb.GetTokenParam(), forty_two));
+  EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()), ElementsAre(0));
 
   XLS_ASSERT_OK(proc->ReplaceState(
       {"foo", "bar", "baz"},
       {Value(UBits(1, 32)), Value(UBits(2, 32)), Value(UBits(2, 32))},
       {forty_two.node(), forty_two.node(), forty_two.node()}));
+  EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()),
+              ElementsAre(0, 1, 2));
 
   EXPECT_THAT(proc->DumpIr(),
               HasSubstr("proc p(tkn: token, foo: bits[32], bar: bits[32], baz: "
@@ -167,12 +169,11 @@ TEST_F(ProcTest, ReplaceState) {
 
 TEST_F(ProcTest, StatelessProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "x", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc, pb.Build(pb.GetTokenParam(), pb.Literal(UBits(0, 32))));
+  ProcBuilder pb("p", "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(pb.GetTokenParam(), std::vector<BValue>()));
 
-  XLS_ASSERT_OK(proc->RemoveStateElement(0));
-  EXPECT_EQ(proc->StateParams().size(), 0);
+  EXPECT_EQ(proc->GetStateElementCount(), 0);
 
   EXPECT_THAT(proc->DumpIr(), HasSubstr("proc p(tkn: token, init={})"));
   EXPECT_THAT(proc->DumpIr(), HasSubstr("next (tkn)"));
