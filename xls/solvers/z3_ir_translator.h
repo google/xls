@@ -43,9 +43,10 @@ enum class PredicateKind {
 class IrTranslator : public DfsVisitorWithDefault {
  public:
   // Creates a translator and uses it to translate the given function into a Z3
-  // AST.
+  // AST. The `allow_unsupported` option will cause unsupported ops to be
+  // translated into fresh variables of the appropriate type.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      FunctionBase* function_base);
+      FunctionBase* function_base, bool allow_unsupported = false);
 
   // Translates the given function into a Z3 AST using a preexisting context
   // (i.e., that used by another Z3Translator). This binds the given function
@@ -54,7 +55,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // usually for equivalence checking.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Z3_context ctx, FunctionBase* function_base,
-      absl::Span<const Z3_ast> imported_params);
+      absl::Span<const Z3_ast> imported_params, bool allow_unsupported = false);
   ~IrTranslator() override;
 
   // Sets the amount of time to allow Z3 to execute before aborting.
@@ -195,7 +196,11 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleUnary(Node* op, FnT f);
 
   // Recursive call to translate XLS literals into Z3 form.
-  absl::StatusOr<Z3_ast> TranslateLiteralValue(Type* type, const Value& value);
+  // The `has_uses` parameter is used for checking whether the literal we're
+  // trying to translate contains a zero-width bitvector that has nontrivial
+  // uses in the IR graph.
+  absl::StatusOr<Z3_ast> TranslateLiteralValue(bool has_uses, Type* type,
+                                               const Value& value);
 
   // Common multiply handling.
   void HandleMul(ArithOp* mul, bool is_signed);
@@ -246,6 +251,8 @@ class IrTranslator : public DfsVisitorWithDefault {
   Z3_config config_;
   Z3_context ctx_;
 
+  // Do we allow unsupported ops by translating them into fresh variables?
+  bool allow_unsupported_;
   // True if this is translating a function called from another, in which case
   // we shouldn't delete our context, etc.!
   bool borrowed_context_;

@@ -178,20 +178,22 @@ class Z3AbstractEvaluator
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    FunctionBase* function_base) {
+    FunctionBase* function_base, bool allow_unsupported) {
   XLS_RET_CHECK(!function_base->IsBlock());
   Z3_config config = Z3_mk_config();
   Z3_set_param_value(config, "proof", "true");
   auto translator = absl::WrapUnique(new IrTranslator(config, function_base));
+  translator->allow_unsupported_ = allow_unsupported;
   XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
   return translator;
 }
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Z3_context ctx, FunctionBase* function_base,
-    absl::Span<const Z3_ast> imported_params) {
+    absl::Span<const Z3_ast> imported_params, bool allow_unsupported) {
   auto translator =
       absl::WrapUnique(new IrTranslator(ctx, function_base, imported_params));
+  translator->allow_unsupported_ = allow_unsupported;
   XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
   return translator;
 }
@@ -421,15 +423,14 @@ absl::Status IrTranslator::HandleShift(BinOp* shift, FnT fshift) {
   auto f = [shift, fshift](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     int64_t lhs_bit_count = shift->operand(0)->BitCountOrDie();
     int64_t rhs_bit_count = shift->operand(1)->BitCountOrDie();
+    auto extend = (fshift == Z3_mk_bvashr) ? Z3_mk_sign_ext : Z3_mk_zero_ext;
     if (rhs_bit_count < lhs_bit_count) {
       rhs = Z3_mk_zero_ext(ctx, lhs_bit_count - rhs_bit_count, rhs);
     } else if (rhs_bit_count > lhs_bit_count) {
-      if (fshift == Z3_mk_bvashr)
-        lhs = Z3_mk_sign_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
-      else
-        lhs = Z3_mk_zero_ext(ctx, rhs_bit_count - lhs_bit_count, lhs);
+      lhs = extend(ctx, rhs_bit_count - lhs_bit_count, lhs);
     }
-    return fshift(ctx, lhs, rhs);
+    Z3_ast shifted = fshift(ctx, lhs, rhs);
+    return Z3_mk_extract(ctx, lhs_bit_count - 1, 0, shifted);
   };
   return HandleBinary(shift, f);
 }
@@ -879,15 +880,17 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
 
   Value operand_width(UBits(value_width, max_width));
   BitsType max_width_type(max_width);
-  XLS_ASSIGN_OR_RETURN(Z3_ast bit_width,
-                       TranslateLiteralValue(&max_width_type, operand_width));
+  XLS_ASSIGN_OR_RETURN(
+      Z3_ast bit_width,
+      TranslateLiteralValue(false, &max_width_type, operand_width));
 
   // Indicates whether slice is completely out of bounds.
   Z3_ast out_of_bounds = Z3_mk_bvuge(ctx_, start_ext, bit_width);
   BitsType return_type(dynamic_bit_slice->width());
   XLS_ASSIGN_OR_RETURN(
-      Z3_ast zeros, TranslateLiteralValue(
-                        &return_type, Value(Bits(dynamic_bit_slice->width()))));
+      Z3_ast zeros,
+      TranslateLiteralValue(false, &return_type,
+                            Value(Bits(dynamic_bit_slice->width()))));
   Z3_ast shifted_value = Z3_mk_bvlshr(ctx_, value_ext, start_ext);
   Z3_ast truncated_value =
       Z3_mk_extract(ctx_, dynamic_bit_slice->width() - 1, 0, shifted_value);
@@ -896,15 +899,32 @@ absl::Status IrTranslator::HandleDynamicBitSlice(
   return seh.status();
 }
 
-absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
+absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(bool has_uses,
+                                                           Type* value_type,
                                                            const Value& value) {
-  if (value.IsBits()) {
+  bool is_zero_bit_vector = value.IsBits() && value.GetFlatBitCount() == 0;
+
+  if (value.IsBits() && !is_zero_bit_vector) {
     const Bits& bits = value.bits();
     std::unique_ptr<bool[]> booleans(new bool[bits.bit_count()]);
     for (int64_t i = 0; i < bits.bit_count(); ++i) {
       booleans[i] = bits.Get(i);
     }
     return Z3_mk_bv_numeral(ctx_, bits.bit_count(), &booleans[0]);
+  }
+
+  // We translate zero length bitvectors to empty tuples.
+  // This will cause errors if the bitvectors are used in any nontrivial way,
+  // but fixes fuzzer errors in the mutual_exclusion_pass.
+  if (is_zero_bit_vector) {
+    if (has_uses) {
+      return absl::UnimplementedError(
+          "Zero length bitvectors must not have "
+          "uses in the IR graph when translating "
+          "to Z3");
+    }
+    TupleType tuple_type({});
+    return CreateTuple(&tuple_type, {});
   }
 
   if (value.IsArray()) {
@@ -914,9 +934,10 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
     elements.reserve(num_elements);
 
     for (int i = 0; i < value.elements().size(); i++) {
-      XLS_ASSIGN_OR_RETURN(Z3_ast translated,
-                           TranslateLiteralValue(array_type->element_type(),
-                                                 value.elements()[i]));
+      XLS_ASSIGN_OR_RETURN(
+          Z3_ast translated,
+          TranslateLiteralValue(has_uses, array_type->element_type(),
+                                value.elements()[i]));
       elements.push_back(translated);
     }
 
@@ -929,9 +950,10 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
   std::vector<Z3_ast> elements;
   elements.reserve(num_elements);
   for (int i = 0; i < num_elements; i++) {
-    XLS_ASSIGN_OR_RETURN(Z3_ast translated,
-                         TranslateLiteralValue(tuple_type->element_type(i),
-                                               value.elements()[i]));
+    XLS_ASSIGN_OR_RETURN(
+        Z3_ast translated,
+        TranslateLiteralValue(has_uses, tuple_type->element_type(i),
+                              value.elements()[i]));
     elements.push_back(translated);
   }
 
@@ -940,8 +962,10 @@ absl::StatusOr<Z3_ast> IrTranslator::TranslateLiteralValue(Type* value_type,
 
 absl::Status IrTranslator::HandleLiteral(Literal* literal) {
   ScopedErrorHandler seh(ctx_);
-  XLS_ASSIGN_OR_RETURN(Z3_ast result, TranslateLiteralValue(literal->GetType(),
-                                                            literal->value()));
+  XLS_ASSIGN_OR_RETURN(
+      Z3_ast result,
+      TranslateLiteralValue(!literal->users().empty(), literal->GetType(),
+                            literal->value()));
   NoteTranslation(literal, result);
   return seh.status();
 }
@@ -1157,6 +1181,12 @@ absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
 }
 
 absl::Status IrTranslator::DefaultHandler(Node* node) {
+  if (allow_unsupported_) {
+    XLS_ASSIGN_OR_RETURN(Z3_ast fresh,
+                         CreateZ3Param(node->GetType(), node->GetName()));
+    NoteTranslation(node, fresh);
+    return absl::OkStatus();
+  }
   return absl::UnimplementedError(
       "Unhandled node for conversion from XLS IR to Z3: " + node->ToString());
 }

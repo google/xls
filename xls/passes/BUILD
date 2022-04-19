@@ -42,6 +42,7 @@ cc_library(
         ":inlining_pass",
         ":literal_uncommoning_pass",
         ":map_inlining_pass",
+        ":mutual_exclusion_pass",
         ":narrowing_pass",
         ":passes",
         ":proc_inlining_pass",
@@ -727,6 +728,55 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:status_macros",
         "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "mutual_exclusion_pass",
+    srcs = ["mutual_exclusion_pass.cc"],
+    hdrs = ["mutual_exclusion_pass.h"],
+    deps = [
+        ":cse_pass",
+        ":dce_pass",
+        ":passes",
+        ":post_dominator_analysis",
+        ":token_provenance_analysis",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:graph_coloring",
+        "//xls/data_structures:transitive_closure",
+        "//xls/data_structures:union_find_map",
+        "//xls/interpreter:random_value",
+        "//xls/ir",
+        "//xls/ir:op",
+        "//xls/ir:value",
+        "//xls/ir:value_helpers",
+        "//xls/solvers:z3_ir_translator",
+        "//xls/solvers:z3_utils",
+        "@z3//:api",
+    ],
+)
+
+cc_test(
+    name = "mutual_exclusion_pass_test",
+    srcs = ["mutual_exclusion_pass_test.cc"],
+    deps = [
+        ":cse_pass",
+        ":dce_pass",
+        ":mutual_exclusion_pass",
+        ":passes",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )
 
