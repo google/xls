@@ -14,9 +14,11 @@
 
 #include "xls/jit/ir_jit.h"
 
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <system_error>  // NOLINT
 
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
@@ -25,7 +27,7 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "llvm/include/llvm-c/Target.h"
+#include "llvm/include/llvm/ADT/APFloat.h"
 #include "llvm/include/llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/include/llvm/Analysis/TargetTransformInfo.h"
 #include "llvm/include/llvm/ExecutionEngine/ExecutionEngine.h"
@@ -47,7 +49,11 @@
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/LegacyPassManager.h"
 #include "llvm/include/llvm/IR/Module.h"
+#include "llvm/include/llvm/IR/PassManager.h"
 #include "llvm/include/llvm/IR/Value.h"
+#include "llvm/include/llvm/Pass.h"
+#include "llvm/include/llvm/Passes/OptimizationLevel.h"
+#include "llvm/include/llvm/Passes/PassBuilder.h"
 #include "llvm/include/llvm/Support/CodeGen.h"
 #include "llvm/include/llvm/Support/DynamicLibrary.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
@@ -80,6 +86,27 @@ void OnceInit() {
   LLVMInitializeNativeAsmPrinter();
   LLVMInitializeNativeAsmParser();
 }
+
+// Used for reporting a bad optimization level specification to LLVM internals.
+class BadOptLevelError : public llvm::ErrorInfo<BadOptLevelError> {
+ public:
+  BadOptLevelError(int opt_level) : opt_level_(opt_level) {}
+
+  void log(llvm::raw_ostream& os) const override {
+    os << "Invalid opt level: " << opt_level_;
+  }
+
+  std::error_code convertToErrorCode() const override {
+    return std::error_code(EINVAL, std::system_category());
+  }
+
+  static char ID;
+
+ private:
+  int opt_level_;
+};
+
+char BadOptLevelError::ID;
 
 }  // namespace
 
@@ -182,51 +209,39 @@ llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
   XLS_VLOG(2) << "Unoptimized module IR:";
   XLS_VLOG(2).NoPrefix() << ir_runtime_->DumpToString(*bare_module);
 
-  llvm::TargetLibraryInfoImpl library_info(target_machine_->getTargetTriple());
-  llvm::PassManagerBuilder builder;
-  builder.OptLevel = opt_level_;
-  builder.LibraryInfo =
-      new llvm::TargetLibraryInfoImpl(target_machine_->getTargetTriple());
+  llvm::CGSCCAnalysisManager cgam;
+  llvm::FunctionAnalysisManager fam;
+  llvm::LoopAnalysisManager lam;
+  llvm::ModuleAnalysisManager mam;
+  llvm::PassBuilder pass_builder;
 
-  // The ostream and its buffer must be declared before the module_pass_manager
-  // because the destrutor of the pass manager calls flush on the ostream so
-  // these must be destructed *after* the pass manager. C++ guarantees that the
-  // destructors are called in reverse order the obects are declared.
-  llvm::SmallVector<char, 0> stream_buffer;
-  llvm::raw_svector_ostream ostream(stream_buffer);
+  pass_builder.registerModuleAnalyses(mam);
+  pass_builder.registerCGSCCAnalyses(cgam);
+  pass_builder.registerFunctionAnalyses(fam);
+  pass_builder.registerLoopAnalyses(lam);
+  pass_builder.crossRegisterProxies(lam, fam, cgam, mam);
 
-  llvm::legacy::PassManager module_pass_manager;
-  builder.populateModulePassManager(module_pass_manager);
-  module_pass_manager.add(llvm::createTargetTransformInfoWrapperPass(
-      target_machine_->getTargetIRAnalysis()));
-
-  llvm::legacy::FunctionPassManager function_pass_manager(bare_module);
-  builder.populateFunctionPassManager(function_pass_manager);
-  function_pass_manager.doInitialization();
-  for (auto& function : *bare_module) {
-    function_pass_manager.run(function);
+  llvm::OptimizationLevel llvm_opt_level;
+  switch (opt_level_) {
+    case 0:
+      llvm_opt_level = llvm::OptimizationLevel::O0;
+      break;
+    case 1:
+      llvm_opt_level = llvm::OptimizationLevel::O1;
+      break;
+    case 2:
+      llvm_opt_level = llvm::OptimizationLevel::O2;
+      break;
+    case 3:
+      llvm_opt_level = llvm::OptimizationLevel::O3;
+      break;
+    default:
+      return llvm::Expected<llvm::orc::ThreadSafeModule>(
+          llvm::Error(std::make_unique<BadOptLevelError>(opt_level_)));
   }
-  function_pass_manager.doFinalization();
-
-  bool dump_asm = false;
-  if (XLS_VLOG_IS_ON(3)) {
-    dump_asm = true;
-    if (target_machine_->addPassesToEmitFile(
-            module_pass_manager, ostream, nullptr, llvm::CGFT_AssemblyFile)) {
-      XLS_VLOG(3) << "Could not create ASM generation pass!";
-      dump_asm = false;
-    }
-  }
-
-  module_pass_manager.run(*bare_module);
-
-  XLS_VLOG(2) << "Optimized module IR:";
-  XLS_VLOG(2).NoPrefix() << ir_runtime_->DumpToString(*bare_module);
-
-  if (dump_asm) {
-    XLS_VLOG(3) << "Generated ASM:";
-    XLS_VLOG_LINES(3, std::string(stream_buffer.begin(), stream_buffer.end()));
-  }
+  llvm::ModulePassManager mpm =
+      pass_builder.buildPerModuleDefaultPipeline(llvm_opt_level);
+  mpm.run(*bare_module, mam);
   return module;
 }
 

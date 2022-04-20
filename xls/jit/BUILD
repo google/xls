@@ -121,6 +121,7 @@ cc_library(
         "@llvm-project//llvm:IPO",
         "@llvm-project//llvm:JITLink",  # build_cleaner: keep
         "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
         "@llvm-project//llvm:Target",
         "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
