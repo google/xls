@@ -14,18 +14,9 @@
 
 """Initializes llvm-bazel project for building llvm."""
 
-load("@llvm-bazel//:terminfo.bzl", "llvm_terminfo_disable")
-load("@llvm-bazel//:zlib.bzl", "llvm_zlib_disable")
-load("@llvm-bazel//:configure.bzl", "llvm_configure")
+load("@llvm-bazel//utils/bazel:configure.bzl", "llvm_configure", "llvm_disable_optional_support_deps")
 
 def initialize():
-    llvm_terminfo_disable(
-        name = "llvm_terminfo",
-    )
-    llvm_zlib_disable(
-        name = "llvm_zlib",
-    )
-
     # This macro creates a new repo containing the LLVM source code downloaded
     # as llvm-project-raw and the BUILD files from llvm-bazel (contained in the
     # directory llvm-project-overlay). This new repo is constructed as symlinks
@@ -33,13 +24,5 @@ def initialize():
     llvm_configure(
         # Name of resulting repo (e.g., "@llvm-project")
         name = "llvm-project",
-
-        # The path to the directory containing the LLVM BUILD files within
-        # llvm-bazel.
-        overlay_path = "llvm-project-overlay",
-        overlay_workspace = "@llvm-bazel//:WORKSPACE",
-
-        # Project containing the llvm source code downloaded with http_archive.
-        src_path = ".",
-        src_workspace = "@llvm-project-raw//:WORKSPACE",
     )
+    llvm_disable_optional_support_deps()
