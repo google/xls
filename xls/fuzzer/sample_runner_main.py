@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Lint as: python3
 r"""Sample runner program.
 
 Runs a fuzzer code sample in the given run directory. Files are copied into the
