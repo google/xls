@@ -51,7 +51,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleIndex(const Index* expr) override;
   void HandleInvocation(const Invocation* expr) override;
   void HandleLet(const Let* expr) override {}
-  void HandleMatch(const Match* expr) override {}
+  void HandleMatch(const Match* expr) override;
   void HandleNameRef(const NameRef* expr) override;
   void HandleNumber(const Number* expr) override;
   void HandleRecv(const Recv* expr) override {}

@@ -306,5 +306,28 @@ fn main() -> (u32, u32, u32) {
   EXPECT_EQ(maybe_value.value(), InterpValue::MakeTuple(elements));
 }
 
+TEST(ConstexprEvaluatorTest, HandleMatch) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  match u32:200 {
+    u32:100 => u32:1,
+    u32:200 => u32:2,
+    u32:300 => u32:3,
+    _ => u32:4
+  }
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  Match* match = down_cast<Match*>(f->body());
+  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(match);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 2);
+}
+
 }  // namespace
 }  // namespace xls::dslx

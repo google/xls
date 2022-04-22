@@ -258,6 +258,20 @@ void ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   }
 }
 
+void ConstexprEvaluator::HandleMatch(const Match* expr) {
+  if (!IsConstExpr(expr->matched())) {
+    return;
+  }
+
+  for (const auto* arm : expr->arms()) {
+    if (!IsConstExpr(arm->expr())) {
+      return;
+    }
+  }
+
+  status_ = SimpleEvaluate(expr);
+}
+
 void ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
   absl::optional<InterpValue> constexpr_value =
       ctx_->type_info()->GetConstExpr(ToAstNode(expr->name_def()));
