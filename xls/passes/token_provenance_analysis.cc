@@ -43,42 +43,41 @@ absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
   absl::flat_hash_map<Node*, LeafTypeTree<Node*>> result;
 
   for (Node* node : TopoSort(f)) {
+    if (!TypeHasToken(node->GetType())) {
+      continue;
+    }
+    // Insert the new element in the map and create a reference to it. This
+    // avoids the use-after-free footgun of `m[a] = m.at(b)` where `m[a]`
+    // invalidates the `m.at(b)` reference.
+    auto [it, inserted] =
+        result.insert({node, LeafTypeTree<Node*>(node->GetType(), nullptr)});
+    LeafTypeTree<Node*>& ltt = it->second;
+
     if (node->Is<Literal>() || node->Is<Param>() || node->Is<Assert>() ||
         node->Is<Cover>() || node->Is<Trace>() || node->Is<Receive>() ||
         node->Is<Send>() || node->Is<AfterAll>()) {
-      LeafTypeTree<Node*> ltt(node->GetType(), nullptr);
       for (int64_t i = 0; i < ltt.size(); ++i) {
         if (ltt.leaf_types().at(i)->IsToken()) {
           ltt.elements().at(i) = node;
         }
       }
-      result[node] = ltt;
     } else if (node->op() == Op::kIdentity) {
-      if (result.contains(node->operand(0))) {
-        result[node] = result.at(node->operand(0));
-      }
+      ltt = result.at(node->operand(0));
     } else if (node->Is<Tuple>()) {
       Tuple* tuple = node->As<Tuple>();
       std::vector<LeafTypeTree<Node*>> children;
       children.reserve(tuple->operands().size());
-      if (!std::any_of(tuple->operands().begin(), tuple->operands().end(),
-                       [&](Node* c) -> bool { return result.contains(c); })) {
-        continue;
-      }
       for (Node* child : tuple->operands()) {
         children.push_back(
             result.contains(child)
                 ? result.at(child)
                 : LeafTypeTree<Node*>(child->GetType(), nullptr));
       }
-      result[tuple] = LeafTypeTree<Node*>(tuple->GetType(), children);
+      ltt = LeafTypeTree<Node*>(tuple->GetType(), children);
     } else if (node->Is<TupleIndex>()) {
-      TupleIndex* tuple_index = node->As<TupleIndex>();
-      if (result.contains(tuple_index->operand(0))) {
-        result[tuple_index] = result.at(tuple_index->operand(0))
-                                  .CopySubtree({tuple_index->index()});
-      }
-    } else if (TypeHasToken(node->GetType())) {
+      ltt = result.at(node->operand(0))
+                .CopySubtree({node->As<TupleIndex>()->index()});
+    } else {
       return absl::InternalError(absl::StrFormat(
           "Node type contains token type even though it shouldn't: %s",
           node->ToString()));

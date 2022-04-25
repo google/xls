@@ -82,5 +82,24 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   EXPECT_EQ(provenance.at(t6.node()).Get({}), t6.node());
 }
 
+TEST_F(TokenProvenanceAnalysisTest, VeryLongChain) {
+  auto p = CreatePackage();
+  ProcBuilder pb(TestName(), "token", p.get());
+  BValue token = pb.GetTokenParam();
+  for (int i = 0; i < 1000; ++i) {
+    token = pb.Identity(token);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(token, std::vector<BValue>()));
+  XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
+                           TokenProvenanceAnalysis(proc));
+
+  // The proc only consists of a token param and token-typed identity
+  // operations.
+  for (Node* node : proc->nodes()) {
+    EXPECT_EQ(provenance.at(node).Get({}), proc->TokenParam());
+  }
+}
+
+
 }  // namespace
 }  // namespace xls
