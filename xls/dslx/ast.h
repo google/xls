@@ -2612,7 +2612,7 @@ class Module : public AstNode {
     return ptr;
   }
 
-  void AddTop(ModuleMember member) { top_.push_back(member); }
+  absl::Status AddTop(ModuleMember member);
 
   // Gets a function in this module with the given "target_name", or returns a
   // NotFoundError.
@@ -2736,6 +2736,9 @@ class Module : public AstNode {
   std::string name_;               // Name of this module.
   std::vector<ModuleMember> top_;  // Top-level members of this module.
   std::vector<std::unique_ptr<AstNode>> nodes_;  // Lifetime-owned AST nodes.
+
+  // Map of top-level module member name to the member itself.
+  absl::flat_hash_map<std::string, ModuleMember> top_by_name_;
 };
 
 // Helper for determining whether an AST node is constant (e.g. can be

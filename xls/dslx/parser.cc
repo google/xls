@@ -129,34 +129,45 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(
                                  /*is_public=*/true, bindings, &name_to_fn));
-        module_->AddTop(fn);
-        continue;
-      } else if (peek->IsKeyword(Keyword::kProc)) {
-        XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
-                                              /*is_public=*/true, bindings));
-        module_->AddTop(proc);
-        continue;
-      } else if (peek->IsKeyword(Keyword::kStruct)) {
-        XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
-                             ParseStruct(/*is_public=*/true, bindings));
-        module_->AddTop(struct_def);
-        continue;
-      } else if (peek->IsKeyword(Keyword::kEnum)) {
-        XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
-                             ParseEnumDef(/*is_public=*/true, bindings));
-        module_->AddTop(enum_def);
-        continue;
-      } else if (peek->IsKeyword(Keyword::kConst)) {
-        XLS_ASSIGN_OR_RETURN(ConstantDef * def,
-                             ParseConstantDef(/*is_public=*/true, bindings));
-        module_->AddTop(def);
-        continue;
-      } else if (peek->IsKeyword(Keyword::kType)) {
-        XLS_ASSIGN_OR_RETURN(TypeDef * type_def,
-                             ParseTypeDefinition(/*is_public=*/true, bindings));
-        module_->AddTop(type_def);
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn));
         continue;
       }
+
+      if (peek->IsKeyword(Keyword::kProc)) {
+        XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
+                                              /*is_public=*/true, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(proc));
+        continue;
+      }
+
+      if (peek->IsKeyword(Keyword::kStruct)) {
+        XLS_ASSIGN_OR_RETURN(StructDef * struct_def,
+                             ParseStruct(/*is_public=*/true, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(struct_def));
+        continue;
+      }
+
+      if (peek->IsKeyword(Keyword::kEnum)) {
+        XLS_ASSIGN_OR_RETURN(EnumDef * enum_def,
+                             ParseEnumDef(/*is_public=*/true, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(enum_def));
+        continue;
+      }
+
+      if (peek->IsKeyword(Keyword::kConst)) {
+        XLS_ASSIGN_OR_RETURN(ConstantDef * def,
+                             ParseConstantDef(/*is_public=*/true, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(def));
+        continue;
+      }
+
+      if (peek->IsKeyword(Keyword::kType)) {
+        XLS_ASSIGN_OR_RETURN(TypeDef * type_def,
+                             ParseTypeDefinition(/*is_public=*/true, bindings));
+        XLS_RETURN_IF_ERROR(module_->AddTop(type_def));
+        continue;
+      }
+
       // TODO(leary): 2020-09-11 Also support `pub const`.
       return ParseErrorStatus(peek->span(),
                               "Expect a function, proc, struct, enum, or type "
@@ -168,11 +179,11 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
       XLS_ASSIGN_OR_RETURN(auto directive,
                            ParseDirective(&name_to_fn, bindings));
       if (auto* t = TryGet<TestFunction*>(directive)) {
-        module_->AddTop(t);
+        XLS_RETURN_IF_ERROR(module_->AddTop(t));
       } else if (auto* tp = TryGet<TestProc*>(directive)) {
-        module_->AddTop(tp);
+        XLS_RETURN_IF_ERROR(module_->AddTop(tp));
       } else if (auto* qc = TryGet<QuickCheck*>(directive)) {
-        module_->AddTop(qc);
+        XLS_RETURN_IF_ERROR(module_->AddTop(qc));
       } else {
         // Nothing, was a directive for the parser.
       }
@@ -195,43 +206,43 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
         XLS_ASSIGN_OR_RETURN(Function * fn,
                              ParseFunction(
                                  /*is_public=*/false, bindings, &name_to_fn));
-        module_->AddTop(fn);
+        XLS_RETURN_IF_ERROR(module_->AddTop(fn));
         break;
       }
       case Keyword::kProc: {
         XLS_ASSIGN_OR_RETURN(Proc * proc, ParseProc(
                                               /*is_public=*/false, bindings));
-        module_->AddTop(proc);
+        XLS_RETURN_IF_ERROR(module_->AddTop(proc));
         break;
       }
       case Keyword::kImport: {
         XLS_ASSIGN_OR_RETURN(Import * import, ParseImport(bindings));
-        module_->AddTop(import);
+        XLS_RETURN_IF_ERROR(module_->AddTop(import));
         break;
       }
       case Keyword::kType: {
         XLS_ASSIGN_OR_RETURN(
             TypeDef * type_def,
             ParseTypeDefinition(/*is_public=*/false, bindings));
-        module_->AddTop(type_def);
+        XLS_RETURN_IF_ERROR(module_->AddTop(type_def));
         break;
       }
       case Keyword::kStruct: {
         XLS_ASSIGN_OR_RETURN(StructDef * struct_,
                              ParseStruct(/*is_public=*/false, bindings));
-        module_->AddTop(struct_);
+        XLS_RETURN_IF_ERROR(module_->AddTop(struct_));
         break;
       }
       case Keyword::kEnum: {
         XLS_ASSIGN_OR_RETURN(EnumDef * enum_,
                              ParseEnumDef(/*is_public=*/false, bindings));
-        module_->AddTop(enum_);
+        XLS_RETURN_IF_ERROR(module_->AddTop(enum_));
         break;
       }
       case Keyword::kConst: {
         XLS_ASSIGN_OR_RETURN(ConstantDef * const_def,
                              ParseConstantDef(/*is_public=*/false, bindings));
-        module_->AddTop(const_def);
+        XLS_RETURN_IF_ERROR(module_->AddTop(const_def));
         break;
       }
       default:
@@ -1753,13 +1764,13 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   XLS_ASSIGN_OR_RETURN(Function * config,
                        ParseProcConfig(&bindings, parametric_bindings,
                                        proc_members, name_def->identifier()));
-  module_->AddTop(config);
+  XLS_RETURN_IF_ERROR(module_->AddTop(config));
   outer_bindings->Add(config->name_def()->identifier(), config->name_def());
 
   XLS_ASSIGN_OR_RETURN(
       Function * next,
       ParseProcNext(&bindings, parametric_bindings, name_def->identifier()));
-  module_->AddTop(next);
+  XLS_RETURN_IF_ERROR(module_->AddTop(next));
   outer_bindings->Add(next->name_def()->identifier(), next->name_def());
 
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));

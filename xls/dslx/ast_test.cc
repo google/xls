@@ -34,7 +34,7 @@ TEST(CppAst, ModuleWithConstant) {
   ConstantDef* constant_def = m.Make<ConstantDef>(
       fake_span, name_def, number, /*is_public=*/false, /*is_local=*/false);
   name_def->set_definer(constant_def);
-  m.AddTop(constant_def);
+  XLS_ASSERT_OK(m.AddTop(constant_def));
 
   EXPECT_EQ(m.ToString(), "const MOL = 42;");
 }

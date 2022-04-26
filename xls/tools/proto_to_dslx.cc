@@ -513,7 +513,7 @@ absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
   auto* enum_def = module->Make<dslx::EnumDef>(span, name_def, type, members,
                                                /*is_public=*/true);
   name_def->set_definer(enum_def);
-  module->AddTop(enum_def);
+  XLS_RETURN_IF_ERROR(module->AddTop(enum_def));
   message_record->dslx_typedef = enum_def;
   return absl::OkStatus();
 }
@@ -593,7 +593,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
       span, name_def, std::vector<dslx::ParametricBinding*>(), elements,
       /*is_public=*/true);
   name_def->set_definer(struct_def);
-  module->AddTop(struct_def);
+  XLS_RETURN_IF_ERROR(module->AddTop(struct_def));
   message_record->dslx_typedef = struct_def;
   return absl::OkStatus();
 }
@@ -958,7 +958,7 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
   auto* constant_def = module->Make<dslx::ConstantDef>(
       span, name_def, expr, /*is_public=*/true, /*is_local=*/false);
   name_def->set_definer(constant_def);
-  module->AddTop(constant_def);
+  XLS_RETURN_IF_ERROR(module->AddTop(constant_def));
   return module;
 }
 

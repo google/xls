@@ -14,10 +14,12 @@
 
 #include "xls/dslx/ast.h"
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/strip.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/number_parser.h"
 
@@ -716,6 +718,7 @@ std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
 
 std::vector<AstNode*> Module::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
+  results.reserve(top_.size());
   for (ModuleMember member : top_) {
     results.push_back(ToAstNode(member));
   }
@@ -732,6 +735,35 @@ absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
         absl::StrCat("Could not find type definition for name: ", name));
   }
   return it->second;
+}
+
+absl::Status Module::AddTop(ModuleMember member) {
+  // Get name
+  std::string member_name =
+      absl::visit(Visitor{
+                      [](Function* f) { return f->identifier(); },
+                      [](Proc* p) { return p->identifier(); },
+                      [](TestFunction* tf) { return tf->identifier(); },
+                      [](TestProc* tp) { return tp->proc()->identifier(); },
+                      [](QuickCheck* qc) { return qc->identifier(); },
+                      [](TypeDef* td) { return td->identifier(); },
+                      [](StructDef* sd) { return sd->identifier(); },
+                      [](ConstantDef* cd) { return cd->identifier(); },
+                      [](EnumDef* ed) { return ed->identifier(); },
+                      [](Import* i) { return i->identifier(); },
+                  },
+                  member);
+
+  if (top_by_name_.contains(member_name)) {
+    AstNode* node = ToAstNode(top_by_name_.at(member_name));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Module %s already contains a member named %s @ %s: %s", name_,
+        member_name, node->GetSpan().value().ToString(), node->ToString()));
+  }
+
+  top_.push_back(member);
+  top_by_name_.insert({member_name, member});
+  return absl::OkStatus();
 }
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node) {

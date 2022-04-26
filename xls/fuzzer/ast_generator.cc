@@ -1395,15 +1395,15 @@ AstGenerator::GenerateFunctionInModule(std::string fn_name,
   module_ = std::make_unique<Module>(module_name);
   XLS_ASSIGN_OR_RETURN(Function * f, GenerateFunction(fn_name));
   for (auto& item : constants_) {
-    module_->AddTop(item.second);
+    XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
   for (auto& item : type_defs_) {
-    module_->AddTop(item);
+    XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
   for (auto& item : functions_) {
-    module_->AddTop(item);
+    XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
-  module_->AddTop(f);
+  XLS_RETURN_IF_ERROR(module_->AddTop(f));
   return std::make_pair(f, std::move(module_));
 }
 
