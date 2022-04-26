@@ -1078,8 +1078,9 @@ proc foo {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Send can only be performed on a member channel.")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Send/Recv can only be performed on a member channel.")));
 }
 
 TEST(TypecheckTest, CantSendOnNonChannel) {
@@ -1096,9 +1097,10 @@ proc foo {
   }
 }
 )";
-  EXPECT_THAT(Typecheck(kProgram),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Send can only be performed on a channel.")));
+  EXPECT_THAT(
+      Typecheck(kProgram),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Send/Recv can only be performed on a channel.")));
 }
 
 TEST(TypecheckTest, CantRecvOnOutputChannel) {

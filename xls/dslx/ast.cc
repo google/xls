@@ -505,6 +505,19 @@ Param::Param(Module* owner, NameDef* name_def, TypeAnnotation* type_annotation)
       type_annotation_(type_annotation),
       span_(name_def_->span().start(), type_annotation_->span().limit()) {}
 
+// -- class ChannelDecl
+std::string ChannelDecl::ToString() const {
+  std::vector<std::string> dims;
+  if (dims_.has_value()) {
+    for (const Expr* dim : dims_.value()) {
+      dims.push_back(absl::StrCat("[", dim->ToString(), "]"));
+    }
+  }
+
+  return absl::StrFormat("chan%s %s", absl::StrJoin(dims, ""),
+                         type_->ToString());
+}
+
 // -- class Module
 
 absl::StatusOr<Function*> Module::GetFunctionOrError(
@@ -1431,17 +1444,17 @@ Match::Match(Module* owner, Span span, Expr* matched,
 
 // -- class Recv
 
-Recv::Recv(Module* owner, Span span, NameRef* token, NameRef* channel)
+Recv::Recv(Module* owner, Span span, NameRef* token, Expr* channel)
     : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
 
 std::string Recv::ToString() const {
   return absl::StrFormat("recv(%s, %s)", token_->identifier(),
-                         channel_->identifier());
+                         channel_->ToString());
 }
 
 // -- class RecvIf
 
-RecvIf::RecvIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+RecvIf::RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
                Expr* condition)
     : Expr(owner, std::move(span)),
       token_(token),
@@ -1450,12 +1463,12 @@ RecvIf::RecvIf(Module* owner, Span span, NameRef* token, NameRef* channel,
 
 std::string RecvIf::ToString() const {
   return absl::StrFormat("recv_if(%s, %s, %s)", token_->identifier(),
-                         channel_->identifier(), condition_->ToString());
+                         channel_->ToString(), condition_->ToString());
 }
 
 // -- class Send
 
-Send::Send(Module* owner, Span span, NameRef* token, NameRef* channel,
+Send::Send(Module* owner, Span span, NameRef* token, Expr* channel,
            Expr* payload)
     : Expr(owner, std::move(span)),
       token_(token),
@@ -1464,12 +1477,12 @@ Send::Send(Module* owner, Span span, NameRef* token, NameRef* channel,
 
 std::string Send::ToString() const {
   return absl::StrFormat("send(%s, %s, %s)", token_->identifier(),
-                         channel_->identifier(), payload_->ToString());
+                         channel_->ToString(), payload_->ToString());
 }
 
 // -- class SendIf
 
-SendIf::SendIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+SendIf::SendIf(Module* owner, Span span, NameRef* token, Expr* channel,
                Expr* condition, Expr* payload)
     : Expr(owner, std::move(span)),
       token_(token),
@@ -1479,7 +1492,7 @@ SendIf::SendIf(Module* owner, Span span, NameRef* token, NameRef* channel,
 
 std::string SendIf::ToString() const {
   return absl::StrFormat("send_if(%s, %s, %s, %s)", token_->identifier(),
-                         channel_->identifier(), condition_->ToString(),
+                         channel_->ToString(), condition_->ToString(),
                          payload_->ToString());
 }
 
@@ -1531,17 +1544,24 @@ bool BuiltinTypeAnnotation::GetSignedness() const {
   return GetBuiltinTypeSignedness(builtin_type_).value();
 }
 
-ChannelTypeAnnotation::ChannelTypeAnnotation(Module* owner, Span span,
-                                             Direction direction,
-                                             TypeAnnotation* payload)
+ChannelTypeAnnotation::ChannelTypeAnnotation(
+    Module* owner, Span span, Direction direction, TypeAnnotation* payload,
+    absl::optional<std::vector<Expr*>> dims)
     : TypeAnnotation(owner, std::move(span)),
       direction_(direction),
-      payload_(payload) {}
+      payload_(payload),
+      dims_(dims) {}
 
 std::string ChannelTypeAnnotation::ToString() const {
-  return absl::StrFormat("chan %s %s",
+  std::vector<std::string> dims;
+  if (dims_.has_value()) {
+    for (const Expr* dim : dims_.value()) {
+      dims.push_back(absl::StrCat("[", dim->ToString(), "]"));
+    }
+  }
+  return absl::StrFormat("chan %s%s %s",
                          direction_ == Direction::kIn ? "in" : "out",
-                         payload_->ToString());
+                         absl::StrJoin(dims, ""), payload_->ToString());
 }
 
 TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,

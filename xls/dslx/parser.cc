@@ -449,31 +449,44 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
+    auto parse_channel = [this, bindings](
+                             Pos start_pos,
+                             ChannelTypeAnnotation::Direction direction)
+        -> absl::StatusOr<TypeAnnotation*> {
+      // Now get the type of the channels.
+      XLS_RETURN_IF_ERROR(DropToken());
+      XLS_ASSIGN_OR_RETURN(bool peek_is_obrack,
+                           PeekTokenIs(TokenKind::kOBrack));
+      absl::optional<std::vector<Expr*>> dims;
+      if (peek_is_obrack) {
+        XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
+      }
+
+      XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
+                           ParseTypeAnnotation(bindings));
+      Span span(start_pos, GetPos());
+      TypeAnnotation* type =
+          module_->Make<ChannelTypeAnnotation>(span, direction, payload, dims);
+
+      return type;
+    };
+
     Pos start_pos = tok.span().start();
     if (tok.GetKeyword() == Keyword::kChannel) {
       XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
       if (peek->GetKeyword() == Keyword::kIn) {
-        // Now get the type of the channels.
-        XLS_RETURN_IF_ERROR(DropToken());
-        XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
-                             ParseTypeAnnotation(bindings));
-        return module_->Make<ChannelTypeAnnotation>(
-            Span(start_pos, tok.span().limit()),
-            ChannelTypeAnnotation::Direction::kIn, payload);
-      } else if (peek->GetKeyword() == Keyword::kOut) {
-        XLS_RETURN_IF_ERROR(DropToken());
-        XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
-                             ParseTypeAnnotation(bindings));
-        return module_->Make<ChannelTypeAnnotation>(
-            Span(start_pos, tok.span().limit()),
-            ChannelTypeAnnotation::Direction::kOut, payload);
-      } else {
-        return ParseErrorStatus(
-            peek->span(),
-            absl::StrFormat(
-                "Expected a channel direction (\"in\" or \"out\"; got %s.",
-                peek->GetStringValue()));
+        return parse_channel(start_pos, ChannelTypeAnnotation::Direction::kIn);
       }
+
+      if (peek->GetKeyword() == Keyword::kOut) {
+        return parse_channel(start_pos, ChannelTypeAnnotation::Direction::kOut);
+      }
+
+      return ParseErrorStatus(
+          peek->span(),
+          absl::StrFormat(
+              "Expected a channel direction (\"in\" or \"out\"; got %s.",
+              peek->ToString()));
     }
 
     Pos limit_pos = tok.span().limit();
@@ -1162,7 +1175,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
     return module_->Make<Recv>(Span(recv.span().start(), GetPos()), token,
                                channel);
@@ -1171,7 +1184,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
@@ -1182,7 +1195,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * payload, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
@@ -1194,7 +1207,7 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
     XLS_ASSIGN_OR_RETURN(NameRef * token, ParseNameRef(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
-    XLS_ASSIGN_OR_RETURN(NameRef * channel, ParseNameRef(outer_bindings));
+    XLS_ASSIGN_OR_RETURN(Expr * channel, ParseTerm(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
     XLS_ASSIGN_OR_RETURN(Expr * condition, ParseExpression(outer_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kComma));
@@ -1787,9 +1800,16 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChannel));
+
+  absl::optional<std::vector<Expr*>> dims = absl::nullopt;
+  XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
+  if (peek_is_obrack) {
+    Pos limit_pos;
+    XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings, &limit_pos));
+  }
   XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
   return module_->Make<ChannelDecl>(
-      Span(channel.span().start(), type->span().limit()), type);
+      Span(channel.span().start(), type->span().limit()), type, dims);
 }
 
 absl::StatusOr<std::vector<Expr*>> Parser::ParseDims(Bindings* bindings,

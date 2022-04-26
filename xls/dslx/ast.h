@@ -400,6 +400,11 @@ class ChannelTypeAnnotation : public TypeAnnotation {
     kOut,
   };
 
+  // If this is a scalar channel, then `dims` will be nullopt.
+  ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
+                        TypeAnnotation* payload,
+                        absl::optional<std::vector<Expr*>> dims);
+
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleChannelTypeAnnotation(this);
   }
@@ -412,17 +417,23 @@ class ChannelTypeAnnotation : public TypeAnnotation {
     return {ToAstNode(payload_)};
   }
 
-  ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
-                        TypeAnnotation* payload);
-
   std::string ToString() const override;
 
   Direction direction() const { return direction_; }
   TypeAnnotation* payload() const { return payload_; }
 
+  // A ChannelTypeAnnotation needs to keep its own dims (rather than being
+  // enclosed in an ArrayTypeAnnotation simply because it prints itself in a
+  // different manner than an array does - we want `chan in[32] u32` rather
+  // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
+  // channels, each of which transmits a u32, whereas the latter declares a
+  // single channel that transmits a 32-element array of u32s.
+  absl::optional<std::vector<Expr*>> dims() { return dims_; }
+
  private:
   Direction direction_;
   TypeAnnotation* payload_;
+  absl::optional<std::vector<Expr*>> dims_;
 };
 
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
@@ -1959,7 +1970,7 @@ class Index : public Expr {
 // proc.
 class Recv : public Expr {
  public:
-  Recv(Module* owner, Span span, NameRef* token, NameRef* channel);
+  Recv(Module* owner, Span span, NameRef* token, Expr* channel);
 
   AstNodeKind kind() const { return AstNodeKind::kRecv; }
 
@@ -1976,18 +1987,18 @@ class Recv : public Expr {
   }
 
   NameRef* token() const { return token_; }
-  NameRef* channel() const { return channel_; }
+  Expr* channel() const { return channel_; }
 
  private:
   NameRef* token_;
-  NameRef* channel_;
+  Expr* channel_;
 };
 
 // A RecvIf is a recv node that's guarded by a condition: the send will be
 // performed only if the condition is true.
 class RecvIf : public Expr {
  public:
-  RecvIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+  RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
          Expr* condition);
 
   AstNodeKind kind() const { return AstNodeKind::kRecvIf; }
@@ -2005,12 +2016,12 @@ class RecvIf : public Expr {
   }
 
   NameRef* token() const { return token_; }
-  NameRef* channel() const { return channel_; }
+  Expr* channel() const { return channel_; }
   Expr* condition() const { return condition_; }
 
  private:
   NameRef* token_;
-  NameRef* channel_;
+  Expr* channel_;
   Expr* condition_;
 };
 
@@ -2022,8 +2033,7 @@ class RecvIf : public Expr {
 // contains the rest of the containing block's (Function, Proc) body.
 class Send : public Expr {
  public:
-  Send(Module* owner, Span span, NameRef* token, NameRef* channel,
-       Expr* payload);
+  Send(Module* owner, Span span, NameRef* token, Expr* channel, Expr* payload);
 
   AstNodeKind kind() const { return AstNodeKind::kSend; }
 
@@ -2040,12 +2050,12 @@ class Send : public Expr {
   }
 
   NameRef* token() const { return token_; }
-  NameRef* channel() const { return channel_; }
+  Expr* channel() const { return channel_; }
   Expr* payload() const { return payload_; }
 
  private:
   NameRef* token_;
-  NameRef* channel_;
+  Expr* channel_;
   Expr* payload_;
 };
 
@@ -2053,7 +2063,7 @@ class Send : public Expr {
 // performed only if the condition is true.
 class SendIf : public Expr {
  public:
-  SendIf(Module* owner, Span span, NameRef* token, NameRef* channel,
+  SendIf(Module* owner, Span span, NameRef* token, Expr* channel,
          Expr* condition, Expr* payload);
 
   AstNodeKind kind() const { return AstNodeKind::kSendIf; }
@@ -2072,13 +2082,13 @@ class SendIf : public Expr {
   }
 
   NameRef* token() const { return token_; }
-  NameRef* channel() const { return channel_; }
+  Expr* channel() const { return channel_; }
   Expr* condition() const { return condition_; }
   Expr* payload() const { return payload_; }
 
  private:
   NameRef* token_;
-  NameRef* channel_;
+  Expr* channel_;
   Expr* condition_;
   Expr* payload_;
 };
@@ -2521,8 +2531,9 @@ class Let : public Expr {
 //                                           ^^^^^^^^ this part.
 class ChannelDecl : public Expr {
  public:
-  ChannelDecl(Module* owner, Span span, TypeAnnotation* type)
-      : Expr(owner, span), type_(type) {}
+  ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
+              absl::optional<std::vector<Expr*>> dims)
+      : Expr(owner, span), type_(type), dims_(dims) {}
 
   AstNodeKind kind() const { return AstNodeKind::kChannelDecl; }
 
@@ -2532,18 +2543,18 @@ class ChannelDecl : public Expr {
   }
 
   absl::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
-  std::string ToString() const override {
-    return absl::StrCat("chan ", type_->ToString());
-  }
+  std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {ToAstNode(type_)};
   }
 
   TypeAnnotation* type() const { return type_; }
+  absl::optional<std::vector<Expr*>> dims() const { return dims_; }
 
  private:
   TypeAnnotation* type_;
+  absl::optional<std::vector<Expr*>> dims_;
 };
 
 using ModuleMember =

@@ -265,6 +265,68 @@ TEST_F(ParserTest, ChannelsNotAsIterArgs) {
                        HasSubstr("Channels cannot be Proc next params.")));
 }
 
+TEST_F(ParserTest, ChannelArraysOneD) {
+  constexpr absl::string_view kModule = R"(proc consumer {
+  c: chan out u32;
+  config(c: chan out u32) {
+    (c,)
+  }
+  next(tok: token, i: u32) {
+    let tok = recv(tok, c);
+    (i) + (i)
+  }
+}
+proc producer {
+  channels: chan out[32] u32;
+  config() {
+    let (ps, cs) = chan[32] u32;
+    spawn consumer((cs)[0])();
+    (ps,)
+  }
+  next(tok: token) {
+    let tok = send(tok, (channels)[0], u32:0);
+    ()
+  }
+})";
+
+  Scanner s("test.x", std::string(kModule));
+  Parser parser("test", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), kModule);
+}
+
+TEST_F(ParserTest, ChannelArraysThreeD) {
+  constexpr absl::string_view kModule = R"(proc consumer {
+  c: chan out u32;
+  config(c: chan out u32) {
+    (c,)
+  }
+  next(tok: token, i: u32) {
+    let tok = recv(tok, c);
+    (i) + (i)
+  }
+}
+proc producer {
+  channels: chan out[32][64][128] u32;
+  config() {
+    let (ps, cs) = chan[32][64][128] u32;
+    spawn consumer((cs)[0])();
+    (ps,)
+  }
+  next(tok: token) {
+    let tok = send(tok, (((channels)[0])[1])[2], u32:0);
+    ()
+  }
+})";
+
+  Scanner s("test.x", std::string(kModule));
+  Parser parser("test", &s);
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), kModule);
+}
+
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   constexpr absl::string_view kModule = R"(proc producer {
   c: chan in u32;
