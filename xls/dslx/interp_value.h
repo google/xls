@@ -18,7 +18,6 @@
 #include <deque>
 
 #include "xls/dslx/ast.h"
-#include "xls/dslx/symbolic_type.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
 
@@ -360,25 +359,6 @@ class InterpValue {
   // ordering Bits < arrays < tuples has been arbitrarily defined.
   bool operator<(const InterpValue& rhs) const;
 
-  SymbolicType* sym() const { return sym_tree_; }
-
-  const InterpValue UpdateWithSym(SymbolicType* sym) const {
-    InterpValue clone = *this;
-    clone.sym_tree_ = sym;
-    return clone;
-  }
-
-  // TODO(akalan): Store a StructDef type instead of the vector of struct member
-  // names.
-  const InterpValue UpdateWithStructInfo(
-      std::vector<std::string> struct_members) const {
-    InterpValue clone = *this;
-    clone.struct_members_ = struct_members;
-    return clone;
-  }
-
-  std::vector<std::string> GetStructMembers() const { return struct_members_; }
-
  private:
   friend struct InterpValuePickler;
 
@@ -394,9 +374,6 @@ class InterpValue {
   InterpValue(InterpValueTag tag, Payload payload)
       : tag_(tag), payload_(std::move(payload)) {}
 
-  InterpValue(InterpValueTag tag, Payload payload, SymbolicType* sym)
-      : tag_(tag), payload_(std::move(payload)), sym_tree_(sym) {}
-
   using CompareF = bool (*)(const Bits& lhs, const Bits& rhs);
 
   // Helper for various comparisons.
@@ -406,14 +383,6 @@ class InterpValue {
 
   InterpValueTag tag_;
   Payload payload_;
-
-  // Represents the expression tree for the intrepreter value. We keep the
-  // pointer alive via the unique_ptr stored in the bindings
-  SymbolicType* sym_tree_ = nullptr;
-
-  // Stores struct members names, used later for test case generation in the
-  // concolic engine.
-  std::vector<std::string> struct_members_;
 };
 
 // Retrieves the module associated with the function_value if it is user

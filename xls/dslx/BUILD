@@ -699,7 +699,6 @@ cc_library(
     hdrs = ["interp_value.h"],
     deps = [
         ":ast",
-        ":symbolic_type",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits",
@@ -726,7 +725,7 @@ cc_library(
     deps = [
         ":ast",
         ":interp_value",
-        ":symbolic_type",
+        # ":symbolic_type",
         ":type_info",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
@@ -874,9 +873,7 @@ cc_library(
         ":ast",
         ":ast_utils",
         ":builtins",
-        ":concolic_test_generator",
         ":evaluate",
-        ":evaluate_sym",
         ":import_routines",
         ":interp_bindings",
         ":interp_value",
@@ -964,7 +961,6 @@ cc_library(
         ":dslx_builtins",
         ":evaluate",
         ":import_routines",
-        ":interpreter",
         ":parametric_instantiator",
         ":type_info_to_proto",
         "//xls/common/status:status_macros",
@@ -1200,34 +1196,6 @@ cc_test(
     ],
 )
 
-cc_test(
-    name = "symbolic_type_test",
-    srcs = ["symbolic_type_test.cc"],
-    deps = [
-        ":ast",
-        ":interp_value",
-        ":symbolic_type",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_test(
-    name = "concolic_interpreter_test",
-    srcs = ["concolic_interpreter_test.cc"],
-    deps = [
-        ":create_import_data",
-        ":interpreter",
-        ":parse_and_typecheck",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "@com_google_absl//absl/strings",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
 cc_library(
     name = "command_line_utils",
     srcs = ["command_line_utils.cc"],
@@ -1242,57 +1210,6 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",
-    ],
-)
-
-cc_library(
-    name = "evaluate_sym",
-    srcs = ["evaluate_sym.cc"],
-    hdrs = ["evaluate_sym.h"],
-    deps = [
-        ":abstract_interpreter",
-        ":ast",
-        ":concolic_test_generator",
-        ":evaluate",
-        ":import_routines",
-        ":interp_bindings",
-        ":interp_value",
-        ":symbolic_type",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir:bits",
-        "//xls/solvers:z3_dslx_translator",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_library(
-    name = "symbolic_type",
-    srcs = ["symbolic_type.cc"],
-    hdrs = ["symbolic_type.h"],
-    deps = [
-        ":ast",
-        "//xls/common/status:ret_check",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/types:variant",
-    ],
-)
-
-cc_library(
-    name = "concolic_test_generator",
-    srcs = ["concolic_test_generator.cc"],
-    hdrs = ["concolic_test_generator.h"],
-    deps = [
-        ":interp_value",
-        ":symbolic_type",
-        "//xls/common/status:status_macros",
-        "//xls/solvers:z3_dslx_translator",
-        "//xls/solvers:z3_utils",
-        "@com_google_absl//absl/cleanup",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@z3//:api",
     ],
 )
 
