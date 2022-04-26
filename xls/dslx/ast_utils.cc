@@ -82,7 +82,8 @@ absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {
   return name_ref->identifier();
 }
 
-absl::StatusOr<Function*> ResolveFunction(Expr* callee, TypeInfo* type_info) {
+absl::StatusOr<Function*> ResolveFunction(Expr* callee,
+                                          const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
     return name_ref->owner()->GetFunctionOrError(name_ref->identifier());
   }
@@ -97,7 +98,7 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee, TypeInfo* type_info) {
   return imported_info.value()->module->GetFunctionOrError(colon_ref->attr());
 }
 
-absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info) {
+absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
     return name_ref->owner()->GetProcOrError(name_ref->identifier());
   }

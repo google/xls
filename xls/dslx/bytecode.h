@@ -128,6 +128,9 @@ class Bytecode {
     // Slices out a subset of the bits-typed value on TOS2,
     // starting at index TOS1 and ending at index TOS0.
     kSlice,
+    // Creates a new proc interpreter using the data in the optional data member
+    // (as a `SpawnData`).
+    kSpawn,
     // Stores the value at stack top into the arg-data-specified slot.
     kStore,
     // Subtracts the Nth value from the N-1th value on the stack.
@@ -208,10 +211,34 @@ class Bytecode {
         data_;
   };
 
+  // Information necessary to spawn a child proc.
+  // The data here is used to drive evaluation and/or translation of the proc's
+  // component functions: for constexpr evaluating the `config` call and for
+  // setting up the proc's `next` function.
+  // TODO(https://github.com/google/xls/issues/608): Reduce the AST surface
+  // exposed here to just Functions.
+  struct SpawnData {
+    const Spawn* spawn;
+
+    // The proc itself.
+    Proc* proc;
+
+    // The arguments to the proc's `config` function.
+    std::vector<InterpValue> config_args;
+
+    // `next_args` should _not_ include proc members or the implicit token;
+    // they'll be added to the arg list by the interpreter.
+    std::vector<InterpValue> next_args;
+
+    // Can't store a pointer, since the underlying storage isn't guaranteed to
+    // be stable.
+    absl::optional<SymbolicBindings> caller_bindings;
+  };
+
   using TraceData = std::vector<FormatStep>;
   using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
                              std::unique_ptr<ConcreteType>, InvocationData,
-                             MatchArmItem, TraceData>;
+                             MatchArmItem, SpawnData, TraceData>;
 
   static Bytecode MakeDup(Span span);
   static Bytecode MakeFail(Span span, std::string);
@@ -226,6 +253,7 @@ class Bytecode {
   static Bytecode MakePop(Span span);
   static Bytecode MakeRecv(Span span);
   static Bytecode MakeStore(Span span, SlotIndex slot_index);
+  static Bytecode MakeSpawn(Span span, SpawnData spawn_data);
   static Bytecode MakeSwap(Span span);
   static Bytecode MakeSend(Span span);
 
@@ -251,6 +279,7 @@ class Bytecode {
   absl::StatusOr<const MatchArmItem*> match_arm_item() const;
   absl::StatusOr<NumElements> num_elements() const;
   absl::StatusOr<SlotIndex> slot_index() const;
+  absl::StatusOr<const SpawnData*> spawn_data() const;
   absl::StatusOr<const TraceData*> trace_data() const;
   absl::StatusOr<const ConcreteType*> type_data() const;
   absl::StatusOr<InterpValue> value_data() const;

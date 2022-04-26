@@ -1213,7 +1213,7 @@ proc Foo {
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
-      "literal channel @ test.x:6:18-6:26",
+      "literal (channel, channel) @ test.x:6:18-6:26",
       "expand_tuple @ test.x:6:9-6:15",
       "store 0 @ test.x:6:10-6:11",
       "store 1 @ test.x:6:13-6:14",

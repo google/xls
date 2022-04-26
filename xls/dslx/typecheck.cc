@@ -259,6 +259,7 @@ absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
   return imported_ctx;
 }
 
+// Checks a single #![test_proc()] construct.
 absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
                            DeduceCtx* ctx) {
   Proc* proc = test_proc->proc();
@@ -304,7 +305,11 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
   }
 
   {
+    // The first and only argument to a Proc's config function is the terminator
+    // channel. Create it here and mark it constexpr for deduction.
     ScopedFnStackEntry scoped_entry(proc->config(), ctx, false);
+    InterpValue terminator(InterpValue::MakeChannel());
+    ctx->type_info()->NoteConstExpr(proc->config()->params()[0], terminator);
     XLS_RETURN_IF_ERROR(CheckFunction(proc->config(), ctx));
     scoped_entry.Finish();
   }
@@ -354,9 +359,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
                                 imported->type_info);
   } else if (absl::holds_alternative<ConstantDef*>(member) ||
              absl::holds_alternative<EnumDef*>(member)) {
-    ScopedFnStackEntry scoped_entry(ctx, module);
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-    scoped_entry.Finish();
   } else if (absl::holds_alternative<Function*>(member)) {
     Function* f = absl::get<Function*>(member);
     if (f->IsParametric()) {
@@ -642,16 +645,6 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
     XLS_ASSIGN_OR_RETURN(return_type, ctx->Deduce(callee_fn->return_type()));
   }
 
-  // Add proc members to the environment before typechecking the fn body.
-  if (callee_fn->proc().has_value()) {
-    Proc* p = callee_fn->proc().value();
-    for (auto* param : p->members()) {
-      XLS_ASSIGN_OR_RETURN(auto type, DeduceAndResolve(param, ctx));
-      ctx->type_info()->SetItem(param, *type);
-      ctx->type_info()->SetItem(param->name_def(), *type);
-    }
-  }
-
   FunctionType fn_type(std::move(param_types), std::move(return_type));
 
   XLS_ASSIGN_OR_RETURN(
@@ -683,9 +676,19 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
 
   // We need to deduce fn body, so we're going to call Deduce, which means we'll
   // need a new stack entry w/the new symbolic bindings.
-  ctx->AddFnStackEntry(FnStackEntry::Make(callee_fn, tab.symbolic_bindings));
+  ctx->AddFnStackEntry(
+      FnStackEntry::Make(callee_fn, tab.symbolic_bindings, invocation));
   if (callee_fn->IsParametric()) {
     ctx->AddDerivedTypeInfo();
+  }
+
+  if (callee_fn->proc().has_value()) {
+    Proc* p = callee_fn->proc().value();
+    for (auto* member : p->members()) {
+      XLS_ASSIGN_OR_RETURN(auto type, DeduceAndResolve(member, ctx));
+      ctx->type_info()->SetItem(member, *type);
+      ctx->type_info()->SetItem(member->name_def(), *type);
+    }
   }
 
   // Add the new SBs to the constexpr set.

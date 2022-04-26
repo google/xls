@@ -36,6 +36,50 @@ namespace {
 // our test-runner output.
 constexpr int kUnitSpaces = 7;
 constexpr int kQuickcheckSpaces = 15;
+
+absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
+                             Module* module, TestFunction* tf) {
+  auto cache = std::make_unique<BytecodeCache>(import_data);
+  import_data->SetBytecodeCache(std::move(cache));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(import_data, type_info, tf->fn(), absl::nullopt));
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{})
+      .status();
+}
+
+absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
+                         Module* module, TestProc* tp) {
+  auto cache = std::make_unique<BytecodeCache>(import_data);
+  import_data->SetBytecodeCache(std::move(cache));
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(import_data, type_info, tp->proc()->config(),
+                            absl::nullopt));
+
+  std::vector<ProcInstance> proc_instances;
+  absl::optional<InterpValue> maybe_terminator =
+      type_info->GetConstExpr(tp->proc()->config()->params()[0]);
+  XLS_RET_CHECK(maybe_terminator.has_value());
+  InterpValue terminator = maybe_terminator.value();
+  XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+      import_data, type_info, tp->proc(), terminator, tp->next_args(),
+      &proc_instances));
+
+  std::shared_ptr<InterpValue::Channel> term_chan =
+      terminator.GetChannelOrDie();
+  while (term_chan->empty()) {
+    for (auto& p : proc_instances) {
+      XLS_RETURN_IF_ERROR(p.Run());
+    }
+  }
+
+  // TODO(rspringer): 2022-04-12: pass/fail based on the value of term_chan's
+  // entry.
+  return absl::OkStatus();
+}
+
 }  // namespace
 
 absl::StatusOr<IrJit*> RunComparator::GetOrCompileJitFunction(
@@ -356,20 +400,20 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     ran += 1;
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
+    ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
     if (options.bytecode) {
-      auto cache = std::make_unique<BytecodeCache>(&import_data);
-      import_data.SetBytecodeCache(std::move(cache));
-      XLS_ASSIGN_OR_RETURN(TestFunction * f, entry_module->GetTest(test_name));
-      XLS_ASSIGN_OR_RETURN(
-          std::unique_ptr<BytecodeFunction> bf,
-          BytecodeEmitter::Emit(&import_data, tm_or.value().type_info, f->fn(),
-                                absl::nullopt));
-      status =
-          BytecodeInterpreter::Interpret(&import_data, bf.get(), /*params=*/{})
-              .status();
+      if (absl::holds_alternative<TestFunction*>(*member)) {
+        XLS_ASSIGN_OR_RETURN(TestFunction * tf,
+                             entry_module->GetTest(test_name));
+        status = RunTestFunction(&import_data, tm_or.value().type_info,
+                                 entry_module, tf);
+      } else {
+        XLS_ASSIGN_OR_RETURN(TestProc * tp,
+                             entry_module->GetTestProc(test_name));
+        status = RunTestProc(&import_data, tm_or.value().type_info,
+                             entry_module, tp);
+      }
     } else {
-      ModuleMember* member =
-          entry_module->FindMemberWithName(test_name).value();
       if (absl::holds_alternative<TestFunction*>(*member)) {
         status = interpreter.RunTest(test_name);
       } else if (absl::holds_alternative<TestProc*>(*member)) {

@@ -74,6 +74,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "send") {
     return Bytecode::Op::kSend;
   }
+  if (s == "spawn") {
+    return Bytecode::Op::kSpawn;
+  }
   if (s == "store") {
     return Bytecode::Op::kStore;
   }
@@ -181,6 +184,8 @@ std::string OpToString(Bytecode::Op op) {
       return "shr";
     case Bytecode::Op::kSlice:
       return "slice";
+    case Bytecode::Op::kSpawn:
+      return "spawn";
     case Bytecode::Op::kStore:
       return "store";
     case Bytecode::Op::kSub:
@@ -337,6 +342,10 @@ DEF_UNARY_BUILDER(Swap);
   return Bytecode(span, Op::kMatchArm, std::move(item));
 }
 
+/* static */ Bytecode Bytecode::MakeSpawn(Span span, SpawnData spawn_data) {
+  return Bytecode(span, Op::kSpawn, spawn_data);
+}
+
 /* static */ Bytecode Bytecode::MakeStore(Span span, SlotIndex slot_index) {
   return Bytecode(span, Op::kStore, slot_index);
 }
@@ -404,6 +413,17 @@ absl::StatusOr<Bytecode::InvocationData> Bytecode::invocation_data() const {
   }
 
   return absl::get<InvocationData>(data_.value());
+}
+
+absl::StatusOr<const Bytecode::SpawnData*> Bytecode::spawn_data() const {
+  if (!data_.has_value()) {
+    return absl::InvalidArgumentError("Bytecode does not hold data.");
+  }
+  if (!absl::holds_alternative<SpawnData>(data_.value())) {
+    return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
+  }
+
+  return &absl::get<SpawnData>(data_.value());
 }
 
 absl::StatusOr<InterpValue> Bytecode::value_data() const {

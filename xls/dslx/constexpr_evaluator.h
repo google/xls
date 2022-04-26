@@ -43,7 +43,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleAttr(const Attr* expr) override;
   void HandleBinop(const Binop* expr) override;
   void HandleCast(const Cast* expr) override;
-  void HandleChannelDecl(const ChannelDecl* expr) override {}
+  void HandleChannelDecl(const ChannelDecl* expr) override;
   void HandleColonRef(const ColonRef* expr) override;
   void HandleConstRef(const ConstRef* expr) override;
   void HandleFor(const For* expr) override {}

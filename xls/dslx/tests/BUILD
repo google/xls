@@ -757,12 +757,27 @@ dslx_lang_test(
 
 dslx_lang_test(name = "local_const_value_non_bitstype")
 
-# TODO(rspringer): 2022-01-19: Cannot run bytecode due to lack of "SendIf"
-# and "RecvIf" node support.
+dslx_lang_test(
+    name = "proc_network",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "proc_smoke",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
+    name = "proc_two_level",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
 dslx_lang_test(
     name = "send_if_recv_if",
     benchmark_ir = False,
-    bytecode = False,
     evaluate_ir = False,
     ir_entry = "main",
     # No normal 'function' entry point, it is a proc.

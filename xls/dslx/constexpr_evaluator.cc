@@ -117,6 +117,14 @@ void ConstexprEvaluator::HandleCast(const Cast* expr) {
   }
 }
 
+// While a channel's *contents* aren't constexpr, the existence of the channel
+// itself is.
+void ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
+  InterpValue channel(InterpValue::MakeChannel());
+  ctx_->type_info()->NoteConstExpr(expr,
+                                   InterpValue::MakeTuple({channel, channel}));
+}
+
 void ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   TypeInfo* type_info = ctx_->type_info();
   absl::StatusOr<absl::variant<Module*, EnumDef*>> subject_or =

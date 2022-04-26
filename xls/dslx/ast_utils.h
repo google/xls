@@ -32,12 +32,13 @@ absl::StatusOr<std::string> GetBuiltinName(Expr* callee);
 // Finds the Function identified by the given node (either NameRef or ColonRef),
 // using the associated ImportData for import Module lookup.
 // The target function must have been typechecked prior to this call.
-absl::StatusOr<Function*> ResolveFunction(Expr* callee, TypeInfo* type_info);
+absl::StatusOr<Function*> ResolveFunction(Expr* callee,
+                                          const TypeInfo* type_info);
 
 // Finds the Proc identified by the given node (either NameRef or ColonRef),
 // using the associated ImportData for import Module lookup.
 // The target proc must have been typechecked prior to this call.
-absl::StatusOr<Proc*> ResolveProc(Expr* callee, TypeInfo* type_info);
+absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 
 // Returns the basis of the given ColonRef; either a Module for a constant
 // reference or the EnumDef whose attribute is specified.

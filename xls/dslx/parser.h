@@ -508,11 +508,12 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      const std::vector<Param*>& proc_members, absl::string_view proc_name);
+      const std::vector<Param*>& proc_members, absl::string_view proc_name,
+      bool is_public);
   absl::StatusOr<Function*> ParseProcNext(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      absl::string_view proc_name);
+      absl::string_view proc_name, bool is_public);
 
   std::unique_ptr<Module> module_;
 };

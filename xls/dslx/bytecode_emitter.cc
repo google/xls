@@ -484,7 +484,17 @@ void BytecodeEmitter::HandleCast(const Cast* node) {
 }
 
 void BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
-  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeChannel()));
+  // Channels are created as constexpr values during type deduction/constexpr
+  // evaluation, since they're concrete values that need to be shared amongst
+  // two actors.
+  absl::optional<InterpValue> maybe_channel = type_info_->GetConstExpr(node);
+  if (!maybe_channel.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not find value for channel (declared at ",
+                     node->span().ToString(), ")."));
+    return;
+  }
+  Add(Bytecode::MakeLiteral(node->span(), maybe_channel.value()));
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
@@ -1059,11 +1069,98 @@ void BytecodeEmitter::HandleRecv(const Recv* node) {
   Add(Bytecode::MakeRecv(node->span()));
 }
 
+void BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
+  // We destructure this into an if/else, rather than creating a new opcode,
+  // since our [sequential] execution model allows us to skip nodes (unlike a
+  // real-chip model).
+  node->condition()->AcceptExpr(this);
+  size_t jump_index = bytecode_.size();
+
+  Add(Bytecode::MakeJumpRelIf(node->span(), Bytecode::kPlaceholderJumpAmount));
+  node->token()->AcceptExpr(this);
+  node->channel()->AcceptExpr(this);
+  Add(Bytecode::MakeRecv(node->span()));
+
+  Add(Bytecode::MakeJumpDest(node->span()));
+  bytecode_.at(jump_index).PatchJumpTarget(bytecode_.size());
+}
+
 void BytecodeEmitter::HandleSend(const Send* node) {
   node->token()->AcceptExpr(this);
   node->channel()->AcceptExpr(this);
   node->payload()->AcceptExpr(this);
   Add(Bytecode::MakeSend(node->span()));
+}
+
+void BytecodeEmitter::HandleSendIf(const SendIf* node) {
+  // Same structure as RecvIf.
+  node->condition()->AcceptExpr(this);
+  size_t jump_index = bytecode_.size();
+  Add(Bytecode::MakeJumpRelIf(node->span(), Bytecode::kPlaceholderJumpAmount));
+
+  node->token()->AcceptExpr(this);
+  node->channel()->AcceptExpr(this);
+  node->payload()->AcceptExpr(this);
+  Add(Bytecode::MakeSend(node->span()));
+
+  Add(Bytecode::MakeJumpDest(node->span()));
+  bytecode_.at(jump_index).PatchJumpTarget(bytecode_.size());
+}
+
+void BytecodeEmitter::HandleSpawn(const Spawn* node) {
+  absl::StatusOr<Proc*> proc_or = ResolveProc(node->callee(), type_info_);
+  if (!proc_or.ok()) {
+    status_ = absl::InternalError(
+        absl::StrCat("Could not resolve Proc in spawn: ", node->ToString()));
+    return;
+  }
+
+  auto convert_args = [this](const absl::Span<Expr* const> args)
+      -> absl::StatusOr<std::vector<InterpValue>> {
+    std::vector<InterpValue> arg_values;
+    arg_values.reserve(args.size());
+    for (const auto* arg : args) {
+      absl::optional<InterpValue> maybe_arg_value =
+          type_info_->GetConstExpr(arg);
+      if (!maybe_arg_value.has_value()) {
+        return absl::InternalError(
+            absl::StrCat("Spawn arg wasn't constexpr: ", arg->ToString()));
+      }
+      arg_values.push_back(maybe_arg_value.value());
+    }
+    return arg_values;
+  };
+
+  absl::StatusOr<std::vector<InterpValue>> config_args_or =
+      convert_args(node->config()->args());
+  if (!config_args_or.ok()) {
+    status_ = config_args_or.status();
+    return;
+  }
+
+  absl::StatusOr<std::vector<InterpValue>> next_args_or =
+      convert_args(node->next()->args());
+  if (!next_args_or.ok()) {
+    status_ = next_args_or.status();
+    return;
+  }
+
+  // The whole Proc is parameterized, not the individual invocations
+  // (config/next), so we can use either invocation to get the bindings.
+  absl::optional<const SymbolicBindings*> maybe_callee_bindings =
+      type_info_->GetInstantiationCalleeBindings(node->config(),
+                                                 caller_bindings_.has_value()
+                                                     ? caller_bindings_.value()
+                                                     : SymbolicBindings());
+  absl::optional<SymbolicBindings> final_bindings = absl::nullopt;
+  if (maybe_callee_bindings.has_value()) {
+    final_bindings = *maybe_callee_bindings.value();
+  }
+
+  Bytecode::SpawnData spawn_data{node, proc_or.value(), config_args_or.value(),
+                                 next_args_or.value(), final_bindings};
+  Add(Bytecode::MakeSpawn(node->span(), spawn_data));
+  node->body()->AcceptExpr(this);
 }
 
 void BytecodeEmitter::HandleString(const String* node) {

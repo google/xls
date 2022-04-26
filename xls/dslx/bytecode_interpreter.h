@@ -14,6 +14,7 @@
 #ifndef XLS_DSLX_BYTECODE_INTERPRETER_H_
 #define XLS_DSLX_BYTECODE_INTERPRETER_H_
 
+#include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins.h"
@@ -23,60 +24,68 @@
 
 namespace xls::dslx {
 
+class ProcInstance;
+
+// Represents a frame on the function stack: holds the program counter, local
+// storage, and instructions to execute.
+class Frame {
+ public:
+  // `bindings` will hold the bindings used to instantiate the
+  // BytecodeFunction's source Function, if it is parametric.
+  // `bf_holder` is only for storing the pointer to ephemeral functions, e.g.,
+  // those generated on-the-fly from interpreting the `map` operation.
+  // For other cases, the BytecodeCache will own BytecodeFunction storage.
+  Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
+        const TypeInfo* type_info,
+        const absl::optional<SymbolicBindings>& bindings,
+        std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
+
+  int64_t pc() const { return pc_; }
+  void set_pc(int64_t pc) { pc_ = pc; }
+  void IncrementPc() { pc_++; }
+  std::vector<InterpValue>& slots() { return slots_; }
+  BytecodeFunction* bf() const { return bf_; }
+  const TypeInfo* type_info() const { return type_info_; }
+  const absl::optional<SymbolicBindings>& bindings() const { return bindings_; }
+
+  void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
+
+ private:
+  int64_t pc_;
+  std::vector<InterpValue> slots_;
+  BytecodeFunction* bf_;
+  const TypeInfo* type_info_;
+  absl::optional<SymbolicBindings> bindings_;
+  std::unique_ptr<BytecodeFunction> bf_holder_;
+};
+
 // Bytecode interpreter for DSLX. Accepts sequence of "bytecode" "instructions"
 // and a set of initial environmental bindings (key/value pairs) and executes
 // until end result.
-//
-// TODO(rspringer): Finish adding the rest of the opcodes, etc.
 class BytecodeInterpreter {
  public:
+  virtual ~BytecodeInterpreter() {}
+
   // Takes ownership of `args`.
-  static absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
-                                               BytecodeFunction* bf,
-                                               std::vector<InterpValue> args);
+  static absl::StatusOr<InterpValue> Interpret(
+      ImportData* import_data, BytecodeFunction* bf,
+      const std::vector<InterpValue>& args);
+  absl::Status InitFrame(BytecodeFunction* bf,
+                         const std::vector<InterpValue>& args);
 
   const std::vector<InterpValue>& stack() { return stack_; }
 
- private:
-  // Represents a frame on the function stack: holds the program counter, local
-  // storage, and instructions to execute.
-  class Frame {
-   public:
-    // `bindings` will hold the bindings used to instantiate the
-    // BytecodeFunction's source Function, if it is parametric.
-    // `bf_holder` is only for storing the pointer to ephemeral functions, e.g.,
-    // those generated on-the-fly from interpreting the `map` operation.
-    // For other cases, the BytecodeCache will own BytecodeFunction storage.
-    Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
-          const TypeInfo* type_info,
-          const absl::optional<SymbolicBindings>& bindings,
-          std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
-
-    int64_t pc() const { return pc_; }
-    void set_pc(int64_t pc) { pc_ = pc; }
-    void IncrementPc() { pc_++; }
-    std::vector<InterpValue>& slots() { return slots_; }
-    BytecodeFunction* bf() const { return bf_; }
-    const TypeInfo* type_info() const { return type_info_; }
-    const absl::optional<SymbolicBindings>& bindings() const {
-      return bindings_;
-    }
-
-    void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
-
-   private:
-    int64_t pc_;
-    std::vector<InterpValue> slots_;
-    BytecodeFunction* bf_;
-    const TypeInfo* type_info_;
-    absl::optional<SymbolicBindings> bindings_;
-    std::unique_ptr<BytecodeFunction> bf_holder_;
-  };
-
-  BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
-                      std::vector<InterpValue> args);
-
+ protected:
+  BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf);
+  static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
+      ImportData* import_data, BytecodeFunction* bf,
+      const std::vector<InterpValue>& args);
+  std::vector<Frame>& frames() { return frames_; }
+  ImportData* import_data() { return import_data_; }
   absl::Status Run();
+
+ private:
+  friend class ProcInstance;
 
   // Runs the next instruction in the current frame. Returns an error if called
   // when the PC is already pointing to the end of the bytecode.
@@ -115,6 +124,14 @@ class BytecodeInterpreter {
   absl::Status EvalShl(const Bytecode& bytecode);
   absl::Status EvalShr(const Bytecode& bytecode);
   absl::Status EvalSlice(const Bytecode& bytecode);
+  // TODO(rspringer): 2022-04-12: Rather than use inheritance here, consider
+  // injecting a Proc/Spawn strategy function/lambda into the interpreter.
+  virtual absl::Status EvalSpawn(const Bytecode& bytecode) {
+    return absl::UnimplementedError(
+        "BytecodeInterpreter does not support spawning procs. "
+        "ProcConfigBytecodeInterpreter should be used for proc network "
+        "config.");
+  }
   absl::Status EvalStore(const Bytecode& bytecode);
   absl::Status EvalSub(const Bytecode& bytecode);
   absl::Status EvalSwap(const Bytecode& bytecode);
@@ -177,6 +194,71 @@ class BytecodeInterpreter {
   std::vector<InterpValue> stack_;
 
   std::vector<Frame> frames_;
+};
+
+// Specialization of BytecodeInterpreter for executing Proc `config` functions.
+// These are special b/c they define a tree of ProcInstances that we need to
+// collect at the end so we can "tick" them. Only this class, unlike
+// BytecodeInterpreter, can process `spawn` nodes.
+class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
+ public:
+  // Channels have state, so we can't just copy args. We're guaranteed that args
+  // will live for the duration of network initialization, so storing references
+  // is safe.
+  // `config_args` is not moved, in order to allow callers to specify channels
+  // without losing their handles to them.
+  // `proc_instances` is an out-param into which instantiated ProcInstances
+  // should be placed.
+  static absl::Status InitializeProcNetwork(
+      ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
+      InterpValue terminator, const std::vector<Expr*>& next_args,
+      std::vector<ProcInstance>* proc_instances);
+
+  virtual ~ProcConfigBytecodeInterpreter() = default;
+
+ private:
+  ProcConfigBytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
+                                std::vector<ProcInstance>* proc_instances);
+
+  absl::Status EvalSpawn(const Bytecode& bytecode) override;
+
+  // Implementation of Spawn handling common to both InitializeProcNetwork
+  // and EvalSpawn. `next_args` should not include Proc members or the
+  // obligatory Token; they're added to the arg list internally.
+  static absl::Status EvalSpawnInternal(
+      ImportData* import_data, const TypeInfo* type_info,
+      const absl::optional<SymbolicBindings>& bindings,
+      absl::optional<const Spawn*> maybe_spawn, Proc* proc,
+      const std::vector<InterpValue>& config_args,
+      const std::vector<InterpValue>& next_args,
+      std::vector<ProcInstance>* proc_instances);
+
+  std::vector<ProcInstance>* proc_instances_;
+};
+
+// A ProcInstance is an instantiation of a Proc.
+// ProcInstance : Proc :: Object : Class, roughly.
+class ProcInstance {
+ public:
+  ProcInstance(Proc* proc, std::unique_ptr<BytecodeInterpreter> interpreter,
+               std::unique_ptr<BytecodeFunction> next_fn,
+               std::vector<InterpValue> next_args)
+      : proc_(proc),
+        interpreter_(std::move(interpreter)),
+        next_fn_(std::move(next_fn)),
+        next_args_(std::move(next_args)) {}
+
+  // Executes a single "tick" of the ProcInstance. Returns success if the
+  // ProcInstance fully completed execution of its `next` function _OR_ if the
+  // ProcInstance is blocked trying to receive on an empty channel. IOW, this
+  // will only return non-OK in case of a fatal error.
+  absl::Status Run();
+
+ private:
+  Proc* proc_;
+  std::unique_ptr<BytecodeInterpreter> interpreter_;
+  std::unique_ptr<BytecodeFunction> next_fn_;
+  std::vector<InterpValue> next_args_;
 };
 
 }  // namespace xls::dslx

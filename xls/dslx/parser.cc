@@ -1610,7 +1610,8 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
 absl::StatusOr<Function*> Parser::ParseProcConfig(
     Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
-    const std::vector<Param*>& proc_members, absl::string_view proc_name) {
+    const std::vector<Param*>& proc_members, absl::string_view proc_name,
+    bool is_public) {
   Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsKeyword(Keyword::kConfig)) {
@@ -1668,7 +1669,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
       module_->Make<TupleTypeAnnotation>(span, return_elements);
   Function* config = module_->Make<Function>(
       span, name_def, parametric_bindings, config_params, return_type, body,
-      Function::Tag::kProcConfig, /*is_public=*/false);
+      Function::Tag::kProcConfig, is_public);
   name_def->set_definer(config);
 
   return config;
@@ -1686,7 +1687,7 @@ bool TypeIsToken(TypeAnnotation* type) {
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
-    absl::string_view proc_name) {
+    absl::string_view proc_name, bool is_public) {
   Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsKeyword(Keyword::kNext)) {
@@ -1735,8 +1736,7 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   Function* next = module_->Make<Function>(
       Span(oparen.span().start(), cbrace.span().limit()), name_def,
       parametric_bindings, next_params, return_type, expr,
-      Function::Tag::kProcNext,
-      /*is_public=*/false);
+      Function::Tag::kProcNext, is_public);
   name_def->set_definer(next);
 
   return next;
@@ -1761,15 +1761,16 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_members,
                        CollectProcMembers(&bindings));
-  XLS_ASSIGN_OR_RETURN(Function * config,
-                       ParseProcConfig(&bindings, parametric_bindings,
-                                       proc_members, name_def->identifier()));
+  XLS_ASSIGN_OR_RETURN(
+      Function * config,
+      ParseProcConfig(&bindings, parametric_bindings, proc_members,
+                      name_def->identifier(), is_public));
   XLS_RETURN_IF_ERROR(module_->AddTop(config));
   outer_bindings->Add(config->name_def()->identifier(), config->name_def());
 
-  XLS_ASSIGN_OR_RETURN(
-      Function * next,
-      ParseProcNext(&bindings, parametric_bindings, name_def->identifier()));
+  XLS_ASSIGN_OR_RETURN(Function * next,
+                       ParseProcNext(&bindings, parametric_bindings,
+                                     name_def->identifier(), is_public));
   XLS_RETURN_IF_ERROR(module_->AddTop(next));
   outer_bindings->Add(next->name_def()->identifier(), next->name_def());
 

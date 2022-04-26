@@ -44,7 +44,7 @@ proc first_level_proc {
 }
 
 #![test_proc()]
-proc tester {
+proc main {
   terminator: chan out bool;
   config(terminator: chan out bool) {
     spawn first_level_proc()();

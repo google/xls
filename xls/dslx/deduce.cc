@@ -1898,6 +1898,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
     const ChannelDecl* node, DeduceCtx* ctx) {
   std::vector<std::unique_ptr<ConcreteType>> elements;
   XLS_ASSIGN_OR_RETURN(auto channel_type, Deduce(node->type(), ctx));
+  ctx->type_info()->SetItem(node, *channel_type);
   elements.push_back(std::move(channel_type));
   elements.push_back(elements.back()->CloneToUnique());
   return std::make_unique<TupleType>(std::move(elements));
@@ -2084,9 +2085,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInstantiation(
     std::function<absl::StatusOr<Function*>(const Instantiation*, DeduceCtx*)>
         resolve_fn,
     std::function<absl::Status(Function*, DeduceCtx*)> typecheck_fn,
-    DeduceCtx* ctx,
-    absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>>*
-        proc_members) {
+    DeduceCtx* ctx) {
   bool is_parametric_fn = false;
   if (!IsBuiltinFn(invocation->callee())) {
     // We can't resolve builtins as AST Functions, hence this check.
@@ -2154,18 +2153,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
     return proc->next();
   };
 
-  absl::flat_hash_map<AstNode*, std::unique_ptr<ConcreteType>> members;
-  for (const auto& member : proc->members()) {
-    XLS_ASSIGN_OR_RETURN(auto member_type, Deduce(member, ctx));
-    members[member] = std::move(member_type);
-  }
-
   XLS_RETURN_IF_ERROR(DeduceInstantiation(node->config(), config_args,
-                                          resolve_config, typecheck_fn, ctx,
-                                          &members)
+                                          resolve_config, typecheck_fn, ctx)
                           .status());
   XLS_RETURN_IF_ERROR(DeduceInstantiation(node->next(), next_args, resolve_next,
-                                          typecheck_fn, ctx, &members)
+                                          typecheck_fn, ctx)
                           .status());
 
   if (node->body() != nullptr) {
@@ -2243,9 +2235,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
     return ctx->typecheck_function()(f, ctx);
   };
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       (DeduceInstantiation(node, args, resolve_fn,
-                                            typecheck_fn, ctx, nullptr)));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ConcreteType> type,
+      (DeduceInstantiation(node, args, resolve_fn, typecheck_fn, ctx)));
 
   ConcreteType* ct = ctx->type_info()->GetItem(node->callee()).value();
   FunctionType* ft = dynamic_cast<FunctionType*>(ct);

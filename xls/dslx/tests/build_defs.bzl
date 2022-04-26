@@ -40,8 +40,7 @@ def dslx_lang_test(
         convert_to_ir = True,
         test_ir_equivalence = True,
         evaluate_ir = True,
-        benchmark_ir = True,
-        bytecode = True):
+        benchmark_ir = True):
     """This macro is convenient shorthand for our many DSLX test targets.
 
     The primary target that it generates that developers may want to depend upon is:
@@ -88,9 +87,6 @@ def dslx_lang_test(
         language-level target. Only used when convert_to_ir is true.
       benchmark_ir: Whether to enable the IR benchmarking tool to run on the
         converted IR. Only used when convert_to_ir is true.
-      bytecode: Whether or not bytecode interpretation should be performed for
-        the DSLX interpreter test (this flag should be temporary until the
-        bytecode interpreter is entirely complete).
 
     As a byproduct this makes a "{name}_dslx" library target that other
     dslx_interp_tests can reference via the dslx_deps attribute.
@@ -101,12 +97,12 @@ def dslx_lang_test(
         srcs = [name + ".x"],
         deps = dslx_deps,
     )
+
+    test_args = {} if convert_to_ir else {"compare": "none"}
     xls_dslx_test(
         name = name + "_dslx_test",
         library = name + "_dslx",
-        dslx_test_args = {
-            "bytecode": str(bytecode).lower(),
-        },
+        dslx_test_args = test_args,
     )
     if convert_to_ir:
         # Note: this generates output files with both .ir and .opt.ir suffixes.

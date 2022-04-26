@@ -33,7 +33,13 @@ class FnStackEntry {
   // bindings.
   static FnStackEntry Make(Function* f, SymbolicBindings symbolic_bindings) {
     return FnStackEntry(f, f->identifier(), f->owner(),
-                        std::move(symbolic_bindings));
+                        std::move(symbolic_bindings), absl::nullopt);
+  }
+
+  static FnStackEntry Make(Function* f, SymbolicBindings symbolic_bindings,
+                           const Invocation* invocation) {
+    return FnStackEntry(f, f->identifier(), f->owner(),
+                        std::move(symbolic_bindings), invocation);
   }
 
   // Creates an entry for type inference of the top level of module 'module'.
@@ -48,16 +54,19 @@ class FnStackEntry {
   const SymbolicBindings& symbolic_bindings() const {
     return symbolic_bindings_;
   }
+  absl::optional<const Invocation*> invocation() { return invocation_; }
 
   bool operator!=(nullptr_t) const { return f_ != nullptr; }
 
  private:
   FnStackEntry(Function* f, std::string name, Module* module,
-               SymbolicBindings symbolic_bindings)
+               SymbolicBindings symbolic_bindings,
+               absl::optional<const Invocation*> invocation)
       : f_(f),
         name_(name),
         module_(module),
-        symbolic_bindings_(symbolic_bindings) {}
+        symbolic_bindings_(symbolic_bindings),
+        invocation_(invocation) {}
 
   // Constructor overload for a module-level inference entry.
   explicit FnStackEntry(Module* module)
@@ -67,6 +76,7 @@ class FnStackEntry {
   std::string name_;
   const Module* module_;
   SymbolicBindings symbolic_bindings_;
+  absl::optional<const Invocation*> invocation_;
 };
 
 class DeduceCtx;  // Forward decl.

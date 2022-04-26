@@ -81,10 +81,10 @@ class BytecodeEmitter : public ExprVisitor {
   void HandleNumber(const Number* node) override;
   absl::StatusOr<InterpValue> HandleNumberInternal(const Number* node);
   void HandleRecv(const Recv* node) override;
-  void HandleRecvIf(const RecvIf* node) override { DefaultHandler(node); }
+  void HandleRecvIf(const RecvIf* node) override;
   void HandleSend(const Send* node) override;
-  void HandleSendIf(const SendIf* node) override { DefaultHandler(node); }
-  void HandleSpawn(const Spawn* node) override { DefaultHandler(node); }
+  void HandleSendIf(const SendIf* node) override;
+  void HandleSpawn(const Spawn* node) override;
   void HandleString(const String* node) override;
   void HandleStructInstance(const StructInstance* node) override;
   void HandleSplatStructInstance(const SplatStructInstance* node) override;

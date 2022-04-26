@@ -26,10 +26,10 @@
 
 namespace xls::dslx {
 
-BytecodeInterpreter::Frame::Frame(
-    BytecodeFunction* bf, std::vector<InterpValue> args,
-    const TypeInfo* type_info, const absl::optional<SymbolicBindings>& bindings,
-    std::unique_ptr<BytecodeFunction> bf_holder)
+Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
+             const TypeInfo* type_info,
+             const absl::optional<SymbolicBindings>& bindings,
+             std::unique_ptr<BytecodeFunction> bf_holder)
     : pc_(0),
       slots_(std::move(args)),
       bf_(bf),
@@ -37,8 +37,7 @@ BytecodeInterpreter::Frame::Frame(
       bindings_(bindings),
       bf_holder_(std::move(bf_holder)) {}
 
-void BytecodeInterpreter::Frame::StoreSlot(Bytecode::SlotIndex slot,
-                                           InterpValue value) {
+void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
   // Slots are assigned in ascending order of use, which means that we'll only
   // ever need to add one slot.
   if (slots_.size() <= slot.value()) {
@@ -50,23 +49,37 @@ void BytecodeInterpreter::Frame::StoreSlot(Bytecode::SlotIndex slot,
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
-    std::vector<InterpValue> args) {
-  BytecodeInterpreter interpreter(import_data, bf, std::move(args));
-  XLS_RETURN_IF_ERROR(interpreter.Run());
-  return interpreter.stack_.back();
+    const std::vector<InterpValue>& args) {
+  XLS_ASSIGN_OR_RETURN(auto interpreter, BytecodeInterpreter::CreateUnique(
+                                             import_data, bf, args));
+  XLS_RETURN_IF_ERROR(interpreter->Run());
+  return interpreter->stack_.back();
 }
 
 BytecodeInterpreter::BytecodeInterpreter(ImportData* import_data,
-                                         BytecodeFunction* bf,
-                                         std::vector<InterpValue> args)
-    : import_data_(import_data) {
+                                         BytecodeFunction* bf)
+    : import_data_(import_data) {}
+
+absl::Status BytecodeInterpreter::InitFrame(
+    BytecodeFunction* bf, const std::vector<InterpValue>& args) {
+  XLS_RET_CHECK(frames_.empty());
+
   // In "mission mode" we expect type_info to be non-null in the frame, but for
   // bytecode-level testing we may not have an AST.
   TypeInfo* type_info = nullptr;
   if (bf->owner()) {
     type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
-  frames_.push_back(Frame(bf, std::move(args), type_info, absl::nullopt));
+  frames_.push_back(Frame(bf, args, type_info, absl::nullopt));
+  return absl::OkStatus();
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<BytecodeInterpreter>>
+BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
+                                  const std::vector<InterpValue>& args) {
+  auto interp = absl::WrapUnique(new BytecodeInterpreter(import_data, bf));
+  XLS_RETURN_IF_ERROR(interp->InitFrame(bf, args));
+  return interp;
 }
 
 absl::Status BytecodeInterpreter::Run() {
@@ -262,6 +275,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kSlice: {
       XLS_RETURN_IF_ERROR(EvalSlice(bytecode));
+      break;
+    }
+    case Bytecode::Op::kSpawn: {
+      XLS_RETURN_IF_ERROR(EvalSpawn(bytecode));
       break;
     }
     case Bytecode::Op::kStore: {
@@ -787,9 +804,13 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
   if (channel->empty()) {
+    // Restore the stack!
+    stack_.push_back(channel_value);
     return absl::UnavailableError("Channel is empty.");
   }
-  stack_.push_back(channel->front());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+  stack_.push_back(InterpValue::MakeTuple({token, channel->front()}));
   channel->pop_front();
   return absl::OkStatus();
 }
@@ -798,7 +819,9 @@ absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue payload, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
   channel->push_back(payload);
+  stack_.push_back(token);
   return absl::OkStatus();
 }
 
@@ -1441,6 +1464,143 @@ absl::Status BytecodeInterpreter::RunTernaryBuiltin(
   XLS_ASSIGN_OR_RETURN(InterpValue result, fn(a, b, c));
   stack_.push_back(result);
   return absl::OkStatus();
+}
+
+ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(
+    ImportData* import_data, BytecodeFunction* bf,
+    std::vector<ProcInstance>* proc_instances)
+    : BytecodeInterpreter(import_data, bf), proc_instances_(proc_instances) {}
+
+absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
+    ImportData* import_data, TypeInfo* type_info, Proc* root_proc,
+    InterpValue terminator, const std::vector<Expr*>& next_args,
+    std::vector<ProcInstance>* proc_instances) {
+  std::vector<InterpValue> next_arg_values;
+  for (const Expr* arg : next_args) {
+    absl::optional<InterpValue> maybe_arg_value = type_info->GetConstExpr(arg);
+    if (!maybe_arg_value.has_value()) {
+      return absl::InvalidArgumentError(absl::StrCat(
+          "Top-level proc arg, \"", arg->ToString(), "\", was not constexpr."));
+    }
+    next_arg_values.push_back(maybe_arg_value.value());
+  }
+
+  return EvalSpawnInternal(
+      import_data, type_info, absl::nullopt, absl::nullopt, root_proc,
+      /*config_args=*/{terminator}, next_arg_values, proc_instances);
+}
+
+absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
+    const Bytecode& bytecode) {
+  Frame& frame = frames().back();
+  XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
+                       bytecode.spawn_data());
+  return EvalSpawnInternal(import_data(), frame.type_info(),
+                           spawn_data->caller_bindings, spawn_data->spawn,
+                           spawn_data->proc, spawn_data->config_args,
+                           spawn_data->next_args, proc_instances_);
+}
+
+/* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawnInternal(
+    ImportData* import_data, const TypeInfo* type_info,
+    const absl::optional<SymbolicBindings>& caller_bindings,
+    absl::optional<const Spawn*> maybe_spawn, Proc* proc,
+    const std::vector<InterpValue>& config_args,
+    const std::vector<InterpValue>& next_args,
+    std::vector<ProcInstance>* proc_instances) {
+  auto get_parametric_type_info =
+      [type_info](const Spawn* spawn, const SymbolicBindings& caller_bindings)
+      -> absl::StatusOr<TypeInfo*> {
+    absl::optional<TypeInfo*> maybe_type_info =
+        type_info->GetInstantiationTypeInfo(spawn->config(), caller_bindings);
+    if (!maybe_type_info.has_value()) {
+      return absl::InternalError(
+          absl::StrCat("Could not find type info for invocation ",
+                       spawn->ToString(), " : ", spawn->span().ToString()));
+    }
+    return maybe_type_info.value();
+  };
+
+  if (proc->IsParametric()) {
+    // We're guaranteed that these have values if the proc is parametric (the
+    // root proc can't be parametric).
+    XLS_RET_CHECK(caller_bindings.has_value());
+    XLS_RET_CHECK(maybe_spawn.has_value());
+    XLS_ASSIGN_OR_RETURN(
+        type_info,
+        get_parametric_type_info(maybe_spawn.value(), caller_bindings.value()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> config_bf,
+                       BytecodeEmitter::Emit(import_data, type_info,
+                                             proc->config(), absl::nullopt));
+
+  ProcConfigBytecodeInterpreter cbi(import_data, config_bf.get(),
+                                    proc_instances);
+  XLS_RETURN_IF_ERROR(cbi.InitFrame(config_bf.get(), config_args));
+  XLS_RETURN_IF_ERROR(cbi.Run());
+  XLS_RET_CHECK_EQ(cbi.stack().size(), 1);
+  InterpValue constants_tuple = cbi.stack().back();
+  XLS_RET_CHECK(constants_tuple.IsTuple());
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* constants,
+                       constants_tuple.GetValues());
+
+  // The Proc's "next" state includes all proc members (i.e., constants) as well
+  // as the implicit token and the _actual_ state args themselves.
+  std::vector<InterpValue> full_next_args = *constants;
+  full_next_args.push_back(InterpValue::MakeToken());
+  full_next_args.insert(full_next_args.end(), next_args.begin(),
+                        next_args.end());
+
+  std::vector<NameDef*> member_defs;
+  member_defs.reserve(proc->members().size());
+  for (const Param* param : proc->members()) {
+    member_defs.push_back(param->name_def());
+  }
+
+  if (proc->IsParametric()) {
+    XLS_ASSIGN_OR_RETURN(
+        type_info,
+        get_parametric_type_info(maybe_spawn.value(), caller_bindings.value()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeFunction> next_bf,
+      BytecodeEmitter::EmitProcNext(import_data, type_info, proc->next(),
+                                    caller_bindings, member_defs));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<BytecodeInterpreter> next_interpreter,
+      CreateUnique(import_data, next_bf.get(), full_next_args));
+  proc_instances->push_back(ProcInstance{proc, std::move(next_interpreter),
+                                         std::move(next_bf), full_next_args});
+  return absl::OkStatus();
+}
+
+absl::Status ProcInstance::Run() {
+  absl::Status result_status = interpreter_->Run();
+
+  if (result_status.ok()) {
+    InterpValue result_value = interpreter_->stack_.back();
+    XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
+                         result_value.GetValues());
+    // If we're starting from next fn top, then set [non-member] args for the
+    // next go-around.
+    // Don't forget to add the [implicit] token!
+    XLS_RET_CHECK_EQ(elements->size() + 1, proc_->next()->params().size());
+    for (int i = 0; i < elements->size(); i++) {
+      next_args_[proc_->members().size() + 1 + i] = elements->at(i);
+    }
+
+    XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_));
+    return absl::OkStatus();
+  }
+
+  if (result_status.code() == absl::StatusCode::kUnavailable) {
+    // Empty recv channel. Just return Ok and we'll try again next time.
+    return absl::OkStatus();
+  }
+
+  return result_status;
 }
 
 }  // namespace xls::dslx
