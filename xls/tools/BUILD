@@ -1075,7 +1075,6 @@ cc_binary(
         "//xls/dslx:create_import_data",
         "//xls/dslx:error_printer",
         "//xls/dslx:import_data",
-        "//xls/dslx:interpreter",
         "//xls/dslx:ir_converter",
         "//xls/dslx:mangle",
         "//xls/dslx:parser",

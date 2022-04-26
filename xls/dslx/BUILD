@@ -865,27 +865,6 @@ cc_test(
 )
 
 cc_library(
-    name = "interpreter",
-    srcs = ["interpreter.cc"],
-    hdrs = ["interpreter.h"],
-    deps = [
-        ":abstract_interpreter",
-        ":ast",
-        ":ast_utils",
-        ":builtins",
-        ":evaluate",
-        ":import_routines",
-        ":interp_bindings",
-        ":interp_value",
-        ":interp_value_helpers",
-        ":mangle",
-        ":type_info",
-        "//xls/common/status:ret_check",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_library(
     name = "deduce_ctx",
     srcs = ["deduce_ctx.cc"],
     hdrs = ["deduce_ctx.h"],
@@ -1013,7 +992,6 @@ cc_library(
         ":extract_conversion_order",
         ":import_routines",
         ":interp_value",
-        ":interpreter",
         ":ir_conversion_utils",
         ":mangle",
         ":proc_config_ir_converter",

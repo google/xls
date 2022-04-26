@@ -33,7 +33,6 @@
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/extract_conversion_order.h"
-#include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/proc_config_ir_converter.h"
