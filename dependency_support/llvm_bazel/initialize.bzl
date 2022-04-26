@@ -24,5 +24,6 @@ def initialize():
     llvm_configure(
         # Name of resulting repo (e.g., "@llvm-project")
         name = "llvm-project",
+        targets = ["AArch64", "X86"],
     )
     llvm_disable_optional_support_deps()
