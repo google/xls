@@ -329,5 +329,95 @@ fn main() -> u32 {
   EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 2);
 }
 
+TEST(ConstexprEvaluatorTest, HandleFor_Simple) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  for (i, acc) : (u32, u32) in range(u32:0, u32:8) {
+    acc + i
+  } (u32:0)
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  For* xls_for = down_cast<For*>(f->body());
+  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0x1c);
+}
+
+TEST(ConstexprEvaluatorTest, HandleFor_OutsideRefs) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let beef = u32:0xbeef;
+  for (i, acc) : (u32, u32) in range(u32:0, u32:8) {
+    acc + i + beef
+  } (u32:0)
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
+  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0x5f794);
+}
+
+TEST(ConstexprEvaluatorTest, HandleFor_InitShadowed) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let beef = u32:0xbeef;
+  for (i, beef) : (u32, u32) in range(u32:0, u32:8) {
+    beef + i
+  } (beef)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
+  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xbf0b);
+}
+
+// Tests constexpr evaluation of `for` loops with misc. internal expressions (to
+// exercise NameRefCollector).
+TEST(ConstexprEvaluatorTest, HandleFor_MiscExprs) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let beef = u32:0xbeef;
+  for (i, beef) : (u32, u32) in range(u32:0, u32:8) {
+    let upbeef = beef + i;
+    let beeves = u32[4]:[0, 1, 2, 3];
+    let beef_tuple = (upbeef, beeves[u32:2]);
+    upbeef + beeves[u32:1] + beef_tuple[u32:1]
+  } (beef)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
+  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xbf23);
+}
+
 }  // namespace
 }  // namespace xls::dslx

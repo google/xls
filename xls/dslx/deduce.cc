@@ -553,8 +553,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
                                                         DeduceCtx* ctx) {
-  ctx->set_inside_for(true);
-  auto cleanup = absl::MakeCleanup([ctx]() { ctx->set_inside_for(false); });
   // Type of the init value to the for loop (also the accumulator type).
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> init_type,
                        DeduceAndResolve(node->init(), ctx));
@@ -2437,12 +2435,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
   XLS_VLOG(5) << "Deduced type of " << node->ToString() << " => "
               << type->ToString() << " in " << ctx->type_info();
 
-  if (!ctx->inside_for()) {
-    if (const Expr* expr = dynamic_cast<const Expr*>(node); expr != nullptr) {
-      ConstexprEvaluator evaluator(ctx, type.get());
-      expr->AcceptExpr(&evaluator);
-      XLS_RETURN_IF_ERROR(evaluator.status());
-    }
+  if (const Expr* expr = dynamic_cast<const Expr*>(node); expr != nullptr) {
+    ConstexprEvaluator evaluator(ctx, type.get());
+    expr->AcceptExpr(&evaluator);
+    XLS_RETURN_IF_ERROR(evaluator.status());
   }
 
   return type;

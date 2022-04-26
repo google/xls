@@ -626,7 +626,6 @@ class ExprVisitor {
  public:
   virtual ~ExprVisitor() = default;
 
-  virtual void HandleJoin(const Join* expr) = 0;
   virtual void HandleArray(const Array* expr) = 0;
   virtual void HandleAttr(const Attr* expr) = 0;
   virtual void HandleBinop(const Binop* expr) = 0;
@@ -638,6 +637,7 @@ class ExprVisitor {
   virtual void HandleFormatMacro(const FormatMacro* expr) = 0;
   virtual void HandleIndex(const Index* expr) = 0;
   virtual void HandleInvocation(const Invocation* expr) = 0;
+  virtual void HandleJoin(const Join* expr) = 0;
   virtual void HandleLet(const Let* expr) = 0;
   virtual void HandleMatch(const Match* expr) = 0;
   virtual void HandleNameRef(const NameRef* expr) = 0;

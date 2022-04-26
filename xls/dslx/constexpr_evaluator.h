@@ -38,7 +38,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
 
-  void HandleJoin(const Join* expr) override {}
   void HandleArray(const Array* expr) override;
   void HandleAttr(const Attr* expr) override;
   void HandleBinop(const Binop* expr) override;
@@ -46,10 +45,11 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleChannelDecl(const ChannelDecl* expr) override;
   void HandleColonRef(const ColonRef* expr) override;
   void HandleConstRef(const ConstRef* expr) override;
-  void HandleFor(const For* expr) override {}
+  void HandleFor(const For* expr) override;
   void HandleFormatMacro(const FormatMacro* expr) override {}
   void HandleIndex(const Index* expr) override;
   void HandleInvocation(const Invocation* expr) override;
+  void HandleJoin(const Join* expr) override {}
   void HandleLet(const Let* expr) override {}
   void HandleMatch(const Match* expr) override;
   void HandleNameRef(const NameRef* expr) override;
@@ -70,7 +70,15 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
  private:
   bool IsConstExpr(const Expr* expr);
-  absl::Status SimpleEvaluate(const Expr* expr);
+
+  // Interprets the given expression. Prior to calling this function, it's
+  // necessary to determine that all expression components are constexpr.
+  // `bypass_env` is a set of NameDefs to skip when constructing the constexpr
+  // env. This is needed for `for` loop evaluation, in cases where a loop-scoped
+  // variable shadows the initial value. Constexpr env creation is string value
+  // indexed, so this is needed so we can "skip" loop-declared variables.
+  absl::Status InterpretExpr(
+      const Expr* expr, absl::flat_hash_set<const NameDef*> bypass_env = {});
 
   DeduceCtx* ctx_;
   const ConcreteType* concrete_type_;

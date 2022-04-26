@@ -13,15 +13,137 @@
 // limitations under the License.
 #include "xls/dslx/constexpr_evaluator.h"
 
+#include <variant>
+
 #include "absl/strings/match.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast_utils.h"
+#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
 namespace {
+
+// Visitor to collect all NameRefs defined externally to a given expression,
+// notably a "for" expression. Only those nodes capable of containing an outside
+// NameRef are populated, e.g., `Number` isn't populated.
+class NameRefCollector : public ExprVisitor {
+ public:
+  void HandleArray(const Array* expr) override {
+    for (const auto* member : expr->members()) {
+      member->AcceptExpr(this);
+    }
+  }
+  void HandleAttr(const Attr* expr) override { expr->lhs()->AcceptExpr(this); }
+  void HandleBinop(const Binop* expr) override {
+    expr->lhs()->AcceptExpr(this);
+    expr->rhs()->AcceptExpr(this);
+  }
+  void HandleCast(const Cast* expr) override { expr->expr()->AcceptExpr(this); }
+  void HandleChannelDecl(const ChannelDecl* expr) override {}
+  void HandleColonRef(const ColonRef* expr) override {}
+  void HandleConstRef(const ConstRef* expr) override {
+    expr->GetConstantDef()->value()->AcceptExpr(this);
+  }
+  void HandleFor(const For* expr) override {
+    expr->init()->AcceptExpr(this);
+    expr->body()->AcceptExpr(this);
+  }
+  void HandleFormatMacro(const FormatMacro* expr) override {}
+  void HandleIndex(const Index* expr) override {
+    expr->lhs()->AcceptExpr(this);
+    if (std::holds_alternative<Expr*>(expr->rhs())) {
+      std::get<Expr*>(expr->rhs())->AcceptExpr(this);
+    }
+    // No NameRefs in slice RHSes.
+  }
+  void HandleInvocation(const Invocation* expr) override {
+    for (const auto* arg : expr->args()) {
+      arg->AcceptExpr(this);
+    }
+  }
+  void HandleJoin(const Join* expr) override {}
+  void HandleLet(const Let* expr) override {
+    expr->rhs()->AcceptExpr(this);
+    expr->body()->AcceptExpr(this);
+
+    std::vector<NameDefTree::Leaf> leaves = expr->name_def_tree()->Flatten();
+    for (const auto& leaf : leaves) {
+      if (std::holds_alternative<NameDef*>(leaf)) {
+        name_defs_.insert(std::get<NameDef*>(leaf));
+      }
+    }
+  }
+  void HandleMatch(const Match* expr) override {
+    expr->matched()->AcceptExpr(this);
+    for (const MatchArm* arm : expr->arms()) {
+      arm->expr()->AcceptExpr(this);
+    }
+  }
+  void HandleNameRef(const NameRef* expr) override {
+    name_refs_.push_back(expr);
+  }
+  void HandleNumber(const Number* expr) override {}
+  void HandleRecv(const Recv* expr) override {}
+  void HandleRecvIf(const RecvIf* expr) override {
+    expr->condition()->AcceptExpr(this);
+  }
+  void HandleSend(const Send* expr) override {
+    expr->payload()->AcceptExpr(this);
+  }
+  void HandleSendIf(const SendIf* expr) override {
+    expr->condition()->AcceptExpr(this);
+    expr->payload()->AcceptExpr(this);
+  }
+  void HandleSpawn(const Spawn* expr) override {}
+  void HandleString(const String* expr) override {}
+  void HandleSplatStructInstance(const SplatStructInstance* expr) override {
+    for (const auto& [name, member_expr] : expr->members()) {
+      member_expr->AcceptExpr(this);
+    }
+    expr->splatted()->AcceptExpr(this);
+  }
+  void HandleStructInstance(const StructInstance* expr) override {
+    for (const auto& [name, member_expr] : expr->GetUnorderedMembers()) {
+      member_expr->AcceptExpr(this);
+    }
+  }
+  void HandleTernary(const Ternary* expr) override {
+    expr->test()->AcceptExpr(this);
+    expr->consequent()->AcceptExpr(this);
+    expr->alternate()->AcceptExpr(this);
+  }
+  void HandleUnop(const Unop* expr) override {
+    expr->operand()->AcceptExpr(this);
+  }
+  void HandleXlsTuple(const XlsTuple* expr) override {
+    for (const Expr* member : expr->members()) {
+      member->AcceptExpr(this);
+    }
+  }
+
+  std::vector<const NameRef*> outside_name_refs() {
+    std::vector<const NameRef*> result;
+    for (const NameRef* name_ref : name_refs_) {
+      if (std::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
+        continue;
+      }
+
+      if (!name_defs_.contains(std::get<NameDef*>(name_ref->name_def())) &&
+          !IsNameParametricBuiltin(name_ref->identifier())) {
+        result.push_back(name_ref);
+      }
+    }
+
+    return result;
+  }
+
+ private:
+  std::vector<const NameRef*> name_refs_;
+  absl::flat_hash_set<const NameDef*> name_defs_;
+};
 
 // Fully instantiate the given parametric BitsType using the symbol mappings in
 // `env`.
@@ -52,7 +174,7 @@ bool ConstexprEvaluator::IsConstExpr(const Expr* expr) {
 
 void ConstexprEvaluator::HandleAttr(const Attr* expr) {
   if (IsConstExpr(expr->lhs())) {
-    status_.Update(SimpleEvaluate(expr));
+    status_ = InterpretExpr(expr);
   }
 }
 
@@ -105,14 +227,14 @@ void ConstexprEvaluator::HandleArray(const Array* expr) {
 void ConstexprEvaluator::HandleBinop(const Binop* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
   if (IsConstExpr(expr->lhs()) && IsConstExpr(expr->rhs())) {
-    status_.Update(SimpleEvaluate(expr));
+    status_ = InterpretExpr(expr);
   }
 }
 
 void ConstexprEvaluator::HandleCast(const Cast* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
   if (IsConstExpr(expr->expr())) {
-    status_ = SimpleEvaluate(expr);
+    status_ = InterpretExpr(expr);
   }
 }
 
@@ -216,6 +338,45 @@ void ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
   return HandleNameRef(expr);
 }
 
+void ConstexprEvaluator::HandleFor(const For* expr) {
+  // A `for` loop evaluates constexpr if its init and enumeration values as
+  // well as any external NameRefs are constexpr.
+  XLS_VLOG(3) << "ConstexprEvaluator::HandleFor: " << expr->ToString();
+  if (!IsConstExpr(expr->init()) || !IsConstExpr(expr->iterable())) {
+    return;
+  }
+
+  // Since a `for` loop can refer to vars outside the loop body itself, we need
+  // to make sure that every NameRef is also constexpr.
+  std::vector<NameDefTree::Leaf> bound_refs = expr->names()->Flatten();
+  absl::flat_hash_set<const NameDef*> bound_defs;
+  for (const auto& leaf : bound_refs) {
+    if (std::holds_alternative<NameDef*>(leaf)) {
+      bound_defs.insert(std::get<NameDef*>(leaf));
+    }
+  }
+
+  NameRefCollector collector;
+  expr->body()->AcceptExpr(&collector);
+  for (const NameRef* name_ref : collector.outside_name_refs()) {
+    // We can't bind to a BuiltinNameDef, so this std::get is safe.
+    if (!IsConstExpr(name_ref) &&
+        !bound_defs.contains(std::get<NameDef*>(name_ref->name_def()))) {
+      return;
+    }
+  }
+
+  // We don't [yet] have a static assert fn, meaning that we don't want to catch
+  // runtime errors here. If we detect that a program has failed (due to
+  // execution of a `fail!` or unmatched `match`, then just assume we're ok.
+  status_ = InterpretExpr(expr, bound_defs);
+  if (!status_.ok()) {
+    if (absl::StartsWith(status_.message(), "FailureError")) {
+      status_ = absl::OkStatus();
+    }
+  }
+}
+
 void ConstexprEvaluator::HandleIndex(const Index* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   bool rhs_is_constexpr;
@@ -231,7 +392,7 @@ void ConstexprEvaluator::HandleIndex(const Index* expr) {
   }
 
   if (IsConstExpr(expr->lhs()) && rhs_is_constexpr) {
-    status_ = SimpleEvaluate(expr);
+    status_ = InterpretExpr(expr);
   }
 }
 
@@ -257,7 +418,7 @@ void ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   // We don't [yet] have a static assert fn, meaning that we don't want to catch
   // runtime errors here. If we detect that a program has failed (due to
   // execution of a `fail!` or unmatched `match`, then just assume we're ok.
-  status_ = SimpleEvaluate(expr);
+  status_ = InterpretExpr(expr);
   if (!status_.ok()) {
     if (absl::StartsWith(status_.message(), "FailureError")) {
       status_ = absl::OkStatus();
@@ -276,7 +437,7 @@ void ConstexprEvaluator::HandleMatch(const Match* expr) {
     }
   }
 
-  status_ = SimpleEvaluate(expr);
+  status_ = InterpretExpr(expr);
 }
 
 void ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
@@ -360,7 +521,7 @@ void ConstexprEvaluator::HandleStructInstance(const StructInstance* expr) {
       return;
     }
   }
-  status_ = SimpleEvaluate(expr);
+  status_ = InterpretExpr(expr);
 }
 
 void ConstexprEvaluator::HandleTernary(const Ternary* expr) {
@@ -397,12 +558,13 @@ void ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   ctx_->type_info()->NoteConstExpr(expr, InterpValue::MakeTuple(values));
 }
 
-absl::Status ConstexprEvaluator::SimpleEvaluate(const Expr* expr) {
+absl::Status ConstexprEvaluator::InterpretExpr(
+    const Expr* expr, absl::flat_hash_set<const NameDef*> bypass_env) {
   absl::optional<FnCtx> fn_ctx;
   absl::flat_hash_map<std::string, InterpValue> env;
   if (!ctx_->fn_stack().empty()) {
     env = MakeConstexprEnv(expr, ctx_->fn_stack().back().symbolic_bindings(),
-                           ctx_->type_info());
+                           ctx_->type_info(), bypass_env);
 
     const FnStackEntry& peek_entry = ctx_->fn_stack().back();
     if (peek_entry.f() != nullptr) {

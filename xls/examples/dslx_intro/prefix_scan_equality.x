@@ -18,18 +18,18 @@ fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   let (_, _, result) =
     for ((i, elem), (prior, count, result)): ((u32, u32), (u32, u3, u3[8]))
           in enumerate(x) {
-    let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
-      // The first iteration always places 0 and propagates seen count of 1.
-      (true, _) => (u3:0, u3:1),
-      // Subsequent iterations propagate seen count of previous_seen_count+1 if
-      // the current element matches the prior one, and places the current seen
-      // count.
-      (false, true) => (count, count + u3:1),
-      // If the current element doesn't match the prior one we propagate a seen
-      // count of 1 and place a seen count of 0.
-      (false, false) => (u3:0, u3:1),
-    };
-    let new_result: u3[8] = update(result, i, to_place);
+      let (to_place, new_count): (u3, u3) = match (i == u32:0, prior == elem) {
+        // The first iteration always places 0 and propagates seen count of 1.
+        (true, _) => (u3:0, u3:1),
+        // Subsequent iterations propagate seen count of previous_seen_count+1 if
+        // the current element matches the prior one, and places the current seen
+        // count.
+        (false, true) => (count, count + u3:1),
+        // If the current element doesn't match the prior one we propagate a seen
+        // count of 1 and place a seen count of 0.
+        (false, false) => (u3:0, u3:1),
+      };
+      let new_result: u3[8] = update(result, i, to_place);
     (elem, new_count, new_result)
   }((u32:-1, u3:0, u3[8]:[u3:0, ...]));
   result

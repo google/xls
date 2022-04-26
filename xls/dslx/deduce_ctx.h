@@ -171,9 +171,6 @@ class DeduceCtx {
     return import_data_->type_info_owner();
   }
 
-  bool inside_for() const { return inside_for_; }
-  void set_inside_for(bool inside_for) { inside_for_ = inside_for; }
-
  private:
   // Maps AST nodes to their deduced types.
   TypeInfo* type_info_ = nullptr;
@@ -220,9 +217,13 @@ ParametricExpression::Env ToParametricEnv(
 //
 // `type_info` is required to look up the value of previously computed
 // constexprs.
+// `bypass_env` is a set of NameDefs to skip when constructing the constexpr
+// env. This is needed for `for` loop constexpr eval, in cases where a
+// loop-scoped variable shadows the initial value, to be able to resolve the
+// outer [constexpr] value.
 absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
     const Expr* node, const SymbolicBindings& symbolic_bindings,
-    TypeInfo* type_info);
+    TypeInfo* type_info, absl::flat_hash_set<const NameDef*> bypass_env = {});
 
 }  // namespace xls::dslx
 

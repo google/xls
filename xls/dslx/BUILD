@@ -183,6 +183,7 @@ cc_library(
     deps = [
         ":ast",
         ":ast_utils",
+        ":builtins_metadata",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":deduce_ctx",

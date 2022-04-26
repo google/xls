@@ -54,7 +54,7 @@ ParametricExpression::Env ToParametricEnv(
 
 absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
     const Expr* node, const SymbolicBindings& symbolic_bindings,
-    TypeInfo* type_info) {
+    TypeInfo* type_info, absl::flat_hash_set<const NameDef*> bypass_env) {
   XLS_CHECK_EQ(node->owner(), type_info->module())
       << "expr `" << node->ToString()
       << "` from module: " << node->owner()->name()
@@ -83,8 +83,20 @@ absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
               << freevars.GetFreeVariableCount();
   freevars = freevars.DropBuiltinDefs();
   for (const auto& [name, name_refs] : freevars.values()) {
+    const NameRef* target_ref = nullptr;
+    for (const NameRef* name_ref : name_refs) {
+      if (!bypass_env.contains(absl::get<NameDef*>(name_ref->name_def()))) {
+        target_ref = name_ref;
+        break;
+      }
+    }
+
+    if (target_ref == nullptr) {
+      continue;
+    }
+
     absl::optional<InterpValue> const_expr =
-        type_info->GetConstExpr(name_refs[0]);
+        type_info->GetConstExpr(target_ref);
     if (const_expr.has_value()) {
       env.insert({name, const_expr.value()});
     }
