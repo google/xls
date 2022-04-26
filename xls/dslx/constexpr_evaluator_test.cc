@@ -162,6 +162,39 @@ fn Foo() -> MyStruct {
   EXPECT_EQ(element_value.GetBitValueInt64().value(), 777);
 }
 
+TEST(ConstexprEvaluatorTest, HandleSplatStructInstance) {
+  constexpr absl::string_view kProgram = R"(
+struct MyStruct {
+  x: u32,
+  y: u64
+}
+
+pub const my_struct = MyStruct { x: u32:1000, y: u64:100000 };
+
+fn main() -> MyStruct {
+  MyStruct { y: u64:200000, ..my_struct }
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(TestData test_data, CreateTestData(kProgram));
+  Module* module = test_data.module.get();
+  TypeInfo* type_info = test_data.type_info;
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+
+  SplatStructInstance* struct_instance =
+      down_cast<SplatStructInstance*>(f->body());
+  absl::optional<InterpValue> maybe_value =
+      type_info->GetConstExpr(struct_instance);
+  ASSERT_TRUE(maybe_value.has_value());
+  InterpValue element_value =
+      maybe_value.value().Index(InterpValue::MakeUBits(1, 0)).value();
+  EXPECT_EQ(element_value.GetBitValueUint64().value(), 1000);
+  element_value =
+      maybe_value.value().Index(InterpValue::MakeUBits(1, 1)).value();
+  EXPECT_EQ(element_value.GetBitValueInt64().value(), 200000);
+}
+
 TEST(ConstexprEvaluatorTest, HandleColonRefToConstant) {
   constexpr absl::string_view kImported = R"(
 pub const MY_CONST = u32:100;

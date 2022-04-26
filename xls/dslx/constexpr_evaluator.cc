@@ -514,6 +514,22 @@ void ConstexprEvaluator::HandleNumber(const Number* expr) {
   }
 }
 
+void ConstexprEvaluator::HandleSplatStructInstance(
+    const SplatStructInstance* expr) {
+  // A struct instance is constexpr iff all its members and the basis struct are
+  // constexpr.
+  if (!IsConstExpr(expr->splatted())) {
+    return;
+  }
+
+  for (const auto& [k, v] : expr->members()) {
+    if (!IsConstExpr(v)) {
+      return;
+    }
+  }
+  status_ = InterpretExpr(expr);
+}
+
 void ConstexprEvaluator::HandleStructInstance(const StructInstance* expr) {
   // A struct instance is constexpr iff all its members are constexpr.
   for (const auto& [k, v] : expr->GetUnorderedMembers()) {
