@@ -63,7 +63,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   void HandleStructInstance(const StructInstance* expr) override;
   void HandleSplatStructInstance(const SplatStructInstance* expr) override {}
   void HandleTernary(const Ternary* expr) override;
-  void HandleUnop(const Unop* expr) override {}
+  void HandleUnop(const Unop* expr) override;
   void HandleXlsTuple(const XlsTuple* expr) override;
 
   absl::Status status() { return status_; }

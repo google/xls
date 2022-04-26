@@ -419,5 +419,24 @@ fn main() -> u32 {
   EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xbf23);
 }
 
+TEST(ConstexprEvaluatorTest, HandleUnop) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> s32 {
+  -s32:1337
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  Unop* unop = down_cast<Unop*>(f->body());
+  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(unop);
+  ASSERT_TRUE(maybe_value.has_value());
+  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), -1337);
+}
+
 }  // namespace
 }  // namespace xls::dslx

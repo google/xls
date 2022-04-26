@@ -542,6 +542,14 @@ void ConstexprEvaluator::HandleTernary(const Ternary* expr) {
   }
 }
 
+void ConstexprEvaluator::HandleUnop(const Unop* expr) {
+  if (!IsConstExpr(expr->operand())) {
+    return;
+  }
+
+  status_ = InterpretExpr(expr);
+}
+
 void ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
