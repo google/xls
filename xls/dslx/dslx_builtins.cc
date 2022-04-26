@@ -16,6 +16,7 @@
 
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/errors.h"
 
 namespace xls::dslx {
 namespace {

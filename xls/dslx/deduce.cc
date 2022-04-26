@@ -27,6 +27,7 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/type_and_bindings.h"
 

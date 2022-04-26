@@ -22,6 +22,7 @@
 #include "xls/dslx/deduce.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
+#include "xls/dslx/errors.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {

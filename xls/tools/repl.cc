@@ -51,7 +51,6 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/builtins.h"
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/create_import_data.h"

@@ -18,7 +18,6 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
-#include "xls/dslx/evaluate.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
@@ -289,6 +288,23 @@ void ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
   }
 }
 
+// Evaluates a Number AST node to an InterpValue.
+absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
+                                           const ConcreteType* type) {
+  XLS_VLOG(4) << "Evaluating number: " << expr->ToString() << " @ "
+              << expr->span();
+  const BitsType* bits_type = dynamic_cast<const BitsType*>(type);
+  XLS_RET_CHECK(bits_type != nullptr)
+      << "Type for number should be 'bits' kind.";
+  InterpValueTag tag =
+      bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
+  XLS_ASSIGN_OR_RETURN(
+      int64_t bit_count,
+      absl::get<InterpValue>(bits_type->size().value()).GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(Bits bits, expr->GetBits(bit_count));
+  return InterpValue::MakeBits(tag, std::move(bits));
+}
+
 void ConstexprEvaluator::HandleNumber(const Number* expr) {
   // Numbers should always be [constexpr] evaluatable.
   absl::flat_hash_map<std::string, InterpValue> env;
@@ -330,10 +346,7 @@ void ConstexprEvaluator::HandleNumber(const Number* expr) {
     type_ptr = temp_type.get();
   }
 
-  // Evaluating a number with a type context doesn't require bindings or an
-  // interpreter.
-  absl::StatusOr<InterpValue> value =
-      EvaluateNumber(expr, /*bindings=*/nullptr, type_ptr, /*interp=*/nullptr);
+  absl::StatusOr<InterpValue> value = EvaluateNumber(expr, type_ptr);
   status_ = value.status();
   if (value.ok()) {
     ctx_->type_info()->NoteConstExpr(expr, value.value());

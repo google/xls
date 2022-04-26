@@ -88,7 +88,6 @@ xls_pybind_extension(
         "//xls/dslx:bytecode_interpreter",
         "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",
-        "//xls/dslx:evaluate",
         "//xls/dslx:import_data",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",

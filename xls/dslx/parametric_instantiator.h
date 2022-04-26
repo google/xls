@@ -17,6 +17,7 @@
 
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/type_and_bindings.h"
 #include "xls/dslx/type_info.h"
 

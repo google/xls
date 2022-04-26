@@ -1,0 +1,55 @@
+// Copyright 2020 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+#ifndef XLS_DSLX_ERRORS_H_
+#define XLS_DSLX_ERRORS_H_
+
+#include "absl/status/status.h"
+#include "absl/strings/string_view.h"
+#include "xls/dslx/concrete_type.h"
+#include "xls/dslx/pos.h"
+
+// Specialized error types that can be encountered during DSLX evaluation.
+
+namespace xls::dslx {
+
+// Returned when an incorrect number of args is given to a function
+// invocation [in a design].
+absl::Status ArgCountMismatchErrorStatus(const Span& span,
+                                         absl::string_view message);
+
+// Returned when interpretation of a design fails.
+absl::Status FailureErrorStatus(const Span& span, absl::string_view message);
+
+// Returned when an invalid identifier (invalid at some position in the
+// compilation chain, DSLX, IR, or Verilog) is encountered.
+absl::Status InvalidIdentifierErrorStatus(const Span& span,
+                                          absl::string_view message);
+
+// To be raised when an error occurs during type inference.
+absl::Status TypeInferenceErrorStatus(const Span& span,
+                                      const ConcreteType* type,
+                                      absl::string_view message);
+
+// Creates a TypeMissingError status value referencing the given node (which has
+// its type missing) and user (which found that its type was missing).
+absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
+
+// To be raised when a type mismatch is encountered.
+absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
+                                const ConcreteType& rhs,
+                                absl::string_view message);
+
+}  // namespace xls::dslx
+
+#endif  // XLS_DSLX_ERRORS_H_

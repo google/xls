@@ -1069,7 +1069,6 @@ cc_binary(
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/dslx:ast",
-        "//xls/dslx:builtins",
         "//xls/dslx:command_line_utils",
         "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",

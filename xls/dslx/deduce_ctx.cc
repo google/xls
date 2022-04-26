@@ -52,57 +52,6 @@ ParametricExpression::Env ToParametricEnv(
   return env;
 }
 
-absl::Status TypeInferenceErrorStatus(const Span& span,
-                                      const ConcreteType* type,
-                                      absl::string_view message) {
-  std::string type_str = "<>";
-  if (type != nullptr) {
-    type_str = type->ToString();
-  }
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "TypeInferenceError: %s %s %s", span.ToString(), type_str, message));
-}
-
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                absl::string_view message) {
-  return absl::InvalidArgumentError(
-      absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
-                      lhs.ToErrorString(), rhs.ToErrorString(), message));
-}
-
-absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user) {
-  std::string span_string;
-  if (user != nullptr) {
-    span_string = SpanToString(user->GetSpan()) + " ";
-  } else if (node != nullptr) {
-    span_string = SpanToString(node->GetSpan()) + " ";
-  }
-  return absl::InternalError(
-      absl::StrFormat("TypeMissingError: %s%p %p internal error: AST node is "
-                      "missing a corresponding type: %s (%s) defined @ %s. "
-                      "This may be due to recursion, which is not supported.",
-                      span_string, node, user, node->ToString(),
-                      node->GetNodeTypeName(), SpanToString(node->GetSpan())));
-}
-
-bool IsTypeMissingErrorStatus(const absl::Status& status) {
-  return !status.ok() &&
-         absl::StartsWith(status.message(), "TypeMissingError:");
-}
-
-absl::Status ArgCountMismatchErrorStatus(const Span& span,
-                                         absl::string_view message) {
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "ArgCountMismatchError: %s %s", span.ToString(), message));
-}
-
-absl::Status InvalidIdentifierErrorStatus(const Span& span,
-                                          absl::string_view message) {
-  return absl::InvalidArgumentError(absl::StrFormat(
-      "InvalidIdentifierError: %s %s", span.ToString(), message));
-}
-
 absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
     const Expr* node, const SymbolicBindings& symbolic_bindings,
     TypeInfo* type_info) {

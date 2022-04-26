@@ -139,9 +139,9 @@ cc_library(
     hdrs = ["bytecode_interpreter.h"],
     deps = [
         ":ast",
-        ":builtins",
         ":bytecode",
         ":bytecode_emitter",
+        ":errors",
         ":import_data",
         ":interp_bindings",
         ":interp_value",
@@ -186,7 +186,6 @@ cc_library(
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":deduce_ctx",
-        ":evaluate",
         ":interp_value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -266,6 +265,18 @@ cc_library(
         ":default_dslx_stdlib_path",
         ":import_data",
         "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_library(
+    name = "errors",
+    srcs = ["errors.cc"],
+    hdrs = ["errors.h"],
+    deps = [
+        ":concrete_type",
+        ":pos",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -745,69 +756,6 @@ cc_test(
 )
 
 cc_library(
-    name = "builtins",
-    srcs = ["builtins.cc"],
-    hdrs = ["builtins.h"],
-    deps = [
-        ":abstract_interpreter",
-        ":ast",
-        ":interp_value",
-        ":interp_value_helpers",
-        ":type_info",
-        "//xls/common/status:ret_check",
-        "//xls/common/status:status_macros",
-        "//xls/ir:bits_ops",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_library(
-    name = "abstract_interpreter",
-    srcs = ["abstract_interpreter.cc"],
-    hdrs = ["abstract_interpreter.h"],
-    deps = [
-        ":ast",
-        ":import_routines",
-        ":interp_bindings",
-        ":interp_value",
-        ":type_info",
-        "@com_google_absl//absl/status:statusor",
-    ],
-)
-
-cc_library(
-    name = "evaluate",
-    srcs = ["evaluate.cc"],
-    hdrs = ["evaluate.h"],
-    deps = [
-        ":abstract_interpreter",
-        ":ast",
-        ":import_routines",
-        ":interp_bindings",
-        ":interp_value",
-        ":interp_value_helpers",
-        ":type_info",
-        "//xls/common/status:ret_check",
-        "//xls/ir:bits",
-        "//xls/ir:bits_ops",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-    ],
-)
-
-cc_test(
-    name = "evaluate_test",
-    srcs = ["evaluate_test.cc"],
-    deps = [
-        ":evaluate",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
     name = "import_data",
     srcs = ["import_data.cc"],
     hdrs = ["import_data.h"],
@@ -894,6 +842,7 @@ cc_library(
         ":constexpr_evaluator",
         ":deduce_ctx",
         ":dslx_builtins",
+        ":errors",
         ":import_routines",
         ":interp_bindings",
         ":parametric_instantiator",
@@ -916,6 +865,7 @@ cc_library(
         ":bytecode_interpreter",
         ":concrete_type",
         ":deduce_ctx",
+        ":errors",
         ":type_and_bindings",
         ":type_info",
         "@com_google_absl//absl/strings",
@@ -938,7 +888,7 @@ cc_library(
         ":deduce",
         ":deduce_ctx",
         ":dslx_builtins",
-        ":evaluate",
+        ":errors",
         ":import_routines",
         ":parametric_instantiator",
         ":type_info_to_proto",
@@ -973,6 +923,7 @@ cc_library(
         ":builtins_metadata",
         ":concrete_type",
         ":deduce_ctx",
+        ":errors",
         ":parametric_instantiator",
         ":type_and_bindings",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -986,7 +937,6 @@ cc_library(
     hdrs = ["ir_converter.h"],
     deps = [
         ":ast",
-        ":builtins",
         ":builtins_metadata",
         ":deduce_ctx",
         ":extract_conversion_order",
@@ -1082,6 +1032,7 @@ cc_library(
         ":create_import_data",
         ":default_dslx_stdlib_path",
         ":error_printer",
+        ":errors",
         ":interp_value",
         ":ir_converter",
         ":mangle",

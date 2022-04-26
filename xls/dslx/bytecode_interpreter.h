@@ -17,7 +17,6 @@
 #include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/builtins.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/symbolic_bindings.h"

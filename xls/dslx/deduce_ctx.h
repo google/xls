@@ -213,49 +213,6 @@ class DeduceCtx {
 ParametricExpression::Env ToParametricEnv(
     const SymbolicBindings& symbolic_bindings);
 
-// Creates a (stylized) TypeInferenceError status message that will be thrown as
-// an exception when it reaches the Python pybind boundary.
-absl::Status TypeInferenceErrorStatus(const Span& span,
-                                      const ConcreteType* type,
-                                      absl::string_view message);
-
-// Creates a (stylized) XlsTypeError status message that will be thrown as an
-// exception when it reaches the Python pybind boundary.
-absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
-                                const ConcreteType& rhs,
-                                absl::string_view message);
-
-// Pair of:
-// * A node whose type is missing, and:
-// * Optionally, what we observed was the user of that node.
-//
-// For example, a NameDef node may be missing a type, and the user of the
-// NameDef may be an Invocation node.
-struct NodeAndUser {
-  AstNode* node;
-  AstNode* user;
-};
-
-// Creates a TypeMissingError status value referencing the given node (which has
-// its type missing) and user (which found that its type was missing). User will
-// often be null at the start, and the using deduction rule will later populate
-// it into an updated status.
-absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
-
-// Returns whether the "status" is a TypeMissingErrorStatus().
-//
-// If so, it should be possible to call ParseTypeMissingErrorMessage() on its
-// message contents.
-bool IsTypeMissingErrorStatus(const absl::Status& status);
-
-absl::Status ArgCountMismatchErrorStatus(const Span& span,
-                                         absl::string_view message);
-
-// Returned when an invalid identifier (invalid at some position in the
-// compilation chain, DSLX, IR, or Verilog) is encountered.
-absl::Status InvalidIdentifierErrorStatus(const Span& span,
-                                          absl::string_view message);
-
 // Makes a constexpr environment suitable for passing to
 // Interpreter::InterpExpr(). This will be populated with symbolic bindings
 // as well as a constexpr freevars of "node", which is useful when there are
