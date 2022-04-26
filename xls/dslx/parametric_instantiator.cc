@@ -41,7 +41,8 @@ absl::StatusOr<InterpValue> InterpretExpr(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::EmitExpression(ctx->import_data(), ctx->type_info(),
                                       expr, env, absl::nullopt));
-  return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(), {});
+  return BytecodeInterpreter::Interpret(ctx->import_data(), bf.get(),
+                                        /*args=*/{});
 }
 
 ParametricInstantiator::ParametricInstantiator(

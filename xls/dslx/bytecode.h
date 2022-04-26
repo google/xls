@@ -315,12 +315,16 @@ class BytecodeFunction {
  public:
   // We need the function's containing module in order to get the root TypeInfo
   // for top-level BytecodeFunctions.
+  // `source_fn` may be nullptr for ephemeral functions, such as those created
+  // for realizing `match` ops.
   // Note: this is an O(N) operation where N is the number of ops in the
   // bytecode.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Create(
-      Module* owner, const TypeInfo* type_info, std::vector<Bytecode> bytecode);
+      const Module* owner, const Function* source_fn, const TypeInfo* type_info,
+      std::vector<Bytecode> bytecode);
 
-  Module* owner() const { return owner_; }
+  const Module* owner() const { return owner_; }
+  const Function* source_fn() const { return source_fn_; }
   const TypeInfo* type_info() const { return type_info_; }
   const std::vector<Bytecode>& bytecodes() const { return bytecodes_; }
   // Returns the total number of binding "slots" used by the bytecodes.
@@ -332,11 +336,12 @@ class BytecodeFunction {
   std::string ToString() const;
 
  private:
-  BytecodeFunction(Module* owner, const TypeInfo* type_info,
-                   std::vector<Bytecode> bytecode);
+  BytecodeFunction(const Module* owner, const Function* source_fn,
+                   const TypeInfo* type_info, std::vector<Bytecode> bytecode);
   absl::Status Init();
 
-  Module* owner_;
+  const Module* owner_;
+  const Function* source_fn_;
   const TypeInfo* type_info_;
   std::vector<Bytecode> bytecodes_;
   int64_t num_slots_;

@@ -585,16 +585,22 @@ absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
 }
 
 absl::StatusOr<std::unique_ptr<BytecodeFunction>> BytecodeFunction::Create(
-    Module* owner, const TypeInfo* type_info, std::vector<Bytecode> bytecodes) {
+    const Module* owner, const Function* source_fn, const TypeInfo* type_info,
+    std::vector<Bytecode> bytecodes) {
   auto bf = absl::WrapUnique(
-      new BytecodeFunction(owner, type_info, std::move(bytecodes)));
+      new BytecodeFunction(owner, source_fn, type_info, std::move(bytecodes)));
   XLS_RETURN_IF_ERROR(bf->Init());
   return bf;
 }
 
-BytecodeFunction::BytecodeFunction(Module* owner, const TypeInfo* type_info,
+BytecodeFunction::BytecodeFunction(const Module* owner,
+                                   const Function* source_fn,
+                                   const TypeInfo* type_info,
                                    std::vector<Bytecode> bytecodes)
-    : owner_(owner), type_info_(type_info), bytecodes_(std::move(bytecodes)) {}
+    : owner_(owner),
+      source_fn_(source_fn),
+      type_info_(type_info),
+      bytecodes_(std::move(bytecodes)) {}
 
 absl::Status BytecodeFunction::Init() {
   num_slots_ = 0;

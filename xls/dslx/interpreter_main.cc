@@ -42,8 +42,6 @@ ABSL_FLAG(
 // TODO(leary): 2021-01-19 allow filters with wildcards.
 ABSL_FLAG(std::string, test_filter, "",
           "Target (currently *single*) test name to run.");
-ABSL_FLAG(bool, bytecode, true,
-          "If true, use the in-development bytecode interpreter to execute.");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -87,7 +85,6 @@ absl::Status RealMain(absl::string_view entry_module_path,
       .run_comparator = run_comparator ? &run_comparator.value() : nullptr,
       .execute = execute,
       .seed = seed,
-      .bytecode = absl::GetFlag(FLAGS_bytecode),
   };
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,

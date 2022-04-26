@@ -20,7 +20,6 @@
 
 #include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interpreter.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/function.h"
@@ -49,7 +48,8 @@ class RunComparator {
   // Runs a comparison of the interpreter-determined value against the
   // JIT-determined value.
   absl::Status RunComparison(Package* ir_package, bool requires_implicit_token,
-                             Function* f, absl::Span<InterpValue const> args,
+                             const Function* f,
+                             absl::Span<InterpValue const> args,
                              const SymbolicBindings* symbolic_bindings,
                              const InterpValue& got);
 
@@ -91,7 +91,6 @@ struct ParseAndTestOptions {
   bool execute = true;
   absl::optional<int64_t> seed = absl::nullopt;
   ConvertOptions convert_options;
-  bool bytecode = false;
 };
 
 enum class TestResult {

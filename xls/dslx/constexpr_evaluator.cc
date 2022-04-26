@@ -409,9 +409,10 @@ absl::Status ConstexprEvaluator::SimpleEvaluate(const Expr* expr) {
       BytecodeEmitter::EmitExpression(ctx_->import_data(), ctx_->type_info(),
                                       expr, env, symbolic_bindings));
 
-  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
-                       BytecodeInterpreter::Interpret(ctx_->import_data(),
-                                                      bf.get(), /*args=*/{}));
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue constexpr_value,
+      BytecodeInterpreter::Interpret(ctx_->import_data(), bf.get(),
+                                     /*args=*/{}));
   ctx_->type_info()->NoteConstExpr(expr, constexpr_value);
 
   return absl::OkStatus();

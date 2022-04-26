@@ -37,14 +37,16 @@ namespace {
 constexpr int kUnitSpaces = 7;
 constexpr int kQuickcheckSpaces = 15;
 
-absl::Status RunTestFunction(ImportData* import_data, TypeInfo* type_info,
-                             Module* module, TestFunction* tf) {
+absl::Status RunTestFunction(
+    ImportData* import_data, TypeInfo* type_info, Module* module,
+    TestFunction* tf, BytecodeInterpreter::PostFnEvalHook post_fn_eval_hook) {
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(import_data, type_info, tf->fn(), absl::nullopt));
-  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{})
+  return BytecodeInterpreter::Interpret(import_data, bf.get(), /*params=*/{},
+                                        post_fn_eval_hook)
       .status();
 }
 
@@ -95,7 +97,7 @@ absl::StatusOr<IrJit*> RunComparator::GetOrCompileJitFunction(
 }
 
 absl::Status RunComparator::RunComparison(
-    Package* ir_package, bool requires_implicit_token, dslx::Function* f,
+    Package* ir_package, bool requires_implicit_token, const dslx::Function* f,
     absl::Span<InterpValue const> args,
     const SymbolicBindings* symbolic_bindings, const InterpValue& got) {
   XLS_RET_CHECK(ir_package != nullptr);
@@ -354,7 +356,7 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
   // If JIT comparisons are "on", we register a post-evaluation hook to compare
   // with the interpreter.
   std::unique_ptr<Package> ir_package;
-  Interpreter::PostFnEvalHook post_fn_eval_hook;
+  BytecodeInterpreter::PostFnEvalHook post_fn_eval_hook;
   if (options.run_comparator != nullptr) {
     absl::StatusOr<std::unique_ptr<Package>> ir_package_or =
         ConvertModuleToPackage(entry_module, &import_data,
@@ -368,7 +370,8 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     }
     ir_package = std::move(ir_package_or).value();
     post_fn_eval_hook = [&ir_package, &import_data, &options](
-                            Function* f, absl::Span<const InterpValue> args,
+                            const Function* f,
+                            absl::Span<const InterpValue> args,
                             const SymbolicBindings* symbolic_bindings,
                             const InterpValue& got) -> absl::Status {
       absl::optional<bool> requires_implicit_token =
@@ -382,14 +385,6 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     };
   }
 
-  auto typecheck_callback = [&import_data](Module* module) {
-    return CheckModule(module, &import_data);
-  };
-
-  Interpreter interpreter(entry_module, typecheck_callback, &import_data,
-                          options.run_concolic, options.trace_format_preference,
-                          post_fn_eval_hook);
-
   // Run unit tests.
   for (const std::string& test_name : entry_module->GetTestNames()) {
     if (!TestMatchesFilter(test_name, options.test_filter)) {
@@ -401,27 +396,14 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
     ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
-    if (options.bytecode) {
-      if (absl::holds_alternative<TestFunction*>(*member)) {
-        XLS_ASSIGN_OR_RETURN(TestFunction * tf,
-                             entry_module->GetTest(test_name));
-        status = RunTestFunction(&import_data, tm_or.value().type_info,
-                                 entry_module, tf);
-      } else {
-        XLS_ASSIGN_OR_RETURN(TestProc * tp,
-                             entry_module->GetTestProc(test_name));
-        status = RunTestProc(&import_data, tm_or.value().type_info,
-                             entry_module, tp);
-      }
+    if (absl::holds_alternative<TestFunction*>(*member)) {
+      XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
+      status = RunTestFunction(&import_data, tm_or.value().type_info,
+                               entry_module, tf, post_fn_eval_hook);
     } else {
-      if (absl::holds_alternative<TestFunction*>(*member)) {
-        status = interpreter.RunTest(test_name);
-      } else if (absl::holds_alternative<TestProc*>(*member)) {
-        status = interpreter.RunTestProc(test_name);
-      } else {
-        return absl::InvalidArgumentError(absl::StrCat(
-            test_name, " was neither a test function nor a test proc."));
-      }
+      XLS_ASSIGN_OR_RETURN(TestProc * tp, entry_module->GetTestProc(test_name));
+      status =
+          RunTestProc(&import_data, tm_or.value().type_info, entry_module, tp);
     }
 
     if (status.ok()) {
@@ -439,7 +421,7 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
   // Run quickchecks, but only if the JIT is enabled.
   if (!entry_module->GetQuickChecks().empty()) {
     XLS_RETURN_IF_ERROR(RunQuickChecksIfJitEnabled(
-        entry_module, interpreter.current_type_info(), options.run_comparator,
+        entry_module, tm_or.value().type_info, options.run_comparator,
         ir_package.get(), options.seed, handle_error));
   }
 

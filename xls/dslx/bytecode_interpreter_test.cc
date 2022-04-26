@@ -56,11 +56,11 @@ TEST(BytecodeInterpreterTest, DupLiteral) {
   bytecodes.emplace_back(kFakeSpan, Bytecode::Op::kDup);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto bfunc,
-      BytecodeFunction::Create(/*source=*/nullptr, /*type_info=*/nullptr,
-                               std::move(bytecodes)));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      InterpValue result,
-      BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}));
+      BytecodeFunction::Create(/*owner=*/nullptr, /*source_fn=*/nullptr,
+                               /*type_info=*/nullptr, std::move(bytecodes)));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue result,
+                           BytecodeInterpreter::Interpret(
+                               /*import_data=*/nullptr, bfunc.get(), {}));
   EXPECT_EQ(result.ToString(), "u32:42");
 }
 
@@ -69,8 +69,8 @@ TEST(BytecodeInterpreterTest, DupEmptyStack) {
   bytecodes.emplace_back(kFakeSpan, Bytecode::Op::kDup);
   XLS_ASSERT_OK_AND_ASSIGN(
       auto bfunc,
-      BytecodeFunction::Create(/*source=*/nullptr, /*type_info=*/nullptr,
-                               std::move(bytecodes)));
+      BytecodeFunction::Create(/*owner=*/nullptr, /*source_fn=*/nullptr,
+                               /*type_info=*/nullptr, std::move(bytecodes)));
   ASSERT_THAT(
       BytecodeInterpreter::Interpret(/*import_data=*/nullptr, bfunc.get(), {}),
       StatusIs(absl::StatusCode::kInternal,
@@ -871,9 +871,9 @@ fn cast_bits_to_enum() -> MyEnum {
 
   // Clear out the data element of the last bytecode, the cast op.
   bytecodes[bytecodes.size() - 1] = Bytecode(Span::Fake(), Bytecode::Op::kCast);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      bf,
-      BytecodeFunction::Create(f->owner(), tm.type_info, std::move(bytecodes)));
+  XLS_ASSERT_OK_AND_ASSIGN(bf,
+                           BytecodeFunction::Create(f->owner(), f, tm.type_info,
+                                                    std::move(bytecodes)));
   absl::StatusOr<InterpValue> value =
       BytecodeInterpreter::Interpret(&import_data, bf.get(), {});
   EXPECT_THAT(value.status(),

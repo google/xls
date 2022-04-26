@@ -44,12 +44,13 @@ absl::StatusOr<const ModuleInfo*> ImportData::Put(const ImportTokens& subject,
   return &it.first->second;
 }
 
-absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfoForNode(AstNode* node) {
+absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfoForNode(
+    const AstNode* node) {
   XLS_RET_CHECK(node != nullptr);
   return type_info_owner().GetRootTypeInfo(node->owner());
 }
 
-absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfo(Module* module) {
+absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfo(const Module* module) {
   return type_info_owner().GetRootTypeInfo(module);
 }
 

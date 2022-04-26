@@ -73,7 +73,7 @@ BytecodeEmitter::EmitProcNext(
     return emitter.status_;
   }
 
-  return BytecodeFunction::Create(f->owner(), type_info,
+  return BytecodeFunction::Create(f->owner(), f, type_info,
                                   std::move(emitter.bytecode_));
 }
 
@@ -212,8 +212,8 @@ BytecodeEmitter::EmitExpression(
     return emitter.status_;
   }
 
-  return BytecodeFunction::Create(expr->owner(), type_info,
-                                  std::move(emitter.bytecode_));
+  return BytecodeFunction::Create(expr->owner(), /*source_fn=*/nullptr,
+                                  type_info, std::move(emitter.bytecode_));
 }
 
 void BytecodeEmitter::HandleArray(const Array* node) {

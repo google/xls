@@ -34,10 +34,15 @@ class Frame {
   // BytecodeFunction's source Function, if it is parametric.
   // `bf_holder` is only for storing the pointer to ephemeral functions, e.g.,
   // those generated on-the-fly from interpreting the `map` operation.
+  // `initial_args` holds the set of args used to initially construct the frame
+  // (i.e., the arguments to this function). This is necessary for comparing
+  // results to a reference, e.g., the JIT via BytecodeInterpreter's
+  // post_fn_eval_hook.
   // For other cases, the BytecodeCache will own BytecodeFunction storage.
   Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
         const TypeInfo* type_info,
         const absl::optional<SymbolicBindings>& bindings,
+        std::vector<InterpValue> initial_args,
         std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
 
   int64_t pc() const { return pc_; }
@@ -47,6 +52,7 @@ class Frame {
   BytecodeFunction* bf() const { return bf_; }
   const TypeInfo* type_info() const { return type_info_; }
   const absl::optional<SymbolicBindings>& bindings() const { return bindings_; }
+  const std::vector<InterpValue>& initial_args() { return initial_args_; }
 
   void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
 
@@ -56,6 +62,8 @@ class Frame {
   BytecodeFunction* bf_;
   const TypeInfo* type_info_;
   absl::optional<SymbolicBindings> bindings_;
+  std::vector<InterpValue> initial_args_;
+
   std::unique_ptr<BytecodeFunction> bf_holder_;
 };
 
@@ -64,12 +72,20 @@ class Frame {
 // until end result.
 class BytecodeInterpreter {
  public:
+  // Function signature for a "post function-evaluation hook" -- this is invoked
+  // after a function is evaluated by the interpreter. This is useful for e.g.
+  // externally-implementing and hooking-in comparison to the JIT execution
+  // mode.
+  using PostFnEvalHook = std::function<absl::Status(
+      const Function* f, absl::Span<const InterpValue> args,
+      const SymbolicBindings*, const InterpValue& got)>;
   virtual ~BytecodeInterpreter() {}
 
   // Takes ownership of `args`.
   static absl::StatusOr<InterpValue> Interpret(
       ImportData* import_data, BytecodeFunction* bf,
-      const std::vector<InterpValue>& args);
+      const std::vector<InterpValue>& args,
+      PostFnEvalHook post_fn_eval_hook = nullptr);
   absl::Status InitFrame(BytecodeFunction* bf,
                          const std::vector<InterpValue>& args);
 
@@ -82,7 +98,7 @@ class BytecodeInterpreter {
       const std::vector<InterpValue>& args);
   std::vector<Frame>& frames() { return frames_; }
   ImportData* import_data() { return import_data_; }
-  absl::Status Run();
+  absl::Status Run(PostFnEvalHook post_fn_eval_hook = nullptr);
 
  private:
   friend class ProcInstance;

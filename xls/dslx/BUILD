@@ -1109,7 +1109,6 @@ cc_library(
         ":default_dslx_stdlib_path",
         ":error_printer",
         ":interp_value",
-        ":interpreter",
         ":ir_converter",
         ":mangle",
         ":parse_and_typecheck",

@@ -101,7 +101,6 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
     )
 
     DSLX_TEST_FLAGS = (
-        "bytecode",
         "compare",
         "dslx_path",
     )

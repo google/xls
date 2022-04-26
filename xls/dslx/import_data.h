@@ -99,8 +99,8 @@ class ImportData {
   // Helper that gets the "root" type information for the module of the given
   // node. (Note that type information lives in a tree configuration where
   // parametric specializations live under the root, see TypeInfo.)
-  absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(AstNode* node);
-  absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module);
+  absl::StatusOr<TypeInfo*> GetRootTypeInfoForNode(const AstNode* node);
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo(const Module* module);
 
   // The "top level bindings" for a given module are the values that get
   // resolved at module scope on import. Keeping these on the ImportData avoids

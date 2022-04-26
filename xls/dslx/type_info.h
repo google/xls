@@ -78,13 +78,13 @@ class TypeInfoOwner {
 
   // Retrieves the root type information for the given module, or a not-found
   // status error if it is not present.
-  absl::StatusOr<TypeInfo*> GetRootTypeInfo(Module* module);
+  absl::StatusOr<TypeInfo*> GetRootTypeInfo(const Module* module);
 
  private:
   // Mapping from module to the "root" (or "parentmost") type info -- these have
   // nullptr as their parent. There should only be one of these for any given
   // module.
-  absl::flat_hash_map<Module*, TypeInfo*> module_to_root_;
+  absl::flat_hash_map<const Module*, TypeInfo*> module_to_root_;
 
   // Owned type information objects -- TypeInfoOwner is the lifetime owner for
   // these.
@@ -190,8 +190,8 @@ class TypeInfo {
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
-  absl::optional<bool> GetRequiresImplicitToken(Function* f) const;
-  void NoteRequiresImplicitToken(Function* f, bool is_required);
+  absl::optional<bool> GetRequiresImplicitToken(const Function* f) const;
+  void NoteRequiresImplicitToken(const Function* f, bool is_required);
 
   // Attempts to retrieve the callee's parametric values in an "instantiation".
   // That is, in the case of:
@@ -280,7 +280,7 @@ class TypeInfo {
   absl::flat_hash_map<const Instantiation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const AstNode*, InterpValue> const_exprs_;
-  absl::flat_hash_map<Function*, bool> requires_implicit_token_;
+  absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

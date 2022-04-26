@@ -29,12 +29,14 @@ namespace xls::dslx {
 Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
              const TypeInfo* type_info,
              const absl::optional<SymbolicBindings>& bindings,
+             std::vector<InterpValue> initial_args,
              std::unique_ptr<BytecodeFunction> bf_holder)
     : pc_(0),
       slots_(std::move(args)),
       bf_(bf),
       type_info_(type_info),
       bindings_(bindings),
+      initial_args_(initial_args),
       bf_holder_(std::move(bf_holder)) {}
 
 void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
@@ -49,10 +51,10 @@ void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
 
 /* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Interpret(
     ImportData* import_data, BytecodeFunction* bf,
-    const std::vector<InterpValue>& args) {
+    const std::vector<InterpValue>& args, PostFnEvalHook post_fn_eval_hook) {
   XLS_ASSIGN_OR_RETURN(auto interpreter, BytecodeInterpreter::CreateUnique(
                                              import_data, bf, args));
-  XLS_RETURN_IF_ERROR(interpreter->Run());
+  XLS_RETURN_IF_ERROR(interpreter->Run(post_fn_eval_hook));
   return interpreter->stack_.back();
 }
 
@@ -70,7 +72,8 @@ absl::Status BytecodeInterpreter::InitFrame(
   if (bf->owner()) {
     type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
-  frames_.push_back(Frame(bf, args, type_info, absl::nullopt));
+  frames_.push_back(
+      Frame(bf, args, type_info, absl::nullopt, /*initial_args=*/{}));
   return absl::OkStatus();
 }
 
@@ -82,7 +85,7 @@ BytecodeInterpreter::CreateUnique(ImportData* import_data, BytecodeFunction* bf,
   return interp;
 }
 
-absl::Status BytecodeInterpreter::Run() {
+absl::Status BytecodeInterpreter::Run(PostFnEvalHook post_fn_eval_hook) {
   while (!frames_.empty()) {
     Frame* frame = &frames_.back();
     while (frame->pc() < frame->bf()->bytecodes().size()) {
@@ -107,6 +110,26 @@ absl::Status BytecodeInterpreter::Run() {
             << " bytecode: " << bytecodes.at(frame->pc()).ToString()
             << " not a jump_dest or old bytecode: " << bytecode.ToString()
             << " was not a call op.";
+      }
+    }
+
+    // Run the post-fn eval hook, if our function has a return value and if we
+    // actually have a hook.
+    const Function* source_fn = frame->bf()->source_fn();
+    if (source_fn != nullptr) {
+      absl::optional<ConcreteType*> fn_return =
+          frame->type_info()->GetItem(source_fn);
+      if (fn_return.has_value()) {
+        bool fn_returns_value = *fn_return.value() != *ConcreteType::MakeUnit();
+        if (post_fn_eval_hook != nullptr && fn_returns_value) {
+          SymbolicBindings holder;
+          const SymbolicBindings* bindings = &holder;
+          if (frame->bindings().has_value()) {
+            bindings = &frame->bindings().value();
+          }
+          XLS_RETURN_IF_ERROR(post_fn_eval_hook(
+              source_fn, frame->initial_args(), bindings, stack_.back()));
+        }
       }
     }
 
@@ -413,7 +436,9 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
     args[num_args - i - 1] = arg;
   }
 
-  frames_.push_back(Frame(bf, std::move(args), bf->type_info(), data.bindings));
+  std::vector<InterpValue> args_copy = args;
+  frames_.push_back(Frame(bf, std::move(args), bf->type_info(), data.bindings,
+                          std::move(args_copy)));
 
   return absl::OkStatus();
 }
@@ -1305,13 +1330,14 @@ absl::Status BytecodeInterpreter::RunBuiltinMap(const Bytecode& bytecode) {
 
   // Now take the collected bytecodes and cram them into a BytecodeFunction,
   // then start executing it.
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeFunction::Create(/*source=*/nullptr, frames_.back().type_info(),
-                               std::move(bytecodes)));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
+                       BytecodeFunction::Create(
+                           /*owner=*/nullptr, /*source_fn=*/nullptr,
+                           frames_.back().type_info(), std::move(bytecodes)));
   BytecodeFunction* bf_ptr = bf.get();
   frames_.push_back(Frame(bf_ptr, {inputs}, bf_ptr->type_info(),
-                          invocation_data.bindings, std::move(bf)));
+                          invocation_data.bindings,
+                          /*initial_args=*/{}, std::move(bf)));
   return absl::OkStatus();
 }
 
