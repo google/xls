@@ -60,6 +60,8 @@ dslx_lang_test(
 
 dslx_lang_test(name = "fallible_constexpr")
 
+dslx_lang_test(name = "comments")
+
 dslx_lang_test(name = "compound_eq")
 
 dslx_lang_test(name = "constexpr_clog2")
