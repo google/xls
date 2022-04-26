@@ -130,8 +130,6 @@ fn tag_test() {
 
   let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0x7ff, fraction: u52:0 }), FloatTag::INFINITY);
   let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0x7ff, fraction: u52:0 }), FloatTag::INFINITY);
-  let foo = inf(u1:0);
-  let _ = trace!(foo);
   let _ = assert_eq(tag(inf(u1:0)), FloatTag::INFINITY);
   let _ = assert_eq(tag(inf(u1:1)), FloatTag::INFINITY);
 
