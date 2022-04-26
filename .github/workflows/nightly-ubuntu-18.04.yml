@@ -21,7 +21,11 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: "~/.cache/bazel"
-          key: bazel-cache-nightly-18_04
+          # Create/use a cache called bazel-cache-18_04-<commit hash>
+          # and read the latest cache with prefix bazel-cache-18_04-
+          # if it doesn't already exist.
+          key: bazel-cache-18_04-${{ github.sha }}
+          restore-keys: bazel-cache-18_04-
       - name: Install bazelisk
         run: |
           curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
