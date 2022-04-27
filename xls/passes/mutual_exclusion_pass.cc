@@ -431,8 +431,49 @@ absl::StatusOr<NodeRelation> ComputeMergableEffects(FunctionBase* f) {
       token_nodes.insert(child);
     }
   }
-  NodeRelation result;
+
+  auto dfs = [&](Node* root, const NodeRelation& dag) {
+    std::vector<Node*> stack;
+    stack.push_back(root);
+    absl::flat_hash_set<Node*> discovered;
+    while (!stack.empty()) {
+      Node* popped = stack.back();
+      stack.pop_back();
+      if (!discovered.contains(popped)) {
+        discovered.insert(popped);
+        if (dag.contains(popped)) {
+          for (Node* child : dag.at(popped)) {
+            stack.push_back(child);
+          }
+        }
+      }
+    }
+    return discovered;
+  };
+
+  NodeRelation data_deps;
+  for (Node* node : f->nodes()) {
+    for (Node* child : node->operands()) {
+      data_deps[node].insert(child);
+    }
+  }
+
   NodeRelation transitive_closure = TransitiveClosure<Node*>(token_dag);
+
+  // If a receive uses data from another receive in its predicate, they cannot
+  // be merged.
+  for (Node* effectful_node : token_nodes) {
+    if (effectful_node->Is<Receive>()) {
+      for (Node* other_node : dfs(effectful_node, data_deps)) {
+        if (other_node->Is<Receive>()) {
+          transitive_closure[effectful_node].insert(other_node);
+        }
+      }
+    }
+  }
+
+  NodeRelation result;
+
   for (Node* x : token_nodes) {
     for (Node* y : token_nodes) {
       if (!(transitive_closure.contains(x) &&
@@ -647,6 +688,61 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
   return true;
 }
 
+absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
+                                   absl::Span<Node* const> to_merge) {
+  int64_t channel_id = to_merge.front()->As<Receive>()->channel_id();
+  for (Node* send : to_merge) {
+    XLS_CHECK_EQ(channel_id, send->As<Receive>()->channel_id());
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
+                       ComputeTokenInputs(f, to_merge));
+
+  XLS_ASSIGN_OR_RETURN(Node * token,
+                       f->MakeNode<AfterAll>(std::nullopt, token_inputs));
+
+  XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
+                       PredicateVectorFromNodes(p, f, to_merge));
+
+  XLS_ASSIGN_OR_RETURN(Node * predicate,
+                       f->MakeNode<NaryOp>(std::nullopt, predicates, Op::kOr));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * receive,
+      f->MakeNode<Receive>(std::nullopt, token, predicate, channel_id));
+
+  XLS_ASSIGN_OR_RETURN(Node * token_output,
+                       f->MakeNode<TupleIndex>(std::nullopt, receive, 0));
+
+  XLS_ASSIGN_OR_RETURN(Node * value_output,
+                       f->MakeNode<TupleIndex>(std::nullopt, receive, 1));
+
+  XLS_ASSIGN_OR_RETURN(
+      Node * zero,
+      f->MakeNode<Literal>(std::nullopt, ZeroOfType(value_output->GetType())));
+
+  std::vector<Node*> gated_output;
+  for (int64_t i = 0; i < to_merge.size(); ++i) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * gated,
+        f->MakeNode<Select>(std::nullopt, predicates[i],
+                            std::vector<Node*>{zero, value_output},
+                            std::nullopt));
+    XLS_ASSIGN_OR_RETURN(
+        Node * gated_with_token,
+        f->MakeNode<Tuple>(std::nullopt,
+                           std::vector<Node*>{token_output, gated}));
+    gated_output.push_back(gated_with_token);
+  }
+
+  for (int64_t i = 0; i < to_merge.size(); ++i) {
+    XLS_RETURN_IF_ERROR(to_merge[i]->ReplaceUsesWith(gated_output[i]));
+    XLS_RETURN_IF_ERROR(f->RemoveNode(to_merge[i]));
+  }
+
+  return true;
+}
+
 absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
                                 const absl::flat_hash_set<Node*>& merge_class) {
   if (merge_class.size() <= 1) {
@@ -659,6 +755,9 @@ absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
   Op op = to_merge.front()->op();
   if (op == Op::kSend) {
     return MergeSends(p, f, to_merge);
+  }
+  if (op == Op::kReceive) {
+    return MergeReceives(p, f, to_merge);
   }
 
   return false;
