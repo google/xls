@@ -187,6 +187,7 @@ cc_library(
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":deduce_ctx",
+        ":errors",
         ":interp_value",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

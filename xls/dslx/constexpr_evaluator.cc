@@ -21,6 +21,7 @@
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/errors.h"
 #include "xls/dslx/interp_value.h"
 
 namespace xls::dslx {
@@ -238,12 +239,61 @@ void ConstexprEvaluator::HandleCast(const Cast* expr) {
   }
 }
 
+// Creates an InterpValue for the described channel or array of channels.
+absl::StatusOr<InterpValue> CreateChannelValue(
+    const ConcreteType* concrete_type) {
+  if (auto* array_type = dynamic_cast<const ArrayType*>(concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
+    std::vector<InterpValue> elements;
+    elements.reserve(dim_int);
+    for (int i = 0; i < dim_int; i++) {
+      XLS_ASSIGN_OR_RETURN(InterpValue element,
+                           CreateChannelValue(&array_type->element_type()));
+      elements.push_back(element);
+    }
+    return InterpValue::MakeArray(elements);
+  }
+
+  // There can't be tuples or structs of channels, only arrays.
+  const ChannelType* ct = dynamic_cast<const ChannelType*>(concrete_type);
+  XLS_RET_CHECK_NE(ct, nullptr);
+  return InterpValue::MakeChannel();
+}
+
 // While a channel's *contents* aren't constexpr, the existence of the channel
 // itself is.
 void ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
-  InterpValue channel(InterpValue::MakeChannel());
-  ctx_->type_info()->NoteConstExpr(expr,
-                                   InterpValue::MakeTuple({channel, channel}));
+  XLS_VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
+  // Keep in mind that channels come in tuples, so peel out the first element.
+  absl::optional<ConcreteType*> maybe_decl_type =
+      ctx_->type_info()->GetItem(expr);
+  if (!maybe_decl_type.has_value()) {
+    status_ = absl::InternalError(
+        absl::StrFormat("Could not find type for expr \"%s\" @ %s",
+                        expr->ToString(), expr->span().ToString()));
+    return;
+  }
+
+  auto* tuple_type = dynamic_cast<TupleType*>(maybe_decl_type.value());
+  if (tuple_type == nullptr) {
+    status_ = TypeInferenceErrorStatus(expr->span(), maybe_decl_type.value(),
+                                       "Channel decl did not have tuple type:");
+
+    return;
+  }
+
+  // Verify that the channel tuple has exactly two elements; just yank one out
+  // for channel [array] creation (they both point to the same object).
+  if (tuple_type->size() != 2) {
+    status_ = TypeInferenceErrorStatus(
+        expr->span(), tuple_type, "ChannelDecl type was a two-element tuple.");
+    return;
+  }
+
+  absl::StatusOr<InterpValue> channels =
+      CreateChannelValue(&tuple_type->GetMemberType(0));
+  ctx_->type_info()->NoteConstExpr(
+      expr, InterpValue::MakeTuple({channels.value(), channels.value()}));
 }
 
 void ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {

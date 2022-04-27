@@ -34,8 +34,9 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx);
 // Assigns concrete types and validates such on all elements of the function
 // "invoked" by the given invocation. The target function may be builtin and/or
 // parametric.
-absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
-                                                DeduceCtx* ctx);
+absl::StatusOr<TypeAndBindings> CheckInvocation(
+    DeduceCtx* ctx, const Invocation* invocation,
+    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env);
 
 // Validates type annotations on all functions within "module".
 //

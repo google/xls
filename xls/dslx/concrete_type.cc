@@ -592,6 +592,40 @@ absl::StatusOr<ConcreteTypeDim> FunctionType::GetTotalBitCount() const {
   return sum;
 }
 
+ChannelType::ChannelType(std::unique_ptr<ConcreteType> payload_type)
+    : payload_type_(std::move(payload_type)) {}
+
+std::string ChannelType::ToString() const {
+  return absl::StrFormat("chan(%s)", payload_type_->ToString());
+}
+
+std::vector<ConcreteTypeDim> ChannelType::GetAllDims() const {
+  return payload_type_->GetAllDims();
+}
+
+absl::StatusOr<ConcreteTypeDim> ChannelType::GetTotalBitCount() const {
+  return payload_type_->GetTotalBitCount();
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> ChannelType::MapSize(
+    const MapFn& f) const {
+  XLS_ASSIGN_OR_RETURN(auto new_payload, payload_type_->MapSize(f));
+  return std::make_unique<ChannelType>(std::move(new_payload));
+}
+
+bool ChannelType::operator==(const ConcreteType& other) const {
+  if (auto* o = dynamic_cast<const ChannelType*>(&other)) {
+    return *payload_type_ == *o->payload_type_;
+  }
+  return false;
+}
+
+bool ChannelType::HasEnum() const { return payload_type_->HasEnum(); }
+
+std::unique_ptr<ConcreteType> ChannelType::CloneToUnique() const {
+  return std::make_unique<ChannelType>(payload_type_->CloneToUnique());
+}
+
 absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
   if (auto* bits = dynamic_cast<const BitsType*>(&c)) {
     return bits->is_signed();

@@ -428,7 +428,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
   // channels, each of which transmits a u32, whereas the latter declares a
   // single channel that transmits a 32-element array of u32s.
-  absl::optional<std::vector<Expr*>> dims() { return dims_; }
+  absl::optional<std::vector<Expr*>> dims() const { return dims_; }
 
  private:
   Direction direction_;
@@ -2029,8 +2029,6 @@ class RecvIf : public Expr {
 // proc.
 // Sends are really _statements_, vs. expressions, but the language doesn't
 // really make that distinction.
-// The "body" attribute serves the same purpose as that in "Let" nodes; it
-// contains the rest of the containing block's (Function, Proc) body.
 class Send : public Expr {
  public:
   Send(Module* owner, Span span, NameRef* token, Expr* channel, Expr* payload);

@@ -120,6 +120,8 @@ class ConcreteTypeDim {
 // will only be dealing with ConcreteTypeDims that hold ints.
 class ConcreteType {
  public:
+  using MapFn = std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>;
+
   // Creates a "unit" tuple type (a tuple type with no members).
   static std::unique_ptr<ConcreteType> MakeUnit();
 
@@ -159,8 +161,7 @@ class ConcreteType {
   // (and any concrete types held herein) with "f" and returns the new
   // (resulting) ConcreteType.
   virtual absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const = 0;
+      const MapFn& f) const = 0;
 
   // Type equality, but ignores tuple member naming discrepancies.
   bool CompatibleWith(const ConcreteType& other) const;
@@ -210,8 +211,7 @@ class TokenType : public ConcreteType {
     return std::make_unique<TokenType>();
   }
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override {
+      const MapFn& f) const override {
     return std::make_unique<TokenType>();
   }
 };
@@ -227,8 +227,7 @@ class StructType : public ConcreteType {
              const StructDef& struct_def);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override;
+      const MapFn& f) const override;
 
   bool operator==(const ConcreteType& other) const override;
   std::string ToString() const override;
@@ -286,8 +285,7 @@ class TupleType : public ConcreteType {
   TupleType(std::vector<std::unique_ptr<ConcreteType>> members);
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override;
+      const MapFn& f) const override;
 
   bool operator==(const ConcreteType& other) const override;
   std::string ToString() const override;
@@ -325,8 +323,7 @@ class ArrayType : public ConcreteType {
       : element_type_(std::move(element_type)), size_(std::move(size)) {}
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override;
+      const MapFn& f) const override;
 
   std::string ToString() const override;
   std::vector<ConcreteTypeDim> GetAllDims() const override;
@@ -363,8 +360,7 @@ class EnumType : public ConcreteType {
         members_(members) {}
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override;
+      const MapFn& f) const override;
 
   std::string ToString() const override;
   std::vector<ConcreteTypeDim> GetAllDims() const override;
@@ -428,8 +424,7 @@ class BitsType : public ConcreteType {
   ~BitsType() override = default;
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override;
+      const MapFn& f) const override;
 
   bool operator==(const ConcreteType& other) const override {
     if (auto* t = dynamic_cast<const BitsType*>(&other)) {
@@ -479,8 +474,7 @@ class FunctionType : public ConcreteType {
   absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
 
   absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
-      const std::function<absl::StatusOr<ConcreteTypeDim>(ConcreteTypeDim)>& f)
-      const override;
+      const MapFn& f) const override;
 
   bool operator==(const ConcreteType& other) const override;
 
@@ -507,6 +501,7 @@ class FunctionType : public ConcreteType {
 
   std::unique_ptr<ConcreteType> CloneToUnique() const override {
     std::vector<std::unique_ptr<ConcreteType>> params;
+    params.reserve(params_.size());
     for (const auto& item : params_) {
       params.push_back(item->CloneToUnique());
     }
@@ -517,6 +512,27 @@ class FunctionType : public ConcreteType {
  private:
   std::vector<std::unique_ptr<ConcreteType>> params_;
   std::unique_ptr<ConcreteType> return_type_;
+};
+
+// Represents the type of a channel, which effectively just wraps its payload
+// type.
+class ChannelType : public ConcreteType {
+ public:
+  ChannelType(std::unique_ptr<ConcreteType> payload_type);
+  std::string ToString() const override;
+  std::string GetDebugTypeName() const override { return "channel"; }
+  std::vector<ConcreteTypeDim> GetAllDims() const override;
+  absl::StatusOr<ConcreteTypeDim> GetTotalBitCount() const override;
+  absl::StatusOr<std::unique_ptr<ConcreteType>> MapSize(
+      const MapFn& f) const override;
+  bool operator==(const ConcreteType& other) const override;
+  bool HasEnum() const override;
+  std::unique_ptr<ConcreteType> CloneToUnique() const override;
+
+  const ConcreteType& payload_type() const { return *payload_type_; }
+
+ private:
+  std::unique_ptr<ConcreteType> payload_type_;
 };
 
 // Helper for the case where we have a derived (i.e. non-abstract) ConcreteType,

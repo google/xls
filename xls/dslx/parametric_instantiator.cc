@@ -323,6 +323,10 @@ absl::Status ParametricInstantiator::SymbolicBind(
     // Tokens aren't parameterizable.
     return absl::OkStatus();
   }
+  if (dynamic_cast<const ChannelType*>(&param_type) != nullptr) {
+    // Neither are channels.
+    return absl::OkStatus();
+  }
 
   return absl::InternalError(
       absl::StrFormat("Unhandled parameter type for symbolic binding: %s @ %s",

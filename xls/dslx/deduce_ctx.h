@@ -91,7 +91,8 @@ using TypecheckFunctionFn = std::function<absl::Status(Function*, DeduceCtx*)>;
 
 // Similar to TypecheckFunctionFn, but for a [parametric] invocation.
 using TypecheckInvocationFn = std::function<absl::StatusOr<TypeAndBindings>(
-    const Invocation*, DeduceCtx*)>;
+    DeduceCtx* ctx, const Invocation*,
+    const absl::flat_hash_map<const Param*, InterpValue>&)>;
 
 // A single object that contains all the state/callbacks used in the
 // typechecking process.
@@ -171,6 +172,11 @@ class DeduceCtx {
     return import_data_->type_info_owner();
   }
 
+  bool in_typeless_number_ctx() const { return in_typeless_number_ctx_; }
+  void set_in_typeless_number_ctx(bool in_typeless_number_ctx) {
+    in_typeless_number_ctx_ = in_typeless_number_ctx;
+  }
+
  private:
   // Maps AST nodes to their deduced types.
   TypeInfo* type_info_ = nullptr;
@@ -197,6 +203,10 @@ class DeduceCtx {
   // TODO(https://github.com/google/xls/issues/585) eliminate the need for this
   // member.
   bool inside_for_ = false;
+
+  // True if we're in a context where we could process an unannotated number,
+  // such as when deducing an array index.
+  bool in_typeless_number_ctx_ = false;
 
   // -- Metadata
 

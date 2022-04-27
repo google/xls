@@ -758,6 +758,12 @@ dslx_lang_test(
 dslx_lang_test(name = "local_const_value_non_bitstype")
 
 dslx_lang_test(
+    name = "proc_channel_arrays",
+    # No normal 'function' entry point, it is a test proc.
+    convert_to_ir = False,
+)
+
+dslx_lang_test(
     name = "proc_network",
     # No normal 'function' entry point, it is a test proc.
     convert_to_ir = False,

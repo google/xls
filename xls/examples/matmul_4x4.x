@@ -28,8 +28,8 @@ type F32 = float32::F32;
 proc node {
   from_west: chan in F32;
   from_north: chan in F32;
-  to_east: chan in F32;
-  to_south: chan in F32;
+  to_east: chan out F32;
+  to_south: chan out F32;
   weight: F32;
 
   config(from_west: chan in F32, from_north: chan in F32,
@@ -51,156 +51,111 @@ proc node {
   }
 }
 
-// "driver" drives the computation in the array, "inserting" values into the
-// west and north sides of the network and collecting output values.
-proc driver {
-  east_to_00: chan out F32;
-  east_to_10: chan out F32;
-  east_to_20: chan out F32;
-  east_to_30: chan out F32;
+proc matmul<ROWS: u32, COLS: u32> {
+  zeroes_out: chan out[COLS] F32;
 
-  south_to_00: chan out F32;
-  south_to_01: chan out F32;
-  south_to_02: chan out F32;
-  south_to_03: chan out F32;
-
-  out_04: chan in F32;
-  out_14: chan in F32;
-  out_24: chan in F32;
-  out_34: chan in F32;
-
-  out_40: chan in F32;
-  out_41: chan in F32;
-  out_42: chan in F32;
-  out_43: chan in F32;
-
-  config(
-    east_to_00: chan out F32, east_to_10: chan out F32,
-    east_to_20: chan out F32, east_to_30: chan out F32,
-    south_to_00: chan out F32, south_to_01: chan out F32,
-    south_to_02: chan out F32, south_to_03: chan out F32,
-    out_04: chan in F32, out_14: chan in F32, out_24: chan in F32, out_34: chan in F32,
-    out_40: chan in F32, out_41: chan in F32, out_42: chan in F32, out_43: chan in F32) {
-    (east_to_00, east_to_10, east_to_20, east_to_30,
-     south_to_00, south_to_01, south_to_02, south_to_03,
-     out_04, out_14, out_24, out_34, out_40, out_41, out_42, out_43)
-  }
-
-  // Pass the result as a state parameter so that the proc evaluators print it.
-  next(tok: token, basis: F32, result_0: F32, result_1: F32, result_2: F32, result_3: F32) {
-    let f32_0 = float32::zero(false);
-    let f32_2 = F32 { sign: false, bexp: u8:128, fraction: u23:0 };
-
-    let tok1 = send(tok, east_to_00, basis);
-    let tok2 = send(tok1, east_to_10, basis);
-    let tok3 = send(tok2, east_to_20, basis);
-    let tok4 = send(tok3, east_to_30, basis);
-
-    let tok5 = send(tok4, south_to_00, f32_0);
-    let tok6 = send(tok5, south_to_01, f32_0);
-    let tok7 = send(tok6, south_to_02, f32_0);
-    let tok8 = send(tok7, south_to_03, f32_0);
-
-    let (tok9, _) = recv(tok8, out_04);
-    let (tok10, _) = recv(tok9, out_14);
-    let (tok11, _) = recv(tok10, out_24);
-    let (tok12, _) = recv(tok11, out_34);
-    let (tok13, result_0) = recv(tok12, out_40);
-    let (tok14, result_1) = recv(tok13, out_41);
-    let (tok15, result_2) = recv(tok14, out_42);
-    let (tok16, result_3) = recv(tok15, out_43);
-
-    let basis = fp32_mul_2::fp32_mul_2(basis, f32_2);
-    (basis, result_0, result_1, result_2, result_3)
-  }
-}
-
-proc main {
-  config() {
+  config(activations_in: chan in[ROWS] F32,
+         results_out: chan out[COLS] F32) {
     // Declare the east-to-west channels.
-    let (main_west_input0, cell_00_west_in) = chan F32;
-    let (main_west_input1, cell_10_west_in) = chan F32;
-    let (main_west_input2, cell_20_west_in) = chan F32;
-    let (main_west_input3, cell_30_west_in) = chan F32;
+    // Add one extra channel for easy indexing / going "off the edge".
+    // TODO(rspringer): 2022-04-18: Maybe eliminate the need for this?
+    let (east_outputs, west_inputs) = chan[COLS + u32:1][ROWS] F32;
 
-    let (cell_00_east_out, cell_01_west_in) = chan F32;
-    let (cell_01_east_out, cell_02_west_in) = chan F32;
-    let (cell_02_east_out, cell_03_west_in) = chan F32;
-    let (cell_03_east_out, cell_04_west_in) = chan F32;
+    // Declare the north-to-south channels.
+    let (south_outputs, north_inputs) = chan[COLS][ROWS] F32;
 
-    let (cell_10_east_out, cell_11_west_in) = chan F32;
-    let (cell_11_east_out, cell_12_west_in) = chan F32;
-    let (cell_12_east_out, cell_13_west_in) = chan F32;
-    let (cell_13_east_out, cell_14_west_in) = chan F32;
-
-    let (cell_20_east_out, cell_21_west_in) = chan F32;
-    let (cell_21_east_out, cell_22_west_in) = chan F32;
-    let (cell_22_east_out, cell_23_west_in) = chan F32;
-    let (cell_23_east_out, cell_24_west_in) = chan F32;
-
-    let (cell_30_east_out, cell_31_west_in) = chan F32;
-    let (cell_31_east_out, cell_32_west_in) = chan F32;
-    let (cell_32_east_out, cell_33_west_in) = chan F32;
-    let (cell_33_east_out, cell_34_west_in) = chan F32;
-
-    // Declare the north-to-south channels
-    let (main_south_input0, cell_00_north_in) = chan F32;
-    let (main_south_input1, cell_01_north_in) = chan F32;
-    let (main_south_input2, cell_02_north_in) = chan F32;
-    let (main_south_input3, cell_03_north_in) = chan F32;
-
-    let (cell_00_south_out, cell_10_north_in) = chan F32;
-    let (cell_01_south_out, cell_11_north_in) = chan F32;
-    let (cell_02_south_out, cell_12_north_in) = chan F32;
-    let (cell_03_south_out, cell_13_north_in) = chan F32;
-
-    let (cell_10_south_out, cell_20_north_in) = chan F32;
-    let (cell_11_south_out, cell_21_north_in) = chan F32;
-    let (cell_12_south_out, cell_22_north_in) = chan F32;
-    let (cell_13_south_out, cell_23_north_in) = chan F32;
-
-    let (cell_20_south_out, cell_30_north_in) = chan F32;
-    let (cell_21_south_out, cell_31_north_in) = chan F32;
-    let (cell_22_south_out, cell_32_north_in) = chan F32;
-    let (cell_23_south_out, cell_33_north_in) = chan F32;
-
-    let (cell_30_south_out, cell_40_north_in) = chan F32;
-    let (cell_31_south_out, cell_41_north_in) = chan F32;
-    let (cell_32_south_out, cell_42_north_in) = chan F32;
-    let (cell_33_south_out, cell_43_north_in) = chan F32;
+    // TODO(rspringer): Zeros (as initial partial sums) would be best provided
+    // by single-value channels.
+    // Declare the zero-valued initial partial sum channels.
+    let (zeroes_out, zeroes_in) = chan[COLS] F32;
 
     // Spawn all the procs. Specify weights to give a "mul-by-two" matrix.
     let f32_0 = float32::zero(false);
-    let f32_1 = float32::one(false);
     let f32_2 = F32 { sign: false, bexp: u8:128, fraction: u23:0 };
-    spawn node(cell_00_west_in, cell_00_north_in, cell_00_east_out, cell_00_south_out, f32_2)();
-    spawn node(cell_01_west_in, cell_01_north_in, cell_01_east_out, cell_01_south_out, f32_0)();
-    spawn node(cell_02_west_in, cell_02_north_in, cell_02_east_out, cell_02_south_out, f32_0)();
-    spawn node(cell_03_west_in, cell_03_north_in, cell_03_east_out, cell_03_south_out, f32_0)();
 
-    spawn node(cell_10_west_in, cell_10_north_in, cell_10_east_out, cell_10_south_out, f32_0)();
-    spawn node(cell_11_west_in, cell_11_north_in, cell_11_east_out, cell_11_south_out, f32_2)();
-    spawn node(cell_12_west_in, cell_12_north_in, cell_12_east_out, cell_12_south_out, f32_0)();
-    spawn node(cell_13_west_in, cell_13_north_in, cell_13_east_out, cell_13_south_out, f32_0)();
+    // TODO(https://github.com/google/xls/issues/585): We can't loop (and thus
+    // parameterize) this until we can constexpr evaluate `for` expressions.
+    spawn node(activations_in[0], zeroes_in[0], east_outputs[0][1], south_outputs[1][0], f32_2)();
+    spawn node(west_inputs[0][1], zeroes_in[1], east_outputs[0][2], south_outputs[1][1], f32_0)();
+    spawn node(west_inputs[0][2], zeroes_in[2], east_outputs[0][3], south_outputs[1][2], f32_0)();
+    spawn node(west_inputs[0][3], zeroes_in[3], east_outputs[0][4], south_outputs[1][3], f32_0)();
 
-    spawn node(cell_20_west_in, cell_20_north_in, cell_20_east_out, cell_20_south_out, f32_0)();
-    spawn node(cell_21_west_in, cell_21_north_in, cell_21_east_out, cell_21_south_out, f32_0)();
-    spawn node(cell_22_west_in, cell_22_north_in, cell_22_east_out, cell_22_south_out, f32_2)();
-    spawn node(cell_23_west_in, cell_23_north_in, cell_23_east_out, cell_23_south_out, f32_0)();
+    spawn node(activations_in[1], north_inputs[1][0], east_outputs[1][1], south_outputs[2][0], f32_0)();
+    spawn node(west_inputs[1][1], north_inputs[1][1], east_outputs[1][2], south_outputs[2][1], f32_2)();
+    spawn node(west_inputs[1][2], north_inputs[1][2], east_outputs[1][3], south_outputs[2][2], f32_0)();
+    spawn node(west_inputs[1][3], north_inputs[1][3], east_outputs[1][4], south_outputs[2][3], f32_0)();
 
-    spawn node(cell_30_west_in, cell_30_north_in, cell_30_east_out, cell_30_south_out, f32_0)();
-    spawn node(cell_31_west_in, cell_31_north_in, cell_31_east_out, cell_31_south_out, f32_0)();
-    spawn node(cell_32_west_in, cell_32_north_in, cell_32_east_out, cell_32_south_out, f32_0)();
-    spawn node(cell_33_west_in, cell_33_north_in, cell_33_east_out, cell_33_south_out, f32_2)();
+    spawn node(activations_in[2], north_inputs[2][0], east_outputs[2][1], south_outputs[3][0], f32_0)();
+    spawn node(west_inputs[2][1], north_inputs[2][1], east_outputs[2][2], south_outputs[3][1], f32_0)();
+    spawn node(west_inputs[2][2], north_inputs[2][2], east_outputs[2][3], south_outputs[3][2], f32_2)();
+    spawn node(west_inputs[2][3], north_inputs[2][3], east_outputs[2][4], south_outputs[3][3], f32_0)();
 
-    spawn driver(
-        main_west_input0, main_west_input1, main_west_input2, main_west_input3,
-        main_south_input0, main_south_input1, main_south_input2, main_south_input3,
-        cell_04_west_in, cell_14_west_in, cell_24_west_in, cell_34_west_in,
-        cell_40_north_in, cell_41_north_in, cell_42_north_in, cell_43_north_in)
-        (f32_1, f32_0, f32_0, f32_0, f32_0);
-    ()
+    spawn node(activations_in[3], north_inputs[3][0], east_outputs[3][1], results_out[0], f32_0)();
+    spawn node(west_inputs[3][1], north_inputs[3][1], east_outputs[3][2], results_out[1], f32_0)();
+    spawn node(west_inputs[3][2], north_inputs[3][2], east_outputs[3][3], results_out[2], f32_0)();
+    spawn node(west_inputs[3][3], north_inputs[3][3], east_outputs[3][4], results_out[3], f32_2)();
+
+    (zeroes_out,)
   }
 
-  next(tok: token) { () }
+  // All we need to do is to push in "zero" values to the top of the array.
+  next(tok: token) {
+    let tok = send(tok, zeroes_out[0], float32::zero(false));
+    let tok = send(tok, zeroes_out[1], float32::zero(false));
+    let tok = send(tok, zeroes_out[2], float32::zero(false));
+    let tok = send(tok, zeroes_out[3], float32::zero(false));
+    ()
+  }
+}
+
+#![test_proc()]
+proc test_proc {
+  activations_out: chan out[4] F32;
+  results_in: chan in[4] F32;
+  terminator: chan out bool;
+
+  config(terminator: chan out bool) {
+    let (activations_out, activations_in) = chan[4] F32;
+    let (results_out, results_in) = chan[4] F32;
+    spawn matmul<u32:4, u32:4>(activations_in, results_out)();
+    (activations_out, results_in, terminator,)
+  }
+
+  next(tok: token) {
+    let f32_0 = float32::zero(false);
+    let f32_2 = F32 {sign: false, bexp: u8:128, fraction: u23:0};
+    let f32_4 = F32 {sign: false, bexp: u8:129, fraction: u23:0};
+
+    // Send the desired inputs.
+    let tok = for (i, tok): (u32, token) in range(u32:0, u32:4) {
+      send(tok, activations_out[i], f32_2)
+    } (tok);
+
+    // Send extra inputs to keep the system moving while our results are processing.
+    let tok = for (j, tok): (u32, token) in range(u32:0, u32:4) {
+      for (i, tok): (u32, token) in range(u32:0, u32:4) {
+          send(tok, activations_out[i], f32_0)
+      } (tok)
+    } (tok);
+
+    // Flush the intermediate values.
+    let tok = for (j, tok): (u32, token) in range(u32:0, u32:0) {
+      for (i, tok): (u32, token) in range(u32:0, u32:4) {
+          let (tok, _) = recv(tok, results_in[i]);
+          tok
+      } (tok)
+    } (tok);
+
+    let (tok, value) = recv(tok, results_in[0]);
+    let _ = assert_eq(value, f32_0);
+    let (tok, value) = recv(tok, results_in[1]);
+    let _ = assert_eq(value, f32_0);
+    let (tok, value) = recv(tok, results_in[2]);
+    let _ = assert_eq(value, f32_0);
+    let (tok, value) = recv(tok, results_in[3]);
+    let _ = assert_eq(value, f32_4);
+
+    let tok = send(tok, terminator, true);
+    ()
+  }
 }

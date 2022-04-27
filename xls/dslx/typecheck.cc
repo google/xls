@@ -589,8 +589,9 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
-                                                DeduceCtx* ctx) {
+absl::StatusOr<TypeAndBindings> CheckInvocation(
+    DeduceCtx* ctx, const Invocation* invocation,
+    const absl::flat_hash_map<const Param*, InterpValue>& constexpr_env) {
   XLS_VLOG(3) << "Typechecking invocation: " << invocation->ToString();
   Expr* callee = invocation->callee();
 
@@ -677,6 +678,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
 
   // We need to deduce fn body, so we're going to call Deduce, which means we'll
   // need a new stack entry w/the new symbolic bindings.
+  TypeInfo* original_ti = parent_ctx->type_info();
   ctx->AddFnStackEntry(
       FnStackEntry::Make(callee_fn, tab.symbolic_bindings, invocation));
   if (callee_fn->IsParametric()) {
@@ -692,15 +694,22 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
     }
   }
 
+  // Mark params (for proc config fns) or proc members (for proc next fns) as
+  // constexpr.
+  for (const auto& [k, v] : constexpr_env) {
+    ctx->type_info()->NoteConstExpr(k, v);
+    ctx->type_info()->NoteConstExpr(k->name_def(), v);
+  }
+
   // Add the new SBs to the constexpr set.
-  const auto& blarg = tab.symbolic_bindings.ToMap();
+  const auto& bindings_map = tab.symbolic_bindings.ToMap();
   for (ParametricBinding* parametric : callee_fn->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
     if (parametric->expr() == nullptr) {
-      if (blarg.contains(parametric->identifier())) {
-        ctx->type_info()->NoteConstExpr(parametric->name_def(),
-                                        blarg.at(parametric->identifier()));
+      if (bindings_map.contains(parametric->identifier())) {
+        ctx->type_info()->NoteConstExpr(
+            parametric->name_def(), bindings_map.at(parametric->identifier()));
       }
     }
   }
@@ -726,8 +735,8 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(const Invocation* invocation,
                         callee_fn->identifier()));
   }
 
-  parent_ctx->type_info()->SetInstantiationTypeInfo(
-      invocation, tab.symbolic_bindings, ctx->type_info());
+  original_ti->SetInstantiationTypeInfo(invocation, tab.symbolic_bindings,
+                                        ctx->type_info());
 
   if (callee_fn->IsParametric()) {
     XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());

@@ -1099,8 +1099,9 @@ proc foo {
 )";
   EXPECT_THAT(
       Typecheck(kProgram),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Send/Recv can only be performed on a channel.")));
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Send/Recv can only be performed on a member channel.")));
 }
 
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
