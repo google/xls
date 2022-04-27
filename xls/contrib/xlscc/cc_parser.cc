@@ -160,28 +160,24 @@ void CCParser::AddSourceInfoToPackage(xls::Package& package) {
   }
 }
 
-clang::PresumedLoc CCParser::GetPresumedLoc(const clang::SourceManager& sm,
-                                            const clang::Stmt& stmt) {
-  return sm.getPresumedLoc(stmt.getSourceRange().getBegin());
+clang::PresumedLoc CCParser::GetPresumedLoc(const clang::Stmt& stmt) {
+  return sm_->getPresumedLoc(stmt.getSourceRange().getBegin());
 }
 
-xls::SourceLocation CCParser::GetLoc(clang::SourceManager& sm,
-                                     const clang::Stmt& stmt) {
-  return GetLoc(GetPresumedLoc(sm, stmt));
+xls::SourceLocation CCParser::GetLoc(const clang::Stmt& stmt) {
+  return GetLoc(GetPresumedLoc(stmt));
 }
 
 clang::PresumedLoc CCParser::GetPresumedLoc(const clang::Decl& decl) {
-  clang::SourceManager& sm = decl.getASTContext().getSourceManager();
-  return sm.getPresumedLoc(decl.getSourceRange().getBegin());
+  return sm_->getPresumedLoc(decl.getSourceRange().getBegin());
 }
 
 xls::SourceLocation CCParser::GetLoc(const clang::Decl& decl) {
   return GetLoc(GetPresumedLoc(decl));
 }
 
-xls::SourceLocation CCParser::GetLoc(clang::SourceManager& sm,
-                                     const clang::Expr& expr) {
-  return GetLoc(sm.getPresumedLoc(expr.getExprLoc()));
+xls::SourceLocation CCParser::GetLoc(const clang::Expr& expr) {
+  return GetLoc(sm_->getPresumedLoc(expr.getExprLoc()));
 }
 
 xls::SourceLocation CCParser::GetLoc(const clang::PresumedLoc& loc) {
@@ -309,6 +305,9 @@ bool CCParser::LibToolVisitFunction(clang::FunctionDecl* func) {
 
 // Scans for top-level function candidates
 absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
+  if (!sm_) {
+    sm_ = &funcdecl->getASTContext().getSourceManager();
+  }
   const std::string fname = funcdecl->getNameAsString();
 
   // Top can't be a template function

@@ -220,4 +220,22 @@ TEST_F(CCParserTest, CommentedPragma) {
   ASSERT_EQ(pragma.type(), xlscc::Pragma_Top);
 }
 
+TEST_F(CCParserTest, SourceManagerInitialized) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_top
+    int foo(int a, int b) {
+      return a+b;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  ASSERT_NE(parser.sm_, nullptr);
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  parser.GetPresumedLoc(*top_ptr);
+}
+
+
 }  // namespace

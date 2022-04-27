@@ -124,14 +124,15 @@ class CCParser {
   void AddSourceInfoToPackage(xls::Package& package);
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
 
-  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Stmt& stmt);
-  clang::PresumedLoc GetPresumedLoc(const clang::SourceManager& sm,
-                                    const clang::Stmt& stmt);
+  xls::SourceLocation GetLoc(const clang::Stmt& stmt);
+  clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);
   xls::SourceLocation GetLoc(const clang::Decl& decl);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
-  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Expr& expr);
+  xls::SourceLocation GetLoc(const clang::Expr& expr);
   xls::SourceLocation GetLoc(const clang::PresumedLoc& loc);
   std::string LocString(const xls::SourceLocation& loc);
+
+  clang::SourceManager* sm_ = nullptr;
 
  private:
   bool LibToolVisitFunction(clang::FunctionDecl* func);

@@ -694,6 +694,9 @@ class Translator {
  private:
   friend class CInstantiableTypeAlias;
 
+  std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
+  std::string ErrorMessage(std::string message, xls::SourceLocation loc);
+
   // This object is used to push a new translation context onto the stack
   //  and then to pop it via RAII. This guard provides options for which bits of
   //  context to propagate up when popping it from the stack.
@@ -998,8 +1001,7 @@ class Translator {
                                const clang::Stmt* inc, const clang::Stmt* body,
                                const clang::PresumedLoc& presumed_loc,
                                const xls::SourceLocation& loc,
-                               clang::ASTContext& ctx,
-                               const clang::SourceManager& sm);
+                               clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_UnrolledLoop(const clang::Stmt* init,
@@ -1224,10 +1226,8 @@ class Translator {
                                    const xls::SourceLocation& loc);
 
   void FillLocationProto(const clang::SourceLocation& location,
-                         const clang::SourceManager& sm,
                          xlscc_metadata::SourceLocation* location_out);
   void FillLocationRangeProto(const clang::SourceRange& range,
-                              const clang::SourceManager& sm,
                               xlscc_metadata::SourceLocationRange* range_out);
 
   std::unique_ptr<CCParser> parser_;
@@ -1235,14 +1235,12 @@ class Translator {
   // Convenience calls to CCParser
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
   std::string LocString(const xls::SourceLocation& loc);
-  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Stmt& stmt);
-  xls::SourceLocation GetLoc(clang::SourceManager& sm, const clang::Expr& expr);
+  xls::SourceLocation GetLoc(const clang::Stmt& stmt);
   xls::SourceLocation GetLoc(const clang::Decl& decl);
   inline std::string LocString(const clang::Decl& decl) {
     return LocString(GetLoc(decl));
   }
-  clang::PresumedLoc GetPresumedLoc(const clang::SourceManager& sm,
-                                    const clang::Stmt& stmt);
+  clang::PresumedLoc GetPresumedLoc(const clang::Stmt& stmt);
   clang::PresumedLoc GetPresumedLoc(const clang::Decl& decl);
 };
 

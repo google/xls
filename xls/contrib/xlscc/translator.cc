@@ -62,6 +62,7 @@
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
@@ -636,6 +637,19 @@ void Translator::PopContext(bool propagate_up, bool propagate_break_up,
       context().continue_condition = popped.continue_condition;
     }
   }
+}
+
+std::function<std::optional<std::string>(xls::Fileno)>
+    Translator::LookUpInPackage() {
+  return [=](xls::Fileno file_number) {
+    AddSourceInfoToPackage(*package_);
+    return package_->GetFilename(file_number);
+  };
+}
+
+std::string Translator::ErrorMessage(std::string message,
+                                     xls::SourceLocation loc) {
+  return absl::StrCat(message, PrintCaret(LookUpInPackage(), loc));
 }
 
 void Translator::AddSourceInfoToPackage(xls::Package& package) {
@@ -3655,8 +3669,7 @@ absl::Status Translator::GenerateIR_Compound(const clang::Stmt* body,
 
 absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
-  clang::SourceManager& sm = ctx.getSourceManager();
-  const xls::SourceLocation loc = GetLoc(sm, *stmt);
+  const xls::SourceLocation loc = GetLoc(*stmt);
   DisallowAssignmentGuard unseq_guard(*this);
 
   // TODO(seanhaskell): A cleaner way to check if it's any kind of Expr?
@@ -3870,14 +3883,14 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       auto forst = clang_down_cast<const clang::ForStmt*>(stmt);
       XLS_RETURN_IF_ERROR(GenerateIR_Loop(
           forst->getInit(), forst->getCond(), forst->getInc(), forst->getBody(),
-          GetPresumedLoc(sm, *forst), loc, ctx, sm));
+          GetPresumedLoc(*forst), loc, ctx));
       break;
     }
     case clang::Stmt::WhileStmtClass: {
       auto forst = clang_down_cast<const clang::WhileStmt*>(stmt);
       XLS_RETURN_IF_ERROR(GenerateIR_Loop(
           /*init=*/nullptr, forst->getCond(), /*inc=*/nullptr, forst->getBody(),
-          GetPresumedLoc(sm, *forst), loc, ctx, sm));
+          GetPresumedLoc(*forst), loc, ctx));
       break;
     }
     case clang::Stmt::SwitchStmtClass: {
@@ -3941,7 +3954,7 @@ absl::Status Translator::GenerateIR_Loop(
     const clang::Stmt* init, const clang::Expr* cond_expr,
     const clang::Stmt* inc, const clang::Stmt* body,
     const clang::PresumedLoc& presumed_loc, const xls::SourceLocation& loc,
-    clang::ASTContext& ctx, const clang::SourceManager& sm) {
+    clang::ASTContext& ctx) {
   if (cond_expr != nullptr && cond_expr->isIntegerConstantExpr(ctx)) {
     // special case for "for (;0;) {}" (essentially no op)
     XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*cond_expr, ctx, loc));
@@ -4614,8 +4627,6 @@ static void FlattenCaseOrDefault(
 absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                            clang::ASTContext& ctx,
                                            const xls::SourceLocation& loc) {
-  clang::SourceManager& sm = ctx.getSourceManager();
-
   PushContextGuard switch_guard(*this, loc);
   context().in_switch_body = true;
   context().in_for_body = false;
@@ -4643,7 +4654,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   for (const clang::Stmt* stmt : flat_statements) {
     if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
       auto case_it = clang_down_cast<const clang::CaseStmt*>(stmt);
-      const xls::SourceLocation loc = GetLoc(sm, *case_it);
+      const xls::SourceLocation loc = GetLoc(*case_it);
       XLS_ASSIGN_OR_RETURN(CValue case_val,
                            GenerateIR_Expr(case_it->getLHS(), loc));
       auto case_int_type = std::dynamic_pointer_cast<CIntType>(case_val.type());
@@ -4666,7 +4677,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   // for indexing into case_conds
   int case_idx = 0;
   for (const clang::Stmt* stmt : flat_statements) {
-    const xls::SourceLocation loc = GetLoc(sm, *stmt);
+    const xls::SourceLocation loc = GetLoc(*stmt);
     xls::BValue cond;
 
     if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
@@ -4857,6 +4868,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
                         type->getTypeClassName(), LocString(loc)));
   }
 }
+
 
 absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
@@ -5346,13 +5358,11 @@ absl::Status Translator::GenerateFunctionMetadata(
   output->mutable_name()->set_id(
       reinterpret_cast<uint64_t>(dynamic_cast<const clang::NamedDecl*>(func)));
 
-  const clang::SourceManager& sm = func->getASTContext().getSourceManager();
-
-  FillLocationRangeProto(func->getReturnTypeSourceRange(), sm,
+  FillLocationRangeProto(func->getReturnTypeSourceRange(),
                          output->mutable_return_location());
-  FillLocationRangeProto(func->getParametersSourceRange(), sm,
+  FillLocationRangeProto(func->getParametersSourceRange(),
                          output->mutable_parameters_location());
-  FillLocationRangeProto(func->getSourceRange(), sm,
+  FillLocationRangeProto(func->getSourceRange(),
                          output->mutable_whole_declaration_location());
 
   XLS_RETURN_IF_ERROR(GenerateMetadataType(func->getReturnType(),
@@ -5439,24 +5449,24 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
 }
 
 void Translator::FillLocationProto(
-    const clang::SourceLocation& location, const clang::SourceManager& sm,
+    const clang::SourceLocation& location,
     xlscc_metadata::SourceLocation* location_out) {
   // Check that the location exists
   // this may be invalid if the function has no parameters
   if (location.isInvalid()) {
     return;
   }
-  const clang::PresumedLoc& presumed = sm.getPresumedLoc(location);
+  const clang::PresumedLoc& presumed = parser_->sm_->getPresumedLoc(location);
   location_out->set_filename(presumed.getFilename());
   location_out->set_line(presumed.getLine());
   location_out->set_column(presumed.getColumn());
 }
 
 void Translator::FillLocationRangeProto(
-    const clang::SourceRange& range, const clang::SourceManager& sm,
+    const clang::SourceRange& range,
     xlscc_metadata::SourceLocationRange* range_out) {
-  FillLocationProto(range.getBegin(), sm, range_out->mutable_begin());
-  FillLocationProto(range.getEnd(), sm, range_out->mutable_end());
+  FillLocationProto(range.getBegin(), range_out->mutable_begin());
+  FillLocationProto(range.getEnd(), range_out->mutable_end());
 }
 
 absl::Status Translator::GenerateMetadataCPPName(
@@ -5548,11 +5558,10 @@ absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
   XLS_CHECK_GT(in.type()->GetBitWidth(), 0);
   if (in.type()->GetBitWidth() == 1) {
     return in.rvalue();
-  } else {
-    xls::BValue const0 =
-        context().fb->Literal(xls::UBits(0, in.type()->GetBitWidth()), loc);
-    return context().fb->Ne(in.rvalue(), const0, loc);
   }
+  xls::BValue const0 =
+      context().fb->Literal(xls::UBits(0, in.type()->GetBitWidth()), loc);
+  return context().fb->Ne(in.rvalue(), const0, loc);
 }
 
 std::string Translator::LocString(const xls::SourceLocation& loc) {
@@ -5560,16 +5569,9 @@ std::string Translator::LocString(const xls::SourceLocation& loc) {
   return parser_->LocString(loc);
 }
 
-xls::SourceLocation Translator::GetLoc(clang::SourceManager& sm,
-                                       const clang::Stmt& stmt) {
+xls::SourceLocation Translator::GetLoc(const clang::Stmt& stmt) {
   XLS_CHECK_NE(parser_.get(), nullptr);
-  return parser_->GetLoc(sm, stmt);
-}
-
-xls::SourceLocation Translator::GetLoc(clang::SourceManager& sm,
-                                       const clang::Expr& expr) {
-  XLS_CHECK_NE(parser_.get(), nullptr);
-  return parser_->GetLoc(sm, expr);
+  return parser_->GetLoc(stmt);
 }
 
 xls::SourceLocation Translator::GetLoc(const clang::Decl& decl) {
@@ -5577,10 +5579,9 @@ xls::SourceLocation Translator::GetLoc(const clang::Decl& decl) {
   return parser_->GetLoc(decl);
 }
 
-clang::PresumedLoc Translator::GetPresumedLoc(const clang::SourceManager& sm,
-                                              const clang::Stmt& stmt) {
+clang::PresumedLoc Translator::GetPresumedLoc(const clang::Stmt& stmt) {
   XLS_CHECK_NE(parser_.get(), nullptr);
-  return parser_->GetPresumedLoc(sm, stmt);
+  return parser_->GetPresumedLoc(stmt);
 }
 
 clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
