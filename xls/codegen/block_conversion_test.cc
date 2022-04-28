@@ -38,6 +38,7 @@ namespace verilog {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using testing::ElementsAre;
 using testing::Pair;
 using testing::UnorderedElementsAre;
 
@@ -526,6 +527,75 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
       ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
   EXPECT_THAT(FindNode("out", block),
               m::OutputPort("out", m::Neg(m::InputPort("in"))));
+}
+
+TEST_F(BlockConversionTest, ProcWithSharedNextStateNode) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      p->CreateStreamingChannel("input", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * x_out,
+      p->CreateStreamingChannel("x_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * y_out,
+      p->CreateStreamingChannel("y_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_out,
+      p->CreateStreamingChannel("in_out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder b(TestName(), "tkn", p.get());
+  BValue x = b.StateElement("x", Value(UBits(0, 32)));
+  BValue y = b.StateElement("y", Value(UBits(0, 32)));
+  BValue x_plus_one = b.Add(x, b.Literal(UBits(1, 32)));
+
+  b.Send(in_out, b.Identity(b.Receive(in)));
+  b.Send(x_out, x);
+  b.Send(y_out, y);
+
+  // `x_plus_one` is the next state value for both `x` and `y` state elements.
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({x_plus_one, x_plus_one}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(proc, TestDelayEstimator(),
+                            SchedulingOptions().pipeline_stages(3)));
+
+  CodegenOptions options;
+  options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+  options.reset("rst", false, false, true);
+  options.streaming_channel_data_suffix("_data");
+  options.streaming_channel_valid_suffix("_valid");
+  options.streaming_channel_ready_suffix("_ready");
+  options.module_name("pipelined_proc");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToPipelinedBlock(schedule, options, proc));
+
+  std::vector<ChannelSource> sources{
+      ChannelSource("input_data", "input_valid", "input_ready", 1.0, block),
+  };
+  XLS_ASSERT_OK(sources.front().SetDataSequence({10, 20, 30}));
+  std::vector<ChannelSink> sinks{
+      ChannelSink("x_out_data", "x_out_valid", "x_out_ready", 1.0, block),
+      ChannelSink("y_out_data", "y_out_valid", "y_out_ready", 1.0, block),
+      ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0, block),
+  };
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
+                                                                 {{"rst", 0}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      BlockIoResultsAsUint64 results,
+      InterpretChannelizedSequentialBlockWithUint64(
+          block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
+
+  EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 1, 2)));
+  EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 1, 2)));
+  EXPECT_THAT(sinks.at(2).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 
 TEST_F(BlockConversionTest, ChannelDefaultAndNonDefaultSuffixName) {
@@ -2549,7 +2619,7 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
       io_results.outputs;
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      io_results, InterpretChannelizedSequentialBlock(
+      io_results, InterpretChannelizedSequentialBlockWithUint64(
                       block, absl::MakeSpan(sources), absl::MakeSpan(sinks),
                       non_streaming_inputs));
 

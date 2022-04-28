@@ -323,9 +323,10 @@ TEST_F(BlockInterpreterTest, ChannelizedAccumulatorRegister) {
     inputs.resize(100);
 
     BlockIoResultsAsUint64 block_io;
-    XLS_ASSERT_OK_AND_ASSIGN(block_io, InterpretChannelizedSequentialBlock(
-                                           block, absl::MakeSpan(sources),
-                                           absl::MakeSpan(sinks), inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io,
+        InterpretChannelizedSequentialBlockWithUint64(
+            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
                              sinks.at(0).GetOutputSequenceAsUint64());
     EXPECT_EQ(output_sequence.size(), 0);
@@ -346,9 +347,10 @@ TEST_F(BlockInterpreterTest, ChannelizedAccumulatorRegister) {
     inputs.resize(100);
 
     BlockIoResultsAsUint64 block_io;
-    XLS_ASSERT_OK_AND_ASSIGN(block_io, InterpretChannelizedSequentialBlock(
-                                           block, absl::MakeSpan(sources),
-                                           absl::MakeSpan(sinks), inputs));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        block_io,
+        InterpretChannelizedSequentialBlockWithUint64(
+            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
 
     XLS_ASSERT_OK_AND_ASSIGN(std::vector<uint64_t> output_sequence,
                              sinks.at(0).GetOutputSequenceAsUint64());

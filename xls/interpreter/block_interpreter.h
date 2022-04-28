@@ -214,8 +214,9 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
     int64_t seed = 0);
 
-// Overload which accepts and returns uint64_t values instead of xls::Values.
-absl::StatusOr<BlockIoResultsAsUint64> InterpretChannelizedSequentialBlock(
+// Variant which accepts and returns uint64_t values instead of xls::Values.
+absl::StatusOr<BlockIoResultsAsUint64>
+InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,

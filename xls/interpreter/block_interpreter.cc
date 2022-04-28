@@ -492,7 +492,8 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
   return block_io_results;
 }
 
-absl::StatusOr<BlockIoResultsAsUint64> InterpretChannelizedSequentialBlock(
+absl::StatusOr<BlockIoResultsAsUint64>
+InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
