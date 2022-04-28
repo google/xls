@@ -1096,6 +1096,7 @@ cc_library(
     srcs = ["type_info_to_proto.cc"],
     hdrs = ["type_info_to_proto.h"],
     deps = [
+        ":import_data",
         ":type_info",
         ":type_info_cc_proto",
         "//xls/common:proto_adaptor_utils",
@@ -1254,5 +1255,21 @@ cc_binary(
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+py_test(
+    name = "typecheck_main_test",
+    srcs = ["typecheck_main_test.py"],
+    data = [
+        ":typecheck_main",
+        "//xls/dslx/tests:mod_const_enum_importer.x",
+        "//xls/dslx/tests:mod_simple_const_enum.x",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
     ],
 )

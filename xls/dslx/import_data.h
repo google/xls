@@ -27,9 +27,24 @@
 namespace xls::dslx {
 
 // An entry that goes into the ImportData.
-struct ModuleInfo {
-  std::unique_ptr<Module> module;
-  TypeInfo* type_info;
+class ModuleInfo {
+ public:
+  ModuleInfo(std::unique_ptr<Module> module, TypeInfo* type_info,
+             std::filesystem::path path)
+      : module_(std::move(module)),
+        type_info_(type_info),
+        path_(std::move(path)) {}
+
+  const Module& module() const { return *module_; }
+  Module& module() { return *module_; }
+  const TypeInfo* type_info() const { return type_info_; }
+  TypeInfo* type_info() { return type_info_; }
+  const std::filesystem::path& path() const { return path_; }
+
+ private:
+  std::unique_ptr<Module> module_;
+  TypeInfo* type_info_;
+  std::filesystem::path path_;
 };
 
 // Immutable "tuple" of tokens that name an absolute import location.
@@ -84,15 +99,13 @@ class ImportData {
   ImportData() = delete;
 
   bool Contains(const ImportTokens& target) const {
-    return cache_.find(target) != cache_.end();
+    return modules_.find(target) != modules_.end();
   }
 
-  // Note: returned pointer is not stable across mutations.
-  absl::StatusOr<const ModuleInfo*> Get(const ImportTokens& subject) const;
+  absl::StatusOr<ModuleInfo*> Get(const ImportTokens& subject);
 
-  // Note: returned pointer is not stable across mutations.
-  absl::StatusOr<const ModuleInfo*> Put(const ImportTokens& subject,
-                                        ModuleInfo module_info);
+  absl::StatusOr<ModuleInfo*> Put(const ImportTokens& subject,
+                                  std::unique_ptr<ModuleInfo> module_info);
 
   TypeInfoOwner& type_info_owner() { return type_info_owner_; }
 
@@ -146,6 +159,17 @@ class ImportData {
   void SetBytecodeCache(std::unique_ptr<BytecodeCacheInterface> bytecode_cache);
   BytecodeCacheInterface* bytecode_cache();
 
+  // Helpers for finding nodes in the cluster of modules managed by this object.
+  //
+  // These return a NotFound error if _either_ the module (implicitly
+  // identified by the filename in the span) is not found _or_ the AST node
+  // identified by the given span is not found within that module.
+
+  absl::StatusOr<const EnumDef*> FindEnumDef(const Span& span) const;
+  absl::StatusOr<const StructDef*> FindStructDef(const Span& span) const;
+  absl::StatusOr<const AstNode*> FindNode(AstNodeKind kind,
+                                          const Span& span) const;
+
  private:
   friend ImportData CreateImportData(std::string,
                                      absl::Span<const std::filesystem::path>);
@@ -159,7 +183,13 @@ class ImportData {
       : stdlib_path_(std::move(stdlib_path)),
         additional_search_paths_(additional_search_paths) {}
 
-  absl::flat_hash_map<ImportTokens, ModuleInfo> cache_;
+  // Attempts to find a module owned by this ImportData according to the
+  // filename present in "span". Returns a NotFound error if a corresponding
+  // module is not available.
+  absl::StatusOr<const Module*> FindModule(const Span& span) const;
+
+  absl::flat_hash_map<ImportTokens, std::unique_ptr<ModuleInfo>> modules_;
+  absl::flat_hash_map<std::string, ModuleInfo*> path_to_module_info_;
   absl::flat_hash_map<Module*, std::unique_ptr<InterpBindings>>
       top_level_bindings_;
   absl::flat_hash_set<Module*> top_level_bindings_done_;

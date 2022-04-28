@@ -26,18 +26,23 @@ namespace xls::dslx {
 namespace {
 
 void DoRun(std::string_view program, absl::Span<const std::string> want,
-           TypeInfoProto* proto_out = nullptr) {
-  auto import_data = CreateImportDataForTest();
+           TypeInfoProto* proto_out = nullptr,
+           ImportData* import_data = nullptr) {
+  std::optional<ImportData> local_import_data;
+  if (import_data == nullptr) {
+    local_import_data = CreateImportDataForTest();
+    import_data = &local_import_data.value();
+  }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
-      ParseAndTypecheck(program, "fake.x", "fake", &import_data));
+      ParseAndTypecheck(program, "fake.x", "fake", import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
   ASSERT_THAT(want, ::testing::SizeIs(tip.nodes_size()));
   std::vector<std::string> got;
   for (int64_t i = 0; i < tip.nodes_size(); ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(std::string node_str,
-                             ToHumanString(tip.nodes(i), *tm.module));
+                             ToHumanString(tip.nodes(i), *import_data));
     EXPECT_EQ(node_str, want[i]) << "at index: " << i;
   }
   if (proto_out) {
@@ -188,6 +193,36 @@ fn f() -> E { E::A }
       /*10=*/"2:15-2:18: COLON_REF :: `E::A` :: E",
   };
   DoRun(program, want);
+}
+
+TEST(TypeInfoToProtoTest, ImportModuleAndTypeAliasAnEnum) {
+  std::string imported = R"(
+pub enum Foo : u32 {
+  A = 42,
+}
+)";
+
+  ImportData import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(imported, "my_imported_module.x", "my_imported_module",
+                        &import_data));
+  (void)tm;
+
+  std::string program = R"(
+import my_imported_module
+
+type MyFoo = my_imported_module::Foo;
+)";
+  std::vector<std::string> want = {
+      /*0=*/
+      "3:0-3:37: TYPE_DEF :: `type MyFoo = my_imported_module::Foo;` :: Foo",
+      /*1=*/"3:5-3:10: NAME_DEF :: `MyFoo` :: Foo",
+      /*2=*/"3:13-3:36: TYPE_ANNOTATION :: `my_imported_module::Foo` :: Foo",
+      /*3=*/"3:13-3:36: TYPE_REF :: `my_imported_module::Foo` :: Foo",
+      /*4=*/"3:13-3:36: COLON_REF :: `my_imported_module::Foo` :: Foo",
+  };
+  DoRun(program, want, /*proto_out=*/nullptr, /*import_data=*/&import_data);
 }
 
 }  // namespace

@@ -24,24 +24,25 @@ namespace xls::dslx {
   return ImportTokens(absl::StrSplit(module_name, '.'));
 }
 
-absl::StatusOr<const ModuleInfo*> ImportData::Get(
-    const ImportTokens& subject) const {
-  auto it = cache_.find(subject);
-  if (it == cache_.end()) {
+absl::StatusOr<ModuleInfo*> ImportData::Get(const ImportTokens& subject) {
+  auto it = modules_.find(subject);
+  if (it == modules_.end()) {
     return absl::NotFoundError("Module information was not found for import " +
                                subject.ToString());
   }
-  return &it->second;
+  return it->second.get();
 }
 
-absl::StatusOr<const ModuleInfo*> ImportData::Put(const ImportTokens& subject,
-                                                  ModuleInfo module_info) {
-  auto it = cache_.insert({subject, std::move(module_info)});
-  if (!it.second) {
+absl::StatusOr<ModuleInfo*> ImportData::Put(
+    const ImportTokens& subject, std::unique_ptr<ModuleInfo> module_info) {
+  auto* pmodule_info = module_info.get();
+  auto [it, inserted] = modules_.emplace(subject, std::move(module_info));
+  if (!inserted) {
     return absl::InvalidArgumentError(
         "Module is already loaded for import of " + subject.ToString());
   }
-  return &it.first->second;
+  path_to_module_info_[std::string(pmodule_info->path())] = pmodule_info;
+  return pmodule_info;
 }
 
 absl::StatusOr<TypeInfo*> ImportData::GetRootTypeInfoForNode(
@@ -79,6 +80,55 @@ void ImportData::SetBytecodeCache(
 
 BytecodeCacheInterface* ImportData::bytecode_cache() {
   return bytecode_cache_.get();
+}
+
+absl::StatusOr<const EnumDef*> ImportData::FindEnumDef(const Span& span) const {
+  XLS_ASSIGN_OR_RETURN(const Module* module, FindModule(span));
+  const EnumDef* enum_def = module->FindEnumDef(span);
+  if (enum_def == nullptr) {
+    return absl::NotFoundError(
+        absl::StrFormat("Could not find enum def @ %s within module %s",
+                        span.ToString(), module->name()));
+  }
+  return enum_def;
+}
+
+absl::StatusOr<const StructDef*> ImportData::FindStructDef(
+    const Span& span) const {
+  XLS_ASSIGN_OR_RETURN(const Module* module, FindModule(span));
+  const StructDef* struct_def = module->FindStructDef(span);
+  if (struct_def == nullptr) {
+    return absl::NotFoundError(
+        absl::StrFormat("Could not find struct def @ %s within module %s",
+                        span.ToString(), module->name()));
+  }
+  return struct_def;
+}
+
+absl::StatusOr<const Module*> ImportData::FindModule(const Span& span) const {
+  auto it = path_to_module_info_.find(span.filename());
+  if (it == path_to_module_info_.end()) {
+    std::vector<std::string> paths;
+    for (const auto& [path, module_info] : path_to_module_info_) {
+      paths.push_back(std::string(path));
+    }
+    return absl::NotFoundError(
+        absl::StrCat("Could not find module: ", span.filename(),
+                     "; have: ", absl::StrJoin(paths, ", ")));
+  }
+  return &it->second->module();
+}
+
+absl::StatusOr<const AstNode*> ImportData::FindNode(AstNodeKind kind,
+                                                    const Span& span) const {
+  XLS_ASSIGN_OR_RETURN(const Module* module, FindModule(span));
+  const AstNode* node = module->FindNode(kind, span);
+  if (node == nullptr) {
+    return absl::NotFoundError(absl::StrFormat(
+        "Could not find node with kind %s @ %s within module %s",
+        AstNodeKindToString(kind), span.ToString(), module->name()));
+  }
+  return node;
 }
 
 }  // namespace xls::dslx

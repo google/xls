@@ -251,6 +251,8 @@ enum class AstNodeKind {
   kParametricBinding,
 };
 
+std::string_view AstNodeKindToString(AstNodeKind kind);
+
 // Abstract base class for AST nodes.
 class AstNode {
  public:

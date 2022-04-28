@@ -789,3 +789,8 @@ dslx_lang_test(
     # No normal 'function' entry point, it is a proc.
     test_ir_equivalence = False,
 )
+
+exports_files([
+    "mod_const_enum_importer.x",
+    "mod_simple_const_enum.x",
+])

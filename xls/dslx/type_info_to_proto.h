@@ -15,6 +15,7 @@
 #ifndef XLS_DSLX_TYPE_INFO_TO_PROTO_H_
 #define XLS_DSLX_TYPE_INFO_TO_PROTO_H_
 
+#include "xls/dslx/import_data.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/type_info.pb.h"
 
@@ -27,11 +28,11 @@ absl::StatusOr<TypeInfoProto> TypeInfoToProto(const TypeInfo& type_info);
 // Converts the given protobuf representation of an AST node in module "m" into
 // a human readable string suitable for debugging and convenient testing.
 absl::StatusOr<std::string> ToHumanString(const AstNodeTypeInfoProto& antip,
-                                          const Module& m);
+                                          const ImportData& import_data);
 
 // As above, but puts every node in the TypeInfoProto on its own line.
 absl::StatusOr<std::string> ToHumanString(const TypeInfoProto& tip,
-                                          const Module& m);
+                                          const ImportData& import_data);
 
 }  // namespace xls::dslx
 

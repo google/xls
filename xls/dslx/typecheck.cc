@@ -353,11 +353,11 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
   if (absl::holds_alternative<Import*>(member)) {
     Import* import = absl::get<Import*>(member);
     XLS_ASSIGN_OR_RETURN(
-        const ModuleInfo* imported,
+        ModuleInfo * imported,
         DoImport(ctx->typecheck_module(), ImportTokens(import->subject()),
                  import_data, import->span()));
-    ctx->type_info()->AddImport(import, imported->module.get(),
-                                imported->type_info);
+    ctx->type_info()->AddImport(import, &imported->module(),
+                                imported->type_info());
   } else if (absl::holds_alternative<ConstantDef*>(member) ||
              absl::holds_alternative<EnumDef*>(member)) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());

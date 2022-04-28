@@ -50,10 +50,9 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
 TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
   std::vector<std::string> import_tokens{"robs", "dslx", "import_module"};
   ImportTokens subject(import_tokens);
-  ModuleInfo module_info;
-  module_info.module = std::make_unique<Module>("import_module");
-  module_info.type_info = nullptr;
-  Module* import_module = module_info.module.get();
+  ModuleInfo module_info(std::make_unique<Module>("import_module"),
+                         /*type_info=*/nullptr, "robs/dslx/import_module.x");
+  Module* import_module = &module_info.module();
 
   NameDef* name_def =
       import_module->Make<NameDef>(Span::Fake(), "proc_name", nullptr);

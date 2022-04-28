@@ -62,8 +62,7 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
     XLS_QCHECK(tip.SerializeToString(&output));
     return SetFileContents(output_path->c_str(), output);
   }
-  XLS_ASSIGN_OR_RETURN(std::string humanized,
-                       ToHumanString(tip, *tm_or->module));
+  XLS_ASSIGN_OR_RETURN(std::string humanized, ToHumanString(tip, import_data));
   std::cout << humanized << std::endl;
   return absl::OkStatus();
 }

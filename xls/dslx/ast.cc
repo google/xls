@@ -25,6 +25,112 @@
 
 namespace xls::dslx {
 
+std::string_view AstNodeKindToString(AstNodeKind kind) {
+  switch (kind) {
+    case AstNodeKind::kTypeAnnotation:
+      return "type annotation";
+    case AstNodeKind::kModule:
+      return "module";
+    case AstNodeKind::kNameDef:
+      return "name definition";
+    case AstNodeKind::kBuiltinNameDef:
+      return "builtin name definition";
+    case AstNodeKind::kTernary:
+      return "ternary";
+    case AstNodeKind::kTypeDef:
+      return "type alias";
+    case AstNodeKind::kNumber:
+      return "number";
+    case AstNodeKind::kTypeRef:
+      return "type reference";
+    case AstNodeKind::kImport:
+      return "import";
+    case AstNodeKind::kUnop:
+      return "unary op";
+    case AstNodeKind::kBinop:
+      return "binary op";
+    case AstNodeKind::kColonRef:
+      return "colon reference";
+    case AstNodeKind::kParam:
+      return "parameter";
+    case AstNodeKind::kFunction:
+      return "function";
+    case AstNodeKind::kProc:
+      return "proc";
+    case AstNodeKind::kNameRef:
+      return "name reference";
+    case AstNodeKind::kConstRef:
+      return "const reference";
+    case AstNodeKind::kArray:
+      return "array";
+    case AstNodeKind::kString:
+      return "string";
+    case AstNodeKind::kStructInstance:
+      return "struct instance";
+    case AstNodeKind::kSplatStructInstance:
+      return "splat struct instance";
+    case AstNodeKind::kNameDefTree:
+      return "name definition tree";
+    case AstNodeKind::kIndex:
+      return "index";
+    case AstNodeKind::kRecv:
+      return "receive";
+    case AstNodeKind::kRecvIf:
+      return "receive-if";
+    case AstNodeKind::kSend:
+      return "send";
+    case AstNodeKind::kSendIf:
+      return "send-if";
+    case AstNodeKind::kJoin:
+      return "join";
+    case AstNodeKind::kTestFunction:
+      return "test function";
+    case AstNodeKind::kTestProc:
+      return "test proc";
+    case AstNodeKind::kWidthSlice:
+      return "width slice";
+    case AstNodeKind::kWildcardPattern:
+      return "wildcard pattern";
+    case AstNodeKind::kMatchArm:
+      return "match arm";
+    case AstNodeKind::kMatch:
+      return "match";
+    case AstNodeKind::kAttr:
+      return "attribute";
+    case AstNodeKind::kInstantiation:
+      return "instantiation";
+    case AstNodeKind::kInvocation:
+      return "invocation";
+    case AstNodeKind::kSpawn:
+      return "spawn";
+    case AstNodeKind::kFormatMacro:
+      return "format macro";
+    case AstNodeKind::kSlice:
+      return "slice";
+    case AstNodeKind::kEnumDef:
+      return "enum definition";
+    case AstNodeKind::kStructDef:
+      return "struct definition";
+    case AstNodeKind::kQuickCheck:
+      return "quick-check";
+    case AstNodeKind::kXlsTuple:
+      return "tuple";
+    case AstNodeKind::kFor:
+      return "for";
+    case AstNodeKind::kCast:
+      return "cast";
+    case AstNodeKind::kConstantDef:
+      return "constant definition";
+    case AstNodeKind::kLet:
+      return "let";
+    case AstNodeKind::kChannelDecl:
+      return "channel declaration";
+    case AstNodeKind::kParametricBinding:
+      return "parametric binding";
+  }
+  XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
+}
+
 absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
                            bool want_types) {
   for (AstNode* child : root->GetChildren(want_types)) {

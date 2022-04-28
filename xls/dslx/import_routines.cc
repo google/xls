@@ -120,10 +120,10 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
                       GetCurrentDirectory().value(), stdlib_path));
 }
 
-absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
-                                           const ImportTokens& subject,
-                                           ImportData* import_data,
-                                           const Span& import_span) {
+absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
+                                     const ImportTokens& subject,
+                                     ImportData* import_data,
+                                     const Span& import_span) {
   XLS_RET_CHECK(import_data != nullptr);
   if (import_data->Contains(subject)) {
     return import_data->Get(subject);
@@ -146,7 +146,9 @@ absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
   Parser parser(/*module_name=*/fully_qualified_name, &scanner);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info, ftypecheck(module.get()));
-  return import_data->Put(subject, ModuleInfo{std::move(module), type_info});
+  return import_data->Put(
+      subject, std::make_unique<ModuleInfo>(std::move(module), type_info,
+                                            std::move(found_path)));
 }
 
 }  // namespace xls::dslx

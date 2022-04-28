@@ -44,10 +44,10 @@ using TypecheckModuleFn = std::function<absl::StatusOr<TypeInfo*>(Module*)>;
 //
 // Returns:
 //  The imported module information.
-absl::StatusOr<const ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
-                                           const ImportTokens& subject,
-                                           ImportData* import_data,
-                                           const Span& import_span);
+absl::StatusOr<ModuleInfo*> DoImport(const TypecheckModuleFn& ftypecheck,
+                                     const ImportTokens& subject,
+                                     ImportData* import_data,
+                                     const Span& import_span);
 
 }  // namespace xls::dslx
 

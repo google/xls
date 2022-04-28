@@ -31,9 +31,11 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
   TypecheckedModule result{module.get(), type_info};
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
-  XLS_RETURN_IF_ERROR(
-      import_data->Put(subject, ModuleInfo{std::move(module), type_info})
-          .status());
+  XLS_RETURN_IF_ERROR(import_data
+                          ->Put(subject, std::make_unique<ModuleInfo>(
+                                             std::move(module), type_info,
+                                             std::filesystem::path(path)))
+                          .status());
   return result;
 }
 
