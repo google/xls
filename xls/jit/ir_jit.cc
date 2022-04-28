@@ -299,10 +299,8 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
   std::vector<llvm::Type*> param_types;
   // Represent the input args as char/i8 pointers to their data.
   param_types.push_back(llvm::PointerType::get(
-      llvm::ArrayType::get(
-          llvm::PointerType::get(llvm::Type::getInt8Ty(*bare_context),
-                                 /*AddressSpace=*/0),
-          xls_function_->params().size()),
+      llvm::ArrayType::get(llvm::Type::getInt8PtrTy(*bare_context),
+                           xls_function_->params().size()),
       /*AddressSpace=*/0));
 
   for (const Param* param : xls_function_->params()) {

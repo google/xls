@@ -14,6 +14,7 @@
 #include "xls/jit/function_builder_visitor.h"
 
 #include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/Instructions.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/ir/bits_ops.h"
@@ -97,26 +98,7 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
     return absl::OkStatus();
   }
 
-  if (return_value_->getType()->isPointerTy()) {
-    llvm::Type* pointee_type =
-        return_value_->getType()->getPointerElementType();
-    if (pointee_type != llvm_return_type) {
-      std::string output;
-      llvm::raw_string_ostream stream(output);
-      stream << "Produced return type does not match intended: produced: ";
-      pointee_type->print(stream, /*IsForDebug=*/true);
-      stream << ", expected: ";
-      llvm_return_type->print(stream, /*IsForDebug=*/true);
-      return absl::InternalError(stream.str());
-    }
-
-    int64_t return_type_bytes =
-        type_converter_->GetTypeByteSize(xls_return_type);
-    builder_->CreateMemCpy(output_arg, llvm::MaybeAlign(0), return_value_,
-                           llvm::MaybeAlign(0), return_type_bytes);
-  } else {
-    builder_->CreateStore(return_value_, output_arg);
-  }
+  builder_->CreateStore(return_value_, output_arg);
   builder_->CreateRetVoid();
 
   return absl::OkStatus();
@@ -717,7 +699,7 @@ absl::Status FunctionBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   auto required = GetRequiredArgs();
   args.insert(args.end(), required.begin(), required.end());
 
-  llvm::Type* function_type = function->getType()->getPointerElementType();
+  llvm::Type* function_type = function->getFunctionType();
   for (int i = 0; i < counted_for->trip_count(); ++i) {
     args[0] = llvm::ConstantInt::get(function_type->getFunctionParamType(0),
                                      i * counted_for->stride());
@@ -747,8 +729,7 @@ absl::Status FunctionBuilderVisitor::HandleDynamicCountedFor(
   // Grab loop body.
   XLS_ASSIGN_OR_RETURN(llvm::Function * loop_body_function,
                        GetModuleFunction(dynamic_counted_for->body()));
-  llvm::Type* loop_body_function_type =
-      loop_body_function->getType()->getPointerElementType();
+  llvm::Type* loop_body_function_type = loop_body_function->getFunctionType();
 
   // The loop body arguments are the invariant arguments plus the loop carry and
   // index.
@@ -998,8 +979,7 @@ absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
 
   llvm::Value* input = node_map_.at(map->operand(0));
   llvm::Type* input_type = input->getType();
-  llvm::FunctionType* function_type = llvm::cast<llvm::FunctionType>(
-      to_apply->getType()->getPointerElementType());
+  llvm::FunctionType* function_type = to_apply->getFunctionType();
 
   llvm::Value* result = CreateTypedZeroValue(llvm::ArrayType::get(
       function_type->getReturnType(), input_type->getArrayNumElements()));
@@ -1205,15 +1185,18 @@ absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
   llvm::Type* llvm_arg_ptr_type =
       llvm::PointerType::get(arg_type, /*AddressSpace=*/0);
 
-  // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
+  // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer)
+  // (remember, the arg array is an array of int8_t ptrs).
+  llvm::Type* arg_array_type = llvm::ArrayType::get(
+      llvm::Type::getInt8PtrTy(ctx_), xls_fn_->params().size());
   llvm::Value* gep = builder_->CreateGEP(
-      arg_pointer->getType()->getPointerElementType(), arg_pointer,
+      arg_array_type, arg_pointer,
       {
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
       });
   llvm::LoadInst* load =
-      builder_->CreateLoad(gep->getType()->getPointerElementType(), gep);
+      builder_->CreateLoad(llvm::Type::getInt8PtrTy(ctx_), gep);
   llvm::Value* cast = builder_->CreateBitCast(load, llvm_arg_ptr_type);
 
   // Load 2: Get the data at that pointer's destination.
@@ -1235,8 +1218,10 @@ absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
   // First, load the arg buffer (as an i8*).
   // Then pull out elements from that buffer to make the final type.
   // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
+  llvm::Type* arg_array_type = llvm::ArrayType::get(
+      llvm::Type::getInt8PtrTy(ctx_), xls_fn_->params().size());
   llvm::Value* gep = builder_->CreateGEP(
-      arg_pointer->getType()->getPointerElementType(), arg_pointer,
+      arg_array_type, arg_pointer,
       {
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
