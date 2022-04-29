@@ -16,8 +16,8 @@
 #define XLS_CONTRIB_XLSCC_TRANSLATOR_H_
 
 #include <cstdint>
+#include <list>
 #include <memory>
-#include <stack>
 #include <string>
 #include <string_view>
 
@@ -48,6 +48,7 @@
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
@@ -374,6 +375,24 @@ class CValue {
     return absl::StrFormat("(rval=%s, type=%s, lval=%p)", rvalue_.ToString(),
                            std::string(*type_), lvalue_.get());
   }
+  bool operator==(const CValue& o) const {
+    if (rvalue_.node() != o.rvalue_.node()) {
+      return false;
+    }
+    if (lvalue_ != o.lvalue_) {
+      return false;
+    }
+    if (*type_ != *o.type_) {
+      return false;
+    }
+    return true;
+  }
+  bool operator!=(const CValue& o) const { return !(*this == o); }
+  bool valid() const {
+    const bool is_valid = rvalue_.valid() || (lvalue_ != nullptr);
+    XLS_CHECK(!is_valid || type_ != nullptr);
+    return is_valid;
+  }
 
  private:
   xls::BValue rvalue_;
@@ -494,7 +513,8 @@ struct GeneratedFunction {
 
   template <typename ValueType>
   std::vector<const clang::NamedDecl*> DeterministicKeyNames(
-      absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map) {
+      const absl::flat_hash_map<const clang::NamedDecl*, ValueType>& map)
+      const {
     std::vector<const clang::NamedDecl*> ret;
     for (const auto& [name, _] : map) {
       ret.push_back(name);
@@ -502,10 +522,16 @@ struct GeneratedFunction {
     SortNamesDeterministically(ret);
     return ret;
   }
-  void SortNamesDeterministically(std::vector<const clang::NamedDecl*>& names);
-  std::vector<const clang::NamedDecl*>
-  GetDeterministicallyOrderedStaticValues();
+  void SortNamesDeterministically(
+      std::vector<const clang::NamedDecl*>& names) const;
+  std::vector<const clang::NamedDecl*> GetDeterministicallyOrderedStaticValues()
+      const;
 };
+
+int Debug_CountNodes(const xls::Node* node,
+                     std::set<const xls::Node*>& visited);
+std::string Debug_NodeToInfix(xls::BValue bval);
+std::string Debug_NodeToInfix(const xls::Node* node);
 
 // Encapsulates a context for translating Clang AST to XLS IR.
 // This is roughly equivalent to a "scope" in C++. There will typically
@@ -514,24 +540,37 @@ struct GeneratedFunction {
 //  as new CValues for assignments to variables declared outside the scope,
 //  up to the next context / outer scope.
 struct TranslationContext {
-  xls::BValue not_condition(const xls::SourceLocation& loc) const {
-    if (!context_condition.valid()) {
+  xls::BValue not_full_condition_bval(const xls::SourceLocation& loc) const {
+    if (!full_condition.valid()) {
       return fb->Literal(xls::UBits(0, 1), loc);
-    } else {
-      return fb->Not(context_condition, loc);
     }
+    return fb->Not(full_condition, loc);
   }
 
-  xls::BValue condition_bval(const xls::SourceLocation& loc) const {
-    if (!context_condition.valid()) {
+  xls::BValue full_condition_bval(const xls::SourceLocation& loc) const {
+    if (!full_condition.valid()) {
       return fb->Literal(xls::UBits(1, 1), loc);
-    } else {
-      return context_condition;
     }
+    return full_condition;
+  }
+
+  xls::BValue not_relative_condition_bval(
+      const xls::SourceLocation& loc) const {
+    if (!relative_condition.valid()) {
+      return fb->Literal(xls::UBits(0, 1), loc);
+    }
+    return fb->Not(relative_condition, loc);
+  }
+
+  xls::BValue relative_condition_bval(const xls::SourceLocation& loc) const {
+    if (!relative_condition.valid()) {
+      return fb->Literal(xls::UBits(1, 1), loc);
+    }
+    return relative_condition;
   }
 
   void and_condition_util(xls::BValue and_condition, xls::BValue& mod_condition,
-                          const xls::SourceLocation& loc) {
+                          const xls::SourceLocation& loc) const {
     if (!mod_condition.valid()) {
       mod_condition = and_condition;
     } else {
@@ -539,17 +578,16 @@ struct TranslationContext {
     }
   }
 
-  void and_condition(xls::BValue and_condition,
-                     const xls::SourceLocation& loc) {
-    and_condition_util(and_condition, context_condition, loc);
-    for (const clang::NamedDecl* name :
-         sf->DeterministicKeyNames(variable_assignment_conditions)) {
-      xls::BValue& var_cond = variable_assignment_conditions.at(name);
-      and_condition_util(and_condition, var_cond, loc);
+  void or_condition_util(xls::BValue or_condition, xls::BValue& mod_condition,
+                         const xls::SourceLocation& loc) const {
+    if (!mod_condition.valid()) {
+      mod_condition = or_condition;
+    } else {
+      mod_condition = fb->Or(mod_condition, or_condition, loc);
     }
   }
 
-  void print_vars() {
+  void print_vars() const {
     std::cerr << "Context {" << std::endl;
     std::cerr << "  vars:" << std::endl;
     for (const auto& var : variables) {
@@ -559,18 +597,26 @@ struct TranslationContext {
     std::cerr << "}" << std::endl;
   }
 
+  void print_vars_infix() const {
+    std::cerr << "Context {" << std::endl;
+    std::cerr << "  vars:" << std::endl;
+    for (const auto& var : variables) {
+      std::cerr << "  -- " << var.first->getNameAsString() << ": "
+                << Debug_NodeToInfix(var.second.rvalue()) << std::endl;
+    }
+    std::cerr << "}" << std::endl;
+  }
+
   std::shared_ptr<CType> return_type;
-  xls::BuilderBase* fb;
+  xls::BuilderBase* fb = nullptr;
 
   // Information being gathered about function currently being processed
-  GeneratedFunction* sf;
+  GeneratedFunction* sf = nullptr;
 
   // Value for special "this" variable, used in translating class methods
   CValue this_val;
 
   absl::flat_hash_map<const clang::NamedDecl*, CValue> variables;
-  absl::flat_hash_map<const clang::NamedDecl*, xls::BValue>
-      variable_assignment_conditions;
 
   xls::BValue return_val;
   xls::BValue last_return_condition;
@@ -578,12 +624,9 @@ struct TranslationContext {
   xls::BValue have_returned_condition;
 
   // Condition for assignments
-  xls::BValue context_condition;
-  xls::BValue original_condition;
-
-  // Assign new CValues to variables without applying "condition" above.
-  // Used for loop unrolling.
-  bool unconditional_assignment = false;
+  xls::BValue full_condition;
+  xls::BValue full_condition_on_enter_block;
+  xls::BValue relative_condition;
 
   // For unsequenced assignment check
   absl::flat_hash_set<const clang::NamedDecl*> forbidden_rvalues;
@@ -592,18 +635,14 @@ struct TranslationContext {
   // Remember channel parameter names for generating descriptive errors
   absl::flat_hash_set<const clang::NamedDecl*> channel_params;
 
-  // Set to true if we are evaluating under a multi-argument node in the AST.
-  // Constructors, unary operators, etc, don't need unsequenced assignment
-  // checks.
-  bool in_fork = false;
-
   // These flags control the behavior of break and continue statements
   bool in_for_body = false;
   bool in_switch_body = false;
 
   // Used in translating for loops
-  xls::BValue break_condition;
-  xls::BValue continue_condition;
+  // invalid indicates no break/continue
+  xls::BValue relative_break_condition;
+  xls::BValue relative_continue_condition;
 
   // Switch stuff
   // hit_break is set when a break is encountered inside of a switch body.
@@ -613,7 +652,7 @@ struct TranslationContext {
   //  with a condition that's not equal to the enclosing "switch condition",
   //  ie that specified by the enclosing case or default, then a conditional
   //  break is detected, which is unsupported and an error.
-  xls::BValue switch_cond;
+  xls::BValue full_switch_cond;
 
   // Don't create side-effects when exploring the tree for unsequenced
   // assignments
@@ -637,9 +676,16 @@ struct TranslationContext {
   // When set to true, the expression is evaluated as an lvalue, for pointer
   // assignments
   bool lvalue_mode = false;
+
+  // These flags control the behavior when the context / scope is exited
+  bool propagate_up = true;
+  bool propagate_break_up = true;
+  bool propagate_continue_up = true;
 };
 
 class Translator {
+  void debug_prints(const TranslationContext& context);
+
  public:
   explicit Translator(
       int64_t max_unroll_iters = 1000,
@@ -709,18 +755,19 @@ class Translator {
                      const xls::SourceLocation& loc)
         : translator(translator), loc(loc) {
       translator.PushContext();
-      translator.context().and_condition(and_condition, loc);
+      absl::Status status = translator.and_condition(and_condition, loc);
+      if (!status.ok()) {
+        XLS_LOG(ERROR) << status.message();
+      }
     }
     ~PushContextGuard() {
-      translator.PopContext(propagate_up, propagate_break_up,
-                            propagate_continue_up, loc);
+      absl::Status status = translator.PopContext(loc);
+      if (!status.ok()) {
+        XLS_LOG(ERROR) << status.message();
+      }
     }
 
     Translator& translator;
-    // These are Translator::PopContext() parameters
-    bool propagate_up = true;
-    bool propagate_break_up = true;
-    bool propagate_continue_up = true;
     xls::SourceLocation loc;
   };
 
@@ -744,22 +791,6 @@ class Translator {
     absl::flat_hash_set<const clang::NamedDecl*> forbidden_lvalues_saved;
     Translator& translator;
     bool enabled;
-  };
-
-  // This guard makes assignments unconditional, regardless of scope, for a
-  //  period determined by RAII.
-  struct UnconditionalAssignmentGuard {
-    explicit UnconditionalAssignmentGuard(Translator& translator)
-        : translator(translator),
-          prev_val(translator.context().unconditional_assignment) {
-      translator.context().unconditional_assignment = true;
-    }
-    ~UnconditionalAssignmentGuard() {
-      translator.context().unconditional_assignment = prev_val;
-    }
-
-    Translator& translator;
-    bool prev_val;
   };
 
   // This guard makes pointers translate, instead of generating errors, for a
@@ -815,12 +846,6 @@ class Translator {
   // The maximum number of iterations before loop unrolling fails.
   const int64_t max_unroll_iters_;
 
-  // TODO(seanhaskell): This feature needs to be replaced with a better
-  // implementation When this flag is true, the translator generates expressions
-  //  right to left as well as left to right, so as to detect all
-  //  unsequenced modification and access in expressions.
-  const bool unsequenced_gen_backwards_ = false;
-
   // Makes translation of external channel parameters optional,
   // so that IO operations can be generated without calling GenerateIR_Block()
   bool io_test_mode_ = false;
@@ -874,17 +899,24 @@ class Translator {
   mutable std::unique_ptr<clang::MangleContext> mangler_;
 
   TranslationContext& PushContext();
-  void PopContext(bool propagate_up, bool propagate_break_up,
-                  bool propagate_continue_up, const xls::SourceLocation& loc);
+  absl::Status PopContext(const xls::SourceLocation& loc);
+  absl::Status PropagateVariables(const TranslationContext& from,
+                                  TranslationContext& to,
+                                  const xls::SourceLocation& loc);
 
   xls::Package* package_;
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
   absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*>
       external_channels_by_param_;
-  std::stack<TranslationContext> context_stack_;
+
+  // Used as a stack, but need to peek 2nd to top
+  std::list<TranslationContext> context_stack_;
 
   TranslationContext& context();
+
+  absl::Status and_condition(xls::BValue and_condition,
+                             const xls::SourceLocation& loc);
 
   absl::StatusOr<CValue> Generate_UnaryOp(const clang::UnaryOperator* uop,
                                           const xls::SourceLocation& loc);
@@ -920,7 +952,7 @@ class Translator {
   absl::StatusOr<CValue> GenerateIR_Call(
       const clang::FunctionDecl* funcdecl,
       std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
-      const xls::SourceLocation& loc, bool force_no_fork = false);
+      const xls::SourceLocation& loc);
 
   // This is a work-around for non-const operator [] needing to return
   //  a reference to the object being modified.
@@ -1070,9 +1102,9 @@ class Translator {
   absl::Status Assign(std::shared_ptr<LValue> lvalue, const CValue& rvalue,
                       const xls::SourceLocation& loc);
   absl::Status AssignThis(const CValue& rvalue, const xls::SourceLocation& loc);
-  absl::StatusOr<CValue> PrepareRValueForAssignment(
-      const clang::NamedDecl* lvalue_decl, const CValue& lvalue,
-      const CValue& rvalue, const xls::SourceLocation& loc);
+  absl::StatusOr<CValue> PrepareRValueWithSelect(
+      const CValue& lvalue, const CValue& rvalue,
+      const xls::BValue& relative_condition, const xls::SourceLocation& loc);
 
   absl::Status DeclareVariable(const clang::NamedDecl* lvalue,
                                const CValue& rvalue,

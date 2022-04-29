@@ -1026,6 +1026,44 @@ TEST_F(TranslatorTest, WhileUnroll) {
           testing::HasSubstr("Unrolled loop must have an initializer")));
 }
 
+TEST_F(TranslatorTest, ForUnrollMultiCondBreak) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_unroll yes
+        for(int i=1;i<10;++i) {
+          if(a<20) {
+            break;
+          }
+          if(a>100) {
+            break;
+          }
+          a += b;
+        }
+        return a;
+      })";
+  Run({{"a", 21}, {"b", 20}}, 101, content);
+  Run({{"a", 11}, {"b", 20}}, 11, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollNestedCondBreak) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_unroll yes
+        for(int i=1;i<10;++i) {
+          if(a>50) {
+            if(i<4) {
+              break;
+            }
+          }
+          a += b;
+        }
+        return a;
+      })";
+  Run({{"a", 51}, {"b", 20}}, 51, content);
+  Run({{"a", 43}, {"b", 1}}, 52, content);
+  Run({{"a", 0}, {"b", 3}}, 27, content);
+}
+
 TEST_F(TranslatorTest, ForUnrollClass) {
   const std::string content = R"(
        struct TestInt {
@@ -1183,13 +1221,114 @@ TEST_F(TranslatorTest, ForUnrollBreak) {
   const std::string content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
-         for(int i=0;i<50;++i) {
+         for(int i=0;i<9;++i) {
+           if(a > 100) {
+             break;
+           }
            a += b;
-           if(a > 100) break;
          }
          return a;
        })";
   Run({{"a", 11}, {"b", 20}}, 111, content);
+}
+
+// Only one break condition is true, not all conditions after
+TEST_F(TranslatorTest, ForUnrollBreakOnEquals) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<9;++i) {
+           if(a == 31) {
+             break;
+           }
+           a += b;
+         }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 31, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollBreakAfterAssignNested) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<4;++i) {
+           a += b;
+           if(a > 100) {
+             if(b > 0) {
+               break;
+             }
+           }
+         }
+         return a;
+       })";
+  Run({{"a", 101}, {"b", 20}}, 121, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollContinueNested) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<6;++i) {
+           if(i == 1) {
+             if(b > 0) {
+               continue;
+             }
+           }
+           a += b;
+         }
+         return a;
+       })";
+  Run({{"a", 101}, {"b", 20}}, 201, content);
+  Run({{"a", 100}, {"b", 20}}, 200, content);
+  Run({{"a", 10}, {"b", 20}}, 110, content);
+  Run({{"a", 10}, {"b", -1}}, 4, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollBreakAfterAssign) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<3;++i) {
+           a += b;
+           if(a > 100) {
+             break;
+           }
+         }
+         return a;
+       })";
+  Run({{"a", 80}, {"b", 20}}, 120, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollBreakAfterAssign2) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<2;++i) {
+           a += b;
+           if(a > 100) {
+             break;
+           }
+         }
+         return a;
+       })";
+  Run({{"a", 101}, {"b", 20}}, 121, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollBreakTest) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<3;++i) {
+           a += b;
+           if(a > 100) {
+             break;
+           }
+         }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 71, content);
+  Run({{"a", 101}, {"b", 20}}, 121, content);
 }
 
 TEST_F(TranslatorTest, ForUnrollBreak2) {
@@ -1198,6 +1337,21 @@ TEST_F(TranslatorTest, ForUnrollBreak2) {
          #pragma hls_unroll yes
          for(int i=0;i<50;++i) {
            if(i==3) break;
+           a += b;
+         }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 71, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollBreak2Nested) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<50;++i) {
+           if(a < 1000) {
+             if(i==3) break;
+           }
            a += b;
          }
          return a;
@@ -1262,6 +1416,19 @@ TEST_F(TranslatorTest, ForUnrollContinue3) {
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
          for(int i=0;i<11;++i) {
+           break;
+           a += b;
+         }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 11, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollContinue4) {
+  const std::string content = R"(
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<11;++i) {
            if(a>155) {
              continue;
            }
@@ -1272,7 +1439,7 @@ TEST_F(TranslatorTest, ForUnrollContinue3) {
   Run({{"a", 11}, {"b", 20}}, 171, content);
 }
 
-TEST_F(TranslatorTest, ForUnrollContinue4) {
+TEST_F(TranslatorTest, ForUnrollContinue5) {
   const std::string content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
@@ -1287,7 +1454,7 @@ TEST_F(TranslatorTest, ForUnrollContinue4) {
   Run({{"a", 11}, {"b", 20}}, 231, content);
 }
 
-TEST_F(TranslatorTest, ForUnrollContinue5) {
+TEST_F(TranslatorTest, ForUnrollContinue6) {
   const std::string content = R"(
        long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
@@ -1647,6 +1814,24 @@ TEST_F(TranslatorTest, StructInitList) {
          return ret.x+ret.y+ret.z;
        })";
   Run({{"a", 11}, {"b", 50}}, 66, content);
+}
+
+TEST_F(TranslatorTest, StructConditionalAssign) {
+  const std::string content = R"(
+       struct Test {
+         long long x;
+         long long y;
+         long long z;
+       };
+       long long my_package(long long a, long long b) {
+         Test ret = {a,5,b};
+         if(a>11) {
+           ret.y = 100;
+         }
+         return ret.x+ret.y+ret.z;
+       })";
+  Run({{"a", 11}, {"b", 50}}, 11 + 5 + 50, content);
+  Run({{"a", 12}, {"b", 50}}, 12 + 100 + 50, content);
 }
 
 TEST_F(TranslatorTest, StructInitListWrongCount) {
