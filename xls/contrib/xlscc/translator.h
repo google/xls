@@ -1061,6 +1061,8 @@ class Translator {
                                        bool for_lvalue = false);
   absl::StatusOr<CValue> TranslateVarDecl(const clang::VarDecl* decl,
                                           const xls::SourceLocation& loc);
+  absl::StatusOr<CValue> TranslateEnumConstantDecl(
+      const clang::EnumConstantDecl* decl, const xls::SourceLocation& loc);
   absl::Status Assign(const clang::NamedDecl* lvalue, const CValue& rvalue,
                       const xls::SourceLocation& loc);
   absl::Status Assign(const clang::Expr* lvalue, const CValue& rvalue,

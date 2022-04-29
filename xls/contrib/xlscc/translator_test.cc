@@ -6031,6 +6031,48 @@ TEST_F(TranslatorTest, BooleanAndAssign) {
   Run({{"b", false}}, false, content);
 }
 
+TEST_F(TranslatorTest, EnumConstant) {
+  const std::string content = R"(
+  struct Values{
+   enum { zero = 2 };
+  };
+  #pragma hls_top
+  int st(int a) {
+    Values v;
+    const int val = a * v.zero;
+    return val;
+  })";
+  Run({{"a", 5}}, 10, content);
+}
+
+TEST_F(TranslatorTest, NonInitEnumConstant) {
+  const std::string content = R"(
+  struct Values{
+   enum { zero, one };
+  };
+  #pragma hls_top
+  int st(int a) {
+    Values v;
+    const int val = a * v.zero;
+    return val;
+  })";
+  Run({{"a", 5}}, 0, content);
+}
+
+TEST_F(TranslatorTest, NonInitOneEnumConstant) {
+  const std::string content = R"(
+  struct Values{
+   enum { zero, one };
+  };
+  #pragma hls_top
+  int st(int a) {
+    Values v;
+    const int val = a * v.one;
+    return val;
+  })";
+  Run({{"a", 5}}, 5, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

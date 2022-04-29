@@ -1483,6 +1483,16 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
   return CValue(init_val, ctype, /*disable_type_check=*/false, lvalue);
 }
 
+absl::StatusOr<CValue> Translator::TranslateEnumConstantDecl(
+    const clang::EnumConstantDecl* decl, const xls::SourceLocation& loc) {
+  XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
+                       TranslateTypeFromClang(decl->getType(), loc));
+  auto val = xls::Value(xls::UBits(decl->getInitVal().getExtValue(),
+                                   ctype->GetBitWidth()));
+  xls::BValue init_val = context().fb->Literal(val, loc);
+  return CValue(init_val, ctype, /*disable_type_check=*/false);
+}
+
 absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                                                  const xls::SourceLocation& loc,
                                                  bool for_lvalue) {
@@ -3437,7 +3447,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
         CValue val,
         TranslateVarDecl(clang_down_cast<const clang::VarDecl*>(member), loc));
     return val;
-  } else if (member->getKind() != clang::ValueDecl::Kind::Field) {
+  }
+  if (member->getKind() == clang::ValueDecl::Kind::EnumConstant) {
+    XLS_ASSIGN_OR_RETURN(
+        CValue val,
+        TranslateEnumConstantDecl(
+            clang_down_cast<const clang::EnumConstantDecl*>(member), loc));
+    return val;
+  }
+  if (member->getKind() != clang::ValueDecl::Kind::Field) {
     // Otherwise only FieldDecl is supported. This is the non-static "foo.bar"
     // form.
     return absl::UnimplementedError(
