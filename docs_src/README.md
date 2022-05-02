@@ -214,6 +214,7 @@ project, see our
 *   [Felix Zhu](https://github.com/felixzhuologist)
 *   [Georges Rotival](https://github.com/grotival)
 *   [Hans Montero](https://github.com/hmontero1205)
+*   [Iliyan Malchev](https://github.com/malchev)
 *   [Johan Euphrosine](https://github.com/proppy)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
 *   [Josh Varga](https://github.com/JoshVarga)
