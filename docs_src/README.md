@@ -216,6 +216,7 @@ project, see our
 *   [Hans Montero](https://github.com/hmontero1205)
 *   [Johan Euphrosine](https://github.com/proppy)
 *   [Jonathan Bailey](https://github.com/jbaileyhandle)
+*   [Josh Varga](https://github.com/JoshVarga)
 *   [Julian Viera](https://github.com/julianviera99)
 *   [Kevin Harlley](https://github.com/kevineharlley)
 *   [Leonardo Romor](https://github.com/lromor)
