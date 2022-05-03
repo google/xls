@@ -141,6 +141,8 @@ cc_library(
     hdrs = ["leaf_type_tree.h"],
     deps = [
         "@com_google_absl//absl/container:inlined_vector",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/status:status_macros",

@@ -18,6 +18,8 @@
 #include <vector>
 
 #include "absl/container/inlined_vector.h"
+#include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -229,8 +231,88 @@ class LeafTypeTree {
         });
   }
 
+  // Returns the stringified elements of the LeafTypeTree in a structured
+  // form. Examples for a LeaftypeTree of integers:
+  //   bits/token type: 42
+  //   tuple type:      (1, 2)
+  //   array type:      [10, 20, 30]
+  //   compound type:   (1, (), ([42], (10, 20)))
+  std::string ToString(const std::function<std::string(const T&)>& f) const {
+    int64_t linear_index = 0;
+    return ToStringHelper(f, type(), /*multiline=*/false, 0, linear_index);
+  }
+
+  // Overload which uses StrCat to stringify the elements. This only works if
+  // StrCat supports the type `T`.
+  std::string ToString() const {
+    return ToString([](const T& element) { return absl::StrCat(element); });
+  }
+
+  // ToString variants which emit a single element per line with
+  // indentation. Example for a tuple-containing-an-array type:
+  //
+  //   (
+  //     1,
+  //     [
+  //       2,
+  //       3,
+  //     ]
+  //   )
+  std::string ToMultilineString(
+      const std::function<std::string(const T&)>& f) const {
+    int64_t linear_index = 0;
+    return ToStringHelper(f, type(), /*multiline=*/true, 0, linear_index);
+  }
+  std::string ToMultilineString() const {
+    return ToMultilineString(
+        [](const T& element) { return absl::StrCat(element); });
+  }
+
  private:
   static bool IsLeafType(Type* t) { return t->IsBits() || t->IsToken(); }
+
+  std::string ToStringHelper(const std::function<std::string(const T&)>& f,
+                             Type* subtype, bool multiline, int64_t indent,
+                             int64_t& linear_index) const {
+    std::string indentation(indent, ' ');
+    if (subtype->IsArray()) {
+      std::vector<std::string> pieces;
+      for (int64_t i = 0; i < subtype->AsArrayOrDie()->size(); ++i) {
+        pieces.push_back(ToStringHelper(f,
+                                        subtype->AsArrayOrDie()->element_type(),
+                                        multiline, indent + 2, linear_index));
+      }
+      if (multiline) {
+        if (pieces.empty()) {
+          return absl::StrFormat("%s[]", indentation);
+        }
+        return absl::StrFormat("%s[\n%s\n%s]", indentation,
+                               absl::StrJoin(pieces, ",\n"), indentation);
+      }
+      return absl::StrFormat("[%s]", absl::StrJoin(pieces, ", "));
+    }
+    if (subtype->IsTuple()) {
+      std::vector<std::string> pieces;
+      for (int64_t i = 0; i < subtype->AsTupleOrDie()->size(); ++i) {
+        pieces.push_back(
+            ToStringHelper(f, subtype->AsTupleOrDie()->element_type(i),
+                           multiline, indent + 2, linear_index));
+      }
+      if (multiline) {
+        if (pieces.empty()) {
+          return absl::StrFormat("%s()", indentation);
+        }
+        return absl::StrFormat("%s(\n%s\n%s)", indentation,
+                               absl::StrJoin(pieces, ",\n"), indentation);
+      }
+      return absl::StrFormat("(%s)", absl::StrJoin(pieces, ", "));
+    }
+    if (multiline) {
+      return absl::StrFormat("%s%s", indentation,
+                             f(elements().at(linear_index++)));
+    }
+    return f(elements().at(linear_index++));
+  }
 
   // Creates the vector of leaf types.
   void MakeLeafTypes(Type* t) {
