@@ -156,10 +156,14 @@ class LeafTypeTree {
   // LeafTypeTree.
   LeafTypeTree<T> CopySubtree(absl::Span<const int64_t> index) const {
     std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
+    // To avoid indexing into an empty vector, handle the empty elements()
+    // case specially.
     return LeafTypeTree<T>(
         type_offset.first,
-        absl::Span<const T>(&elements_[type_offset.second],
-                            type_offset.first->leaf_count()));
+        elements_.empty()
+            ? absl::Span<const T>()
+            : absl::Span<const T>(&elements_[type_offset.second],
+                                  type_offset.first->leaf_count()));
   }
 
   // Produce a new `LeafTypeTree` from this one `LeafTypeTree` with a different

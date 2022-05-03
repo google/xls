@@ -323,5 +323,13 @@ TEST_F(LeafTypeTreeTest, ForEachTest) {
   }
 }
 
+TEST_F(LeafTypeTreeTest, ArrayOfEmptyTuples) {
+  LeafTypeTree<int64_t> tree(AsType("()[5]"));
+  EXPECT_EQ(tree.ToString(), "[(), (), (), (), ()]");
+  EXPECT_EQ(tree.CopySubtree({}).ToString(), "[(), (), (), (), ()]");
+  EXPECT_EQ(tree.CopySubtree({0}).ToString(), "()");
+  EXPECT_EQ(tree.CopySubtree({4}).ToString(), "()");
+}
+
 }  // namespace
 }  // namespace xls
