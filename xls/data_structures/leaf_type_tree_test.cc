@@ -62,6 +62,7 @@ TEST_F(LeafTypeTreeTest, BitsTypes) {
   EXPECT_EQ(tree.Get({}), 0);
   EXPECT_THAT(AsStrings(tree.leaf_types()), ElementsAre("bits[42]"));
   EXPECT_THAT(tree.elements(), ElementsAre(0));
+  EXPECT_THAT(tree.GetSubelements({}), ElementsAre(0));
 
   tree.Set({}, 42);
   EXPECT_EQ(tree.Get({}), 42);
@@ -99,6 +100,12 @@ TEST_F(LeafTypeTreeTest, TupleType) {
   EXPECT_THAT(tree.elements(),
               ElementsAre(UBits(7, 8), UBits(33, 44), UBits(1, 1)));
 
+  EXPECT_THAT(tree.GetSubelements({}),
+              ElementsAre(UBits(7, 8), UBits(33, 44), UBits(1, 1)));
+  EXPECT_THAT(tree.GetSubelements({0}), ElementsAre(UBits(7, 8)));
+  EXPECT_THAT(tree.GetSubelements({1}), ElementsAre(UBits(33, 44)));
+  EXPECT_THAT(tree.GetSubelements({2}), ElementsAre(UBits(1, 1)));
+
   LeafTypeTree<Bits> subtree0 = tree.CopySubtree({});
   EXPECT_EQ(subtree0.type()->ToString(), "(bits[123], bits[2], bits[42])");
   EXPECT_THAT(subtree0.elements(),
@@ -132,6 +139,7 @@ TEST_F(LeafTypeTreeTest, ArrayType) {
   tree.Set({4}, 6);
   EXPECT_THAT(tree.elements(), ElementsAre(0, 3, 4, 5, 6));
   EXPECT_EQ(tree.Get({3}), 5);
+  EXPECT_THAT(tree.GetSubelements({3}), ElementsAre(5));
 
   LeafTypeTree<int64_t> subtree = tree.CopySubtree({});
   EXPECT_THAT(subtree.elements(), ElementsAre(0, 3, 4, 5, 6));
@@ -154,6 +162,10 @@ TEST_F(LeafTypeTreeTest, NestedTupleType) {
   EXPECT_EQ(tree.Get({1, 2}), 77);
 
   EXPECT_THAT(tree.elements(), ElementsAre(0, 0, 3, 0, 42, 0, 0, 77));
+
+  EXPECT_THAT(tree.GetSubelements({0}), ElementsAre(0, 0, 3));
+  EXPECT_THAT(tree.GetSubelements({1}), ElementsAre(0, 42, 0, 0, 77));
+  EXPECT_THAT(tree.GetSubelements({1, 1}), ElementsAre(42, 0, 0));
 
   LeafTypeTree<int64_t> mapped =
       tree.Map<int64_t>([](int64_t x) { return x + 1; });

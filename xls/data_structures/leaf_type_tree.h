@@ -111,8 +111,7 @@ class LeafTypeTree {
   // recursive traversal through the object's XLS type. The Type index must
   // correspond to a leaf Bits-type element in the object's XLS type.
   T& Get(absl::Span<int64_t const> index) {
-    std::pair<Type*, int64_t> type_offset =
-        GetSubtypeAndOffset(type_, index, /*offset=*/0);
+    std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
     // The index must refer to a leaf node (bits or token type).
     XLS_CHECK(IsLeafType(type_offset.first));
     return elements_[type_offset.second];
@@ -123,8 +122,7 @@ class LeafTypeTree {
 
   // Sets the element at the given Type index to the given value.
   void Set(absl::Span<int64_t const> index, const T& value) {
-    std::pair<Type*, int64_t> type_offset =
-        GetSubtypeAndOffset(type_, index, /*offset=*/0);
+    std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
     // The index must refer to a leaf node (bits or token type).
     XLS_CHECK(IsLeafType(type_offset.first));
     elements_[type_offset.second] = value;
@@ -136,6 +134,18 @@ class LeafTypeTree {
     return absl::Span<T const>(elements_);
   }
 
+  // Returns the values corresponding to the subtree rooted at the given index.
+  absl::Span<T> GetSubelements(absl::Span<const int64_t> index) {
+    std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
+    return absl::Span<T>(&elements_[type_offset.second],
+                         type_offset.first->leaf_count());
+  }
+  absl::Span<T const> GetSubelements(absl::Span<const int64_t> index) const {
+    std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
+    return absl::Span<const T>(&elements_[type_offset.second],
+                               type_offset.first->leaf_count());
+  }
+
   // Returns the types of each leaf in the XLS type of this object. The order of
   // these types corresponds to the order of elements().
   absl::Span<Type* const> leaf_types() const { return leaf_types_; }
@@ -143,20 +153,17 @@ class LeafTypeTree {
   // Copies and returns the subtree rooted at the given type index as a
   // LeafTypeTree.
   LeafTypeTree<T> CopySubtree(absl::Span<const int64_t> index) const {
-    std::pair<Type*, int64_t> type_offset =
-        GetSubtypeAndOffset(type_, index, /*offset=*/0);
-    Type* subtype = type_offset.first;
-    LeafTypeTree subtree(subtype);
-    for (int64_t i = 0; i < subtype->leaf_count(); ++i) {
-      subtree.elements_[i] = elements_[type_offset.second + i];
-    }
-    return subtree;
+    std::pair<Type*, int64_t> type_offset = GetSubtypeAndOffset(type_, index);
+    return LeafTypeTree<T>(
+        type_offset.first,
+        absl::Span<const T>(&elements_[type_offset.second],
+                            type_offset.first->leaf_count()));
   }
 
   // Produce a new `LeafTypeTree` from this one `LeafTypeTree` with a different
   // leaf type by way of a function.
   template <typename R>
-  LeafTypeTree<R> Map(std::function<R(const T&)> function) {
+  LeafTypeTree<R> Map(std::function<R(const T&)> function) const {
     absl::InlinedVector<R, 1> new_elements;
     new_elements.reserve(size());
     for (int32_t i = 0; i < size(); ++i) {
@@ -247,7 +254,7 @@ class LeafTypeTree {
   // index.
   std::pair<Type*, int64_t> GetSubtypeAndOffset(Type* t,
                                                 absl::Span<int64_t const> index,
-                                                int64_t offset) const {
+                                                int64_t offset = 0) const {
     if (index.empty()) {
       return {t, offset};
     }
