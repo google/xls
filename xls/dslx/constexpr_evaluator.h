@@ -26,6 +26,13 @@ namespace xls::dslx {
 // currently covered, but will need to be shortly.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
+  static absl::Status Evaluate(DeduceCtx* ctx, const Expr* expr,
+                               const ConcreteType* concrete_type = nullptr) {
+    ConstexprEvaluator evaluator(ctx, concrete_type);
+    expr->AcceptExpr(&evaluator);
+    return evaluator.status();
+  }
+
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
   //    context, e.g., an element in a constant array:

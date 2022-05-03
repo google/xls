@@ -453,9 +453,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
   std::vector<InterpValue> members;
   members.reserve(node->values().size());
   for (const EnumMember& member : node->values()) {
-    // Note: the parser places the type from the enum on the value when it is a
-    // number, so this deduction flags inappropriate numbers.
-    XLS_RETURN_IF_ERROR(ctx->Deduce(member.value).status());
+    if (const Number* number = dynamic_cast<const Number*>(member.value);
+        number != nullptr && number->type_annotation() == nullptr) {
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *type));
+      ctx->type_info()->SetItem(number, *type);
+      XLS_RETURN_IF_ERROR(
+          ConstexprEvaluator::Evaluate(ctx, number, type.get()));
+    } else {
+      XLS_RETURN_IF_ERROR(ctx->Deduce(member.value).status());
+    }
     absl::optional<InterpValue> constexpr_value =
         ctx->type_info()->GetConstExpr(member.value);
     if (!constexpr_value.has_value()) {

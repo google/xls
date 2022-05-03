@@ -1956,18 +1956,6 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(&enum_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
     XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&enum_bindings));
-    // Propagate type annotation to un-annotated enum entries -- this is a
-    // convenience until we have proper unifying type inference.
-    if (auto* number = dynamic_cast<Number*>(expr); number != nullptr) {
-      if (number->type_annotation() == nullptr) {
-        number->set_type_annotation(type_annotation);
-      } else {
-        return ParseErrorStatus(
-            number->type_annotation()->span(),
-            "A type is annotated on this enum value, but the enum defines a "
-            "type, so this is not necessary: please remove it.");
-      }
-    }
     return EnumMember{name_def, expr};
   };
 

@@ -95,12 +95,6 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('xls/dslx/tests/errors/duplicate_top_name.x:16:1-16:17',
                   stderr)
 
-  def test_enum_with_type_on_value(self):
-    stderr = self._run('xls/dslx/tests/errors/enum_with_type_on_value.x')
-    self.assertIn('xls/dslx/tests/errors/enum_with_type_on_value.x:16:9-16:11',
-                  stderr)
-    self.assertIn('A type is annotated on this enum value', stderr)
-
   def test_bad_annotation(self):
     stderr = self._run('xls/dslx/tests/errors/bad_annotation.x')
     self.assertIn('xls/dslx/tests/errors/bad_annotation.x:15:11-15:12', stderr)
