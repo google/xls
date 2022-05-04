@@ -63,11 +63,12 @@ def load_external_repositories():
         shallow_since = "1635790430 +0000",
     )
 
+    # Commit on 2021-12-03, current as of 2022-05-04
     http_archive(
         name = "pybind11_bazel",
-        strip_prefix = "pybind11_bazel-26973c0ff320cb4b39e45bc3e4297b82bc3a6c09",
-        urls = ["https://github.com/pybind/pybind11_bazel/archive/26973c0ff320cb4b39e45bc3e4297b82bc3a6c09.tar.gz"],
-        sha256 = "8f546c03bdd55d0e88cb491ddfbabe5aeb087f87de2fbf441391d70483affe39",
+        strip_prefix = "pybind11_bazel-72cbbf1fbc830e487e3012862b7b720001b70672",
+        urls = ["https://github.com/pybind/pybind11_bazel/archive/72cbbf1fbc830e487e3012862b7b720001b70672.tar.gz"],
+        sha256 = "516c1b3a10d87740d2b7de6f121f8e19dde2c372ecbfe59aef44cd1872c10395",
     )
 
     http_archive(
