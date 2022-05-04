@@ -235,8 +235,11 @@ void LogMessage::Flush() {
   if (ThreadIsLogging()) {
     // In the case of recursive logging, just dump the message to stderr.
     if (!data_->extra_sinks_only) {
-      absl::raw_logging_internal::SafeWriteToStderr(
-          data_->streambuf.data().data(), data_->streambuf.data().size());
+      size_t written = fwrite(data_->streambuf.data().data(), 1,
+                              data_->streambuf.data().size(), stderr);
+      // Note: recursive logging where fwrite to stderr fails we silently
+      // ignore.
+      (void)written;
     }
     return;
   }
