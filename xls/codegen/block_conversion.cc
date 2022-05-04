@@ -1807,12 +1807,9 @@ class CloneNodesIntoBlockHandler {
   // For a given set of sorted nodes, process and clone them into the
   // block.
   absl::Status CloneNodes(absl::Span<Node* const> sorted_nodes, int64_t stage) {
-    // Handle parameters first because state parameters must be handled before
-    // the corresponding next-state node and a state parameter may not
-    // necessarily precede its corresponding next state node.
     for (Node* node : sorted_nodes) {
+      Node* next_node = nullptr;
       if (node->Is<Param>()) {
-        Node* next_node = nullptr;
         if (is_proc_) {
           if (node == token_param_) {
             XLS_ASSIGN_OR_RETURN(next_node, HandleTokenParam(node));
@@ -1829,29 +1826,28 @@ class CloneNodesIntoBlockHandler {
           XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
         }
         node_map_[node] = next_node;
-      }
-    }
-    for (Node* node : sorted_nodes) {
-      if (node->Is<Param>()) {
-        continue;
-      }
-      Node* next_node = nullptr;
-      if (node->Is<Receive>()) {
+      } else if (node->Is<Receive>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_ASSIGN_OR_RETURN(next_node, HandleReceiveNode(node));
       } else if (node->Is<Send>()) {
         XLS_RET_CHECK(is_proc_);
         XLS_ASSIGN_OR_RETURN(next_node, HandleSendNode(node));
-      } else if (next_state_nodes_.contains(node)) {
-        XLS_RET_CHECK(is_proc_);
-        XLS_RET_CHECK_EQ(stage, 0);
-        XLS_ASSIGN_OR_RETURN(
-            next_node, HandleNextStateNode(node, next_state_nodes_.at(node)));
       } else {
         XLS_ASSIGN_OR_RETURN(next_node, HandleGeneralNode(node));
       }
-
       node_map_[node] = next_node;
+    }
+
+    // After all nodes have been cloned, handle writing of next state values
+    // into state registers.
+    if (is_proc_) {
+      for (Node* node : sorted_nodes) {
+        if (next_state_nodes_.contains(node)) {
+          XLS_RET_CHECK_EQ(stage, 0);
+          XLS_RETURN_IF_ERROR(
+              SetNextStateNode(node_map_.at(node), next_state_nodes_.at(node)));
+        }
+      }
     }
 
     return absl::OkStatus();
@@ -2053,23 +2049,20 @@ class CloneNodesIntoBlockHandler {
     return next_node;
   }
 
-  // Clone the operation and then write to the state register. `indices` is the
-  // set of state element indices for which this node is the next value.
-  absl::StatusOr<Node*> HandleNextStateNode(Node* node,
-                                            absl::Span<const int64_t> indices) {
-    XLS_ASSIGN_OR_RETURN(Node * next_state, HandleGeneralNode(node));
-
-    if (node->GetType()->GetFlatBitCount() == 0) {
+  // Sets the next state value for the state elements with the given indices to
+  // `next_state`.
+  absl::Status SetNextStateNode(Node* next_state,
+                                absl::Span<const int64_t> indices) {
+    if (next_state->GetType()->GetFlatBitCount() == 0) {
       Proc* proc = function_base_->AsProcOrDie();
 
-      if (node->GetType() != proc->package()->GetTupleType({})) {
+      if (next_state->GetType() != proc->package()->GetTupleType({})) {
         return absl::UnimplementedError(
             absl::StrFormat("Proc has no state, but (state type is not"
                             "empty tuple), instead got %s.",
-                            node->GetType()->ToString()));
+                            next_state->GetType()->ToString()));
       }
-
-      return next_state;
+      return absl::OkStatus();
     }
 
     for (int64_t index : indices) {
@@ -2077,7 +2070,7 @@ class CloneNodesIntoBlockHandler {
         return absl::InternalError(
             absl::StrFormat("Expected next state node %s to be dependent "
                             "on state",
-                            node->ToString()));
+                            next_state->ToString()));
       }
 
       StateRegister& state_register = result_.state_registers.at(index).value();
@@ -2086,13 +2079,12 @@ class CloneNodesIntoBlockHandler {
 
       XLS_ASSIGN_OR_RETURN(state_register.reg_write,
                            block_->MakeNode<RegisterWrite>(
-                               node->loc(), next_state,
+                               next_state->loc(), next_state,
                                /*load_enable=*/absl::nullopt,
                                /*reset=*/absl::nullopt, state_register.reg));
     }
-    // For propagation in the fanout, the next_state data in is used
-    // instead of the register.
-    return next_state;
+
+    return absl::OkStatus();
   }
 
   // Clone the operation from the source to the block as is.

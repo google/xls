@@ -529,7 +529,9 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
               m::OutputPort("out", m::Neg(m::InputPort("in"))));
 }
 
-TEST_F(BlockConversionTest, ProcWithSharedNextStateNode) {
+TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
+  // A block with corner-case next state nodes (e.g., not dependent on state
+  // param, same as state param, and shared next state nodes).
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
@@ -543,20 +545,25 @@ TEST_F(BlockConversionTest, ProcWithSharedNextStateNode) {
       Channel * y_out,
       p->CreateStreamingChannel("y_out", ChannelOps::kSendOnly, u32));
   XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * z_out,
+      p->CreateStreamingChannel("z_out", ChannelOps::kSendOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
       Channel * in_out,
       p->CreateStreamingChannel("in_out", ChannelOps::kSendOnly, u32));
 
   TokenlessProcBuilder b(TestName(), "tkn", p.get());
   BValue x = b.StateElement("x", Value(UBits(0, 32)));
   BValue y = b.StateElement("y", Value(UBits(0, 32)));
+  BValue z = b.StateElement("z", Value(UBits(0, 32)));
   BValue x_plus_one = b.Add(x, b.Literal(UBits(1, 32)));
 
   b.Send(in_out, b.Identity(b.Receive(in)));
   b.Send(x_out, x);
   b.Send(y_out, y);
+  b.Send(z_out, z);
 
   // `x_plus_one` is the next state value for both `x` and `y` state elements.
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({x_plus_one, x_plus_one}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({x_plus_one, x_plus_one, z}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -581,6 +588,7 @@ TEST_F(BlockConversionTest, ProcWithSharedNextStateNode) {
   std::vector<ChannelSink> sinks{
       ChannelSink("x_out_data", "x_out_valid", "x_out_ready", 1.0, block),
       ChannelSink("y_out_data", "y_out_valid", "y_out_ready", 1.0, block),
+      ChannelSink("z_out_data", "z_out_valid", "z_out_ready", 1.0, block),
       ChannelSink("in_out_data", "in_out_valid", "in_out_ready", 1.0, block),
   };
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
@@ -595,6 +603,8 @@ TEST_F(BlockConversionTest, ProcWithSharedNextStateNode) {
   EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
               IsOkAndHolds(ElementsAre(0, 1, 2)));
   EXPECT_THAT(sinks.at(2).GetOutputSequenceAsUint64(),
+              IsOkAndHolds(ElementsAre(0, 0, 0)));
+  EXPECT_THAT(sinks.at(3).GetOutputSequenceAsUint64(),
               IsOkAndHolds(ElementsAre(10, 20, 30)));
 }
 
