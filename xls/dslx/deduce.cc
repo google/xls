@@ -476,7 +476,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
                                            bits_type->is_signed(), members);
 
   for (const EnumMember& member : node->values()) {
-    ctx->type_info()->SetItem(ToAstNode(member.value), *result);
     ctx->type_info()->SetItem(member.name_def, *result);
   }
   ctx->type_info()->SetItem(node->name_def(), *result);
