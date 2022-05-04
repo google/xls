@@ -1942,12 +1942,11 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
                                               Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token enum_tok, PopKeywordOrError(Keyword::kEnum));
   XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(bindings));
-  XLS_RETURN_IF_ERROR(
-      DropTokenOrError(TokenKind::kColon, nullptr,
-                       "enum requires a ': type' annotation to indicate "
-                       "enum's underlying type."));
-  XLS_ASSIGN_OR_RETURN(TypeAnnotation * type_annotation,
-                       ParseTypeAnnotation(bindings));
+  XLS_ASSIGN_OR_RETURN(bool saw_colon, TryDropToken(TokenKind::kColon));
+  TypeAnnotation* type_annotation = nullptr;
+  if (saw_colon) {
+    XLS_ASSIGN_OR_RETURN(type_annotation, ParseTypeAnnotation(bindings));
+  }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   Bindings enum_bindings(bindings);
 

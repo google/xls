@@ -436,10 +436,89 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
   return lhs;
 }
 
+// Returns whether "node" is a "bare" number (without an explicit type
+// annotation on it).
+static const Number* IsBareNumber(const AstNode* node,
+                                  bool* is_boolean = nullptr) {
+  if (const Number* number = dynamic_cast<const Number*>(node)) {
+    if (is_boolean != nullptr) {
+      *is_boolean = number->number_kind() == NumberKind::kBool;
+    }
+    if (number->type_annotation() == nullptr) {
+      return number;
+    }
+    return nullptr;
+  }
+
+  return nullptr;
+}
+
+// Checks that "number" can legitmately conform to type "type".
+static absl::Status ValidateNumber(const Number& number,
+                                   const ConcreteType& type) {
+  XLS_VLOG(5) << "Validating " << number.ToString() << " vs " << type;
+  if (dynamic_cast<const BitsType*>(&type) == nullptr) {
+    return TypeInferenceErrorStatus(
+        number.span(), &type,
+        absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
+                        type.GetDebugTypeName()));
+  }
+  return TryEnsureFitsInType(number, type);
+}
+
+// When enums have no type annotation explicitly placed on them we infer the
+// width of the enum from the values contained inside of its definition.
+static absl::StatusOr<std::unique_ptr<ConcreteType>>
+DeduceEnumSansUnderlyingType(const EnumDef* node, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "Deducing enum without underlying type: " << node->ToString();
+  std::vector<std::pair<const EnumMember*, std::unique_ptr<ConcreteType>>>
+      deduced;
+  for (const EnumMember& member : node->values()) {
+    bool is_boolean = false;
+    if (IsBareNumber(member.value, &is_boolean) != nullptr && !is_boolean) {
+      continue;  // We'll validate these below.
+    }
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
+                         ctx->Deduce(member.value));
+    deduced.emplace_back(&member, std::move(t));
+  }
+  if (deduced.empty()) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr, "Could not deduce underlying type for enum.");
+  }
+  const ConcreteType& target = *deduced.front().second;
+  for (int64_t i = 1; i < deduced.size(); ++i) {
+    const ConcreteType& got = *deduced.at(i).second;
+    if (target != got) {
+      return XlsTypeErrorStatus(
+          deduced.at(i).first->GetSpan(), target, got,
+          "Inconsistent member types in enum definition.");
+    }
+  }
+
+  XLS_VLOG(5) << "Underlying type of EnumDef " << node->identifier() << ": "
+              << target;
+
+  // Note the deduced type for all the "bare number" members.
+  for (const EnumMember& member : node->values()) {
+    if (const Number* number = IsBareNumber(member.value)) {
+      XLS_RETURN_IF_ERROR(ValidateNumber(*number, target));
+      ctx->type_info()->SetItem(number, target);
+    }
+  }
+
+  return std::move(deduced.front().second);
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
                                                             DeduceCtx* ctx) {
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,
-                       DeduceAndResolve(node->type_annotation(), ctx));
+  std::unique_ptr<ConcreteType> type;
+  if (node->type_annotation() == nullptr) {
+    XLS_ASSIGN_OR_RETURN(type, DeduceEnumSansUnderlyingType(node, ctx));
+  } else {
+    XLS_ASSIGN_OR_RETURN(type, DeduceAndResolve(node->type_annotation(), ctx));
+  }
+
   auto* bits_type = dynamic_cast<BitsType*>(type.get());
   if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(node->span(), bits_type,
@@ -455,12 +534,18 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
   for (const EnumMember& member : node->values()) {
     if (const Number* number = dynamic_cast<const Number*>(member.value);
         number != nullptr && number->type_annotation() == nullptr) {
-      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *type));
+      XLS_RETURN_IF_ERROR(ValidateNumber(*number, *type));
       ctx->type_info()->SetItem(number, *type);
       XLS_RETURN_IF_ERROR(
           ConstexprEvaluator::Evaluate(ctx, number, type.get()));
     } else {
-      XLS_RETURN_IF_ERROR(ctx->Deduce(member.value).status());
+      XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> t,
+                           ctx->Deduce(member.value));
+      if (*t != *bits_type) {
+        return XlsTypeErrorStatus(
+            member.value->span(), *t, *bits_type,
+            "Enum-member type did not match the enum's underlying type.");
+      }
     }
     absl::optional<InterpValue> constexpr_value =
         ctx->type_info()->GetConstExpr(member.value);

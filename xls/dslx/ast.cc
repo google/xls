@@ -1079,9 +1079,12 @@ absl::StatusOr<Expr*> EnumDef::GetValue(absl::string_view name) const {
 }
 
 std::string EnumDef::ToString() const {
-  std::string result =
-      absl::StrFormat("%senum %s : %s {\n", is_public_ ? "pub " : "",
-                      identifier(), type_annotation_->ToString());
+  std::string type_str = "";
+  if (type_annotation_ != nullptr) {
+    type_str = absl::StrCat(" : " + type_annotation_->ToString());
+  }
+  std::string result = absl::StrFormat(
+      "%senum %s%s {\n", is_public_ ? "pub " : "", identifier(), type_str);
 
   auto value_to_string = [](Expr* value) -> std::string {
     if (Number* number = dynamic_cast<Number*>(value)) {

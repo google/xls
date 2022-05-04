@@ -1665,6 +1665,10 @@ class Slice : public AstNode {
 struct EnumMember {
   NameDef* name_def;  // The name being bound in the enum.
   Expr* value;  // The expression on the right hand side of `ENUM_VAL = $expr`
+
+  Span GetSpan() const {
+    return Span(name_def->span().start(), value->span().limit());
+  }
 };
 
 // Represents a user-defined enum definition; e.g.

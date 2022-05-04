@@ -749,6 +749,15 @@ TEST_F(ParserTest, ConstArrayOfEnumRefs) {
 const A = MyEnum[2]:[MyEnum::FOO, MyEnum::BAR];)");
 }
 
+TEST_F(ParserTest, ImplicitWidthEnum) {
+  RoundTrip(R"(const A = u32:42;
+const B = u32:64;
+enum ImplicitWidthEnum {
+  FOO = A,
+  BAR = B,
+})");
+}
+
 TEST_F(ParserTest, ConstArrayOfConstRefs) {
   RoundTrip(R"(const MOL = u32:42;
 const ZERO = u32:0;

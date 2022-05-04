@@ -730,6 +730,78 @@ fn f(x: MyEnum) -> MyEnum { x }
 )"));
 }
 
+TEST(TypecheckTest, ImplicitWidthEnum) {
+  XLS_EXPECT_OK(Typecheck(R"(
+enum MyEnum {
+  A = false,
+  B = true,
+}
+)"));
+}
+
+TEST(TypecheckTest, ImplicitWidthEnumFromConstexprs) {
+  XLS_EXPECT_OK(Typecheck(R"(
+const X = u8:42;
+const Y = u8:64;
+enum MyEnum {
+  A = X,
+  B = Y,
+}
+)"));
+}
+
+TEST(TypecheckTest, ImplicitWidthEnumWithConstexprAndBareLiteral) {
+  XLS_EXPECT_OK(Typecheck(R"(
+const X = u8:42;
+enum MyEnum {
+  A = 64,
+  B = X,
+}
+
+const EXTRACTED_A = MyEnum::A as u8;
+)"));
+}
+
+TEST(TypecheckTest, ImplicitWidthEnumFromConstexprsMismatch) {
+  EXPECT_THAT(Typecheck(R"(
+const X = u7:42;
+const Y = u8:64;
+enum MyEnum {
+  A = X,
+  B = Y,
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[7] vs uN[8]: Inconsistent member types in "
+                                 "enum definition.")));
+}
+
+TEST(TypecheckTest, ImplicitWidthEnumMismatch) {
+  EXPECT_THAT(
+      Typecheck(R"(
+enum MyEnum {
+  A = u1:0,
+  B = u2:1,
+}
+)"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr(
+              "uN[1] vs uN[2]: Inconsistent member types in enum definition")));
+}
+
+TEST(TypecheckTest, ExplicitWidthEnumMismatch) {
+  EXPECT_THAT(Typecheck(R"(
+enum MyEnum : u2 {
+  A = u1:0,
+  B = u1:1,
+}
+)"),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("uN[1] vs uN[2]: Enum-member type did not "
+                                 "match the enum's underlying type")));
+}
+
 TEST(TypecheckTest, ArrayEllipsis) {
   XLS_EXPECT_OK(Typecheck("fn main() -> u8[2] { u8[2]:[0, ...] }"));
 }
