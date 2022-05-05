@@ -242,6 +242,28 @@ llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
   llvm::ModulePassManager mpm =
       pass_builder.buildPerModuleDefaultPipeline(llvm_opt_level);
   mpm.run(*bare_module, mam);
+
+  XLS_VLOG(2) << "Optimized module IR:";
+  XLS_VLOG(2).NoPrefix() << ir_runtime_->DumpToString(*bare_module);
+
+  if (XLS_VLOG_IS_ON(3)) {
+    // The ostream and its buffer must be declared before the
+    // module_pass_manager because the destrutor of the pass manager calls flush
+    // on the ostream so these must be destructed *after* the pass manager. C++
+    // guarantees that the destructors are called in reverse order the obects
+    // are declared.
+    llvm::SmallVector<char, 0> stream_buffer;
+    llvm::raw_svector_ostream ostream(stream_buffer);
+    llvm::legacy::PassManager mpm;
+    if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
+                                             llvm::CGFT_AssemblyFile)) {
+      XLS_VLOG(3) << "Could not create ASM generation pass!";
+    }
+    mpm.run(*bare_module);
+    XLS_VLOG(3) << "Generated ASM:";
+    XLS_VLOG_LINES(3, std::string(stream_buffer.begin(), stream_buffer.end()));
+  }
+
   return module;
 }
 
