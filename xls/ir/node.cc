@@ -319,8 +319,22 @@ absl::Status Node::Accept(DfsVisitor* visitor) {
     return absl::OkStatus();
   }
   if (visitor->IsTraversing(this)) {
-    return absl::InternalError(
-        absl::StrFormat("Cycle detected which includes node %s", GetName()));
+    std::vector<std::string> cycle_names;
+    Node* node = this;
+    do {
+      bool broke = false;
+      for (Node* operand : node->operands()) {
+        if (visitor->IsTraversing(operand)) {
+          node = operand;
+          broke = true;
+          break;
+        }
+      }
+      XLS_CHECK(broke);
+      cycle_names.push_back(node->GetName());
+    } while (node != this);
+    return absl::InternalError(absl::StrFormat(
+        "Cycle detected: [%s]", absl::StrJoin(cycle_names, ", ")));
   }
   visitor->SetTraversing(this);
   for (Node* operand : operands()) {

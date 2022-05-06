@@ -46,6 +46,7 @@
 #include "xls/passes/sparsify_select_pass.h"
 #include "xls/passes/strength_reduction_pass.h"
 #include "xls/passes/table_switch_pass.h"
+#include "xls/passes/token_dependency_pass.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
 #include "xls/passes/useless_assert_removal_pass.h"
@@ -136,6 +137,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   top->Add<UselessIORemovalPass>();
   top->Add<DeadCodeEliminationPass>();
 
+  top->Add<TokenDependencyPass>();
   top->Add<ProcInliningPass>();
 
   // After proc inlining flatten and optimize the proc state. Run tuple

@@ -1321,8 +1321,7 @@ absl::Status VerifyNodeIdUnique(
 
 // Verify common invariants to function-level constucts.
 absl::Status VerifyFunctionBase(FunctionBase* function) {
-  XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:\n",
-                                    function->name());
+  XLS_VLOG(2) << absl::StreamFormat("Verifying function %s:", function->name());
   XLS_VLOG_LINES(4, function->DumpIr());
 
   // Verify all types are owned by package.
@@ -1337,6 +1336,15 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
   for (Node* node : function->nodes()) {
     XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
   }
+
+  // Verify that there are no cycles in the node graph.
+  class CycleChecker : public DfsVisitorWithDefault {
+    absl::Status DefaultHandler(Node* node) override {
+      return absl::OkStatus();
+    }
+  };
+  CycleChecker cycle_checker;
+  XLS_RETURN_IF_ERROR(function->Accept(&cycle_checker));
 
   // Verify consistency of node::users() and node::operands().
   for (Node* node : function->nodes()) {

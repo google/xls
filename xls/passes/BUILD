@@ -53,6 +53,7 @@ cc_library(
         ":sparsify_select_pass",
         ":strength_reduction_pass",
         ":table_switch_pass",
+        ":token_dependency_pass",
         ":tuple_simplification_pass",
         ":unroll_pass",
         ":useless_assert_removal_pass",
@@ -437,6 +438,24 @@ cc_library(
         "//xls/ir",
         "//xls/ir:op",
         "//xls/ir:type",
+    ],
+)
+
+cc_library(
+    name = "token_dependency_pass",
+    srcs = ["token_dependency_pass.cc"],
+    hdrs = ["token_dependency_pass.h"],
+    deps = [
+        ":passes",
+        ":token_provenance_analysis",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/data_structures:transitive_closure",
+        "//xls/ir",
+        "//xls/ir:op",
     ],
 )
 
@@ -1235,6 +1254,23 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/ir:value",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "token_dependency_pass_test",
+    srcs = ["token_dependency_pass_test.cc"],
+    deps = [
+        ":token_dependency_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
