@@ -23,8 +23,8 @@ load(
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
+    "xls_dslx_verilog",
     "xls_eval_ir_test",
-    "xls_ir_verilog",
 )
 load("@rules_hdl//verilog:providers.bzl", "verilog_library")
 load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
@@ -356,24 +356,16 @@ xls_dslx_test(
     library = ":find_index_dslx",
 )
 
-xls_dslx_opt_ir(
-    name = "find_index_opt_ir",
-    srcs = ["find_index.x"],
-    dslx_top = "find_index",
-    ir_file = "find_index.ir",
-    opt_ir_file = "find_index.opt.ir",
-    deps = [":find_index_dslx"],
-)
-
-xls_ir_verilog(
+xls_dslx_verilog(
     name = "find_index_5000ps_model_unit",
-    src = ":find_index.opt.ir",
     codegen_args = {
         "delay_model": "unit",
         "clock_period_ps": "5000",
         "module_name": "find_index",
         "use_system_verilog": "false",
     },
+    dslx_top = "find_index",
+    library = ":find_index_dslx",
     verilog_file = "find_index_5000ps_model_unit.v",
 )
 

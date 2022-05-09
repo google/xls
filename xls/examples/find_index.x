@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Instantiates a simple piece of logic for finding a target value using the
+// find_index standard library function. This will be used as a synthesis
+// flow example to determine how well the gate-level mapping is performed.
+
 import std
 
 fn find_index(x: u4[4], target: u4) -> (bool, u2) {

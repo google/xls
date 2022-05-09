@@ -18,14 +18,12 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
 load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm_bazel:workspace.bzl", repo_llvm_bazel = "repo")
-load("//dependency_support/org_tuxfamily_eigen:workspace.bzl", repo_eigen = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
 
 def load_external_repositories():
     """Loads external repositories with third-party code."""
 
     repo_boost()
-    repo_eigen()
     repo_llvm_bazel()
     repo_rules_hdl()
 
