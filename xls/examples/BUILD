@@ -24,7 +24,12 @@ load(
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_eval_ir_test",
+    "xls_ir_verilog",
 )
+load("@rules_hdl//verilog:providers.bzl", "verilog_library")
+load("@rules_hdl//synthesis:build_defs.bzl", "synthesize_rtl")
+# TODO(cdleary): 2022-05-09 Re-enable use of this rule.
+# load("@rules_hdl//place_and_route:build_defs.bzl", "place_and_route")
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -338,3 +343,63 @@ xls_dslx_opt_ir(
     opt_ir_file = "proc_iota.opt.ir",
     tags = ["optonly"],
 )
+
+# -- find_index sample, with OpenROAD synthesis
+
+xls_dslx_library(
+    name = "find_index_dslx",
+    srcs = ["find_index.x"],
+)
+
+xls_dslx_test(
+    name = "find_index_test",
+    library = ":find_index_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "find_index_opt_ir",
+    srcs = ["find_index.x"],
+    dslx_top = "find_index",
+    ir_file = "find_index.ir",
+    opt_ir_file = "find_index.opt.ir",
+    deps = [":find_index_dslx"],
+)
+
+xls_ir_verilog(
+    name = "find_index_5000ps_model_unit",
+    src = ":find_index.opt.ir",
+    codegen_args = {
+        "delay_model": "unit",
+        "clock_period_ps": "5000",
+        "module_name": "find_index",
+        "use_system_verilog": "false",
+    },
+    verilog_file = "find_index_5000ps_model_unit.v",
+)
+
+verilog_library(
+    name = "find_index_5000ps_model_unit_verilog",
+    srcs = [
+        ":find_index_5000ps_model_unit.v",
+    ],
+)
+
+synthesize_rtl(
+    name = "find_index_5000ps_model_unit_verilog_synth",
+    top_module = "find_index",
+    deps = [
+        ":find_index_5000ps_model_unit_verilog",
+    ],
+)
+
+# TODO(cdleary): 2022-05-09 Get this target working as well, requires
+# addressing the dependence on openmp runtime.
+# place_and_route(
+#     name = "find_index_place_and_route",
+#     # ~64 MhZ
+#     clock_period = "15.42857143",
+#     core_padding_microns = 30,
+#     placement_density = "0.8",
+#     synthesized_rtl = ":find_index_5000ps_model_unit_verilog_synth",
+#     target_die_utilization_percentage = "30",
+# )

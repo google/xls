@@ -20,6 +20,6 @@ cc_test(
     name = "smoke_test",
     srcs = ["smoke_test.cc"],
     deps = [
-        "@org_tuxfamily_eigen//:eigen",
+        "@org_tuxfamily_eigen//:eigen3",
     ],
 )
