@@ -108,6 +108,25 @@ absl::Status FunctionBase::Accept(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(node->Accept(visitor));
     }
   }
+  if (visitor->GetVisitedCount() < node_count()) {
+    // Not all nodes were visited. This indicates a cycle. Create a separate
+    // trivial DFS visitor to find the cycle.
+    class CycleChecker : public DfsVisitorWithDefault {
+      absl::Status DefaultHandler(Node* node) override {
+        return absl::OkStatus();
+      }
+    };
+    CycleChecker cycle_checker;
+    for (Node* node : nodes()) {
+      if (!cycle_checker.IsVisited(node)) {
+        XLS_RETURN_IF_ERROR(node->Accept(&cycle_checker));
+      }
+    }
+    return absl::InternalError(absl::StrFormat(
+        "Expected to find cycle in function base %s, but none was found.",
+        name()));
+  }
+
   return absl::OkStatus();
 }
 

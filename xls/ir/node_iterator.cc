@@ -127,12 +127,19 @@ void NodeIterator::Initialize() {
     add_to_order(r);
   }
 
-#ifdef DEBUG
-  // Validate all members in the pending mapping have been scheduled.
-  for (const auto& item : pending_to_remaining_users) {
-    XLS_CHECK_LT(item.second, 0) << item.first;
+  if (ordered_->size() < f_->node_count()) {
+    // Not all nodes have been placed indicating a cycle in the graph. Run a
+    // trivial DFS visitor which will emit an error message displaying the
+    // cycle.
+    class CycleChecker : public DfsVisitorWithDefault {
+      absl::Status DefaultHandler(Node* node) override {
+        return absl::OkStatus();
+      }
+    };
+    CycleChecker cycle_checker;
+    XLS_CHECK_OK(f_->Accept(&cycle_checker));
+    XLS_LOG(FATAL) << "Expected to find cycle in function base.";
   }
-#endif
 }
 
 }  // namespace xls

@@ -144,25 +144,5 @@ fn graph(p: bits[42], q: bits[42]) -> bits[42] {
   }
 }
 
-TEST_F(DfsVisitorTest, GraphWithCycle) {
-  std::string input = R"(
-fn graph(p: bits[42], q: bits[42]) -> bits[42] {
-  and.1: bits[42] = and(p, q)
-  add.2: bits[42] = add(and.1, q)
-  ret sub.3: bits[42] = sub(add.2, add.2)
-}
-)";
-  // We don't want a VerifiedPackage because we are introducing a cycle.
-  auto p = std::make_unique<Package>(TestName());
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(input, p.get()));
-
-  // Introduce a cycle in the graph.
-  ASSERT_TRUE(FindNode("and.1", f)
-                  ->ReplaceOperand(FindNode("p", f), FindNode("add.2", f)));
-  TestVisitor v;
-  EXPECT_THAT(std::string(f->Accept(&v).message()),
-              ::testing::HasSubstr(std::string("Cycle detected")));
-}
-
 }  // namespace
 }  // namespace xls

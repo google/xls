@@ -19,6 +19,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 
 namespace xls {
@@ -366,6 +367,57 @@ TEST_F(FunctionTest, IrReservedWordIdentifiers) {
   // Serialize to text and verify text is parsable.
   std::string ir_text = p->DumpIr();
   XLS_ASSERT_OK(ParsePackage(ir_text).status());
+}
+
+class TestVisitor : public DfsVisitorWithDefault {
+ public:
+  absl::Status DefaultHandler(Node* node) override { return absl::OkStatus(); }
+};
+
+TEST_F(FunctionTest, GraphWithCycle) {
+  std::string input = R"(
+fn graph(p: bits[42], q: bits[42]) -> bits[42] {
+  a: bits[42] = and(p, q)
+  b: bits[42] = add(a, q)
+  ret c: bits[42] = sub(a, b)
+}
+)";
+  {
+    auto p = std::make_unique<Package>(TestName());
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(input, p.get()));
+
+    // Introduce a cycle in the graph through two nodes.
+    ASSERT_TRUE(
+        FindNode("a", f)->ReplaceOperand(FindNode("p", f), FindNode("b", f)));
+    TestVisitor v;
+    EXPECT_THAT(std::string(f->Accept(&v).message()),
+                HasSubstr(std::string("Cycle detected: [a -> b -> a]")));
+    EXPECT_DEATH(TopoSort(f), HasSubstr("Cycle detected: [a -> b -> a]"));
+  }
+
+  {
+    auto p = std::make_unique<Package>(TestName());
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(input, p.get()));
+
+    // Introduce a cycle in the graph through one node.
+    XLS_ASSERT_OK(FindNode("a", f)->ReplaceOperandNumber(0, FindNode("a", f)));
+    TestVisitor v;
+    EXPECT_THAT(std::string(f->Accept(&v).message()),
+                HasSubstr(std::string("Cycle detected: [a -> a]")));
+    EXPECT_DEATH(TopoSort(f), HasSubstr("Cycle detected: [a -> a]"));
+  }
+
+  {
+    auto p = std::make_unique<Package>(TestName());
+    XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(input, p.get()));
+
+    // Introduce a cycle such that no nodes in the graph are userless.
+    XLS_ASSERT_OK(FindNode("a", f)->ReplaceOperandNumber(1, FindNode("c", f)));
+    TestVisitor v;
+    EXPECT_THAT(std::string(f->Accept(&v).message()),
+                HasSubstr(std::string("Cycle detected: [a -> c -> a]")));
+    EXPECT_DEATH(TopoSort(f), HasSubstr("Cycle detected: [a -> c -> a]"));
+  }
 }
 
 }  // namespace

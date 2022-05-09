@@ -128,6 +128,9 @@ class DfsVisitor {
     traversing_.clear();
   }
 
+  // Return the total number of nodes visited.
+  int64_t GetVisitedCount() const { return visited_.size(); }
+
  private:
   // Set of nodes which have been visited.
   absl::flat_hash_set<Node*> visited_;
