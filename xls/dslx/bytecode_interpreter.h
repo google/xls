@@ -90,6 +90,11 @@ class BytecodeInterpreter {
 
   const std::vector<InterpValue>& stack() { return stack_; }
 
+  // Helper for converting a trace format string to its result given a stack
+  // state.
+  static absl::StatusOr<std::string> TraceDataToString(
+      const Bytecode::TraceData& trace_data, std::vector<InterpValue>& stack);
+
  protected:
   BytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf);
   static absl::StatusOr<std::unique_ptr<BytecodeInterpreter>> CreateUnique(
@@ -197,13 +202,12 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
 
-  absl::StatusOr<std::string> TraceDataToString(
-      const Bytecode::TraceData& trace_data);
   absl::StatusOr<bool> MatchArmEqualsInterpValue(
       Frame* frame, const Bytecode::MatchArmItem& item,
       const InterpValue& value);
 
-  absl::StatusOr<InterpValue> Pop();
+  static absl::StatusOr<InterpValue> Pop(std::vector<InterpValue>& stack);
+  absl::StatusOr<InterpValue> Pop() { return Pop(stack_); }
 
   ImportData* import_data_;
   std::vector<InterpValue> stack_;

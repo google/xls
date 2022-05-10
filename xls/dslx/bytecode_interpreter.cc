@@ -333,12 +333,13 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
   return absl::OkStatus();
 }
 
-absl::StatusOr<InterpValue> BytecodeInterpreter::Pop() {
-  if (stack_.empty()) {
+/* static */ absl::StatusOr<InterpValue> BytecodeInterpreter::Pop(
+    std::vector<InterpValue>& stack) {
+  if (stack.empty()) {
     return absl::InternalError("Tried to pop off an empty stack.");
   }
-  InterpValue value = std::move(stack_.back());
-  stack_.pop_back();
+  InterpValue value = std::move(stack.back());
+  stack.pop_back();
   return value;
 }
 
@@ -624,7 +625,8 @@ absl::Status BytecodeInterpreter::EvalExpandTuple(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::EvalFail(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
                        bytecode.trace_data());
-  XLS_ASSIGN_OR_RETURN(std::string message, TraceDataToString(*trace_data));
+  XLS_ASSIGN_OR_RETURN(std::string message,
+                       TraceDataToString(*trace_data, stack_));
   return FailureErrorStatus(bytecode.source_span(), message);
 }
 
@@ -958,25 +960,21 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::string> BytecodeInterpreter::TraceDataToString(
-    const Bytecode::TraceData& trace_data) {
+/* static */ absl::StatusOr<std::string> BytecodeInterpreter::TraceDataToString(
+    const Bytecode::TraceData& trace_data, std::vector<InterpValue>& stack) {
   std::deque<std::string> pieces;
   for (int i = trace_data.size() - 1; i >= 0; i--) {
     absl::variant<std::string, FormatPreference> trace_element =
         trace_data.at(i);
     if (absl::holds_alternative<std::string>(trace_element)) {
       pieces.push_front(absl::get<std::string>(trace_element));
-      if (i != 0) {
-        pieces.push_back(" ");
-      }
-
     } else {
-      XLS_RET_CHECK(!stack_.empty());
+      XLS_RET_CHECK(!stack.empty());
       // TODO(rspringer): 2022-02-22: This JIT prints values via the IR's
       // Value::ToHumanString() function. The problem is that it doesn't print
       // out negative numbers, which is lossy and confusing. Find a way to unify
       // these two somehow?
-      XLS_ASSIGN_OR_RETURN(InterpValue value, Pop());
+      XLS_ASSIGN_OR_RETURN(InterpValue value, Pop(stack));
       XLS_ASSIGN_OR_RETURN(Value ir_value, value.ConvertToIr());
       pieces.push_front(
           ir_value.ToHumanString(absl::get<FormatPreference>(trace_element)));
@@ -989,7 +987,8 @@ absl::StatusOr<std::string> BytecodeInterpreter::TraceDataToString(
 absl::Status BytecodeInterpreter::EvalTrace(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(const Bytecode::TraceData* trace_data,
                        bytecode.trace_data());
-  XLS_ASSIGN_OR_RETURN(std::string message, TraceDataToString(*trace_data));
+  XLS_ASSIGN_OR_RETURN(std::string message,
+                       TraceDataToString(*trace_data, stack_));
   // Note: trace is specified to log to the INFO log.
   XLS_LOG(INFO) << message;
   stack_.push_back(InterpValue::MakeToken());

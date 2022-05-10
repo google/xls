@@ -1713,7 +1713,7 @@ operations known to the compiler in their high level form, we potentially enable
 optimizations and analyses on their higher level ("lifted") form. As of now,
 `map` is the sole parallel-primitive-oriented built-in.
 
-### add_with_carry
+### `add_with_carry`
 
 Operation that produces the result of the add, as well as the carry bit as an
 output. The binary add operators works similar to software programming
@@ -1725,7 +1725,7 @@ signature:
 fn add_with_carry<N>(x: uN[N], y: uN[N]) -> (u1, uN[N])
 ```
 
-### map
+### `map`
 
 `map`, similarly to other languages, executes a transformation function on all
 the elements of an original array to produce the resulting "mapped' array.
@@ -1770,7 +1770,7 @@ functions:
   assert_eq(u32:3, x2)
 ```
 
-### one_hot
+### `one_hot`
 
 Converts a value to one-hot form. Has the following signature:
 
@@ -1926,24 +1926,28 @@ omitted.
 `assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
 recommended to use it within `test` constructs (interpretation) only.
 
-### trace!
+### `trace_fmt!`
 
-DSLX supports printf-style debugging via the `trace!` builtin, which allows
+DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
 dumping of current values to stdout. For example:
 
 ```dslx
-fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
-  let imm_11_5 = (ins >> u32:25);
-  let rs2 = (ins >> u32:20) & u32:0x1F;
-  let rs1 = (ins >> u32:15) & u32:0x1F;
-  let funct3 = (ins >> u32:12) & u32:0x07;
-  let imm_4_0 = (ins >> u32:7) & u32:0x1F;
-  let opcode = ins & u32:0x7F;
-  let _ = trace!(imm_11_5);
-  let _ = trace!(imm_4_0);
-  (((imm_11_5 as u7) ++ (imm_4_0 as u5)) as u12, rs2 as u5, rs1 as u5, funct3 as u3, opcode as u7)
+// Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging.
+#![interp_main_alsologtostderr = "true"]
+
+// Note: JIT does not currently support `trace_fmt!` with data operands so we
+// need to avoid comparison to JIT mode.
+#![interp_main_compare = "none"]
+
+fn shifty(x: u8, y: u3) -> u8 {
+  let _ = trace_fmt!("x: {:x} y: {}", x, y);
+  x << y
 }
 
+#![test]
+fn test_shifty() {
+  assert_eq(shifty(u8:0x42, u3:4), u8:0x20)
+}
 ```
 
 would produce the following output, with each trace being annotated with its
@@ -1951,50 +1955,15 @@ corresponding source position:
 
 ```
 [...]
-[ RUN      ] decode_s_test_lsb
-trace of imm_11_5 @ 69:17-69:27: bits[32]:0x1
-trace of imm_4_0 @ 70:17-70:26: bits[32]:0x1
+[ RUN UNITTEST  ] test_shifty
+I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 4
+[            OK ]
 [...]
 ```
 
-`trace` also returns the value passed to it, so it can be used inline, as in:
-
-```
-match trace!(my_thing) {
-   [...]
-}
-```
-
-To see the values of _all_ expressions during interpretation, invoke the
-interpreter or test with the `--trace_all` flag:
-
-```
-$ ./interpreter_main clz.x -logtostderr -trace_all
-[ RUN      ] clz
-trace of (u3:0) @ clz.x:2:24: bits[3]:0x0
-trace of (u3:0b111) @ clz.x:2:34-2:39: bits[3]:0x7
-trace of clz((u3:0b111)) @ clz.x:2:30-2:40: bits[3]:0x0
-trace of assert_eq((u3:0), clz((u3:0b111))) @ clz.x:2:20-2:41: ()
-trace of (u3:1) @ clz.x:3:24: bits[3]:0x1
-trace of (u3:0b011) @ clz.x:3:34-3:39: bits[3]:0x3
-trace of clz((u3:0b011)) @ clz.x:3:30-3:40: bits[3]:0x1
-trace of assert_eq((u3:1), clz((u3:0b011))) @ clz.x:3:20-3:41: ()
-trace of (u3:2) @ clz.x:4:24: bits[3]:0x2
-trace of (u3:0b001) @ clz.x:4:34-4:39: bits[3]:0x1
-trace of clz((u3:0b001)) @ clz.x:4:30-4:40: bits[3]:0x2
-trace of assert_eq((u3:2), clz((u3:0b001))) @ clz.x:4:20-4:41: ()
-trace of (u3:3) @ clz.x:5:24: bits[3]:0x3
-trace of (u3:0b000) @ clz.x:5:34-5:39: bits[3]:0x0
-trace of clz((u3:0b000)) @ clz.x:5:30-5:40: bits[3]:0x3
-trace of assert_eq((u3:3), clz((u3:0b000))) @ clz.x:5:20-5:41: ()
-trace of () @ clz.x:6:3-6:5: ()
-[       OK ] clz
-
-```
-
-Implementation note: tracing has no equivalent node in the IR (nor would such a
-node make sense), so any `trace!` builtin invocations are silently dropped
-during conversion to XLS IR.
+Note: `trace!` currently exists as a builtin but is in the process of being
+removed, as it provided the user with only a "global flag" way of specifying the
+desired format for output values -- `trace_fmt!` is more powerful.
 
 ### fail!
 

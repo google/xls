@@ -30,6 +30,19 @@ namespace {
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
+TEST(BytecodeInterpreterTest, TraceDataToString) {
+  std::vector<InterpValue> stack = {
+      InterpValue::MakeUBits(8, /*value=*/0x42),
+      InterpValue::MakeUBits(3, /*value=*/4),
+  };
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<FormatStep> steps,
+                           ParseFormatString("x: {:x} y: {}"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string result, BytecodeInterpreter::TraceDataToString(steps, stack));
+  EXPECT_TRUE(stack.empty());
+  EXPECT_EQ("x: 42 y: 4", result);
+}
+
 absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
                                       absl::string_view program,
                                       absl::string_view entry,
