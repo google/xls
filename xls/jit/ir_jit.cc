@@ -336,6 +336,7 @@ absl::Status IrJit::Init() {
           return module;
         });
   }
+
   llvm::orc::IRLayer* parent_layer =
       emit_object_code_
           ? static_cast<llvm::orc::IRLayer*>(object_code_layer_.get())

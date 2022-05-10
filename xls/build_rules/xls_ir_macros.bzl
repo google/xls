@@ -27,6 +27,7 @@ load(
     "get_xls_dslx_ir_generated_files",
     "get_xls_ir_opt_ir_generated_files",
     "xls_dslx_ir",
+    "xls_ir_cc_library",
     "xls_ir_opt_ir",
 )
 
@@ -198,4 +199,84 @@ def xls_ir_opt_ir_macro(
         enable_generated_file = enable_generated_file,
         enable_presubmit_generated_file = enable_presubmit_generated_file,
         **kwargs
+    )
+
+def xls_ir_cc_library_macro(
+        name,
+        src,
+        top = None,
+        namespaces = ""):
+    """Invokes the AOT compiles the input IR into a cc_library.
+
+    Example:
+
+    ```
+    xls_ir_opt_ir(
+        name "foo",
+        ...
+    )
+
+    xls_ir_cc_library(
+        name = "foo_cc",
+        src = ":foo.opt.ir",
+        top = "bar",
+        namespaces = "a,b,c",
+    )
+    ```
+
+    This will produce a cc_library that will execute the fn `bar` from the
+    `foo` IR file. The call itself will be inside the namespace `a::b::c`.
+
+    Args:
+      name: The name of the resulting library.
+      src: The path to the IR file to compile.
+      top: The entry point in the IR file of interest.
+      namespaces: A comma-separated list of namespaces into which the
+                  generated code should go.
+    """
+    if type(name) != type(""):
+        fail("Argument 'name' must be of string type.")
+    if type(src) != type(""):
+        fail("Argument 'src' must be of string type.")
+    if top and type(top) != type(""):
+        fail("Argument 'top' must be of string type.")
+    if type(namespaces) != type(""):
+        fail("Argument 'namespaces' must be of string type.")
+
+    header_file = name + ".h"
+    object_file = name + ".o"
+    source_file = name + ".cc"
+    xls_ir_cc_library(
+        name = name + "_gen_aot",
+        header_file = header_file,
+        object_file = object_file,
+        source_file = source_file,
+        src = src,
+        top = top,
+        namespaces = namespaces,
+    )
+
+    native.cc_library(
+        name = name,
+        srcs = [
+            ":" + object_file,
+            ":" + source_file,
+        ],
+        hdrs = [
+            ":" + header_file,
+        ],
+        deps = [
+            "@com_google_protobuf//:protobuf",
+            "@com_google_absl//absl/status:statusor",
+            "@com_google_absl//absl/types:span",
+            "@llvm-project//llvm:Core",
+            "@llvm-project//llvm:OrcJIT",
+            "@llvm-project//llvm:Support",
+            "//xls/common/status:status_macros",
+            "//xls/ir",
+            "//xls/ir:type",
+            "//xls/ir:value",
+            "//xls/jit:aot_runtime",
+            "//xls/jit:jit_runtime",
+        ],
     )

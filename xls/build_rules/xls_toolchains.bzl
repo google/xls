@@ -16,6 +16,8 @@
 This module contains toolchains for XLS.
 """
 
+_DEFAULT_AOT_COMPILER_TARGET = "//xls/jit:aot_compiler"
+
 _DEFAULT_INTERPRETER_TARGET = "//xls/dslx:interpreter_main"
 
 _DEFAULT_IR_CONVERTER_TARGET = "//xls/dslx:ir_converter_main"
@@ -85,6 +87,7 @@ def get_runfiles_from(target):
 XlsToolchainInfo = provider(
     doc = "A provider containing toolchain information.",
     fields = {
+        "aot_compiler_tool": "Target: the ahead-of-time compiler executable.",
         "benchmark_ir_tool": "Target: The target of the benchmark IR " +
                              "executable.",
         "benchmark_codegen_tool": "Target: The target of the benchmark " +
@@ -104,6 +107,7 @@ XlsToolchainInfo = provider(
 
 def _xls_toolchain_impl(ctx):
     xls_toolchain_info = XlsToolchainInfo(
+        aot_compiler_tool = ctx.attr.aot_compiler_tool,
         benchmark_ir_tool = ctx.attr.benchmark_ir_tool,
         benchmark_codegen_tool = ctx.attr.benchmark_codegen_tool,
         codegen_tool = ctx.attr.codegen_tool,
@@ -147,6 +151,13 @@ Examples:
     implementation = _xls_toolchain_impl,
     provides = [XlsToolchainInfo],
     attrs = {
+        "aot_compiler_tool": attr.label(
+            doc = "The target of the AOT IR compiler executable.",
+            default = Label(_DEFAULT_AOT_COMPILER_TARGET),
+            allow_single_file = True,
+            executable = True,
+            cfg = "exec",
+        ),
         "dslx_interpreter_tool": attr.label(
             doc = "The target of the DSLX interpreter executable.",
             default = Label(_DEFAULT_INTERPRETER_TARGET),

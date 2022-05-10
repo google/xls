@@ -112,6 +112,7 @@ absl::StatusOr<std::string> GenerateWrapperSource(
 #include "{{header_path}}"
 
 #include <cstdint>
+#include <memory>
 #include <vector>
 
 #include "absl/types/span.h"
@@ -264,7 +265,7 @@ int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
   std::string input_ir_path = absl::GetFlag(FLAGS_input);
   if (input_ir_path.empty()) {
-    std::cout << "--input_ir_path must be specified." << std::endl;
+    std::cout << "--input must be specified." << std::endl;
     return 1;
   }
 

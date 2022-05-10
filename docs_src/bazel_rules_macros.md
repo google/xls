@@ -743,6 +743,47 @@ Examples:
 | <a id="xls_dslx_verilog-kwargs"></a>kwargs |  Keyword arguments. Named arguments.   |  none |
 
 
+<a id="#xls_ir_cc_library"></a>
+
+## xls_ir_cc_library
+
+<pre>
+xls_ir_cc_library(<a href="#xls_ir_cc_library-name">name</a>, <a href="#xls_ir_cc_library-src">src</a>, <a href="#xls_ir_cc_library-top">top</a>, <a href="#xls_ir_cc_library-namespaces">namespaces</a>)
+</pre>
+
+Invokes the AOT compiles the input IR into a cc_library.
+
+Example:
+
+```
+xls_ir_opt_ir(
+    name "foo",
+    ...
+)
+
+xls_ir_cc_library(
+    name = "foo_cc",
+    src = ":foo.opt.ir",
+    top = "bar",
+    namespaces = "a,b,c",
+)
+```
+
+This will produce a cc_library that will execute the fn `bar` from the
+`foo` IR file. The call itself will be inside the namespace `a::b::c`.
+
+
+**PARAMETERS**
+
+
+| Name  | Description | Default Value |
+| :------------- | :------------- | :------------- |
+| <a id="xls_ir_cc_library-name"></a>name |  The name of the resulting library.   |  none |
+| <a id="xls_ir_cc_library-src"></a>src |  The path to the IR file to compile.   |  none |
+| <a id="xls_ir_cc_library-top"></a>top |  The entry point in the IR file of interest.   |  <code>None</code> |
+| <a id="xls_ir_cc_library-namespaces"></a>namespaces |  A comma-separated list of namespaces into which the generated code should go.   |  <code>""</code> |
+
+
 <a id="#xls_ir_opt_ir"></a>
 
 ## xls_ir_opt_ir

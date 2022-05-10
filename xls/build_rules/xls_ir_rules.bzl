@@ -1025,3 +1025,92 @@ Examples:
     ),
     executable = True,
 )
+
+def _xls_ir_cc_library_impl(ctx):
+    """The implementation of the 'xls_ir_cc_library' rule.
+
+    Executes the AOT compiler on the specified IR.
+
+    Args:
+      ctx: The current rule's context object.
+    Returns:
+      DefaultInfo provider
+    """
+    src = ctx.file.src
+
+    header_file = ctx.actions.declare_file(ctx.outputs.header_file.basename)
+    object_file = ctx.actions.declare_file(ctx.outputs.object_file.basename)
+    source_file = ctx.actions.declare_file(ctx.outputs.source_file.basename)
+    generated_files = [object_file, header_file, source_file]
+
+    aot_compiler_args = ctx.actions.args()
+    aot_compiler_args.add("-input", src)
+    aot_compiler_args.add("-output_header", header_file.path)
+    aot_compiler_args.add("-output_object", object_file.path)
+    aot_compiler_args.add("-output_source", source_file.path)
+    if ctx.attr.namespaces:
+        aot_compiler_args.add("-namespaces", ctx.attr.namespaces)
+
+    aot_compiler_tool = get_executable_from(
+        get_xls_toolchain_info(ctx).aot_compiler_tool,
+    )
+
+    aot_compiler_tool_runfiles = get_runfiles_from(
+        get_xls_toolchain_info(ctx).aot_compiler_tool,
+    )
+    runfiles = get_runfiles_for_xls(ctx, [aot_compiler_tool_runfiles], [src])
+
+    ctx.actions.run(
+        outputs = generated_files,
+        tools = [aot_compiler_tool],
+        inputs = runfiles.files,
+        arguments = [aot_compiler_args],
+        executable = aot_compiler_tool.path,
+        mnemonic = "AOTCompile",
+        progress_message = "AOT compiling %s" % src.path,
+    )
+
+    return [
+        DefaultInfo(
+            files = depset(
+                direct = generated_files,
+                transitive = get_transitive_built_files_for_xls(
+                    ctx,
+                    [ctx.attr.src],
+                ),
+            ),
+            runfiles = runfiles,
+        ),
+    ]
+
+xls_ir_cc_library = rule(
+    doc = """Creates a native cc_library from an IR file.
+
+    Not meant to be directly instantiated; use xls_ir_cc_library_macro (in
+    xls_ir_macros.bzl) instead.
+    """,
+    implementation = _xls_ir_cc_library_impl,
+    attrs = dicts.add(
+        xls_ir_common_attrs,
+        xls_ir_top_attrs,
+        xls_toolchain_attr,
+        {
+            "header_file": attr.output(
+                doc = "Name of the generated header file.",
+                mandatory = True,
+            ),
+            "object_file": attr.output(
+                doc = "Name of the generated object file.",
+                mandatory = True,
+            ),
+            "source_file": attr.output(
+                doc = "Name of the generated source file.",
+                mandatory = True,
+            ),
+            "namespaces": attr.string(
+                doc = "Comma-separated list of nested namespaces in which to " +
+                      "place the generated function.",
+            ),
+        },
+    ),
+)

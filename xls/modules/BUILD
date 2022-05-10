@@ -22,6 +22,7 @@ load(
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
     "xls_eval_ir_test",
+    "xls_ir_cc_library",
 )
 
 package(
@@ -44,6 +45,12 @@ xls_dslx_library(
     name = "fp32_add_2_dslx",
     srcs = ["fp32_add_2.x"],
     deps = [":apfloat_add_2_dslx"],
+)
+
+xls_ir_cc_library(
+    name = "fp32_add_2_cc",
+    src = ":fp32_add_2.opt.ir",
+    top = "fp32_add_2",
 )
 
 xls_dslx_library(
