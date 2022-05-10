@@ -151,6 +151,23 @@ absl::StatusOr<std::unique_ptr<IrJit>> IrJit::CreateProc(
   return jit;
 }
 
+absl::StatusOr<std::vector<char>> IrJit::CreateObjectFile(
+    Function* xls_function, int64_t opt_level) {
+  absl::call_once(once, OnceInit);
+
+  auto jit = absl::WrapUnique(
+      new IrJit(xls_function, opt_level, /*emit_object_code=*/true));
+  XLS_RETURN_IF_ERROR(jit->Init());
+  auto visit_fn = [&jit](llvm::Module* module, llvm::Function* llvm_function,
+                         bool generate_packed) {
+    return FunctionBuilderVisitor::Visit(
+        module, llvm_function, jit->xls_function_, jit->type_converter_.get(),
+        /*is_top=*/true, generate_packed);
+  };
+  XLS_RETURN_IF_ERROR(jit->Compile(visit_fn));
+  return jit->object_code_;
+}
+
 absl::Status IrJit::Compile(VisitFn visit_fn) {
   llvm::LLVMContext* bare_context = context_.getContext();
   auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
@@ -176,8 +193,7 @@ absl::Status IrJit::Compile(VisitFn visit_fn) {
     return symbol->getAddress();
   };
 
-  std::string function_name = absl::StrFormat(
-      "%s::%s", xls_function_->package()->name(), xls_function_->name());
+  std::string function_name = absl::StrFormat("%s", xls_function_->name());
   XLS_ASSIGN_OR_RETURN(auto fn_address, load_symbol(function_name));
   invoker_ = absl::bit_cast<JitFunctionType>(fn_address);
 
@@ -188,7 +204,8 @@ absl::Status IrJit::Compile(VisitFn visit_fn) {
   return absl::OkStatus();
 }
 
-IrJit::IrJit(FunctionBase* xls_function, int64_t opt_level)
+IrJit::IrJit(FunctionBase* xls_function, int64_t opt_level,
+             bool emit_object_code)
     : context_(std::make_unique<llvm::LLVMContext>()),
       execution_session_(
           std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
@@ -199,7 +216,8 @@ IrJit::IrJit(FunctionBase* xls_function, int64_t opt_level)
       data_layout_(""),
       xls_function_(xls_function),
       opt_level_(opt_level),
-      invoker_(nullptr) {}
+      invoker_(nullptr),
+      emit_object_code_(emit_object_code) {}
 
 llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
     llvm::orc::ThreadSafeModule module,
@@ -276,6 +294,7 @@ absl::Status IrJit::Init() {
                      llvm::toString(error_or_target_builder.takeError())));
   }
 
+  error_or_target_builder->setRelocationModel(llvm::Reloc::Model::PIC_);
   auto error_or_target_machine = error_or_target_builder->createTargetMachine();
   if (!error_or_target_machine) {
     return absl::InternalError(
@@ -283,6 +302,7 @@ absl::Status IrJit::Init() {
                      llvm::toString(error_or_target_machine.takeError())));
   }
   target_machine_ = std::move(error_or_target_machine.get());
+
   data_layout_ = target_machine_->createDataLayout();
   type_converter_ =
       std::make_unique<LlvmTypeConverter>(context_.getContext(), data_layout_);
@@ -297,8 +317,31 @@ absl::Status IrJit::Init() {
   compile_layer_ = std::make_unique<llvm::orc::IRCompileLayer>(
       execution_session_, object_layer_, std::move(compiler));
 
+  if (emit_object_code_) {
+    object_code_layer_ = std::make_unique<llvm::orc::IRTransformLayer>(
+        execution_session_, *compile_layer_,
+        [this](llvm::orc::ThreadSafeModule module,
+               const llvm::orc::MaterializationResponsibility& mr) {
+          llvm::SmallVector<char, 0> stream_buffer;
+          llvm::raw_svector_ostream ostream(stream_buffer);
+          llvm::legacy::PassManager mpm;
+          if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
+                                                   llvm::CGFT_ObjectFile)) {
+            XLS_VLOG(3) << "Could not create ASM generation pass!";
+          }
+          mpm.run(*module.getModuleUnlocked());
+
+          object_code_ =
+              std::vector<char>(stream_buffer.begin(), stream_buffer.end());
+          return module;
+        });
+  }
+  llvm::orc::IRLayer* parent_layer =
+      emit_object_code_
+          ? static_cast<llvm::orc::IRLayer*>(object_code_layer_.get())
+          : static_cast<llvm::orc::IRLayer*>(compile_layer_.get());
   transform_layer_ = std::make_unique<llvm::orc::IRTransformLayer>(
-      execution_session_, *compile_layer_,
+      execution_session_, *parent_layer,
       [this](llvm::orc::ThreadSafeModule module,
              const llvm::orc::MaterializationResponsibility& responsibility) {
         return Optimizer(std::move(module), responsibility);
@@ -356,9 +399,7 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
       /*isVarArg=*/false);
 
-  Package* xls_package = xls_function_->package();
-  std::string function_name =
-      absl::StrFormat("%s::%s", xls_package->name(), xls_function_->name());
+  std::string function_name = absl::StrFormat("%s", xls_function_->name());
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
   return_type_bytes_ = type_converter_->GetTypeByteSize(return_type);
@@ -491,9 +532,8 @@ absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
       /*isVarArg=*/false);
 
-  Package* xls_package = xls_function_->package();
-  std::string function_name = absl::StrFormat(
-      "%s::%s_packed", xls_package->name(), xls_function_->name());
+  std::string function_name =
+      absl::StrFormat("%s_packed", xls_function_->name());
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
   XLS_RETURN_IF_ERROR(

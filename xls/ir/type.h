@@ -49,10 +49,6 @@ class Type {
  public:
   virtual ~Type() = default;
 
-  // Creates a Type object from the given proto.
-  static absl::StatusOr<std::unique_ptr<Type>> FromProto(
-      const TypeProto& proto);
-
   // Returns a proto representation of the type.
   virtual TypeProto ToProto() const = 0;
 

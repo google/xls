@@ -19,6 +19,42 @@ package(
     licenses = ["notice"],  # Apache 2.0
 )
 
+cc_binary(
+    name = "aot_compiler",
+    srcs = ["aot_compiler.cc"],
+    deps = [
+        ":ir_jit",
+        ":llvm_type_converter",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "@com_google_protobuf//:protobuf",
+        "@llvm-project//llvm:Core",
+    ],
+)
+
+cc_library(
+    name = "aot_runtime",
+    srcs = ["aot_runtime.cc"],
+    hdrs = ["aot_runtime.h"],
+    deps = [
+        ":llvm_type_converter",
+        "@com_google_absl//absl/strings",
+        "//xls/ir",
+        "//xls/ir:type",
+        "@com_google_protobuf//:protobuf",
+        "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Support",
+    ],
+)
+
 cc_library(
     name = "function_builder_visitor",
     srcs = ["function_builder_visitor.cc"],
@@ -116,10 +152,12 @@ cc_library(
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Analysis",
+        "@llvm-project//llvm:CodeGen",
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:ExecutionEngine",
         "@llvm-project//llvm:IPO",
         "@llvm-project//llvm:JITLink",  # build_cleaner: keep
+        "@llvm-project//llvm:MC",
         "@llvm-project//llvm:OrcJIT",
         "@llvm-project//llvm:Passes",
         "@llvm-project//llvm:Support",
