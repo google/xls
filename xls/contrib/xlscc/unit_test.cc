@@ -132,7 +132,11 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
   auto parser = std::make_unique<xlscc::CCParser>();
   XLS_RETURN_IF_ERROR(
       ScanTempFileWithContent(temp, clang_argv, parser.get()));
-  translator_.reset(new xlscc::Translator(1000, std::move(parser)));
+  // When loop unrolling is failing, it tends to run slowly.
+  // Since there are several unit tests to check the failing case, the maximum
+  // loop iterations is set lower than in the main tool interface to make
+  // the test run in a reasonable time.
+  translator_.reset(new xlscc::Translator(100, std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }

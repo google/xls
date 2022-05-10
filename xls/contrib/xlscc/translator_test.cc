@@ -1019,12 +1019,193 @@ TEST_F(TranslatorTest, WhileUnroll) {
         }
         return a;
       })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Unrolled loop must have an initializer")));
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
+
+TEST_F(TranslatorTest, WhileUnrollShortCircuit) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10) {
+          a += b;
+          ++i;
+          if(a > 60) {
+            break;
+          }
+        }
+        return (i*10) + a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 111, content);
+}
+
+TEST_F(TranslatorTest, WhileUnrollFalseCond) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<1) {
+          a += b;
+          a += 2*b;
+          ++i;
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 11, content);
+}
+
+TEST_F(TranslatorTest, WhileUnrollFalseCond2) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        while(i<=10 && a<0) {
+          a += b;
+          a += 2*b;
+          ++i;
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 11, content);
+}
+
+TEST_F(TranslatorTest, WhileUnrollFalseCond3) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        for(;i<=10 && a<0;++i) {
+          a += b;
+          a += 2*b;
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 11, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollShortCircuit) {
+  const std::string content = R"(
+
+        long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<50 && a<=100;++i) {
+           a += b;
+          }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 111, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollShortCircuit2) {
+  const std::string content = R"(
+
+        long long my_package(long long a, long long b) {
+        int i=0;
+         #pragma hls_unroll yes
+         for(;i<50 && a<=100;++i) {
+           a += b;
+          }
+         return a+i;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 111 + 5, content);
+}
+
+// Check that continue doesn't skip loop increment
+TEST_F(TranslatorTest, ForUnrollShortCircuit2A) {
+  const std::string content = R"(
+        long long my_package(long long a, long long b) {
+         int i=0;
+         #pragma hls_unroll yes
+         for(;i<50;++i) {
+           if(a>100) continue;
+           a += b;
+          }
+         return a+i;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 111 + 50, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollShortCircuit3) {
+  const std::string content = R"(
+        template<int N>
+        long sum(long in[N], int n) {
+          long sum = 0;
+          #pragma hls_unroll yes
+          for (int i = 0; i < N && i < n; ++i) sum += in[i];
+          return sum;
+        }
+
+        long long my_package(long long a, long long b) {
+          long in[4] = {0,a,b,100};
+          return sum<4>(in, 3);
+       })";
+  Run({{"a", 11}, {"b", 20}}, 31, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollShortCircuit4) {
+  const std::string content = R"(
+         struct TestInt {
+           TestInt(long long v) : x(v) { }
+           int operator[](int i)const {
+             return (x >> i)&1;
+           }
+           TestInt operator ++() {
+             ++x;
+             return *this;
+           }
+           bool operator <(int v)const {
+             return x < v;
+           }
+           operator int() const {
+             return x;
+           }
+           int x;
+         };
+
+        template <int W>
+        long Ctz(TestInt in) {
+          TestInt lz = 0;
+          #pragma hls_unroll yes
+          while (lz < W && in[lz] == 0) {
+            ++lz;
+          }
+          return lz;
+        }
+
+        long long my_package(long long a) {
+          return Ctz<8>(a);
+       })";
+  Run({{"a", 0b00001000}}, 3, content);
+}
+
+TEST_F(TranslatorTest, ForUnrollShortCircuitClass) {
+  const std::string content = R"(
+       struct TestInt {
+         TestInt(int v) : x(v) { }
+         operator int()const {
+           return x;
+         }
+         TestInt operator ++() {
+           ++x;
+           return *this;
+         }
+         bool operator <=(int v)const {
+           return x <= v;
+         }
+         int x;
+       };
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(TestInt i=1;i<=10 && a<1000;++i) {
+           a += b;
+           a += 2*b;
+         }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
+// TODO: Not statically determined loop condition break on only one early iter
 
 TEST_F(TranslatorTest, ForUnrollMultiCondBreak) {
   const std::string content = R"(
@@ -1091,7 +1272,7 @@ TEST_F(TranslatorTest, ForUnrollClass) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
-TEST_F(TranslatorTest, ForUnrollAssignLoopVar) {
+TEST_F(TranslatorTest, ForUnrollConditionallyAssignLoopVar) {
   const std::string content = R"(
       long long my_package(long long a, long long b) {
         #pragma hls_unroll yes
@@ -1103,12 +1284,10 @@ TEST_F(TranslatorTest, ForUnrollAssignLoopVar) {
         }
         return a;
       })";
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kInvalidArgument,
-                  testing::HasSubstr("forbidden in this context")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                    testing::HasSubstr("maximum")));
 }
 
 TEST_F(TranslatorTest, ForUnrollNoInit) {
@@ -1122,12 +1301,7 @@ TEST_F(TranslatorTest, ForUnrollNoInit) {
         }
         return a;
       })";
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("must have an initializer")));
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
 TEST_F(TranslatorTest, ForUnrollNoInc) {
@@ -1141,12 +1315,7 @@ TEST_F(TranslatorTest, ForUnrollNoInc) {
         }
         return a;
       })";
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("must have an increment")));
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
 TEST_F(TranslatorTest, ForUnrollNoCond) {
@@ -1159,12 +1328,26 @@ TEST_F(TranslatorTest, ForUnrollNoCond) {
         }
         return a;
       })";
-  auto ret = SourceToIr(content);
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                    testing::HasSubstr("maximum")));
+}
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("must have a condition")));
+TEST_F(TranslatorTest, ForUnrollNoCondBreakInBody) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        #pragma hls_unroll yes
+        for(int i=1;;++i) {
+          if(i>10) {
+            break;
+          }
+          a += b;
+          a += 2*b;
+        }
+        return a;
+      })";
+  Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
 TEST_F(TranslatorTest, ForUnrollNoPragma) {
@@ -1210,11 +1393,10 @@ TEST_F(TranslatorTest, ForUnrollInfinite) {
          }
          return a;
        })";
-  auto ret = SourceToIr(content);
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("maximum")));
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                    testing::HasSubstr("maximum")));
 }
 
 TEST_F(TranslatorTest, ForUnrollBreak) {
@@ -6076,9 +6258,8 @@ TEST_F(TranslatorTest, InvalidUnrolledLoop) {
 
   ASSERT_THAT(
       SourceToIr(content).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Unrolled loop must have an initializer")));
+      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
+                                    testing::HasSubstr("maximum")));
 }
 
 TEST_F(TranslatorTest, NonPramaNestedLoop) {

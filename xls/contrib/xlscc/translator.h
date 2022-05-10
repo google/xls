@@ -531,7 +531,7 @@ struct GeneratedFunction {
 int Debug_CountNodes(const xls::Node* node,
                      std::set<const xls::Node*>& visited);
 std::string Debug_NodeToInfix(xls::BValue bval);
-std::string Debug_NodeToInfix(const xls::Node* node);
+std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed);
 
 // Encapsulates a context for translating Clang AST to XLS IR.
 // This is roughly equivalent to a "scope" in C++. There will typically
@@ -627,10 +627,6 @@ struct TranslationContext {
   xls::BValue full_condition;
   xls::BValue full_condition_on_enter_block;
   xls::BValue relative_condition;
-
-  // For unsequenced assignment check
-  absl::flat_hash_set<const clang::NamedDecl*> forbidden_rvalues;
-  absl::flat_hash_set<const clang::NamedDecl*> forbidden_lvalues;
 
   // Remember channel parameter names for generating descriptive errors
   absl::flat_hash_set<const clang::NamedDecl*> channel_params;
@@ -769,28 +765,6 @@ class Translator {
 
     Translator& translator;
     xls::SourceLocation loc;
-  };
-
-  // This guard ignores assignment to variables for unsequenced assignment
-  //  checking for a period determined by RAII.
-  // Assignments to variables during this period do not become errors.
-  struct DisallowAssignmentGuard {
-    explicit DisallowAssignmentGuard(Translator& translator)
-        : translator(translator), enabled(true) {
-      forbidden_rvalues_saved = translator.context().forbidden_rvalues;
-      forbidden_lvalues_saved = translator.context().forbidden_lvalues;
-    }
-    ~DisallowAssignmentGuard() {
-      if (enabled) {
-        translator.context().forbidden_rvalues = forbidden_rvalues_saved;
-        translator.context().forbidden_lvalues = forbidden_lvalues_saved;
-      }
-    }
-
-    absl::flat_hash_set<const clang::NamedDecl*> forbidden_rvalues_saved;
-    absl::flat_hash_set<const clang::NamedDecl*> forbidden_lvalues_saved;
-    Translator& translator;
-    bool enabled;
   };
 
   // This guard makes pointers translate, instead of generating errors, for a
@@ -1158,8 +1132,6 @@ class Translator {
                                 absl::flat_hash_set<xls::Node*>& visited);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
                                           const xls::SourceLocation& loc);
-  absl::StatusOr<xls::Value> EvaluateBValAsCondition(
-      xls::BValue bval, const xls::SourceLocation& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(
       const CValue& bvalue, const xls::SourceLocation& loc);

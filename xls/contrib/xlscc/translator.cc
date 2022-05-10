@@ -1664,9 +1664,10 @@ absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
     const xls::BValue& relative_condition, const xls::SourceLocation& loc) {
   CValue rvalue_to_use = rvalue;
   // Avoid generating unnecessary selects
-  // If !var_cond.valid(), EvaluateBValAsCondition() will return constant 1
-  absl::StatusOr<xls::Value> const_var_cond =
-      EvaluateBValAsCondition(relative_condition, loc);
+  absl::StatusOr<xls::Value> const_var_cond = xls::Value(xls::UBits(1, 1));
+  if (relative_condition.valid()) {
+    const_var_cond = EvaluateBVal(relative_condition, loc);
+  }
   if (const_var_cond.ok() && const_var_cond.value().IsAllOnes()) {
     return rvalue_to_use;
   }
@@ -1750,12 +1751,6 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
         "Cannot assign rvalue of type %s to lvalue of type %s at %s",
         std::string(*rvalue.type()), std::string(*found.type()),
         LocString(loc)));
-  }
-
-  if (context().forbidden_lvalues.contains(lvalue)) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Assignment to lvalue %s is forbidden in this context at %s",
-        lvalue->getNameAsString(), LocString(loc)));
   }
 
   XLS_CHECK(context().variables.contains(lvalue));
@@ -3628,27 +3623,51 @@ absl::Status Translator::ShortCircuitNode(
     XLS_RETURN_IF_ERROR(ShortCircuitNode(op, top_bval, loc, node, visited));
   }
 
-  if (!((node->op() == xls::Op::kAnd) || (node->op() == xls::Op::kOr))) {
+  // Don't duplicate literals
+  if (node->Is<xls::Literal>()) {
     return absl::OkStatus();
   }
 
-  for (xls::Node* op : node->operands()) {
-    absl::StatusOr<xls::Value> const_result = EvaluateNode(op);
-    if (!const_result.ok()) {
-      continue;
-    }
-    if ((node->op() == xls::Op::kAnd) && (!const_result.value().IsAllZeros())) {
-      continue;
-    }
-    if ((node->op() == xls::Op::kOr) && (!const_result.value().IsAllOnes())) {
-      continue;
-    }
+  absl::StatusOr<xls::Value> const_result = EvaluateNode(node);
+
+  // Try to replace the node with a literal
+  if (const_result.ok()) {
     xls::BValue literal_bval = context().fb->Literal(const_result.value(), loc);
 
     if (parent != nullptr) {
       XLS_CHECK(parent->ReplaceOperand(node, literal_bval.node()));
     } else {
       top_bval = literal_bval;
+    }
+    return absl::OkStatus();
+  }
+
+  if (!((node->op() == xls::Op::kAnd) || (node->op() == xls::Op::kOr))) {
+    return absl::OkStatus();
+  }
+
+  for (xls::Node* op : node->operands()) {
+    // Operands that can be evaluated will already have been turned into
+    // literals by the above depth-first literalization
+    if (!op->Is<xls::Literal>()) {
+      continue;
+    }
+    xls::Literal* literal_node = op->As<xls::Literal>();
+
+    const xls::Value& const_value = literal_node->value();
+
+    if ((node->op() == xls::Op::kAnd) && (!const_value.IsAllZeros())) {
+      continue;
+    }
+    if ((node->op() == xls::Op::kOr) && (!const_value.IsAllOnes())) {
+      continue;
+    }
+
+    // Replace the node with its literal operand
+    if (parent != nullptr) {
+      XLS_CHECK(parent->ReplaceOperand(node, op));
+    } else {
+      top_bval = xls::BValue(op, context().fb);
     }
 
     return absl::OkStatus();
@@ -3663,14 +3682,6 @@ absl::StatusOr<xls::Value> Translator::EvaluateBVal(
   XLS_RETURN_IF_ERROR(
       ShortCircuitNode(bval.node(), bval, loc, nullptr, visited));
   return EvaluateNode(bval.node());
-}
-
-absl::StatusOr<xls::Value> Translator::EvaluateBValAsCondition(
-    xls::BValue bval, const xls::SourceLocation& loc) {
-  if (!bval.valid()) {
-    return xls::Value(xls::UBits(1, 1));
-  }
-  return EvaluateBVal(bval, loc);
 }
 
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
@@ -4030,10 +4041,16 @@ std::string Debug_NodeToInfix(xls::BValue bval) {
   if (bval.node() == nullptr) {
     return "[null]";
   }
-  return Debug_NodeToInfix(bval.node());
+  int64_t n_printed = 0;
+  return Debug_NodeToInfix(bval.node(), n_printed);
 }
 
-std::string Debug_NodeToInfix(const xls::Node* node) {
+std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
+  ++n_printed;
+  if (n_printed > 100) {
+    return "[...]";
+  }
+
   if (node->Is<xls::Literal>()) {
     const xls::Literal* literal = node->As<xls::Literal>();
     if (literal->value().kind() == xls::ValueKind::kBits) {
@@ -4047,41 +4064,54 @@ std::string Debug_NodeToInfix(const xls::Node* node) {
   if (node->Is<xls::UnOp>()) {
     const xls::UnOp* op = node->As<xls::UnOp>();
     if (op->op() == xls::Op::kNot) {
-      return absl::StrFormat("!%s", Debug_NodeToInfix(op->operand(0)));
+      return absl::StrFormat("!%s",
+                             Debug_NodeToInfix(op->operand(0), n_printed));
     }
   }
   if (node->op() == xls::Op::kSGt) {
-    return absl::StrFormat("(%s > %s)", Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(1)));
+    return absl::StrFormat("(%s > %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kSLt) {
-    return absl::StrFormat("(%s < %s)", Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(1)));
+    return absl::StrFormat("(%s < %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
+  }
+  if (node->op() == xls::Op::kSLe) {
+    return absl::StrFormat("(%s <= %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kEq) {
-    return absl::StrFormat("(%s == %s)", Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(1)));
+    return absl::StrFormat("(%s == %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kAnd) {
-    return absl::StrFormat("(%s & %s)", Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(1)));
+    return absl::StrFormat("(%s & %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kOr) {
-    return absl::StrFormat("(%s | %s)", Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(1)));
+    return absl::StrFormat("(%s | %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kAdd) {
-    return absl::StrFormat("(%s + %s)", Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(1)));
+    return absl::StrFormat("(%s + %s)",
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
   if (node->op() == xls::Op::kSignExt) {
-    return absl::StrFormat("%s", Debug_NodeToInfix(node->operand(0)));
+    return absl::StrFormat("%s",
+                           Debug_NodeToInfix(node->operand(0), n_printed));
   }
   if (node->op() == xls::Op::kSel) {
     return absl::StrFormat("(%s ? %s : %s)",
-                           Debug_NodeToInfix(node->operand(0)),
-                           Debug_NodeToInfix(node->operand(2)),
-                           Debug_NodeToInfix(node->operand(1)));
+                           Debug_NodeToInfix(node->operand(0), n_printed),
+                           Debug_NodeToInfix(node->operand(2), n_printed),
+                           Debug_NodeToInfix(node->operand(1), n_printed));
   }
 
   return absl::StrFormat("[unsupported %s / %s]", node->GetName(),
@@ -4092,32 +4122,6 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     const clang::Stmt* init, const clang::Expr* cond_expr,
     const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
     const xls::SourceLocation& loc) {
-  if (init == nullptr) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Unrolled loop must have an initializer at %s", LocString(loc)));
-  }
-
-  if (cond_expr == nullptr) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Unrolled loop must have a condition at %s", LocString(loc)));
-  }
-
-  if (inc == nullptr) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Unrolled loop must have an increment at %s", LocString(loc)));
-  }
-
-  if (init->getStmtClass() != clang::Stmt::DeclStmtClass) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Unrolled loop initializer must be a DeclStmt, but is a %s at %s",
-        init->getStmtClassName(), LocString(loc)));
-  }
-
-  auto declstmt = clang_down_cast<const clang::DeclStmt*>(init);
-  if (!declstmt->isSingleDecl()) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Decl groups at %s", LocString(loc)));
-  }
 
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
@@ -4126,12 +4130,9 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
   context().in_for_body = true;
   context().in_switch_body = false;
 
-  XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
-
-  const clang::Decl* decl = declstmt->getSingleDecl();
-  auto counter_namedecl = clang_down_cast<const clang::NamedDecl*>(decl);
-
-  XLS_RETURN_IF_ERROR(GetIdentifier(counter_namedecl, loc).status());
+  if (init != nullptr) {
+    XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
+  }
 
   // Loop unrolling causes duplicate NamedDecls which fail the soundness
   // check. Reset the known set before each iteration.
@@ -4141,16 +4142,25 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
     check_unique_ids_ = saved_check_ids;
 
     if (nIters >= max_unroll_iters_) {
-      return absl::UnimplementedError(
+      return absl::ResourceExhaustedError(
           absl::StrFormat("Loop unrolling broke at maximum %i iterations at %s",
                           max_unroll_iters_, LocString(loc)));
     }
-    XLS_ASSIGN_OR_RETURN(CValue cond_expr, GenerateIR_Expr(cond_expr, loc));
-    XLS_CHECK(cond_expr.type()->Is<CBoolType>());
-    XLS_ASSIGN_OR_RETURN(xls::Value cond_val,
-                         EvaluateBValAsCondition(cond_expr.rvalue(), loc));
-    if (cond_val.IsAllZeros()) {
-      break;
+
+    // Generate condition.
+    //
+    // Outside of body context guard so it applies to increment
+    // Also, if this is inside the body context guard then the break condition
+    // feeds back on itself in an explosion of complexity
+    // via assignments to any variables used in the condition.
+    if (cond_expr != nullptr) {
+      XLS_ASSIGN_OR_RETURN(CValue cond_expr_cval,
+                           GenerateIR_Expr(cond_expr, loc));
+      XLS_CHECK(cond_expr_cval.type()->Is<CBoolType>());
+      context().or_condition_util(
+          context().fb->Not(cond_expr_cval.rvalue(), loc),
+          context().relative_break_condition, loc);
+      XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
     }
 
     // Generate body
@@ -4159,26 +4169,24 @@ absl::Status Translator::GenerateIR_UnrolledLoop(
       context().propagate_break_up = true;
       context().propagate_continue_up = false;
 
-      // Don't allow assignment to the loop var in the body
-      DisallowAssignmentGuard assign_guard(*this);
-      context().forbidden_lvalues.insert(
-          clang_down_cast<const clang::NamedDecl*>(decl));
+      absl::StatusOr<xls::Value> cond_val = xls::Value(xls::UBits(0, 1));
+
+      if (context().relative_break_condition.valid()) {
+        cond_val = EvaluateBVal(context().relative_break_condition, loc);
+      }
+
+      if (cond_val.ok() && !cond_val.value().IsAllZeros()) {
+        break;
+      }
 
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
     }
 
-    // Counter increment
-    XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
-
-    // Flatten the counter for efficiency
-    XLS_ASSIGN_OR_RETURN(CValue counter_new_bval,
-                         GetIdentifier(counter_namedecl, loc));
-    XLS_ASSIGN_OR_RETURN(xls::Value counter_new_val,
-                         EvaluateBVal(counter_new_bval.rvalue(), loc));
-
-    CValue flat_counter_val(context().fb->Literal(counter_new_val),
-                            counter_new_bval.type());
-    XLS_RETURN_IF_ERROR(Assign(counter_namedecl, flat_counter_val, loc));
+    // Generate increment
+    // Outside of body guard because continue would skip.
+    if (inc != nullptr) {
+      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
+    }
   }
 
   return absl::OkStatus();
