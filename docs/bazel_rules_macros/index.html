@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/bazel_rules_macros/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.9">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
     
     
       
@@ -19,10 +19,10 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.120efc48.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.3de6f41f.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.9647289d.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.cc9b2e1e.min.css">
         
       
     
@@ -997,6 +997,13 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#xls_ir_cc_library" class="md-nav__link">
+    xls_ir_cc_library
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#xls_ir_opt_ir" class="md-nav__link">
     xls_ir_opt_ir
   </a>
@@ -1456,6 +1463,13 @@
         <li class="md-nav__item">
   <a href="#xls_dslx_verilog" class="md-nav__link">
     xls_dslx_verilog
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#xls_ir_cc_library" class="md-nav__link">
+    xls_ir_cc_library
   </a>
   
 </li>
@@ -2666,6 +2680,60 @@ xls_dslx_verilog(
 </tr>
 </tbody>
 </table>
+<p><a id="#xls_ir_cc_library"></a></p>
+<h2 id="xls_ir_cc_library">xls_ir_cc_library</h2>
+<pre>
+xls_ir_cc_library(<a href="#xls_ir_cc_library-name">name</a>, <a href="#xls_ir_cc_library-src">src</a>, <a href="#xls_ir_cc_library-top">top</a>, <a href="#xls_ir_cc_library-namespaces">namespaces</a>)
+</pre>
+
+<p>Invokes the AOT compiles the input IR into a cc_library.</p>
+<p>Example:</p>
+<div class="highlight"><pre><span></span><code>xls_ir_opt_ir(
+    name &quot;foo&quot;,
+    ...
+)
+
+xls_ir_cc_library(
+    name = &quot;foo_cc&quot;,
+    src = &quot;:foo.opt.ir&quot;,
+    top = &quot;bar&quot;,
+    namespaces = &quot;a,b,c&quot;,
+)
+</code></pre></div>
+<p>This will produce a cc_library that will execute the fn <code>bar</code> from the
+<code>foo</code> IR file. The call itself will be inside the namespace <code>a::b::c</code>.</p>
+<p><strong>PARAMETERS</strong></p>
+<table>
+<thead>
+<tr>
+<th align="left">Name</th>
+<th align="left">Description</th>
+<th align="left">Default Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a id="xls_ir_cc_library-name"></a>name</td>
+<td align="left">The name of the resulting library.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_cc_library-src"></a>src</td>
+<td align="left">The path to the IR file to compile.</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_cc_library-top"></a>top</td>
+<td align="left">The entry point in the IR file of interest.</td>
+<td align="left"><code>None</code></td>
+</tr>
+<tr>
+<td align="left"><a id="xls_ir_cc_library-namespaces"></a>namespaces</td>
+<td align="left">A comma-separated list of namespaces into which the generated code should go.</td>
+<td align="left"><code>""</code></td>
+</tr>
+</tbody>
+</table>
 <p><a id="#xls_ir_opt_ir"></a></p>
 <h2 id="xls_ir_opt_ir">xls_ir_opt_ir</h2>
 <pre>
@@ -2879,7 +2947,7 @@ xls_ir_verilog(
     <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.6e54b5cd.min.js"></script>
+      <script src="../assets/javascripts/bundle.c2e1ee47.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

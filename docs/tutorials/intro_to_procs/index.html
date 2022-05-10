@@ -1,0 +1,1503 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+        <link rel="canonical" href="https://google.github.io/xls/tutorials/intro_to_procs/">
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+    
+    
+      
+        <title>DSLX Tutorial: Intro to procs - XLS: Accelerated HW Synthesis</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.3de6f41f.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.cc9b2e1e.min.css">
+        
+      
+    
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="" data-md-color-primary="none" data-md-color-accent="none">
+  
+    
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dslx-tutorial-intro-to-procs" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            XLS: Accelerated HW Synthesis
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              DSLX Tutorial: Intro to procs
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/google/xls/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    XLS: Accelerated HW Synthesis
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/google/xls/" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+      
+
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2">
+          Tutorials
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Tutorials" data-md-level="1">
+        <label class="md-nav__title" for="__nav_2">
+          <span class="md-nav__icon md-icon"></span>
+          Tutorials
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_2" type="checkbox" id="__nav_2_2" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2_2">
+          DSLX
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="DSLX" data-md-level="2">
+        <label class="md-nav__title" for="__nav_2_2">
+          <span class="md-nav__icon md-icon"></span>
+          DSLX
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hello_xls/" class="md-nav__link">
+        Hello, XLS!
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../float_to_int/" class="md-nav__link">
+        Basic logic
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../intro_to_parametrics/" class="md-nav__link">
+        Intro to parameterics
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../crc32/" class="md-nav__link">
+        For expressions
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../prefix_scan/" class="md-nav__link">
+        Enumerate and match
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_3" type="checkbox" id="__nav_2_3" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_2_3">
+          XLS[cc]
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="XLS[cc]" data-md-level="2">
+        <label class="md-nav__title" for="__nav_2_3">
+          <span class="md-nav__icon md-icon"></span>
+          XLS[cc]
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xlscc_overview/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xlscc_channels/" class="md-nav__link">
+        Channels
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../xlscc_state/" class="md-nav__link">
+        State
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3">
+          IR
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="IR" data-md-level="1">
+        <label class="md-nav__title" for="__nav_3">
+          <span class="md-nav__icon md-icon"></span>
+          IR
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ir_semantics/" class="md-nav__link">
+        Semantics
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../optimizations/" class="md-nav__link">
+        Optimizations
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3_3">
+          Scheduling
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_3">
+          <span class="md-nav__icon md-icon"></span>
+          Scheduling
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../scheduling/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../delay_estimation/" class="md-nav__link">
+        Delay Estimation
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ir_visualization/" class="md-nav__link">
+        Visualizer
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_3_5">
+          Native JIT
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
+        <label class="md-nav__title" for="__nav_3_5">
+          <span class="md-nav__icon md-icon"></span>
+          Native JIT
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ir_jit/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../data_layout/" class="md-nav__link">
+        Data Layout
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../solvers/" class="md-nav__link">
+        Formal
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_4" type="checkbox" id="__nav_4" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_4">
+          DSLX
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="DSLX" data-md-level="1">
+        <label class="md-nav__title" for="__nav_4">
+          <span class="md-nav__icon md-icon"></span>
+          DSLX
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dslx_reference/" class="md-nav__link">
+        Reference
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dslx_std/" class="md-nav__link">
+        Standard Library
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../floating_point/" class="md-nav__link">
+        Floating Point
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fuzzer/" class="md-nav__link">
+        Fuzzer
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
+        Interpreter
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_5" type="checkbox" id="__nav_5" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_5">
+          Code Generation
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Code Generation" data-md-level="1">
+        <label class="md-nav__title" for="__nav_5">
+          <span class="md-nav__icon md-icon"></span>
+          Code Generation
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../vast/" class="md-nav__link">
+        VAST
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_6" type="checkbox" id="__nav_6" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_6">
+          Tools
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Tools" data-md-level="1">
+        <label class="md-nav__title" for="__nav_6">
+          <span class="md-nav__icon md-icon"></span>
+          Tools
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../build_system/" class="md-nav__link">
+        Build System
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../bazel_rules_macros/" class="md-nav__link">
+        Bazel Rules And Macros
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools_quick_start/" class="md-nav__link">
+        Quick Start
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/" class="md-nav__link">
+        Listing
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../interpreters/" class="md-nav__link">
+        Interpreters
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_7" type="checkbox" id="__nav_7" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_7">
+          Development
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Development" data-md-level="1">
+        <label class="md-nav__title" for="__nav_7">
+          <span class="md-nav__icon md-icon"></span>
+          Development
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        Contributing
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_style/" class="md-nav__link">
+        Style Guide
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../adding_ir_operation/" class="md-nav__link">
+        Adding a new IR operation
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+      
+      
+      
+
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8" type="checkbox" id="__nav_8" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_8">
+          NoC
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="NoC" data-md-level="1">
+        <label class="md-nav__title" for="__nav_8">
+          <span class="md-nav__icon md-icon"></span>
+          NoC
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_readme/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+      
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_8_2" type="checkbox" id="__nav_8_2" >
+      
+      
+      
+      
+        <label class="md-nav__link" for="__nav_8_2">
+          Topologies
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <nav class="md-nav" aria-label="Topologies" data-md-level="2">
+        <label class="md-nav__title" for="__nav_8_2">
+          <span class="md-nav__icon md-icon"></span>
+          Topologies
+        </label>
+        <ul class="md-nav__list" data-md-scrollfix>
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_topologies/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_dimension_order_topology/" class="md-nav__link">
+        Dimension Order
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_tree_topology/" class="md-nav__link">
+        Tree
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_butterfly_topology/" class="md-nav__link">
+        k-ary n-fly Butterfly
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_fully_connected_topology/" class="md-nav__link">
+        Fully Connected
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_star_topology/" class="md-nav__link">
+        Star
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../xls_noc_glossary/" class="md-nav__link">
+        Glossary
+      </a>
+    </li>
+  
+
+            
+          
+        </ul>
+      </nav>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#example-proc" class="md-nav__link">
+    Example proc
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#spawning-procs" class="md-nav__link">
+    Spawning procs
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#advanced-features" class="md-nav__link">
+    Advanced features
+  </a>
+  
+    <nav class="md-nav" aria-label="Advanced features">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#channel-arrays-and-loop-based-spawning" class="md-nav__link">
+    Channel arrays and loop-based spawning
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#parametric-procs" class="md-nav__link">
+    Parametric procs
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proc-testing" class="md-nav__link">
+    Proc testing
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          <div class="md-content" data-md-component="content">
+            <article class="md-content__inner md-typeset">
+              
+                
+  <a href="https://github.com/google/xls/tree/main/docs_src/tutorials/intro_to_procs.md" title="Edit this page" class="md-content__button md-icon">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
+  </a>
+
+
+
+<h1 id="dslx-tutorial-intro-to-procs">DSLX Tutorial: Intro to procs</h1>
+<p>Up to this point, our tutorials have described stateless, non-communicating,
+combinational modules. To add state or communication with other actors, we need
+to venture into the exciting land of procs!</p>
+<p><strong>Procs</strong>, short for "communicating sequential processes", are the means by
+which DSLX models sequential and stateful modules. A proc contains:</p>
+<ul>
+<li>A <em><code>config</code></em> function that initializes constant proc state and spawns any
+    other dependent/child procs needed for execution.</li>
+<li>A recurrent (i.e., infinitely looping) <em><code>next</code></em> function that contains the
+    actual logic to be executed by the proc.</li>
+</ul>
+<p>A critical component of procs is communication: every proc needs a means to
+share data with other procs, or else it'd just be spinning dead code. These
+means are <em>channels</em>: entities into which data can be sent and from which data
+can be received. Each channel has a send and a receive endpoint: data inserted
+into a channel by a <code>send</code> op can be pulled out by a <code>recv</code> op.</p>
+<h2 id="example-proc">Example proc</h2>
+<p>Many concepts here are more easily explained via example, so here's a possible
+DSLX implementation of
+<a href="https://en.wikipedia.org/wiki/Multiply%E2%80%93accumulate_operation">FMAC (fused multiply-accumulate)</a>,
+which computes <code>C = A * B + C</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">import</span><span class="w"> </span><span class="n">xls</span><span class="p">.</span><span class="n">modules</span><span class="p">.</span><span class="n">fp32_fma</span><span class="w"></span>
+
+<span class="n">proc</span><span class="w"> </span><span class="n">Fmac</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">input_a_consumer</span>: <span class="nc">chan</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">input_b_consumer</span>: <span class="nc">chan</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">output_producer</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">input_a_consumer</span>: <span class="nc">chan</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">F32</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span>: <span class="nc">chan</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">F32</span><span class="p">,</span><span class="w"></span>
+<span class="w">         </span><span class="n">output_producer</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="n">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="n">input_a_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">,</span><span class="w"> </span><span class="n">output_producer</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="nc">F32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_a</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_a_consumer</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">tok_b</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">recv</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">input_b_consumer</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">result</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">fp32_fma</span>::<span class="n">fp32_fma</span><span class="p">(</span><span class="n">input_a</span><span class="p">,</span><span class="w"> </span><span class="n">input_b</span><span class="p">,</span><span class="w"> </span><span class="n">state</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">join</span><span class="p">(</span><span class="n">tok_a</span><span class="p">,</span><span class="w"> </span><span class="n">tok_b</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">tok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">send</span><span class="p">(</span><span class="n">tok</span><span class="p">,</span><span class="w"> </span><span class="n">result</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="n">result</span><span class="p">,)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>(In practice, a FMAC unit would want a reset signal, but we've leaving that out
+for simplicity.)</p>
+<p>There's a lot to unpack here, so we'll walk through the example.</p>
+<p>The first part of interest is the declaration of the proc member values: the
+three channels. Procs can have "member" state, similar to class data members in
+software. In DSLX, proc members are constant values, and are set by the output
+of the <code>config</code> function. Member values can be referred to inside the <code>next</code>
+function in the same way as locally-declared data.</p>
+<p>Next up is the <code>config</code> function itself. When a proc is "spawned", its given two
+sets of values: one set for the <code>config</code> function and one set to initialize
+<code>next</code> (following this example, we'll show how procs are spawned). Inside a
+<code>config</code> function, any constant values can be computed, any necessary procs can
+be spawned, and finally member values are set by the return value. Member values
+are assigned in declaration order: the first element of the return tuple
+corresponds to the first-declared member, and so on.</p>
+<p>After that, we encounter <code>next</code>. This function serves as the real "body" of the
+Proc. The <code>next</code> function maintains and evolves the proc's recurrent state and
+is responsible for communicating with the outside world, as well. In our
+example, the first two lines are that communication, receiving the input values
+for the computation. The token elements are used to sequence events: since the
+receives can happen in parallel, they can share the same token, but since
+sending the output must happen after that, their result tokens are "joined"
+(think joining two threads of execution in software), and the result is used to
+sequence the send. Between the communication routines is the actual computation.</p>
+<p>At the end of the proc, we terminate with the <code>result</code> value. This final value
+becomes the input state for the next iteration. This is how recurrent state is
+managed by procs: a state value is provided to the <code>next</code> function, and the
+result of that function is used as the next iteration's state input. Procs can
+have several state elements: in that case, there will be several input state
+args, e.g., <code>next(tok: token, state_a: F32, state_b: F32)</code>, and the output will
+be a tuple of values, corresponding in order to the input state values.
+Regardless of that, a <code>next</code> function will always take a token as the first
+parameter.</p>
+<h2 id="spawning-procs">Spawning procs</h2>
+<p>In any real design, procs will form a network<sup id="fnref:proc_network"><a class="footnote-ref" href="#fn:proc_network">1</a></sup>, where one proc
+will spawn any number of child procs, which themselves might spawn other procs.
+(The "root" proc will be instantiated by some outside component in the outside
+RTL environment.) Procs may only be spawned in <code>config</code> functions, as they're
+part of statically configuring the hardware network to construct.</p>
+<p>As an example, spawning a couple of our procs above would look as follows:</p>
+<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Spawner</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">fmac_1_a_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">fmac_1_b_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">fmac_1_output_consumer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">fmac_2_a_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">fmac_2_b_producer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">fmac_2_output_consumer</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_1_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_a_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_1_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_1_output_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">fmac</span><span class="p">(</span><span class="n">fmac_1_a_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_p</span><span class="p">)(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">));</span><span class="w"></span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_2_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_a_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_2_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">fmac_2_output_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_c</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">fmac</span><span class="p">(</span><span class="n">fmac_2_a_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_c</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_p</span><span class="p">)(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">));</span><span class="w"></span>
+
+<span class="w">    </span><span class="p">(</span><span class="n">fmac_1_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_1_output_c</span><span class="p">,</span><span class="w"></span>
+<span class="w">     </span><span class="n">fmac_2_a_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_b_p</span><span class="p">,</span><span class="w"> </span><span class="n">fmac_2_output_c</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>For each childd proc, we first declare the necessary channels (each channel
+declaration produces a producer and consumer channel, respectively), then we
+actually spawn it. The first set of arguments is passed to the child's config
+function and the second is the initial state for the child proc. A spawn
+produces no value, hence no <code>let</code> on the left-hand side.</p>
+<h2 id="advanced-features">Advanced features</h2>
+<h3 id="channel-arrays-and-loop-based-spawning">Channel arrays and loop-based spawning</h3>
+<blockquote>
+<p><strong>Note</strong>: This feature is currently WIP and is not yet available.</p>
+</blockquote>
+<p>Many hardware layouts have regular arrays of components, such as systolic
+arrays, vector units, etc. Individually specifying these quickly grows
+cumbersome, so users can instead declare channels of arrays and spawn procs
+inside <code>for</code> loops. This looks as follows:</p>
+<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Spawner4x4</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">input_producers</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">output_consumers</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">input_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">output_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="mi">4</span><span class="p">][</span><span class="mi">4</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">spawn</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">input_consumers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">],</span><span class="w"></span>
+<span class="w">                   </span><span class="n">output_producers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">])(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">))</span><span class="w"></span>
+<span class="w">      </span><span class="p">}()</span><span class="w"></span>
+<span class="w">    </span><span class="p">}()</span><span class="w"></span>
+
+<span class="w">    </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<h3 id="parametric-procs">Parametric procs</h3>
+<p>Just as with other DSLX constructs, Procs can be parameterized. Parametrics must
+be specified at the proc level, and not at the component function level (i.e.,
+not on <code>config</code> or <code>next</code>). Building off of the previous example, this looks as
+follows:</p>
+<div class="highlight"><pre><span></span><code><span class="n">proc</span><span class="w"> </span><span class="n">Parametric</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">M</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">input_producers</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">output_consumers</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">input_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">output_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">chan</span><span class="p">[</span><span class="n">N</span><span class="p">][</span><span class="n">M</span><span class="p">]</span><span class="w"> </span><span class="n">F32</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">N</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span>: <span class="p">(</span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="n">M</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">spawn</span><span class="w"> </span><span class="n">Node</span><span class="p">(</span><span class="n">input_consumers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">],</span><span class="w"></span>
+<span class="w">                   </span><span class="n">output_producers</span><span class="p">[</span><span class="n">i</span><span class="p">][</span><span class="n">j</span><span class="p">])(</span><span class="n">float32</span>::<span class="n">zero</span><span class="p">(</span><span class="kc">false</span><span class="p">))</span><span class="w"></span>
+<span class="w">      </span><span class="p">}()</span><span class="w"></span>
+<span class="w">    </span><span class="p">}()</span><span class="w"></span>
+
+<span class="w">    </span><span class="p">(</span><span class="n">input_producers</span><span class="p">,</span><span class="w"> </span><span class="n">output_consumers</span><span class="p">)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>These two features are very powerful together: users can specify a broad variety
+of designs simply by adjusting a few parametric values.</p>
+<h2 id="proc-testing">Proc testing</h2>
+<p>The DSLX interpreter supports testing procs via the <em>test_proc</em> construct. A
+test proc is very similar to a normal proc with the following changes:</p>
+<ul>
+<li>A test proc is preceded by the <code>#[test_proc()]</code> directive. This directive,
+    as one might expect, notifies the interpreter that the following proc is a
+    test proc. Any initial state needed by the test proc should go inside the
+    parentheses.</li>
+<li>A test proc's <code>config</code> function must accept a single argument: a boolean
+    input channel for terminating interpretation. When the test is complete, the
+    proc should send the test's status (<code>true</code> on success, <code>false</code> on failure)
+    on that channel (commonly called the "terminator" channel).</li>
+</ul>
+<p>A skeletal example:</p>
+<div class="highlight"><pre><span></span><code><span class="cp">#![test_proc(u32:0)]</span><span class="w"></span>
+<span class="n">proc</span><span class="w"> </span><span class="n">Tester</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">terminator</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="kt">bool</span><span class="p">;</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">config</span><span class="p">(</span><span class="n">terminator</span>: <span class="nc">chan</span><span class="w"> </span><span class="n">out</span><span class="w"> </span><span class="kt">bool</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">spawn</span><span class="w"> </span><span class="n">proc_under_test</span><span class="p">(</span><span class="o">..</span><span class="p">.)(</span><span class="o">..</span><span class="p">.);</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="n">terminator</span><span class="p">,)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+
+<span class="w">  </span><span class="n">next</span><span class="p">(</span><span class="n">tok</span>: <span class="nc">token</span><span class="p">,</span><span class="w"> </span><span class="n">state</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">new_state</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">..</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="n">new_state</span><span class="p">,)</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>The <a href="https://github.com/google/xls/tree/main/xls/modules/fp32_fmac.x">FP32 fmac module</a>
+has a more complete proc test that may be used for reference.</p>
+<div class="footnote">
+<hr />
+<ol>
+<li id="fn:proc_network">
+<p>The proc network itself will form a tree, but channels may make
+point-to-point connections between any two procs.&#160;<a class="footnote-backref" href="#fnref:proc_network" title="Jump back to footnote 1 in the text">&#8617;</a></p>
+</li>
+</ol>
+</div>
+
+              
+            </article>
+          </div>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      
+        <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>

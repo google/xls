@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/tutorials/crc32/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.9">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
     
     
       
@@ -19,10 +19,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.120efc48.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.3de6f41f.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.9647289d.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.cc9b2e1e.min.css">
         
       
     
@@ -1289,20 +1289,20 @@ number of times</strong> within a function.</p>
 <p>For this specific foor loop, the ndex variable and accumulator are <code>i</code> and
 <code>crc</code>, both of type <code>u32</code>. The iterable range expression specifies that the loop
 should execute 8 times.</p>
-<div class="highlight"><pre><span></span><code>  // 8 rounds of updates.
-  for (i, crc): (u32, u32) in range(u32:8) {
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="c1">// 8 rounds of updates.</span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">crc</span><span class="p">)</span>: <span class="p">(</span><span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span><span class="p">)</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">range</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">8</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 </code></pre></div>
 <p>At the end of the loop, the calculated value is being assigned to the
 accumulator <code>crc</code> - the last expression in the loop body is assigned to the
 accumulator:</p>
-<div class="highlight"><pre><span></span><code>    let mask: u32 = -(crc &amp; u32:1);
-    (crc &gt;&gt; u32:1) ^ (polynomial &amp; mask)
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">mask</span>: <span class="kt">u32</span> <span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="p">(</span><span class="n">crc</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">(</span><span class="n">crc</span><span class="w"> </span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">^</span><span class="w"> </span><span class="p">(</span><span class="n">polynomial</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">mask</span><span class="p">)</span><span class="w"></span>
 </code></pre></div>
 <p>Finally, the accumulator's initial value is being passed to the <code>for</code> expression
 as a parameter. This can be confusing, especially when compared to other
 languages, where the init value typically is provided at or near the top of a
 loop.</p>
-<div class="highlight"><pre><span></span><code>}(crc)
+<div class="highlight"><pre><span></span><code><span class="p">}(</span><span class="n">crc</span><span class="p">)</span><span class="w"></span>
 </code></pre></div>
 <p>Since the <code>for</code> loop is the last expression in the function, it's also the
 function's return value, but in other contexts, it could be assigned to a
@@ -1376,7 +1376,7 @@ used in the same manner as any other expression's result.</p>
     <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.6e54b5cd.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c2e1ee47.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
