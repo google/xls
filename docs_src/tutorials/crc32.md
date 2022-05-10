@@ -37,7 +37,7 @@ For this specific foor loop, the ndex variable and accumulator are `i` and
 `crc`, both of type `u32`. The iterable range expression specifies that the loop
 should execute 8 times.
 
-```
+```dslx-snippet
   // 8 rounds of updates.
   for (i, crc): (u32, u32) in range(u32:8) {
 ```
@@ -46,7 +46,7 @@ At the end of the loop, the calculated value is being assigned to the
 accumulator `crc` - the last expression in the loop body is assigned to the
 accumulator:
 
-```
+```dslx-snippet
     let mask: u32 = -(crc & u32:1);
     (crc >> u32:1) ^ (polynomial & mask)
 ```
@@ -56,7 +56,7 @@ as a parameter. This can be confusing, especially when compared to other
 languages, where the init value typically is provided at or near the top of a
 loop.
 
-```
+```dslx-snippet
 }(crc)
 ```
 
