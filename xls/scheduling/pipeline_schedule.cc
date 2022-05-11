@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include "xls/scheduling/pipeline_schedule.h"
+#include <algorithm>
+#include <cmath>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
+#include "ortools/linear_solver/linear_solver.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -137,6 +140,175 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
   for (Node* node : f->nodes()) {
     XLS_RET_CHECK_EQ(bounds->lb(node), bounds->ub(node)) << node->GetName();
     cycle_map[node] = bounds->lb(node);
+  }
+  return cycle_map;
+}
+
+// A helper function to compute each node's delay by calling the delay estimator
+// The result is used by `ComputeCriticalCombinationalPaths`,
+// `ComputeSingleSourceCCP`, `ScheduleToMinimizeRegistersSDC`
+absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> ComputeNodeDelay(
+    FunctionBase* f, const DelayEstimator& delay_estimator) {
+  absl::flat_hash_map<Node*, int64_t> result;
+  for (Node* node : f->nodes()) {
+    XLS_ASSIGN_OR_RETURN(result[node],
+                         delay_estimator.GetOperationDelayInPs(node));
+  }
+  return result;
+}
+
+// A helper function to compute single source Critical Combinational Paths'
+// delay, from the src-node to all other reachable nodes.
+//
+// It traverses the data-dependence graph from the src-node,
+// compute and record the Critical Combinational Path's delay.
+//
+// Args:
+//   src: the starting node
+//   node_delay: node's delay, which is precomputed from delay estimator
+absl::flat_hash_map<Node*, int64_t> ComputeSingleSourceCCP(
+    Node* src, const absl::flat_hash_map<Node*, int64_t>& node_delay) {
+  absl::flat_hash_map<Node*, int64_t> dst_ccp;
+  absl::flat_hash_set<Node*> worklist;
+
+  auto pop_worklist = [&worklist]() {
+    auto it = worklist.begin();
+    Node* result = *it;
+    worklist.erase(it);
+    return result;
+  };
+
+  // Topological Sort.
+  worklist.insert(src);
+  while (worklist.size() > 0) {
+    Node* node = pop_worklist();
+
+    for (Node* user : node->users()) {
+      dst_ccp[user] =
+          std::max(dst_ccp[user], dst_ccp[node] + node_delay.at(node));
+
+      worklist.insert(user);
+    }
+  }
+
+  return dst_ccp;
+}
+
+// Compute Critical Combinational Path's delay between any pair of nodes.
+//
+// Complexity: O( |V|·(|V| + |E|) )
+//
+// The result maps path's (src, dst) pair to the path's combinational delay.
+std::vector<std::pair<std::pair<Node*, Node*>, int64_t>>
+ComputeCriticalCombinationalPaths(
+    FunctionBase* f, const absl::flat_hash_map<Node*, int64_t>& node_delay) {
+  using PathTy =
+      std::pair<Node*, Node*>;  // describe a path, from src-node to dst-node
+  std::vector<std::pair<PathTy, int64_t>>
+      result;  // critical combinational path's delay
+
+  for (Node* src : f->nodes()) {
+    for (auto [dst, ccp] : ComputeSingleSourceCCP(src, node_delay)) {
+      std::pair<Node*, Node*> path(src, dst);
+      result.push_back(std::make_pair(path, ccp));
+    }
+  }
+  return result;
+}
+
+using namespace operations_research;
+
+// Schedule to minimize the total pipeline registers using SDC scheduling
+// the constraint matrix is totally unimodular, this ILP problem can be solved
+// by LP.
+// Reference:
+//   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
+//   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
+//   Conference. IEEE, 2006.
+//   - Zhang, Zhiru, and Bin Liu. "SDC-based modulo scheduling for pipeline
+//   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided Design
+//   (ICCAD). IEEE, 2013.
+absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
+    FunctionBase* f, int64_t pipeline_stages,
+    const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
+    int64_t clock_period_ps) {
+  XLS_VLOG(3) << "ScheduleToMinimizeRegistersSDC()";
+  XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
+  XLS_VLOG_LINES(4, f->DumpIr());
+
+  XLS_VLOG(4) << "Initial bounds:";
+  XLS_VLOG_LINES(4, bounds->ToString());
+
+  std::unique_ptr<MPSolver> solver(MPSolver::CreateSolver("SCIP"));
+  if (!solver) {
+    XLS_LOG(WARNING) << "SCIP solver unavailable.";
+    return absl::UnavailableError("SCIP solver unavailable.");
+  }
+
+  const double infinity = solver->infinity();
+
+  absl::flat_hash_map<Node*, MPVariable*>
+      node_cycle_var;  // Node's cycle after scheduling
+  absl::flat_hash_map<Node*, MPVariable*>
+      node_lifetime_var;  // Node's lifetime, since it finishes until it's
+                          // consumed by the last user
+  for (Node* node : f->nodes()) {
+    node_cycle_var[node] =
+        solver->MakeNumVar(bounds->lb(node), bounds->ub(node), node->GetName());
+    node_lifetime_var[node] = solver->MakeNumVar(
+        0.0, infinity, absl::StrFormat("lifetime_%s", node->GetName()));
+  }
+
+  for (Node* node : f->nodes()) {
+    MPVariable* const var_node = node_cycle_var.at(node);
+    MPVariable* const var_node_lifetime = node_lifetime_var.at(node);
+    for (Node* user : node->users()) {
+      MPVariable* const var_user = node_cycle_var.at(user);
+
+      // Constraint: cycle[i_user] - cycle[i] <= lifetime[i]
+      MPConstraint* const c = solver->MakeRowConstraint(-infinity, 0);
+      c->SetCoefficient(var_user, 1);
+      c->SetCoefficient(var_node, -1);
+      c->SetCoefficient(var_node_lifetime, -1);
+    }
+  }
+
+  XLS_ASSIGN_OR_RETURN(auto node_delay, ComputeNodeDelay(f, delay_estimator));
+  for (auto [path, path_delay] :
+       ComputeCriticalCombinationalPaths(f, node_delay)) {
+    if (path_delay < clock_period_ps) {
+      continue;
+    }
+    auto [src, dst] = path;
+    // Constraint: cycle[src] - cycle[dst] <= -path_delay/clock_period_ps
+    MPConstraint* const c =
+        solver->MakeRowConstraint(-infinity, -path_delay / clock_period_ps);
+    c->SetCoefficient(node_cycle_var[src], 1);
+    c->SetCoefficient(node_cycle_var[dst], -1);
+  }
+
+  MPObjective* const objective = solver->MutableObjective();
+  for (Node* node : f->nodes()) {
+    objective->SetCoefficient(node_lifetime_var[node],
+                              node->GetType()->GetFlatBitCount());
+  }
+  objective->SetMinimization();
+
+  const MPSolver::ResultStatus result_status = solver->Solve();
+  // Check that the problem has an optimal solution.
+  if (result_status != MPSolver::OPTIMAL) {
+    XLS_LOG(FATAL) << "The problem does not have an optimal solution!";
+    return absl::InternalError(
+        "The problem does not have an optimal solution!");
+  }
+
+  // extract result
+  ScheduleCycleMap cycle_map;
+  for (Node* node : f->nodes()) {
+    double cycle = node_cycle_var[node]->solution_value();
+    XLS_CHECK_LE(std::fabs(cycle - std::floor(cycle)), 1e-3)
+        << "The scheduling result is expected to be integer";
+    cycle_map[node] = cycle;
   }
   return cycle_map;
 }
@@ -519,6 +691,11 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
     XLS_ASSIGN_OR_RETURN(cycle_map, ScheduleToMinimizeRegisters(
                                         f, schedule_length,
                                         delay_estimator_with_delay, &bounds));
+  } else if (options.strategy() == SchedulingStrategy::MINIMIZE_REGISTERS_SDC) {
+    XLS_ASSIGN_OR_RETURN(
+        cycle_map, ScheduleToMinimizeRegistersSDC(f, schedule_length,
+                                                  delay_estimator_with_delay,
+                                                  &bounds, clock_period_ps));
   } else {
     XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
     XLS_RET_CHECK(!options.pipeline_stages().has_value());

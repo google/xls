@@ -15,7 +15,7 @@
 """Provides helper that loads external repositories with third-party code."""
 
 load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
-load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("//dependency_support/boost:workspace.bzl", repo_boost = "repo")
 load("//dependency_support/llvm_bazel:workspace.bzl", repo_llvm_bazel = "repo")
 load("//dependency_support/rules_hdl:workspace.bzl", repo_rules_hdl = "repo")
@@ -179,4 +179,58 @@ def load_external_repositories():
         sha256 = "7ab5e2ee4c675ef6895fdd816c32349b3070dc8211b7d412242c66d0c6e8edca",
         strip_prefix = "ac_types-57d89634cb5034a241754f8f5347803213dabfca",
         build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
+    )
+
+    git_repository(
+        name = "platforms",
+        tag = "0.0.5",
+        remote = "https://github.com/bazelbuild/platforms.git",
+    )
+
+    http_archive(
+        name = "glpk",
+        build_file = "//bazel:glpk.BUILD",
+        sha256 = "4a1013eebb50f728fc601bdd833b0b2870333c3b3e5a816eeba921d95bec6f15",
+        url = "http://ftp.gnu.org/gnu/glpk/glpk-5.0.tar.gz",
+    )
+
+    http_archive(
+        name = "bliss",
+        build_file = "@com_google_ortools//bazel:bliss.BUILD",
+        patches = ["@com_google_ortools//bazel:bliss-0.73.patch"],
+        sha256 = "f57bf32804140cad58b1240b804e0dbd68f7e6bf67eba8e0c0fa3a62fd7f0f84",
+        url = "http://www.tcs.hut.fi/Software/bliss/bliss-0.73.zip",
+    )
+
+    new_git_repository(
+        name = "scip",
+        build_file = "@com_google_ortools//bazel:scip.BUILD",
+        patches = ["@com_google_ortools//bazel:scip.patch"],
+        patch_args = ["-p1"],
+        tag = "v800",
+        remote = "https://github.com/scipopt/scip.git",
+    )
+
+    # Eigen has no Bazel build.
+    new_git_repository(
+        name = "eigen",
+        tag = "3.4.0",
+        remote = "https://gitlab.com/libeigen/eigen.git",
+        build_file_content ="""
+cc_library(
+    name = 'eigen3',
+    srcs = [],
+    includes = ['.'],
+    hdrs = glob(['Eigen/**']),
+    visibility = ['//visibility:public'],
+)"""
+    )
+
+    git_repository(
+        name = "com_google_ortools",
+        #branch = "master",
+        commit = "525162feaadaeef640783b2eaea38cf4b623877f",
+        shallow_since = "1647023481 +0100",
+        #tag = "v9.3",
+        remote = "https://github.com/google/or-tools.git",
     )

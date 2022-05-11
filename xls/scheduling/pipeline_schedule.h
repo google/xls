@@ -33,7 +33,10 @@ enum class SchedulingStrategy {
   ASAP,
 
   // Minimize the number of pipeline registers when scheduling.
-  MINIMIZE_REGISTERS
+  MINIMIZE_REGISTERS,
+
+  // Minimize the number of pipeline registers when scheduling using SDC-method
+  MINIMIZE_REGISTERS_SDC,
 };
 
 // Returns the list of ordering of cycles (pipeline stages) in which to compute
