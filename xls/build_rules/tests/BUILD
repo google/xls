@@ -27,6 +27,7 @@ load(
     "xls_dslx_test",
     "xls_dslx_verilog",
     "xls_eval_ir_test",
+    "xls_ir_cc_library",
     "xls_ir_equivalence_test",
     "xls_ir_opt_ir",
     "xls_ir_verilog",
@@ -784,4 +785,12 @@ xls_eval_ir_test(
 xls_dslx_cpp_type_library(
     name = "type_definitions_types_cpp",
     src = "type_definitions.x",
+)
+
+################################################################################
+# Verifies that xls_ir_cc_library builds a library without exploding.
+################################################################################
+xls_ir_cc_library(
+    name = "die_if_odd_cc",
+    src = ":die_if_odd.opt.ir",
 )

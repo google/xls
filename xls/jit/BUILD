@@ -39,6 +39,20 @@ cc_binary(
     ],
 )
 
+cc_test(
+    name = "aot_compiler_test",
+    srcs = ["aot_compiler_test.cc"],
+    deps = [
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:bits",
+        "//xls/ir:value",
+        "//xls/modules:fp32_add_2_cc",
+        "//xls/modules:fp32_fma_cc",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "aot_runtime",
     srcs = ["aot_runtime.cc"],

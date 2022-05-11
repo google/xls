@@ -114,6 +114,12 @@ xls_dslx_test(
     library = ":fp32_fma_dslx",
 )
 
+xls_ir_cc_library(
+    name = "fp32_fma_cc",
+    src = ":fp32_fma.opt.ir",
+    top = "fp32_fma_cc",
+)
+
 xls_dslx_library(
     name = "apfloat_fmac_dslx",
     srcs = ["apfloat_fmac.x"],

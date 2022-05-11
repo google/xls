@@ -106,7 +106,6 @@ absl::StatusOr<xls::Value> {{wrapper_fn_name}}({{wrapper_params}});
 absl::StatusOr<std::string> GenerateWrapperSource(
     Package* p, Function* f, const std::string& header_path,
     const std::vector<std::string>& namespaces) {
-  // Too many replacements for absl::Substitute!
   constexpr absl::string_view kTemplate =
       R"~(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "{{header_path}}"
@@ -130,30 +129,37 @@ void {{extern_fn}}(const uint8_t* const*, uint8_t*, ::xls::InterpreterEvents*,
 {{open_ns}}
 constexpr absl::string_view kFnTypeProto = R"({{type_textproto}})";
 
+// We have to put "once" flags in different namespaces so their definitions
+// don't collide.
+namespace {{private_ns}} {
 absl::once_flag once;
 std::unique_ptr<xls::aot_compile::GlobalData> global_data;
 
 void OnceInit() {
   global_data = xls::aot_compile::InitGlobalData(kFnTypeProto);
 }
+}  //  namespace {{private_ns}}
 
 absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
-  absl::call_once(once, OnceInit);
+  absl::call_once({{private_ns}}::once, {{private_ns}}::OnceInit);
 
   ::xls::JitRuntime runtime(
-      global_data->data_layout, global_data->type_converter.get());
+      {{private_ns}}::global_data->data_layout,
+      {{private_ns}}::global_data->type_converter.get());
 
 {{arg_buffer_decls}}
   uint8_t* arg_buffers[] = {{arg_buffer_collector}};
-  uint8_t result_buffer[{{result_size}}];
+  uint8_t result_buffer[{{result_size}}] = { 0 };
   XLS_RETURN_IF_ERROR(
-      runtime.PackArgs({{{param_names}}}, global_data->borrowed_param_types,
-                       absl::MakeSpan(arg_buffers)));
+      runtime.PackArgs(
+          {{{param_names}}},
+          {{private_ns}}::global_data->borrowed_param_types,
+          absl::MakeSpan(arg_buffers)));
   ::xls::InterpreterEvents events;
   {{extern_fn}}(arg_buffers, result_buffer, &events, nullptr, &runtime);
 
   ::xls::Value result = runtime.UnpackBuffer(
-      result_buffer, global_data->fn_type->return_type());
+      result_buffer, {{private_ns}}::global_data->fn_type->return_type());
   return result;
 }
 
@@ -220,6 +226,8 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   google::protobuf::TextFormat::PrintToString(f->GetType()->ToProto(), &type_textproto);
   substitution_map["{{type_textproto}}"] = type_textproto;
 
+  substitution_map["{{private_ns}}"] = absl::StrCat(f->name(), "__once_ns_");
+
   std::string package_prefix = absl::StrCat("__", p->name(), "__");
   substitution_map["{{wrapper_fn_name}}"] =
       absl::StripPrefix(f->name(), package_prefix);
@@ -264,23 +272,17 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
 int main(int argc, char** argv) {
   xls::InitXls(argv[0], argc, argv);
   std::string input_ir_path = absl::GetFlag(FLAGS_input);
-  if (input_ir_path.empty()) {
-    std::cout << "--input must be specified." << std::endl;
-    return 1;
-  }
+  XLS_QCHECK(!input_ir_path.empty())
+      << "--input must be specified." << std::endl;
 
   std::string top = absl::GetFlag(FLAGS_top);
 
   std::string output_object_path = absl::GetFlag(FLAGS_output_object);
   std::string output_header_path = absl::GetFlag(FLAGS_output_header);
   std::string output_source_path = absl::GetFlag(FLAGS_output_source);
-  if (output_object_path.empty() || output_header_path.empty() ||
-      output_source_path.empty()) {
-    std::cout
-        << "All of --output_{object,header,source}_path must be specified."
-        << std::endl;
-    return 1;
-  }
+  XLS_QCHECK(!output_object_path.empty() && !output_header_path.empty() &&
+             !output_source_path.empty())
+      << "All of --output_{object,header,source}_path must be specified.";
 
   std::vector<std::string> namespaces;
   std::string namespaces_string = absl::GetFlag(FLAGS_namespaces);
