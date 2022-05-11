@@ -247,6 +247,14 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
                                         const std::string& step_string,
                                         llvm::Value* buffer_ptr);
 
+  // Build the LLVM IR that handles formatting a runtime value according to a
+  // format preference.
+  absl::Status InvokeFormatStepCallback(llvm::IRBuilder<>* builder,
+                                        FormatPreference format,
+                                        xls::Type* operand_type,
+                                        llvm::Value* operand,
+                                        llvm::Value* buffer_ptr);
+
   // Build the LLVM IR to invoke the callback that records traces.
   absl::Status InvokeRecordTraceCallback(llvm::IRBuilder<>* builder,
                                          llvm::Value* buffer_ptr);

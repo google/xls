@@ -1935,10 +1935,6 @@ dumping of current values to stdout. For example:
 // Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging.
 #![interp_main_alsologtostderr = "true"]
 
-// Note: JIT does not currently support `trace_fmt!` with data operands so we
-// need to avoid comparison to JIT mode.
-#![interp_main_compare = "none"]
-
 fn shifty(x: u8, y: u3) -> u8 {
   let _ = trace_fmt!("x: {:x} y: {}", x, y);
   x << y

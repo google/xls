@@ -60,6 +60,7 @@ cc_library(
     srcs = ["function_builder_visitor.cc"],
     hdrs = ["function_builder_visitor.h"],
     deps = [
+        ":jit_runtime",
         ":llvm_type_converter",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",

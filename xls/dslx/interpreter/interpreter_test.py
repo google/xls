@@ -432,12 +432,7 @@ class InterpreterTest(test_base.TestCase):
     }
     """
     program_file = self.create_tempfile(content=program)
-    # Note: no support for `trace_fmt!` in IR.
-    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
-    cmd = [
-        _INTERP_PATH, '--compare=none', '--alsologtostderr',
-        program_file.full_path
-    ]
+    cmd = [_INTERP_PATH, '--alsologtostderr', program_file.full_path]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
     self.assertIn('Hello world!', result.stderr)
     self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary',

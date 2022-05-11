@@ -47,8 +47,10 @@ class JitRuntime {
 
   // Returns a Value constructed from the data inside "buffer" whose
   // contents are laid out according to the LLVM interpretation of the passed-in
-  // type.
-  Value UnpackBuffer(const uint8_t* buffer, const Type* result_type);
+  // type. If "unpoison" is set the buffer is marked as MSAN-unpoisoned as we
+  // determine its extent (from the result_type).
+  Value UnpackBuffer(const uint8_t* buffer, const Type* result_type,
+                     bool unpoison = false);
 
   // Splats the value into the buffer according to the data layout expected by
   // LLVM.

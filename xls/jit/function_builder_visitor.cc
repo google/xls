@@ -29,6 +29,7 @@
 #include "xls/codegen/vast.h"
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 
@@ -266,6 +267,50 @@ absl::Status FunctionBuilderVisitor::InvokeStringStepCallback(
   return absl::OkStatus();
 }
 
+static void PerformFormatStep(JitRuntime* runtime, const xls::Type* type,
+                              const uint8_t* value, uint64_t format_u64,
+                              std::string* buffer) {
+  FormatPreference format = static_cast<FormatPreference>(format_u64);
+  Value ir_value = runtime->UnpackBuffer(value, type, /*unpoison=*/true);
+  absl::StrAppend(buffer, ir_value.ToHumanString(format));
+}
+
+absl::Status FunctionBuilderVisitor::InvokeFormatStepCallback(
+    llvm::IRBuilder<>* builder, FormatPreference format,
+    xls::Type* operand_type, llvm::Value* operand, llvm::Value* buffer_ptr) {
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+  auto* i64_type = llvm::Type::getInt64Ty(ctx());
+
+  llvm::ConstantInt* llvm_format =
+      llvm::ConstantInt::get(i64_type, static_cast<uint64_t>(format));
+
+  // Note: we assume the package lifetime is >= that of the JIT code by
+  // capturing this type pointer as a value burned into the JIT code, which
+  // should always be true.
+  llvm::ConstantInt* llvm_operand_type =
+      llvm::ConstantInt::get(i64_type, absl::bit_cast<uint64_t>(operand_type));
+
+  std::vector<llvm::Type*> params = {
+      GetJitRuntimePtr()->getType(),
+      i64_type,
+      operand->getType(),
+      i64_type,
+      i64_type,
+  };
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+  std::vector<llvm::Value*> args = {GetJitRuntimePtr(), llvm_operand_type,
+                                    operand, llvm_format, buffer_ptr};
+
+  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
+      i64_type, absl::bit_cast<uint64_t>(&PerformFormatStep));
+  llvm::Value* fn_ptr =
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  builder->CreateCall(fn_type, fn_ptr, args);
+  return absl::OkStatus();
+}
+
 // This a shim to let JIT code record a completed trace as an interpreter event.
 static void RecordTrace(std::string* buffer, xls::InterpreterEvents* events) {
   events->trace_msgs.push_back(*buffer);
@@ -319,15 +364,28 @@ absl::Status FunctionBuilderVisitor::HandleTrace(Trace* trace_op) {
   XLS_ASSIGN_OR_RETURN(llvm::Value * buffer_ptr,
                        InvokeCreateBufferCallback(&print_builder));
 
-  for (auto step : trace_op->format()) {
+  // Operands are: (tok, pred, ..data_operands..)
+  XLS_RET_CHECK_EQ(trace_op->operand(0)->GetType(),
+                   trace_op->package()->GetTokenType());
+  XLS_RET_CHECK_EQ(trace_op->operand(1)->GetType(),
+                   trace_op->package()->GetBitsType(1));
+
+  size_t operand_index = 2;
+  for (const FormatStep& step : trace_op->format()) {
     if (absl::holds_alternative<std::string>(step)) {
       XLS_RETURN_IF_ERROR(InvokeStringStepCallback(
           &print_builder, absl::get<std::string>(step), buffer_ptr));
     } else {
-      return absl::UnimplementedError(absl::StrFormat(
-          "JIT does not currently support trace formats that require data "
-          "operands (format %s in node %s)",
-          StepsToXlsFormatString(trace_op->format()), trace_op->ToString()));
+      xls::Node* o = trace_op->operand(operand_index);
+      llvm::Value* operand = node_map_.at(o);
+      llvm::AllocaInst* alloca = print_builder.CreateAlloca(operand->getType());
+      print_builder.CreateStore(operand, alloca);
+      // The way our format strings are currently formed we implicitly refer to
+      // the next operand after formatting this one.
+      operand_index += 1;
+      XLS_RETURN_IF_ERROR(InvokeFormatStepCallback(
+          &print_builder, absl::get<FormatPreference>(step), o->GetType(),
+          alloca, buffer_ptr));
     }
   }
 

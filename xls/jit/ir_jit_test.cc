@@ -67,6 +67,81 @@ absl::StatusOr<Value> RunJitNoEvents(IrJit* jit, absl::Span<const Value> args) {
   return InterpreterResultToStatusOrValue(result);
 }
 
+TEST(IrJitTest, TraceFmtNoArgsTest) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn trace_no_args(tkn: token, pred: bits[1]) -> token {
+    ret trace.1: token = trace(tkn, pred, format="hi I traced", data_operands=[], id=1)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
+  ASSERT_EQ(result.events.trace_msgs.size(), 1);
+  EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced");
+}
+
+TEST(IrJitTest, TraceFmtOneArgTest) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn trace_no_args(tkn: token, pred: bits[1]) -> token {
+    ret trace.1: token = trace(tkn, pred, format="hi I traced: {}", data_operands=[pred], id=1)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
+  ASSERT_EQ(result.events.trace_msgs.size(), 1);
+  EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1");
+}
+
+TEST(IrJitTest, TraceFmtTwoArgTest) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn trace_no_args(tkn: token, pred: bits[1]) -> token {
+    literal.0: bits[64] = literal(value=42)
+    ret trace.1: token = trace(tkn, pred, format="hi I traced: {} also: {:x}", data_operands=[pred, literal.0], id=1)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
+  ASSERT_EQ(result.events.trace_msgs.size(), 1);
+  EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1 also: 2a");
+}
+
+TEST(IrJitTest, TraceFmtBigArgTest) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn trace_no_args(tkn: token, pred: bits[1]) -> token {
+    literal.0: bits[512] = literal(value=1)
+    literal.511: bits[32] = literal(value=511)
+    shll.1: bits[512] = shll(literal.0, literal.511)
+    ret trace.2: token = trace(tkn, pred, format="hi I traced: {:x}", data_operands=[shll.1])
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
+  ASSERT_EQ(result.events.trace_msgs.size(), 1);
+  EXPECT_EQ(result.events.trace_msgs.at(0),
+            "hi I traced: "
+            "800000000000000000000000000000000000000000000000000000000000000000"
+            "00000000000000000000000000000000000000000000000000000000000000");
+}
+
 // This test verifies that a compiled JIT function can be re-used.
 TEST(IrJitTest, ReuseTest) {
   Package package("my_package");

@@ -49,7 +49,8 @@ absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
   return absl::OkStatus();
 }
 
-Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type) {
+Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type,
+                               bool unpoison) {
   switch (result_type->kind()) {
     case TypeKind::kBits: {
       const BitsType* bits_type = result_type->AsBitsOrDie();
@@ -57,6 +58,11 @@ Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type) {
       int64_t byte_count = CeilOfRatio(bit_count, kCharBit);
       absl::InlinedVector<uint8_t, 8> data;
       data.reserve(byte_count);
+#ifdef ABSL_HAVE_MEMORY_SANITIZER
+      if (unpoison) {
+        __msan_unpoison(buffer, byte_count);
+      }
+#endif  // ABSL_HAVE_MEMORY_SANITIZER
       for (int i = 0; i < byte_count; ++i) {
         data.push_back(buffer[i]);
       }
