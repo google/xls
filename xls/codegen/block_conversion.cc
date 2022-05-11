@@ -521,14 +521,18 @@ static absl::StatusOr<ValidPorts> AddValidSignal(
   }
 
   // Add valid output port.
-  if (options.valid_control()->output_name().empty()) {
-    return absl::InvalidArgumentError(
-        "Must specify output name of valid signal.");
+  OutputPort* valid_output_port = nullptr;
+  if (options.valid_control().has_value() &&
+      options.valid_control()->has_output_name()) {
+    if (options.valid_control()->output_name().empty()) {
+      return absl::InvalidArgumentError(
+          "Must specify output name of valid signal.");
+    }
+    XLS_ASSIGN_OR_RETURN(
+        valid_output_port,
+        block->AddOutputPort(options.valid_control()->output_name(),
+                             pipelined_valids.back()));
   }
-  XLS_ASSIGN_OR_RETURN(
-      OutputPort * valid_output_port,
-      block->AddOutputPort(options.valid_control()->output_name(),
-                           pipelined_valids.back()));
 
   return ValidPorts{valid_input_port, valid_output_port};
 }
@@ -2310,7 +2314,7 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
   for (Param* param : f->params()) {
     port_order.push_back(param->GetName());
   }
-  if (valid_ports.has_value()) {
+  if (valid_ports.has_value() && valid_ports->output != nullptr) {
     port_order.push_back(valid_ports->output->GetName());
   }
   port_order.push_back(kOutputPortName);

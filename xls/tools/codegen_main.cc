@@ -78,9 +78,9 @@ ABSL_FLAG(
     "If specified, the emitted module will use an external \"valid\" signal "
     "as the load enable for pipeline registers. The flag value is the "
     "name of the input port for this signal.");
-ABSL_FLAG(std::string, output_valid_signal, "",
-          "The name of the output port which holds the pipelined valid signal. "
-          "Must be specified with --input_valid_signal.");
+ABSL_FLAG(
+    std::string, output_valid_signal, "",
+    "The name of the output port which holds the pipelined valid signal.");
 ABSL_FLAG(
     std::string, manual_load_enable_signal, "",
     "If specified the load-enable of the pipeline registers of each stage is "
@@ -229,8 +229,12 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
     options = verilog::BuildPipelineOptions();
 
     if (!absl::GetFlag(FLAGS_input_valid_signal).empty()) {
+      absl::optional<std::string> output_signal;
+      if (!absl::GetFlag(FLAGS_output_valid_signal).empty()) {
+        output_signal = absl::GetFlag(FLAGS_output_valid_signal);
+      }
       options.valid_control(absl::GetFlag(FLAGS_input_valid_signal),
-                            absl::GetFlag(FLAGS_output_valid_signal));
+                            output_signal);
     } else if (!absl::GetFlag(FLAGS_manual_load_enable_signal).empty()) {
       options.manual_control(absl::GetFlag(FLAGS_manual_load_enable_signal));
     }
@@ -333,7 +337,7 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
   if (absl::GetFlag(FLAGS_generator) == "pipeline") {
     XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||
                absl::GetFlag(FLAGS_clock_period_ps) != 0)
-        << "Musts specify --pipeline_stages or --clock_period_ps (or both).";
+        << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
                          SetupSchedulingOptions());
