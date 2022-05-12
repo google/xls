@@ -16,6 +16,7 @@ load(
     "//xls/build_rules:xls_build_defs.bzl",
     "cc_xls_ir_jit_wrapper",
     "get_mangled_ir_symbol",
+    "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
@@ -23,6 +24,11 @@ load(
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
+)
+
+xls_dslx_library(
+    name = "std_dslx",
+    srcs = ["std.x"],
 )
 
 xls_dslx_test(
@@ -35,30 +41,61 @@ xls_dslx_test(
     srcs = ["acm_random.x"],
 )
 
+xls_dslx_library(
+    name = "apfloat_dslx",
+    srcs = ["apfloat.x"],
+    deps = [":std_dslx"],
+)
+
 xls_dslx_test(
     name = "apfloat_dslx_test",
     srcs = ["apfloat.x"],
+    deps = [":apfloat_dslx"],
+)
+
+xls_dslx_library(
+    name = "bfloat16_dslx",
+    srcs = ["bfloat16.x"],
+    deps = [":std_dslx"],
 )
 
 xls_dslx_test(
     name = "bfloat16_dslx_test",
     srcs = ["bfloat16.x"],
+    deps = [":bfloat16_dslx"],
+)
+
+xls_dslx_library(
+    name = "float32_dslx",
+    srcs = ["float32.x"],
+    deps = [":std_dslx"],
 )
 
 xls_dslx_test(
     name = "float32_dslx_test",
     srcs = ["float32.x"],
+    deps = [":float32_dslx"],
+)
+
+xls_dslx_library(
+    name = "float64_dslx",
+    srcs = ["float64.x"],
+    deps = [":std_dslx"],
 )
 
 xls_dslx_test(
     name = "float64_dslx_test",
     srcs = ["float64.x"],
+    deps = [":float64_dslx"],
 )
 
 xls_dslx_opt_ir(
     name = "float32_to_int32",
     srcs = ["float32.x"],
     dslx_top = "to_int32",
+    deps = [
+        ":apfloat_dslx",
+    ],
 )
 
 cc_xls_ir_jit_wrapper(
@@ -74,6 +111,9 @@ xls_dslx_opt_ir(
     name = "float32_from_int32",
     srcs = ["float32.x"],
     dslx_top = "from_int32",
+    deps = [
+        ":apfloat_dslx",
+    ],
 )
 
 cc_xls_ir_jit_wrapper(
