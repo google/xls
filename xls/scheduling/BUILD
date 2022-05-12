@@ -77,9 +77,8 @@ cc_library(
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
-        "@com_google_ortools//ortools/base",
-        "@com_google_ortools//ortools/linear_solver",
-        "@com_google_ortools//ortools/linear_solver:linear_solver_cc_proto",
+        "@com_google_ortools//ortools/glop:lp_solver",
+        "@com_google_ortools//ortools/lp_data",
     ],
 )
 

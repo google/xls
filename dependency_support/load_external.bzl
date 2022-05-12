@@ -187,12 +187,6 @@ def load_external_repositories():
         remote = "https://github.com/bazelbuild/platforms.git",
     )
 
-    http_archive(
-        name = "glpk",
-        build_file = "//bazel:glpk.BUILD",
-        sha256 = "4a1013eebb50f728fc601bdd833b0b2870333c3b3e5a816eeba921d95bec6f15",
-        url = "http://ftp.gnu.org/gnu/glpk/glpk-5.0.tar.gz",
-    )
 
     http_archive(
         name = "bliss",
@@ -200,15 +194,6 @@ def load_external_repositories():
         patches = ["@com_google_ortools//bazel:bliss-0.73.patch"],
         sha256 = "f57bf32804140cad58b1240b804e0dbd68f7e6bf67eba8e0c0fa3a62fd7f0f84",
         url = "http://www.tcs.hut.fi/Software/bliss/bliss-0.73.zip",
-    )
-
-    new_git_repository(
-        name = "scip",
-        build_file = "@com_google_ortools//bazel:scip.BUILD",
-        patches = ["@com_google_ortools//bazel:scip.patch"],
-        patch_args = ["-p1"],
-        tag = "v800",
-        remote = "https://github.com/scipopt/scip.git",
     )
 
     # Eigen has no Bazel build.
@@ -225,7 +210,7 @@ cc_library(
     visibility = ['//visibility:public'],
 )"""
     )
-
+    
     git_repository(
         name = "com_google_ortools",
         #branch = "master",

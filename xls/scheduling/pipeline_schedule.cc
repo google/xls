@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/scheduling/pipeline_schedule.h"
 #include <algorithm>
 #include <cmath>
 
@@ -20,7 +19,9 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "ortools/linear_solver/linear_solver.h"
+#include "ortools/glop/lp_solver.h"
+#include "ortools/lp_data/lp_data.h"
+#include "ortools/lp_data/lp_types.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -28,6 +29,7 @@
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/scheduling/function_partition.h"
+#include "xls/scheduling/pipeline_schedule.h"
 #include "xls/scheduling/schedule_bounds.h"
 
 namespace xls {
@@ -147,7 +149,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
 // A helper function to compute each node's delay by calling the delay estimator
 // The result is used by `ComputeCriticalCombinationalPaths`,
 // `ComputeSingleSourceCCP`, `ScheduleToMinimizeRegistersSDC`
-absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> ComputeNodeDelay(
+absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> ComputeNodeDelays(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
   absl::flat_hash_map<Node*, int64_t> result;
   for (Node* node : f->nodes()) {
@@ -216,8 +218,6 @@ ComputeCriticalCombinationalPaths(
   return result;
 }
 
-using namespace operations_research;
-
 // Schedule to minimize the total pipeline registers using SDC scheduling
 // the constraint matrix is totally unimodular, this ILP problem can be solved
 // by LP.
@@ -239,75 +239,90 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
   XLS_VLOG(4) << "Initial bounds:";
   XLS_VLOG_LINES(4, bounds->ToString());
 
-  std::unique_ptr<MPSolver> solver(MPSolver::CreateSolver("SCIP"));
-  if (!solver) {
-    XLS_LOG(WARNING) << "SCIP solver unavailable.";
-    return absl::UnavailableError("SCIP solver unavailable.");
-  }
+  namespace or_tools = ::operations_research::glop;
+  or_tools::LinearProgram lp;
+  const double infinity = or_tools::kInfinity;
 
-  const double infinity = solver->infinity();
+  // Node's cycle after scheduling
+  absl::flat_hash_map<Node*, or_tools::ColIndex> node_cycle_var;
 
-  absl::flat_hash_map<Node*, MPVariable*>
-      node_cycle_var;  // Node's cycle after scheduling
-  absl::flat_hash_map<Node*, MPVariable*>
-      node_lifetime_var;  // Node's lifetime, since it finishes until it's
-                          // consumed by the last user
+  // Node's lifetime, since it finishes until it's consumed by the last user
+  absl::flat_hash_map<Node*, or_tools::ColIndex> node_lifetime_var;
   for (Node* node : f->nodes()) {
-    node_cycle_var[node] =
-        solver->MakeNumVar(bounds->lb(node), bounds->ub(node), node->GetName());
-    node_lifetime_var[node] = solver->MakeNumVar(
-        0.0, infinity, absl::StrFormat("lifetime_%s", node->GetName()));
+    node_cycle_var[node] = lp.CreateNewVariable();
+    lp.SetVariableBounds(node_cycle_var[node], bounds->lb(node),
+                         bounds->ub(node));
+
+    node_lifetime_var[node] = lp.CreateNewVariable();
+    lp.SetVariableBounds(node_lifetime_var[node], 0.0, infinity);
   }
 
   for (Node* node : f->nodes()) {
-    MPVariable* const var_node = node_cycle_var.at(node);
-    MPVariable* const var_node_lifetime = node_lifetime_var.at(node);
+    or_tools::ColIndex var_node = node_cycle_var.at(node);
+    or_tools::ColIndex var_node_lifetime = node_lifetime_var.at(node);
     for (Node* user : node->users()) {
-      MPVariable* const var_user = node_cycle_var.at(user);
+      or_tools::ColIndex var_user = node_cycle_var.at(user);
+
+      // Constraint: cycle[i] - cycle[i_user] <= 0
+      or_tools::RowIndex row_r1 =
+          lp.CreateNewConstraint();
+      lp.SetConstraintBounds(row_r1, -infinity, 0.0);
+      lp.SetCoefficient(row_r1, var_node, 1);
+      lp.SetCoefficient(row_r1, var_user, -1);
 
       // Constraint: cycle[i_user] - cycle[i] <= lifetime[i]
-      MPConstraint* const c = solver->MakeRowConstraint(-infinity, 0);
-      c->SetCoefficient(var_user, 1);
-      c->SetCoefficient(var_node, -1);
-      c->SetCoefficient(var_node_lifetime, -1);
+      or_tools::RowIndex row_r2 = lp.CreateNewConstraint();
+      lp.SetConstraintBounds(row_r2, -infinity, 0.0);
+      lp.SetCoefficient(row_r2, var_user, 1);
+      lp.SetCoefficient(row_r2, var_node, -1);
+      lp.SetCoefficient(row_r2, var_node_lifetime, -1);
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(auto node_delay, ComputeNodeDelay(f, delay_estimator));
+  XLS_ASSIGN_OR_RETURN(auto node_delay, ComputeNodeDelays(f, delay_estimator));
   for (auto [path, path_delay] :
        ComputeCriticalCombinationalPaths(f, node_delay)) {
     if (path_delay < clock_period_ps) {
       continue;
     }
     auto [src, dst] = path;
-    // Constraint: cycle[src] - cycle[dst] <= -path_delay/clock_period_ps
-    MPConstraint* const c =
-        solver->MakeRowConstraint(-infinity, -path_delay / clock_period_ps);
-    c->SetCoefficient(node_cycle_var[src], 1);
-    c->SetCoefficient(node_cycle_var[dst], -1);
+    // Constraint: cycle[src] - cycle[dst] <= -(path_delay/clock_period_ps)
+    or_tools::RowIndex row =
+        lp.CreateNewConstraint();
+    lp.SetConstraintBounds(row, -infinity, -(path_delay / clock_period_ps));
+    lp.SetCoefficient(row, node_cycle_var[src], 1);
+    lp.SetCoefficient(row, node_cycle_var[dst], -1);
   }
 
-  MPObjective* const objective = solver->MutableObjective();
   for (Node* node : f->nodes()) {
-    objective->SetCoefficient(node_lifetime_var[node],
-                              node->GetType()->GetFlatBitCount());
+    lp.SetObjectiveCoefficient(node_lifetime_var[node],
+                               node->GetType()->GetFlatBitCount());
   }
-  objective->SetMinimization();
+  lp.SetMaximizationProblem(false);
 
-  const MPSolver::ResultStatus result_status = solver->Solve();
+  lp.CleanUp();
+
+  or_tools::LPSolver solver;
+  or_tools::GlopParameters parameters;
+  parameters.set_provide_strong_optimal_guarantee(true);
+  solver.SetParameters(parameters);
+
+  or_tools::ProblemStatus status = solver.Solve(lp);
   // Check that the problem has an optimal solution.
-  if (result_status != MPSolver::OPTIMAL) {
-    XLS_LOG(FATAL) << "The problem does not have an optimal solution!";
+  if (status != or_tools::ProblemStatus::OPTIMAL) {
     return absl::InternalError(
         "The problem does not have an optimal solution!");
   }
 
   // extract result
+  const or_tools::DenseRow& ans = solver.variable_values();
   ScheduleCycleMap cycle_map;
   for (Node* node : f->nodes()) {
-    double cycle = node_cycle_var[node]->solution_value();
-    XLS_CHECK_LE(std::fabs(cycle - std::floor(cycle)), 1e-3)
-        << "The scheduling result is expected to be integer";
+    double cycle = ans[node_cycle_var[node]];
+    if (std::fabs(cycle - std::round(cycle)) > 1e-3) {
+      return absl::InternalError(
+          "The scheduling result is expected to be integer");
+    }
     cycle_map[node] = cycle;
   }
   return cycle_map;
