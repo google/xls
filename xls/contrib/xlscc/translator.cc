@@ -1173,6 +1173,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     }
   }
 
+  absl::flat_hash_set<std::string> used_parameter_names;
+
   for (const clang::ParmVarDecl* p : definition->parameters()) {
     auto namedecl = absl::implicit_cast<const clang::NamedDecl*>(p);
 
@@ -1202,6 +1204,18 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
     std::string safe_param_name = namedecl->getNameAsString();
     if (safe_param_name.empty()) safe_param_name = "implicit";
+
+    for (int iter = 0; used_parameter_names.contains(safe_param_name); ++iter) {
+      safe_param_name += absl::StrFormat("%i", used_parameter_names.size());
+
+      if (iter > 10) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("Couldn't find a safe parameter name at %s",
+                            LocString(GetLoc(*p))));
+      }
+    }
+    XLS_CHECK(!used_parameter_names.contains(safe_param_name));
+    used_parameter_names.insert(safe_param_name);
 
     xls::BValue pbval =
         context().fb->Param(safe_param_name, xls_type, body_loc);
@@ -3168,6 +3182,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
       return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
     }
     case clang::Stmt::CXXThisExprClass: {
+      if (!context().this_val.valid()) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Tried to access 'this' in a context without any enclosing class "
+            "(top level methods are not yet supported) at %s",
+            LocString(loc)));
+      }
       return context().this_val;
     }
     // ExprWithCleanups preserves some metadata from Clang's parsing process,
@@ -3445,6 +3465,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   auto sitype = std::dynamic_pointer_cast<CStructType>(itype);
 
   if (sitype == nullptr) {
+    XLS_CHECK_NE(itype.get(), nullptr);
     return absl::UnimplementedError(
         absl::StrFormat("Unimplemented member access on type %s at %s",
                         string(*itype), LocString(loc)));

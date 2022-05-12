@@ -6439,6 +6439,63 @@ TEST_F(TranslatorTest, NonInitOneEnumConstant) {
   Run({{"a", 5}}, 5, content);
 }
 
+TEST_F(TranslatorTest, TopMemberAccess) {
+  const std::string content = R"(
+      #include "/xls_builtin.h"
+
+      struct Test {
+        int foo = 0;
+
+        #pragma hls_top
+        void test(__xls_channel<int>& in,
+                  __xls_channel<int> &out) {
+          const int ctrl = in.read() + foo;
+          out.write(ctrl);
+        }
+      };)";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  XLS_ASSERT_OK(ScanFile(content));
+  package_.reset(new xls::Package("my_package"));
+  ASSERT_THAT(
+      translator_->GenerateIR_Block(package_.get(), block_spec).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("top level methods are not yet supported")));
+}
+
+TEST_F(TranslatorTest, ParameterPack) {
+  const std::string content = R"(
+      int inner(int a, int b, int c) {
+          return a+2*b+5*c;
+      }
+
+      template<typename...Ranges>
+      int Test(Ranges... b) {
+          return inner(b...);
+      }
+
+      #pragma hls_top
+      int sum(int a, int b, int c) {
+          return Test<int,int,int>(a,b,c);
+      })";
+  Run({{"a", 1}, {"b", 2}, {"c", 3}}, 20, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

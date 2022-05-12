@@ -373,7 +373,8 @@ class CValue {
   std::shared_ptr<LValue> lvalue() const { return lvalue_; }
   std::string debug_string() const {
     return absl::StrFormat("(rval=%s, type=%s, lval=%p)", rvalue_.ToString(),
-                           std::string(*type_), lvalue_.get());
+                           (type_ != nullptr) ? std::string(*type_) : "(null)",
+                           lvalue_.get());
   }
   bool operator==(const CValue& o) const {
     if (rvalue_.node() != o.rvalue_.node()) {
