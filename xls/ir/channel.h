@@ -211,6 +211,11 @@ class SingleValueChannel : public Channel {
   }
 };
 
+// For use in e.g. absl::StrJoin.
+inline void ChannelFormatter(std::string* out, Channel* channel) {
+  absl::StrAppend(out, channel->name());
+}
+
 }  // namespace xls
 
 #endif  // XLS_IR_CHANNEL_H_

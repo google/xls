@@ -111,36 +111,24 @@ class NewProcInliningPassTest : public IrTestBase {
         CreateProcNetworkInterpreter(p, inputs));
 
     std::vector<Channel*> output_channels;
+    absl::flat_hash_map<Channel*, int64_t> expected_output_count;
     for (auto [ch_name, expected_values] : expected_outputs) {
       XLS_ASSERT_OK_AND_ASSIGN(Channel * ch, p->GetChannel(ch_name));
       ASSERT_TRUE(ch->type()->IsBits());
       output_channels.push_back(ch);
+      expected_output_count[ch] = expected_values.size();
     }
     // Sort output channels the output expectations are done in a deterministic
     // order.
     std::sort(output_channels.begin(), output_channels.end(),
               [](Channel* a, Channel* b) { return a->name() < b->name(); });
 
-    auto needs_more_output = [&]() {
-      for (Channel* ch : output_channels) {
-        if (interpreter->queue_manager().GetQueue(ch).size() <
-            expected_outputs.at(ch->name()).size()) {
-          return true;
-        }
-      }
-      return false;
-    };
-
     const int64_t kMaxTicks = 1000;
-    int64_t tick_count = 0;
-    while (needs_more_output()) {
-      XLS_ASSERT_OK(interpreter->Tick());
-      ++tick_count;
-      ASSERT_LT(tick_count, kMaxTicks);
-    }
-
+    XLS_ASSERT_OK_AND_ASSIGN(
+        int64_t ticks,
+        interpreter->TickUntilOutput(expected_output_count, kMaxTicks));
     if (expected_ticks.has_value()) {
-      EXPECT_LE(tick_count, expected_ticks.value());
+      EXPECT_EQ(expected_ticks.value(), ticks);
     }
 
     for (Channel* ch : output_channels) {

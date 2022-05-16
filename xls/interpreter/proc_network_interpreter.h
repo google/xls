@@ -49,6 +49,24 @@ class ProcNetworkInterpreter {
   // deadlock.
   absl::Status Tick();
 
+  // Tick the proc network until some output channels have produced at least a
+  // specified number of outputs as indicated by `output_counts`.
+  // `output_counts` must only contain output channels and need not contain all
+  // output channels. Returns the number of ticks executed before the conditions
+  // were met. `max_ticks` is the maximum number of ticks of the proc network
+  // before returning an error.
+  absl::StatusOr<int64_t> TickUntilOutput(
+      absl::flat_hash_map<Channel*, int64_t> output_counts,
+      absl::optional<int64_t> max_ticks = absl::nullopt);
+
+  // Tick until all procs are blocked on receive operations. `max_ticks` is the
+  // maximum number of ticks of the proc network before returning an
+  // error. Note: some proc networks are not guaranteed to block even if given
+  // no inputs. `max_ticks` is the maximum number of ticks of the proc network
+  // before returning an error.
+  absl::StatusOr<int64_t> TickUntilBlocked(
+      absl::optional<int64_t> max_ticks = absl::nullopt);
+
   ChannelQueueManager& queue_manager() { return *queue_manager_; }
 
   // Returns the state values for each proc in the network.
@@ -58,9 +76,17 @@ class ProcNetworkInterpreter {
   void ResetState();
 
  private:
-  ProcNetworkInterpreter(std::unique_ptr<ChannelQueueManager>&& queue_manager)
-      : queue_manager_(std::move(queue_manager)) {}
+  ProcNetworkInterpreter(Package* package,
+                         std::unique_ptr<ChannelQueueManager>&& queue_manager)
+      : package_(package), queue_manager_(std::move(queue_manager)) {}
 
+  // Execute (up to) a single iteration of every proc in the package. Returns
+  // whether any progress was made. If no progress was made, then
+  // `blocked_channels` will contain the set of channels on which receives are
+  // blocked.
+  absl::StatusOr<bool> TickInternal(std::vector<Channel*>* blocked_channels);
+
+  Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
 
   // The vector of interpreters for each proc in the package.

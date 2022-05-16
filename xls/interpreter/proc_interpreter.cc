@@ -218,9 +218,7 @@ std::string ProcInterpreter::RunResult::ToString() const {
       "{ iteration_complete=%s, progress_made=%s, "
       "blocked_channels={%s} }",
       iteration_complete ? "true" : "false", progress_made ? "true" : "false",
-      absl::StrJoin(blocked_channels, ", ", [](std::string* out, Channel* ch) {
-        absl::StrAppend(out, ch->name());
-      }));
+      absl::StrJoin(blocked_channels, ", ", ChannelFormatter));
 }
 
 std::ostream& operator<<(std::ostream& os,
