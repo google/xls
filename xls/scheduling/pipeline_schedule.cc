@@ -249,42 +249,47 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
   const double infinity = or_tools::kInfinity;
 
   // Node's cycle after scheduling
-  absl::flat_hash_map<Node*, or_tools::ColIndex> node_cycle_var;
+  absl::flat_hash_map<Node*, or_tools::ColIndex> cycle_var;
 
-  // Node's lifetime, since it finishes until it's consumed by the last user
-  absl::flat_hash_map<Node*, or_tools::ColIndex> node_lifetime_var;
+  // Node's lifetime, from when it finishes executing 
+  //   until it is consumed by the last user
+  absl::flat_hash_map<Node*, or_tools::ColIndex> lifetime_var;
   for (Node* node : f->nodes()) {
-    node_cycle_var[node] = lp.CreateNewVariable();
-    lp.SetVariableBounds(node_cycle_var[node], bounds->lb(node),
+    cycle_var[node] = lp.CreateNewVariable();
+    lp.SetVariableBounds(cycle_var[node], bounds->lb(node),
                          bounds->ub(node));
 
-    if (!node->users().empty()) {
-      node_lifetime_var[node] = lp.CreateNewVariable();
-      lp.SetVariableBounds(node_lifetime_var[node], 0.0, infinity);
-    }
+    lifetime_var[node] = lp.CreateNewVariable();
+    lp.SetVariableBounds(lifetime_var[node], 0.0, bounds->max_lower_bound());
   }
 
-  for (Node* node : f->nodes()) {
-    if (node->users().empty()) {
-      continue;
-    }
-    or_tools::ColIndex var_node_lifetime = node_lifetime_var[node];
-    or_tools::ColIndex var_node = node_cycle_var[node];
-    for (Node* user : node->users()) {
-      or_tools::ColIndex var_user = node_cycle_var[user];
+  or_tools::ColIndex cycle_at_sinknode = lp.CreateNewVariable();
 
+  for (Node* node : f->nodes()) {
+    or_tools::ColIndex lifetime_at_node = lifetime_var[node];
+    or_tools::ColIndex cycle_at_node = cycle_var[node];
+
+    auto add_du_chains_related_constraints = [&lp, infinity, &lifetime_at_node, &cycle_at_node](or_tools::ColIndex cycle_at_user){
       // Constraint: cycle[node] - cycle[user] <= 0
       or_tools::RowIndex constraint1 = lp.CreateNewConstraint();
       lp.SetConstraintBounds(constraint1, -infinity, 0.0);
-      lp.SetCoefficient(constraint1, var_node, 1);
-      lp.SetCoefficient(constraint1, var_user, -1);
+      lp.SetCoefficient(constraint1, cycle_at_node, 1);
+      lp.SetCoefficient(constraint1, cycle_at_user, -1);
 
-      // Constraint: cycle[user] - cycle[node] <= lifetime[i]
+      // Constraint: cycle[user] - cycle[node] <= lifetime[node]
       or_tools::RowIndex constraint2 = lp.CreateNewConstraint();
       lp.SetConstraintBounds(constraint2, -infinity, 0.0);
-      lp.SetCoefficient(constraint2, var_user, 1);
-      lp.SetCoefficient(constraint2, var_node, -1);
-      lp.SetCoefficient(constraint2, var_node_lifetime, -1);
+      lp.SetCoefficient(constraint2, cycle_at_user, 1);
+      lp.SetCoefficient(constraint2, cycle_at_node, -1);
+      lp.SetCoefficient(constraint2, lifetime_at_node, -1);
+    };
+
+    if (node->users().empty()) {
+      add_du_chains_related_constraints(cycle_at_sinknode);
+    } else {
+      for (Node* user : node->users()) {
+        add_du_chains_related_constraints(cycle_var.at(user));
+      }
     }
   }
 
@@ -301,16 +306,13 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
       int64_t gap = path_delay / clock_period_ps;
       or_tools::RowIndex constraint = lp.CreateNewConstraint();
       lp.SetConstraintBounds(constraint, gap, infinity);
-      lp.SetCoefficient(constraint, node_cycle_var[dst], 1);
-      lp.SetCoefficient(constraint, node_cycle_var[src], -1);
+      lp.SetCoefficient(constraint, cycle_var[dst], 1);
+      lp.SetCoefficient(constraint, cycle_var[src], -1);
     }
   }
 
   for (Node* node : f->nodes()) {
-    if (node->users().empty()) {
-      continue;
-    }
-    lp.SetObjectiveCoefficient(node_lifetime_var[node],
+    lp.SetObjectiveCoefficient(lifetime_var[node],
                                node->GetType()->GetFlatBitCount());
   }
   lp.SetMaximizationProblem(false);
@@ -332,7 +334,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
   const or_tools::DenseRow& ans = solver.variable_values();
   ScheduleCycleMap cycle_map;
   for (Node* node : f->nodes()) {
-    double cycle = ans[node_cycle_var[node]];
+    double cycle = ans[cycle_var[node]];
     if (std::fabs(cycle - std::round(cycle)) > 1e-3) {
       return absl::InternalError(
           "The scheduling result is expected to be integer");
