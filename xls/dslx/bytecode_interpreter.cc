@@ -40,9 +40,10 @@ Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
       bf_holder_(std::move(bf_holder)) {}
 
 void Frame::StoreSlot(Bytecode::SlotIndex slot, InterpValue value) {
-  // Slots are assigned in ascending order of use, which means that we'll only
-  // ever need to add one slot.
-  if (slots_.size() <= slot.value()) {
+  // Slots are usually encountered in order of use (and assignment), except for
+  // those declared inside conditional branches, which may never be seen,
+  // so we may have to add more than one slot at a time in such cases.
+  while (slots_.size() <= slot.value()) {
     slots_.push_back(InterpValue::MakeToken());
   }
 
