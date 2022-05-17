@@ -174,14 +174,15 @@ class StreamingChannel : public Channel {
  public:
   StreamingChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
-                   FlowControl flow_control,
+                   absl::optional<int64_t> fifo_depth, FlowControl flow_control,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
                 initial_values, metadata),
+        fifo_depth_(fifo_depth),
         flow_control_(flow_control) {}
 
   virtual bool HasCompletedBlockPortNames() const override {
-    if (flow_control() == FlowControl::kReadyValid) {
+    if (GetFlowControl() == FlowControl::kReadyValid) {
       return GetBlockName().has_value() && GetDataPortName().has_value() &&
              GetReadyPortName().has_value() && GetValidPortName().has_value();
     }
@@ -189,9 +190,14 @@ class StreamingChannel : public Channel {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 
-  FlowControl flow_control() const { return flow_control_; }
+  absl::optional<int64_t> GetFifoDepth() const { return fifo_depth_; }
+  void SetFifoDepth(absl::optional<int64_t> value) { fifo_depth_ = value; }
+
+  FlowControl GetFlowControl() const { return flow_control_; }
+  void SetFlowControl(FlowControl value) { flow_control_ = value; }
 
  public:
+  absl::optional<int64_t> fifo_depth_;
   FlowControl flow_control_;
 };
 

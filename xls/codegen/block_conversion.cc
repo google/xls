@@ -1994,7 +1994,7 @@ class CloneNodesIntoBlockHandler {
     }
 
     XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
-    XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
+    XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->GetFlowControl(),
                      FlowControl::kReadyValid);
 
     StreamingInput streaming_input{.port = input_port,
@@ -2036,7 +2036,7 @@ class CloneNodesIntoBlockHandler {
     }
 
     XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
-    XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->flow_control(),
+    XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->GetFlowControl(),
                      FlowControl::kReadyValid);
 
     StreamingOutput streaming_output{.port = output_port,

@@ -143,9 +143,16 @@ class Scanner {
     return tokens_[token_idx_];
   }
 
-  // Helper that makes sure we don't peek past EOF.
+  // Returns true if the next token is the given type.
   bool PeekTokenIs(LexicalTokenType target) const {
     return !AtEof() && PeekTokenOrDie().type() == target;
+  }
+
+  // Returns true if the nth next token is the given type. If `n` is zero this
+  // peeks at the immediate next token.
+  bool PeekNthTokenIs(int64_t n, LexicalTokenType target) const {
+    return (token_idx_ + n < tokens_.size()) &&
+           tokens_[token_idx_ + n].type() == target;
   }
 
   // Pop the current token, advance token pointer to next token.

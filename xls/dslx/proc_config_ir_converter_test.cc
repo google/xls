@@ -74,7 +74,8 @@ proc main {
   Package package("the_package");
   ChannelMetadataProto metadata;
   StreamingChannel channel("the_channel", /*id=*/0, ChannelOps::kSendReceive,
-                           package.GetBitsType(32), {}, FlowControl::kNone,
+                           package.GetBitsType(32), {},
+                           /*fifo_depth=*/absl::nullopt, FlowControl::kNone,
                            metadata);
 
   proc_id_to_args[proc_id].push_back(&channel);

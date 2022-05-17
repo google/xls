@@ -214,6 +214,7 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       absl::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
+      absl::optional<int64_t> fifo_depth = absl::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       absl::optional<int64_t> id = absl::nullopt);

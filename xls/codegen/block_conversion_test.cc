@@ -2745,7 +2745,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, FlowControl::kReadyValid));
+          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
                                "out_single_val", ChannelOps::kSendOnly, u32));
@@ -2753,7 +2754,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, FlowControl::kReadyValid));
+          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(),
                           /*token_name=*/"tkn", &package);
@@ -2821,7 +2823,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
       Channel * in_streaming_rv,
       package.CreateStreamingChannel(
           "in_streaming", ChannelOps::kReceiveOnly, u32,
-          /*initial_values=*/{}, FlowControl::kReadyValid));
+          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          FlowControl::kReadyValid));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * out_single_val,
                            package.CreateSingleValueChannel(
                                "out_single_val", ChannelOps::kSendOnly, u32));
@@ -2829,7 +2832,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
       Channel * out_streaming_rv,
       package.CreateStreamingChannel(
           "out_streaming", ChannelOps::kSendOnly, u32,
-          /*initial_values=*/{}, FlowControl::kReadyValid));
+          /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+          FlowControl::kReadyValid));
 
   TokenlessProcBuilder pb(TestName(),
                           /*token_name=*/"tkn", &package);

@@ -596,13 +596,14 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
-    absl::Span<const Value> initial_values, FlowControl flow_control,
-    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
+    absl::Span<const Value> initial_values, absl::optional<int64_t> fifo_depth,
+    FlowControl flow_control, const ChannelMetadataProto& metadata,
+    absl::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<StreamingChannel>(
-      name, actual_id, supported_ops, type, initial_values, flow_control,
-      metadata);
+      name, actual_id, supported_ops, type, initial_values, fifo_depth,
+      flow_control, metadata);
   StreamingChannel* channel_ptr = channel.get();
   XLS_RETURN_IF_ERROR(AddChannel(std::move(channel)));
   return channel_ptr;

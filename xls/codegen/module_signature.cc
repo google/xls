@@ -143,7 +143,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     absl::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-    absl::string_view port_name,
+    std::optional<int64_t> fifo_depth, absl::string_view port_name,
     absl::optional<absl::string_view> valid_port_name,
     absl::optional<absl::string_view> ready_port_name) {
   ChannelProto* channel = proto_.add_data_channels();
@@ -162,6 +162,10 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_READY_VALID);
   } else {
     channel->set_flow_control(CHANNEL_FLOW_CONTROL_NONE);
+  }
+
+  if (fifo_depth.has_value()) {
+    channel->set_fifo_depth(fifo_depth.value());
   }
 
   channel->set_data_port_name(ToProtoString(port_name));

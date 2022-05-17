@@ -60,10 +60,15 @@ std::string Channel::ToString() const {
                         ChannelOpsToString(supported_ops()));
 
   if (kind() == ChannelKind::kStreaming) {
+    const StreamingChannel* streaming_channel =
+        down_cast<const StreamingChannel*>(this);
     absl::StrAppendFormat(
         &result, "flow_control=%s, ",
-        FlowControlToString(
-            down_cast<const StreamingChannel*>(this)->flow_control()));
+        FlowControlToString(streaming_channel->GetFlowControl()));
+    if (streaming_channel->GetFifoDepth().has_value()) {
+      absl::StrAppendFormat(&result, "fifo_depth=%d, ",
+                            streaming_channel->GetFifoDepth().value());
+    }
   }
 
   absl::StrAppendFormat(&result, "metadata=\"\"\"%s\"\"\")",

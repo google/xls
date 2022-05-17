@@ -116,7 +116,8 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
       if (ch->kind() == ChannelKind::kStreaming) {
         b.AddStreamingChannel(
             ch->name(), ch->supported_ops(),
-            down_cast<const StreamingChannel*>(ch)->flow_control(),
+            down_cast<const StreamingChannel*>(ch)->GetFlowControl(),
+            down_cast<const StreamingChannel*>(ch)->GetFifoDepth(),
             ch->GetDataPortName().value(), ch->GetValidPortName(),
             ch->GetReadyPortName());
       } else {

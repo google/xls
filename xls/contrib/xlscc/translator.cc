@@ -4337,7 +4337,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         xls::Channel * xls_channel,
         package_->CreateStreamingChannel(
             ch_name, xls::ChannelOps::kSendReceive, ctrl_xls_type,
-            /*initial_values=*/{}, xls::FlowControl::kReadyValid));
+            /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+            xls::FlowControl::kReadyValid));
     IOChannel new_channel;
     new_channel.item_type = ctrl_ctype;
     new_channel.unique_name = ch_name;
@@ -4368,7 +4369,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
         xls::Channel * xls_channel,
         package_->CreateStreamingChannel(
             ch_name, xls::ChannelOps::kSendReceive, ctrl_xls_type,
-            /*initial_values=*/{}, xls::FlowControl::kReadyValid));
+            /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+            xls::FlowControl::kReadyValid));
     IOChannel new_channel;
     new_channel.item_type = ctrl_ctype;
     new_channel.unique_name = ch_name;
@@ -5109,7 +5111,8 @@ absl::Status Translator::GenerateExternalChannels(
               hls_channel.name(),
               hls_channel.is_input() ? xls::ChannelOps::kReceiveOnly
                                      : xls::ChannelOps::kSendOnly,
-              data_type, /*initial_values=*/{}, xls::FlowControl::kReadyValid));
+              data_type, /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
+              xls::FlowControl::kReadyValid));
     } else {
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                            StripTypeQualifiers(param->getType()));

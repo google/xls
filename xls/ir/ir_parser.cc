@@ -33,6 +33,64 @@
 
 namespace xls {
 
+absl::Status Parser::ParseKeywordArguments(
+    const absl::flat_hash_map<std::string, std::function<absl::Status()>>&
+        handlers,
+    absl::Span<const std::string> mandatory_keywords) {
+  absl::flat_hash_set<std::string> seen_keywords;
+  while (scanner_.PeekTokenIs(LexicalTokenType::kIdent) ||
+         scanner_.PeekTokenIs(LexicalTokenType::kKeyword)) {
+    XLS_ASSIGN_OR_RETURN(Token name,
+                         scanner_.PopKeywordOrIdentToken("argument"));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+    if (!seen_keywords.insert(name.value()).second) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Duplicate keyword argument `%s` @ %s", name.value(),
+                          name.pos().ToHumanString()));
+    }
+    if (!handlers.contains(name.value())) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid keyword argument `%s` @ %s", name.value(),
+                          name.pos().ToHumanString()));
+    }
+    XLS_RETURN_IF_ERROR(handlers.at(name.value())());
+    if (!scanner_.TryDropToken(LexicalTokenType::kComma)) {
+      break;
+    }
+  }
+
+  // Verify all mandatory keywords are present.
+  for (const std::string& keyword : mandatory_keywords) {
+    if (!seen_keywords.contains(keyword)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Mandatory keyword argument `%s` not found @ %s", keyword,
+          scanner_.PeekTokenOrDie().pos().ToHumanString()));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::vector<Parser::TypedArgument>> Parser::ParseTypedArguments(
+    Package* package) {
+  std::vector<Parser::TypedArgument> args;
+  if (scanner_.PeekTokenIs(LexicalTokenType::kIdent)) {
+    do {
+      if (scanner_.PeekNthTokenIs(1, LexicalTokenType::kEquals)) {
+        // Found `XXXX=...` which means that typed arguments are complete and
+        // keyword arguments have begun.
+        break;
+      }
+      XLS_ASSIGN_OR_RETURN(Token name,
+                           scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
+      XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
+      args.push_back(TypedArgument{name.value(), type, name});
+    } while (scanner_.TryDropToken(LexicalTokenType::kComma));
+  }
+  return args;
+}
+
 absl::StatusOr<int64_t> Parser::ParseBitsTypeAndReturnWidth() {
   XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
   XLS_RETURN_IF_ERROR(scanner_.DropKeywordOrError("bits"));
@@ -138,7 +196,7 @@ class ArgParser {
   // value pointed to by the returned pointer is the keyword argument value.
   template <typename T>
   T* AddKeywordArg(std::string key) {
-    mandatory_keywords_.insert(key);
+    mandatory_keywords_.push_back(key);
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
@@ -182,58 +240,42 @@ class ArgParser {
   // (positional arguments). Returns the BValues of the operands.
   static constexpr int64_t kVariadic = -1;
   absl::StatusOr<std::vector<BValue>> Run(int64_t arity) {
-    absl::flat_hash_set<std::string> seen_keywords;
     std::vector<BValue> operands;
     XLS_ASSIGN_OR_RETURN(Token open_paren, parser_->scanner_.PopTokenOrError(
                                                LexicalTokenType::kParenOpen));
     if (!parser_->scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
       // Variable indicating whether we are parsing the keywords or still
       // parsing the positional arguments.
-      bool parsing_keywords = false;
       do {
+        if (parser_->scanner_.PeekNthTokenIs(1, LexicalTokenType::kEquals)) {
+          // Found `XXXX=...` which means that operands are complete and keyword
+          // arguments have begun.
+          break;
+        }
         XLS_ASSIGN_OR_RETURN(
             Token name, parser_->scanner_.PopKeywordOrIdentToken("argument"));
-        if (!parsing_keywords &&
-            parser_->scanner_.PeekTokenIs(LexicalTokenType::kEquals)) {
-          parsing_keywords = true;
+        if (!name_to_bvalue_.contains(name.value())) {
+          return absl::InvalidArgumentError(
+              absl::StrFormat("Referred to a name @ %s that was not previously "
+                              "defined: \"%s\"",
+                              name.pos().ToHumanString(), name.value()));
         }
-        if (parsing_keywords) {
-          XLS_RETURN_IF_ERROR(
-              parser_->scanner_.DropTokenOrError(LexicalTokenType::kEquals));
-          if (seen_keywords.contains(name.value())) {
-            return absl::InvalidArgumentError(
-                absl::StrFormat("Duplicate keyword argument '%s' @ %s",
-                                name.value(), name.pos().ToHumanString()));
-          } else if (keywords_.contains(name.value())) {
-            XLS_RETURN_IF_ERROR(ParseKeywordArg(name.value()));
-          } else {
-            return absl::InvalidArgumentError(
-                absl::StrFormat("Invalid keyword @ %s: %s",
-                                name.pos().ToHumanString(), name.value()));
-          }
-          seen_keywords.insert(name.value());
-        } else {
-          if (!name_to_bvalue_.contains(name.value())) {
-            return absl::InvalidArgumentError(absl::StrFormat(
-                "Referred to a name @ %s that was not previously "
-                "defined: \"%s\"",
-                name.pos().ToHumanString(), name.value()));
-          }
-          operands.push_back(name_to_bvalue_.at(name.value()));
-        }
+        operands.push_back(name_to_bvalue_.at(name.value()));
       } while (parser_->scanner_.TryDropToken(LexicalTokenType::kComma));
     }
+
+    // Parse comma-separated list of keyword arguments (e.g., `foo=bar`, if any.
+    absl::flat_hash_map<std::string, std::function<absl::Status()>>
+        keyword_handlers;
+    for (const auto& pair : keywords_) {
+      const std::string& keyword = pair.first;
+      keyword_handlers[keyword] = [=] { return ParseKeywordArg(keyword); };
+    }
+    XLS_RETURN_IF_ERROR(
+        parser_->ParseKeywordArguments(keyword_handlers, mandatory_keywords_));
+
     XLS_RETURN_IF_ERROR(
         parser_->scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
-
-    // Verify all mandatory keywords are present.
-    for (const std::string& key : mandatory_keywords_) {
-      if (!seen_keywords.contains(key)) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Mandatory keyword argument '%s' not found @ %s",
-                            key, open_paren.pos().ToHumanString()));
-      }
-    }
 
     // Verify the arity is as expected.
     if (arity != kVariadic && operands.size() != arity) {
@@ -288,7 +330,7 @@ class ArgParser {
   Type* node_type_;
   Parser* parser_;
 
-  absl::flat_hash_set<std::string> mandatory_keywords_;
+  std::vector<std::string> mandatory_keywords_;
   absl::flat_hash_map<std::string, std::unique_ptr<KeywordVariant>> keywords_;
 };
 
@@ -1113,27 +1155,24 @@ absl::StatusOr<Register*> Parser::ParseRegister(Block* block) {
   absl::optional<Value> reset_value;
   absl::optional<bool> asynchronous;
   absl::optional<bool> active_low;
-  while (true) {
-    if (!scanner_.TryDropToken(LexicalTokenType::kComma)) {
-      break;
-    }
-    XLS_ASSIGN_OR_RETURN(Token field_name,
-                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
-      if (field_name.value() == "reset_value") {
-        XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
-      } else if (field_name.value() == "asynchronous") {
-        XLS_ASSIGN_OR_RETURN(asynchronous, ParseBool());
-      } else if (field_name.value() == "active_low") {
-        XLS_ASSIGN_OR_RETURN(active_low, ParseBool());
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Invalid register attribute `%s` @ %s", field_name.value(),
-            field_name.pos().ToHumanString()));
-      }
-    }
+  if (scanner_.TryDropToken(LexicalTokenType::kComma)) {
+    absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+    handlers["reset_value"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(reset_value, ParseValueInternal(reg_type));
+      return absl::OkStatus();
+    };
+    handlers["asynchronous"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(asynchronous, ParseBool());
+      return absl::OkStatus();
+    };
+    handlers["active_low"] = [&]() -> absl::Status {
+      XLS_ASSIGN_OR_RETURN(active_low, ParseBool());
+      return absl::OkStatus();
+    };
+    XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers));
   }
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
   // Either all reset attributes must be specified or none must be specified.
   absl::optional<Reset> reset;
   if (reset_value.has_value() && asynchronous.has_value() &&
@@ -1160,55 +1199,43 @@ absl::StatusOr<Instantiation*> Parser::ParseInstantiation(Block* block) {
       scanner_.PopTokenOrError(LexicalTokenType::kIdent, "instantiation name"));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
 
-  // Parse optional attributes.
+  absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+
   absl::optional<InstantiationKind> kind;
+  handlers["kind"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token kind_token,
+                         scanner_.PopKeywordOrIdentToken("instantiation kind"));
+    absl::StatusOr<InstantiationKind> kind_status =
+        StringToInstantiationKind(kind_token.value());
+    if (!kind_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid instantiation kind `%s` @ %s", kind_token.value(),
+          kind_token.pos().ToHumanString()));
+    }
+    kind = kind_status.value();
+    return absl::OkStatus();
+  };
+
   absl::optional<Block*> instantiated_block;
-  bool first_element = true;
-  while (!scanner_.TryDropToken(LexicalTokenType::kParenClose)) {
-    if (!first_element) {
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+  handlers["block"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token instantiated_block_name,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<Block*> instantiated_block_status =
+        block->package()->GetBlock(instantiated_block_name.value());
+    if (!instantiated_block_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "No such block '%s' @ %s", instantiated_block_name.value(),
+          instantiated_block_name.pos().ToHumanString()));
     }
-    first_element = false;
+    instantiated_block = instantiated_block_status.value();
+    return absl::OkStatus();
+  };
 
-    XLS_ASSIGN_OR_RETURN(Token field_name, scanner_.PopKeywordOrIdentToken(
-                                               "instantiation field name"));
-    if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
-      if (field_name.value() == "kind") {
-        XLS_ASSIGN_OR_RETURN(Token kind_token, scanner_.PopKeywordOrIdentToken(
-                                                   "instantiation kind"));
-        absl::StatusOr<InstantiationKind> kind_status =
-            StringToInstantiationKind(kind_token.value());
-        if (!kind_status.ok()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid instantiation kind `%s` @ %s", kind_token.value(),
-              kind_token.pos().ToHumanString()));
-        }
-        kind = kind_status.value();
-      } else if (field_name.value() == "block") {
-        XLS_ASSIGN_OR_RETURN(
-            Token instantiated_block_name,
-            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-        absl::StatusOr<Block*> instantiated_block_status =
-            block->package()->GetBlock(instantiated_block_name.value());
-        if (!instantiated_block_status.ok()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "No such block '%s' @ %s", instantiated_block_name.value(),
-              instantiated_block_name.pos().ToHumanString()));
-        }
-        instantiated_block = instantiated_block_status.value();
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Invalid instantiation attribute `%s` @ %s", field_name.value(),
-            field_name.pos().ToHumanString()));
-      }
-    }
-  }
+  XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers,
+                                            /*mandatory_keywords=*/{"kind"}));
 
-  if (!kind.has_value()) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("No instantiation kind specified @ %s",
-                        instantiation_name.pos().ToHumanString()));
-  }
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
   if (kind.value() == InstantiationKind::kBlock) {
     if (!instantiated_block.has_value()) {
       return absl::InvalidArgumentError(
@@ -1361,21 +1388,13 @@ Parser::ParseFunctionSignature(
                                               /*should_verify=*/false);
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in function parameters"));
-
-  bool must_end = false;
-  while (true) {
-    if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
-          LexicalTokenType::kParenClose, "')' in function parameters"));
-      break;
-    }
-    XLS_ASSIGN_OR_RETURN(Token param_name,
-                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
-    XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
-    (*name_to_value)[param_name.value()] = fb->Param(param_name.value(), type);
-    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
+  XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> params,
+                       Parser::ParseTypedArguments(package));
+  for (const TypedArgument& param : params) {
+    (*name_to_value)[param.name] = fb->Param(param.name, param.type);
   }
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
+                                                "')' in function parameters"));
 
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kRightArrow,
                                                 "'->' in function signature"));
@@ -1390,61 +1409,39 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
     absl::flat_hash_map<std::string, BValue>* name_to_value, Package* package) {
   // Proc definition begins with something like:
   //
-  //   proc foo(state: bits[32], tok: token, init=42) {
+  //   proc foo(tok: token, state0: bits[32], state1: bits[42], init={42, 33}) {
   //     ...
   //
   // The signature being parsed by this method starts at the proc name and ends
   // with the open brace.
   XLS_ASSIGN_OR_RETURN(Token name, scanner_.PopTokenOrError(
                                        LexicalTokenType::kIdent, "proc name"));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenOpen,
+  XLS_ASSIGN_OR_RETURN(Token open_paren,
+                       scanner_.PopTokenOrError(LexicalTokenType::kParenOpen,
                                                 "'(' in proc parameters"));
 
   // Parse the token parameter.
-  XLS_ASSIGN_OR_RETURN(Token token_name,
-                       scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
-  XLS_ASSIGN_OR_RETURN(Token peek, scanner_.PeekToken());
-  const TokenPos token_type_pos = peek.pos();
-  XLS_ASSIGN_OR_RETURN(Type * token_type, ParseType(package));
-  if (!token_type->IsToken()) {
+  XLS_ASSIGN_OR_RETURN(std::vector<TypedArgument> params,
+                       Parser::ParseTypedArguments(package));
+  if (params.empty()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Expected proc to have at least one parameter @ %s",
+                        open_paren.pos().ToHumanString()));
+  }
+  TypedArgument token_param = params.front();
+  if (!token_param.type->IsToken()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Expected first argument of proc to be token type, is: %s @ %s",
-        token_type->ToString(), token_type_pos.ToHumanString()));
+        token_param.type->ToString(), token_param.token.pos().ToHumanString()));
   }
 
-  bool has_init = false;
-  std::vector<std::string> state_names;
-  std::vector<Type*> state_types;
-  while (scanner_.TryDropToken(LexicalTokenType::kComma)) {
-    if (scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
-      // No init values.
-      break;
-    }
-    if ((scanner_.PeekTokenIs(LexicalTokenType::kIdent) &&
-         scanner_.PeekTokenOrDie().value() == "init")) {
-      has_init = true;
-      break;
-    }
-    XLS_ASSIGN_OR_RETURN(Token state_name,
-                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kColon));
-    XLS_ASSIGN_OR_RETURN(Type * state_type, ParseType(package));
-    state_names.push_back(state_name.value());
-    state_types.push_back(state_type);
-  }
+  absl::Span<const TypedArgument> state_params =
+      absl::MakeSpan(params).subspan(1);
 
+  absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
   std::vector<Value> init_values;
-  if (has_init) {
-    // Parse "init={VALUE, VALUE, ...}".
-    XLS_ASSIGN_OR_RETURN(
-        Token init_name,
-        scanner_.PopTokenOrError(LexicalTokenType::kIdent, "argument"));
-    if (init_name.value() != "init") {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Expected 'init' attribute @ %s", init_name.pos().ToHumanString()));
-    }
-    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kEquals));
+  handlers["init"] = [&]() -> absl::Status {
+    // Parse "{VALUE, VALUE, ...}".
     XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
                                                   "start of init_values"));
     while (!scanner_.TryDropToken(LexicalTokenType::kCurlClose)) {
@@ -1452,48 +1449,46 @@ absl::StatusOr<std::unique_ptr<ProcBuilder>> Parser::ParseProcSignature(
         XLS_RETURN_IF_ERROR(
             scanner_.DropTokenOrError(LexicalTokenType::kComma));
       }
-      if (init_values.size() >= state_types.size()) {
-        return absl::InvalidArgumentError(
-            absl::StrFormat("Too many initial values given @ %s",
-                            init_name.pos().ToHumanString()));
+      if (init_values.size() >= state_params.size()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Too many initial values given @ %s", name.pos().ToHumanString()));
       }
-      XLS_ASSIGN_OR_RETURN(Value value,
-                           ParseValueInternal(state_types[init_values.size()]));
+      XLS_ASSIGN_OR_RETURN(
+          Value value,
+          ParseValueInternal(state_params.at(init_values.size()).type));
       init_values.push_back(value);
     }
+    return absl::OkStatus();
+  };
 
-    if (init_values.size() != state_types.size()) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Too few initial values given, expected %d, got %d @ %s",
-          state_types.size(), init_values.size(),
-          init_name.pos().ToHumanString()));
-    }
+  std::vector<std::string> mandatory_keywords;
+  if (params.size() > 1) {
+    // If the proc has a state element then an init field is required.
+    mandatory_keywords.push_back("init");
+  }
+  XLS_RETURN_IF_ERROR(ParseKeywordArguments(handlers, mandatory_keywords));
+
+  if (init_values.size() != state_params.size()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Too few initial values given, expected %d, got %d @ %s",
+        state_params.size(), init_values.size(), name.pos().ToHumanString()));
   }
 
   XLS_ASSIGN_OR_RETURN(Token paren_close,
                        scanner_.PopTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in proc parameters"));
-  if (!has_init) {
-    // No init values given.
-    if (!state_types.empty()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Expected initial state values @ %s",
-                          paren_close.pos().ToHumanString()));
-    }
-  }
-
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen,
                                                 "start of proc body"));
 
   // The parser does its own verification so pass should_verify=false. This
   // enables the parser to parse and construct malformed IR for tests.
   auto builder =
-      std::make_unique<ProcBuilder>(name.value(), token_name.value(), package,
+      std::make_unique<ProcBuilder>(name.value(), token_param.name, package,
                                     /*should_verify=*/false);
-  (*name_to_value)[token_name.value()] = builder->GetTokenParam();
-  for (int64_t i = 0; i < state_names.size(); ++i) {
-    (*name_to_value)[state_names[i]] =
-        builder->StateElement(state_names[i], init_values[i]);
+  (*name_to_value)[token_param.name] = builder->GetTokenParam();
+  for (int64_t i = 0; i < state_params.size(); ++i) {
+    (*name_to_value)[state_params[i].name] =
+        builder->StateElement(state_params[i].name, init_values[i]);
   }
 
   return std::move(builder);
@@ -1716,9 +1711,10 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   absl::optional<ChannelOps> supported_ops;
   absl::optional<ChannelMetadataProto> metadata;
   std::vector<Value> initial_values;
-  bool must_end = false;
   absl::optional<ChannelKind> kind;
   absl::optional<FlowControl> flow_control;
+  absl::optional<int64_t> fifo_depth;
+
   // Iterate through the comma-separated elements in the channel definition.
   // Examples:
   //
@@ -1731,108 +1727,107 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   // First parse type.
   XLS_ASSIGN_OR_RETURN(Type * type, ParseType(package));
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-  while (true) {
-    if (must_end || scanner_.PeekTokenIs(LexicalTokenType::kParenClose)) {
-      XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(
-          LexicalTokenType::kParenClose, "')' in channel definition"));
-      break;
+
+  absl::flat_hash_map<std::string, std::function<absl::Status()>> handlers;
+  handlers["initial_values"] = [&]() -> absl::Status {
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
+    if (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
+      XLS_ASSIGN_OR_RETURN(initial_values, ParseCommaSeparatedValues(type));
     }
-    XLS_ASSIGN_OR_RETURN(Token field_name,
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
+    return absl::OkStatus();
+  };
+  handlers["id"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token id_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(id, id_token.GetValueInt64());
+    return absl::OkStatus();
+  };
+  handlers["kind"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token kind_token,
                          scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-    if (scanner_.TryDropToken(LexicalTokenType::kEquals)) {
-      // Attribute: "<name>=<value>"
-      if (field_name.value() == "initial_values") {
-        XLS_RETURN_IF_ERROR(
-            scanner_.DropTokenOrError(LexicalTokenType::kCurlOpen));
-        if (!scanner_.PeekTokenIs(LexicalTokenType::kCurlClose)) {
-          XLS_ASSIGN_OR_RETURN(initial_values, ParseCommaSeparatedValues(type));
-        }
-        XLS_RETURN_IF_ERROR(
-            scanner_.DropTokenOrError(LexicalTokenType::kCurlClose));
-      } else if (field_name.value() == "id") {
-        XLS_ASSIGN_OR_RETURN(Token id_token, scanner_.PopTokenOrError(
-                                                 LexicalTokenType::kLiteral));
-        XLS_ASSIGN_OR_RETURN(id, id_token.GetValueInt64());
-      } else if (field_name.value() == "kind") {
-        XLS_ASSIGN_OR_RETURN(Token kind_token, scanner_.PopTokenOrError(
-                                                   LexicalTokenType::kIdent));
-        absl::StatusOr<ChannelKind> kind_status =
-            StringToChannelKind(kind_token.value());
-        if (!kind_status.ok()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid channel kind \"%s\" @ %s", kind_token.value(),
-              field_name.pos().ToHumanString()));
-        }
-        kind = kind_status.value();
-      } else if (field_name.value() == "ops") {
-        XLS_ASSIGN_OR_RETURN(
-            Token supported_ops_token,
-            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-        if (supported_ops_token.value() == "send_only") {
-          supported_ops = ChannelOps::kSendOnly;
-        } else if (supported_ops_token.value() == "receive_only") {
-          supported_ops = ChannelOps::kReceiveOnly;
-        } else if (supported_ops_token.value() == "send_receive") {
-          supported_ops = ChannelOps::kSendReceive;
-        } else {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid channel attribute ops \"%s\" @ %s. Expected: send_only,"
-              "receive_only, or send_receive",
-              supported_ops_token.value(), field_name.pos().ToHumanString()));
-        }
-      } else if (field_name.value() == "metadata") {
-        // The metadata is serialized as a text proto.
-        XLS_ASSIGN_OR_RETURN(
-            Token metadata_token,
-            scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
-        ChannelMetadataProto proto;
-        bool success =
-            google::protobuf::TextFormat::ParseFromString(metadata_token.value(), &proto);
-        if (!success) {
-          return absl::InvalidArgumentError(
-              absl::StrFormat("Invalid channel metadata @ %s",
-                              metadata_token.pos().ToHumanString()));
-        }
-        metadata = proto;
-      } else if (field_name.value() == "flow_control") {
-        XLS_ASSIGN_OR_RETURN(
-            Token flow_control_token,
-            scanner_.PopTokenOrError(LexicalTokenType::kIdent));
-        absl::StatusOr<FlowControl> flow_control_status =
-            StringToFlowControl(flow_control_token.value());
-        if (!flow_control_status.ok()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "Invalid flow control value \"%s\" @ %s",
-              flow_control_token.value(), field_name.pos().ToHumanString()));
-        }
-        flow_control = flow_control_status.value();
-      } else {
-        return absl::InvalidArgumentError(absl::StrFormat(
-            "Invalid channel attribute \"%s\" @ %s", field_name.value(),
-            field_name.pos().ToHumanString()));
-      }
+    absl::StatusOr<ChannelKind> kind_status =
+        StringToChannelKind(kind_token.value());
+    if (!kind_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid channel kind \"%s\" @ %s", kind_token.value(),
+          kind_token.pos().ToHumanString()));
     }
-    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
-  }
+    kind = kind_status.value();
+    return absl::OkStatus();
+  };
+  handlers["ops"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token supported_ops_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    if (supported_ops_token.value() == "send_only") {
+      supported_ops = ChannelOps::kSendOnly;
+    } else if (supported_ops_token.value() == "receive_only") {
+      supported_ops = ChannelOps::kReceiveOnly;
+    } else if (supported_ops_token.value() == "send_receive") {
+      supported_ops = ChannelOps::kSendReceive;
+    } else {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid channel attribute ops \"%s\" @ %s. Expected: send_only,"
+          "receive_only, or send_receive",
+          supported_ops_token.value(),
+          supported_ops_token.pos().ToHumanString()));
+    }
+    return absl::OkStatus();
+  };
+  handlers["metadata"] = [&]() -> absl::Status {
+    // The metadata is serialized as a text proto.
+    XLS_ASSIGN_OR_RETURN(
+        Token metadata_token,
+        scanner_.PopTokenOrError(LexicalTokenType::kQuotedString));
+    ChannelMetadataProto proto;
+    bool success =
+        google::protobuf::TextFormat::ParseFromString(metadata_token.value(), &proto);
+    if (!success) {
+      return absl::InvalidArgumentError(
+          absl::StrFormat("Invalid channel metadata @ %s",
+                          metadata_token.pos().ToHumanString()));
+    }
+    metadata = proto;
+    return absl::OkStatus();
+  };
+  handlers["flow_control"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token flow_control_token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kIdent));
+    absl::StatusOr<FlowControl> flow_control_status =
+        StringToFlowControl(flow_control_token.value());
+    if (!flow_control_status.ok()) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Invalid flow control value \"%s\" @ %s", flow_control_token.value(),
+          flow_control_token.pos().ToHumanString()));
+    }
+    flow_control = flow_control_status.value();
+    return absl::OkStatus();
+  };
+  handlers["fifo_depth"] = [&]() -> absl::Status {
+    XLS_ASSIGN_OR_RETURN(Token token,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_ASSIGN_OR_RETURN(fifo_depth, token.GetValueInt64());
+    return absl::OkStatus();
+  };
+
+  XLS_RETURN_IF_ERROR(ParseKeywordArguments(
+      handlers, /*mandatory_keywords=*/{"id", "ops", "metadata", "kind"}));
+
+  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
+                                                "')' in channel definition"));
 
   auto error = [&](absl::string_view message) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "%s @ %s", message, channel_name.pos().ToHumanString()));
   };
-  if (!id.has_value()) {
-    return error("Missing channel id");
-  }
-  if (!supported_ops.has_value()) {
-    return error("Missing channel ops");
-  }
-  if (!metadata.has_value()) {
-    return error("Missing channel metadata");
-  }
-  if (!kind.has_value()) {
-    return error("Missing channel kind");
-  }
+
   if (flow_control.has_value() && kind != ChannelKind::kStreaming) {
     return error("Only streaming channels can have flow control");
+  }
+
+  if (fifo_depth.has_value() && kind != ChannelKind::kStreaming) {
+    return error("Only streaming channels can have a fifo_depth");
   }
 
   switch (kind.value()) {
@@ -1842,7 +1837,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
       }
       return package->CreateStreamingChannel(
           channel_name.value(), *supported_ops, type, initial_values,
-          flow_control.value(), *metadata, *id);
+          fifo_depth, flow_control.value(), *metadata, *id);
     case ChannelKind::kSingleValue: {
       if (!initial_values.empty()) {
         return absl::InvalidArgumentError(absl::StrFormat(

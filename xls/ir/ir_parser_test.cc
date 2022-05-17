@@ -28,6 +28,7 @@ namespace xls {
 using status_testing::StatusIs;
 using ::testing::ElementsAre;
 using ::testing::HasSubstr;
+using ::testing::Optional;
 
 // EXPECTS that the two given strings are similar modulo extra whitespace.
 void ExpectStringsSimilar(
@@ -155,7 +156,7 @@ TEST(IrParserTest, DuplicateKeywordArgs) {
 })";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Duplicate keyword argument 'value'")));
+                       HasSubstr("Duplicate keyword argument `value`")));
 }
 
 TEST(IrParserTest, WrongDeclaredNodeType) {
@@ -195,7 +196,7 @@ TEST(IrParserTest, MissingMandatoryKeyword) {
   EXPECT_THAT(
       Parser::ParseFunction(input, &p).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Mandatory keyword argument 'value' not found")));
+               HasSubstr("Mandatory keyword argument `value` not found")));
 }
 
 TEST(IrParserTest, ParsePosition) {
@@ -384,7 +385,7 @@ fn main() -> bits[11] {
   EXPECT_THAT(
       Parser::ParsePackage(program).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("Mandatory keyword argument 'body' not found")));
+               HasSubstr("Mandatory keyword argument `body` not found")));
 }
 
 TEST(IrParserTest, CountedForInvariantArgs) {
@@ -1981,9 +1982,10 @@ proc foo(my_token: token, my_state: bits[32]) {
   next (my_token, my_state)
 }
 )";
-  EXPECT_THAT(Parser::ParsePackage(program).status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Expected initial state values")));
+  EXPECT_THAT(
+      Parser::ParsePackage(program).status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Mandatory keyword argument `init` not found")));
 }
 
 TEST(IrParserTest, ProcWithTooFewNextStateElements) {
@@ -2321,15 +2323,16 @@ TEST(IrParserTest, ChannelParsingErrors) {
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Missing channel id")));
+                       HasSubstr("Mandatory keyword argument `id` not found")));
 
-  EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(bits[32][4], id=42, ops=receive_only,
+  EXPECT_THAT(
+      Parser::ParseChannel(
+          R"(chan meh(bits[32][4], id=42, ops=receive_only,
                          metadata="module_port { flopped: true }"))",
-                  &p)
-                  .status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Missing channel kind")));
+          &p)
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Mandatory keyword argument `kind` not found")));
 
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(bits[32][4], id=42, kind=bogus,
@@ -2340,13 +2343,14 @@ TEST(IrParserTest, ChannelParsingErrors) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Invalid channel kind \"bogus\"")));
 
-  EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(bits[32][4], id=7, kind=streaming,
+  EXPECT_THAT(
+      Parser::ParseChannel(
+          R"(chan meh(bits[32][4], id=7, kind=streaming,
                          metadata="module_port { flopped: true }"))",
-                  &p)
-                  .status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Missing channel ops")));
+          &p)
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Mandatory keyword argument `ops` not found")));
 
   // Unrepresentable initial value.
   EXPECT_THAT(Parser::ParseChannel(
@@ -2368,13 +2372,14 @@ TEST(IrParserTest, ChannelParsingErrors) {
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected token of type \"literal\"")));
 
-  EXPECT_THAT(Parser::ParseChannel(
-                  R"(chan meh(bits[32][4], id=7, kind=streaming,
+  EXPECT_THAT(
+      Parser::ParseChannel(
+          R"(chan meh(bits[32][4], id=7, kind=streaming,
                      ops=receive_only))",
-                  &p)
-                  .status(),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Missing channel metadata")));
+          &p)
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Mandatory keyword argument `metadata` not found")));
 
   EXPECT_THAT(Parser::ParseChannel(
                   R"(chan meh(id=44, kind=streaming, ops=receive_only,
@@ -2391,7 +2396,7 @@ TEST(IrParserTest, ChannelParsingErrors) {
                   &p)
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid channel attribute \"bogus\"")));
+                       HasSubstr("Invalid keyword argument `bogus`")));
 
   // Bad channel name.
   EXPECT_THAT(Parser::ParseChannel(
@@ -2401,6 +2406,16 @@ TEST(IrParserTest, ChannelParsingErrors) {
                   .status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Expected token of type \"ident\"")));
+
+  // FIFO depth on single-value channel.
+  EXPECT_THAT(
+      Parser::ParseChannel(
+          R"(chan meh(bits[32], id=44, kind=single_value,
+                         ops=receive_only, fifo_depth=123, metadata=""))",
+          &p)
+          .status(),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("Only streaming channels can have a fifo_depth")));
 }
 
 TEST(IrParserTest, PackageWithSingleDataElementChannels) {
@@ -2408,7 +2423,7 @@ TEST(IrParserTest, PackageWithSingleDataElementChannels) {
 package test
 
 chan hbo(bits[32], id=0, kind=streaming, flow_control=none, ops=receive_only,
-            metadata="module_port { flopped: true }")
+            fifo_depth=42, metadata="module_port { flopped: true }")
 chan mtv(bits[32], id=1, kind=streaming, flow_control=none, ops=send_only,
             metadata="module_port { flopped: true }")
 
@@ -2425,6 +2440,10 @@ proc my_proc(my_token: token, my_state: bits[32], init={42}) {
   EXPECT_EQ(package->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
   EXPECT_EQ(proc->name(), "my_proc");
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * hbo, package->GetChannel("hbo"));
+  EXPECT_THAT(down_cast<StreamingChannel*>(hbo)->GetFifoDepth(), Optional(42));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * mtv, package->GetChannel("mtv"));
+  EXPECT_EQ(down_cast<StreamingChannel*>(mtv)->GetFifoDepth(), absl::nullopt);
 }
 
 TEST(IrParserTest, ParseTupleIndexWithInvalidBValue) {
@@ -2732,7 +2751,7 @@ block my_block(clk: clock, in: bits[32], out: bits[32]) {
   Package p("my_package");
   EXPECT_THAT(Parser::ParseBlock(input, &p).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("Invalid register attribute `bogus_field`")));
+                       HasSubstr("Invalid keyword argument `bogus_field`")));
 }
 
 TEST(IrParserTest, ParseBlockWithMissingInstantiatedBlock) {

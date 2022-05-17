@@ -55,7 +55,6 @@ message PortProto {
   optional int64 width = 3;
 }
 
-// A module
 message ChannelProto {
   optional string name = 1;
   optional ChannelKindProto kind = 2;
@@ -64,6 +63,7 @@ message ChannelProto {
   optional string data_port_name = 5;
   optional string ready_port_name = 6;
   optional string valid_port_name = 7;
+  optional int64 fifo_depth = 8;
 }
 
 // Module produces its result in a fixed number of cycles without flow control.

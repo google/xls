@@ -164,6 +164,18 @@ class Parser {
   // least one element in the sequence.
   absl::StatusOr<std::vector<Value>> ParseCommaSeparatedValues(Type* type);
 
+  // Parse a comma-separated list of typed arguments as might be see in a
+  // function signature. For example:
+  //
+  //   a: bits[32], b: bits[44], c: (bits[32][2], bits[1])
+  struct TypedArgument {
+    std::string name;
+    Type* type;
+    Token token;
+  };
+  absl::StatusOr<std::vector<TypedArgument>> ParseTypedArguments(
+      Package* package);
+
   // Parses a comma-delimited list of names surrounded by brackets; e.g.
   //
   //    "[foo, bar, baz]"
@@ -174,6 +186,16 @@ class Parser {
   // resolved via name_to_value.
   absl::StatusOr<std::vector<BValue>> ParseNameList(
       const absl::flat_hash_map<std::string, BValue>& name_to_value);
+
+  // Parses a comma-delimited list of keyword argument values (e.g.,
+  // `foo=bar`). `handlers` is a map of the supported keywords where the key is
+  // the keyword and the value is a function which parses the right hand side of
+  // the `lhs=rhs` keyword argument. `mandatory_keywords` is a list of keywords
+  // which must be present.
+  absl::Status ParseKeywordArguments(
+      const absl::flat_hash_map<std::string, std::function<absl::Status()>>&
+          handlers,
+      absl::Span<const std::string> mandatory_keywords = {});
 
   // Parses a source location.
   // TODO(meheff): Currently the source location is a sequence of three

@@ -173,11 +173,13 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   b.AddDataOutput("streaming_out_data", 16);
 
   b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
-                        FlowControl::kReadyValid, "streaming_in_data",
-                        "streaming_in_valid", "streaming_in_ready");
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "streaming_in_data", "streaming_in_valid",
+                        "streaming_in_ready");
 
   b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
-                        FlowControl::kNone, "streaming_out_data");
+                        FlowControl::kNone, /*fifo_depth=*/std::nullopt,
+                        "streaming_out_data");
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -191,6 +193,7 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             CHANNEL_OPS_RECEIVE_ONLY);
   EXPECT_EQ(signature.streaming_channels().at(0).flow_control(),
             CHANNEL_FLOW_CONTROL_READY_VALID);
+  EXPECT_EQ(signature.streaming_channels().at(0).fifo_depth(), 42);
   EXPECT_EQ(signature.streaming_channels().at(0).data_port_name(),
             "streaming_in_data");
   EXPECT_EQ(signature.streaming_channels().at(0).valid_port_name(),
@@ -205,6 +208,7 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
             CHANNEL_OPS_SEND_ONLY);
   EXPECT_EQ(signature.streaming_channels().at(1).flow_control(),
             CHANNEL_FLOW_CONTROL_NONE);
+  EXPECT_FALSE(signature.streaming_channels().at(1).has_fifo_depth());
   EXPECT_EQ(signature.streaming_channels().at(1).data_port_name(),
             "streaming_out_data");
   EXPECT_FALSE(signature.streaming_channels().at(1).has_valid_port_name());

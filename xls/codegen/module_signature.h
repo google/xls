@@ -92,7 +92,8 @@ class ModuleSignatureBuilder {
   // Add a streaming channel to the interface
   ModuleSignatureBuilder& AddStreamingChannel(
       absl::string_view name, ChannelOps supported_ops,
-      FlowControl flow_control, absl::string_view port_name,
+      FlowControl flow_control, std::optional<int64_t> fifo_depth,
+      absl::string_view port_name,
       absl::optional<absl::string_view> valid_port_name =
           absl::optional<absl::string_view>(),
       absl::optional<absl::string_view> ready_port_name =
