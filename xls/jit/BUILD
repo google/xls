@@ -36,7 +36,6 @@ cc_binary(
         "//xls/ir:ir_parser",
         "@com_google_protobuf//:protobuf",
         "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:OrcJIT",
     ],
 )
 
@@ -143,7 +142,6 @@ cc_library(
         ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_type_converter",
-        ":orc_jit",
         ":proc_builder_visitor",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/memory",
@@ -152,6 +150,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:vast",
         "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
@@ -165,7 +164,21 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view",
+        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
+        "@llvm-project//llvm:Analysis",
+        "@llvm-project//llvm:CodeGen",
         "@llvm-project//llvm:Core",
+        "@llvm-project//llvm:ExecutionEngine",
+        "@llvm-project//llvm:IPO",
+        "@llvm-project//llvm:JITLink",  # build_cleaner: keep
+        "@llvm-project//llvm:MC",
+        "@llvm-project//llvm:OrcJIT",
+        "@llvm-project//llvm:Passes",
+        "@llvm-project//llvm:Support",
+        "@llvm-project//llvm:Target",
+        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
+        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
     ],
 )
 
@@ -308,37 +321,6 @@ cc_library(
         "//xls/common:thread",
         "//xls/common/status:status_macros",
         "//xls/ir",
-    ],
-)
-
-cc_library(
-    name = "orc_jit",
-    srcs = ["orc_jit.cc"],
-    hdrs = ["orc_jit.h"],
-    deps = [
-        ":llvm_type_converter",
-        "@com_google_absl//absl/memory",
-        "@com_google_absl//absl/status",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
-        "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
-        "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
-        "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
-        "@llvm-project//llvm:Analysis",
-        "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:ExecutionEngine",
-        "@llvm-project//llvm:JITLink",  # build_cleaner: keep
-        "@llvm-project//llvm:OrcJIT",
-        "@llvm-project//llvm:Passes",
-        "@llvm-project//llvm:Support",
-        "@llvm-project//llvm:Target",
-        "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
-        "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
-        "@llvm-project//llvm:ir_headers",
     ],
 )
 

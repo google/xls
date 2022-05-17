@@ -18,6 +18,16 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/CompileUtils.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/IRCompileLayer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
@@ -27,7 +37,6 @@
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
-#include "xls/jit/orc_jit.h"
 #include "xls/jit/proc_builder_visitor.h"
 
 namespace xls {
@@ -36,6 +45,8 @@ namespace xls {
 // converting it to LLVM IR, compiling it, and finally executing it.
 class IrJit {
  public:
+  ~IrJit();
+
   // Returns an object containing a host-compiled version of the specified XLS
   // function.
   static absl::StatusOr<std::unique_ptr<IrJit>> Create(Function* xls_function,
@@ -121,13 +132,14 @@ class IrJit {
 
   JitRuntime* runtime() { return ir_runtime_.get(); }
 
-  LlvmTypeConverter* type_converter() { return &orc_jit_->GetTypeConverter(); }
+  LlvmTypeConverter* type_converter() { return type_converter_.get(); }
 
  private:
-  explicit IrJit(FunctionBase* xls_function);
+  explicit IrJit(FunctionBase* xls_function, int64_t opt_level,
+                 bool emit_object_code = false);
 
   // Performs non-trivial initialization (i.e., that which can fail).
-  absl::Status Init(int64_t opt_level, bool emit_object_code = false);
+  absl::Status Init();
 
   // Drives regular and packed function compilation.
   using VisitFn = std::function<absl::Status(llvm::Module* module,
@@ -143,6 +155,10 @@ class IrJit {
   // closely packed, without any padding bits or bytes between them.
   absl::Status CompilePackedViewFunction(VisitFn visit_fn,
                                          llvm::Module* module);
+
+  llvm::Expected<llvm::orc::ThreadSafeModule> Optimizer(
+      llvm::orc::ThreadSafeModule module,
+      const llvm::orc::MaterializationResponsibility& responsibility);
 
   // Simple templates to walk down the arg tree and populate the corresponding
   // arg/buffer pointer.
@@ -160,14 +176,29 @@ class IrJit {
     *result_buffer = front.buffer();
   }
 
-  std::unique_ptr<OrcJit> orc_jit_;
+  llvm::orc::ThreadSafeContext context_;
+  llvm::orc::ExecutionSession execution_session_;
+  llvm::orc::RTDyldObjectLinkingLayer object_layer_;
+  llvm::orc::JITDylib& dylib_;
+  llvm::DataLayout data_layout_;
+
+  std::unique_ptr<llvm::TargetMachine> target_machine_;
+  std::unique_ptr<llvm::orc::IRCompileLayer> compile_layer_;
+  std::unique_ptr<llvm::orc::IRTransformLayer> transform_layer_;
+  // If set, this contains the logic to emit object code.
+  std::unique_ptr<llvm::orc::IRTransformLayer> object_code_layer_;
 
   FunctionBase* xls_function_;
+  int64_t opt_level_;
 
   // Size of the function's args or return type as flat bytes.
   std::vector<int64_t> arg_type_bytes_;
   int64_t return_type_bytes_;
 
+  // Cache for XLS type => LLVM type conversions.
+  absl::flat_hash_map<const Type*, llvm::Type*> xls_to_llvm_type_;
+
+  std::unique_ptr<LlvmTypeConverter> type_converter_;
   std::unique_ptr<JitRuntime> ir_runtime_;
 
   // When initialized, this points to the compiled output.
@@ -183,6 +214,9 @@ class IrJit {
                                          void* user_data,
                                          JitRuntime* jit_runtime);
   PackedJitFunctionType packed_invoker_;
+
+  bool emit_object_code_;
+  std::vector<char> object_code_;
 };
 
 // JIT-compiles the given xls_function and invokes it with args, returning the

@@ -24,7 +24,6 @@
 #include "absl/strings/str_replace.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "xls/common/file/filesystem.h"
