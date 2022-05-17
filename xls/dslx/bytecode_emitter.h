@@ -60,40 +60,43 @@ class BytecodeEmitter : public ExprVisitor {
 
   // Adds the given bytecode to the program.
   void Add(Bytecode bytecode) { bytecode_.push_back(std::move(bytecode)); }
-  void HandleArray(const Array* node) override;
-  void HandleAttr(const Attr* node) override;
-  void HandleBinop(const Binop* node) override;
-  void HandleCast(const Cast* node) override;
-  void HandleChannelDecl(const ChannelDecl* node) override;
-  void HandleColonRef(const ColonRef* node) override;
+  absl::Status HandleArray(const Array* node) override;
+  absl::Status HandleAttr(const Attr* node) override;
+  absl::Status HandleBinop(const Binop* node) override;
+  absl::Status HandleCast(const Cast* node) override;
+  absl::Status HandleChannelDecl(const ChannelDecl* node) override;
+  absl::Status HandleColonRef(const ColonRef* node) override;
   absl::StatusOr<InterpValue> HandleColonRefInternal(const ColonRef* node);
-  void HandleConstRef(const ConstRef* node) override;
-  void HandleFor(const For* node) override;
-  void HandleFormatMacro(const FormatMacro* node) override;
-  void HandleIndex(const Index* node) override;
-  void HandleInvocation(const Invocation* node) override;
-  void HandleJoin(const Join* node) override { DefaultHandler(node); }
-  void HandleLet(const Let* node) override;
-  void HandleMatch(const Match* node) override;
-  void HandleNameRef(const NameRef* node) override;
+  absl::Status HandleConstRef(const ConstRef* node) override;
+  absl::Status HandleFor(const For* node) override;
+  absl::Status HandleFormatMacro(const FormatMacro* node) override;
+  absl::Status HandleIndex(const Index* node) override;
+  absl::Status HandleInvocation(const Invocation* node) override;
+  absl::Status HandleJoin(const Join* node) override {
+    return DefaultHandler(node);
+  }
+  absl::Status HandleLet(const Let* node) override;
+  absl::Status HandleMatch(const Match* node) override;
+  absl::Status HandleNameRef(const NameRef* node) override;
   absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
   HandleNameRefInternal(const NameRef* node);
-  void HandleNumber(const Number* node) override;
+  absl::Status HandleNumber(const Number* node) override;
   absl::StatusOr<InterpValue> HandleNumberInternal(const Number* node);
-  void HandleRecv(const Recv* node) override;
-  void HandleRecvIf(const RecvIf* node) override;
-  void HandleSend(const Send* node) override;
-  void HandleSendIf(const SendIf* node) override;
-  void HandleSpawn(const Spawn* node) override;
-  void HandleString(const String* node) override;
-  void HandleStructInstance(const StructInstance* node) override;
-  void HandleSplatStructInstance(const SplatStructInstance* node) override;
-  void HandleTernary(const Ternary* node) override;
-  void HandleUnop(const Unop* node) override;
-  void HandleXlsTuple(const XlsTuple* node) override;
+  absl::Status HandleRecv(const Recv* node) override;
+  absl::Status HandleRecvIf(const RecvIf* node) override;
+  absl::Status HandleSend(const Send* node) override;
+  absl::Status HandleSendIf(const SendIf* node) override;
+  absl::Status HandleSpawn(const Spawn* node) override;
+  absl::Status HandleString(const String* node) override;
+  absl::Status HandleStructInstance(const StructInstance* node) override;
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* node) override;
+  absl::Status HandleTernary(const Ternary* node) override;
+  absl::Status HandleUnop(const Unop* node) override;
+  absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
-  void DefaultHandler(const Expr* node) {
-    status_ = absl::UnimplementedError(
+  absl::Status DefaultHandler(const Expr* node) {
+    return absl::UnimplementedError(
         absl::StrFormat("Unhandled node kind: %s: %s", node->GetNodeTypeName(),
                         node->ToString()));
   }
@@ -122,7 +125,6 @@ class BytecodeEmitter : public ExprVisitor {
   const TypeInfo* type_info_;
   const absl::optional<SymbolicBindings>& caller_bindings_;
 
-  absl::Status status_;
   std::vector<Bytecode> bytecode_;
   absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot_;
 };

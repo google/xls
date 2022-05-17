@@ -186,16 +186,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
       case NumberKind::kBool: {
         auto type = BitsType::MakeU1();
         ConstexprEvaluator evaluator(ctx, type.get());
-        node->AcceptExpr(&evaluator);
-        XLS_RETURN_IF_ERROR(evaluator.status());
+        XLS_RETURN_IF_ERROR(node->AcceptExpr(&evaluator));
         ctx->type_info()->SetItem(node, *type);
         return type;
       }
       case NumberKind::kCharacter: {
         auto type = BitsType::MakeU8();
         ConstexprEvaluator evaluator(ctx, type.get());
-        node->AcceptExpr(&evaluator);
-        XLS_RETURN_IF_ERROR(evaluator.status());
+        XLS_RETURN_IF_ERROR(node->AcceptExpr(&evaluator));
         ctx->type_info()->SetItem(node, *type);
         return type;
       }
@@ -431,8 +429,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
   }
 
   ConstexprEvaluator evaluator(ctx, lhs.get());
-  node->AcceptExpr(&evaluator);
-  XLS_RETURN_IF_ERROR(evaluator.status());
+  XLS_RETURN_IF_ERROR(node->AcceptExpr(&evaluator));
   return lhs;
 }
 
@@ -903,8 +900,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
       // Since we set the member type here, ConstexprEvaluation in Deduce()
       // won't occur, so we do it, also, here.
       ConstexprEvaluator evaluator(ctx, &element_type);
-      member->AcceptExpr(&evaluator);
-      XLS_RETURN_IF_ERROR(evaluator.status());
+      XLS_RETURN_IF_ERROR(member->AcceptExpr(&evaluator));
     }
   }
 
@@ -1144,7 +1140,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
     }
     ctx->type_info()->SetItem(start, *resolved_start_type);
     ConstexprEvaluator evaluator(ctx, resolved_start_type.get());
-    start_number->AcceptExpr(&evaluator);
+    XLS_RETURN_IF_ERROR(start_number->AcceptExpr(&evaluator));
   } else {
     // Aside from a bare literal (with no type) we should be able to deduce the
     // start expression's type.
@@ -1278,7 +1274,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
 
   ConstexprEvaluator evaluator(ctx, nullptr);
   if (slice->start() != nullptr) {
-    slice->start()->AcceptExpr(&evaluator);
+    XLS_RETURN_IF_ERROR(slice->start()->AcceptExpr(&evaluator));
     if (should_deduce(slice->start())) {
       XLS_RETURN_IF_ERROR(Deduce(slice->start(), ctx).status());
     } else {
@@ -1291,7 +1287,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
       TryResolveBound(slice, slice->start(), "start", s32.get(), env, ctx));
 
   if (slice->limit() != nullptr) {
-    slice->limit()->AcceptExpr(&evaluator);
+    XLS_RETURN_IF_ERROR(slice->limit()->AcceptExpr(&evaluator));
     if (should_deduce(slice->limit())) {
       XLS_RETURN_IF_ERROR(Deduce(slice->limit(), ctx).status());
     } else {
@@ -2637,8 +2633,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
 
   if (const Expr* expr = dynamic_cast<const Expr*>(node); expr != nullptr) {
     ConstexprEvaluator evaluator(ctx, type.get());
-    expr->AcceptExpr(&evaluator);
-    XLS_RETURN_IF_ERROR(evaluator.status());
+    XLS_RETURN_IF_ERROR(expr->AcceptExpr(&evaluator));
   }
 
   return type;

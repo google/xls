@@ -32,43 +32,63 @@ namespace {
 // NameRef are populated, e.g., `Number` isn't populated.
 class NameRefCollector : public ExprVisitor {
  public:
-  void HandleArray(const Array* expr) override {
+  absl::Status HandleArray(const Array* expr) override {
     for (const auto* member : expr->members()) {
-      member->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
     }
+    return absl::OkStatus();
   }
-  void HandleAttr(const Attr* expr) override { expr->lhs()->AcceptExpr(this); }
-  void HandleBinop(const Binop* expr) override {
-    expr->lhs()->AcceptExpr(this);
-    expr->rhs()->AcceptExpr(this);
+  absl::Status HandleAttr(const Attr* expr) override {
+    XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleCast(const Cast* expr) override { expr->expr()->AcceptExpr(this); }
-  void HandleChannelDecl(const ChannelDecl* expr) override {}
-  void HandleColonRef(const ColonRef* expr) override {}
-  void HandleConstRef(const ConstRef* expr) override {
-    expr->GetConstantDef()->value()->AcceptExpr(this);
+  absl::Status HandleBinop(const Binop* expr) override {
+    XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleFor(const For* expr) override {
-    expr->init()->AcceptExpr(this);
-    expr->body()->AcceptExpr(this);
+  absl::Status HandleCast(const Cast* expr) override {
+    XLS_RETURN_IF_ERROR(expr->expr()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleFormatMacro(const FormatMacro* expr) override {}
-  void HandleIndex(const Index* expr) override {
-    expr->lhs()->AcceptExpr(this);
+  absl::Status HandleChannelDecl(const ChannelDecl* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleColonRef(const ColonRef* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleConstRef(const ConstRef* expr) override {
+    XLS_RETURN_IF_ERROR(expr->GetConstantDef()->value()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
+  absl::Status HandleFor(const For* expr) override {
+    XLS_RETURN_IF_ERROR(expr->init()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
+  absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleIndex(const Index* expr) override {
+    XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     if (std::holds_alternative<Expr*>(expr->rhs())) {
-      std::get<Expr*>(expr->rhs())->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(std::get<Expr*>(expr->rhs())->AcceptExpr(this));
     }
     // No NameRefs in slice RHSes.
+    return absl::OkStatus();
   }
-  void HandleInvocation(const Invocation* expr) override {
+  absl::Status HandleInvocation(const Invocation* expr) override {
     for (const auto* arg : expr->args()) {
-      arg->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
     }
+    return absl::OkStatus();
   }
-  void HandleJoin(const Join* expr) override {}
-  void HandleLet(const Let* expr) override {
-    expr->rhs()->AcceptExpr(this);
-    expr->body()->AcceptExpr(this);
+  absl::Status HandleJoin(const Join* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleLet(const Let* expr) override {
+    XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
 
     std::vector<NameDefTree::Leaf> leaves = expr->name_def_tree()->Flatten();
     for (const auto& leaf : leaves) {
@@ -76,53 +96,73 @@ class NameRefCollector : public ExprVisitor {
         name_defs_.insert(std::get<NameDef*>(leaf));
       }
     }
+    return absl::OkStatus();
   }
-  void HandleMatch(const Match* expr) override {
-    expr->matched()->AcceptExpr(this);
+  absl::Status HandleMatch(const Match* expr) override {
+    XLS_RETURN_IF_ERROR(expr->matched()->AcceptExpr(this));
     for (const MatchArm* arm : expr->arms()) {
-      arm->expr()->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(arm->expr()->AcceptExpr(this));
     }
+    return absl::OkStatus();
   }
-  void HandleNameRef(const NameRef* expr) override {
+  absl::Status HandleNameRef(const NameRef* expr) override {
     name_refs_.push_back(expr);
+    return absl::OkStatus();
   }
-  void HandleNumber(const Number* expr) override {}
-  void HandleRecv(const Recv* expr) override {}
-  void HandleRecvIf(const RecvIf* expr) override {
-    expr->condition()->AcceptExpr(this);
+  absl::Status HandleNumber(const Number* expr) override {
+    return absl::OkStatus();
   }
-  void HandleSend(const Send* expr) override {
-    expr->payload()->AcceptExpr(this);
+  absl::Status HandleRecv(const Recv* expr) override {
+    return absl::OkStatus();
   }
-  void HandleSendIf(const SendIf* expr) override {
-    expr->condition()->AcceptExpr(this);
-    expr->payload()->AcceptExpr(this);
+  absl::Status HandleRecvIf(const RecvIf* expr) override {
+    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleSpawn(const Spawn* expr) override {}
-  void HandleString(const String* expr) override {}
-  void HandleSplatStructInstance(const SplatStructInstance* expr) override {
+  absl::Status HandleSend(const Send* expr) override {
+    XLS_RETURN_IF_ERROR(expr->payload()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
+  absl::Status HandleSendIf(const SendIf* expr) override {
+    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->payload()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
+  absl::Status HandleSpawn(const Spawn* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleString(const String* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* expr) override {
     for (const auto& [name, member_expr] : expr->members()) {
-      member_expr->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(member_expr->AcceptExpr(this));
     }
-    expr->splatted()->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(expr->splatted()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleStructInstance(const StructInstance* expr) override {
+  absl::Status HandleStructInstance(const StructInstance* expr) override {
     for (const auto& [name, member_expr] : expr->GetUnorderedMembers()) {
-      member_expr->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(member_expr->AcceptExpr(this));
     }
+    return absl::OkStatus();
   }
-  void HandleTernary(const Ternary* expr) override {
-    expr->test()->AcceptExpr(this);
-    expr->consequent()->AcceptExpr(this);
-    expr->alternate()->AcceptExpr(this);
+  absl::Status HandleTernary(const Ternary* expr) override {
+    XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->alternate()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleUnop(const Unop* expr) override {
-    expr->operand()->AcceptExpr(this);
+  absl::Status HandleUnop(const Unop* expr) override {
+    XLS_RETURN_IF_ERROR(expr->operand()->AcceptExpr(this));
+    return absl::OkStatus();
   }
-  void HandleXlsTuple(const XlsTuple* expr) override {
+  absl::Status HandleXlsTuple(const XlsTuple* expr) override {
     for (const Expr* member : expr->members()) {
-      member->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
     }
+    return absl::OkStatus();
   }
 
   std::vector<const NameRef*> outside_name_refs() {
@@ -173,19 +213,21 @@ bool ConstexprEvaluator::IsConstExpr(const Expr* expr) {
   return ctx_->type_info()->GetConstExpr(expr).has_value();
 }
 
-void ConstexprEvaluator::HandleAttr(const Attr* expr) {
+absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
   if (IsConstExpr(expr->lhs())) {
-    status_ = InterpretExpr(expr);
+    XLS_RETURN_IF_ERROR(InterpretExpr(expr));
   }
+
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleArray(const Array* expr) {
+absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     absl::optional<InterpValue> maybe_value =
         ctx_->type_info()->GetConstExpr(member);
     if (!maybe_value.has_value()) {
-      return;
+      return absl::OkStatus();
     }
 
     values.push_back(maybe_value.value());
@@ -194,18 +236,16 @@ void ConstexprEvaluator::HandleArray(const Array* expr) {
   if (concrete_type_ != nullptr) {
     auto* array_type = dynamic_cast<const ArrayType*>(concrete_type_);
     if (array_type == nullptr) {
-      status_ = absl::InternalError(
+      return absl::InternalError(
           absl::StrCat(expr->span().ToString(), " : ",
                        "Array ConcreteType was not an ArrayType!"));
-      return;
     }
 
     ConcreteTypeDim size = array_type->size();
     absl::StatusOr<int64_t> int_size_or = size.GetAsInt64();
     if (!int_size_or.ok()) {
-      status_ = absl::InternalError(absl::StrCat(
-          expr->span().ToString(), " : ", int_size_or.status().message()));
-      return;
+      return absl::InternalError(absl::StrCat(expr->span().ToString(), " : ",
+                                              int_size_or.status().message()));
     }
 
     int64_t int_size = int_size_or.value();
@@ -216,27 +256,25 @@ void ConstexprEvaluator::HandleArray(const Array* expr) {
   }
 
   // No need to fire up the interpreter. We can handle this one.
-  absl::StatusOr<InterpValue> array_or(InterpValue::MakeArray(values));
-  if (!array_or.ok()) {
-    status_ = array_or.status();
-    return;
-  }
-
-  ctx_->type_info()->NoteConstExpr(expr, array_or.value());
+  XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(values));
+  ctx_->type_info()->NoteConstExpr(expr, array);
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleBinop(const Binop* expr) {
+absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
   if (IsConstExpr(expr->lhs()) && IsConstExpr(expr->rhs())) {
-    status_ = InterpretExpr(expr);
+    XLS_RETURN_IF_ERROR(InterpretExpr(expr));
   }
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleCast(const Cast* expr) {
+absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
   if (IsConstExpr(expr->expr())) {
-    status_ = InterpretExpr(expr);
+    XLS_RETURN_IF_ERROR(InterpretExpr(expr));
   }
+  return absl::OkStatus();
 }
 
 // Creates an InterpValue for the described channel or array of channels.
@@ -262,86 +300,68 @@ absl::StatusOr<InterpValue> CreateChannelValue(
 
 // While a channel's *contents* aren't constexpr, the existence of the channel
 // itself is.
-void ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
+absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
   // Keep in mind that channels come in tuples, so peel out the first element.
   absl::optional<ConcreteType*> maybe_decl_type =
       ctx_->type_info()->GetItem(expr);
   if (!maybe_decl_type.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrFormat("Could not find type for expr \"%s\" @ %s",
                         expr->ToString(), expr->span().ToString()));
-    return;
   }
 
   auto* tuple_type = dynamic_cast<TupleType*>(maybe_decl_type.value());
   if (tuple_type == nullptr) {
-    status_ = TypeInferenceErrorStatus(expr->span(), maybe_decl_type.value(),
-                                       "Channel decl did not have tuple type:");
-
-    return;
+    return TypeInferenceErrorStatus(expr->span(), maybe_decl_type.value(),
+                                    "Channel decl did not have tuple type:");
   }
 
   // Verify that the channel tuple has exactly two elements; just yank one out
   // for channel [array] creation (they both point to the same object).
   if (tuple_type->size() != 2) {
-    status_ = TypeInferenceErrorStatus(
+    return TypeInferenceErrorStatus(
         expr->span(), tuple_type, "ChannelDecl type was a two-element tuple.");
-    return;
   }
 
   absl::StatusOr<InterpValue> channels =
       CreateChannelValue(&tuple_type->GetMemberType(0));
   ctx_->type_info()->NoteConstExpr(
       expr, InterpValue::MakeTuple({channels.value(), channels.value()}));
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
+absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   TypeInfo* type_info = ctx_->type_info();
-  absl::StatusOr<absl::variant<Module*, EnumDef*>> subject_or =
-      ResolveColonRefSubject(ctx_->import_data(), type_info, expr);
-  if (!subject_or.ok()) {
-    status_ = subject_or.status();
-    return;
-  }
+  XLS_ASSIGN_OR_RETURN(
+      auto subject,
+      ResolveColonRefSubject(ctx_->import_data(), type_info, expr));
 
-  auto subject = subject_or.value();
   if (absl::holds_alternative<EnumDef*>(subject)) {
     // LHS is an EnumDef! Extract the value of the attr being referenced.
     EnumDef* enum_def = absl::get<EnumDef*>(subject);
-    absl::StatusOr<Expr*> member_value_expr_or =
-        enum_def->GetValue(expr->attr());
-    if (!member_value_expr_or.ok()) {
-      status_ = member_value_expr_or.status();
-      return;
-    }
+    XLS_ASSIGN_OR_RETURN(Expr * member_value_expr,
+                         enum_def->GetValue(expr->attr()));
 
     // Since enum defs can't [currently] be parameterized, this is safe.
-    absl::StatusOr<TypeInfo*> type_info_or =
-        ctx_->import_data()->GetRootTypeInfoForNode(enum_def);
-    if (!type_info_or.ok()) {
-      status_ = type_info_or.status();
-      return;
-    }
-    type_info = type_info_or.value();
+    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                         ctx_->import_data()->GetRootTypeInfoForNode(enum_def));
 
-    Expr* member_value_expr = member_value_expr_or.value();
     absl::optional<ConcreteType*> maybe_concrete_type =
         type_info->GetItem(enum_def);
     if (!maybe_concrete_type.has_value()) {
-      status_ = absl::InternalError(absl::StrCat(
+      return absl::InternalError(absl::StrCat(
           "Could not find concrete type for EnumDef: ", enum_def->ToString()));
-      return;
     }
 
     absl::optional<InterpValue> maybe_final_value =
         type_info->GetConstExpr(member_value_expr);
     if (!maybe_final_value.has_value()) {
-      status_ = absl::InternalError(absl::StrCat(
-          "Failed to constexpr evaluate: ", member_value_expr->ToString()));
+      return absl::InternalError(absl::StrCat("Failed to constexpr evaluate: ",
+                                              member_value_expr->ToString()));
     }
     ctx_->type_info()->NoteConstExpr(expr, maybe_final_value.value());
-    return;
+    return absl::OkStatus();
   }
 
   // Ok! The subject is a module. The only case we care about here is if the
@@ -350,50 +370,42 @@ void ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   absl::optional<ModuleMember*> maybe_member =
       module->FindMemberWithName(expr->attr());
   if (!maybe_member.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrFormat("\"%s\" is not a member of module \"%s\".",
                         expr->attr(), module->name()));
-    return;
   }
 
   if (!absl::holds_alternative<ConstantDef*>(*maybe_member.value())) {
     XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
                 << "\" is not constexpr evaluatable.";
-    return;
+    return absl::OkStatus();
   }
 
-  absl::StatusOr<TypeInfo*> type_info_or =
-      ctx_->import_data()->GetRootTypeInfo(module);
-  if (!type_info_or.ok()) {
-    status_ = absl::InternalError(absl::StrCat(
-        "Could not find type info for module \"", module->name(), "\"."));
-    return;
-  }
-  type_info = type_info_or.value();
+  XLS_ASSIGN_OR_RETURN(type_info, ctx_->import_data()->GetRootTypeInfo(module));
 
   ConstantDef* constant_def = absl::get<ConstantDef*>(*maybe_member.value());
   absl::optional<InterpValue> maybe_value =
       type_info->GetConstExpr(constant_def->value());
   if (!maybe_value.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not find constexpr value for ConstantDef \"",
                      constant_def->ToString(), "\"."));
-    return;
   }
 
   ctx_->type_info()->NoteConstExpr(expr, maybe_value.value());
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
+absl::Status ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {
   return HandleNameRef(expr);
 }
 
-void ConstexprEvaluator::HandleFor(const For* expr) {
+absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
   // A `for` loop evaluates constexpr if its init and enumeration values as
   // well as any external NameRefs are constexpr.
   XLS_VLOG(3) << "ConstexprEvaluator::HandleFor: " << expr->ToString();
   if (!IsConstExpr(expr->init()) || !IsConstExpr(expr->iterable())) {
-    return;
+    return absl::OkStatus();
   }
 
   // Since a `for` loop can refer to vars outside the loop body itself, we need
@@ -407,27 +419,26 @@ void ConstexprEvaluator::HandleFor(const For* expr) {
   }
 
   NameRefCollector collector;
-  expr->body()->AcceptExpr(&collector);
+  XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(&collector));
   for (const NameRef* name_ref : collector.outside_name_refs()) {
     // We can't bind to a BuiltinNameDef, so this std::get is safe.
     if (!IsConstExpr(name_ref) &&
         !bound_defs.contains(std::get<NameDef*>(name_ref->name_def()))) {
-      return;
+      return absl::OkStatus();
     }
   }
 
   // We don't [yet] have a static assert fn, meaning that we don't want to catch
   // runtime errors here. If we detect that a program has failed (due to
   // execution of a `fail!` or unmatched `match`, then just assume we're ok.
-  status_ = InterpretExpr(expr, bound_defs);
-  if (!status_.ok()) {
-    if (absl::StartsWith(status_.message(), "FailureError")) {
-      status_ = absl::OkStatus();
-    }
+  absl::Status status = InterpretExpr(expr, bound_defs);
+  if (!status.ok() && !absl::StartsWith(status.message(), "FailureError")) {
+    return status;
   }
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleIndex(const Index* expr) {
+absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   bool rhs_is_constexpr;
   if (absl::holds_alternative<Expr*>(expr->rhs())) {
@@ -442,11 +453,13 @@ void ConstexprEvaluator::HandleIndex(const Index* expr) {
   }
 
   if (IsConstExpr(expr->lhs()) && rhs_is_constexpr) {
-    status_ = InterpretExpr(expr);
+    return InterpretExpr(expr);
   }
+
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
+absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   // Map "invocations" are special - only the first (of two) args must be
   // constexpr (the second must be a fn to apply).
   auto* callee_name_ref = dynamic_cast<NameRef*>(expr->callee());
@@ -454,13 +467,13 @@ void ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
       callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
   if (callee_is_map) {
     if (!IsConstExpr(expr->args()[0])) {
-      return;
+      return absl::OkStatus();
     }
   } else {
     // A regular invocation is constexpr iff its args are constexpr.
     for (const auto* arg : expr->args()) {
       if (!IsConstExpr(arg)) {
-        return;
+        return absl::OkStatus();
       }
     }
   }
@@ -468,35 +481,36 @@ void ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   // We don't [yet] have a static assert fn, meaning that we don't want to catch
   // runtime errors here. If we detect that a program has failed (due to
   // execution of a `fail!` or unmatched `match`, then just assume we're ok.
-  status_ = InterpretExpr(expr);
-  if (!status_.ok()) {
-    if (absl::StartsWith(status_.message(), "FailureError")) {
-      status_ = absl::OkStatus();
-    }
+  absl::Status status = InterpretExpr(expr);
+  if (!status.ok() && !absl::StartsWith(status.message(), "FailureError")) {
+    return status;
   }
+
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleMatch(const Match* expr) {
+absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {
   if (!IsConstExpr(expr->matched())) {
-    return;
+    return absl::OkStatus();
   }
 
   for (const auto* arm : expr->arms()) {
     if (!IsConstExpr(arm->expr())) {
-      return;
+      return absl::OkStatus();
     }
   }
 
-  status_ = InterpretExpr(expr);
+  return InterpretExpr(expr);
 }
 
-void ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
+absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
   absl::optional<InterpValue> constexpr_value =
       ctx_->type_info()->GetConstExpr(ToAstNode(expr->name_def()));
 
   if (constexpr_value.has_value()) {
     ctx_->type_info()->NoteConstExpr(expr, constexpr_value.value());
   }
+  return absl::OkStatus();
 }
 
 // Evaluates a Number AST node to an InterpValue.
@@ -516,7 +530,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
   return InterpValue::MakeBits(tag, std::move(bits));
 }
 
-void ConstexprEvaluator::HandleNumber(const Number* expr) {
+absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
   // Numbers should always be [constexpr] evaluatable.
   absl::flat_hash_map<std::string, InterpValue> env;
   if (!ctx_->fn_stack().empty()) {
@@ -533,13 +547,7 @@ void ConstexprEvaluator::HandleNumber(const Number* expr) {
     type_ptr = ctx_->type_info()->GetItem(expr->type_annotation()).value();
     const BitsType* bt = down_cast<const BitsType*>(type_ptr);
     if (bt->size().IsParametric()) {
-      absl::StatusOr<std::unique_ptr<BitsType>> temp_type_or =
-          InstantiateParametricNumberType(env, bt);
-      if (!temp_type_or.ok()) {
-        status_ = temp_type_or.status();
-        return;
-      }
-      temp_type = std::move(temp_type_or.value());
+      XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(env, bt));
       type_ptr = temp_type.get();
     }
   } else if (concrete_type_ != nullptr) {
@@ -557,44 +565,44 @@ void ConstexprEvaluator::HandleNumber(const Number* expr) {
     type_ptr = temp_type.get();
   }
 
-  absl::StatusOr<InterpValue> value = EvaluateNumber(expr, type_ptr);
-  status_ = value.status();
-  if (value.ok()) {
-    ctx_->type_info()->NoteConstExpr(expr, value.value());
-  }
+  XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(expr, type_ptr));
+  ctx_->type_info()->NoteConstExpr(expr, value);
+
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleSplatStructInstance(
+absl::Status ConstexprEvaluator::HandleSplatStructInstance(
     const SplatStructInstance* expr) {
   // A struct instance is constexpr iff all its members and the basis struct are
   // constexpr.
   if (!IsConstExpr(expr->splatted())) {
-    return;
+    return absl::OkStatus();
   }
 
   for (const auto& [k, v] : expr->members()) {
     if (!IsConstExpr(v)) {
-      return;
+      return absl::OkStatus();
     }
   }
-  status_ = InterpretExpr(expr);
+  return InterpretExpr(expr);
 }
 
-void ConstexprEvaluator::HandleStructInstance(const StructInstance* expr) {
+absl::Status ConstexprEvaluator::HandleStructInstance(
+    const StructInstance* expr) {
   // A struct instance is constexpr iff all its members are constexpr.
   for (const auto& [k, v] : expr->GetUnorderedMembers()) {
     if (!IsConstExpr(v)) {
-      return;
+      return absl::OkStatus();
     }
   }
-  status_ = InterpretExpr(expr);
+  return InterpretExpr(expr);
 }
 
-void ConstexprEvaluator::HandleTernary(const Ternary* expr) {
+absl::Status ConstexprEvaluator::HandleTernary(const Ternary* expr) {
   // Simple enough that we don't need to invoke the interpreter.
   if (!IsConstExpr(expr->test()) || !IsConstExpr(expr->consequent()) ||
       !IsConstExpr(expr->alternate())) {
-    return;
+    return absl::OkStatus();
   }
 
   TypeInfo* type_info = ctx_->type_info();
@@ -606,23 +614,25 @@ void ConstexprEvaluator::HandleTernary(const Ternary* expr) {
     type_info->NoteConstExpr(
         expr, type_info->GetConstExpr(expr->alternate()).value());
   }
+
+  return absl::OkStatus();
 }
 
-void ConstexprEvaluator::HandleUnop(const Unop* expr) {
+absl::Status ConstexprEvaluator::HandleUnop(const Unop* expr) {
   if (!IsConstExpr(expr->operand())) {
-    return;
+    return absl::OkStatus();
   }
 
-  status_ = InterpretExpr(expr);
+  return InterpretExpr(expr);
 }
 
-void ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
+absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     absl::optional<InterpValue> maybe_value =
         ctx_->type_info()->GetConstExpr(member);
     if (!maybe_value.has_value()) {
-      return;
+      return absl::OkStatus();
     }
 
     values.push_back(maybe_value.value());
@@ -630,6 +640,7 @@ void ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
 
   // No need to fire up the interpreter. We can handle this one.
   ctx_->type_info()->NoteConstExpr(expr, InterpValue::MakeTuple(values));
+  return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::InterpretExpr(

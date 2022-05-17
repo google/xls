@@ -485,8 +485,7 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
     }
 
     ConstexprEvaluator evaluator(parent_ctx, value_type.get());
-    value->AcceptExpr(&evaluator);
-    XLS_RETURN_IF_ERROR(evaluator.status());
+    XLS_RETURN_IF_ERROR(value->AcceptExpr(&evaluator));
     auto constexpr_value = parent_ctx->type_info()->GetConstExpr(value);
     if (constexpr_value.has_value()) {
       explicit_bindings.insert(

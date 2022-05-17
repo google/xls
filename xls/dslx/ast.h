@@ -628,33 +628,34 @@ class ExprVisitor {
  public:
   virtual ~ExprVisitor() = default;
 
-  virtual void HandleArray(const Array* expr) = 0;
-  virtual void HandleAttr(const Attr* expr) = 0;
-  virtual void HandleBinop(const Binop* expr) = 0;
-  virtual void HandleCast(const Cast* expr) = 0;
-  virtual void HandleChannelDecl(const ChannelDecl* expr) = 0;
-  virtual void HandleColonRef(const ColonRef* expr) = 0;
-  virtual void HandleConstRef(const ConstRef* expr) = 0;
-  virtual void HandleFor(const For* expr) = 0;
-  virtual void HandleFormatMacro(const FormatMacro* expr) = 0;
-  virtual void HandleIndex(const Index* expr) = 0;
-  virtual void HandleInvocation(const Invocation* expr) = 0;
-  virtual void HandleJoin(const Join* expr) = 0;
-  virtual void HandleLet(const Let* expr) = 0;
-  virtual void HandleMatch(const Match* expr) = 0;
-  virtual void HandleNameRef(const NameRef* expr) = 0;
-  virtual void HandleNumber(const Number* expr) = 0;
-  virtual void HandleRecv(const Recv* expr) = 0;
-  virtual void HandleRecvIf(const RecvIf* expr) = 0;
-  virtual void HandleSend(const Send* expr) = 0;
-  virtual void HandleSendIf(const SendIf* expr) = 0;
-  virtual void HandleSpawn(const Spawn* expr) = 0;
-  virtual void HandleString(const String* expr) = 0;
-  virtual void HandleStructInstance(const StructInstance* expr) = 0;
-  virtual void HandleSplatStructInstance(const SplatStructInstance* expr) = 0;
-  virtual void HandleTernary(const Ternary* expr) = 0;
-  virtual void HandleUnop(const Unop* expr) = 0;
-  virtual void HandleXlsTuple(const XlsTuple* expr) = 0;
+  virtual absl::Status HandleArray(const Array* expr) = 0;
+  virtual absl::Status HandleAttr(const Attr* expr) = 0;
+  virtual absl::Status HandleBinop(const Binop* expr) = 0;
+  virtual absl::Status HandleCast(const Cast* expr) = 0;
+  virtual absl::Status HandleChannelDecl(const ChannelDecl* expr) = 0;
+  virtual absl::Status HandleColonRef(const ColonRef* expr) = 0;
+  virtual absl::Status HandleConstRef(const ConstRef* expr) = 0;
+  virtual absl::Status HandleFor(const For* expr) = 0;
+  virtual absl::Status HandleFormatMacro(const FormatMacro* expr) = 0;
+  virtual absl::Status HandleIndex(const Index* expr) = 0;
+  virtual absl::Status HandleInvocation(const Invocation* expr) = 0;
+  virtual absl::Status HandleJoin(const Join* expr) = 0;
+  virtual absl::Status HandleLet(const Let* expr) = 0;
+  virtual absl::Status HandleMatch(const Match* expr) = 0;
+  virtual absl::Status HandleNameRef(const NameRef* expr) = 0;
+  virtual absl::Status HandleNumber(const Number* expr) = 0;
+  virtual absl::Status HandleRecv(const Recv* expr) = 0;
+  virtual absl::Status HandleRecvIf(const RecvIf* expr) = 0;
+  virtual absl::Status HandleSend(const Send* expr) = 0;
+  virtual absl::Status HandleSendIf(const SendIf* expr) = 0;
+  virtual absl::Status HandleSpawn(const Spawn* expr) = 0;
+  virtual absl::Status HandleString(const String* expr) = 0;
+  virtual absl::Status HandleStructInstance(const StructInstance* expr) = 0;
+  virtual absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* expr) = 0;
+  virtual absl::Status HandleTernary(const Ternary* expr) = 0;
+  virtual absl::Status HandleUnop(const Unop* expr) = 0;
+  virtual absl::Status HandleXlsTuple(const XlsTuple* expr) = 0;
 };
 
 // Abstract base class for AST node that can appear in expression positions
@@ -668,7 +669,7 @@ class Expr : public AstNode {
   void set_span(const Span& span) { span_ = span; }
   absl::optional<Span> GetSpan() const override { return span_; }
 
-  virtual void AcceptExpr(ExprVisitor* v) const = 0;
+  virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
 
  private:
   Span span_;
@@ -687,7 +688,9 @@ class NameRef : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleNameRef(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleNameRef(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleNameRef(this);
+  }
 
   const std::string& identifier() const { return identifier_; }
 
@@ -733,7 +736,9 @@ class ConstRef : public NameRef {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleConstRef(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleConstRef(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleConstRef(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
 
@@ -766,7 +771,9 @@ class Number : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleNumber(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleNumber(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleNumber(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Number"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -820,7 +827,9 @@ class String : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleString(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleString(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleString(this);
+  }
   absl::string_view GetNodeTypeName() const override { return "String"; }
   std::string ToString() const override {
     // We need to re-insert the quote-escaping slash.
@@ -888,7 +897,9 @@ class Array : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleArray(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleArray(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleArray(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Array"; }
   std::string ToString() const override;
@@ -1021,7 +1032,9 @@ class ColonRef : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleColonRef(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleColonRef(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleColonRef(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "ColonRef"; }
   std::string ToString() const override {
@@ -1103,7 +1116,9 @@ class Unop : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleUnop(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleUnop(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleUnop(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Unop"; }
   std::string ToString() const override {
@@ -1185,7 +1200,9 @@ class Binop : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleBinop(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleBinop(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleBinop(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Binop"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1220,7 +1237,9 @@ class Ternary : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTernary(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleTernary(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleTernary(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Ternary"; }
   std::string ToString() const override;
@@ -1461,7 +1480,9 @@ class Match : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleMatch(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleMatch(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleMatch(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Match"; }
   std::string ToString() const override;
@@ -1489,7 +1510,9 @@ class Attr : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleAttr(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleAttr(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleAttr(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Attr"; }
   std::string ToString() const override {
@@ -1549,7 +1572,9 @@ class Invocation : public Instantiation {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleInvocation(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleInvocation(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleInvocation(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Invocation"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1581,7 +1606,9 @@ class Spawn : public Instantiation {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSpawn(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleSpawn(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleSpawn(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Spawn"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1610,7 +1637,9 @@ class FormatMacro : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleFormatMacro(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleFormatMacro(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleFormatMacro(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "FormatMacro"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1822,8 +1851,8 @@ class StructInstance : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleStructInstance(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override {
-    v->HandleStructInstance(this);
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleStructInstance(this);
   }
 
   absl::string_view GetNodeTypeName() const override {
@@ -1872,8 +1901,8 @@ class SplatStructInstance : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSplatStructInstance(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override {
-    v->HandleSplatStructInstance(this);
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleSplatStructInstance(this);
   }
 
   absl::string_view GetNodeTypeName() const override {
@@ -1953,7 +1982,9 @@ class Index : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleIndex(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleIndex(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleIndex(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Index"; }
   std::string ToString() const override;
@@ -1983,7 +2014,9 @@ class Recv : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleRecv(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleRecv(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleRecv(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Recv"; }
   std::string ToString() const override;
@@ -2012,7 +2045,9 @@ class RecvIf : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleRecvIf(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleRecvIf(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleRecvIf(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "RecvIf"; }
   std::string ToString() const override;
@@ -2044,7 +2079,9 @@ class Send : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSend(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleSend(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleSend(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Send"; }
   std::string ToString() const override;
@@ -2075,7 +2112,9 @@ class SendIf : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSendIf(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleSendIf(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleSendIf(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "SendIf"; }
   std::string ToString() const override;
@@ -2108,7 +2147,9 @@ class Join : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleJoin(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleJoin(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleJoin(this);
+  }
   absl::string_view GetNodeTypeName() const override { return "Join"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -2238,7 +2279,9 @@ class XlsTuple : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleXlsTuple(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleXlsTuple(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleXlsTuple(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
@@ -2266,7 +2309,9 @@ class For : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleFor(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleFor(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleFor(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "For"; }
   std::string ToString() const override;
@@ -2315,7 +2360,9 @@ class Cast : public Expr {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleCast(this);
   }
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleCast(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleCast(this);
+  }
 
   absl::string_view GetNodeTypeName() const override { return "Cast"; }
   std::string ToString() const override {
@@ -2492,7 +2539,9 @@ class Let : public Expr {
 
   AstNodeKind kind() const { return AstNodeKind::kLet; }
 
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleLet(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleLet(this);
+  }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleLet(this);
   }
@@ -2541,7 +2590,9 @@ class ChannelDecl : public Expr {
 
   AstNodeKind kind() const { return AstNodeKind::kChannelDecl; }
 
-  void AcceptExpr(ExprVisitor* v) const override { v->HandleChannelDecl(this); }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleChannelDecl(this);
+  }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleChannelDecl(this);
   }

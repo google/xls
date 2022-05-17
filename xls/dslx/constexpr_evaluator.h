@@ -29,8 +29,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   static absl::Status Evaluate(DeduceCtx* ctx, const Expr* expr,
                                const ConcreteType* concrete_type = nullptr) {
     ConstexprEvaluator evaluator(ctx, concrete_type);
-    expr->AcceptExpr(&evaluator);
-    return evaluator.status();
+    return expr->AcceptExpr(&evaluator);
   }
 
   // A concrete type is only necessary when:
@@ -45,35 +44,50 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
       : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
 
-  void HandleArray(const Array* expr) override;
-  void HandleAttr(const Attr* expr) override;
-  void HandleBinop(const Binop* expr) override;
-  void HandleCast(const Cast* expr) override;
-  void HandleChannelDecl(const ChannelDecl* expr) override;
-  void HandleColonRef(const ColonRef* expr) override;
-  void HandleConstRef(const ConstRef* expr) override;
-  void HandleFor(const For* expr) override;
-  void HandleFormatMacro(const FormatMacro* expr) override {}
-  void HandleIndex(const Index* expr) override;
-  void HandleInvocation(const Invocation* expr) override;
-  void HandleJoin(const Join* expr) override {}
-  void HandleLet(const Let* expr) override {}
-  void HandleMatch(const Match* expr) override;
-  void HandleNameRef(const NameRef* expr) override;
-  void HandleNumber(const Number* expr) override;
-  void HandleRecv(const Recv* expr) override {}
-  void HandleRecvIf(const RecvIf* expr) override {}
-  void HandleSend(const Send* expr) override {}
-  void HandleSendIf(const SendIf* expr) override {}
-  void HandleSpawn(const Spawn* expr) override {}
-  void HandleString(const String* expr) override {}
-  void HandleStructInstance(const StructInstance* expr) override;
-  void HandleSplatStructInstance(const SplatStructInstance* expr) override;
-  void HandleTernary(const Ternary* expr) override;
-  void HandleUnop(const Unop* expr) override;
-  void HandleXlsTuple(const XlsTuple* expr) override;
-
-  absl::Status status() { return status_; }
+  absl::Status HandleArray(const Array* expr) override;
+  absl::Status HandleAttr(const Attr* expr) override;
+  absl::Status HandleBinop(const Binop* expr) override;
+  absl::Status HandleCast(const Cast* expr) override;
+  absl::Status HandleChannelDecl(const ChannelDecl* expr) override;
+  absl::Status HandleColonRef(const ColonRef* expr) override;
+  absl::Status HandleConstRef(const ConstRef* expr) override;
+  absl::Status HandleFor(const For* expr) override;
+  absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleIndex(const Index* expr) override;
+  absl::Status HandleInvocation(const Invocation* expr) override;
+  absl::Status HandleJoin(const Join* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleLet(const Let* expr) override { return absl::OkStatus(); }
+  absl::Status HandleMatch(const Match* expr) override;
+  absl::Status HandleNameRef(const NameRef* expr) override;
+  absl::Status HandleNumber(const Number* expr) override;
+  absl::Status HandleRecv(const Recv* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleRecvIf(const RecvIf* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleSend(const Send* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleSendIf(const SendIf* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleSpawn(const Spawn* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleString(const String* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleStructInstance(const StructInstance* expr) override;
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* expr) override;
+  absl::Status HandleTernary(const Ternary* expr) override;
+  absl::Status HandleUnop(const Unop* expr) override;
+  absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
  private:
   bool IsConstExpr(const Expr* expr);
@@ -89,7 +103,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
 
   DeduceCtx* ctx_;
   const ConcreteType* concrete_type_;
-  absl::Status status_;
 };
 
 }  // namespace xls::dslx

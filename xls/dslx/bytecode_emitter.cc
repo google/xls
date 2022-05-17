@@ -67,11 +67,7 @@ BytecodeEmitter::EmitProcNext(
     emitter.namedef_to_slot_[name_def] = emitter.namedef_to_slot_.size();
   }
   XLS_RETURN_IF_ERROR(emitter.Init(f));
-  f->body()->AcceptExpr(&emitter);
-
-  if (!emitter.status_.ok()) {
-    return emitter.status_;
-  }
+  XLS_RETURN_IF_ERROR(f->body()->AcceptExpr(&emitter));
 
   return BytecodeFunction::Create(f->owner(), f, type_info,
                                   std::move(emitter.bytecode_));
@@ -207,148 +203,118 @@ BytecodeEmitter::EmitExpression(
         Bytecode::MakeStore(expr->span(), Bytecode::SlotIndex(slot_index)));
   }
 
-  expr->AcceptExpr(&emitter);
-  if (!emitter.status_.ok()) {
-    return emitter.status_;
-  }
+  XLS_RETURN_IF_ERROR(expr->AcceptExpr(&emitter));
 
   return BytecodeFunction::Create(expr->owner(), /*source_fn=*/nullptr,
                                   type_info, std::move(emitter.bytecode_));
 }
 
-void BytecodeEmitter::HandleArray(const Array* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleArray(const Array* node) {
   int num_members = node->members().size();
   for (auto* member : node->members()) {
-    member->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
   }
 
   // If we've got an ellipsis, then repeat the last element until we reach the
   // full array size.
   if (node->has_ellipsis()) {
-    absl::StatusOr<ArrayType*> array_type_or =
-        type_info_->GetItemAs<ArrayType>(node);
-    if (!array_type_or.ok()) {
-      status_ = array_type_or.status();
-      return;
-    }
-    const ConcreteTypeDim& dim = array_type_or.value()->size();
-    absl::StatusOr<int64_t> dim_value = dim.GetAsInt64();
-    if (!dim_value.ok()) {
-      status_ = dim_value.status();
-      return;
-    }
-    num_members = dim_value.value();
+    XLS_ASSIGN_OR_RETURN(ArrayType * array_type,
+                         type_info_->GetItemAs<ArrayType>(node));
+    const ConcreteTypeDim& dim = array_type->size();
+    XLS_ASSIGN_OR_RETURN(num_members, dim.GetAsInt64());
     int64_t remaining_members = num_members - node->members().size();
     for (int i = 0; i < remaining_members; i++) {
-      node->members().back()->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(node->members().back()->AcceptExpr(this));
     }
   }
 
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
                                Bytecode::NumElements(num_members)));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleAttr(const Attr* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
   // Will place a struct instance on the stack.
-  node->lhs()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 
   // Now we need the index of the attr NameRef in the struct def.
-  absl::StatusOr<StructType*> struct_type_or =
-      type_info_->GetItemAs<StructType>(node->lhs());
-  if (!struct_type_or.ok()) {
-    status_ = struct_type_or.status();
-    return;
-  }
-
-  absl::StatusOr<int64_t> member_index_or =
-      struct_type_or.value()->GetMemberIndex(node->attr()->identifier());
-  if (!member_index_or.ok()) {
-    status_ = member_index_or.status();
-    return;
-  }
+  XLS_ASSIGN_OR_RETURN(StructType * struct_type,
+                       type_info_->GetItemAs<StructType>(node->lhs()));
+  XLS_ASSIGN_OR_RETURN(int64_t member_index,
+                       struct_type->GetMemberIndex(node->attr()->identifier()));
 
   // This indexing literal needs to be unsigned since InterpValue::Index
   // requires an unsigned value.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                               InterpValue::MakeU64(member_index_or.value())));
+                               InterpValue::MakeU64(member_index)));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleBinop(const Binop* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  node->lhs()->AcceptExpr(this);
-  node->rhs()->AcceptExpr(this);
+absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
+  XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   switch (node->binop_kind()) {
     case BinopKind::kAdd:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAdd));
-      return;
+      break;
     case BinopKind::kAnd:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kAnd));
-      return;
+      break;
     case BinopKind::kConcat:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kConcat));
-      return;
+      break;
     case BinopKind::kDiv:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kDiv));
-      return;
+      break;
     case BinopKind::kEq:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kEq));
-      return;
+      break;
     case BinopKind::kGe:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kGe));
-      return;
+      break;
     case BinopKind::kGt:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kGt));
-      return;
+      break;
     case BinopKind::kLe:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLe));
-      return;
+      break;
     case BinopKind::kLogicalAnd:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLogicalAnd));
-      return;
+      break;
     case BinopKind::kLogicalOr:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLogicalOr));
-      return;
+      break;
     case BinopKind::kLt:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLt));
-      return;
+      break;
     case BinopKind::kMul:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kMul));
-      return;
+      break;
     case BinopKind::kNe:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNe));
-      return;
+      break;
     case BinopKind::kOr:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kOr));
-      return;
+      break;
     case BinopKind::kShl:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShl));
-      return;
+      break;
     case BinopKind::kShr:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kShr));
-      return;
+      break;
     case BinopKind::kSub:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSub));
-      return;
+      break;
     case BinopKind::kXor:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kXor));
-      return;
+      break;
     default:
-      status_ = absl::UnimplementedError(
+      return absl::UnimplementedError(
           absl::StrCat("Unimplemented binary operator: ",
                        BinopKindToString(node->binop_kind())));
   }
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,
@@ -403,29 +369,23 @@ absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
   return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleCast(const Cast* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  node->expr()->AcceptExpr(this);
+absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
+  XLS_RETURN_IF_ERROR(node->expr()->AcceptExpr(this));
 
   absl::optional<ConcreteType*> maybe_from = type_info_->GetItem(node->expr());
   if (!maybe_from.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not find type for cast \"from\" arg: ",
                      node->expr()->ToString()));
-    return;
   }
   ConcreteType* from = maybe_from.value();
 
   absl::optional<ConcreteType*> maybe_to =
       type_info_->GetItem(node->type_annotation());
   if (!maybe_to.has_value()) {
-    status_ = absl::InternalError(absl::StrCat(
+    return absl::InternalError(absl::StrCat(
         "Could not find concrete type for cast \"to\" type: ",
         node->type_annotation()->ToString(), " : ", node->span().ToString()));
-    return;
   }
   ConcreteType* to = maybe_to.value();
 
@@ -433,68 +393,65 @@ void BytecodeEmitter::HandleCast(const Cast* node) {
       from_array != nullptr) {
     BitsType* to_bits = dynamic_cast<BitsType*>(to);
     if (to_bits == nullptr) {
-      status_ = absl::InternalError(absl::StrCat(
+      return absl::InternalError(absl::StrCat(
           "The only valid array cast is to bits: ", node->ToString()));
     }
 
-    status_ = CastArrayToBits(node->span(), from_array, to_bits);
-    return;
+    return CastArrayToBits(node->span(), from_array, to_bits);
   }
 
   if (EnumType* from_enum = dynamic_cast<EnumType*>(from);
       from_enum != nullptr) {
     BitsType* to_bits = dynamic_cast<BitsType*>(to);
     if (to_bits == nullptr) {
-      status_ = absl::InternalError(absl::StrCat(
+      return absl::InternalError(absl::StrCat(
           "The only valid enum cast is to bits: ", node->ToString()));
     }
 
     bytecode_.push_back(
         Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
-    return;
+    return absl::OkStatus();
   }
 
   BitsType* from_bits = dynamic_cast<BitsType*>(from);
   if (from_bits == nullptr) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         "Only casts from arrays, enums, or bits are allowed.");
-    return;
   }
 
   if (ArrayType* to_array = dynamic_cast<ArrayType*>(to); to_array != nullptr) {
-    status_ = CastBitsToArray(node->span(), from_bits, to_array);
-    return;
+    return CastBitsToArray(node->span(), from_bits, to_array);
   }
 
   if (EnumType* to_enum = dynamic_cast<EnumType*>(to); to_enum != nullptr) {
     bytecode_.push_back(
         Bytecode(node->span(), Bytecode::Op::kCast, to_enum->CloneToUnique()));
-    return;
+    return absl::OkStatus();
   }
 
   BitsType* to_bits = dynamic_cast<BitsType*>(to);
   if (to_bits == nullptr) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         "Only casts to arrays, enums, or bits are allowed.");
-    return;
   }
 
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kCast, to_bits->CloneToUnique()));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
+absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
   // Channels are created as constexpr values during type deduction/constexpr
   // evaluation, since they're concrete values that need to be shared amongst
   // two actors.
   absl::optional<InterpValue> maybe_channel = type_info_->GetConstExpr(node);
   if (!maybe_channel.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not find value for channel (declared at ",
                      node->span().ToString(), ")."));
-    return;
   }
   Add(Bytecode::MakeLiteral(node->span(), maybe_channel.value()));
+  return absl::OkStatus();
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
@@ -546,17 +503,11 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
   return maybe_value.value();
 }
 
-void BytecodeEmitter::HandleColonRef(const ColonRef* node) {
-  if (!status_.ok()) {
-    return;
-  }
+absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
+  XLS_ASSIGN_OR_RETURN(InterpValue value, HandleColonRefInternal(node));
 
-  absl::StatusOr<InterpValue> value_or = HandleColonRefInternal(node);
-  if (!value_or.ok()) {
-    status_ = value_or.status();
-  }
-
-  Add(Bytecode::MakeLiteral(node->span(), value_or.value()));
+  Add(Bytecode::MakeLiteral(node->span(), value));
+  return absl::OkStatus();
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
@@ -578,11 +529,11 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
   return HandleColonRefToValue(module, node);
 }
 
-void BytecodeEmitter::HandleConstRef(const ConstRef* node) {
-  HandleNameRef(node);
+absl::Status BytecodeEmitter::HandleConstRef(const ConstRef* node) {
+  return HandleNameRef(node);
 }
 
-void BytecodeEmitter::HandleFor(const For* node) {
+absl::Status BytecodeEmitter::HandleFor(const For* node) {
   // Here's how a `for` loop is implemented, in some sort of pseudocode:
   //  - Initialize iterable & index
   //  - Initialize the accumulator
@@ -597,24 +548,21 @@ void BytecodeEmitter::HandleFor(const For* node) {
   absl::optional<ConcreteType*> maybe_iterable_type =
       type_info_->GetItem(node->iterable());
   if (!maybe_iterable_type.has_value()) {
-    status_ = absl::InternalError(
+    return absl::InternalError(
         absl::StrCat("Could not find concrete type for loop iterable: ",
                      node->iterable()->ToString()));
-    return;
   }
 
   ArrayType* array_type = dynamic_cast<ArrayType*>(maybe_iterable_type.value());
   if (array_type == nullptr) {
-    status_ = absl::InternalError(absl::StrCat(
-        "Iterable was not of array type: ", node->iterable()->ToString()));
-    return;
+    return absl::InternalError(absl::StrCat("Iterable was not of array type: ",
+                                            node->iterable()->ToString()));
   }
 
   ConcreteTypeDim iterable_size_dim = array_type->size();
   absl::StatusOr<int64_t> iterable_size_or = iterable_size_dim.GetAsInt64();
   if (!iterable_size_or.ok()) {
-    status_ = iterable_size_or.status();
-    return;
+    return iterable_size_or.status();
   }
   int64_t iterable_size = iterable_size_or.value();
 
@@ -635,7 +583,7 @@ void BytecodeEmitter::HandleFor(const For* node) {
   const NameDef* fake_name_def =
       reinterpret_cast<const NameDef*>(node->iterable());
   namedef_to_slot_[fake_name_def] = iterable_slot;
-  node->iterable()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->iterable()->AcceptExpr(this));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kStore,
                                Bytecode::SlotIndex(iterable_slot)));
 
@@ -648,7 +596,7 @@ void BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(index_slot)));
 
   // Evaluate the initial accumulator value & leave it on the stack.
-  node->init()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->init()->AcceptExpr(this));
 
   // Jump destination for the end-of-loop jump to start.
   int top_of_loop = bytecode_.size();
@@ -683,7 +631,7 @@ void BytecodeEmitter::HandleFor(const For* node) {
   DestructureLet(node->names());
 
   // Emit the loop body.
-  node->body()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->body()->AcceptExpr(this));
 
   // End of loop: increment the loop index and jump back to the beginning.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
@@ -703,19 +651,17 @@ void BytecodeEmitter::HandleFor(const For* node) {
   // Now we can finally know the relative jump amount for the top-of-loop jump.
   bytecode_.at(start_jump_idx)
       .PatchJumpTarget(bytecode_.size() - start_jump_idx - 1);
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
   for (auto* arg : node->args()) {
-    arg->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
   bytecode_.push_back(
       Bytecode(node->span(), Bytecode::Op::kTrace, node->format()));
+  return absl::OkStatus();
 }
 
 absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
@@ -727,8 +673,8 @@ absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
   return maybe_type.value()->GetTotalBitCount()->GetAsInt64();
 }
 
-void BytecodeEmitter::HandleIndex(const Index* node) {
-  node->lhs()->AcceptExpr(this);
+absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
+  XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 
   if (absl::holds_alternative<Slice*>(node->rhs())) {
     Slice* slice = absl::get<Slice*>(node->rhs());
@@ -740,27 +686,20 @@ void BytecodeEmitter::HandleIndex(const Index* node) {
         // the typechecker.
         start_width = 32;
       } else {
-        absl::StatusOr<int64_t> start_width_or =
-            GetValueWidth(type_info_, slice->limit());
-        if (!start_width_or.ok()) {
-          status_ = start_width_or.status();
-          return;
-        }
-        start_width = start_width_or.value();
+        XLS_ASSIGN_OR_RETURN(start_width,
+                             GetValueWidth(type_info_, slice->limit()));
       }
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
                                    InterpValue::MakeSBits(start_width, 0)));
     } else {
-      slice->start()->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(slice->start()->AcceptExpr(this));
     }
 
     if (slice->limit() == nullptr) {
       absl::optional<ConcreteType*> maybe_type =
           type_info_->GetItem(node->lhs());
       if (!maybe_type.has_value()) {
-        status_ =
-            absl::InternalError("Could not find concrete type for slice.");
-        return;
+        return absl::InternalError("Could not find concrete type for slice.");
       }
       ConcreteType* type = maybe_type.value();
       // These will never fail.
@@ -774,70 +713,59 @@ void BytecodeEmitter::HandleIndex(const Index* node) {
         // the typechecker.
         limit_width = 32;
       } else {
-        absl::StatusOr<int64_t> limit_width_or =
-            GetValueWidth(type_info_, slice->start());
-        if (!limit_width_or.ok()) {
-          status_ = limit_width_or.status();
-          return;
-        }
-        limit_width = limit_width_or.value();
+        XLS_ASSIGN_OR_RETURN(limit_width,
+                             GetValueWidth(type_info_, slice->start()));
       }
       bytecode_.push_back(
           Bytecode(node->span(), Bytecode::Op::kLiteral,
                    InterpValue::MakeSBits(limit_width, width_or.value())));
     } else {
-      slice->limit()->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(slice->limit()->AcceptExpr(this));
     }
     bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSlice));
-    return;
+    return absl::OkStatus();
   }
 
   if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
     WidthSlice* width_slice = absl::get<WidthSlice*>(node->rhs());
-    width_slice->start()->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(width_slice->start()->AcceptExpr(this));
 
     absl::optional<ConcreteType*> maybe_type =
         type_info_->GetItem(width_slice->width());
     if (!maybe_type.has_value()) {
-      status_ = absl::InternalError(absl::StrCat(
+      return absl::InternalError(absl::StrCat(
           "Could not find concrete type for slice width parameter \"",
           width_slice->width()->ToString(), "\"."));
-      return;
     }
 
     ConcreteType* type = maybe_type.value();
     BitsType* bits_type = dynamic_cast<BitsType*>(type);
     if (bits_type == nullptr) {
-      status_ = absl::InternalError(absl::StrCat(
+      return absl::InternalError(absl::StrCat(
           "Width slice type specifier isn't a BitsType: ", type->ToString()));
-      return;
     }
 
     bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kWidthSlice,
                                  type->CloneToUnique()));
-    return;
+    return absl::OkStatus();
   }
 
   // Otherwise, it's a regular [array or tuple] index op.
   Expr* expr = absl::get<Expr*>(node->rhs());
-  expr->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(expr->AcceptExpr(this));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleInvocation(const Invocation* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(node->callee());
       name_ref != nullptr) {
     if (name_ref->identifier() == "trace!") {
       if (node->args().size() != 1) {
-        status_ = absl::InternalError("`trace!` takes a single argument.");
-        return;
+        return absl::InternalError("`trace!` takes a single argument.");
       }
 
-      node->args().at(0)->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(node->args().at(0)->AcceptExpr(this));
 
       Bytecode::TraceData trace_data;
       trace_data.push_back(absl::StrCat("trace of ",
@@ -846,15 +774,15 @@ void BytecodeEmitter::HandleInvocation(const Invocation* node) {
       trace_data.push_back(FormatPreference::kDefault);
       bytecode_.push_back(
           Bytecode(node->span(), Bytecode::Op::kTrace, trace_data));
-      return;
+      return absl::OkStatus();
     }
   }
 
   for (auto* arg : node->args()) {
-    arg->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
   }
 
-  node->callee()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
 
   absl::optional<const SymbolicBindings*> maybe_callee_bindings =
       type_info_->GetInstantiationCalleeBindings(
@@ -866,6 +794,7 @@ void BytecodeEmitter::HandleInvocation(const Invocation* node) {
   }
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCall,
                                Bytecode::InvocationData{node, final_bindings}));
+  return absl::OkStatus();
 }
 
 absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
@@ -938,40 +867,21 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
   }
 }
 
-void BytecodeEmitter::HandleLet(const Let* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  node->rhs()->AcceptExpr(this);
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleLet(const Let* node) {
+  XLS_RETURN_IF_ERROR(node->rhs()->AcceptExpr(this));
   DestructureLet(node->name_def_tree());
-
-  node->body()->AcceptExpr(this);
+  return node->body()->AcceptExpr(this);
 }
 
-void BytecodeEmitter::HandleNameRef(const NameRef* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>> result_or =
-      HandleNameRefInternal(node);
-  if (!result_or.ok()) {
-    status_ = result_or.status();
-    return;
-  }
-
-  auto result = result_or.value();
+absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
+  XLS_ASSIGN_OR_RETURN(auto result, HandleNameRefInternal(node));
   if (absl::holds_alternative<InterpValue>(result)) {
     Add(Bytecode::MakeLiteral(node->span(), absl::get<InterpValue>(result)));
   } else {
     Add(Bytecode::MakeLoad(node->span(),
                            absl::get<Bytecode::SlotIndex>(result)));
   }
+  return absl::OkStatus();
 }
 
 absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
@@ -1020,18 +930,10 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
       "Could not find slot or binding for name: ", name_def->ToString()));
 }
 
-void BytecodeEmitter::HandleNumber(const Number* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  absl::StatusOr<InterpValue> value_or = HandleNumberInternal(node);
-  if (!value_or.ok()) {
-    status_ = value_or.status();
-    return;
-  }
-
-  Add(Bytecode::MakeLiteral(node->span(), value_or.value()));
+absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
+  XLS_ASSIGN_OR_RETURN(InterpValue value, HandleNumberInternal(node));
+  Add(Bytecode::MakeLiteral(node->span(), value));
+  return absl::OkStatus();
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
@@ -1063,57 +965,56 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
   return InterpValue::MakeBits(is_signed, bits);
 }
 
-void BytecodeEmitter::HandleRecv(const Recv* node) {
-  node->token()->AcceptExpr(this);
-  node->channel()->AcceptExpr(this);
+absl::Status BytecodeEmitter::HandleRecv(const Recv* node) {
+  XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   Add(Bytecode::MakeRecv(node->span()));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
+absl::Status BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
   // We destructure this into an if/else, rather than creating a new opcode,
   // since our [sequential] execution model allows us to skip nodes (unlike a
   // real-chip model).
-  node->condition()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
   size_t jump_index = bytecode_.size();
 
   Add(Bytecode::MakeJumpRelIf(node->span(), Bytecode::kPlaceholderJumpAmount));
-  node->token()->AcceptExpr(this);
-  node->channel()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   Add(Bytecode::MakeRecv(node->span()));
 
   Add(Bytecode::MakeJumpDest(node->span()));
   bytecode_.at(jump_index).PatchJumpTarget(bytecode_.size());
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleSend(const Send* node) {
-  node->token()->AcceptExpr(this);
-  node->channel()->AcceptExpr(this);
-  node->payload()->AcceptExpr(this);
+absl::Status BytecodeEmitter::HandleSend(const Send* node) {
+  XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->payload()->AcceptExpr(this));
   Add(Bytecode::MakeSend(node->span()));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleSendIf(const SendIf* node) {
+absl::Status BytecodeEmitter::HandleSendIf(const SendIf* node) {
   // Same structure as RecvIf.
-  node->condition()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
   size_t jump_index = bytecode_.size();
   Add(Bytecode::MakeJumpRelIf(node->span(), Bytecode::kPlaceholderJumpAmount));
 
-  node->token()->AcceptExpr(this);
-  node->channel()->AcceptExpr(this);
-  node->payload()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->payload()->AcceptExpr(this));
   Add(Bytecode::MakeSend(node->span()));
 
   Add(Bytecode::MakeJumpDest(node->span()));
   bytecode_.at(jump_index).PatchJumpTarget(bytecode_.size());
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleSpawn(const Spawn* node) {
-  absl::StatusOr<Proc*> proc_or = ResolveProc(node->callee(), type_info_);
-  if (!proc_or.ok()) {
-    status_ = absl::InternalError(
-        absl::StrCat("Could not resolve Proc in spawn: ", node->ToString()));
-    return;
-  }
+absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
+  XLS_ASSIGN_OR_RETURN(Proc * proc, ResolveProc(node->callee(), type_info_));
 
   auto convert_args = [this](const absl::Span<Expr* const> args)
       -> absl::StatusOr<std::vector<InterpValue>> {
@@ -1131,19 +1032,10 @@ void BytecodeEmitter::HandleSpawn(const Spawn* node) {
     return arg_values;
   };
 
-  absl::StatusOr<std::vector<InterpValue>> config_args_or =
-      convert_args(node->config()->args());
-  if (!config_args_or.ok()) {
-    status_ = config_args_or.status();
-    return;
-  }
-
-  absl::StatusOr<std::vector<InterpValue>> next_args_or =
-      convert_args(node->next()->args());
-  if (!next_args_or.ok()) {
-    status_ = next_args_or.status();
-    return;
-  }
+  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> config_args,
+                       convert_args(node->config()->args()));
+  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> next_args,
+                       convert_args(node->next()->args()));
 
   // The whole Proc is parameterized, not the individual invocations
   // (config/next), so we can use either invocation to get the bindings.
@@ -1157,17 +1049,13 @@ void BytecodeEmitter::HandleSpawn(const Spawn* node) {
     final_bindings = *maybe_callee_bindings.value();
   }
 
-  Bytecode::SpawnData spawn_data{node, proc_or.value(), config_args_or.value(),
-                                 next_args_or.value(), final_bindings};
+  Bytecode::SpawnData spawn_data{node, proc, config_args, next_args,
+                                 final_bindings};
   Add(Bytecode::MakeSpawn(node->span(), spawn_data));
-  node->body()->AcceptExpr(this);
+  return node->body()->AcceptExpr(this);
 }
 
-void BytecodeEmitter::HandleString(const String* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleString(const String* node) {
   // A string is just a fancy array literal.
   for (const unsigned char c : node->text()) {
     bytecode_.push_back(
@@ -1177,52 +1065,34 @@ void BytecodeEmitter::HandleString(const String* node) {
 
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateArray,
                                Bytecode::NumElements(node->text().size())));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
-  if (!status_.ok()) {
-    return;
-  }
+absl::Status BytecodeEmitter::HandleStructInstance(const StructInstance* node) {
+  XLS_ASSIGN_OR_RETURN(StructType * struct_type,
+                       type_info_->GetItemAs<StructType>(node));
 
-  absl::StatusOr<StructType*> struct_type_or =
-      type_info_->GetItemAs<StructType>(node);
-  if (!struct_type_or.ok()) {
-    status_ = struct_type_or.status();
-    return;
-  }
-
-  const StructDef& struct_def = struct_type_or.value()->nominal_type();
+  const StructDef& struct_def = struct_type->nominal_type();
   for (const std::pair<std::string, Expr*>& member :
        node->GetOrderedMembers(&struct_def)) {
-    member.second->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
   }
 
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(struct_def.size())));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleSplatStructInstance(
+absl::Status BytecodeEmitter::HandleSplatStructInstance(
     const SplatStructInstance* node) {
   // For each field in the struct:
   //   If it's specified in the SplatStructInstance, then use it,
   //   otherwise extract it from the base struct.
-  if (!status_.ok()) {
-    return;
-  }
+  XLS_ASSIGN_OR_RETURN(StructType * struct_type,
+                       type_info_->GetItemAs<StructType>(node));
 
-  absl::StatusOr<StructType*> struct_type =
-      type_info_->GetItemAs<StructType>(node);
-  if (!struct_type.ok()) {
-    status_ = struct_type.status();
-    return;
-  }
-
-  absl::StatusOr<std::vector<std::string>> member_names =
-      struct_type.value()->GetMemberNames();
-  if (!member_names.ok()) {
-    status_ = member_names.status();
-    return;
-  }
+  XLS_ASSIGN_OR_RETURN(std::vector<std::string> member_names,
+                       struct_type->GetMemberNames());
 
   absl::flat_hash_map<std::string, Expr*> new_members;
   for (const std::pair<std::string, Expr*>& new_member : node->members()) {
@@ -1235,29 +1105,26 @@ void BytecodeEmitter::HandleSplatStructInstance(
   // visit it as often as we need.
 
   // Member names is ordered.
-  for (int i = 0; i < member_names->size(); i++) {
-    std::string& member_name = member_names->at(i);
+  for (int i = 0; i < member_names.size(); i++) {
+    std::string& member_name = member_names.at(i);
     if (new_members.contains(member_name)) {
-      new_members.at(member_name)->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(new_members.at(member_name)->AcceptExpr(this));
     } else {
-      node->splatted()->AcceptExpr(this);
+      XLS_RETURN_IF_ERROR(node->splatted()->AcceptExpr(this));
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
                                    InterpValue::MakeU64(i)));
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
     }
   }
 
-  const StructDef& struct_def = struct_type.value()->nominal_type();
+  const StructDef& struct_def = struct_type->nominal_type();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(struct_def.size())));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleUnop(const Unop* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
-  node->operand()->AcceptExpr(this);
+absl::Status BytecodeEmitter::HandleUnop(const Unop* node) {
+  XLS_RETURN_IF_ERROR(node->operand()->AcceptExpr(this));
   switch (node->unop_kind()) {
     case UnopKind::kInvert:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kInvert));
@@ -1266,27 +1133,21 @@ void BytecodeEmitter::HandleUnop(const Unop* node) {
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNegate));
       break;
   }
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleXlsTuple(const XlsTuple* node) {
   for (auto* member : node->members()) {
-    member->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
   }
 
   // Pop the N elements and push the result as a single value.
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(node->members().size())));
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleTernary(const Ternary* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleTernary(const Ternary* node) {
   // Structure is:
   //
   //  $test
@@ -1299,17 +1160,17 @@ void BytecodeEmitter::HandleTernary(const Ternary* node) {
   //  $consequent
   // join:
   //  jump_dest
-  node->test()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->test()->AcceptExpr(this));
   size_t jump_if_index = bytecode_.size();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRelIf,
                                Bytecode::kPlaceholderJumpAmount));
-  node->alternate()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->alternate()->AcceptExpr(this));
   size_t jump_index = bytecode_.size();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpRel,
                                Bytecode::kPlaceholderJumpAmount));
   size_t consequent_index = bytecode_.size();
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
-  node->consequent()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->consequent()->AcceptExpr(this));
   size_t jumpdest_index = bytecode_.size();
 
   // Now patch up the jumps since we now know the relative PCs we're jumping to.
@@ -1318,13 +1179,10 @@ void BytecodeEmitter::HandleTernary(const Ternary* node) {
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kJumpDest));
   bytecode_.at(jump_if_index).PatchJumpTarget(consequent_index - jump_if_index);
   bytecode_.at(jump_index).PatchJumpTarget(jumpdest_index - jump_index);
+  return absl::OkStatus();
 }
 
-void BytecodeEmitter::HandleMatch(const Match* node) {
-  if (!status_.ok()) {
-    return;
-  }
-
+absl::Status BytecodeEmitter::HandleMatch(const Match* node) {
   // Structure is: (value-to-match is at TOS0)
   //
   //  <value-to-match present>
@@ -1352,12 +1210,11 @@ void BytecodeEmitter::HandleMatch(const Match* node) {
   //  $wild_arm_expr            # We just eval the RHS.
   // done:
   //  jump_dest                 # TOS0 holds result, matched value is gone.
-  node->matched()->AcceptExpr(this);
+  XLS_RETURN_IF_ERROR(node->matched()->AcceptExpr(this));
 
   const std::vector<MatchArm*>& arms = node->arms();
   if (arms.empty()) {
-    status_ = absl::InternalError("At least one match arm is required.");
-    return;
+    return absl::InternalError("At least one match arm is required.");
   }
 
   std::vector<size_t> arm_offsets;
@@ -1388,13 +1245,9 @@ void BytecodeEmitter::HandleMatch(const Match* node) {
       // and swap to the next copy of the matchee, unless this is the last
       // pattern.
       NameDefTree* ndt = arm->patterns()[pattern_idx];
-      absl::StatusOr<Bytecode::MatchArmItem> arm_item_or =
-          HandleNameDefTreeExpr(ndt);
-      if (!arm_item_or.ok()) {
-        status_ = arm_item_or.status();
-        return;
-      }
-      Add(Bytecode::MakeMatchArm(ndt->span(), arm_item_or.value()));
+      XLS_ASSIGN_OR_RETURN(Bytecode::MatchArmItem arm_item,
+                           HandleNameDefTreeExpr(ndt));
+      Add(Bytecode::MakeMatchArm(ndt->span(), arm_item));
 
       if (pattern_idx != 0) {
         Add(Bytecode::MakeLogicalOr(ndt->span()));
@@ -1412,7 +1265,7 @@ void BytecodeEmitter::HandleMatch(const Match* node) {
 
     // The arm matched: calculate the resulting expression and jump
     // unconditionally to "done".
-    arm->expr()->AcceptExpr(this);
+    XLS_RETURN_IF_ERROR(arm->expr()->AcceptExpr(this));
     jumps_to_done.push_back(bytecode_.size());
     Add(Bytecode::MakeJumpRel(arm->span(), Bytecode::kPlaceholderJumpAmount));
   }
@@ -1446,6 +1299,8 @@ void BytecodeEmitter::HandleMatch(const Match* node) {
                 << " to jump to done_offset " << done_offset;
     bytecode_.at(offset).PatchJumpTarget(done_offset - offset);
   }
+
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx
