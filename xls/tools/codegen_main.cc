@@ -47,9 +47,12 @@ Emit a feed-forward pipelined module:
 )";
 
 // LINT.IfChange
-ABSL_FLAG(int64_t, clock_period_ps, 0, "Target clock period, in picoseconds.");
+ABSL_FLAG(int64_t, clock_period_ps, 0,
+          "Target clock period, in picoseconds. See "
+          "https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(int64_t, pipeline_stages, 0,
-          "The number of stages in the generated pipeline.");
+          "The number of stages in the generated pipeline. See "
+          "https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
 ABSL_FLAG(
@@ -113,14 +116,15 @@ ABSL_FLAG(std::string, module_name, "",
 ABSL_FLAG(int64_t, clock_margin_percent, 0,
           "The percentage of clock period to set aside as a margin to ensure "
           "timing is met. Effectively, this lowers the clock period by this "
-          "percentage amount for the purposes of scheduling.");
+          "percentage amount for the purposes of scheduling. See "
+          "https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(int64_t, period_relaxation_percent, 0,
           "The percentage of clock period that will be relaxed when "
           "scheduling without an explicit --clock_period_ps. "
           "When set to 0, the minimum period that can satisfy scheduling "
           "constraints will be used.  Increasing this will trade-off an "
           "increase in critical path delay in favor of decreased register "
-          "count.");
+          "count. See https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each receive node.");
 // TODO(meheff): Rather than specify all reset (or codegen options in general)

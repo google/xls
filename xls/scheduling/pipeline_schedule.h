@@ -47,21 +47,8 @@ enum class SchedulingStrategy {
 std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length);
 
 // Options to use when generating a pipeline schedule. At least a clock period
-// or a pipeline length (or both) must be specified. If only one value is
-// specified the other value is computed as follows:
-//
-// (1) Only clock period specified. A minimum pipeline length is computed by
-//     scheduling all nodes as early as possible while satisfying the clock
-//     timing constraint. The pipeline length is the latest cycle any node is
-//     scheduled in.
-//
-// (2) Only pipeline length specified. A minimum clock period is computed which
-//     allows a pipeline of the given length via as-soon-as-possible
-//     scheduling. The clock period is found via a binary search.
-//     TODO(meheff): Implement this.
-//
-// Once the clock period and pipeline length are determined, a schedule is
-// produced which minimizes the number of pipeline registers.
+// or a pipeline length (or both) must be specified. See
+// https://google.github.io/xls/scheduling/ for details on these options.
 class SchedulingOptions {
  public:
   explicit SchedulingOptions(
