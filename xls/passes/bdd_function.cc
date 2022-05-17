@@ -31,6 +31,7 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 
 namespace xls {
 namespace {
@@ -379,6 +380,17 @@ absl::StatusOr<Value> BddFunction::Evaluate(
     }
   }
   return values.at(function->return_value());
+}
+
+bool IsCheapForBdds(const Node* node) {
+  if (std::all_of(node->operands().begin(), node->operands().end(),
+                  IsSingleBitType) &&
+      IsSingleBitType(node)) {
+    return true;
+  }
+  return (node->Is<NaryOp>() || node->Is<UnOp>() || node->Is<BitSlice>() ||
+          node->Is<ExtendOp>() || node->Is<Concat>() ||
+          node->Is<BitwiseReductionOp>() || node->Is<Literal>());
 }
 
 }  // namespace xls

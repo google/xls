@@ -77,6 +77,11 @@ inline bool IsLiteralMask(Node* node, int64_t* leading_zeros,
 inline bool IsLiteral(Node* node) { return node->Is<Literal>(); }
 inline bool IsBitSlice(Node* node) { return node->Is<BitSlice>(); }
 
+// Returns true if `node` is of single-bit Bits type.
+inline bool IsSingleBitType(const Node* node) {
+  return node->GetType()->IsBits() && node->BitCountOrDie() == 1;
+}
+
 inline bool AnyOperandWhere(Node* node,
                             const std::function<bool(Node*)>& predicate) {
   return std::any_of(node->operands().begin(), node->operands().end(),

@@ -19,6 +19,8 @@
 #include "absl/strings/str_join.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
+#include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
 
 namespace xls {
@@ -207,11 +209,6 @@ class ConditionMap {
   absl::flat_hash_map<std::pair<Node*, int64_t>, ConditionSet> edge_conditions_;
 };
 
-// Returns true if `node` is of single-bit Bits type.
-bool IsSingleBitType(const Node* node) {
-  return node->GetType()->IsBits() && node->BitCountOrDie() == 1;
-}
-
 // Returns the value for node logically implied by the given conditions if a
 // value can be implied. Returns abls::nullopt otherwise. `query_engine` can be
 // null in which case BDD's are not used in the implication analysis.
@@ -257,18 +254,6 @@ Node* GetSelectedCase(Select* select, const Bits& selector_value) {
   // It is safe to convert to uint64_t because of the above check against cases
   // size.
   return select->get_case(selector_value.ToUint64().value());
-}
-
-// Returns true if the given node is cheap for a BDD to analyze.
-bool IsCheapForBdds(const Node* node) {
-  if (std::all_of(node->operands().begin(), node->operands().end(),
-                  IsSingleBitType) &&
-      IsSingleBitType(node)) {
-    return true;
-  }
-  return (node->Is<NaryOp>() || node->Is<UnOp>() || node->Is<BitSlice>() ||
-          node->Is<ExtendOp>() || node->Is<Concat>() ||
-          node->Is<BitwiseReductionOp>() || node->Is<Literal>());
 }
 
 }  // namespace

@@ -32,10 +32,6 @@
 namespace xls {
 
 namespace {
-// Returns true if `node` is of single-bit Bits type.
-bool IsSingleBitType(const Node* node) {
-  return node->GetType()->IsBits() && node->BitCountOrDie() == 1;
-}
 
 // Restrict BDD analysis to a subset of nodes.
 //

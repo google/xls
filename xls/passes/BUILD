@@ -669,6 +669,7 @@ cc_library(
         "//xls/ir",
         "//xls/ir:abstract_evaluator",
         "//xls/ir:abstract_node_evaluator",
+        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )
@@ -976,6 +977,7 @@ cc_library(
     srcs = ["conditional_specialization_pass.cc"],
     hdrs = ["conditional_specialization_pass.h"],
     deps = [
+        ":bdd_function",
         ":bdd_query_engine",
         ":passes",
         "@com_google_absl//absl/algorithm:container",
@@ -984,6 +986,7 @@ cc_library(
         "@com_google_absl//absl/strings:str_format",
         "//xls/ir",
         "//xls/ir:bits_ops",
+        "//xls/ir:node_util",
     ],
 )
 
@@ -1030,7 +1033,10 @@ cc_library(
     srcs = ["new_proc_inlining_pass.cc"],
     hdrs = ["new_proc_inlining_pass.h"],
     deps = [
+        ":bdd_function",
+        ":bdd_query_engine",
         ":passes",
+        ":token_provenance_analysis",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",

@@ -21,22 +21,12 @@
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/passes/bdd_function.h"
+#include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/token_provenance_analysis.h"
 
 namespace xls {
 namespace {
-
-// Returns the set of procs to inline. Effectively this is all of the procs in
-// the package except the top-level proc.
-std::vector<Proc*> GetProcsToInline(Proc* top) {
-  std::vector<Proc*> procs;
-  for (const std::unique_ptr<Proc>& proc : top->package()->procs()) {
-    if (proc.get() == top) {
-      continue;
-    }
-    procs.push_back(proc.get());
-  }
-  return procs;
-}
 
 // Makes and returns a node computing Not(node).
 absl::StatusOr<Node*> Not(
@@ -200,10 +190,7 @@ class StateElement {
 };
 
 // Abstraction representing a channel which has been inlined. These channels are
-// necessarily SendReceive channels. Data on the channel is saved to the
-// containing proc state along with a valid bit. This state behaves as a
-// single-element FIFO. The data is held in the state until the end of the proc
-// thread tick in which the assocated receive fired.
+// necessarily SendReceive channels.
 //
 // The virtual channel logic has the following inputs:
 //
@@ -212,23 +199,13 @@ class StateElement {
 //
 //   data_in: the data value to be sent over the channel.
 //
-//   proc_tick_complete: asserted when the proc containing the associated
-//                       virtual receive has completed a tick.
-//
 // and the following outputs:
 //
 //   valid: whether the virtual channel contains data.
 //
 //   data_out: the data value to be received over the channel
 //
-// and the following state elements:
-//
-//   data : the data sent to the virtual channel.
-//
-//   valid : whether the channel holds data
-//
-//   receive_fired_this_tick : whether the associated virtual receive has fired
-//                             in this tick of the proc thread.
+
 class VirtualChannel {
  public:
   static absl::StatusOr<VirtualChannel> Create(Channel* channel, Proc* proc) {
@@ -246,94 +223,23 @@ class VirtualChannel {
         proc->MakeNodeWithName<Literal>(
             /*loc=*/absl::nullopt, Value(UBits(0, 1)),
             absl::StrFormat("%s_send_fired_in", channel->name())));
-    XLS_ASSIGN_OR_RETURN(
-        vc.receive_fired_in_,
-        proc->MakeNodeWithName<Literal>(
-            /*loc=*/absl::nullopt, Value(UBits(0, 1)),
-            absl::StrFormat("%s_receive_fired_in", channel->name())));
 
-    XLS_ASSIGN_OR_RETURN(
-        vc.proc_tick_complete_in_,
-        proc->MakeNodeWithName<Literal>(
-            /*loc=*/absl::nullopt, Value(UBits(0, 1)),
-            absl::StrFormat("%s_proc_tick_complete_in", channel->name())));
-
-    // Construct the data state element and logic controlling the data:
-    //
-    //   data_out = send_fired_in ? data_in : data_state
-    //   data_state_next = data_out
-    XLS_ASSIGN_OR_RETURN(vc.data_state_,
-                         vc.AllocateStateElement(
-                             absl::StrFormat("%s_data_state", channel->name()),
-                             ZeroOfType(channel->type()), proc));
     XLS_ASSIGN_OR_RETURN(
         vc.data_out_,
-        proc->MakeNodeWithName<Select>(
-            absl::nullopt,
-            /*selector=*/vc.send_fired_in_, /*cases=*/
-            std::vector<Node*>{vc.data_state_->GetState(), vc.data_in_},
-            /*default_case=*/absl::nullopt,
-            absl::StrFormat("%s_data_out", channel->name())));
-    XLS_RETURN_IF_ERROR(vc.data_state_->SetNext(vc.data_out_));
+        Identity(vc.data_in_, absl::StrFormat("%s_data_out", channel->name())));
 
-    // Construct the logic and state keeping track of whether the virtual
-    // receive has fired this proc thread tick.
-    //
-    //   receive_fired = receive_fired_in || receive_fired_state
-    //   receive_fired_next = receive_fired && !proc_tick_complete_in
-    XLS_ASSIGN_OR_RETURN(
-        vc.receive_fired_state_,
-        vc.AllocateStateElement(
-            absl::StrFormat("%s_receive_fired_state", channel->name()),
-            Value(UBits(0, 1)), proc));
-    XLS_ASSIGN_OR_RETURN(
-        vc.receive_fired_this_tick_,
-        Or(vc.receive_fired_in_, vc.receive_fired_state_->GetState(),
-           absl::StrFormat("%s_receive_fired_this_tick", channel->name())));
-    XLS_ASSIGN_OR_RETURN(
-        Node * receive_fired_next,
-        AndNot(vc.receive_fired_this_tick_, vc.proc_tick_complete_in_,
-               absl::StrFormat("%s_receive_fired_next", channel->name())));
-    XLS_RETURN_IF_ERROR(vc.receive_fired_state_->SetNext(receive_fired_next));
-
-    // Construct the logic and state for the valid bit. For single-value
-    // channels this is:
-    //
-    //   valid_out = send_fired || valid_state
-    //   valid_next = valid_out
-    //
-    // For streaming channels the virtual receive (if it fires) clears the valid
-    // bit at the end of the proc thread tick so the logic is:
-    //
-    //   valid_out = send_fired || valid_state
-    //   clear_valid = proc_tick_complete_in && receive_fired_this_tick
-    //   valid_next = valid_out && !clear_valid
-    XLS_ASSIGN_OR_RETURN(vc.valid_state_,
-                         vc.AllocateStateElement(
-                             absl::StrFormat("%s_valid_state", channel->name()),
-                             Value(UBits(0, 1)), proc));
-    XLS_ASSIGN_OR_RETURN(vc.valid_out_,
-                         Or(vc.send_fired_in_, vc.valid_state_->GetState(),
-                            absl::StrFormat("%s_valid", channel->name())));
-
-    Node* valid_next;
     if (channel->kind() == ChannelKind::kStreaming) {
       XLS_ASSIGN_OR_RETURN(
-          Node * clear_valid,
-          And(vc.proc_tick_complete_in_, vc.receive_fired_this_tick_,
-              absl::StrFormat("%s_clear_valid", channel->name())));
-      XLS_ASSIGN_OR_RETURN(
-          valid_next,
-          AndNot(vc.valid_out_, clear_valid,
-                 absl::StrFormat("%s_valid_next", channel->name())));
+          vc.valid_out_,
+          Identity(vc.send_fired_in_,
+                   absl::StrFormat("%s_valid", channel->name())));
     } else {
       XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kSingleValue);
-      XLS_ASSIGN_OR_RETURN(
-          valid_next,
-          Identity(vc.valid_out_,
-                   absl::StrFormat("%s_valid_next", channel->name())));
+      XLS_ASSIGN_OR_RETURN(vc.valid_out_,
+                           proc->MakeNodeWithName<Literal>(
+                               /*loc=*/absl::nullopt, Value(UBits(1, 1)),
+                               absl::StrFormat("%s_valid", channel->name())));
     }
-    XLS_RETURN_IF_ERROR(vc.valid_state_->SetNext(valid_next));
 
     return std::move(vc);
   }
@@ -351,63 +257,21 @@ class VirtualChannel {
     send_fired_in_ = node;
     return absl::OkStatus();
   }
-  absl::Status SetReceiveFiredIn(Node* node) {
-    XLS_RETURN_IF_ERROR(receive_fired_in_->ReplaceUsesWith(node));
-    receive_fired_in_ = node;
-    return absl::OkStatus();
-  }
-  absl::Status SetProcTickCompleteIn(Node* node) {
-    XLS_RETURN_IF_ERROR(proc_tick_complete_in_->ReplaceUsesWith(node));
-    proc_tick_complete_in_ = node;
-    return absl::OkStatus();
-  }
-
-  // Returns whether the data state is valid.
-  Node* GetValidState() const { return valid_state_->GetState(); }
 
   // Returns various outputs from the virtual channel.
   Node* GetDataOut() const { return data_out_; }
   Node* GetValidOut() const { return valid_out_; }
 
-  // Returns whether the associated virtual receive has fired in this tick of
-  // the proc thread containing the virtual receive.
-  Node* GetReceiveFiredThisTick() const { return receive_fired_this_tick_; }
-
-  // Returns all state elements of this virtual channel.
-  const std::list<StateElement>& GetStateElements() const {
-    return state_elements_;
-  }
-
  private:
   Channel* channel_;
-
-  absl::StatusOr<StateElement*> AllocateStateElement(absl::string_view name,
-                                                     Value initial_value,
-                                                     Proc* proc) {
-    XLS_ASSIGN_OR_RETURN(StateElement element,
-                         StateElement::Create(name, initial_value, proc));
-    state_elements_.push_back(std::move(element));
-    return &state_elements_.back();
-  }
 
   // Inputs to the virtual channel.
   Node* data_in_;
   Node* send_fired_in_;
-  Node* receive_fired_in_;
-  Node* proc_tick_complete_in_;
 
   // Outputs of the virtual channel.
   Node* data_out_;
   Node* valid_out_;
-
-  // Whether the virtual recieive fired in the current tick of the proc thread.
-  Node* receive_fired_this_tick_;
-
-  // State elemnts refer to elements on the state_elements_ list.
-  StateElement* data_state_;
-  StateElement* valid_state_;
-  StateElement* receive_fired_state_;
-  std::list<StateElement> state_elements_;
 };
 
 // Abstraction representing a node in the activation network of a proc
@@ -415,6 +279,11 @@ class VirtualChannel {
 // operations corresponding to the activation node.
 struct ActivationNode {
   std::string name;
+
+  // The side-effecting node in the inlined proc for which this activation node
+  // is generated. May be nullopt for the dummy sink node of the activation
+  // network.
+  absl::optional<Node*> original_node;
 
   // The activation bit(s) passed from the predecessor nodes(s) in the
   // activation network on the proc thread.
@@ -424,15 +293,13 @@ struct ActivationNode {
   // operation(s) in the activation network of the proc thread.
   Node* activation_out;
 
-  // The state element which holds the input activation bit(s). Only present for
-  // operations which can stall and hold the activation bit for more than one
-  // tick of the container proc. An activation node can fire only iff it has the
-  // activation bits of all of its predeccessors.
-  std::vector<StateElement*> activations_in_state;
-
   // An optional placeholder node which represents the condition under which
   // this activation node will *not* fire even if it has the activation bit.
   std::optional<Node*> stall_condition;
+
+  // If `original_node` is present, this is the inlined value (in the container
+  // proc) corresponding to `original_node`.
+  absl::optional<Node*> data_out;
 };
 
 // Verifies that any data-dependency from a receive node to any other
@@ -490,6 +357,164 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
   return absl::OkStatus();
 }
 
+// Returns a map containing each receive and the nodes which may be dependent on
+// the data value of that receive. Data paths are tracked precisely through
+// Tuple and TupleIndex instructions but other node are handled conservatively
+// (i.e., if an operand of node X is data dependent upon a receive then so is
+// X).
+//
+// For example, for the following snippet:
+//
+//   a = param()
+//   rcv0 = Receive(...)
+//   rcv1 = Receive(...)
+//   rcv2 = Receive(...)
+//   b = a + rcv0
+//   c = rcv0 + rcv1
+//   d = a + 42
+//
+// The following map is returned:
+//
+//   {rcv0: [b, c], rcv1: [c], rcv2: []}
+absl::flat_hash_map<Receive*, std::vector<Node*>> GetReceiveDataDependencies(
+    Proc* inlined_proc) {
+  // This map indicates which Receives each element of each node is data
+  // dependent upon. For example:
+  //
+  // foobar = ...
+  // rcv0 = Receive(...)
+  // rcv1 = Receive(...)
+  // rcv0_data = TupleIndex(rcv0, 1)
+  // rcv1_data = TupleIndex(rcv0, 1)
+  // x = Tuple(rcv0, rcv0+rcv1, foobar)
+  //
+  // The `data_sources` value for `x` might be:
+  //
+  //   ({rcv0}, {rcv0, rcv1}, {})
+  absl::flat_hash_map<Node*, LeafTypeTree<std::vector<Receive*>>> data_sources;
+
+  // Returns a vector containing all Receive* values contained in the
+  // `data_source` LeafTypeTrees of all operands of `node`. This is the set of
+  // Receives for which `node` may be data-dependent.
+  auto flatten_operands = [&](Node* node) {
+    absl::flat_hash_set<Receive*> elements;
+    for (Node* operand : node->operands()) {
+      for (const std::vector<Receive*>& receives :
+           data_sources.at(operand).elements()) {
+        elements.insert(receives.begin(), receives.end());
+      }
+    }
+    std::vector<Receive*> element_vec(elements.begin(), elements.end());
+    // Sort the nodes by id for determinism.
+    std::sort(element_vec.begin(), element_vec.end(),
+              [](Receive* a, Receive* b) { return a->id() < b->id(); });
+    return element_vec;
+  };
+
+  absl::flat_hash_map<Receive*, std::vector<Node*>> result;
+
+  XLS_VLOG(3) << absl::StrFormat("Receive data dependencies for proc %s:",
+                                 inlined_proc->name());
+  for (Node* node : TopoSort(inlined_proc)) {
+    if (node->Is<Receive>()) {
+      // Create a (empty) vector in the returned map for this receive.
+      result[node->As<Receive>()];
+      // A Receive produces a two element tuple: (token, data). The source of
+      // `data` is only this receive (obviously).
+      data_sources[node] = LeafTypeTree<std::vector<Receive*>>(
+          node->GetType(), {node->As<Receive>()});
+      // The token element is not considered a data dependency.
+      data_sources.at(node).Get({0}).clear();
+    } else if (node->Is<TupleIndex>()) {
+      // The data source of a tuple index comes from the indexed sub-elements of
+      // the tuple-typed operand.
+      data_sources[node] = data_sources[node->operand(0)].CopySubtree(
+          {node->As<TupleIndex>()->index()});
+    } else if (node->Is<Tuple>()) {
+      // The data sources of a tuple instruction are constructed from the
+      // operands of the tuple.
+      std::vector<std::vector<Receive*>> elements;
+      for (Node* operand : node->operands()) {
+        elements.insert(elements.end(),
+                        data_sources.at(operand).elements().begin(),
+                        data_sources.at(operand).elements().end());
+      }
+      data_sources[node] =
+          LeafTypeTree<std::vector<Receive*>>(node->GetType(), elements);
+    } else if (node->GetType()->IsToken()) {
+      // Token-typed nodes have no data sources.
+      data_sources[node] = LeafTypeTree<std::vector<Receive*>>(node->GetType());
+    } else {
+      // For all other nodes, conservatively assume that the data source(s) of
+      // an element of the output might come from any operand data source.
+      data_sources[node] = LeafTypeTree<std::vector<Receive*>>(
+          node->GetType(), flatten_operands(node));
+    }
+    XLS_VLOG(3) << absl::StreamFormat(
+        "  %s : %s", node->GetName(),
+        data_sources.at(node).ToString([](const std::vector<Receive*>& t) {
+          return absl::StrFormat("{%s}", absl::StrJoin(t, ", ", NodeFormatter));
+        }));
+  }
+
+  // Invert `data_sources` map to Receive* -> std::vector<Node*>.
+  for (Node* node : inlined_proc->nodes()) {
+    for (Receive* receive : flatten_operands(node)) {
+      result.at(receive).push_back(node);
+    }
+  }
+
+  return result;
+}
+
+struct TokenNode {
+  Node* node;
+  std::vector<Node*> predecessors;
+};
+
+// Returns a predecessor-list representation of the token graph connecting
+// side-effecting operations in the given `proc`. The returns nodes will be in a
+// topological sort.
+// TODO(meheff): 2022/05/17 Unify this with ComputeTokenDAG in
+// mutual_exclusion_pass.
+absl::StatusOr<std::vector<TokenNode>> GetTokenGraph(Proc* proc) {
+  XLS_ASSIGN_OR_RETURN(TokenProvenance token_provenance,
+                       TokenProvenanceAnalysis(proc));
+  std::vector<TokenNode> graph;
+  XLS_VLOG(3) << absl::StreamFormat("Token graph of proc %s:", proc->name());
+  for (Node* node : TopoSort(proc)) {
+    if (!TypeHasToken(node->GetType())) {
+      continue;
+    }
+    if (!OpIsSideEffecting(node->op()) && !node->Is<AfterAll>()) {
+      continue;
+    }
+    if (OpIsSideEffecting(node->op()) && !node->Is<Send>() &&
+        !node->Is<Receive>() && !node->Is<Param>()) {
+      return absl::UnimplementedError(absl::StrFormat(
+          "Proc inlining does not support side-effecting op %s: %s",
+          OpToString(node->op()), node->GetName()));
+    }
+    std::vector<Node*> operand_sources;
+    for (Node* operand : node->operands()) {
+      if (TypeHasToken(operand->GetType())) {
+        for (Node* element : token_provenance.at(operand).elements()) {
+          if (element != nullptr) {
+            operand_sources.push_back(element);
+          }
+        }
+      }
+    }
+    XLS_VLOG(3) << absl::StreamFormat(
+        "  %s : preds (%s)", node->GetName(),
+        absl::StrJoin(operand_sources, ", ", NodeFormatter));
+    XLS_RET_CHECK(operand_sources.size() <= 1 || node->Is<AfterAll>())
+        << node->ToString();
+    graph.push_back(TokenNode{node, operand_sources});
+  }
+  return std::move(graph);
+}
+
 // Abstraction representing a proc thread. A proc thread contains the logic
 // required to virtually evaluate a proc (the "inlined proc") within another
 // proc (the "container proc"). An activation bit is threaded through the proc's
@@ -497,8 +522,8 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
 // thread.
 class ProcThread {
  public:
-  // Creates and returns a proc thread which executes the given proc. `top` is
-  // the FunctionBase which will contain the proc thread.
+  // Creates and returns a proc thread which executes the given proc.
+  // `container_proc` is the FunctionBase which will contain the proc thread.
   static absl::StatusOr<ProcThread> Create(Proc* inlined_proc,
                                            Proc* container_proc) {
     ProcThread proc_thread;
@@ -513,24 +538,112 @@ class ProcThread {
                              absl::StrFormat("%s_state", inlined_proc->name()),
                              inlined_proc->GetUniqueInitValue()));
 
-    // Create the state element for the activation bit of the proc thread.
-    XLS_ASSIGN_OR_RETURN(
-        proc_thread.activation_state_,
-        proc_thread.AllocateState(
-            absl::StrFormat("%s_activation", inlined_proc->name()),
-            Value(UBits(1, 1))));
-
-    // Create a dummy placeholder for the node indicating the that proc thread
-    // has completed a tick. This is replaced with an actual value in
-    // Finalize. This placeholder is created here so logic (such as virtual
-    // channels) can depend on the signal.
-    XLS_ASSIGN_OR_RETURN(
-        proc_thread.proc_tick_complete_,
-        container_proc->MakeNodeWithName<Literal>(
-            /*loc=*/absl::nullopt, Value(UBits(0, 1)),
-            absl::StrFormat("%s_proc_tick_complete", inlined_proc->name())));
+    XLS_RETURN_IF_ERROR(proc_thread.CreateActivationNetwork());
 
     return std::move(proc_thread);
+  }
+
+  // Sets the condition under which the activation node will hold on to the
+  // activation bit. This involves adding a bit to the proc state to indicate
+  // that this activation node is stalled (holding on to the activation bit).
+  absl::Status SetStallCondition(ActivationNode* activation_node, Node* stall) {
+    XLS_RET_CHECK(!activation_node->stall_condition.has_value());
+    XLS_RET_CHECK_EQ(activation_node->activations_in.size(), 1);
+    Node* activation_in = activation_node->activations_in.front();
+
+    XLS_ASSIGN_OR_RETURN(
+        Node * not_stalled,
+        Not(stall, absl::StrFormat("%s_not_stalled", activation_node->name)));
+    XLS_ASSIGN_OR_RETURN(StateElement * activation_in_state,
+                         AllocateState(absl::StrFormat("%s_holds_activation",
+                                                       activation_node->name),
+                                       Value(UBits(0, 1))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * has_activation,
+        Or(activation_in, activation_in_state->GetState(),
+           absl::StrFormat("%s_has_activation", activation_node->name)));
+
+    XLS_ASSIGN_OR_RETURN(Node * new_activation_out,
+                         And(not_stalled, has_activation));
+
+    XLS_RETURN_IF_ERROR(
+        activation_node->activation_out->ReplaceUsesWith(new_activation_out));
+    activation_node->activation_out = new_activation_out;
+
+    XLS_ASSIGN_OR_RETURN(Node * holds_activation,
+                         AndNot(has_activation, activation_node->activation_out,
+                                absl::StrFormat("%s_holds_activation_next",
+                                                activation_node->name)));
+    XLS_RETURN_IF_ERROR(activation_in_state->SetNext(holds_activation));
+    return absl::OkStatus();
+  }
+
+  ActivationNode* GetActivationNode(Node* node) {
+    return original_node_to_activation_node_.at(node);
+  }
+
+  absl::StatusOr<std::string> GetActivationNodeName(Node* node) {
+    if (node->Is<Send>() || node->Is<Receive>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
+      return absl::StrFormat("%s_%s", channel->name(),
+                             node->Is<Send>() ? "send" : "receive");
+    }
+    return node->GetName();
+  }
+
+  // Construct the network of ActivationNodes for this proc. The topology of the
+  // activation network mirrors the token connectivity of the side-effecting
+  // nodes in the inlined proc. The activation network includes a single dummy
+  // source and sink nodes as well.
+  absl::Status CreateActivationNetwork() {
+    XLS_VLOG(3) << "CreateActivationNetwork " << inlined_proc_->name();
+    XLS_ASSIGN_OR_RETURN(std::vector<TokenNode> token_graph,
+                         GetTokenGraph(inlined_proc_));
+    // Create the state element for the activation bit of the proc thread.
+    XLS_ASSIGN_OR_RETURN(
+        activation_state_,
+        AllocateState(absl::StrFormat("%s_activation", inlined_proc_->name()),
+                      Value(UBits(1, 1))));
+
+    for (const TokenNode& token_node : token_graph) {
+      ActivationNode* activation_node;
+      if (token_node.node->Is<Param>()) {
+        XLS_RET_CHECK_EQ(token_node.node, inlined_proc_->TokenParam());
+        XLS_ASSIGN_OR_RETURN(
+            activation_node,
+            AllocateActivationNode(
+                absl::StrFormat("%s_activation_source", inlined_proc_->name()),
+                /*activations_in=*/{activation_state_->GetState()},
+                token_node.node));
+        source_activation_node_ = activation_node;
+      } else {
+        XLS_ASSIGN_OR_RETURN(std::string name,
+                             GetActivationNodeName(token_node.node));
+        std::vector<Node*> activation_preds;
+        activation_preds.reserve(token_node.predecessors.size());
+        for (Node* token_pred : token_node.predecessors) {
+          activation_preds.push_back(
+              original_node_to_activation_node_.at(token_pred)->activation_out);
+        }
+        XLS_ASSIGN_OR_RETURN(
+            activation_node,
+            AllocateActivationNode(name, activation_preds, token_node.node));
+      }
+      original_node_to_activation_node_[token_node.node] = activation_node;
+    }
+
+    ActivationNode* final_activation_node =
+        original_node_to_activation_node_.at(token_graph.back().node);
+    XLS_ASSIGN_OR_RETURN(
+        sink_activation_node_,
+        AllocateActivationNode(
+            absl::StrFormat("%s_activation_sink", inlined_proc_->name()),
+            /*activations_in=*/{final_activation_node->activation_out},
+            absl::nullopt));
+    XLS_RETURN_IF_ERROR(
+        activation_state_->SetNext(sink_activation_node_->activation_out));
+
+    return absl::OkStatus();
   }
 
   // Allocate and return a state element. The state will later be added to the
@@ -538,84 +651,236 @@ class ProcThread {
   absl::StatusOr<StateElement*> AllocateState(absl::string_view name,
                                               Value initial_value);
 
-  // Allocates an activation node on the proc threads activation chain.
+  // Allocates an activation node for the proc thread's activation network.
   // `activations_in` are the activation bits of the predecessors of this node
-  // in the activation network. `stallable` indicates whether this activation
-  // node can stall for a reason _other_ than not having the activation
-  // bit. That is, the node can hold the activation bit for more than one tick.
+  // in the activation network. `original_node` is the (optional) node in the
+  // inlined proc for which this activation node was created.
   absl::StatusOr<ActivationNode*> AllocateActivationNode(
       absl::string_view name, absl::Span<Node* const> activations_in,
-      bool stallable);
+      absl::optional<Node*> original_node);
 
-  // Completes construction of the proc thread. `next_state` is the node holding
-  // the value of the proc thread state in the next tick. `proc_tick_complete`
-  // indicates the the current tick of the proc thread is complete.
-  absl::Status Finalize(Node* next_state, Node* proc_tick_complete) {
-    XLS_VLOG(3) << "Finalize proc thread for: " << inlined_proc_->name();
+  // Sets the next state of the proc thread to the given value. This value is
+  // commited to the corresponding element of container proc when the proc
+  // thread tick is complete.
+  absl::Status SetNextState(Node* next_state) {
+    XLS_VLOG(3) << "SetNextState proc thread for: " << inlined_proc_->name();
 
     // Add selector to commit state if the proc thread tick is complete.
     XLS_ASSIGN_OR_RETURN(
         Node * state_next,
         container_proc_->MakeNodeWithName<Select>(
-            absl::nullopt, /*selector=*/proc_tick_complete, /*cases=*/
+            absl::nullopt, /*selector=*/GetProcTickComplete(), /*cases=*/
             std::vector<Node*>{GetDummyState(), next_state},
             /*default_case=*/absl::nullopt,
             absl::StrFormat("%s_next_state", inlined_proc_->name())));
     XLS_RETURN_IF_ERROR(proc_state_->SetNext(state_next));
-    XLS_RETURN_IF_ERROR(activation_state_->SetNext(proc_tick_complete));
-    XLS_RETURN_IF_ERROR(
-        proc_tick_complete_->ReplaceUsesWith(proc_tick_complete));
     return absl::OkStatus();
   }
 
-  // Returns the node holding the activation bit associated with the given node.
-  Node* GetActivationBit(Node* node) const {
-    if (node->Is<Param>()) {
-      return activation_state_->GetState();
+  // For each receive, returns the set of activation nodes which are data
+  // dependent upon the receive. For example, if a receive R feeds a send S
+  // (potentially indirectly) then the activation node of S will be in the
+  // returned map entry for R. If the receive feeds a next-state node for the
+  // proc, then the `sink_activation_node` will be in the respective vector of
+  // activation nodes.
+  absl::flat_hash_map<Receive*, std::vector<ActivationNode*>>
+  GetDataDependentActivationNodes() {
+    absl::flat_hash_map<Receive*, std::vector<Node*>> receive_data_deps =
+        GetReceiveDataDependencies(inlined_proc_);
+
+    absl::flat_hash_set<Node*> next_state_nodes(
+        inlined_proc_->NextState().begin(), inlined_proc_->NextState().end());
+
+    std::vector<Receive*> receives;
+    for (auto [receive, nodes] : receive_data_deps) {
+      receives.push_back(receive);
     }
-    return activation_map_.at(node);
+    std::sort(receives.begin(), receives.end(),
+              [](Receive* a, Receive* b) { return a->id() < b->id(); });
+
+    absl::flat_hash_map<Receive*, std::vector<ActivationNode*>> result;
+
+    XLS_VLOG(3) << "Activation node users of receives:";
+    for (Receive* receive : receives) {
+      result[receive];
+      for (Node* node : receive_data_deps.at(receive)) {
+        if (original_node_to_activation_node_.contains(node)) {
+          // `node` has an associated activation node which necessarily means it
+          // is side-effecting.
+          ActivationNode* activation_node =
+              original_node_to_activation_node_.at(node);
+          result[receive].push_back(activation_node);
+        }
+        if (next_state_nodes.contains(node)) {
+          // `node` is one of the next-state nodes. This means that
+          result[receive].push_back(sink_activation_node_);
+        }
+      }
+      Channel* channel = GetChannelUsedByNode(receive).value();
+      XLS_VLOG(3) << absl::StreamFormat(
+          "  %s receive (%s) : %s", channel->name(), receive->GetName(),
+          absl::StrJoin(result.at(receive), ", ",
+                        [](std::string* out, ActivationNode* n) {
+                          absl::StrAppend(out, n->name);
+                        }));
+    }
+    return result;
   }
 
-  // Adds the given node to the activation network (if it has a token). The
-  // activation network is a network of nodes representing side-effecting
-  // operations with single bit values which flow between them. The activation
-  // network mirrors the network of tokens in the original proc. The activation
-  // bits indicating when side-effecting operation can fire.
-  absl::Status AddToActivationNetwork(Node* node) {
-    XLS_VLOG(3) << "AddToActivationNetwork: " << node->GetName();
-    if (node->Is<Param>()) {
-      return absl::OkStatus();
-    }
-    absl::optional<Node*> token_operand;
-    for (Node* operand : node->operands()) {
-      if (TypeHasToken(operand->GetType())) {
-        if (token_operand.has_value()) {
-          return absl::UnimplementedError(absl::StrFormat(
-              "Node %s has multiple operands with tokens", node->GetName()));
+  // Add state as necessary to the proc to save the results of receives in the
+  // proc thread. Received data must be saved to the proc state if the
+  // side-effecting uses of the data may not necessarily be activated in the
+  // same tick of the container proc state.
+  absl::Status MaybeSaveReceivedData(const BddQueryEngine& query_engine) {
+    // Determine which receive nodes (including virtual receive nodes) must save
+    // their result as state. A receive must save its result as state if any
+    // side-effecting users of the receive might not be activated in the same
+    // tick as the receive. First identify the side-effecting users (as
+    // activation nodes) of the receive.
+    absl::flat_hash_map<Receive*, std::vector<ActivationNode*>> receive_deps =
+        GetDataDependentActivationNodes();
+
+    // Use a BDD to determine whether the activation of a particular receive
+    // necessarily implies the activation of every side-effecting user of the
+    // receive. If not, then insert state to save the received data.
+    for (const ActivationNode& anode : activation_nodes_) {
+      if (!anode.original_node.has_value() ||
+          !anode.original_node.value()->Is<Receive>()) {
+        // Skip non-receive nodes.
+        continue;
+      }
+      Receive* original_receive = anode.original_node.value()->As<Receive>();
+      XLS_ASSIGN_OR_RETURN(Channel * channel,
+                           GetChannelUsedByNode(anode.original_node.value()));
+      XLS_VLOG(3) << absl::StreamFormat(
+          "  Receive on channel %s (%s, %s, %d bits), users: %s",
+          channel->name(), ChannelKindToString(channel->kind()),
+          ChannelOpsToString(channel->supported_ops()),
+          channel->type()->GetFlatBitCount(),
+          absl::StrJoin(receive_deps.at(original_receive), ", ",
+                        [](std::string* out, ActivationNode* n) {
+                          absl::StrAppend(out, n->name);
+                        }));
+
+      if (channel->kind() == ChannelKind::kSingleValue) {
+        // Data from single-value channels need not be saved. There are two
+        // cases:
+        //
+        // (1) External single-value channels: values from external single-value
+        //     channels are considered to be invariant (changing them during
+        //     execution has undefined behavior) so no need to save them.
+        //
+        // (2) Internal single-value channnels: we assume that the proc network
+        //     is not racy. That is, order of the excution of the procs does not
+        //     affect the visible output. Under this condition, all
+        //     side-effecting uses of received data must fire before the
+        //     corresponding send can execute again and potentially change the
+        //     value on the channel. The source of the sent data must be one of
+        //     three cases:
+        //
+        //       (a) data is invariant, so no need to save it.
+        //
+        //       (b) data is received from another channel. If the channel is
+        //           single-value, then the same logic here applies to *that*
+        //           channel.If the channel is streaming, then the data will be
+        //           saved to proc state when considering that streaming channel
+        //           receive in this function.
+        //
+        //       (c) data is from the proc state. In this case, the state will
+        //           not be updated until before users all fire because the proc
+        //           network is not racy.
+        //
+        // TODO(https://github.com/google/xls/issues/614): We should move away
+        // from inlining single-value channels to avoid relying on these subtle
+        // and potentially erroneous arguments. A potential alternative might be
+        // "direct" channels mentioned in the github issue.
+        XLS_VLOG(3)
+            << "    No need to save data because channel is single-value.";
+        continue;
+      }
+
+      bool save_data = false;
+      for (ActivationNode* user_anode : receive_deps.at(original_receive)) {
+        if (user_anode->original_node.has_value() &&
+            user_anode->original_node.value()->Is<Send>()) {
+          XLS_ASSIGN_OR_RETURN(
+              Channel * send_channel,
+              GetChannelUsedByNode(user_anode->original_node.value()));
+          if (send_channel->kind() == ChannelKind::kSingleValue) {
+            XLS_VLOG(3) << absl::StrFormat(
+                "    Must save data because activation node %s is send on "
+                "single-value channel %s",
+                user_anode->name, send_channel->name());
+            save_data = true;
+            break;
+          }
         }
-        token_operand = operand;
+
+        bool user_always_ready = query_engine.Implies(
+            TreeBitLocation{anode.activation_out, 0},
+            TreeBitLocation{user_anode->activation_out, 0});
+        if (!user_always_ready) {
+          XLS_VLOG(3) << absl::StrFormat(
+              "    Must save data because activation node %s is not "
+              "necessarily active in same tick as receive on channel %s",
+              user_anode->name, channel->name());
+          save_data = true;
+          break;
+        }
+      }
+
+      if (!save_data) {
+        XLS_VLOG(3) << absl::StreamFormat(
+            "    No need to save data. All users activated.");
+        continue;
+      }
+
+      // Add state which saves the data value of the receive.
+      XLS_ASSIGN_OR_RETURN(
+          StateElement * data_state,
+          AllocateState(absl::StrFormat("%s_data_state", channel->name()),
+                        ZeroOfType(channel->type())));
+      Node* receive_out = anode.data_out.value();
+      std::vector<Node*> old_users(receive_out->users().begin(),
+                                   receive_out->users().end());
+      XLS_ASSIGN_OR_RETURN(Node * receive_data,
+                           container_proc_->MakeNodeWithName<TupleIndex>(
+                               absl::nullopt, receive_out, 1,
+                               absl::StrFormat("%s_data", channel->name())));
+      XLS_ASSIGN_OR_RETURN(
+          Node * maybe_saved_data,
+          container_proc_->MakeNodeWithName<Select>(
+              absl::nullopt,
+              /*selector=*/anode.activation_out, /*cases=*/
+              std::vector<Node*>{data_state->GetState(), receive_data},
+              /*default_case=*/absl::nullopt,
+              absl::StrFormat("%s_data", channel->name())));
+      XLS_RETURN_IF_ERROR(data_state->SetNext(maybe_saved_data));
+
+      XLS_ASSIGN_OR_RETURN(Node * receive_token,
+                           container_proc_->MakeNodeWithName<TupleIndex>(
+                               absl::nullopt, receive_out, 0,
+                               absl::StrFormat("%s_token", channel->name())));
+      XLS_ASSIGN_OR_RETURN(
+          Node * saved_receive_out,
+          container_proc_->MakeNodeWithName<Tuple>(
+              absl::nullopt, std::vector{receive_token, maybe_saved_data},
+              absl::StrFormat("%s_receive_out", channel->name())));
+
+      for (Node* old_user : old_users) {
+        old_user->ReplaceOperand(receive_out, saved_receive_out);
       }
     }
-    if (!token_operand.has_value()) {
-      return absl::OkStatus();
-    }
-    activation_map_[node] = GetActivationBit(token_operand.value());
-    XLS_VLOG(3) << "  activation bit: " << activation_map_.at(node)->GetName();
     return absl::OkStatus();
   }
 
   absl::StatusOr<Node*> ConvertSend(
-      Send* send, Node* activation_in,
+      Send* send, ActivationNode* activation_node,
       absl::flat_hash_map<Channel*, VirtualChannel>& virtual_channels) {
     XLS_RET_CHECK_EQ(send->function_base(), container_proc_);
     XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(send));
     XLS_VLOG(3) << absl::StreamFormat("Converting send %s on channel %s",
                                       send->GetName(), ch->name());
-
-    XLS_ASSIGN_OR_RETURN(
-        ActivationNode * activation_node,
-        AllocateActivationNode(absl::StrFormat("%s_send", ch->name()),
-                               {activation_in}, /*stallable=*/false));
 
     Node* result;
     if (ch->supported_ops() == ChannelOps::kSendReceive) {
@@ -623,8 +888,6 @@ class ProcThread {
       XLS_ASSIGN_OR_RETURN(result, CreateVirtualSend(send, activation_node,
                                                      virtual_channels.at(ch)));
     } else if (ch->kind() == ChannelKind::kStreaming) {
-      // A streaming external channel needs to be added to the activation
-      // chain. The send can fire only when it is activated.
       XLS_ASSIGN_OR_RETURN(result,
                            ConvertToActivatedSend(send, activation_node));
     } else {
@@ -632,36 +895,19 @@ class ProcThread {
       XLS_RET_CHECK_EQ(ch->kind(), ChannelKind::kSingleValue);
       result = send;
     }
-    activation_map_[result] = activation_node->activation_out;
+
+    activation_node->data_out = result;
     return result;
   }
 
-  absl::StatusOr<Node*> ConvertAfterAll(
-      AfterAll* after_all, absl::Span<Node* const> activations_in) {
-    XLS_ASSIGN_OR_RETURN(
-        ActivationNode * activation_node,
-        AllocateActivationNode(after_all->GetName(), activations_in,
-                               /*stallable=*/true));
-    activation_map_[after_all] = activation_node->activation_out;
-    return after_all;
-  }
-
   absl::StatusOr<Node*> ConvertReceive(
-      Receive* receive, Node* activation_in,
+      Receive* receive, ActivationNode* activation_node,
       absl::flat_hash_map<Channel*, VirtualChannel>& virtual_channels) {
     XLS_RET_CHECK_EQ(receive->function_base(), container_proc_);
     XLS_ASSIGN_OR_RETURN(Channel * ch, GetChannelUsedByNode(receive));
 
     XLS_VLOG(3) << absl::StreamFormat("Converting receive %s on channel %s",
                                       receive->GetName(), ch->name());
-
-    // Only virtual receives on streaming channels are stallable (they stall on
-    // data not ready).
-    XLS_ASSIGN_OR_RETURN(
-        ActivationNode * activation_node,
-        AllocateActivationNode(
-            absl::StrFormat("%s_receive", ch->name()), {activation_in},
-            /*stallable=*/ch->supported_ops() == ChannelOps::kSendReceive));
 
     Node* result;
     if (ch->supported_ops() == ChannelOps::kSendReceive) {
@@ -670,6 +916,7 @@ class ProcThread {
                            CreateVirtualReceive(receive, activation_node,
                                                 virtual_channels.at(ch)));
     } else if (ch->kind() == ChannelKind::kStreaming) {
+      // TODO: fix
       // A streaming external channel needs to be added to the activation
       // chain. The receive can fire only when it is activated. `stallable` is
       // not set on this activation node because receive operation already has
@@ -679,14 +926,13 @@ class ProcThread {
       XLS_ASSIGN_OR_RETURN(result,
                            ConvertToActivatedReceive(receive, activation_node));
     } else {
-      // Nothing to do for external single value channels.
       XLS_RET_CHECK_EQ(ch->kind(), ChannelKind::kSingleValue);
       result = receive;
     }
-    activation_map_[result] = activation_node->activation_out;
-
     XLS_VLOG(3) << absl::StreamFormat("Receive %s converted to %s",
                                       receive->GetName(), result->GetName());
+
+    activation_node->data_out = result;
     return result;
   }
 
@@ -721,6 +967,13 @@ class ProcThread {
   // Returns the dummy node representing the proc state in the proc thread.
   Node* GetDummyState() const { return proc_state_->GetState(); }
 
+  Proc* GetInlinedProc() const { return inlined_proc_; }
+
+  // Returns the signal indicating that the tick of the proc thread is complete.
+  Node* GetProcTickComplete() const {
+    return sink_activation_node_->activation_out;
+  }
+
  private:
   // The proc whose logic which this proc thread evaluates.
   Proc* inlined_proc_;
@@ -728,14 +981,6 @@ class ProcThread {
   // The actual proc in which this proc thread evaluates. The container proc may
   // simultaneously evaluate multiple proc threads.
   Proc* container_proc_;
-
-  // A map from nodes which have tokens in their type to the respective
-  // "activation bit" representing the token in the proc thread. Each
-  // side-effecting operation only fires when it holds it's activation bit.
-  absl::flat_hash_map<Node*, Node*> activation_map_;
-
-  // Node indicating that the tick of this proc thread is complete.
-  Node* proc_tick_complete_ = nullptr;
 
   // The state elements required to by this proc thread. These elements are
   // later added to the container proc state.
@@ -749,16 +994,23 @@ class ProcThread {
   // element in `state_elements_`.
   StateElement* activation_state_ = nullptr;
 
-  // The activation nodes representing side-effecting operations including
-  // virtual send/receives through which the activation bit will be
-  // threaded. Stored as a list for pointer stability.
+  // The nodes of the activation network for the proc thread.
   std::list<ActivationNode> activation_nodes_;
+
+  // The source and sink nodes of the activation network.
+  ActivationNode* source_activation_node_;
+  ActivationNode* sink_activation_node_;
+
+  // A map from the nodes in the inlined proc to the respective activation
+  // node. Only side-effecting ops will have an activation node.
+  absl::flat_hash_map<Node*, ActivationNode*> original_node_to_activation_node_;
 };
 
 absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
                                                         Value initial_value) {
-  XLS_VLOG(3) << absl::StreamFormat("AllocateState: %s, initial value %s", name,
-                                    initial_value.ToString());
+  XLS_VLOG(3) << absl::StreamFormat(
+      "AllocateState: %s, size: %d, initial value %s", name,
+      initial_value.GetFlatBitCount(), initial_value.ToString());
   XLS_ASSIGN_OR_RETURN(
       StateElement element,
       StateElement::Create(name, initial_value, container_proc_));
@@ -768,26 +1020,30 @@ absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
 
 absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
     absl::string_view name, absl::Span<Node* const> activations_in,
-    bool stallable) {
+    absl::optional<Node*> original_node) {
   XLS_VLOG(3) << absl::StreamFormat(
-      "AllocateActivationNode: %s, inputs (%s), stallable %d", name,
-      absl::StrJoin(activations_in, ", ", NodeFormatter), stallable);
+      "AllocateActivationNode: %s, inputs (%s)", name,
+      absl::StrJoin(activations_in, ", ", NodeFormatter));
 
   ActivationNode activation_node;
   activation_node.name = name;
-  activation_node.activations_in =
-      std::vector(activations_in.begin(), activations_in.end());
-
+  activation_node.original_node = original_node;
   XLS_RET_CHECK(!activations_in.empty());
-  if (activations_in.size() == 1 && !stallable) {
+  for (int64_t i = 0; i < activations_in.size(); ++i) {
+    XLS_RET_CHECK(activations_in[i]->function_base() == container_proc_);
+    XLS_ASSIGN_OR_RETURN(
+        Node * activation_in,
+        Identity(activations_in[i],
+                 absl::StrFormat("%s_activation_in_%d", name, i)));
+    activation_node.activations_in.push_back(activation_in);
+  }
+
+  if (activations_in.size() == 1) {
+    XLS_RET_CHECK(activations_in.front()->function_base() == container_proc_);
     XLS_ASSIGN_OR_RETURN(activation_node.activation_out,
                          Identity(activations_in.front(),
                                   absl::StrFormat("%s_activation_out", name)));
   } else {
-    XLS_RET_CHECK(stallable) << absl::StreamFormat(
-        "An AllocationNode with multiple activation inputs must be stallable: "
-        "%s",
-        name);
     XLS_ASSIGN_OR_RETURN(activation_node.stall_condition,
                          container_proc_->MakeNodeWithName<Literal>(
                              absl::nullopt, Value(UBits(0, 1)),
@@ -798,13 +1054,14 @@ absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
                              absl::StrFormat("%s_not_stalled", name)));
     std::vector<Node*> activation_conditions = {not_stalled};
     std::vector<Node*> has_activations;
+    std::vector<StateElement*> activations_in_state;
     for (int64_t i = 0; i < activations_in.size(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           StateElement * activation_in_state,
           AllocateState(absl::StrFormat("%s_holds_activation_%d",
                                         activation_node.name, i),
                         Value(UBits(0, 1))));
-      activation_node.activations_in_state.push_back(activation_in_state);
+      activations_in_state.push_back(activation_in_state);
 
       XLS_ASSIGN_OR_RETURN(
           Node * has_activation,
@@ -826,8 +1083,7 @@ absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
           AndNot(has_activations[i], activation_node.activation_out,
                  absl::StrFormat("%s_holds_activation_%d_next",
                                  activation_node.name, i)));
-      XLS_RETURN_IF_ERROR(
-          activation_node.activations_in_state[i]->SetNext(holds_activation));
+      XLS_RETURN_IF_ERROR(activations_in_state[i]->SetNext(holds_activation));
     }
   }
 
@@ -839,6 +1095,12 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualSend(
     Send* send, ActivationNode* activation_node,
     VirtualChannel& virtual_channel) {
   XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(send));
+  if (channel->kind() == ChannelKind::kSingleValue &&
+      send->predicate().has_value()) {
+    return absl::UnimplementedError(
+        "Conditional send on single-value channels are not supported");
+  }
+
   XLS_RET_CHECK_EQ(channel, virtual_channel.GetChannel());
   XLS_VLOG(3) << absl::StreamFormat("Creating virtual send on channel %s",
                                     channel->name());
@@ -863,32 +1125,8 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualSend(
   XLS_RETURN_IF_ERROR(virtual_channel.SetDataIn(send->data()));
   XLS_RETURN_IF_ERROR(virtual_channel.SetSendFiredIn(send_fired));
 
-  Node* token;
-  if (channel->kind() == ChannelKind::kStreaming) {
-    // For streaming channels, add an assert which fires if there is already
-    // data saved on the channel and the send fires. This indicates data loss.
-    XLS_ASSIGN_OR_RETURN(Node * data_loss,
-                         And(virtual_channel.GetValidState(), send_fired,
-                             absl::StrFormat("%s_data_loss", channel->name())));
-    XLS_ASSIGN_OR_RETURN(
-        Node * no_data_loss,
-        Not(data_loss, absl::StrFormat("%s_no_data_loss", channel->name())));
-    XLS_ASSIGN_OR_RETURN(
-        Node * asrt,
-        container_proc_->MakeNode<Assert>(
-            absl::nullopt, send->token(), no_data_loss,
-            /*message=*/
-            absl::StrFormat("Channel %s lost data", channel->name()),
-            /*label=*/
-            absl::StrFormat("%s_data_loss_assert", channel->name())));
-    token = asrt;
-  } else {
-    // Single-value channels can't lose data as each send just overwrites the
-    // previous send.
-    token = send->token();
-  }
-  XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(token));
-  return token;
+  XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(send->token()));
+  return send->token();
 }
 
 absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
@@ -935,35 +1173,58 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
                  absl::StrFormat("%s_receive_fired", channel->name())));
   }
 
-  XLS_RETURN_IF_ERROR(
-      activation_node->stall_condition.value()->ReplaceUsesWith(stall));
-  XLS_RETURN_IF_ERROR(virtual_channel.SetReceiveFiredIn(receive_fired));
-  XLS_RETURN_IF_ERROR(
-      virtual_channel.SetProcTickCompleteIn(proc_tick_complete_));
+  XLS_RETURN_IF_ERROR(SetStallCondition(activation_node, stall));
 
   // If the receive has not fired, the data value presented to uses of the
   // receive should be a literal zero. This follows the semantics of a
   // conditional receive.
+  // TODO(meheff): 2022/05/11 Consider whether this select is only needed if
+  // original receive is conditional.
   XLS_ASSIGN_OR_RETURN(Node * zero,
                        container_proc_->MakeNodeWithName<Literal>(
                            /*loc=*/absl::nullopt, ZeroOfType(channel->type()),
                            absl::StrFormat("%s_zero", channel->name())));
   XLS_ASSIGN_OR_RETURN(
-      Node * data,
-      container_proc_->MakeNodeWithName<Select>(
-          absl::nullopt,
-          /*selector=*/virtual_channel.GetReceiveFiredThisTick(), /*cases=*/
-          std::vector<Node*>{zero, virtual_channel.GetDataOut()},
-          /*default_case=*/absl::nullopt,
-          absl::StrFormat("%s_receive_data", channel->name())));
+      Node * data, container_proc_->MakeNodeWithName<Select>(
+                       absl::nullopt,
+                       /*selector=*/receive_fired, /*cases=*/
+                       std::vector<Node*>{zero, virtual_channel.GetDataOut()},
+                       /*default_case=*/absl::nullopt,
+                       absl::StrFormat("%s_receive_data", channel->name())));
 
+  Node* token = receive->token();
+
+  // For streaming channels which send actual data (e.g., not an empty tuples),
+  // add an assert which fires if data is dropped (sent fired, but receive did
+  // not).
+  if (channel->kind() == ChannelKind::kStreaming &&
+      channel->type()->GetFlatBitCount() > 0) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * data_loss,
+        AndNot(virtual_channel.GetValidOut(), receive_fired,
+               absl::StrFormat("%s_data_loss", channel->name())));
+    XLS_ASSIGN_OR_RETURN(
+        Node * no_data_loss,
+        Not(data_loss, absl::StrFormat("%s_no_data_loss", channel->name())));
+    XLS_ASSIGN_OR_RETURN(
+        Node * assert_no_data_loss,
+        container_proc_->MakeNode<Assert>(
+            absl::nullopt, token, no_data_loss,
+            /*message=*/
+            absl::StrFormat(
+                "Channel %s lost data, send fired but receive did not",
+                channel->name()),
+            /*label=*/
+            absl::StrFormat("%s_data_loss_assert", channel->name())));
+    token = assert_no_data_loss;
+  }
   // The output of a receive operation is a tuple of (token, data).
-  XLS_ASSIGN_OR_RETURN(
-      Node * result,
-      container_proc_->MakeNodeWithName<Tuple>(
-          absl::nullopt, std::vector<Node*>{receive->token(), data},
-          absl::StrFormat("%s_receive", channel->name())));
+  XLS_ASSIGN_OR_RETURN(Node * result,
+                       container_proc_->MakeNodeWithName<Tuple>(
+                           absl::nullopt, std::vector<Node*>{token, data},
+                           absl::StrFormat("%s_receive", channel->name())));
   XLS_RETURN_IF_ERROR(receive->ReplaceUsesWith(result));
+
   return result;
 }
 
@@ -992,7 +1253,6 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
       "Converting receive %s to activated receive", receive->GetName());
 
   XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(receive));
-  XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kStreaming);
   XLS_RET_CHECK_EQ(activation_node->activations_in.size(), 1);
   Node* activation_in = activation_node->activations_in.front();
   Receive* activated_receive;
@@ -1012,27 +1272,11 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
   std::vector<Node*> old_users(activated_receive->users().begin(),
                                activated_receive->users().end());
 
-  // The receive data will be used in the same virtual tick of the proc thread,
-  // but that may correspond to multiple actual ticks of the containing proc so
-  // we need to save the received data in the actual proc state.
-  XLS_ASSIGN_OR_RETURN(
-      StateElement * data_state,
-      AllocateState(absl::StrFormat("%s_data_state", channel->name()),
-                    ZeroOfType(channel->type())));
-  XLS_ASSIGN_OR_RETURN(Node * data_in,
+  XLS_ASSIGN_OR_RETURN(Node * data,
                        container_proc_->MakeNodeWithName<TupleIndex>(
                            absl::nullopt, activated_receive, 1,
                            absl::StrFormat("%s_data_in", channel->name())));
-  XLS_ASSIGN_OR_RETURN(
-      Node * data,
-      container_proc_->MakeNodeWithName<Select>(
-          absl::nullopt,
-          /*selector=*/activated_receive->predicate().value(), /*cases=*/
-          std::vector<Node*>{data_state->GetState(), data_in},
-          /*default_case=*/absl::nullopt,
-          absl::StrFormat("%s_data", channel->name())));
-
-  XLS_RETURN_IF_ERROR(data_state->SetNext(data));
+  activation_node->data_out = data;
 
   XLS_ASSIGN_OR_RETURN(Node * token, container_proc_->MakeNode<TupleIndex>(
                                          absl::nullopt, activated_receive, 0));
@@ -1050,54 +1294,6 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
   return saved_receive;
 }
 
-// Converts `proc` into a proc thread which executes within the proc
-// itself. That is, `proc` becomes the container proc which executes a proc
-// thread representing the original logic of `proc`.  Newly created virtual
-// send/receieves are inserted into the `virtual_send` and `virtual_receive`
-// maps.
-absl::StatusOr<ProcThread> ConvertToProcThread(
-    Proc* proc,
-    absl::flat_hash_map<Channel*, VirtualChannel>& virtual_channels) {
-  XLS_ASSIGN_OR_RETURN(ProcThread proc_thread, ProcThread::Create(proc, proc));
-
-  XLS_RETURN_IF_ERROR(proc->GetUniqueStateParam()->ReplaceUsesWith(
-      proc_thread.GetDummyState()));
-
-  for (Node* node : TopoSort(proc)) {
-    if (node->Is<Send>()) {
-      XLS_RETURN_IF_ERROR(proc_thread
-                              .ConvertSend(node->As<Send>(),
-                                           proc_thread.GetActivationBit(
-                                               node->As<Send>()->token()),
-                                           virtual_channels)
-                              .status());
-    } else if (node->Is<Receive>()) {
-      XLS_RETURN_IF_ERROR(proc_thread
-                              .ConvertReceive(node->As<Receive>(),
-                                              proc_thread.GetActivationBit(
-                                                  node->As<Receive>()->token()),
-                                              virtual_channels)
-                              .status());
-    } else if (node->Is<AfterAll>()) {
-      std::vector<Node*> activation_bits;
-      for (Node* operand : node->operands()) {
-        activation_bits.push_back(proc_thread.GetActivationBit(operand));
-      }
-      XLS_RETURN_IF_ERROR(
-          proc_thread.ConvertAfterAll(node->As<AfterAll>(), activation_bits)
-              .status());
-    } else {
-      XLS_RETURN_IF_ERROR(proc_thread.AddToActivationNetwork(node));
-    }
-  }
-
-  XLS_RETURN_IF_ERROR(proc_thread.Finalize(
-      /*next_state=*/proc->GetUniqueNextState(),
-      /*proc_tick_complete=*/proc_thread.GetActivationBit(proc->NextToken())));
-
-  return std::move(proc_thread);
-}
-
 // Inlines the given proc into `container_proc` as a proc thread. Sends and
 // receives in `proc` are replaced with virtual sends/receives which execute via
 // the activation chain. Newly created virtual send/receieves are inserted into
@@ -1105,6 +1301,7 @@ absl::StatusOr<ProcThread> ConvertToProcThread(
 absl::StatusOr<ProcThread> InlineProcAsProcThread(
     Proc* proc_to_inline, Proc* container_proc,
     absl::flat_hash_map<Channel*, VirtualChannel>& virtual_channels) {
+  auto topo_sort = TopoSort(proc_to_inline);
   XLS_ASSIGN_OR_RETURN(ProcThread proc_thread,
                        ProcThread::Create(proc_to_inline, container_proc));
   absl::flat_hash_map<Node*, Node*> node_map;
@@ -1117,7 +1314,7 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
     return node->CloneInNewFunction(new_operands, container_proc);
   };
 
-  for (Node* node : TopoSort(proc_to_inline)) {
+  for (Node* node : topo_sort) {
     XLS_VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
     if (node->Is<Param>()) {
       if (node == proc_to_inline->GetUniqueStateParam()) {
@@ -1138,39 +1335,24 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
     if (node->Is<Send>()) {
       XLS_ASSIGN_OR_RETURN(
           Node * converted_send,
-          proc_thread.ConvertSend(
-              cloned_node->As<Send>(),
-              proc_thread.GetActivationBit(cloned_node->As<Send>()->token()),
-              virtual_channels));
+          proc_thread.ConvertSend(cloned_node->As<Send>(),
+                                  proc_thread.GetActivationNode(node),
+                                  virtual_channels));
       node_map[node] = converted_send;
     } else if (node->Is<Receive>()) {
       XLS_ASSIGN_OR_RETURN(
           Node * converted_receive,
-          proc_thread.ConvertReceive(
-              cloned_node->As<Receive>(),
-              proc_thread.GetActivationBit(cloned_node->As<Receive>()->token()),
-              virtual_channels));
+          proc_thread.ConvertReceive(cloned_node->As<Receive>(),
+                                     proc_thread.GetActivationNode(node),
+                                     virtual_channels));
       node_map[node] = converted_receive;
-    } else if (node->Is<AfterAll>()) {
-      std::vector<Node*> activation_bits;
-      for (Node* operand : node->operands()) {
-        activation_bits.push_back(
-            proc_thread.GetActivationBit(node_map.at(operand)));
-      }
-      XLS_ASSIGN_OR_RETURN(Node * converted_after_all,
-                           proc_thread.ConvertAfterAll(
-                               cloned_node->As<AfterAll>(), activation_bits));
-      node_map[node] = converted_after_all;
     } else {
-      XLS_RETURN_IF_ERROR(proc_thread.AddToActivationNetwork(cloned_node));
       node_map[node] = cloned_node;
     }
   }
 
-  XLS_RETURN_IF_ERROR(proc_thread.Finalize(
-      /*next_state=*/node_map.at(proc_to_inline->GetUniqueNextState()),
-      /*proc_tick_complete=*/proc_thread.GetActivationBit(
-          node_map.at(proc_to_inline->NextToken()))));
+  XLS_RETURN_IF_ERROR(proc_thread.SetNextState(
+      /*next_state=*/node_map.at(proc_to_inline->GetUniqueNextState())));
 
   // Wire in the next-token value from the inlined proc into the next-token of
   // the container proc. Use an afterall to join the tokens. If the container
@@ -1185,6 +1367,9 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
     XLS_RETURN_IF_ERROR(
         old_after_all->ReplaceUsesWithNew<AfterAll>(operands).status());
     XLS_RETURN_IF_ERROR(container_proc->RemoveNode(old_after_all));
+  } else if (container_proc->NextToken()->Is<Param>()) {
+    // This is the first proc inlined into container_proc.
+    XLS_RETURN_IF_ERROR(container_proc->SetNextToken(proc_next_token));
   } else {
     XLS_RETURN_IF_ERROR(container_proc->NextToken()
                             ->ReplaceUsesWithNew<AfterAll>(std::vector<Node*>(
@@ -1195,33 +1380,22 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   return std::move(proc_thread);
 }
 
-// Replace the state of `proc` with a tuple defined by the given StateElements.
-absl::Status ReplaceProcState(Proc* proc,
-                              absl::Span<const StateElement> elements) {
+// Sets the state of `proc` to the given state elements.
+absl::Status SetProcState(Proc* proc, absl::Span<const StateElement> elements) {
+  std::vector<std::string> names;
   std::vector<Value> initial_values;
-  std::vector<Type*> types;
   std::vector<Node*> nexts;
   for (const StateElement& element : elements) {
     XLS_RET_CHECK(element.IsNextSet()) << element.GetName();
     initial_values.push_back(element.GetInitialValue());
-    types.push_back(element.GetState()->GetType());
+    names.push_back(std::string{element.GetName()});
     nexts.push_back(element.GetNext());
   }
-  Value initial_value = Value::Tuple(initial_values);
-  XLS_ASSIGN_OR_RETURN(
-      Node * next,
-      proc->MakeNodeWithName<Tuple>(
-          absl::nullopt, nexts,
-          absl::StrFormat("%s_next", proc->GetUniqueStateParam()->GetName())));
-  XLS_RETURN_IF_ERROR(proc->ReplaceUniqueState(
-      proc->GetUniqueStateParam()->name(), next, initial_value));
+  XLS_RETURN_IF_ERROR(proc->ReplaceState(names, initial_values, nexts));
 
   for (int64_t i = 0; i < elements.size(); ++i) {
-    XLS_ASSIGN_OR_RETURN(Node * state_element,
-                         proc->MakeNodeWithName<TupleIndex>(
-                             absl::nullopt, proc->GetUniqueStateParam(), i,
-                             elements[i].GetName()));
-    XLS_RETURN_IF_ERROR(elements[i].GetState()->ReplaceUsesWith(state_element));
+    XLS_RETURN_IF_ERROR(
+        elements[i].GetState()->ReplaceUsesWith(proc->GetStateParam(i)));
   }
   return absl::OkStatus();
 }
@@ -1230,7 +1404,7 @@ absl::Status ReplaceProcState(Proc* proc,
 
 absl::StatusOr<bool> NewProcInliningPass::RunInternal(
     Package* p, const PassOptions& options, PassResults* results) const {
-  if (!options.inline_procs || p->procs().empty()) {
+  if (!options.inline_procs || p->procs().size() <= 1) {
     return false;
   }
 
@@ -1247,40 +1421,43 @@ absl::StatusOr<bool> NewProcInliningPass::RunInternal(
         top_func_base->name()));
   }
 
-  Proc* top = top_func_base->AsProcOrDie();
+  std::vector<Proc*> procs_to_inline;
+  for (const std::unique_ptr<Proc>& proc : p->procs()) {
+    procs_to_inline.push_back(proc.get());
+  }
+
+  Proc* container_proc =
+      p->AddProc(std::make_unique<Proc>("__container", "tkn", p));
 
   absl::flat_hash_map<Channel*, VirtualChannel> virtual_channels;
   for (Channel* ch : p->channels()) {
     if (ch->supported_ops() == ChannelOps::kSendReceive) {
       XLS_ASSIGN_OR_RETURN(virtual_channels[ch],
-                           VirtualChannel::Create(ch, top));
+                           VirtualChannel::Create(ch, container_proc));
     }
-  }
-
-  std::vector<Proc*> procs_to_inline = GetProcsToInline(top);
-  if (procs_to_inline.empty()) {
-    return false;
   }
 
   std::vector<ProcThread> proc_threads;
 
-  // Convert send/receives in top proc which communicate with other procs into
+  // Inline each proc into `container_proc`. Sends/receives are converted to
   // virtual send/receives.
-  XLS_ASSIGN_OR_RETURN(ProcThread top_thread,
-                       ConvertToProcThread(top, virtual_channels));
-  proc_threads.push_back(std::move(top_thread));
-
-  // Inline each proc into `top`. Sends/receives are converted to virtual
-  // send/receives.
   // TODO(meheff): 2022/02/11 Add analysis which determines whether inlining is
   // a legal transformation.
   for (Proc* proc : procs_to_inline) {
-    XLS_ASSIGN_OR_RETURN(ProcThread proc_thread,
-                         InlineProcAsProcThread(proc, top, virtual_channels));
+    XLS_ASSIGN_OR_RETURN(
+        ProcThread proc_thread,
+        InlineProcAsProcThread(proc, container_proc, virtual_channels));
     proc_threads.push_back(std::move(proc_thread));
   }
 
   XLS_VLOG(3) << "After inlining procs:\n" << p->DumpIr();
+
+  BddQueryEngine query_engine(BddFunction::kDefaultPathLimit, IsCheapForBdds);
+  XLS_RETURN_IF_ERROR(query_engine.Populate(container_proc).status());
+
+  for (ProcThread& proc_thread : proc_threads) {
+    XLS_RETURN_IF_ERROR(proc_thread.MaybeSaveReceivedData(query_engine));
+  }
 
   // Gather all inlined proc state and proc thread book-keeping bits and add to
   // the top-level proc state.
@@ -1293,29 +1470,22 @@ absl::StatusOr<bool> NewProcInliningPass::RunInternal(
     }
   }
 
-  // Add virtual channel state.
-  for (Channel* ch : p->channels()) {
-    auto it = virtual_channels.find(ch);
-    if (it != virtual_channels.end()) {
-      state_elements.insert(state_elements.end(),
-                            it->second.GetStateElements().begin(),
-                            it->second.GetStateElements().end());
-    }
-  }
-
-  XLS_RETURN_IF_ERROR(ReplaceProcState(top, state_elements));
+  XLS_RETURN_IF_ERROR(SetProcState(container_proc, state_elements));
 
   XLS_VLOG(3) << "After transforming proc state:\n" << p->DumpIr();
 
   // Delete inlined procs.
+  XLS_RETURN_IF_ERROR(p->SetTop(container_proc));
+  std::string top_proc_name = top_func_base->AsProcOrDie()->name();
   for (Proc* proc : procs_to_inline) {
     XLS_RETURN_IF_ERROR(p->RemoveProc(proc));
   }
+  container_proc->SetName(top_proc_name);
 
   // Delete send and receive nodes in top which were used for communicating with
   // the inlined procs.
   std::vector<Node*> to_remove;
-  for (Node* node : top->nodes()) {
+  for (Node* node : container_proc->nodes()) {
     if (!IsChannelNode(node)) {
       continue;
     }
@@ -1325,7 +1495,7 @@ absl::StatusOr<bool> NewProcInliningPass::RunInternal(
     }
   }
   for (Node* node : to_remove) {
-    XLS_RETURN_IF_ERROR(top->RemoveNode(node));
+    XLS_RETURN_IF_ERROR(container_proc->RemoveNode(node));
   }
 
   // Delete channels used for communicating with the inlined procs.

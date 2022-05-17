@@ -46,13 +46,15 @@ class FunctionBase {
  public:
   FunctionBase(absl::string_view name, Package* package)
       : name_(name),
-        qualified_name_(absl::StrCat(package->name(), "::", name_)),
         package_(package) {}
   virtual ~FunctionBase() = default;
 
   Package* package() const { return package_; }
   const std::string& name() const { return name_; }
-  const std::string qualified_name() const { return qualified_name_; }
+  void SetName(absl::string_view name) { name_ = name; }
+  const std::string qualified_name() const {
+    return absl::StrCat(package_->name(), "::", name_);
+  }
 
   // DumpIr emits the IR in a parsable, hierarchical text format.
   virtual std::string DumpIr() const = 0;
@@ -159,7 +161,6 @@ class FunctionBase {
   static std::vector<std::string> GetIrReservedWords();
 
   std::string name_;
-  std::string qualified_name_;
   Package* package_;
 
   // Store Nodes in std::list as they can be added and removed arbitrarily and

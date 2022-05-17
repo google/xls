@@ -143,6 +143,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
   // After proc inlining flatten and optimize the proc state. Run tuple
   // simpilification to simplify tuple structures left over from flattening.
   // TODO(meheff): Consider running proc state optimization more than once.
+  top->Add<IdentityRemovalPass>();
   top->Add<ProcStateFlatteningPass>();
   top->Add<TupleSimplificationPass>();
   top->Add<ProcStateOptimizationPass>();

@@ -356,6 +356,21 @@ class NewProcInliningPassTest : public IrTestBase {
     return b.Build(send_x_y_result,
                    b.Tuple({b.Not(cnt), x_plus_x_accum, y_plus_y_accum}));
   }
+
+  int64_t TotalProcStateSize(Package* p) {
+    int64_t bit_count = 0;
+    XLS_VLOG(1) << absl::StreamFormat("Proc state of package %s:", p->name());
+    for (const std::unique_ptr<Proc>& proc : p->procs()) {
+      XLS_VLOG(1) << absl::StreamFormat("  State elements for proc %s:",
+                                        proc->name());
+      for (Param* param : proc->StateParams()) {
+        XLS_VLOG(1) << absl::StreamFormat("    %s: %d bits", param->GetName(),
+                                          param->GetType()->GetFlatBitCount());
+        bit_count += param->GetType()->GetFlatBitCount();
+      }
+    }
+    return bit_count;
+  }
 };
 
 TEST_F(NewProcInliningPassTest, NoProcs) {
@@ -363,7 +378,7 @@ TEST_F(NewProcInliningPassTest, NoProcs) {
   FunctionBuilder fb(TestName(), p.get());
   fb.Param("x", p->GetBitsType(32));
   XLS_ASSERT_OK(fb.Build().status());
-  EXPECT_THAT(Run(p.get()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
 }
 
 TEST_F(NewProcInliningPassTest, SingleProc) {
@@ -381,7 +396,7 @@ TEST_F(NewProcInliningPassTest, SingleProc) {
   BValue send = b.Send(ch_out, b.TupleIndex(rcv, 0), b.TupleIndex(rcv, 1));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(send, b.GetUniqueStateParam()));
 
-  EXPECT_THAT(Run(p.get(), proc->name()), IsOkAndHolds(false));
+  ASSERT_THAT(Run(p.get(), proc->name()), IsOkAndHolds(false));
 }
 
 TEST_F(NewProcInliningPassTest, NestedProcs) {
@@ -409,7 +424,7 @@ TEST_F(NewProcInliningPassTest, NestedProcs) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}},
@@ -441,7 +456,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsWithSingleValue) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1}}}, {{"out", {2}}},
@@ -451,7 +466,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsWithSingleValue) {
 TEST_F(NewProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
   // Nested procs where the outer proc conditionally sends on a single value
   // channel to the inner proc.
-  auto p = CreatePackage();
+  std::unique_ptr<Package> p = std::make_unique<Package>(TestName());
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch_in,
@@ -484,11 +499,12 @@ TEST_F(NewProcInliningPassTest, NestedProcsWithConditionalSingleValueSend) {
   EvalAndExpect(p.get(), {{"in", {1, 2, 3, 4, 5}}},
                 {{"out", {2, 2, 6, 6, 10}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
-
-  EXPECT_EQ(p->procs().size(), 1);
-  EvalAndExpect(p.get(), {{"in", {1, 2, 3, 4, 5}}},
-                {{"out", {2, 2, 6, 6, 10}}});
+  EXPECT_THAT(
+      Run(p.get(), /*top=*/"A"),
+      StatusIs(
+          absl::StatusCode::kUnimplemented,
+          HasSubstr(
+              "Conditional send on single-value channels are not supported")));
 }
 
 TEST_F(NewProcInliningPassTest, NestedProcPassThrough) {
@@ -516,7 +532,7 @@ TEST_F(NewProcInliningPassTest, NestedProcPassThrough) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}},
@@ -557,7 +573,7 @@ TEST_F(NewProcInliningPassTest, NestedProcDelayedPassThrough) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
@@ -592,7 +608,7 @@ TEST_F(NewProcInliningPassTest, InputPlusDelayedInput) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}},
@@ -641,7 +657,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsTrivialInnerLoop) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 42}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 42}}},
@@ -680,7 +696,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsIota) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {}, {{"out", {42, 43, 44}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {}, {{"out", {42, 43, 44}}});
@@ -720,7 +736,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsOddIota) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {}, {{"out", {43, 45, 47, 49}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {}, {{"out", {43, 45, 47, 49}}}, /*expected_ticks=*/8);
@@ -792,7 +808,7 @@ TEST_F(NewProcInliningPassTest, SynchronizedNestedProcs) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}},
@@ -852,7 +868,7 @@ TEST_F(NewProcInliningPassTest, NestedProcsNontrivialInnerLoop) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {7, 8, 9}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {7, 8, 9}}});
@@ -893,7 +909,7 @@ TEST_F(NewProcInliningPassTest, DoubleNestedProcsPassThrough) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
@@ -951,7 +967,7 @@ TEST_F(NewProcInliningPassTest, SequentialNestedProcsPassThrough) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {123, 22, 42}}});
@@ -1025,7 +1041,7 @@ TEST_F(NewProcInliningPassTest, SequentialNestedLoopingProcsWithState) {
   //   x + (0 + 1 + 2) + (0) + (0 + 1 + 2 + 3 + 4) = x + 13
   EvalAndExpect(p.get(), {{"in", {0, 1, 2}}}, {{"out", {13, 14, 15}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {0, 1, 2}}}, {{"out", {13, 14, 15}}});
@@ -1081,7 +1097,7 @@ TEST_F(NewProcInliningPassTest, SequentialNestedProcsWithLoops) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
@@ -1186,7 +1202,7 @@ TEST_F(NewProcInliningPassTest, DoubleNestedLoops) {
   EvalAndExpect(p.get(), {{"in", {1, 100, 100000}}},
                 {{"out", {16, 116, 100116}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {1, 100, 100000}}},
@@ -1252,7 +1268,7 @@ TEST_F(NewProcInliningPassTest, MultiIO) {
       p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
       {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(
@@ -1309,7 +1325,7 @@ TEST_F(NewProcInliningPassTest, InlinedProcsWithExternalStreamingIO) {
       p.get(), {{"x", {123, 22, 42}}, {"y", {10, 20, 30}}},
       {{"x_plus_y_out", {133, 42, 72}}, {"x_minus_y_out", {113, 2, 12}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(
@@ -1366,7 +1382,7 @@ TEST_F(NewProcInliningPassTest, InlinedProcsWithExternalSingleValueIO) {
       p.get(), {{"x", {123, 22, 42}}, {"y_sv", {10}}},
       {{"x_plus_y_out", {133, 32, 52}}, {"x_minus_y_out", {113, 12, 32}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(
@@ -1422,7 +1438,7 @@ TEST_F(NewProcInliningPassTest, SingleValueAndStreamingChannels) {
   EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {25}}},
                 {{"sum", {148, 47, 67}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"x", {123, 22, 42}}, {"sv", {10}}},
@@ -1505,7 +1521,7 @@ TEST_F(NewProcInliningPassTest, TriangleProcNetwork) {
   EXPECT_EQ(p->procs().size(), 3);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {369, 66, 126}}},
@@ -1553,10 +1569,17 @@ TEST_F(NewProcInliningPassTest, DelayedReceive) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
-  EXPECT_EQ(p->procs().size(), 1);
-  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
+  EXPECT_THAT(
+      interpreter->Tick(),
+      StatusIs(
+          absl::StatusCode::kAborted,
+          HasSubstr(
+              "Channel a_to_b lost data, send fired but receive did not")));
 }
 
 TEST_F(NewProcInliningPassTest, DataLoss) {
@@ -1604,14 +1627,13 @@ TEST_F(NewProcInliningPassTest, DataLoss) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {1, 2, 3, 4, 5}}}, {{"out", {1, 2, 3}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
 
-  XLS_EXPECT_OK(interpreter->Tick());
   XLS_EXPECT_OK(interpreter->Tick());
   EXPECT_THAT(interpreter->Tick(),
               StatusIs(absl::StatusCode::kAborted,
@@ -1663,13 +1685,12 @@ TEST_F(NewProcInliningPassTest, DataLossDueToReceiveNotActivated) {
     XLS_ASSERT_OK(bb.Build(bb.TupleIndex(rcv1, 0), bb.GetUniqueStateParam()));
   }
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
       CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3}}}));
-  XLS_EXPECT_OK(interpreter->Tick());
   EXPECT_THAT(interpreter->Tick(),
               StatusIs(absl::StatusCode::kAborted,
                        HasSubstr("Channel a_to_b1 lost data")));
@@ -1734,12 +1755,20 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements1) {
       MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
+  int64_t original_proc_state_size = TotalProcStateSize(p.get());
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
+  // The new proc state includes 35 additional bits::
+  //   A activation bit (1)
+  //   B activation bit (1)
+  //   pass_result channel receive activation bit (1)
+  //   pass_inputs channel receive activation bit (1)
+  //   one variant element (32)
+  EXPECT_EQ(TotalProcStateSize(p.get()), original_proc_state_size + 36);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {20, 40, 60}}});
@@ -1805,12 +1834,14 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements2) {
       MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
+  int64_t original_proc_state_size = TotalProcStateSize(p.get());
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(TotalProcStateSize(p.get()), original_proc_state_size + 36);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {6, 18, 34}}, {"result1_out", {22, 44, 66}}});
@@ -1875,12 +1906,14 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements3) {
       MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
+  int64_t original_proc_state_size = TotalProcStateSize(p.get());
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(TotalProcStateSize(p.get()), original_proc_state_size + 36);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {20, 40, 60}}, {"result1_out", {24, 54, 88}}});
@@ -1945,12 +1978,14 @@ TEST_F(NewProcInliningPassTest, SingleValueChannelWithVariantElements4) {
       MakeTupleAccumulator("B", pass_inputs, pass_result, p.get()).status());
 
   EXPECT_EQ(p->procs().size(), 2);
+  int64_t original_proc_state_size = TotalProcStateSize(p.get());
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
+  EXPECT_EQ(TotalProcStateSize(p.get()), original_proc_state_size + 36);
 
   EvalAndExpect(p.get(), {{"x", {2, 5, 7}}, {"y", {10}}},
                 {{"result0_out", {4, 14, 28}}, {"result1_out", {24, 54, 88}}});
@@ -1998,7 +2033,7 @@ TEST_F(NewProcInliningPassTest, TokenFanIn) {
   EvalAndExpect(p.get(), {{"in0", {2, 5, 7}}, {"in1", {10, 20, 30}}},
                 {{"out", {12, 25, 37}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
   EXPECT_EQ(p->procs().size(), 1);
 
   EvalAndExpect(p.get(), {{"in0", {2, 5, 7}}, {"in1", {10, 20, 30}}},
@@ -2068,7 +2103,7 @@ TEST_F(NewProcInliningPassTest, TokenFanOut) {
 
   EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
   EXPECT_EQ(p->procs().size(), 1);
 
   EvalAndExpect(p.get(), {{"in", {2, 5, 7}}}, {{"out", {10, 19, 25}}});
@@ -2187,16 +2222,16 @@ TEST_F(NewProcInliningPassTest, RandomProcNetworks) {
         channel = pair.receive_channel;
       }
 
-      // Choose random token predecessors of this send/receive operation.
-      std::shuffle(tokens.begin(), tokens.end(), engine);
-      int64_t token_count =
-          std::uniform_int_distribution<int>(1, tokens.size())(engine);
-      std::vector<BValue> token_predecessors;
-      for (int i = 0; i < token_count; i++) {
-        token_predecessors.push_back(tokens[i]);
-      }
-
       if (send_on_channel) {
+        // Choose random token predecessors.
+        std::shuffle(tokens.begin(), tokens.end(), engine);
+        int64_t token_count =
+            std::uniform_int_distribution<int>(1, tokens.size())(engine);
+        std::vector<BValue> token_predecessors;
+        for (int i = 0; i < token_count; i++) {
+          token_predecessors.push_back(tokens[i]);
+        }
+
         // Pick a random receive to get data from.
         std::shuffle(receives.begin(), receives.end(), engine);
         BValue receive = receives.front();
@@ -2210,8 +2245,7 @@ TEST_F(NewProcInliningPassTest, RandomProcNetworks) {
         tokens.push_back(send);
       } else {
         // The receive must be a token successor of the corresponding send.
-        token_predecessors.push_back(pair.send);
-        BValue receive = b.Receive(channel, join_tokens(token_predecessors));
+        BValue receive = b.Receive(channel, pair.send);
         receives.push_back(receive);
         tokens.push_back(b.TupleIndex(receive, 0));
 
@@ -2253,7 +2287,7 @@ TEST_F(NewProcInliningPassTest, RandomProcNetworks) {
           output.bits().ToUint64().value());
     }
 
-    EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+    ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
 
     EXPECT_EQ(p->procs().size(), 1);
 
@@ -2300,9 +2334,66 @@ TEST_F(NewProcInliningPassTest, DataDependencyWithoutTokenDependency) {
   EXPECT_EQ(p->procs().size(), 2);
   EvalAndExpect(p.get(), {{"in", {123, 22, 42}}}, {{"out", {246, 44, 84}}});
 
-  EXPECT_THAT(Run(p.get(), /*top=*/"A"),
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"),
               StatusIs(absl::StatusCode::kUnimplemented,
                        HasSubstr("no token path exists")));
+}
+
+TEST_F(NewProcInliningPassTest, ReceivedValueSentAndNext) {
+  // Receive a value and pass to a send and a next-state value. This tests
+  // whether the received value is properly saved due to being passed to the
+  // next-state value.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32));
+
+  {
+    // Proc "A":
+    //
+    // st = 0
+    // while true:
+    //   in = rcv(in)
+    //   send(a_to_b, in)
+    //   x = rcv(b_to_a)
+    //   send(out, st + x)
+    //   st = in
+    ProcBuilder ab("A", "tkn", p.get());
+    BValue st = ab.StateElement("st", Value(UBits(0, 32)));
+    BValue rcv_in = ab.Receive(ch_in, ab.GetTokenParam());
+    BValue rcv_tkn = ab.TupleIndex(rcv_in, 0);
+    BValue rcv_data = ab.TupleIndex(rcv_in, 1);
+
+    BValue send_to_b = ab.Send(a_to_b, rcv_tkn, rcv_data);
+    BValue rcv_from_b = ab.Receive(b_to_a, send_to_b);
+
+    BValue send_out = ab.Send(ch_out, ab.TupleIndex(rcv_from_b, 0),
+                              ab.Add(ab.TupleIndex(rcv_from_b, 1), st));
+    XLS_ASSERT_OK(ab.Build(send_out, ab.Identity(rcv_data)).status());
+  }
+
+  XLS_ASSERT_OK(
+      MakeDelayedLoopbackProc("B", /*delay=*/2, a_to_b, b_to_a, p.get())
+          .status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {5, 7, 13}}}, {{"out", {5, 12, 20}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {{"in", {5, 7, 13}}}, {{"out", {5, 12, 20}}});
 }
 
 }  // namespace

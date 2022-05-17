@@ -597,6 +597,9 @@ class ProcThread {
 
 absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
                                                         Value initial_value) {
+  XLS_VLOG(3) << absl::StreamFormat(
+      "AllocateState: %s, size: %d, initial value %s", name,
+      initial_value.GetFlatBitCount(), initial_value.ToString());
   auto element = std::make_unique<StateElement>();
   element->name = name;
   element->initial_value = initial_value;
@@ -728,6 +731,10 @@ absl::StatusOr<VirtualSend> ProcThread::CreateVirtualSend(
     }
     Type* variant_tuple_type =
         top_->package()->GetTupleType(variant_element_types);
+
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Total size of saved data for channel %s: %d", channel->name(),
+        variant_tuple_type->GetFlatBitCount());
 
     // Construct a dummy state variable for the variant element tuple type.
     XLS_ASSIGN_OR_RETURN(

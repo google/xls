@@ -94,6 +94,11 @@ class BddFunction {
   absl::flat_hash_set<Node*> saturated_expressions_;
 };
 
+// Returns true if the given node is very cheap to evaluate using a
+// BDD. Typically single-bit and logical operations are considered cheap as well
+// as "free" operations like bitslice and concat.
+bool IsCheapForBdds(const Node* node);
+
 }  // namespace xls
 
 #endif  // XLS_PASSES_BDD_FUNCTION_H_

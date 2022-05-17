@@ -40,8 +40,13 @@ ret add.3: bits[32] = add(x, y)
 )",
                                                           p.get()));
   EXPECT_EQ(func->name(), "foo");
+  EXPECT_EQ(func->qualified_name(), "BasicPropertiesTest::foo");
   EXPECT_TRUE(func->IsFunction());
   EXPECT_FALSE(func->IsProc());
+
+  func->SetName("bar");
+  EXPECT_EQ(func->name(), "bar");
+  EXPECT_EQ(func->qualified_name(), "BasicPropertiesTest::bar");
 }
 
 TEST_F(FunctionTest, CloneSimpleFunction) {
