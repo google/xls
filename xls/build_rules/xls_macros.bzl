@@ -191,7 +191,7 @@ def xls_dslx_opt_ir_macro(
     1. xls_ir_opt_ir (optimizes the IR).
 
     The macro also instantiates the 'enable_generated_file_wrapper'
-    function. The generated files are listed in the outs attributeof the rule.
+    function. The generated files are listed in the outs attribute of the rule.
 
     Examples:
 
