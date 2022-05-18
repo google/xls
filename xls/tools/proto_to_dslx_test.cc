@@ -394,5 +394,80 @@ pub struct Top {
 pub const foo = Top { submessage: [SubMessage { my_ints: [sN[64]:1, sN[64]:2, sN[64]:3, sN[64]:4], my_ints_count: u32:4 }, SubMessage { my_ints: [sN[64]:0, sN[64]:0, sN[64]:0, sN[64]:0], my_ints_count: u32:0 }], submessage_count: u32:2 };)");
 }
 
+TEST(ProtoToDslxTest, MultipleTypesAndInstantiations) {
+  const std::string kSchema = R"(
+syntax = "proto2";
+
+package xls;
+
+message TypeA {
+  optional uint32 index_a = 1;
+}
+
+message TypeB {
+  optional uint64 index_b = 1;
+}
+)";
+
+  std::string textproto_a1 = R"(
+  index_a: 0
+)";
+  std::string textproto_a2 = R"(
+  index_a: 1
+)";
+  std::string textproto_b1 = R"(
+  index_b: 2
+)";
+  std::string textproto_b2 = R"(
+  index_b: 3
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::DescriptorPool> descriptor_pool,
+      ProcessStringProtoSchema(kSchema));
+  google::protobuf::DynamicMessageFactory factory;
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::Message> message_a1,
+      ConstructProtoViaText(textproto_a1, "xls.TypeA", descriptor_pool.get(),
+                            &factory));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::Message> message_a2,
+      ConstructProtoViaText(textproto_a2, "xls.TypeA", descriptor_pool.get(),
+                            &factory));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::Message> message_b1,
+      ConstructProtoViaText(textproto_b1, "xls.TypeB", descriptor_pool.get(),
+                            &factory));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<google::protobuf::Message> message_b2,
+      ConstructProtoViaText(textproto_b2, "xls.TypeB", descriptor_pool.get(),
+                            &factory));
+
+  dslx::Module module("test_module");
+
+  ProtoToDslxManager proto_to_dslx(&module);
+  XLS_ASSERT_OK(
+      proto_to_dslx.AddProtoInstantiationToDslxModule("a1", *message_a1));
+  XLS_ASSERT_OK(
+      proto_to_dslx.AddProtoInstantiationToDslxModule("a2", *message_a2));
+  XLS_ASSERT_OK(
+      proto_to_dslx.AddProtoInstantiationToDslxModule("b1", *message_b1));
+  XLS_ASSERT_OK(
+      proto_to_dslx.AddProtoInstantiationToDslxModule("b2", *message_b2));
+
+  EXPECT_EQ(module.ToString(),
+            R"(pub struct TypeA {
+  index_a: uN[32],
+}
+pub const a1 = TypeA { index_a: uN[32]:0 };
+pub const a2 = TypeA { index_a: uN[32]:1 };
+pub struct TypeB {
+  index_b: uN[64],
+}
+pub const b1 = TypeB { index_b: uN[64]:2 };
+pub const b2 = TypeB { index_b: uN[64]:3 };)");
+}
+
 }  // namespace
 }  // namespace xls

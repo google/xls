@@ -19,6 +19,8 @@
 #include <memory>
 
 #include "google/protobuf/descriptor.h"
+#include "google/protobuf/dynamic_message.h"
+#include "google/protobuf/message.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -26,6 +28,48 @@
 #include "xls/dslx/ast.h"
 
 namespace xls {
+namespace internal {
+
+struct MessageRecord;
+
+// Holds the information needed to translate a proto element into DSLX - its
+// name, value type (struct or int), and child elements, if applicable.
+using NameToRecord =
+    absl::flat_hash_map<std::string, std::unique_ptr<MessageRecord>>;
+
+}  // namespace internal
+
+// Provides functionality to construct DSLX definitions and constant
+// instantiations from a proto schema and messages.
+class ProtoToDslxManager {
+ public:
+  // Constructs an instance that will add DSLX definitions to the
+  // previously constructed DSLX module.
+  ProtoToDslxManager(dslx::Module* module);
+
+  ~ProtoToDslxManager();
+
+  // AddProtoInstantiationToDslxModule accepts a proto message and
+  // creates a DSLX struct corresponding to the type of message (once),
+  // along with a DSLX constant corresponding to that message.
+  //
+  // Args:
+  //   binding_name: The name to assign to the resulting DSLX constant.
+  absl::Status AddProtoInstantiationToDslxModule(
+      absl::string_view binding_name, const google::protobuf::Message& message);
+
+ private:
+  // AddProtoTypeToDslxModule accepts a proto message and adds its type
+  // definition into a corresponding DSLX module as a DSLX struct.
+  //
+  // Args:
+  //   message: message to create DSLX definition for.
+  absl::Status AddProtoTypeToDslxModule(const google::protobuf::Message& message);
+
+  dslx::Module* module_ = nullptr;
+  absl::flat_hash_map<const google::protobuf::Descriptor*, internal::NameToRecord>
+      name_to_records_;
+};
 
 // ProtoToDslx accepts a proto schema and textproto instantiating such, and
 // converts those definitions into a cooresponding DSLX file.
@@ -53,6 +97,25 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
     absl::string_view proto_def, absl::string_view message_name,
     absl::string_view text_proto, absl::string_view binding_name);
+
+// Compiles the specified proto schema into a "Descriptor" (contained in the
+// returned pool), potentially loading dependent schema files along the way.
+// Args:
+//  proto_def: Contents of the proto schema file (i.e. `.proto` file).
+absl::StatusOr<std::unique_ptr<google::protobuf::DescriptorPool>>
+ProcessStringProtoSchema(absl::string_view proto_def);
+
+// Helper function to create a Proto Message from a string.
+// Args:
+//   text_proto: The text of the message definition.
+//   message_name: The name of the message.
+//   descriptor_pool: Pool containing the definition of the message
+//                    given by message_name.
+//   factory: Factory to be used to create the message.
+absl::StatusOr<std::unique_ptr<google::protobuf::Message>> ConstructProtoViaText(
+    absl::string_view text_proto, absl::string_view message_name,
+    google::protobuf::DescriptorPool* descriptor_pool,
+    google::protobuf::DynamicMessageFactory* factory);
 
 }  // namespace xls
 
