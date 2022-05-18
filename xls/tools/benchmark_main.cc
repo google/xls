@@ -29,8 +29,11 @@
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
+#include "xls/interpreter/function_interpreter.h"
+#include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/jit/ir_jit.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
@@ -113,6 +116,10 @@ void PrintNodeBreakdown(FunctionBase* f) {
   }
 }
 
+int64_t DurationToMs(absl::Duration duration) {
+  return duration / absl::Milliseconds(1);
+}
+
 // Run the standard pipeline on the given package and prints stats about the
 // passes and execution time.
 absl::Status RunOptimizationAndPrintStats(Package* package) {
@@ -132,9 +139,8 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package, pass_options, &pass_results).status());
   absl::Duration total_time = absl::Now() - start;
-  auto to_ms = [](absl::Duration d) { return d / absl::Milliseconds(1); };
   std::cout << absl::StreamFormat("Optimization time: %dms\n",
-                                  to_ms(total_time));
+                                  DurationToMs(total_time));
   std::cout << absl::StreamFormat("Dynamic pass count: %d\n",
                                   pass_results.invocations.size());
 
@@ -160,9 +166,10 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
                "pass was run):"
             << std::endl;
   for (const std::string& name : pass_names) {
-    std::cout << absl::StreamFormat(
-        "  %-20s : %-5dms (%3d / %3d)\n", name, to_ms(pass_times.at(name)),
-        changed_counts.at(name), pass_counts.at(name));
+    std::cout << absl::StreamFormat("  %-20s : %-5dms (%3d / %3d)\n", name,
+                                    DurationToMs(pass_times.at(name)),
+                                    changed_counts.at(name),
+                                    pass_counts.at(name));
   }
   return absl::OkStatus();
 }
@@ -379,6 +386,72 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
   return absl::OkStatus();
 }
 
+void DummyRecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
+                 int64_t data_bytes, void* user_data) {}
+void DummySendFn(JitChannelQueue* queue, Send* send, uint8_t* data,
+                 int64_t data_bytes, void* user_data) {}
+
+absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
+  std::minstd_rand rng_engine;
+  if (function_base->IsFunction()) {
+    Function* function = function_base->AsFunctionOrDie();
+    absl::Time start_jit_compile = absl::Now();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(function));
+    std::cout << absl::StreamFormat(
+        "JIT compile time: %dms\n",
+        DurationToMs(absl::Now() - start_jit_compile));
+
+    const int64_t kInputCount = 100;
+    std::vector<std::vector<Value>> arg_set(kInputCount);
+    for (std::vector<Value>& args : arg_set) {
+      for (Param* param : function->params()) {
+        args.push_back(RandomValue(param->GetType(), &rng_engine));
+      }
+    }
+
+    // The JIT is much faster so run many times.
+    const int64_t kJitRunMultiplier = 1000;
+    absl::Time start_jit_run = absl::Now();
+    for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
+      for (const std::vector<Value>& args : arg_set) {
+        XLS_RETURN_IF_ERROR(jit->Run(args).status());
+      }
+    }
+    std::cout << absl::StreamFormat("JIT run time: %dms\n",
+                                    DurationToMs(absl::Now() - start_jit_run));
+
+    absl::Time start_interpreter = absl::Now();
+    for (const std::vector<Value>& args : arg_set) {
+      XLS_RETURN_IF_ERROR(InterpretFunction(function, args).status());
+    }
+    std::cout << absl::StreamFormat(
+        "Interpreter time: %dms\n",
+        DurationToMs(absl::Now() - start_interpreter));
+    return absl::OkStatus();
+  }
+
+  XLS_RET_CHECK(function_base->IsProc());
+  Proc* proc = function_base->AsProcOrDie();
+  if (proc->GetStateElementCount() != 1) {
+    // TODO(https://github.com/google/xls/issues/548): Handle multiple state
+    // elements in the JIT.
+    return absl::OkStatus();
+  }
+
+  absl::Time start_jit_compile = absl::Now();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_manager,
+                       JitChannelQueueManager::Create(proc->package()));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<IrJit> jit,
+      IrJit::CreateProc(proc, queue_manager.get(), &DummyRecvFn, &DummySendFn));
+  std::cout << absl::StreamFormat(
+      "JIT compile time: %dms\n",
+      DurationToMs(absl::Now() - start_jit_compile));
+  // TODO(meheff): 2022/5/16 Run the proc as well.
+
+  return absl::OkStatus();
+}
+
 absl::Status RealMain(absl::string_view path,
                       absl::optional<int64_t> clock_period_ps,
                       absl::optional<int64_t> pipeline_stages,
@@ -431,6 +504,8 @@ absl::Status RealMain(absl::string_view path,
     XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule, query_engine,
                                          delay_estimator, clock_period_ps));
   }
+
+  XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f));
   return absl::OkStatus();
 }
 
