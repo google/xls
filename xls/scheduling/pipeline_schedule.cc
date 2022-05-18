@@ -14,7 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
-
+#include <functional>
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -146,13 +146,14 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
   return cycle_map;
 }
 
+using DelayMap = absl::flat_hash_map<Node*, int64_t>;
 // A helper function to compute each node's delay by calling the delay estimator
 // The result is used by `ComputeCriticalCombPathsUntilNextCycle`,
 // `ComputeSingleSourceCCPUntilNextCycle`,
 // `ScheduleToMinimizeRegistersSDC`
-absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> ComputeNodeDelays(
+absl::StatusOr<DelayMap> ComputeNodeDelays(
     FunctionBase* f, const DelayEstimator& delay_estimator) {
-  absl::flat_hash_map<Node*, int64_t> result;
+  DelayMap result;
   for (Node* node : f->nodes()) {
     XLS_ASSIGN_OR_RETURN(result[node],
                          delay_estimator.GetOperationDelayInPs(node));
@@ -160,66 +161,24 @@ absl::StatusOr<absl::flat_hash_map<Node*, int64_t>> ComputeNodeDelays(
   return result;
 }
 
-// A helper function to compute single source Critical Combinational Paths'
-// delay the path's delay exceeds the clock period, from the src-node to all
-// other reachable nodes.
-//
-// It traverses the data-dependence graph from the src-node,
-// compute and record the Critical Combinational Path's delay.
-//
-// Args:
-//   src: the starting node
-//   node_delay: node's delay, which is precomputed from delay estimator
-absl::flat_hash_map<Node*, int64_t>
-ComputeSingleSourceCCPUntilNextCycle(
-    Node* src, const absl::flat_hash_map<Node*, int64_t>& node_delay,
-    int64_t clock_period_ps) {
-  absl::flat_hash_map<Node*, int64_t> dst_ccp;
-  absl::flat_hash_set<Node*> worklist;
+// Search a those paths whose combinational delay exceeds clock period
+// The result only contains all the destinations by `ScheduleToMinimizeRegistersSDC`
+std::vector<Node*> SearchPathsJustExceedClockPeriod(Node* src, int64_t clock_period_ps, const DelayMap& delay_map){
+  std::vector<Node*> result;
+  std::function<void (Node*, int64_t)> dfs;
 
-  auto pop_worklist = [&worklist]() {
-    auto it = worklist.begin();
-    Node* result = *it;
-    worklist.erase(it);
-    return result;
+  dfs = [&](Node* node, int64_t node_start_time)->void{
+    const int64_t node_end_time = node_start_time + delay_map.at(node);
+    if(node_end_time > clock_period_ps){
+      result.push_back(node);
+      return;
+    }
+    for(Node* user : node->users()){
+      dfs(user, node_end_time);
+    }
   };
 
-  // Topological Sort.
-  worklist.insert(src);
-  while (worklist.size() > 0) {
-    Node* current = pop_worklist();
-    int64_t dst_ccp_path = dst_ccp[current];
-    int64_t current_delay = node_delay.at(current);
-    for (Node* user : current->users()) {
-      dst_ccp[user] = std::max(dst_ccp[user], dst_ccp_path + current_delay);
-
-      if (dst_ccp[user] < clock_period_ps) {
-        worklist.insert(user);
-      }
-    }
-  }
-
-  return dst_ccp;
-}
-
-// Compute Critical Combinational Path's delay between any pair of nodes until
-// the path's delay exceeds the clock period
-//
-// Complexity: O( |V|·(|V| + |E|) )
-//
-// The result maps path's (src, dst) pair to the path's combinational delay.
-std::vector<std::pair<Node*, absl::flat_hash_map<Node*, int64_t>>>
-ComputeCriticalCombPathsUntilNextCycle(
-    FunctionBase* f, const absl::flat_hash_map<Node*, int64_t>& node_delay,
-    int64_t clock_period_ps) {
-  // critical combinational path's delay
-  std::vector<std::pair<Node*, absl::flat_hash_map<Node*, int64_t>>> result;
-
-  for (Node* src : f->nodes()) {
-    result.push_back(
-        std::make_pair(src, ComputeSingleSourceCCPUntilNextCycle(
-                                src, node_delay, clock_period_ps)));
-  }
+  dfs(src, 0);
   return result;
 }
 
@@ -263,20 +222,22 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
     lp.SetVariableBounds(lifetime_var[node], 0.0, bounds->max_lower_bound());
   }
 
+  // a dummy node to represent an artificial sink node on the data-dependence graph
   or_tools::ColIndex cycle_at_sinknode = lp.CreateNewVariable();
 
+  Function* as_func = dynamic_cast<Function*>(f);
   for (Node* node : f->nodes()) {
     or_tools::ColIndex lifetime_at_node = lifetime_var[node];
     or_tools::ColIndex cycle_at_node = cycle_var[node];
 
     auto add_du_chains_related_constraints = [&lp, infinity, &lifetime_at_node, &cycle_at_node](or_tools::ColIndex cycle_at_user){
-      // Constraint: cycle[node] - cycle[user] <= 0
+      // Constraint: cycle[node] - cycle[node_user] <= 0
       or_tools::RowIndex constraint1 = lp.CreateNewConstraint();
       lp.SetConstraintBounds(constraint1, -infinity, 0.0);
       lp.SetCoefficient(constraint1, cycle_at_node, 1);
       lp.SetCoefficient(constraint1, cycle_at_user, -1);
 
-      // Constraint: cycle[user] - cycle[node] <= lifetime[node]
+      // Constraint: cycle[node_user] - cycle[node] - lifetime[node] <= 0
       or_tools::RowIndex constraint2 = lp.CreateNewConstraint();
       lp.SetConstraintBounds(constraint2, -infinity, 0.0);
       lp.SetCoefficient(constraint2, cycle_at_user, 1);
@@ -284,28 +245,20 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
       lp.SetCoefficient(constraint2, lifetime_at_node, -1);
     };
 
-    if (node->users().empty()) {
+    for (Node* user : node->users()) {
+      add_du_chains_related_constraints(cycle_var.at(user));
+    }
+    if (f->HasImplicitUse(node)) {
       add_du_chains_related_constraints(cycle_at_sinknode);
-    } else {
-      for (Node* user : node->users()) {
-        add_du_chains_related_constraints(cycle_var.at(user));
-      }
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(auto node_delay, ComputeNodeDelays(f, delay_estimator));
-  for (auto [src, single_source_paths] :
-       ComputeCriticalCombPathsUntilNextCycle(f, node_delay,
-                                                      clock_period_ps)) {
-    for (auto [dst, path_delay] : single_source_paths) {
-      if (path_delay < clock_period_ps) {
-        continue;
-      }
-
-      // Constraint: cycle[dst] - cycle[src] >= (path_delay/clock_period_ps)
-      int64_t gap = path_delay / clock_period_ps;
+  XLS_ASSIGN_OR_RETURN(auto delay_map, ComputeNodeDelays(f, delay_estimator));
+  for (Node* src : f->nodes()){
+    for (Node* dst : SearchPathsJustExceedClockPeriod(src, clock_period_ps, delay_map)){
+      // Constraint: cycle[path_dst] - cycle[path_src] >= 1
       or_tools::RowIndex constraint = lp.CreateNewConstraint();
-      lp.SetConstraintBounds(constraint, gap, infinity);
+      lp.SetConstraintBounds(constraint, 1, infinity);
       lp.SetCoefficient(constraint, cycle_var[dst], 1);
       lp.SetCoefficient(constraint, cycle_var[src], -1);
     }
