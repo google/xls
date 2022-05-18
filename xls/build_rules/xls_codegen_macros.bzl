@@ -24,6 +24,10 @@ load(
     "xls_ir_verilog",
 )
 load(
+    "//xls/build_rules:xls_common_rules.bzl",
+    "split_filename",
+)
+load(
     "//xls/build_rules:xls_config_rules.bzl",
     "enable_generated_file_wrapper",
 )
@@ -63,7 +67,7 @@ def xls_ir_verilog_macro(
         refer to the codegen_main application at
         //xls/tools/codegen_main.cc.
       verilog_file: The filename of Verilog file generated. The filename must
-        have a '.v' extension.
+        have a '.v' or '.sv', extension.
       enable_generated_file: See 'enable_generated_file' from
         'enable_generated_file_wrapper' function.
       enable_presubmit_generated_file: See 'enable_presubmit_generated_file'
@@ -87,8 +91,10 @@ def xls_ir_verilog_macro(
              "of boolean type.")
 
     # Append output files to arguments.
-    validate_verilog_filename(verilog_file)
-    verilog_basename = verilog_file[:-2]
+    use_system_verilog = ("use_system_verilog" in codegen_args and
+                          codegen_args["use_system_verilog"] == True)
+    validate_verilog_filename(verilog_file, use_system_verilog)
+    verilog_basename = split_filename(verilog_file)[0]
     kwargs = append_xls_ir_verilog_generated_files(
         kwargs,
         verilog_basename,

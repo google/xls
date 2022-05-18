@@ -27,6 +27,10 @@ load(
     "enable_generated_file_wrapper",
 )
 load(
+    "//xls/build_rules:xls_common_rules.bzl",
+    "split_filename",
+)
+load(
     "//xls/build_rules:xls_ir_rules.bzl",
     "append_xls_dslx_ir_generated_files",
     "append_xls_ir_opt_ir_generated_files",
@@ -139,8 +143,10 @@ def xls_dslx_verilog_macro(
     # Append output files to arguments.
     kwargs = append_xls_dslx_ir_generated_files(kwargs, name)
     kwargs = append_xls_ir_opt_ir_generated_files(kwargs, name)
-    validate_verilog_filename(verilog_file)
-    verilog_basename = verilog_file[:-2]
+    use_system_verilog = ("use_system_verilog" in codegen_args and
+                          codegen_args["use_system_verilog"] == True)
+    validate_verilog_filename(verilog_file, use_system_verilog)
+    verilog_basename = split_filename(verilog_file)[0]
     kwargs = append_xls_ir_verilog_generated_files(
         kwargs,
         verilog_basename,

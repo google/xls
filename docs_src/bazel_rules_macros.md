@@ -872,7 +872,7 @@ Example:
 | :------------- | :------------- | :------------- |
 | <a id="xls_ir_verilog-name"></a>name |  The name of the rule.   |  none |
 | <a id="xls_ir_verilog-src"></a>src |  The IR source file. A single source file must be provided. The file must have a '.ir' extension.   |  none |
-| <a id="xls_ir_verilog-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a '.v' extension.   |  none |
+| <a id="xls_ir_verilog-verilog_file"></a>verilog_file |  The filename of Verilog file generated. The filename must have a '.v' or '.sv', extension.   |  none |
 | <a id="xls_ir_verilog-codegen_args"></a>codegen_args |  Arguments of the codegen tool. For details on the arguments, refer to the codegen_main application at //xls/tools/codegen_main.cc.   |  <code>{}</code> |
 | <a id="xls_ir_verilog-enable_generated_file"></a>enable_generated_file |  See 'enable_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>True</code> |
 | <a id="xls_ir_verilog-enable_presubmit_generated_file"></a>enable_presubmit_generated_file |  See 'enable_presubmit_generated_file' from 'enable_generated_file_wrapper' function.   |  <code>False</code> |

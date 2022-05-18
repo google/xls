@@ -25,6 +25,7 @@ load(
     "get_runfiles_for_xls",
     "get_transitive_built_files_for_xls",
     "is_args_valid",
+    "split_filename",
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
@@ -41,7 +42,8 @@ _DEFAULT_CODEGEN_ARGS = {
     "delay_model": "unit",
 }
 
-_VERILOG_FILE_EXTENSION = ".v"
+_SYSTEM_VERILOG_FILE_EXTENSION = "sv"
+_VERILOG_FILE_EXTENSION = "v"
 _SIGNATURE_TEXTPROTO_FILE_EXTENSION = ".sig.textproto"
 _SCHEDULE_TEXTPROTO_FILE_EXTENSION = ".schedule.textproto"
 _VERILOG_LINE_MAP_TEXTPROTO_FILE_EXTENSION = ".verilog_line_map.textproto"
@@ -143,14 +145,20 @@ def get_xls_ir_verilog_generated_files(args, arguments):
         generated_files.append(args.get("schedule_file"))
     return generated_files
 
-def validate_verilog_filename(verilog_filename):
+def validate_verilog_filename(verilog_filename, use_system_verilog):
     """Validate verilog filename.
 
     Produces a failure if the verilog filename does not have a basename or a
     valid extension.
     """
-    if (len(verilog_filename) < 3 or
-        verilog_filename[-2:] != _VERILOG_FILE_EXTENSION):
+
+    if (use_system_verilog and
+        split_filename(verilog_filename)[1] != _SYSTEM_VERILOG_FILE_EXTENSION):
+        fail("SystemVerilog filename must contain the '%s' extension." %
+             _SYSTEM_VERILOG_FILE_EXTENSION)
+
+    if (not use_system_verilog and
+        split_filename(verilog_filename)[1] != _VERILOG_FILE_EXTENSION):
         fail("Verilog filename must contain the '%s' extension." %
              _VERILOG_FILE_EXTENSION)
 
@@ -216,8 +224,10 @@ def xls_ir_verilog_impl(ctx, src):
 
     # output filenames
     verilog_filename = ctx.attr.verilog_file.name
-    validate_verilog_filename(verilog_filename)
-    verilog_basename = verilog_filename[:-2]
+    use_system_verilog = ("use_system_verilog" in codegen_args and
+                          codegen_args["use_system_verilog"] == True)
+    validate_verilog_filename(verilog_filename, use_system_verilog)
+    verilog_basename = split_filename(verilog_filename)[0]
 
     verilog_line_map_filename = get_output_filename_value(
         ctx,
