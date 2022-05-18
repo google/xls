@@ -62,9 +62,7 @@ CodegenInfo = provider(
         "delay_model": "Optional(string) Delay model used in codegen.",
         "module_sig_file": "File: The module signature of the Verilog file.",
         "schedule_file": "File: The schedule of the module.",
-        # TODO(meheff): 2022/03/09 Ensure every verilog target passes a top
-        # value and make this attribute non-optional.
-        "top": "Optional(string) Name of top level block in the IR.",
+        "top": "String: Name of top level block in the IR.",
         "verilog_line_map_file": "File: The Verilog line map file.",
         "verilog_file": "File: The Verilog file.",
     },

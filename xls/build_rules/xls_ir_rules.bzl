@@ -134,10 +134,7 @@ def _convert_to_ir(ctx, src):
 
     is_args_valid(ir_conv_args, IR_CONV_FLAGS)
 
-    # TODO(vmirian) 2022-02-19 When bypass_dslx_top is removed, modify if
-    # statement.
-    if not ctx.attr.bypass_dslx_top and ctx.attr.dslx_top:
-        ir_conv_args["top"] = ctx.attr.dslx_top
+    ir_conv_args["top"] = ctx.attr.dslx_top
     my_args = args_to_string(ir_conv_args)
 
     ir_filename = get_output_filename_value(
@@ -518,12 +515,6 @@ xls_dslx_ir_attrs = dicts.add(
             doc = "Defines the 'top' argument of the" +
                   "//xls/dslx/ir_converter_main.cc application.",
             mandatory = True,
-        ),
-        # TODO(b/220380384) 2022-02-19 When bypass_dslx_top is no longer needed,
-        # remove attribute below.
-        "bypass_dslx_top": attr.bool(
-            doc = "DO NOT USE. Bypasses the dsl_top requirement.",
-            default = False,
         ),
         "ir_conv_args": attr.string_dict(
             doc = "Arguments of the IR conversion tool. For details on the " +
