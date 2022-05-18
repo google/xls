@@ -14,12 +14,6 @@
 
 #include "xls/jit/ir_jit.h"
 
-#include <cerrno>
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <system_error>  // NOLINT
-
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
@@ -27,39 +21,8 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "llvm/include/llvm/ADT/APFloat.h"
-#include "llvm/include/llvm/Analysis/TargetLibraryInfo.h"
-#include "llvm/include/llvm/Analysis/TargetTransformInfo.h"
-#include "llvm/include/llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/include/llvm/ExecutionEngine/JITSymbol.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/IRCompileLayer.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/Layer.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
-#include "llvm/include/llvm/ExecutionEngine/SectionMemoryManager.h"
-#include "llvm/include/llvm/IR/BasicBlock.h"
-#include "llvm/include/llvm/IR/Constants.h"
-#include "llvm/include/llvm/IR/DerivedTypes.h"
-#include "llvm/include/llvm/IR/Instructions.h"
-#include "llvm/include/llvm/IR/Intrinsics.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
-#include "llvm/include/llvm/IR/LegacyPassManager.h"
 #include "llvm/include/llvm/IR/Module.h"
-#include "llvm/include/llvm/IR/PassManager.h"
-#include "llvm/include/llvm/IR/Value.h"
-#include "llvm/include/llvm/Pass.h"
-#include "llvm/include/llvm/Passes/OptimizationLevel.h"
-#include "llvm/include/llvm/Passes/PassBuilder.h"
-#include "llvm/include/llvm/Support/CodeGen.h"
-#include "llvm/include/llvm/Support/DynamicLibrary.h"
-#include "llvm/include/llvm/Support/raw_ostream.h"
-#include "llvm/include/llvm/Target/TargetMachine.h"
-#include "llvm/include/llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "xls/codegen/vast.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
@@ -78,54 +41,15 @@
 #include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
-namespace {
-
-absl::once_flag once;
-void OnceInit() {
-  LLVMInitializeNativeTarget();
-  LLVMInitializeNativeAsmPrinter();
-  LLVMInitializeNativeAsmParser();
-}
-
-// Used for reporting a bad optimization level specification to LLVM internals.
-class BadOptLevelError : public llvm::ErrorInfo<BadOptLevelError> {
- public:
-  BadOptLevelError(int opt_level) : opt_level_(opt_level) {}
-
-  void log(llvm::raw_ostream& os) const override {
-    os << "Invalid opt level: " << opt_level_;
-  }
-
-  std::error_code convertToErrorCode() const override {
-    return std::error_code(EINVAL, std::system_category());
-  }
-
-  static char ID;
-
- private:
-  int opt_level_;
-};
-
-char BadOptLevelError::ID;
-
-}  // namespace
-
-IrJit::~IrJit() {
-  if (auto err = execution_session_.endSession()) {
-    execution_session_.reportError(std::move(err));
-  }
-}
 
 absl::StatusOr<std::unique_ptr<IrJit>> IrJit::Create(Function* xls_function,
                                                      int64_t opt_level) {
-  absl::call_once(once, OnceInit);
-
-  auto jit = absl::WrapUnique(new IrJit(xls_function, opt_level));
-  XLS_RETURN_IF_ERROR(jit->Init());
+  auto jit = absl::WrapUnique(new IrJit(xls_function));
+  XLS_RETURN_IF_ERROR(jit->Init(opt_level));
   auto visit_fn = [&jit](llvm::Module* module, llvm::Function* llvm_function,
                          bool generate_packed) {
     return FunctionBuilderVisitor::Visit(
-        module, llvm_function, jit->xls_function_, jit->type_converter_.get(),
+        module, llvm_function, jit->xls_function_, jit->type_converter(),
         /*is_top=*/true, generate_packed);
   };
   XLS_RETURN_IF_ERROR(jit->Compile(visit_fn));
@@ -136,15 +60,13 @@ absl::StatusOr<std::unique_ptr<IrJit>> IrJit::CreateProc(
     Proc* proc, JitChannelQueueManager* queue_mgr,
     ProcBuilderVisitor::RecvFnT recv_fn, ProcBuilderVisitor::SendFnT send_fn,
     int64_t opt_level) {
-  absl::call_once(once, OnceInit);
-
-  auto jit = absl::WrapUnique(new IrJit(proc, opt_level));
-  XLS_RETURN_IF_ERROR(jit->Init());
+  auto jit = absl::WrapUnique(new IrJit(proc));
+  XLS_RETURN_IF_ERROR(jit->Init(opt_level));
   auto visit_fn = [&jit, queue_mgr, recv_fn, send_fn](
                       llvm::Module* module, llvm::Function* llvm_function,
                       bool generate_packed) {
     return ProcBuilderVisitor::Visit(
-        module, llvm_function, jit->xls_function_, jit->type_converter_.get(),
+        module, llvm_function, jit->xls_function_, jit->type_converter(),
         /*is_top=*/true, generate_packed, queue_mgr, recv_fn, send_fn);
   };
   XLS_RETURN_IF_ERROR(jit->Compile(visit_fn));
@@ -153,209 +75,49 @@ absl::StatusOr<std::unique_ptr<IrJit>> IrJit::CreateProc(
 
 absl::StatusOr<std::vector<char>> IrJit::CreateObjectFile(
     Function* xls_function, int64_t opt_level) {
-  absl::call_once(once, OnceInit);
-
-  auto jit = absl::WrapUnique(
-      new IrJit(xls_function, opt_level, /*emit_object_code=*/true));
-  XLS_RETURN_IF_ERROR(jit->Init());
+  auto jit = absl::WrapUnique(new IrJit(xls_function));
+  XLS_RETURN_IF_ERROR(jit->Init(opt_level, /*emit_object_code=*/true));
   auto visit_fn = [&jit](llvm::Module* module, llvm::Function* llvm_function,
                          bool generate_packed) {
     return FunctionBuilderVisitor::Visit(
-        module, llvm_function, jit->xls_function_, jit->type_converter_.get(),
+        module, llvm_function, jit->xls_function_, jit->type_converter(),
         /*is_top=*/true, generate_packed);
   };
   XLS_RETURN_IF_ERROR(jit->Compile(visit_fn));
-  return jit->object_code_;
+  return jit->orc_jit_->GetObjectCode();
 }
 
 absl::Status IrJit::Compile(VisitFn visit_fn) {
-  llvm::LLVMContext* bare_context = context_.getContext();
-  auto module = std::make_unique<llvm::Module>("the_module", *bare_context);
-  module->setDataLayout(data_layout_);
+  std::unique_ptr<llvm::Module> module = orc_jit_->NewModule("the_module");
   XLS_RETURN_IF_ERROR(CompileFunction(visit_fn, module.get()));
   XLS_RETURN_IF_ERROR(CompilePackedViewFunction(visit_fn, module.get()));
-  llvm::Error error = transform_layer_->add(
-      dylib_, llvm::orc::ThreadSafeModule(std::move(module), context_));
-  if (error) {
-    return absl::UnknownError(absl::StrFormat(
-        "Error compiling converted IR: %s", llvm::toString(std::move(error))));
-  }
-
-  auto load_symbol = [this](const std::string& function_name)
-      -> absl::StatusOr<llvm::JITTargetAddress> {
-    llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
-        execution_session_.lookup(&dylib_, function_name);
-    if (!symbol) {
-      return absl::InternalError(
-          absl::StrFormat("Could not find start symbol \"%s\": %s",
-                          function_name, llvm::toString(symbol.takeError())));
-    }
-    return symbol->getAddress();
-  };
+  XLS_RETURN_IF_ERROR(orc_jit_->CompileModule(std::move(module)));
 
   std::string function_name = absl::StrFormat("%s", xls_function_->name());
-  XLS_ASSIGN_OR_RETURN(auto fn_address, load_symbol(function_name));
+  XLS_ASSIGN_OR_RETURN(auto fn_address, orc_jit_->LoadSymbol(function_name));
   invoker_ = absl::bit_cast<JitFunctionType>(fn_address);
 
   absl::StrAppend(&function_name, "_packed");
-  XLS_ASSIGN_OR_RETURN(fn_address, load_symbol(function_name));
+  XLS_ASSIGN_OR_RETURN(fn_address, orc_jit_->LoadSymbol(function_name));
   packed_invoker_ = absl::bit_cast<PackedJitFunctionType>(fn_address);
 
   return absl::OkStatus();
 }
 
-IrJit::IrJit(FunctionBase* xls_function, int64_t opt_level,
-             bool emit_object_code)
-    : context_(std::make_unique<llvm::LLVMContext>()),
-      execution_session_(
-          std::make_unique<llvm::orc::UnsupportedExecutorProcessControl>()),
-      object_layer_(
-          execution_session_,
-          []() { return std::make_unique<llvm::SectionMemoryManager>(); }),
-      dylib_(execution_session_.createBareJITDylib("main")),
-      data_layout_(""),
-      xls_function_(xls_function),
-      opt_level_(opt_level),
-      invoker_(nullptr),
-      emit_object_code_(emit_object_code) {}
+IrJit::IrJit(FunctionBase* xls_function)
+    : xls_function_(xls_function), invoker_(nullptr) {}
 
-llvm::Expected<llvm::orc::ThreadSafeModule> IrJit::Optimizer(
-    llvm::orc::ThreadSafeModule module,
-    const llvm::orc::MaterializationResponsibility& responsibility) {
-  llvm::Module* bare_module = module.getModuleUnlocked();
+absl::Status IrJit::Init(int64_t opt_level, bool emit_object_code) {
+  XLS_ASSIGN_OR_RETURN(orc_jit_, OrcJit::Create(opt_level, emit_object_code));
 
-  XLS_VLOG(2) << "Unoptimized module IR:";
-  XLS_VLOG(2).NoPrefix() << ir_runtime_->DumpToString(*bare_module);
-
-  llvm::CGSCCAnalysisManager cgam;
-  llvm::FunctionAnalysisManager fam;
-  llvm::LoopAnalysisManager lam;
-  llvm::ModuleAnalysisManager mam;
-  llvm::PassBuilder pass_builder;
-
-  pass_builder.registerModuleAnalyses(mam);
-  pass_builder.registerCGSCCAnalyses(cgam);
-  pass_builder.registerFunctionAnalyses(fam);
-  pass_builder.registerLoopAnalyses(lam);
-  pass_builder.crossRegisterProxies(lam, fam, cgam, mam);
-
-  llvm::OptimizationLevel llvm_opt_level;
-  switch (opt_level_) {
-    case 0:
-      llvm_opt_level = llvm::OptimizationLevel::O0;
-      break;
-    case 1:
-      llvm_opt_level = llvm::OptimizationLevel::O1;
-      break;
-    case 2:
-      llvm_opt_level = llvm::OptimizationLevel::O2;
-      break;
-    case 3:
-      llvm_opt_level = llvm::OptimizationLevel::O3;
-      break;
-    default:
-      return llvm::Expected<llvm::orc::ThreadSafeModule>(
-          llvm::Error(std::make_unique<BadOptLevelError>(opt_level_)));
-  }
-  llvm::ModulePassManager mpm =
-      pass_builder.buildPerModuleDefaultPipeline(llvm_opt_level);
-  mpm.run(*bare_module, mam);
-
-  XLS_VLOG(2) << "Optimized module IR:";
-  XLS_VLOG(2).NoPrefix() << ir_runtime_->DumpToString(*bare_module);
-
-  if (XLS_VLOG_IS_ON(3)) {
-    // The ostream and its buffer must be declared before the
-    // module_pass_manager because the destrutor of the pass manager calls flush
-    // on the ostream so these must be destructed *after* the pass manager. C++
-    // guarantees that the destructors are called in reverse order the obects
-    // are declared.
-    llvm::SmallVector<char, 0> stream_buffer;
-    llvm::raw_svector_ostream ostream(stream_buffer);
-    llvm::legacy::PassManager mpm;
-    if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
-                                             llvm::CGFT_AssemblyFile)) {
-      XLS_VLOG(3) << "Could not create ASM generation pass!";
-    }
-    mpm.run(*bare_module);
-    XLS_VLOG(3) << "Generated ASM:";
-    XLS_VLOG_LINES(3, std::string(stream_buffer.begin(), stream_buffer.end()));
-  }
-
-  return module;
-}
-
-absl::Status IrJit::Init() {
-  auto error_or_target_builder =
-      llvm::orc::JITTargetMachineBuilder::detectHost();
-  if (!error_or_target_builder) {
-    return absl::InternalError(
-        absl::StrCat("Unable to detect host: ",
-                     llvm::toString(error_or_target_builder.takeError())));
-  }
-
-  error_or_target_builder->setRelocationModel(llvm::Reloc::Model::PIC_);
-  auto error_or_target_machine = error_or_target_builder->createTargetMachine();
-  if (!error_or_target_machine) {
-    return absl::InternalError(
-        absl::StrCat("Unable to create target machine: ",
-                     llvm::toString(error_or_target_machine.takeError())));
-  }
-  target_machine_ = std::move(error_or_target_machine.get());
-
-  data_layout_ = target_machine_->createDataLayout();
-  type_converter_ =
-      std::make_unique<LlvmTypeConverter>(context_.getContext(), data_layout_);
-
-  execution_session_.runSessionLocked([this]() {
-    dylib_.addGenerator(
-        cantFail(llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(
-            data_layout_.getGlobalPrefix())));
-  });
-
-  auto compiler = std::make_unique<llvm::orc::SimpleCompiler>(*target_machine_);
-  compile_layer_ = std::make_unique<llvm::orc::IRCompileLayer>(
-      execution_session_, object_layer_, std::move(compiler));
-
-  if (emit_object_code_) {
-    object_code_layer_ = std::make_unique<llvm::orc::IRTransformLayer>(
-        execution_session_, *compile_layer_,
-        [this](llvm::orc::ThreadSafeModule module,
-               const llvm::orc::MaterializationResponsibility& mr) {
-          llvm::SmallVector<char, 0> stream_buffer;
-          llvm::raw_svector_ostream ostream(stream_buffer);
-          llvm::legacy::PassManager mpm;
-          if (target_machine_->addPassesToEmitFile(mpm, ostream, nullptr,
-                                                   llvm::CGFT_ObjectFile)) {
-            XLS_VLOG(3) << "Could not create ASM generation pass!";
-          }
-          mpm.run(*module.getModuleUnlocked());
-
-          object_code_ =
-              std::vector<char>(stream_buffer.begin(), stream_buffer.end());
-          return module;
-        });
-  }
-
-  llvm::orc::IRLayer* parent_layer =
-      emit_object_code_
-          ? static_cast<llvm::orc::IRLayer*>(object_code_layer_.get())
-          : static_cast<llvm::orc::IRLayer*>(compile_layer_.get());
-  transform_layer_ = std::make_unique<llvm::orc::IRTransformLayer>(
-      execution_session_, *parent_layer,
-      [this](llvm::orc::ThreadSafeModule module,
-             const llvm::orc::MaterializationResponsibility& responsibility) {
-        return Optimizer(std::move(module), responsibility);
-      });
-
-  ir_runtime_ =
-      std::make_unique<JitRuntime>(data_layout_, type_converter_.get());
+  ir_runtime_ = std::make_unique<JitRuntime>(orc_jit_->GetDataLayout(),
+                                             &orc_jit_->GetTypeConverter());
 
   return absl::OkStatus();
 }
 
 absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
-  llvm::LLVMContext* bare_context = context_.getContext();
+  llvm::LLVMContext* bare_context = orc_jit_->GetContext();
 
   // To return values > 64b in size, we need to copy them into a result buffer,
   // instead of returning a fixed-size result element.
@@ -371,14 +133,14 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
 
   for (const Param* param : xls_function_->params()) {
     arg_type_bytes_.push_back(
-        type_converter_->GetTypeByteSize(param->GetType()));
+        orc_jit_->GetTypeConverter().GetTypeByteSize(param->GetType()));
   }
 
   // Pass the last param as a pointer to the actual return type.
   Type* return_type =
       FunctionBuilderVisitor::GetEffectiveReturnValue(xls_function_)->GetType();
   llvm::Type* llvm_return_type =
-      type_converter_->ConvertToLlvmType(return_type);
+      orc_jit_->GetTypeConverter().ConvertToLlvmType(return_type);
   param_types.push_back(
       llvm::PointerType::get(llvm_return_type, /*AddressSpace=*/0));
 
@@ -403,7 +165,8 @@ absl::Status IrJit::CompileFunction(VisitFn visit_fn, llvm::Module* module) {
   std::string function_name = absl::StrFormat("%s", xls_function_->name());
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
       module->getOrInsertFunction(function_name, function_type).getCallee());
-  return_type_bytes_ = type_converter_->GetTypeByteSize(return_type);
+  return_type_bytes_ =
+      orc_jit_->GetTypeConverter().GetTypeByteSize(return_type);
   XLS_RETURN_IF_ERROR(
       visit_fn(module, llvm_function, /*generate_packed=*/false));
 
@@ -434,7 +197,7 @@ absl::StatusOr<InterpreterResult<Value>> IrJit::Run(
   std::vector<Type*> param_types;
   for (const Param* param : xls_function_->params()) {
     unique_arg_buffers.push_back(std::make_unique<uint8_t[]>(
-        type_converter_->GetTypeByteSize(param->GetType())));
+        orc_jit_->GetTypeConverter().GetTypeByteSize(param->GetType())));
     arg_buffers.push_back(unique_arg_buffers.back().get());
     param_types.push_back(param->GetType());
   }
@@ -498,7 +261,7 @@ absl::StatusOr<InterpreterResult<Value>> CreateAndRun(
 // general comments.
 absl::Status IrJit::CompilePackedViewFunction(VisitFn visit_fn,
                                               llvm::Module* module) {
-  llvm::LLVMContext* bare_context = context_.getContext();
+  llvm::LLVMContext* bare_context = orc_jit_->GetContext();
   llvm::Type* i8_type = llvm::Type::getInt8Ty(*bare_context);
 
   // Create arg packing/unpacking buffers as in CompileFunction().
