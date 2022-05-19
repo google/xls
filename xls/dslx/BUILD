@@ -1072,6 +1072,8 @@ cc_library(
         ":scanner",
         ":type_info",
         ":typecheck",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
     ],
 )
 

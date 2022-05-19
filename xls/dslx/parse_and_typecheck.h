@@ -23,7 +23,8 @@
 
 namespace xls::dslx {
 
-// Note: these will be owned by the import_data used in ParseAndTypecheck().
+// Note: these will be owned by the import_data used in ParseAndTypecheck()
+//       or TypecheckModule
 struct TypecheckedModule {
   Module* module;
   TypeInfo* type_info;
@@ -37,6 +38,23 @@ struct TypecheckedModule {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     absl::string_view text, absl::string_view path,
     absl::string_view module_name, ImportData* import_data);
+
+// Helper that parses and creates a new module from the given "text".
+//
+// "path" is used for error reporting (`Span`s) and module_name is the name
+// given to the returned `TypecheckedModule::module`.
+absl::StatusOr<std::unique_ptr<Module>> ParseModule(
+    absl::string_view text, absl::string_view path,
+    absl::string_view module_name);
+
+// Helper that typechecks an already parsed module, ownership of
+// the module will be given to import_data.
+//
+// "path" is used for error reporting (`Span`s)
+// "import_data" is used to get-or-insert any imported modules.
+absl::StatusOr<TypecheckedModule> TypecheckModule(
+    std::unique_ptr<Module> module, absl::string_view path,
+    ImportData* import_data);
 
 }  // namespace xls::dslx
 

@@ -14,6 +14,8 @@
 
 #include "xls/dslx/parse_and_typecheck.h"
 
+#include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/parser.h"
 #include "xls/dslx/scanner.h"
 #include "xls/dslx/typecheck.h"
@@ -23,9 +25,29 @@ namespace xls::dslx {
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
     absl::string_view text, absl::string_view path,
     absl::string_view module_name, ImportData* import_data) {
+  XLS_RET_CHECK(import_data != nullptr);
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                       ParseModule(text, path, module_name));
+  return TypecheckModule(std::move(module), path, import_data);
+}
+
+absl::StatusOr<std::unique_ptr<Module>> ParseModule(
+    absl::string_view text, absl::string_view path,
+    absl::string_view module_name) {
   Scanner scanner{std::string{path}, std::string{text}};
   Parser parser(std::string{module_name}, &scanner);
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
+  return parser.ParseModule();
+}
+
+absl::StatusOr<TypecheckedModule> TypecheckModule(
+    std::unique_ptr<Module> module, absl::string_view path,
+    ImportData* import_data) {
+  XLS_RET_CHECK(module.get() != nullptr);
+  XLS_RET_CHECK(import_data != nullptr);
+
+  absl::string_view module_name = module->name();
+
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        CheckModule(module.get(), import_data));
   TypecheckedModule result{module.get(), type_info};
