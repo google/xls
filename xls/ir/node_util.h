@@ -149,6 +149,28 @@ bool IsChannelNode(Node* node);
 // send/sendif/receive/receiveif node then an error is returned.
 absl::StatusOr<Channel*> GetChannelUsedByNode(Node* node);
 
+// Compares the ID of two nodes. Can be used for determistics sorting of Nodes.
+inline bool NodeIdLessThan(const Node* a, const Node* b) {
+  return a->id() < b->id();
+}
+
+// Sorts the given vector of Nodes by ID.
+template <typename NodePtrT>
+void SortByNodeId(std::vector<NodePtrT>* v) {
+  std::sort(v->begin(), v->end(), NodeIdLessThan);
+}
+
+// Returns a vector containing the nodes in the given set sorted by node id.
+template <typename NodePtrT>
+std::vector<NodePtrT> SetToSortedVector(
+    const absl::flat_hash_set<NodePtrT>& s) {
+  std::vector<NodePtrT> v;
+  v.reserve(s.size());
+  v.insert(v.begin(), s.begin(), s.end());
+  SortByNodeId(&v);
+  return v;
+}
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_UTIL_H_

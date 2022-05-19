@@ -28,6 +28,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/proc.h"
 
 namespace xls {
@@ -132,8 +133,7 @@ PostDominatorAnalysis::Run(FunctionBase* f) {
         for (auto& [base_node, node_set] : node_to_node_set) {
           auto& node_vect = (*node_to_node_vect)[base_node];
           node_vect.insert(node_vect.begin(), node_set.begin(), node_set.end());
-          std::sort(node_vect.begin(), node_vect.end(),
-                    [](Node* a, Node* b) { return a->id() < b->id(); });
+          SortByNodeId(&node_vect);
         }
       };
   XLS_RET_CHECK(

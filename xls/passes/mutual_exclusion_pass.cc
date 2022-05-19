@@ -29,6 +29,7 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/events.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
@@ -638,11 +639,7 @@ absl::StatusOr<std::vector<Node*>> ComputeTokenInputs(
   }
 
   // Ensure determinism of output.
-  std::vector<Node*> token_inputs(token_inputs_unsorted.begin(),
-                                  token_inputs_unsorted.end());
-  std::sort(token_inputs.begin(), token_inputs.end(), Node::NodeIdLessThan());
-
-  return token_inputs;
+  return SetToSortedVector(token_inputs_unsorted);
 }
 
 absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
@@ -749,8 +746,7 @@ absl::StatusOr<bool> MergeNodes(Predicates* p, FunctionBase* f,
     return false;
   }
 
-  std::vector<Node*> to_merge(merge_class.begin(), merge_class.end());
-  std::sort(to_merge.begin(), to_merge.end(), Node::NodeIdLessThan());
+  std::vector<Node*> to_merge = SetToSortedVector(merge_class);
 
   Op op = to_merge.front()->op();
   if (op == Op::kSend) {

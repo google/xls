@@ -19,6 +19,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 
 namespace xls {
@@ -44,8 +45,7 @@ absl::Span<Node* const> GetOperandsForCse(
   }
   span_backing_store->insert(span_backing_store->begin(),
                              node->operands().begin(), node->operands().end());
-  std::sort(span_backing_store->begin(), span_backing_store->end(),
-            [](Node* a, Node* b) { return a->id() < b->id(); });
+  SortByNodeId(span_backing_store);
   return *span_backing_store;
 }
 

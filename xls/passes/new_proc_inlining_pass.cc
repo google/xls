@@ -404,10 +404,7 @@ absl::flat_hash_map<Receive*, std::vector<Node*>> GetReceiveDataDependencies(
         elements.insert(receives.begin(), receives.end());
       }
     }
-    std::vector<Receive*> element_vec(elements.begin(), elements.end());
-    // Sort the nodes by id for determinism.
-    std::sort(element_vec.begin(), element_vec.end(),
-              [](Receive* a, Receive* b) { return a->id() < b->id(); });
+    std::vector<Receive*> element_vec = SetToSortedVector(elements);
     return element_vec;
   };
 
@@ -695,8 +692,7 @@ class ProcThread {
     for (auto [receive, nodes] : receive_data_deps) {
       receives.push_back(receive);
     }
-    std::sort(receives.begin(), receives.end(),
-              [](Receive* a, Receive* b) { return a->id() < b->id(); });
+    SortByNodeId(&receives);
 
     absl::flat_hash_map<Receive*, std::vector<ActivationNode*>> result;
 

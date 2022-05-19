@@ -267,6 +267,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )
@@ -455,6 +456,7 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/data_structures:transitive_closure",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/ir:op",
     ],
 )
@@ -626,6 +628,7 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "//xls/common/status:ret_check",
         "//xls/ir",
+        "//xls/ir:node_util",
     ],
 )
 
@@ -773,6 +776,7 @@ cc_library(
         "//xls/data_structures:union_find_map",
         "//xls/interpreter:random_value",
         "//xls/ir",
+        "//xls/ir:node_util",
         "//xls/ir:op",
         "//xls/ir:value",
         "//xls/ir:value_helpers",

@@ -20,6 +20,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/transitive_closure.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
 #include "xls/passes/token_provenance_analysis.h"
 
@@ -133,8 +134,17 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
 
   bool changed = false;
 
-  for (const auto& [io, receives] : minimal_io_to_receive) {
-    for (Node* receive : receives) {
+  // Before touching the IR create a determistic sort of the keys of the
+  // relation.
+  std::vector<Node*> minimal_io_to_receive_keys;
+  minimal_io_to_receive_keys.reserve(minimal_io_to_receive.size());
+  for (const auto& [io, _] : minimal_io_to_receive) {
+    minimal_io_to_receive_keys.push_back(io);
+  }
+  SortByNodeId(&minimal_io_to_receive_keys);
+
+  for (Node* io : minimal_io_to_receive_keys) {
+    for (Node* receive : SetToSortedVector(minimal_io_to_receive.at(io))) {
       for (Node* input : io->operands()) {
         // We're making the assumption that any token-typed input to an
         // effectful operation must be a proper token input.

@@ -45,14 +45,6 @@ bool CheckingSingleStage(absl::optional<PipelineSchedule> schedule,
   return schedule && stage != -1;
 }
 
-std::vector<const Node*> SetToIdSortedVector(
-    const absl::flat_hash_set<const Node*> set) {
-  std::vector<const Node*> nodes(set.begin(), set.end());
-  std::sort(nodes.begin(), nodes.end(),
-            [](const Node* a, const Node* b) { return a->id() < b->id(); });
-  return nodes;
-}
-
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<Lec>> Lec::Create(const LecParams& params) {
@@ -164,7 +156,7 @@ absl::Status Lec::CollectIrInputs() {
     // Create new Z3 [free] constants to replace those out-of-stage inputs.
     // Plop the inputs into a vector & sort it for deterministic iteration
     // order.
-    for (const Node* stage_input : SetToIdSortedVector(stage_inputs)) {
+    for (const Node* stage_input : SetToSortedVector(stage_inputs)) {
       Z3_ast new_input = Z3_mk_const(
           ctx(), Z3_mk_string_symbol(ctx(), stage_input->GetName().c_str()),
           TypeToSort(ctx(), *stage_input->GetType()));
@@ -202,7 +194,7 @@ void Lec::CollectIrOutputNodes() {
   }
 
   // Ensure a deterministic output order.
-  ir_output_nodes_ = SetToIdSortedVector(stage_outputs);
+  ir_output_nodes_ = SetToSortedVector(stage_outputs);
 }
 
 absl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
