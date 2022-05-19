@@ -37,24 +37,23 @@ absl::Status FunctionBuilderVisitor::Visit(llvm::Module* module,
                                            llvm::Function* llvm_fn,
                                            FunctionBase* xls_fn,
                                            LlvmTypeConverter* type_converter,
-                                           bool is_top, bool generate_packed) {
+                                           bool is_top) {
   XLS_VLOG_LINES(3, std::string("Generating LLVM IR for XLS function/proc:\n") +
                         xls_fn->DumpIr());
   FunctionBuilderVisitor visitor(module, llvm_fn, xls_fn, type_converter,
-                                 is_top, generate_packed);
+                                 is_top);
   return visitor.BuildInternal();
 }
 
 FunctionBuilderVisitor::FunctionBuilderVisitor(
     llvm::Module* module, llvm::Function* llvm_fn, FunctionBase* xls_fn,
-    LlvmTypeConverter* type_converter, bool is_top, bool generate_packed)
+    LlvmTypeConverter* type_converter, bool is_top)
     : ctx_(module->getContext()),
       module_(module),
       llvm_fn_(llvm_fn),
       xls_fn_(xls_fn),
       type_converter_(type_converter),
-      is_top_(is_top),
-      generate_packed_(generate_packed) {}
+      is_top_(is_top) {}
 
 absl::Status FunctionBuilderVisitor::BuildInternal() {
   auto basic_block = llvm::BasicBlock::Create(ctx_, "so_basic", llvm_fn_,
@@ -80,26 +79,11 @@ absl::Status FunctionBuilderVisitor::BuildInternal() {
     return absl::OkStatus();
   }
 
-  UnpoisonOutputBuffer();
+  UnpoisonBuffer(GetOutputPtr(),
+                 type_converter()->GetTypeByteSize(xls_return_type),
+                 builder_.get());
 
-  int64_t return_width = xls_return_type->GetFlatBitCount();
-  llvm::Value* output_arg = GetOutputPtr();
-  if (generate_packed_) {
-    if (return_width != 0) {
-      // Declare the return argument as an iX, and pack the actual data as such
-      // an integer.
-      llvm::Value* packed_return =
-          llvm::ConstantInt::get(llvm::IntegerType::get(ctx_, return_width), 0);
-      XLS_ASSIGN_OR_RETURN(
-          packed_return,
-          PackElement(return_value_, xls_return_type, packed_return, 0));
-      builder_->CreateStore(packed_return, output_arg);
-    }
-    builder_->CreateRetVoid();
-    return absl::OkStatus();
-  }
-
-  builder_->CreateStore(return_value_, output_arg);
+  builder_->CreateStore(return_value_, GetOutputPtr());
   builder_->CreateRetVoid();
 
   return absl::OkStatus();
@@ -1230,132 +1214,17 @@ absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
     return StoreResult(param, type_converter_->GetToken());
   }
 
-  // Just handle tokens here, since they're "nothing".
-  if (generate_packed_ && !param->GetType()->IsToken()) {
-    return HandlePackedParam(param);
-  }
-
   // Remember that all input arg pointers are packed into a buffer specified
   // as a single formal parameter, hence the 0 constant here.
   llvm::Argument* arg_pointer = llvm_function->getArg(0);
 
   llvm::Type* arg_type = type_converter_->ConvertToLlvmType(param->GetType());
-  llvm::Type* llvm_arg_ptr_type =
-      llvm::PointerType::get(arg_type, /*AddressSpace=*/0);
 
-  // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer)
-  // (remember, the arg array is an array of int8_t ptrs).
-  llvm::Type* arg_array_type = llvm::ArrayType::get(
-      llvm::Type::getInt8PtrTy(ctx_), xls_fn_->params().size());
-  llvm::Value* gep = builder_->CreateGEP(
-      arg_array_type, arg_pointer,
-      {
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
-      });
-  llvm::LoadInst* load =
-      builder_->CreateLoad(llvm::Type::getInt8PtrTy(ctx_), gep);
-  llvm::Value* cast = builder_->CreateBitCast(load, llvm_arg_ptr_type);
+  // Load the argument value from the respective pointer in the arg array.
+  llvm::Value* arg = LoadFromPointerArray(
+      index, arg_type, arg_pointer, xls_fn_->params().size(), builder_.get());
 
-  // Load 2: Get the data at that pointer's destination.
-  load = builder_->CreateLoad(arg_type, cast);
-
-  return StoreResult(param, load);
-}
-
-absl::Status FunctionBuilderVisitor::HandlePackedParam(Param* param) {
-  // For packed params, we need to get the buffer holding the param of
-  // interest, then decompose it into the structure expected by LLVM.
-  // That structure is target-dependent, but in general, has each tuple or
-  // array element aligned to a byte (or larger) boundary (e.g., as storing
-  // an i24 in an i32).
-  llvm::Function* llvm_function = builder_->GetInsertBlock()->getParent();
-  llvm::Argument* arg_pointer = llvm_function->getArg(0);
-  XLS_ASSIGN_OR_RETURN(int index, param->function_base()->GetParamIndex(param));
-
-  // First, load the arg buffer (as an i8*).
-  // Then pull out elements from that buffer to make the final type.
-  // Load 1: Get the pointer to arg N out of memory (the arg redirect buffer).
-  llvm::Type* arg_array_type = llvm::ArrayType::get(
-      llvm::Type::getInt8PtrTy(ctx_), xls_fn_->params().size());
-  llvm::Value* gep = builder_->CreateGEP(
-      arg_array_type, arg_pointer,
-      {
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), 0),
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx_), index),
-      });
-
-  // The GEP gives a pointer to a u8*; so 'load' is an i8*. Cast it to its full
-  // width so we can load the whole thing.
-  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
-  llvm::LoadInst* load = builder_->CreateLoad(int8_ptr_type, gep);
-  if (param->GetType()->GetFlatBitCount() == 0) {
-    // Create an empty structure, etc.
-    return StoreResult(
-        param, CreateTypedZeroValue(
-                   type_converter_->ConvertToLlvmType(param->GetType())));
-  }
-  llvm::Type* packed_arg_type =
-      llvm::IntegerType::get(ctx_, param->GetType()->GetFlatBitCount());
-  llvm::Value* cast = builder_->CreateBitCast(
-      load, llvm::PointerType::get(packed_arg_type, /*AddressSpace=*/0));
-  load = builder_->CreateLoad(packed_arg_type, cast);
-
-  // Now populate an Value of Param's type with the packed buffer contents.
-  XLS_ASSIGN_OR_RETURN(llvm::Value * unpacked,
-                       UnpackParamBuffer(param->GetType(), load));
-
-  return StoreResult(param, unpacked);
-}
-
-// param_buffer is an LLVM i8 (not a pointer to such). So for each element in
-// the param [type], we read it from the buffer, then shift off the read
-// amount.
-absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::UnpackParamBuffer(
-    Type* param_type, llvm::Value* param_buffer) {
-  switch (param_type->kind()) {
-    case TypeKind::kBits:
-      return builder_->CreateTrunc(
-          param_buffer,
-          llvm::IntegerType::get(ctx_, param_type->GetFlatBitCount()));
-    case TypeKind::kArray: {
-      // Create an empty array and plop in every element.
-      ArrayType* array_type = param_type->AsArrayOrDie();
-      Type* element_type = array_type->element_type();
-
-      llvm::Value* array =
-          CreateTypedZeroValue(type_converter_->ConvertToLlvmType(array_type));
-      for (uint32_t i = 0; i < array_type->size(); i++) {
-        XLS_ASSIGN_OR_RETURN(llvm::Value * element,
-                             UnpackParamBuffer(element_type, param_buffer));
-        array = builder_->CreateInsertValue(array, element, {i});
-        param_buffer =
-            builder_->CreateLShr(param_buffer, element_type->GetFlatBitCount());
-      }
-      return array;
-    }
-    case TypeKind::kTuple: {
-      // Create an empty tuple and plop in every element.
-      TupleType* tuple_type = param_type->AsTupleOrDie();
-      llvm::Value* tuple =
-          CreateTypedZeroValue(type_converter_->ConvertToLlvmType(tuple_type));
-      for (int32_t i = tuple_type->size() - 1; i >= 0; i--) {
-        // Tuple elements are stored MSB -> LSB, so we need to extract in
-        // reverse order to match native layout.
-        Type* element_type = tuple_type->element_type(i);
-        XLS_ASSIGN_OR_RETURN(llvm::Value * element,
-                             UnpackParamBuffer(element_type, param_buffer));
-        tuple = builder_->CreateInsertValue(tuple, element,
-                                            {static_cast<uint32_t>(i)});
-        param_buffer =
-            builder_->CreateLShr(param_buffer, element_type->GetFlatBitCount());
-      }
-      return tuple;
-    }
-    default:
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Unhandled type kind: ", TypeKindToString(param_type->kind())));
-  }
+  return StoreResult(param, arg);
 }
 
 absl::Status FunctionBuilderVisitor::HandleReverse(UnOp* reverse) {
@@ -1730,6 +1599,28 @@ llvm::Constant* FunctionBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {
                                    elements);
 }
 
+llvm::Value* FunctionBuilderVisitor::LoadFromPointerArray(
+    int64_t index, llvm::Type* data_type, llvm::Value* pointer_array,
+    int64_t pointer_array_size, llvm::IRBuilder<>* builder) {
+  llvm::LLVMContext& context = builder->getContext();
+  llvm::Type* pointer_array_type = llvm::ArrayType::get(
+      llvm::Type::getInt8PtrTy(context), pointer_array_size);
+  llvm::Value* gep = builder->CreateGEP(
+      pointer_array_type, pointer_array,
+      {
+          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), 0),
+          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), index),
+      });
+
+  // The GEP gives a pointer to a u8*; so 'load' is an i8*. Cast it to its full
+  // width so we can load the whole thing.
+  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(context, 0);
+  llvm::LoadInst* load = builder->CreateLoad(int8_ptr_type, gep);
+  llvm::Value* cast = builder->CreateBitCast(
+      load, llvm::PointerType::get(data_type, /*AddressSpace=*/0));
+  return builder->CreateLoad(data_type, cast);
+}
+
 llvm::Value* FunctionBuilderVisitor::CreateAggregateOr(llvm::Value* lhs,
                                                        llvm::Value* rhs) {
   llvm::Type* arg_type = lhs->getType();
@@ -1836,7 +1727,7 @@ absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
   // TODO(rspringer): Need to override this for Procs.
   XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
       module_, llvm_function, xls_function, type_converter_,
-      /*is_top=*/false, /*generate_packed=*/false));
+      /*is_top=*/false));
 
   return llvm_function;
 }
@@ -1853,81 +1744,31 @@ absl::Status FunctionBuilderVisitor::StoreResult(Node* node,
   return absl::OkStatus();
 }
 
-absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::PackElement(
-    llvm::Value* element, Type* element_type, llvm::Value* buffer,
-    int64_t bit_offset) {
-  switch (element_type->kind()) {
-    case TypeKind::kBits:
-      if (element->getType() != buffer->getType()) {
-        element = builder_->CreateZExt(element, buffer->getType());
-      }
-      element = builder_->CreateShl(element, bit_offset);
-      return builder_->CreateOr(buffer, element);
-    case TypeKind::kArray: {
-      ArrayType* array_type = element_type->AsArrayOrDie();
-      Type* array_element_type = array_type->element_type();
-      for (uint32_t i = 0; i < array_type->size(); i++) {
-        XLS_ASSIGN_OR_RETURN(
-            buffer, PackElement(builder_->CreateExtractValue(element, {i}),
-                                array_element_type, buffer,
-                                bit_offset +
-                                    i * array_element_type->GetFlatBitCount()));
-      }
-      return buffer;
-    }
-    case TypeKind::kTuple: {
-      // As with HandlePackedParam, we need to reverse tuple packing order to
-      // match native layout.
-      TupleType* tuple_type = element_type->AsTupleOrDie();
-      for (int64_t i = tuple_type->size() - 1; i >= 0; i--) {
-        XLS_ASSIGN_OR_RETURN(
-            buffer,
-            PackElement(builder_->CreateExtractValue(
-                            element, {static_cast<uint32_t>(i)}),
-                        tuple_type->element_type(i), buffer, bit_offset));
-        bit_offset += tuple_type->element_type(i)->GetFlatBitCount();
-      }
-      return buffer;
-    }
-    case TypeKind::kToken: {
-      // Tokens are zero-bit constructs, so there's nothing to do!
-      return buffer;
-    }
-    default:
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Unhandled element kind: ", TypeKindToString(element_type->kind())));
-  }
-}
-
-void FunctionBuilderVisitor::UnpoisonOutputBuffer() {
+void FunctionBuilderVisitor::UnpoisonBuffer(llvm::Value* buffer, int64_t size,
+                                            llvm::IRBuilder<>* builder) {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
-  Type* xls_return_type = GetEffectiveReturnValue(xls_fn_)->GetType();
+  llvm::LLVMContext& context = builder->getContext();
   llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(context),
                              absl::bit_cast<uint64_t>(&__msan_unpoison));
-  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
-  llvm::Type* u8_ptr_type =
-      llvm::PointerType::get(llvm::Type::getInt8Ty(ctx()), /*AddressSpace=*/0);
+  llvm::Type* void_type = llvm::Type::getVoidTy(context);
+  llvm::Type* u8_ptr_type = llvm::PointerType::get(
+      llvm::Type::getInt8Ty(context), /*AddressSpace=*/0);
   llvm::Type* size_t_type =
-      llvm::Type::getIntNTy(ctx(), sizeof(size_t) * CHAR_BIT);
+      llvm::Type::getIntNTy(context, sizeof(size_t) * CHAR_BIT);
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, {u8_ptr_type, size_t_type}, false);
   llvm::Value* fn_ptr =
-      builder()->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-
-  llvm::Value* out_param = GetOutputPtr();
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
 
   // The out_param can have any width, so cast the output argument pointer to a
   // u8 pointer to match the parameter types above.
-  llvm::Value* out_param_casted =
-      builder()->CreatePointerCast(out_param, u8_ptr_type);
+  llvm::Value* buffer_casted = builder->CreatePointerCast(buffer, u8_ptr_type);
 
-  std::vector<llvm::Value*> args = {
-      out_param_casted,
-      llvm::ConstantInt::get(
-          size_t_type, type_converter()->GetTypeByteSize(xls_return_type))};
+  std::vector<llvm::Value*> args = {buffer_casted,
+                                    llvm::ConstantInt::get(size_t_type, size)};
 
-  builder()->CreateCall(fn_type, fn_ptr, args);
+  builder->CreateCall(fn_type, fn_ptr, args);
 #endif
 }
 

@@ -41,8 +41,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   //     space".
   static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
                             FunctionBase* xls_fn,
-                            LlvmTypeConverter* type_converter, bool is_top,
-                            bool generate_packed);
+                            LlvmTypeConverter* type_converter, bool is_top);
 
   absl::Status DefaultHandler(Node* node) override {
     return absl::UnimplementedError(
@@ -93,9 +92,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* op) override;
   absl::Status HandleParam(Param* param) override;
-  absl::Status HandlePackedParam(Param* param);
-  absl::StatusOr<llvm::Value*> UnpackParamBuffer(Type* param_type,
-                                                 llvm::Value* param_buffer);
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* binop) override;
   absl::Status HandleSMod(BinOp* binop) override;
@@ -126,11 +122,29 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // values. In this case the recurrent next-state value is used.
   static Node* GetEffectiveReturnValue(FunctionBase* function_base);
 
+  // Creates a zero-valued LLVM constant for the given type, be it a Bits,
+  // Array, or Tuple.
+  static llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
+
+  // Loads a value of type `data_type` from a location indicated by the pointer
+  // at the `index`-th slot in the array pointed to by
+  // `pointer_array`. `pointer_array_type` is the type of the array of pointers.
+  static llvm::Value* LoadFromPointerArray(int64_t index, llvm::Type* data_type,
+                                           llvm::Value* pointer_array,
+                                           int64_t pointer_array_size,
+                                           llvm::IRBuilder<>* builder);
+
+  // Marks the given buffer of the given size (in bytes) as "unpoisoned" for
+  // MSAN - in other words, prevent false positives from being thrown when
+  // running under MSAN (since it can't yet follow values into LLVM space (it
+  // might be able to _technically_, but we've not enabled it).
+  static void UnpoisonBuffer(llvm::Value* buffer, int64_t size,
+                             llvm::IRBuilder<>* builder);
+
  protected:
   FunctionBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
                          FunctionBase* xls_fn,
-                         LlvmTypeConverter* type_converter, bool is_top,
-                         bool generate_packed);
+                         LlvmTypeConverter* type_converter, bool is_top);
 
   llvm::LLVMContext& ctx() { return ctx_; }
   llvm::Module* module() { return module_; }
@@ -145,10 +159,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Saves the assocation between the given XLS IR Node and the matching LLVM
   // Value.
   absl::Status StoreResult(Node* node, llvm::Value* value);
-
-  // Creates a zero-valued LLVM constant for the given type, be it a Bits,
-  // Array, or Tuple.
-  llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
 
   // After the original arguments, JIT-compiled functions always end with
   // the following four pointer arguments: output buffer, interpreter events
@@ -215,19 +225,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // LLVM first, if necessary.
   absl::StatusOr<llvm::Function*> GetModuleFunction(Function* xls_function);
 
-  // Takes an LLVM Value and densely (i.e., with no padding) packs it into an
-  // alloca/buffer.
-  absl::StatusOr<llvm::Value*> PackElement(llvm::Value* element,
-                                           Type* element_type,
-                                           llvm::Value* buffer,
-                                           int64_t bit_offset);
-
-  // Marks the output value as "unpoisoned" for MSAN - in other words, prevent
-  // false positives from being thrown when running under MSAN (since it can't
-  // yet follow values into LLVM space (it might be able to _technically_, but
-  // we've not enabled it).
-  void UnpoisonOutputBuffer();
-
   // Returns the result of indexing into 'array' using the scalar index value
   // 'index'. 'array_size' is the number of elements in the array.
   absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
@@ -275,10 +272,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Per the Build() comment, is_top_ is true if this is the top-level function
   // being translated.
   bool is_top_;
-
-  // True if this builder should generate packed parameter loads (as in the
-  // header comment for IrJit::RunWithPackedViews()).
-  bool generate_packed_;
 
   // The last value constructed during this traversal - represents the return
   // from calculation.

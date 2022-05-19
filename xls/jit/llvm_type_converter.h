@@ -38,13 +38,13 @@ class LlvmTypeConverter {
   LlvmTypeConverter(llvm::LLVMContext* context,
                     const llvm::DataLayout& data_layout);
 
-  llvm::Type* ConvertToLlvmType(const Type* type);
+  llvm::Type* ConvertToLlvmType(const Type* type) const;
 
   // Converts the input XLS Value to an LLVM Constant of the specified type.
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
-                                                 const Value& value);
+                                                 const Value& value) const;
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type* type,
-                                                 const Value& value);
+                                                 const Value& value) const;
 
   // Returns the number of bytes that LLVM will internally use to store the
   // given element. This is not simply the flat bit count of the type (rounded
@@ -52,26 +52,26 @@ class LlvmTypeConverter {
   // instead of the three that the flat bit count would suggest. The type width
   // rules aren't necessarily immediately obvious, but fortunately the
   // DataLayout object can handle ~all of the work for us.
-  int64_t GetTypeByteSize(const Type* type);
+  int64_t GetTypeByteSize(const Type* type) const;
 
   // Returns a new Value representing the LLVM form of a Token.
-  llvm::Value* GetToken();
+  llvm::Value* GetToken() const;
 
   // Gets the LLVM type used to represent a Token.
-  llvm::Type* GetTokenType();
+  llvm::Type* GetTokenType() const;
 
  private:
   using TypeCache = absl::flat_hash_map<const Type*, llvm::Type*>;
 
   // Handles the special (and base) case of converting Bits types to LLVM.
   absl::StatusOr<llvm::Constant*> ToIntegralConstant(llvm::Type* type,
-                                                     const Value& value);
+                                                     const Value& value) const;
 
   llvm::LLVMContext& context_;
   llvm::DataLayout data_layout_;
 
   // Cache of XLS -> LLVM type conversions.
-  TypeCache type_cache_;
+  mutable TypeCache type_cache_;
 };
 
 }  // namespace xls

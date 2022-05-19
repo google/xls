@@ -22,19 +22,18 @@ namespace xls {
 
 absl::Status ProcBuilderVisitor::Visit(
     llvm::Module* module, llvm::Function* llvm_fn, FunctionBase* xls_fn,
-    LlvmTypeConverter* type_converter, bool is_top, bool generate_packed,
+    LlvmTypeConverter* type_converter, bool is_top,
     JitChannelQueueManager* queue_mgr, RecvFnT recv_fn, SendFnT send_fn) {
   ProcBuilderVisitor visitor(module, llvm_fn, xls_fn, type_converter, is_top,
-                             generate_packed, queue_mgr, recv_fn, send_fn);
+                             queue_mgr, recv_fn, send_fn);
   return visitor.BuildInternal();
 }
 
 ProcBuilderVisitor::ProcBuilderVisitor(
     llvm::Module* module, llvm::Function* llvm_fn, FunctionBase* xls_fn,
-    LlvmTypeConverter* type_converter, bool is_top, bool generate_packed,
+    LlvmTypeConverter* type_converter, bool is_top,
     JitChannelQueueManager* queue_mgr, RecvFnT recv_fn, SendFnT send_fn)
-    : FunctionBuilderVisitor(module, llvm_fn, xls_fn, type_converter, is_top,
-                             generate_packed),
+    : FunctionBuilderVisitor(module, llvm_fn, xls_fn, type_converter, is_top),
       queue_mgr_(queue_mgr),
       recv_fn_(recv_fn),
       send_fn_(send_fn) {}

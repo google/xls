@@ -65,7 +65,6 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
   static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
                             FunctionBase* xls_fn,
                             LlvmTypeConverter* type_converter, bool is_top,
-                            bool generate_packed,
                             JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
                             SendFnT send_fn);
 
@@ -75,9 +74,8 @@ class ProcBuilderVisitor : public FunctionBuilderVisitor {
  private:
   ProcBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
                      FunctionBase* xls_fn, LlvmTypeConverter* type_converter,
-                     bool is_top, bool generate_packed,
-                     JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
-                     SendFnT send_fn);
+                     bool is_top, JitChannelQueueManager* queue_mgr,
+                     RecvFnT recv_fn, SendFnT send_fn);
 
   absl::StatusOr<llvm::Value*> InvokeRecvCallback(llvm::IRBuilder<>* builder,
                                                   JitChannelQueue* queue,

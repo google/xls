@@ -198,9 +198,9 @@ fn AddTwo(a: bits[8], b: bits[8]) -> bits[8] {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
                            JitChannelQueueManager::Create(package()));
-  XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
-      module.get(), llvm_fn(), xls_fn, type_converter(), /*is_top=*/true,
-      /*generate_packed=*/false, queue_mgr.get(), nullptr, nullptr));
+  XLS_ASSERT_OK(ProcBuilderVisitor::Visit(module.get(), llvm_fn(), xls_fn,
+                                          type_converter(), /*is_top=*/true,
+                                          queue_mgr.get(), nullptr, nullptr));
   JitRuntime runtime(*data_layout(), type_converter());
 
   // The Interpreter takes "generic values"; we need to pass a pointer into our
@@ -269,8 +269,8 @@ proc the_proc(my_token: token, state: (), init={()}) {
 
   XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
       module.get(), llvm_fn(), xls_fn, type_converter(),
-      /*is_top=*/true, /*generate_packed=*/false, queue_mgr.get(),
-      &CanCompileProcs_recv, &CanCompileProcs_send));
+      /*is_top=*/true, queue_mgr.get(), &CanCompileProcs_recv,
+      &CanCompileProcs_send));
 
   // The provided JIT doesn't support ExecutionEngine::runFunction, so we have
   // to get the fn pointer and call that directly.
@@ -318,8 +318,8 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
 
   XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
       module.get(), llvm_fn(), xls_fn, type_converter(),
-      /*is_top=*/true, /*generate_packed=*/false, queue_mgr.get(),
-      &CanCompileProcs_recv, &CanCompileProcs_send));
+      /*is_top=*/true, queue_mgr.get(), &CanCompileProcs_recv,
+      &CanCompileProcs_send));
 
   // First: set state to 0; see that recv_if returns 0.
   uint64_t output;
@@ -369,8 +369,8 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
 
   XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
       module.get(), llvm_fn(), xls_fn, type_converter(),
-      /*is_top=*/true, /*generate_packed=*/false, queue_mgr.get(),
-      &CanCompileProcs_recv, &CanCompileProcs_send));
+      /*is_top=*/true, queue_mgr.get(), &CanCompileProcs_recv,
+      &CanCompileProcs_send));
 
   // First: with state 0, make sure no send occurred (i.e., our output queue is
   // empty).
@@ -438,8 +438,8 @@ proc the_proc(my_token: token, state: (), init={()}) {
 
   XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
       module.get(), llvm_fn(), xls_fn, type_converter(),
-      /*is_top=*/true, /*generate_packed=*/false, queue_mgr.get(),
-      &GetsUserData_recv, &GetsUserData_send));
+      /*is_top=*/true, queue_mgr.get(), &GetsUserData_recv,
+      &GetsUserData_send));
 
   // The provided JIT doesn't support ExecutionEngine::runFunction, so we have
   // to get the fn pointer and call that directly.
@@ -503,8 +503,8 @@ proc the_proc(my_token: token, state: (), init={()}) {
 
   XLS_ASSERT_OK(ProcBuilderVisitor::Visit(
       module.get(), llvm_fn(), xls_fn, type_converter(),
-      /*is_top=*/true, /*generate_packed=*/false, queue_mgr.get(),
-      &CanCompileProcs_recv, &CanCompileProcs_send));
+      /*is_top=*/true, queue_mgr.get(), &CanCompileProcs_recv,
+      &CanCompileProcs_send));
 
   // The provided JIT doesn't support ExecutionEngine::runFunction, so we have
   // to get the fn pointer and call that directly.

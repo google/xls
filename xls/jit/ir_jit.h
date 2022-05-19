@@ -133,18 +133,22 @@ class IrJit {
 
   // Drives regular and packed function compilation.
   using VisitFn = std::function<absl::Status(llvm::Module* module,
-                                             llvm::Function* llvm_function,
-                                             bool generate_packed)>;
+                                             llvm::Function* llvm_function)>;
   absl::Status Compile(VisitFn visit_fn);
 
-  // Compiles the input function to host code, accepting byte-aligned inputs.
-  absl::Status CompileFunction(VisitFn visit_fn, llvm::Module* module);
+  // Builds the LLVM IR function corresponding to the XLS function/proc.
+  absl::StatusOr<llvm::Function*> BuildFunction(VisitFn visit_fn,
+                                                llvm::Module* module);
 
-  // Compiles the input function as above, but with the addition of accepting
-  // packed view input - each input and the output args have their fields
-  // closely packed, without any padding bits or bytes between them.
-  absl::Status CompilePackedViewFunction(VisitFn visit_fn,
-                                         llvm::Module* module);
+  // Builds an LLVM wrapper function which calls `function`. The wrapper accepts
+  // packed input values and returns a packed output value. The wrapper unpacks
+  // the packed values and passes them on in LLVM native data layout to
+  // `function`. A packed value is stored as a flat bit vector with no padding.
+  // For packed types, the underlying LLVM type is `iN` where N is the total
+  // number of bits in the value.
+  absl::StatusOr<llvm::Function*> BuildPackedWrapper(VisitFn visit_fn,
+                                                     llvm::Function* function,
+                                                     llvm::Module* module);
 
   // Simple templates to walk down the arg tree and populate the corresponding
   // arg/buffer pointer.

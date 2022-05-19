@@ -25,7 +25,7 @@ LlvmTypeConverter::LlvmTypeConverter(llvm::LLVMContext* context,
                                      const llvm::DataLayout& data_layout)
     : context_(*context), data_layout_(data_layout) {}
 
-llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
+llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
   auto it = type_cache_.find(xls_type);
   if (it != type_cache_.end()) {
     return it->second;
@@ -67,12 +67,12 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) {
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
-    const Type* type, const Value& value) {
+    const Type* type, const Value& value) const {
   return ToLlvmConstant(ConvertToLlvmType(type), value);
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
-    llvm::Type* type, const Value& value) {
+    llvm::Type* type, const Value& value) const {
   if (type->isIntegerTy()) {
     return ToIntegralConstant(type, value);
   } else if (type->isStructTy()) {
@@ -103,7 +103,7 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
-    llvm::Type* type, const Value& value) {
+    llvm::Type* type, const Value& value) const {
   Bits xls_bits = value.bits();
 
   if (xls_bits.bit_count() > 64) {
@@ -126,15 +126,15 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
   }
 }
 
-int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) {
+int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) const {
   return data_layout_.getTypeAllocSize(ConvertToLlvmType(type)).getFixedSize();
 }
 
-llvm::Type* LlvmTypeConverter::GetTokenType() {
+llvm::Type* LlvmTypeConverter::GetTokenType() const {
   return llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
 }
 
-llvm::Value* LlvmTypeConverter::GetToken() {
+llvm::Value* LlvmTypeConverter::GetToken() const {
   llvm::ArrayType* token_type =
       llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
   return llvm::ConstantArray::get(token_type, {});
