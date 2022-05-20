@@ -59,8 +59,6 @@ proc main {
 
   auto import_data = CreateImportDataForTest();
 
-  absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>> proc_id_to_args;
-  absl::flat_hash_map<ProcId, MemberNameToValue> proc_id_to_members;
   SymbolicBindings bindings;
   ProcId proc_id{/*proc_stack=*/{}, /*instance=*/0};
 
@@ -78,12 +76,12 @@ proc main {
                            /*fifo_depth=*/absl::nullopt, FlowControl::kNone,
                            metadata);
 
-  proc_id_to_args[proc_id].push_back(&channel);
-  proc_id_to_args[proc_id].push_back(Value(UBits(8, 32)));
+  ProcConversionData proc_data;
+  proc_data.id_to_config_args[proc_id].push_back(&channel);
+  proc_data.id_to_config_args[proc_id].push_back(Value(UBits(8, 32)));
 
   ProcConfigIrConverter converter(&package, f, tm.type_info, &import_data,
-                                  &proc_id_to_args, &proc_id_to_members,
-                                  bindings, proc_id);
+                                  &proc_data, bindings, proc_id);
   XLS_EXPECT_OK(f->Accept(&converter));
 }
 
@@ -114,8 +112,6 @@ proc main {
 
   auto import_data = CreateImportDataForTest();
 
-  absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>> proc_id_to_args;
-  absl::flat_hash_map<ProcId, MemberNameToValue> proc_id_to_members;
   SymbolicBindings bindings;
   ProcId proc_id{/*proc_stack=*/{}, /*instance=*/0};
 
@@ -127,9 +123,9 @@ proc main {
                            tm.module->GetFunctionOrError("test_proc.config"));
 
   Package package("the_package");
+  ProcConversionData proc_data;
   ProcConfigIrConverter converter(&package, f, tm.type_info, &import_data,
-                                  &proc_id_to_args, &proc_id_to_members,
-                                  bindings, proc_id);
+                                  &proc_data, bindings, proc_id);
   EXPECT_THAT(f->Accept(&converter),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("not found in arg mapping")));

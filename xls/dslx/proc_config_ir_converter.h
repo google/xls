@@ -28,18 +28,31 @@ namespace xls::dslx {
 using ProcConfigValue = absl::variant<Value, Channel*>;
 using MemberNameToValue = absl::flat_hash_map<std::string, ProcConfigValue>;
 
+// ProcConversionData holds various information about individual proc instances
+// needed throughout the conversion process, packaged together to avoid
+// overcomplicating fn signatures.
+struct ProcConversionData {
+  // Maps a proc instance ID to the set of config fn args, either IR Values or
+  // Channels.
+  absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>> id_to_config_args;
+
+  // Maps a proc instance ID to the IR Value to use for the first execution
+  // of the `next` function.
+  absl::flat_hash_map<ProcId, std::vector<Value>> id_to_initial_values;
+
+  // Maps a proc instance ID to its set of members and values.
+  absl::flat_hash_map<ProcId, MemberNameToValue> id_to_members;
+};
+
 // ProcConfigIrConverter is specialized for converting - you guessed it! - Proc
 // Config functions into IR.  Config functions don't _actually_ lower to IR:
 // instead they define constants and bind channels to Proc members.
 class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
  public:
-  ProcConfigIrConverter(
-      Package* package, Function* f, TypeInfo* type_info,
-      ImportData* import_data,
-      absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>>*
-          proc_id_to_args,
-      absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members,
-      const SymbolicBindings& bindings, const ProcId& proc_id);
+  ProcConfigIrConverter(Package* package, Function* f, TypeInfo* type_info,
+                        ImportData* import_data, ProcConversionData* proc_data,
+                        const SymbolicBindings& bindings,
+                        const ProcId& proc_id);
 
   absl::Status HandleChannelDecl(const ChannelDecl* node);
   absl::Status HandleFunction(const Function* node);
@@ -62,8 +75,7 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
   TypeInfo* type_info_;
   ImportData* import_data_;
 
-  absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>>* proc_id_to_args_;
-  absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members_;
+  ProcConversionData* proc_data_;
   absl::flat_hash_map<std::vector<Proc*>, int> instances_;
 
   const SymbolicBindings& bindings_;

@@ -69,7 +69,7 @@ class Callee {
  public:
   // Proc definitions can't be directly translated into IR: they're always
   // instantiated based on a Spawn or series thereof.
-  // "proc_stack" holds the series of spawned procs leading up to this callee.
+  // `proc_id` holds the series of spawned procs leading up to this callee.
   //
   // This is conceptually similar to the instantiation of parametric functions,
   // except that even non-parametric Procs need instantiation details to be

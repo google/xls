@@ -34,21 +34,21 @@ std::string ProcStackToId(const std::vector<Proc*>& stack) {
 
 }  // namespace
 
-ProcConfigIrConverter::ProcConfigIrConverter(
-    Package* package, Function* f, TypeInfo* type_info, ImportData* import_data,
-    absl::flat_hash_map<ProcId, std::vector<ProcConfigValue>>* proc_id_to_args,
-    absl::flat_hash_map<ProcId, MemberNameToValue>* proc_id_to_members,
-    const SymbolicBindings& bindings, const ProcId& proc_id)
+ProcConfigIrConverter::ProcConfigIrConverter(Package* package, Function* f,
+                                             TypeInfo* type_info,
+                                             ImportData* import_data,
+                                             ProcConversionData* proc_data,
+                                             const SymbolicBindings& bindings,
+                                             const ProcId& proc_id)
     : package_(package),
       f_(f),
       type_info_(type_info),
       import_data_(import_data),
-      proc_id_to_args_(proc_id_to_args),
-      proc_id_to_members_(proc_id_to_members),
+      proc_data_(proc_data),
       bindings_(bindings),
       proc_id_(proc_id),
       final_tuple_(nullptr) {
-  (*proc_id_to_members_)[proc_id_] = {};
+  proc_data->id_to_members[proc_id_] = {};
 }
 
 absl::Status ProcConfigIrConverter::Finalize() {
@@ -62,7 +62,7 @@ absl::Status ProcConfigIrConverter::Finalize() {
   XLS_RET_CHECK_EQ(p->members().size(), final_tuple_->members().size());
   for (int i = 0; i < p->members().size(); i++) {
     Param* member = p->members()[i];
-    proc_id_to_members_->at(proc_id_)[member->identifier()] =
+    proc_data_->id_to_members.at(proc_id_)[member->identifier()] =
         node_to_ir_.at(final_tuple_->members()[i]);
   }
 
@@ -177,28 +177,38 @@ absl::Status ProcConfigIrConverter::HandleParam(const Param* node) {
     }
   }
   XLS_RET_CHECK_NE(param_index, -1);
-  if (!proc_id_to_args_->contains(proc_id_)) {
+  if (!proc_data_->id_to_config_args.contains(proc_id_)) {
     return absl::InternalError(absl::StrCat(
         "Proc ID \"", proc_id_.ToString(), "\" was not found in arg mapping."));
   }
 
-  node_to_ir_[node->name_def()] = proc_id_to_args_->at(proc_id_)[param_index];
+  node_to_ir_[node->name_def()] =
+      proc_data_->id_to_config_args.at(proc_id_)[param_index];
   return absl::OkStatus();
 }
 
 absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleSpawn : " << node->ToString();
-  std::vector<ProcConfigValue> args;
+  std::vector<ProcConfigValue> config_args;
   XLS_ASSIGN_OR_RETURN(Proc * p, ResolveProc(node->callee(), type_info_));
   std::vector<Proc*> new_stack = proc_id_.proc_stack;
   new_stack.push_back(p);
   ProcId new_id{new_stack, instances_[new_stack]++};
   for (const auto& arg : node->config()->args()) {
     XLS_RETURN_IF_ERROR(arg->Accept(this));
-    args.push_back(node_to_ir_.at(arg));
+    config_args.push_back(node_to_ir_.at(arg));
   }
+  proc_data_->id_to_config_args[new_id] = config_args;
 
-  (*proc_id_to_args_)[new_id] = args;
+  // Store the "next" function's initial args, while we have them.
+  std::vector<Value> initial_values;
+  for (const auto& arg : node->next()->args()) {
+    auto maybe_constexpr = type_info_->GetConstExpr(arg);
+    XLS_RET_CHECK(maybe_constexpr.has_value());
+    XLS_ASSIGN_OR_RETURN(auto ir_value, maybe_constexpr.value().ConvertToIr());
+    initial_values.push_back(ir_value);
+  }
+  proc_data_->id_to_initial_values[new_id] = initial_values;
 
   if (node->body() != nullptr) {
     return node->body()->Accept(this);

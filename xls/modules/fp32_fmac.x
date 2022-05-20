@@ -17,13 +17,13 @@ import xls.modules.apfloat_fmac
 type F32 = float32::F32;
 
 const F32_ZERO = float32::zero(false);
-const F32_ONE = float32::zero(false);
+const F32_ONE = float32::one(false);
 
 proc fp32_fmac {
   config(input_a: chan in F32, input_b: chan in F32,
          reset: chan in bool, output: chan out F32) {
     spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output)
-        (float32::zero(false));
+        (F32_ZERO);
     ()
   }
 
