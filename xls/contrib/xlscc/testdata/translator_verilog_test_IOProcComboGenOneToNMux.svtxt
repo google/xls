@@ -12,13 +12,13 @@ module foo_proc(
 );
   wire out1_pred;
   wire out2_pred;
-  wire and_75;
+  wire and_82;
   assign out1_pred = dir == 32'h0000_0000;
   assign out2_pred = dir != 32'h0000_0000;
-  assign and_75 = in_vld;
+  assign and_82 = in_vld;
   assign out1 = in;
   assign out2 = in;
-  assign out1_vld = out1_pred & and_75;
-  assign out2_vld = out2_pred & and_75;
+  assign out1_vld = out1_pred & and_82;
+  assign out2_vld = out2_pred & and_82;
   assign in_rdy = (~out1_pred | out1_rdy) & (~out2_pred | out2_rdy);
 endmodule

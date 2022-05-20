@@ -188,8 +188,9 @@ class CField {
   std::shared_ptr<CType> type() const;
   absl::Status GetMetadata(Translator& translator,
                            xlscc_metadata::StructField* output) const;
-  absl::Status GetMetadataValue(Translator *t, const ConstValue const_value,
-                      xlscc_metadata::StructFieldValue* output) const;
+  absl::Status GetMetadataValue(Translator* t, const ConstValue const_value,
+                                xlscc_metadata::StructFieldValue* output) const;
+
  private:
   const clang::NamedDecl* name_;
   int index_;
@@ -1029,8 +1030,7 @@ class Translator {
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
       std::string_view name_prefix, IOChannel* context_out_channel,
-      IOChannel* ctrl_out_channel, IOChannel* context_in_channel,
-      IOChannel* ctrl_in_channel, xls::Type* context_xls_type,
+      IOChannel* context_in_channel, xls::Type* context_xls_type,
       std::shared_ptr<CStructType> context_ctype,
       const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
           variable_field_indices,
@@ -1151,7 +1151,7 @@ class Translator {
                                 const xls::SourceLocation& loc);
 
   absl::Status GenerateMetadataCPPName(const clang::NamedDecl* decl_in,
-    xlscc_metadata::CPPName* name_out);
+                                       xlscc_metadata::CPPName* name_out);
 
   absl::Status GenerateMetadataType(const clang::QualType& type_in,
                                     xlscc_metadata::Type* type_out);

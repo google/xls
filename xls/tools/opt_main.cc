@@ -66,7 +66,7 @@ ABSL_FLAG(bool, inline_procs, false,
           "Whether to inline all procs by calling the proc inlining pass. ");
 // TODO(meheff): 2022/4/4 Remove when proc state optimization lands and flop
 // count with new proc inliner is comparable to the old one.
-ABSL_FLAG(bool, use_new_proc_inliner, false,
+ABSL_FLAG(bool, use_new_proc_inliner, true,
           "Whether to use the new proc inliner when proc inlining.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
