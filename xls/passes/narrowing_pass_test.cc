@@ -397,6 +397,23 @@ TEST_P(NarrowingPassTest, ConvertArrayIndexToSelect) {
   }
 }
 
+TEST_P(NarrowingPassTest, SideEffectfulButNarrowable) {
+  auto p = CreatePackage();
+  Block* to_instantiate = nullptr;
+  {
+    BlockBuilder bb("to_instantiate", p.get());
+    bb.OutputPort("output", bb.Literal(UBits(0, 0)));
+    XLS_ASSERT_OK_AND_ASSIGN(to_instantiate, bb.Build());
+  }
+  BlockBuilder bb(TestName(), p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Instantiation * instantiation,
+      bb.block()->AddBlockInstantiation("instantiation", to_instantiate));
+  bb.InstantiationOutput(instantiation, "output");
+  XLS_ASSERT_OK(bb.Build().status());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NarrowingPassTestInstantiation, NarrowingPassTest,
     testing::Values(false, true),

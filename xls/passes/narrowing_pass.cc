@@ -784,6 +784,9 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
   bool modified = false;
 
   for (Node* node : TopoSort(f)) {
+    if (OpIsSideEffecting(node->op())) {
+      continue;
+    }
     bool node_modified = false;
     if (!node->Is<Literal>() && !node->Is<Param>()) {
       XLS_ASSIGN_OR_RETURN(node_modified,
