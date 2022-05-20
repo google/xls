@@ -200,7 +200,7 @@ consider the following, slightly changed from the previous example:
 ```
 
 Is the statement above computing `add_one<1, (2 > 3)>(1)`, or is it computing
-`(zero<1, 2>(3)) > 1)`? Without additional (and subtle and perhaps surprising)
+`(add_one<1, 2>(3)) > 1)`? Without additional (and subtle and perhaps surprising)
 contextual precedence rules, this would be ambiguous and could lead to a parse
 error or, even worse, unexpected behavior.
 
