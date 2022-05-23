@@ -794,5 +794,47 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
   EXPECT_EQ(result.body, kExpectedBody);
 }
 
+TEST(CppTranspilerTest, HandlesAbsolutePaths) {
+  const std::string kModule = R"(
+pub enum MyEnum : u32 {
+  A = 0,
+  B = 1,
+  C = 42,
+  // D = 4294967296,
+  E = 4294967295
+}
+)";
+
+  const std::string kExpected =
+      R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
+#ifndef TMP_FAKE_PATH_H_
+#define TMP_FAKE_PATH_H_
+#include <cstdint>
+#include <ostream>
+
+#include "absl/status/statusor.h"
+#include "xls/public/value.h"
+
+enum class MyEnum {
+  kA = 0,
+  kB = 1,
+  kC = 42,
+  kE = 4294967295,
+};
+constexpr int64_t kMyEnumNumElements = 4;
+
+#endif  // TMP_FAKE_PATH_H_
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule module,
+      ParseAndTypecheck(kModule, "fake_path", "MyModule", &import_data));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      TranspileToCpp(module.module, &import_data, "/tmp/fake_path.h"));
+  ASSERT_EQ(result.header, kExpected);
+}
+
 }  // namespace
 }  // namespace xls::dslx

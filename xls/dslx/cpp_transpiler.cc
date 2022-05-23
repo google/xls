@@ -704,7 +704,7 @@ $2$1$3
 
   std::string header_guard;
   std::filesystem::path current_path = output_header_path;
-  while (!current_path.empty()) {
+  while (!current_path.empty() && current_path != current_path.root_path()) {
     std::string chunk =
         absl::AsciiStrToUpper(std::string(current_path.filename()));
     chunk = absl::StrReplaceAll(chunk, {{".", "_"}, {"-", "_"}});
