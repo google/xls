@@ -167,6 +167,19 @@ xls_dslx_test(
     deps = [":fir_filter_dslx"],
 )
 
+xls_dslx_test(
+    name = "matmul_4x4_dslx_test",
+    srcs = ["matmul_4x4.x"],
+    # TODO(rspringer): 2022-05-24: Does not successfully lower to IR.
+    # Needs support for arrays of channels.
+    dslx_test_args = {
+        "compare": "none",
+    },
+    deps = [
+        "//xls/modules:fp32_mul_2",
+    ],
+)
+
 xls_dslx_opt_ir(
     name = "riscv_simple",
     srcs = ["riscv_simple.x"],
