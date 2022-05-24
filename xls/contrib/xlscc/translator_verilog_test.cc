@@ -104,8 +104,10 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   XLS_ASSERT_OK(
       XlsccTestBase::ScanTempFileWithContent(content, {}, parser.get()));
 
-  auto translator =
-      std::make_unique<xlscc::Translator>(1000, std::move(parser));
+  auto translator = std::make_unique<xlscc::Translator>(
+      /*error_on_init_interval=*/false,
+      /*max_unroll_iters=*/100,
+      /*existing_parser=*/std::move(parser));
 
   xls::Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,
@@ -234,7 +236,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
       XlsccTestBase::ScanTempFileWithContent(content, {}, parser.get()));
 
   std::unique_ptr<xlscc::Translator> translator(
-      new xlscc::Translator(1000, std::move(parser)));
+      new xlscc::Translator(/*error_on_init_interval=*/false,
+                            /*max_unroll_iters=*/100,
+                            /*existing_parser=*/std::move(parser)));
 
   xls::Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc,

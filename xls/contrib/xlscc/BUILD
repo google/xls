@@ -347,6 +347,7 @@ cc_binary(
         "//xls/codegen:block_generator",
         "//xls/common:init_xls",
         "//xls/common/logging",
+        "//xls/common/logging:log_flags",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/passes:standard_pipeline",

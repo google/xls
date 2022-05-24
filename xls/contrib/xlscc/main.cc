@@ -20,6 +20,8 @@
 #include <fstream>
 #include <streambuf>
 
+#include "xls/common/logging/log_flags.h"
+
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
@@ -80,10 +82,17 @@ ABSL_FLAG(bool, dump_ir_only, false,
 ABSL_FLAG(std::string, verilog_line_map_out, "",
           "Path at which to output Verilog line map protobuf");
 
+ABSL_FLAG(bool, error_on_init_interval, false,
+          "Generate an error when an initiation interval is requested greater "
+          "than supported");
+
 namespace xlscc {
 
 absl::Status Run(absl::string_view cpp_path) {
-  xlscc::Translator translator;
+  // Warnings should print by default
+  absl::SetFlag(&FLAGS_logtostderr, true);
+
+  xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval));
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 

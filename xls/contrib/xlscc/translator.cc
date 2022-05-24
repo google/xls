@@ -564,9 +564,10 @@ absl::Status CPointerType::GetMetadataValue(
   return absl::OkStatus();
 }
 
-Translator::Translator(int64_t max_unroll_iters,
+Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
                        std::unique_ptr<CCParser> existing_parser)
-    : max_unroll_iters_(max_unroll_iters) {
+    : max_unroll_iters_(max_unroll_iters),
+      error_on_init_interval_(error_on_init_interval) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {
     parser_ = std::move(existing_parser);
@@ -4242,8 +4243,12 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     int64_t initiation_interval_arg, clang::ASTContext& ctx,
     const xls::SourceLocation& loc) {
   if (initiation_interval_arg != 1) {
-    return absl::UnimplementedError(absl::StrFormat(
-        "Only initiation interval 1 supported at %s", LocString(loc)));
+    std::string message = absl::StrFormat(
+        "Only initiation interval 1 supported at %s", LocString(loc));
+    if (error_on_init_interval_) {
+      return absl::UnimplementedError(message);
+    }
+    XLS_LOG(WARNING) << message;
   }
 
   if (context().this_val.rvalue().valid()) {

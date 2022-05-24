@@ -686,7 +686,7 @@ class Translator {
 
  public:
   explicit Translator(
-      int64_t max_unroll_iters = 1000,
+      bool error_on_init_interval = false, int64_t max_unroll_iters = 1000,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
@@ -821,6 +821,9 @@ class Translator {
 
   // The maximum number of iterations before loop unrolling fails.
   const int64_t max_unroll_iters_;
+
+  // Generate an error when an init interval > supported is requested?
+  const bool error_on_init_interval_;
 
   // Makes translation of external channel parameters optional,
   // so that IO operations can be generated without calling GenerateIR_Block()

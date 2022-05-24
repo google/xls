@@ -4025,6 +4025,102 @@ TEST_F(TranslatorTest, ForPipelined) {
   EXPECT_EQ(top_proc_state_bits, 0);
 }
 
+TEST_F(TranslatorTest, ForPipelinedII2) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      #pragma hls_pipeline_init_interval 2
+      for(long i=1;i<=4;++i) {
+        a += i;
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+}
+
+TEST_F(TranslatorTest, ForPipelinedII2Error) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      #pragma hls_pipeline_init_interval 2
+      for(long i=1;i<=4;++i) {
+        a += i;
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  XLS_ASSERT_OK(ScanFile(content, /*clang_argv=*/{},
+                         /*io_test_mode=*/false,
+                         /*error_on_init_interval=*/true));
+  package_.reset(new xls::Package("my_package"));
+  ASSERT_THAT(
+      translator_->GenerateIR_Block(package_.get(), block_spec).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("nly initiation interval 1")));
+}
+
 TEST_F(TranslatorTest, WhilePipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -4247,47 +4343,6 @@ TEST_F(TranslatorTest, ForPipelinedReturnInBody) {
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
           testing::HasSubstr("eturns in pipelined loop body unimplemented")));
-}
-
-TEST_F(TranslatorTest, ForPipelinedII2) {
-  const std::string content = R"(
-    #include "/xls_builtin.h"
-
-    #pragma hls_top
-    void foo(__xls_channel<int>& in,
-             __xls_channel<int>& out) {
-      int a = in.read();
-
-      #pragma hls_pipeline_init_interval 2
-      for(long i=1;i<=4;++i) {
-        a += i;
-      }
-
-      out.write(a);
-    })";
-
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("foo");
-
-    HLSChannel* ch_in = block_spec.add_channels();
-    ch_in->set_name("in");
-    ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
-
-    HLSChannel* ch_out1 = block_spec.add_channels();
-    ch_out1->set_name("out");
-    ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
-  }
-
-  XLS_ASSERT_OK(ScanFile(content));
-  package_.reset(new xls::Package("my_package"));
-  ASSERT_THAT(
-      translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("nly initiation interval 1")));
 }
 
 TEST_F(TranslatorTest, ForPipelinedMoreVars) {

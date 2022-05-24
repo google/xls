@@ -61,11 +61,13 @@ class XlsccTestBase : public xls::IrTestBase {
 
   absl::Status ScanFile(xls::TempFile& temp,
                         std::vector<absl::string_view> clang_argv = {},
-                        bool io_test_mode = false);
+                        bool io_test_mode = false,
+                        bool error_on_init_interval = false);
 
   absl::Status ScanFile(absl::string_view cpp_src,
                         std::vector<absl::string_view> clang_argv = {},
-                        bool io_test_mode = false);
+                        bool io_test_mode = false,
+                        bool error_on_init_interval = false);
 
   // Overload which takes a translator as a parameter rather than constructing
   // and using the translator_ data member.
