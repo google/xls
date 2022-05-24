@@ -308,7 +308,7 @@ def cc_xls_ir_jit_wrapper(
             "//xls/ir:ir_parser",
             "//xls/public:function_builder",
             "//xls/public:value",
-            "//xls/jit:ir_jit",
+            "//xls/jit:function_jit",
         ],
         **kwargs
     )

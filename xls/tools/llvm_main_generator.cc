@@ -46,6 +46,7 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/orc_jit.h"
 
 ABSL_FLAG(
     std::string, entry_function, "sample::__sample__main",
@@ -207,7 +208,7 @@ absl::Status RealMain(const std::string& input_path,
   builder.CreateRet(llvm::ConstantInt::get(int32_type, 0));
 
   // FINALLY, output the new IR to the output.
-  return xls::SetFileContents(output_path, JitRuntime::DumpToString(*module));
+  return xls::SetFileContents(output_path, DumpLlvmModuleToString(*module));
 }
 
 }  // namespace xls

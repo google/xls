@@ -20,8 +20,8 @@
 #include "absl/status/statusor.h"
 #include "xls/common/thread.h"
 #include "xls/ir/package.h"
-#include "xls/jit/ir_jit.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/proc_jit.h"
 
 namespace xls {
 
@@ -79,11 +79,10 @@ class SerialProcRuntime {
       kCancelled,
     };
     std::unique_ptr<Thread> thread;
-    std::unique_ptr<IrJit> jit;
+    std::unique_ptr<ProcJit> jit;
 
-    // The size of and actual buffer used to hold the Proc's carried state.
-    int64_t proc_state_size;
-    std::unique_ptr<uint8_t[]> proc_state;
+    // The Proc's carried state.
+    Value proc_state;
 
     absl::Mutex mutex;
     State thread_state ABSL_GUARDED_BY(mutex);

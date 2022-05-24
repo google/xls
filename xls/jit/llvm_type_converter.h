@@ -40,6 +40,11 @@ class LlvmTypeConverter {
 
   llvm::Type* ConvertToLlvmType(const Type* type) const;
 
+  // Returns the LLVM type for the packed representation of the given XLS
+  // type. A packed representation has all bits flattened into a bit vector
+  // (LLVM integer type).
+  llvm::Type* ConvertToPackedLlvmType(const Type* type) const;
+
   // Converts the input XLS Value to an LLVM Constant of the specified type.
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
                                                  const Value& value) const;

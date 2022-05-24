@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/jit/function_builder_visitor.h"
+#include "xls/jit/ir_builder_visitor.h"
 
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/Instructions.h"
@@ -33,67 +33,30 @@
 
 namespace xls {
 
-absl::Status FunctionBuilderVisitor::Visit(llvm::Module* module,
-                                           llvm::Function* llvm_fn,
-                                           FunctionBase* xls_fn,
-                                           LlvmTypeConverter* type_converter,
-                                           bool is_top) {
-  XLS_VLOG_LINES(3, std::string("Generating LLVM IR for XLS function/proc:\n") +
-                        xls_fn->DumpIr());
-  FunctionBuilderVisitor visitor(module, llvm_fn, xls_fn, type_converter,
-                                 is_top);
-  return visitor.BuildInternal();
-}
-
-FunctionBuilderVisitor::FunctionBuilderVisitor(
-    llvm::Module* module, llvm::Function* llvm_fn, FunctionBase* xls_fn,
-    LlvmTypeConverter* type_converter, bool is_top)
-    : ctx_(module->getContext()),
-      module_(module),
+IrBuilderVisitor::IrBuilderVisitor(
+    llvm::Function* llvm_fn, FunctionBase* xls_fn,
+    LlvmTypeConverter* type_converter,
+    std::function<absl::StatusOr<llvm::Function*>(Function*)> function_builder)
+    : ctx_(llvm_fn->getParent()->getContext()),
+      module_(llvm_fn->getParent()),
       llvm_fn_(llvm_fn),
       xls_fn_(xls_fn),
+      builder_(std::make_unique<llvm::IRBuilder<>>(
+          llvm::BasicBlock::Create(ctx_, "entry", llvm_fn,
+                                   /*InsertBefore=*/nullptr))),
       type_converter_(type_converter),
-      is_top_(is_top) {}
+      function_builder_(function_builder) {}
 
-absl::Status FunctionBuilderVisitor::BuildInternal() {
-  auto basic_block = llvm::BasicBlock::Create(ctx_, "so_basic", llvm_fn_,
-                                              /*InsertBefore=*/nullptr);
-
-  builder_ = std::make_unique<llvm::IRBuilder<>>(basic_block);
-  XLS_RETURN_IF_ERROR(xls_fn_->Accept(this));
-  if (return_value_ == nullptr) {
-    return absl::InvalidArgumentError(
-        "Function had no (or an unsupported) return value specification!");
-  }
-
-  // Store the result to the output pointer.
-  Type* xls_return_type = GetEffectiveReturnValue(xls_fn_)->GetType();
-  llvm::Type* llvm_return_type =
-      type_converter_->ConvertToLlvmType(xls_return_type);
-  if (!is_top_) {
-    if (llvm_return_type->isVoidTy()) {
-      builder_->CreateRetVoid();
-    } else {
-      builder_->CreateRet(return_value_);
-    }
-    return absl::OkStatus();
-  }
-
-  UnpoisonBuffer(GetOutputPtr(),
-                 type_converter()->GetTypeByteSize(xls_return_type),
-                 builder_.get());
-
-  builder_->CreateStore(return_value_, GetOutputPtr());
-  builder_->CreateRetVoid();
-
-  return absl::OkStatus();
+absl::Status IrBuilderVisitor::DefaultHandler(Node* node) {
+  return absl::UnimplementedError(
+      absl::StrCat("Unhandled node: ", node->ToString()));
 }
 
-absl::Status FunctionBuilderVisitor::HandleAdd(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleAdd(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleAndReduce(BitwiseReductionOp* op) {
+absl::Status IrBuilderVisitor::HandleAndReduce(BitwiseReductionOp* op) {
   // AND-reduce is equivalent to checking if every bit is set in the input.
   llvm::Value* operand = node_map_.at(op->operand(0));
   llvm::IntegerType* operand_type =
@@ -103,7 +66,7 @@ absl::Status FunctionBuilderVisitor::HandleAndReduce(BitwiseReductionOp* op) {
   return StoreResult(op, eq);
 }
 
-absl::Status FunctionBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
+absl::Status IrBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
   // AfterAll is only meaningful to the compiler and does not actually perform
   // any computation. Furter, token types don't contain any data. A 0-element
   // array is a convenient and low-overhead way to let the rest of the llvm
@@ -117,7 +80,7 @@ void RecordAssertion(char* msg, xls::InterpreterEvents* events) {
   events->assert_msgs.push_back(msg);
 }
 
-absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
+absl::Status IrBuilderVisitor::InvokeAssertCallback(
     llvm::IRBuilder<>* builder, const std::string& message) {
   llvm::Constant* msg_constant = builder->CreateGlobalStringPtr(message);
 
@@ -149,7 +112,7 @@ absl::Status FunctionBuilderVisitor::InvokeAssertCallback(
   return absl::OkStatus();
 }
 
-absl::Status FunctionBuilderVisitor::HandleAssert(Assert* assert_op) {
+absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {
   std::string assert_label = assert_op->label().value_or("assert");
 
   llvm::BasicBlock* after_block = llvm::BasicBlock::Create(
@@ -182,7 +145,7 @@ absl::Status FunctionBuilderVisitor::HandleAssert(Assert* assert_op) {
   return StoreResult(assert_op, token);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
+absl::Status IrBuilderVisitor::HandleArray(Array* array) {
   llvm::Type* array_type = type_converter_->ConvertToLlvmType(array->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(array_type);
@@ -198,7 +161,7 @@ absl::Status FunctionBuilderVisitor::HandleArray(Array* array) {
 // fragments.
 static std::string* CreateTraceBuffer() { return new std::string(); }
 
-absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::InvokeCreateBufferCallback(
+absl::StatusOr<llvm::Value*> IrBuilderVisitor::InvokeCreateBufferCallback(
     llvm::IRBuilder<>* builder) {
   std::vector<llvm::Type*> params;
 
@@ -227,7 +190,7 @@ static void PerformStringStep(char* step_string, std::string* buffer) {
   buffer->append(step_string);
 }
 
-absl::Status FunctionBuilderVisitor::InvokeStringStepCallback(
+absl::Status IrBuilderVisitor::InvokeStringStepCallback(
     llvm::IRBuilder<>* builder, const std::string& step_string,
     llvm::Value* buffer_ptr) {
   llvm::Constant* step_constant = builder->CreateGlobalStringPtr(step_string);
@@ -259,7 +222,7 @@ static void PerformFormatStep(JitRuntime* runtime, const xls::Type* type,
   absl::StrAppend(buffer, ir_value.ToHumanString(format));
 }
 
-absl::Status FunctionBuilderVisitor::InvokeFormatStepCallback(
+absl::Status IrBuilderVisitor::InvokeFormatStepCallback(
     llvm::IRBuilder<>* builder, FormatPreference format,
     xls::Type* operand_type, llvm::Value* operand, llvm::Value* buffer_ptr) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
@@ -301,7 +264,7 @@ static void RecordTrace(std::string* buffer, xls::InterpreterEvents* events) {
   delete buffer;
 }
 
-absl::Status FunctionBuilderVisitor::InvokeRecordTraceCallback(
+absl::Status IrBuilderVisitor::InvokeRecordTraceCallback(
     llvm::IRBuilder<>* builder, llvm::Value* buffer_ptr) {
   // Treat void pointers as int64_t values at the LLVM IR level.
   // Using an actual pointer type triggers LLVM asserts when compiling
@@ -328,7 +291,7 @@ absl::Status FunctionBuilderVisitor::InvokeRecordTraceCallback(
   return absl::OkStatus();
 }
 
-absl::Status FunctionBuilderVisitor::HandleTrace(Trace* trace_op) {
+absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
   std::string trace_name = trace_op->GetName();
 
   llvm::BasicBlock* after_block = llvm::BasicBlock::Create(
@@ -389,7 +352,7 @@ absl::Status FunctionBuilderVisitor::HandleTrace(Trace* trace_op) {
   return StoreResult(trace_op, token);
 }
 
-absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
+absl::StatusOr<llvm::Value*> IrBuilderVisitor::IndexIntoArray(
     llvm::Value* array, llvm::Value* index, int64_t array_size) {
   int64_t index_width = index->getType()->getIntegerBitWidth();
 
@@ -433,7 +396,7 @@ absl::StatusOr<llvm::Value*> FunctionBuilderVisitor::IndexIntoArray(
   return builder_->CreateLoad(element_type, gep);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
+absl::Status IrBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
   Type* element_type = index->array()->GetType();
   llvm::Value* element = node_map_.at(index->array());
   for (Node* index_operand : index->indices()) {
@@ -446,7 +409,7 @@ absl::Status FunctionBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
   return StoreResult(index, element);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
+absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   llvm::Value* array = node_map_.at(slice->array());
   llvm::Value* start = node_map_.at(slice->start());
   int64_t width = slice->width();
@@ -489,7 +452,7 @@ absl::Status FunctionBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   return StoreResult(slice, sliced_array);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
+absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   if (update->indices().empty()) {
     // An empty index replaces the entire array value.
     return StoreResult(update, node_map_.at(update->update_value()));
@@ -553,7 +516,7 @@ absl::Status FunctionBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   return StoreResult(update, update_array);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
+absl::Status IrBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
   llvm::Type* array_type =
       type_converter_->ConvertToLlvmType(concat->GetType());
 
@@ -586,7 +549,7 @@ absl::Status FunctionBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
   return StoreResult(concat, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
+absl::Status IrBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
   llvm::Value* value = node_map_.at(bit_slice->operand(0));
   Value shift_amount(
       UBits(bit_slice->start(), value->getType()->getIntegerBitWidth()));
@@ -601,8 +564,7 @@ absl::Status FunctionBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
   return StoreResult(bit_slice, truncated_value);
 }
 
-absl::Status FunctionBuilderVisitor::HandleBitSliceUpdate(
-    BitSliceUpdate* update) {
+absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   llvm::Value* to_update = node_map_.at(update->to_update());
   llvm::Value* start = node_map_.at(update->start());
   llvm::Value* update_value = node_map_.at(update->update_value());
@@ -665,7 +627,7 @@ absl::Status FunctionBuilderVisitor::HandleBitSliceUpdate(
   return StoreResult(update, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleDynamicBitSlice(
+absl::Status IrBuilderVisitor::HandleDynamicBitSlice(
     DynamicBitSlice* dynamic_bit_slice) {
   llvm::Value* value = node_map_.at(dynamic_bit_slice->operand(0));
   llvm::Value* start = node_map_.at(dynamic_bit_slice->operand(1));
@@ -706,7 +668,7 @@ absl::Status FunctionBuilderVisitor::HandleDynamicBitSlice(
   return StoreResult(dynamic_bit_slice, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleConcat(Concat* concat) {
+absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
   llvm::Type* dest_type = type_converter_->ConvertToLlvmType(concat->GetType());
   llvm::Value* base = llvm::ConstantInt::get(dest_type, 0);
 
@@ -727,9 +689,9 @@ absl::Status FunctionBuilderVisitor::HandleConcat(Concat* concat) {
   return StoreResult(concat, base);
 }
 
-absl::Status FunctionBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
+absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
-                       GetModuleFunction(counted_for->body()));
+                       GetOrBuildFunction(counted_for->body()));
   // Add the loop carry and the index to the invariant arguments.
   std::vector<llvm::Value*> args(counted_for->invariant_args().size() + 2);
   for (int i = 0; i < counted_for->invariant_args().size(); i++) {
@@ -751,7 +713,13 @@ absl::Status FunctionBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   return StoreResult(counted_for, args[1]);
 }
 
-absl::Status FunctionBuilderVisitor::HandleDecode(Decode* decode) {
+absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
+  // TODO(https://github.com/google/xls/issues/499): 2021-09-17: Add coverpoint
+  // support to the JIT.
+  return absl::OkStatus();
+}
+
+absl::Status IrBuilderVisitor::HandleDecode(Decode* decode) {
   llvm::Value* input = node_map_.at(decode->operand(0));
   llvm::Type* result_type = llvm::IntegerType::get(ctx_, decode->width());
   // If the input value is greater than this op's width, then return 0.
@@ -766,11 +734,11 @@ absl::Status FunctionBuilderVisitor::HandleDecode(Decode* decode) {
   return StoreResult(decode, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleDynamicCountedFor(
+absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
     DynamicCountedFor* dynamic_counted_for) {
   // Grab loop body.
   XLS_ASSIGN_OR_RETURN(llvm::Function * loop_body_function,
-                       GetModuleFunction(dynamic_counted_for->body()));
+                       GetOrBuildFunction(dynamic_counted_for->body()));
   llvm::Type* loop_body_function_type = loop_body_function->getFunctionType();
 
   // The loop body arguments are the invariant arguments plus the loop carry and
@@ -873,7 +841,7 @@ absl::Status FunctionBuilderVisitor::HandleDynamicCountedFor(
   return StoreResult(dynamic_counted_for, loop_carry_out);
 }
 
-absl::Status FunctionBuilderVisitor::HandleEncode(Encode* encode) {
+absl::Status IrBuilderVisitor::HandleEncode(Encode* encode) {
   llvm::Value* input = node_map_.at(encode->operand(0));
   llvm::Type* input_type = input->getType();
   llvm::Value* input_one = llvm::ConstantInt::get(input_type, 1);
@@ -901,8 +869,8 @@ absl::Status FunctionBuilderVisitor::HandleEncode(Encode* encode) {
   return StoreResult(encode, result);
 }
 
-absl::StatusOr<std::vector<FunctionBuilderVisitor::CompareTerm>>
-FunctionBuilderVisitor::ExpandTerms(Node* lhs, Node* rhs, Node* src) {
+absl::StatusOr<std::vector<IrBuilderVisitor::CompareTerm>>
+IrBuilderVisitor::ExpandTerms(Node* lhs, Node* rhs, Node* src) {
   XLS_RET_CHECK(lhs->GetType() == rhs->GetType()) << absl::StreamFormat(
       "The lhs and rhs of %s have different types: lhs %s rhs %s",
       src->ToString(), lhs->GetType()->ToString(), rhs->GetType()->ToString());
@@ -960,7 +928,7 @@ FunctionBuilderVisitor::ExpandTerms(Node* lhs, Node* rhs, Node* src) {
   return terms;
 }
 
-absl::Status FunctionBuilderVisitor::HandleEq(CompareOp* eq) {
+absl::Status IrBuilderVisitor::HandleEq(CompareOp* eq) {
   Node* lhs = eq->operand(0);
   Node* rhs = eq->operand(1);
 
@@ -977,7 +945,7 @@ absl::Status FunctionBuilderVisitor::HandleEq(CompareOp* eq) {
   return StoreResult(eq, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleGate(Gate* gate) {
+absl::Status IrBuilderVisitor::HandleGate(Gate* gate) {
   XLS_ASSIGN_OR_RETURN(llvm::Constant * zero,
                        type_converter_->ToLlvmConstant(
                            gate->GetType(), ZeroOfType(gate->GetType())));
@@ -986,13 +954,13 @@ absl::Status FunctionBuilderVisitor::HandleGate(Gate* gate) {
   return StoreResult(gate, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleIdentity(UnOp* identity) {
+absl::Status IrBuilderVisitor::HandleIdentity(UnOp* identity) {
   return StoreResult(identity, node_map_.at(identity->operand(0)));
 }
 
-absl::Status FunctionBuilderVisitor::HandleInvoke(Invoke* invoke) {
+absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
-                       GetModuleFunction(invoke->to_apply()));
+                       GetOrBuildFunction(invoke->to_apply()));
 
   std::vector<llvm::Value*> args(invoke->operand_count());
   for (int i = 0; i < invoke->operand_count(); i++) {
@@ -1006,7 +974,7 @@ absl::Status FunctionBuilderVisitor::HandleInvoke(Invoke* invoke) {
   return StoreResult(invoke, invoke_inst);
 }
 
-absl::Status FunctionBuilderVisitor::HandleLiteral(Literal* literal) {
+absl::Status IrBuilderVisitor::HandleLiteral(Literal* literal) {
   Type* xls_type = literal->GetType();
   XLS_ASSIGN_OR_RETURN(
       llvm::Value * llvm_literal,
@@ -1015,9 +983,9 @@ absl::Status FunctionBuilderVisitor::HandleLiteral(Literal* literal) {
   return StoreResult(literal, llvm_literal);
 }
 
-absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
+absl::Status IrBuilderVisitor::HandleMap(Map* map) {
   XLS_ASSIGN_OR_RETURN(llvm::Function * to_apply,
-                       GetModuleFunction(map->to_apply()));
+                       GetOrBuildFunction(map->to_apply()));
 
   llvm::Value* input = node_map_.at(map->operand(0));
   llvm::Type* input_type = input->getType();
@@ -1040,15 +1008,15 @@ absl::Status FunctionBuilderVisitor::HandleMap(Map* map) {
   return StoreResult(map, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSMul(ArithOp* mul) {
+absl::Status IrBuilderVisitor::HandleSMul(ArithOp* mul) {
   return HandleArithOp(mul);
 }
 
-absl::Status FunctionBuilderVisitor::HandleUMul(ArithOp* mul) {
+absl::Status IrBuilderVisitor::HandleUMul(ArithOp* mul) {
   return HandleArithOp(mul);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {
+absl::Status IrBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {
   llvm::Value* result = node_map_.at((and_op->operand(0)));
   for (int i = 1; i < and_op->operand_count(); ++i) {
     result = builder_->CreateAnd(result, node_map_.at(and_op->operand(i)));
@@ -1056,7 +1024,7 @@ absl::Status FunctionBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {
   return StoreResult(and_op, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNaryNand(NaryOp* nand_op) {
+absl::Status IrBuilderVisitor::HandleNaryNand(NaryOp* nand_op) {
   llvm::Value* result = node_map_.at((nand_op->operand(0)));
   for (int i = 1; i < nand_op->operand_count(); ++i) {
     result = builder_->CreateAnd(result, node_map_.at(nand_op->operand(i)));
@@ -1065,7 +1033,7 @@ absl::Status FunctionBuilderVisitor::HandleNaryNand(NaryOp* nand_op) {
   return StoreResult(nand_op, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNaryNor(NaryOp* nor_op) {
+absl::Status IrBuilderVisitor::HandleNaryNor(NaryOp* nor_op) {
   llvm::Value* result = node_map_.at((nor_op->operand(0)));
   for (int i = 1; i < nor_op->operand_count(); ++i) {
     result = builder_->CreateOr(result, node_map_.at(nor_op->operand(i)));
@@ -1074,7 +1042,7 @@ absl::Status FunctionBuilderVisitor::HandleNaryNor(NaryOp* nor_op) {
   return StoreResult(nor_op, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNaryOr(NaryOp* or_op) {
+absl::Status IrBuilderVisitor::HandleNaryOr(NaryOp* or_op) {
   llvm::Value* result = node_map_.at((or_op->operand(0)));
   for (int i = 1; i < or_op->operand_count(); ++i) {
     result = builder_->CreateOr(result, node_map_.at(or_op->operand(i)));
@@ -1082,7 +1050,7 @@ absl::Status FunctionBuilderVisitor::HandleNaryOr(NaryOp* or_op) {
   return StoreResult(or_op, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNaryXor(NaryOp* xor_op) {
+absl::Status IrBuilderVisitor::HandleNaryXor(NaryOp* xor_op) {
   llvm::Value* result = node_map_.at((xor_op->operand(0)));
   for (int i = 1; i < xor_op->operand_count(); ++i) {
     result = builder_->CreateXor(result, node_map_.at(xor_op->operand(i)));
@@ -1090,7 +1058,7 @@ absl::Status FunctionBuilderVisitor::HandleNaryXor(NaryOp* xor_op) {
   return StoreResult(xor_op, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNe(CompareOp* ne) {
+absl::Status IrBuilderVisitor::HandleNe(CompareOp* ne) {
   Node* lhs = ne->operand(0);
   Node* rhs = ne->operand(1);
 
@@ -1107,17 +1075,17 @@ absl::Status FunctionBuilderVisitor::HandleNe(CompareOp* ne) {
   return StoreResult(ne, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNeg(UnOp* neg) {
+absl::Status IrBuilderVisitor::HandleNeg(UnOp* neg) {
   llvm::Value* llvm_neg = builder_->CreateNeg(node_map_.at(neg->operand(0)));
   return StoreResult(neg, llvm_neg);
 }
 
-absl::Status FunctionBuilderVisitor::HandleNot(UnOp* not_op) {
+absl::Status IrBuilderVisitor::HandleNot(UnOp* not_op) {
   llvm::Value* llvm_not = builder_->CreateNot(node_map_.at(not_op->operand(0)));
   return StoreResult(not_op, llvm_not);
 }
 
-absl::Status FunctionBuilderVisitor::HandleOneHot(OneHot* one_hot) {
+absl::Status IrBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   llvm::Value* input = node_map_.at(one_hot->operand(0));
   llvm::Type* input_type = input->getType();
   int input_width = input_type->getIntegerBitWidth();
@@ -1158,7 +1126,7 @@ absl::Status FunctionBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   return StoreResult(one_hot, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
+absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
   absl::Span<Node* const> cases = sel->cases();
   llvm::Type* input_type = node_map_.at(cases[0])->getType();
 
@@ -1186,7 +1154,7 @@ absl::Status FunctionBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
   return StoreResult(sel, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
+absl::Status IrBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
   // OR-reduce is equivalent to checking if any bit is set in the input.
   llvm::Value* operand = node_map_.at(op->operand(0));
   llvm::Value* eq = builder_->CreateICmpNE(
@@ -1194,40 +1162,7 @@ absl::Status FunctionBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
   return StoreResult(op, eq);
 }
 
-absl::Status FunctionBuilderVisitor::HandleParam(Param* param) {
-  // If we're not processing the first function in LLVM space, this is easy -
-  // just return the n'th argument to the active function.
-  //
-  // If this IS that entry function, then we need to pull in data from the
-  // opaque arg buffer:
-  //  1. Find out the index of the param we're loading.
-  //  2. Get the offset of that param into our arg buffer.
-  //  3. Cast that offset/pointer into the target type and load from it.
-  XLS_ASSIGN_OR_RETURN(int index, param->function_base()->GetParamIndex(param));
-  llvm::Function* llvm_function = builder_->GetInsertBlock()->getParent();
-
-  if (!is_top_) {
-    return StoreResult(param, llvm_function->getArg(index));
-  }
-
-  if (param->GetType()->IsToken()) {
-    return StoreResult(param, type_converter_->GetToken());
-  }
-
-  // Remember that all input arg pointers are packed into a buffer specified
-  // as a single formal parameter, hence the 0 constant here.
-  llvm::Argument* arg_pointer = llvm_function->getArg(0);
-
-  llvm::Type* arg_type = type_converter_->ConvertToLlvmType(param->GetType());
-
-  // Load the argument value from the respective pointer in the arg array.
-  llvm::Value* arg = LoadFromPointerArray(
-      index, arg_type, arg_pointer, xls_fn_->params().size(), builder_.get());
-
-  return StoreResult(param, arg);
-}
-
-absl::Status FunctionBuilderVisitor::HandleReverse(UnOp* reverse) {
+absl::Status IrBuilderVisitor::HandleReverse(UnOp* reverse) {
   llvm::Value* input = node_map_.at(reverse->operand(0));
   llvm::Function* reverse_fn = llvm::Intrinsic::getDeclaration(
       module_, llvm::Intrinsic::bitreverse, {input->getType()});
@@ -1235,15 +1170,15 @@ absl::Status FunctionBuilderVisitor::HandleReverse(UnOp* reverse) {
   return StoreResult(reverse, builder_->CreateCall(reverse_fn, {input}));
 }
 
-absl::Status FunctionBuilderVisitor::HandleSDiv(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleSDiv(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSMod(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleSMod(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSel(Select* sel) {
+absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
   llvm::Value* selector = node_map_.at(sel->selector());
@@ -1263,21 +1198,21 @@ absl::Status FunctionBuilderVisitor::HandleSel(Select* sel) {
   return StoreResult(sel, llvm_sel);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSGe(CompareOp* ge) {
+absl::Status IrBuilderVisitor::HandleSGe(CompareOp* ge) {
   llvm::Value* lhs = node_map_.at(ge->operand(0));
   llvm::Value* rhs = node_map_.at(ge->operand(1));
   llvm::Value* result = builder_->CreateICmpSGE(lhs, rhs);
   return StoreResult(ge, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSGt(CompareOp* gt) {
+absl::Status IrBuilderVisitor::HandleSGt(CompareOp* gt) {
   llvm::Value* lhs = node_map_.at(gt->operand(0));
   llvm::Value* rhs = node_map_.at(gt->operand(1));
   llvm::Value* result = builder_->CreateICmpSGT(lhs, rhs);
   return StoreResult(gt, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSignExtend(ExtendOp* sign_ext) {
+absl::Status IrBuilderVisitor::HandleSignExtend(ExtendOp* sign_ext) {
   llvm::Type* new_type =
       llvm::IntegerType::get(ctx_, sign_ext->new_bit_count());
   return StoreResult(
@@ -1285,37 +1220,37 @@ absl::Status FunctionBuilderVisitor::HandleSignExtend(ExtendOp* sign_ext) {
       builder_->CreateSExt(node_map_.at(sign_ext->operand(0)), new_type));
 }
 
-absl::Status FunctionBuilderVisitor::HandleSLe(CompareOp* le) {
+absl::Status IrBuilderVisitor::HandleSLe(CompareOp* le) {
   llvm::Value* lhs = node_map_.at(le->operand(0));
   llvm::Value* rhs = node_map_.at(le->operand(1));
   llvm::Value* result = builder_->CreateICmpSLE(lhs, rhs);
   return StoreResult(le, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSLt(CompareOp* lt) {
+absl::Status IrBuilderVisitor::HandleSLt(CompareOp* lt) {
   llvm::Value* lhs = node_map_.at(lt->operand(0));
   llvm::Value* rhs = node_map_.at(lt->operand(1));
   llvm::Value* result = builder_->CreateICmpSLT(lhs, rhs);
   return StoreResult(lt, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleShll(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleShll(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleShra(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleShra(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleShrl(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleShrl(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleSub(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleSub(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleTuple(Tuple* tuple) {
+absl::Status IrBuilderVisitor::HandleTuple(Tuple* tuple) {
   llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(tuple->GetType());
 
   llvm::Value* result = CreateTypedZeroValue(tuple_type);
@@ -1330,49 +1265,49 @@ absl::Status FunctionBuilderVisitor::HandleTuple(Tuple* tuple) {
   return StoreResult(tuple, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleTupleIndex(TupleIndex* index) {
+absl::Status IrBuilderVisitor::HandleTupleIndex(TupleIndex* index) {
   llvm::Value* value = builder_->CreateExtractValue(
       node_map_.at(index->operand(0)), index->index());
   return StoreResult(index, value);
 }
 
-absl::Status FunctionBuilderVisitor::HandleUDiv(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleUDiv(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleUMod(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleUMod(BinOp* binop) {
   return HandleBinOp(binop);
 }
 
-absl::Status FunctionBuilderVisitor::HandleUGe(CompareOp* ge) {
+absl::Status IrBuilderVisitor::HandleUGe(CompareOp* ge) {
   llvm::Value* lhs = node_map_.at(ge->operand(0));
   llvm::Value* rhs = node_map_.at(ge->operand(1));
   llvm::Value* result = builder_->CreateICmpUGE(lhs, rhs);
   return StoreResult(ge, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleUGt(CompareOp* gt) {
+absl::Status IrBuilderVisitor::HandleUGt(CompareOp* gt) {
   llvm::Value* lhs = node_map_.at(gt->operand(0));
   llvm::Value* rhs = node_map_.at(gt->operand(1));
   llvm::Value* result = builder_->CreateICmpUGT(lhs, rhs);
   return StoreResult(gt, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleULe(CompareOp* le) {
+absl::Status IrBuilderVisitor::HandleULe(CompareOp* le) {
   llvm::Value* lhs = node_map_.at(le->operand(0));
   llvm::Value* rhs = node_map_.at(le->operand(1));
   llvm::Value* result = builder_->CreateICmpULE(lhs, rhs);
   return StoreResult(le, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleULt(CompareOp* lt) {
+absl::Status IrBuilderVisitor::HandleULt(CompareOp* lt) {
   llvm::Value* lhs = node_map_.at(lt->operand(0));
   llvm::Value* rhs = node_map_.at(lt->operand(1));
   llvm::Value* result = builder_->CreateICmpULT(lhs, rhs);
   return StoreResult(lt, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleXorReduce(BitwiseReductionOp* op) {
+absl::Status IrBuilderVisitor::HandleXorReduce(BitwiseReductionOp* op) {
   // XOR-reduce is equivalent to checking if the number of set bits is odd.
   llvm::Value* operand = node_map_.at(op->operand(0));
   llvm::Function* ctpop = llvm::Intrinsic::getDeclaration(
@@ -1386,7 +1321,7 @@ absl::Status FunctionBuilderVisitor::HandleXorReduce(BitwiseReductionOp* op) {
   return StoreResult(op, truncated_value);
 }
 
-absl::Status FunctionBuilderVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
+absl::Status IrBuilderVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
   llvm::Value* base = node_map_.at(zero_ext->operand(0));
   llvm::Type* dest_type =
       base->getType()->getWithNewBitWidth(zero_ext->new_bit_count());
@@ -1395,7 +1330,7 @@ absl::Status FunctionBuilderVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
   return StoreResult(zero_ext, zext);
 }
 
-absl::Status FunctionBuilderVisitor::HandleArithOp(ArithOp* arith_op) {
+absl::Status IrBuilderVisitor::HandleArithOp(ArithOp* arith_op) {
   bool is_signed;
   switch (arith_op->op()) {
     case Op::kSMul:
@@ -1428,7 +1363,7 @@ absl::Status FunctionBuilderVisitor::HandleArithOp(ArithOp* arith_op) {
   return StoreResult(arith_op, result);
 }
 
-absl::Status FunctionBuilderVisitor::HandleBinOp(BinOp* binop) {
+absl::Status IrBuilderVisitor::HandleBinOp(BinOp* binop) {
   if (binop->operand_count() != 2) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Expected 2 args to a binary op; instead got %d",
@@ -1471,8 +1406,8 @@ absl::Status FunctionBuilderVisitor::HandleBinOp(BinOp* binop) {
   return StoreResult(binop, result);
 }
 
-llvm::Value* FunctionBuilderVisitor::EmitShiftOp(Op op, llvm::Value* lhs,
-                                                 llvm::Value* rhs) {
+llvm::Value* IrBuilderVisitor::EmitShiftOp(Op op, llvm::Value* lhs,
+                                           llvm::Value* rhs) {
   // Shift operands are allowed to be different sizes in the [XLS] IR, so
   // we need to cast them to be the same size here (for LLVM).
   int common_width = std::max(lhs->getType()->getIntegerBitWidth(),
@@ -1522,8 +1457,8 @@ llvm::Value* FunctionBuilderVisitor::EmitShiftOp(Op op, llvm::Value* lhs,
              : builder_->CreateTrunc(result, lhs->getType());
 }
 
-llvm::Value* FunctionBuilderVisitor::EmitDiv(llvm::Value* lhs, llvm::Value* rhs,
-                                             bool is_signed) {
+llvm::Value* IrBuilderVisitor::EmitDiv(llvm::Value* lhs, llvm::Value* rhs,
+                                       bool is_signed) {
   // XLS div semantics differ from LLVM's (and most software's) here: in XLS,
   // division by zero returns the greatest value of that type, so 255 for an
   // unsigned byte, and either -128 or 127 for a signed one.
@@ -1563,8 +1498,8 @@ llvm::Value* FunctionBuilderVisitor::EmitDiv(llvm::Value* lhs, llvm::Value* rhs,
   return builder_->CreateUDiv(lhs, rhs);
 }
 
-llvm::Value* FunctionBuilderVisitor::EmitMod(llvm::Value* lhs, llvm::Value* rhs,
-                                             bool is_signed) {
+llvm::Value* IrBuilderVisitor::EmitMod(llvm::Value* lhs, llvm::Value* rhs,
+                                       bool is_signed) {
   // XLS mod semantics differ from LLVMs with regard to mod by zero. In XLS,
   // modulo by zero returns zero rather than undefined behavior.
   llvm::Value* zero = llvm::ConstantInt::get(rhs->getType(), 0);
@@ -1578,7 +1513,7 @@ llvm::Value* FunctionBuilderVisitor::EmitMod(llvm::Value* lhs, llvm::Value* rhs,
                                           : builder_->CreateURem(lhs, rhs));
 }
 
-llvm::Constant* FunctionBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {
+llvm::Constant* IrBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {
   if (type->isIntegerTy()) {
     return llvm::ConstantInt::get(type, 0);
   } else if (type->isArrayTy()) {
@@ -1599,7 +1534,7 @@ llvm::Constant* FunctionBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {
                                    elements);
 }
 
-llvm::Value* FunctionBuilderVisitor::LoadFromPointerArray(
+llvm::Value* IrBuilderVisitor::LoadFromPointerArray(
     int64_t index, llvm::Type* data_type, llvm::Value* pointer_array,
     int64_t pointer_array_size, llvm::IRBuilder<>* builder) {
   llvm::LLVMContext& context = builder->getContext();
@@ -1621,8 +1556,8 @@ llvm::Value* FunctionBuilderVisitor::LoadFromPointerArray(
   return builder->CreateLoad(data_type, cast);
 }
 
-llvm::Value* FunctionBuilderVisitor::CreateAggregateOr(llvm::Value* lhs,
-                                                       llvm::Value* rhs) {
+llvm::Value* IrBuilderVisitor::CreateAggregateOr(llvm::Value* lhs,
+                                                 llvm::Value* rhs) {
   llvm::Type* arg_type = lhs->getType();
   if (arg_type->isIntegerTy()) {
     return builder_->CreateOr(lhs, rhs);
@@ -1641,7 +1576,7 @@ llvm::Value* FunctionBuilderVisitor::CreateAggregateOr(llvm::Value* lhs,
   return result;
 }
 
-absl::StatusOr<llvm::Constant*> FunctionBuilderVisitor::ConvertToLlvmConstant(
+absl::StatusOr<llvm::Constant*> IrBuilderVisitor::ConvertToLlvmConstant(
     Type* type, const Value& value) {
   if (type->IsBits()) {
     return type_converter_->ToLlvmConstant(
@@ -1678,74 +1613,16 @@ absl::StatusOr<llvm::Constant*> FunctionBuilderVisitor::ConvertToLlvmConstant(
   XLS_LOG(FATAL) << "Unknown value kind: " << value.kind();
 }
 
-absl::StatusOr<llvm::Function*> FunctionBuilderVisitor::GetModuleFunction(
-    Function* xls_function) {
-  // If we've not processed this function yet, then do so.
-  llvm::Function* found_function = module_->getFunction(xls_function->name());
-  if (found_function != nullptr) {
-    return found_function;
-  }
-
-  // There are a couple of differences between this and entry function
-  // visitor initialization such that I think it makes slightly more sense
-  // to not factor it into a common block, but it's not clear-cut.
-  std::vector<llvm::Type*> param_types(xls_function->params().size() + 3);
-  for (int i = 0; i < xls_function->params().size(); ++i) {
-    param_types[i] =
-        type_converter_->ConvertToLlvmType(xls_function->param(i)->GetType());
-  }
-
-  // Treat void pointers as int64_t values at the LLVM IR level.
-  // Using an actual pointer type triggers LLVM asserts when compiling
-  // in debug mode.
-  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(ctx());
-
-  // Pointer to interpreter events temporary
-  param_types.at(param_types.size() - 3) = void_ptr_type;
-
-  // We need to add an extra param to every function call to carry our "user
-  // data", i.e., callback info.
-  param_types.at(param_types.size() - 2) = void_ptr_type;
-
-  // We also need to add an extra param to carry a pointer to the JIT runtime.
-  param_types.at(param_types.size() - 1) = void_ptr_type;
-
-  Type* return_type = GetEffectiveReturnValue(xls_function)->GetType();
-  llvm::Type* llvm_return_type =
-      type_converter_->ConvertToLlvmType(return_type);
-
-  llvm::FunctionType* function_type = llvm::FunctionType::get(
-      llvm_return_type,
-      llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
-      /*isVarArg=*/false);
-  llvm::Function* llvm_function = llvm::cast<llvm::Function>(
-      module_
-          ->getOrInsertFunction(xls_function->qualified_name(), function_type)
-          .getCallee());
-
-  // TODO(rspringer): Need to override this for Procs.
-  XLS_RETURN_IF_ERROR(FunctionBuilderVisitor::Visit(
-      module_, llvm_function, xls_function, type_converter_,
-      /*is_top=*/false));
-
-  return llvm_function;
-}
-
-absl::Status FunctionBuilderVisitor::StoreResult(Node* node,
-                                                 llvm::Value* value) {
+absl::Status IrBuilderVisitor::StoreResult(Node* node, llvm::Value* value) {
   XLS_RET_CHECK(!node_map_.contains(node));
   value->setName(verilog::SanitizeIdentifier(node->GetName()));
-  if (node == GetEffectiveReturnValue(node->function_base())) {
-    return_value_ = value;
-  }
   node_map_[node] = value;
 
   return absl::OkStatus();
 }
 
-void FunctionBuilderVisitor::UnpoisonBuffer(llvm::Value* buffer, int64_t size,
-                                            llvm::IRBuilder<>* builder) {
+void IrBuilderVisitor::UnpoisonBuffer(llvm::Value* buffer, int64_t size,
+                                      llvm::IRBuilder<>* builder) {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
   llvm::LLVMContext& context = builder->getContext();
   llvm::ConstantInt* fn_addr =
@@ -1772,13 +1649,17 @@ void FunctionBuilderVisitor::UnpoisonBuffer(llvm::Value* buffer, int64_t size,
 #endif
 }
 
-/* static */ Node* FunctionBuilderVisitor::GetEffectiveReturnValue(
-    FunctionBase* function_base) {
-  if (function_base->IsFunction()) {
-    return function_base->AsFunctionOrDie()->return_value();
+absl::StatusOr<llvm::Function*> IrBuilderVisitor::GetOrBuildFunction(
+    Function* function) {
+  // If we've not processed this function yet, then do so.
+  llvm::Function* found_function =
+      module_->getFunction(function->qualified_name());
+  if (found_function != nullptr) {
+    return found_function;
   }
-  XLS_CHECK(function_base->IsProc());
-  return function_base->AsProcOrDie()->GetUniqueNextState();
+
+  // Build the LLVM function for this XLS function and return it.
+  return function_builder_(function);
 }
 
 }  // namespace xls

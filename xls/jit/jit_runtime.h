@@ -57,18 +57,10 @@ class JitRuntime {
   void BlitValueToBuffer(const Value& value, const Type* type,
                          absl::Span<uint8_t> buffer);
 
-  // Returns a textual description of the argument LLVM object.
-  template <typename T>
-  static std::string DumpToString(const T& llvm_object);
-
  private:
   llvm::DataLayout data_layout_;
   LlvmTypeConverter* type_converter_;
 };
-
-template <>
-std::string JitRuntime::DumpToString<llvm::Module>(
-    const llvm::Module& llvm_object);
 
 extern "C" {
 

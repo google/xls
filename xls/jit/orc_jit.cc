@@ -272,4 +272,12 @@ absl::StatusOr<llvm::JITTargetAddress> OrcJit::LoadSymbol(
   return symbol->getAddress();
 }
 
+std::string DumpLlvmModuleToString(const llvm::Module& module) {
+  std::string buffer;
+  llvm::raw_string_ostream ostream(buffer);
+  module.print(ostream, nullptr);
+  ostream.flush();
+  return buffer;
+}
+
 }  // namespace xls

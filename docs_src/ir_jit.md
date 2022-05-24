@@ -67,7 +67,7 @@ The JIT is also available as a library with a straightforward interface:
 ```
 absl::StatusOr<Value> RunOnJit(
     Function* function, absl::Span<const Value> args) {
-  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
   return jit->Run(args);
 }
 ```
@@ -99,12 +99,12 @@ pointer). Calling such a function pointer with concrete-typed arguments, though,
 is difficult: one must either make heavy [ab]use of C++ templates or "hide" the
 argument types behind an opaque pointer. The latter approach is taken here.
 
-When a compiled function is invoked (via `IrJit::Run()`), the typed input args
-are "packed" into an opaque byte buffer which is passed into the new function.
-Inside there, any references to an argument (via `DfsVisitor::HandleParam()`)
-calculate the offset of that param in the opaque buffer and load from there
-appropriately (this should happen at most once per arg; LLVM and/or XLS should
-optimize away redundant loads).
+When a compiled function is invoked (via `FunctionJit::Run()`), the typed input
+args are "packed" into an opaque byte buffer which is passed into the new
+function. Inside there, any references to an argument (via
+`DfsVisitor::HandleParam()`) calculate the offset of that param in the opaque
+buffer and load from there appropriately (this should happen at most once per
+arg; LLVM and/or XLS should optimize away redundant loads).
 
 A special case is for function invocations (inside the JITted function): for
 these, the arguments already exist inside "LLVM-space", so there's no need for

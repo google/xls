@@ -23,7 +23,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 
 namespace xls {
 namespace {
@@ -78,8 +78,8 @@ TEST_F(BooleanifierTest, Crc32_Jit) {
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd,
                            GetFunctionDataFromFile(kIrPath, "__crc32__main"));
   // CRC32 main takes an 8b message.
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
 
   for (int i = 0; i < 256; i++) {
     std::vector<Value> inputs({Value(UBits(i, 8))});
@@ -115,8 +115,8 @@ fn main(a: (bits[2], bits[3], bits[4]), b: (bits[2], bits[3], bits[4])) -> (bits
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
   // Don't cover all 4B samples in the space; just enough to see _some_ values
   // in all elements.
   for (int i = 0; i < 512; i++) {
@@ -154,8 +154,8 @@ fn main(a: bits[4][4], i: bits[2], j: bits[2]) -> bits[4][2] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a, Value::UBitsArray({4, 7, 2, 1}, 4));
 
@@ -186,8 +186,8 @@ fn main(a: bits[4][4], i: bits[2], value: bits[4]) -> bits[4][4] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a, Value::UBitsArray({4, 7, 2, 1}, 4));
 
@@ -235,8 +235,8 @@ fn main(a: bits[4][4][4], i: bits[2][2]) -> bits[4] {
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(FunctionData fd, GetFunctionData(kIrText, "main"));
-  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, IrJit::Create(fd.source));
-  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, IrJit::Create(fd.boolified));
+  XLS_ASSERT_OK_AND_ASSIGN(auto fancy_jit, FunctionJit::Create(fd.source));
+  XLS_ASSERT_OK_AND_ASSIGN(auto basic_jit, FunctionJit::Create(fd.boolified));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a, Value::UBits2DArray({{0x0, 0x1, 0x2, 0x3},
                                                          {0x4, 0x5, 0x6, 0x7},

@@ -29,7 +29,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 
 const char kUsage[] = R"(
 Runs an IR function with a set of inputs through both the JIT and the
@@ -71,7 +71,8 @@ absl::Status RealMain(absl::string_view ir_path,
     inputs.push_back(args);
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(f));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                       FunctionJit::Create(f));
   for (const std::vector<Value>& args : inputs) {
     InterpreterResult<Value> jit_result;
     if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {

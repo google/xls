@@ -340,7 +340,7 @@ std::string GenerateWrapperHeader(const Function& function,
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 #include "xls/public/value.h"
 
 namespace xls {
@@ -349,17 +349,17 @@ namespace xls {
 class $0 {
  public:
   static absl::StatusOr<std::unique_ptr<$0>> Create();
-  IrJit* jit() { return jit_.get(); }
+  FunctionJit* jit() { return jit_.get(); }
 
   absl::StatusOr<Value> Run($1);
   absl::Status Run($3);
   $4
 
  private:
-  $0(std::unique_ptr<Package> package, std::unique_ptr<IrJit> jit);
+  $0(std::unique_ptr<Package> package, std::unique_ptr<FunctionJit> jit);
 
   std::unique_ptr<Package> package_;
-  std::unique_ptr<IrJit> jit_;
+  std::unique_ptr<FunctionJit> jit_;
 };
 
 }  // namespace xls
@@ -431,11 +431,11 @@ constexpr const char ir_text[] = R"($1
 absl::StatusOr<std::unique_ptr<$0>> $0::Create() {
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Function* function, package->GetFunction("$6"));
-  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
   return absl::WrapUnique(new $0(std::move(package), std::move(jit)));
 }
 
-$0::$0(std::unique_ptr<Package> package, std::unique_ptr<IrJit> jit)
+$0::$0(std::unique_ptr<Package> package, std::unique_ptr<FunctionJit> jit)
     : package_(std::move(package)), jit_(std::move(jit)) { }
 
 absl::StatusOr<Value> $0::Run($2) {

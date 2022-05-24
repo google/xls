@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 
 #include <cstdio>
 #include <random>
@@ -41,21 +41,22 @@ using status_testing::StatusIs;
 // events returned by the JIT evaluator with a entry point that includes the
 // collected events (once they are supported by the JIT).
 INSTANTIATE_TEST_SUITE_P(
-    IrJitTest, IrEvaluatorTestBase,
+    FunctionJitTest, IrEvaluatorTestBase,
     testing::Values(IrEvaluatorTestParam(
         [](Function* function, absl::Span<const Value> args)
             -> absl::StatusOr<InterpreterResult<Value>> {
-          XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+          XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
           return jit->Run(args);
         },
         [](Function* function,
            const absl::flat_hash_map<std::string, Value>& kwargs)
             -> absl::StatusOr<InterpreterResult<Value>> {
-          XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+          XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
           return jit->Run(kwargs);
         })));
 
-absl::StatusOr<Value> RunJitNoEvents(IrJit* jit, absl::Span<const Value> args) {
+absl::StatusOr<Value> RunJitNoEvents(FunctionJit* jit,
+                                     absl::Span<const Value> args) {
   XLS_ASSIGN_OR_RETURN(InterpreterResult<Value> result, jit->Run(args));
 
   if (!result.events.trace_msgs.empty()) {
@@ -67,7 +68,7 @@ absl::StatusOr<Value> RunJitNoEvents(IrJit* jit, absl::Span<const Value> args) {
   return InterpreterResultToStatusOrValue(result);
 }
 
-TEST(IrJitTest, TraceFmtNoArgsTest) {
+TEST(FunctionJitTest, TraceFmtNoArgsTest) {
   Package package("my_package");
   std::string ir_text = R"(
   fn trace_no_args(tkn: token, pred: bits[1]) -> token {
@@ -77,14 +78,14 @@ TEST(IrJitTest, TraceFmtNoArgsTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
   EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced");
 }
 
-TEST(IrJitTest, TraceFmtOneArgTest) {
+TEST(FunctionJitTest, TraceFmtOneArgTest) {
   Package package("my_package");
   std::string ir_text = R"(
   fn trace_no_args(tkn: token, pred: bits[1]) -> token {
@@ -94,14 +95,14 @@ TEST(IrJitTest, TraceFmtOneArgTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
   EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1");
 }
 
-TEST(IrJitTest, TraceFmtTwoArgTest) {
+TEST(FunctionJitTest, TraceFmtTwoArgTest) {
   Package package("my_package");
   std::string ir_text = R"(
   fn trace_no_args(tkn: token, pred: bits[1]) -> token {
@@ -112,14 +113,14 @@ TEST(IrJitTest, TraceFmtTwoArgTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
   EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1 also: 2a");
 }
 
-TEST(IrJitTest, TraceFmtBigArgTest) {
+TEST(FunctionJitTest, TraceFmtBigArgTest) {
   Package package("my_package");
   std::string ir_text = R"(
   fn trace_no_args(tkn: token, pred: bits[1]) -> token {
@@ -132,7 +133,7 @@ TEST(IrJitTest, TraceFmtBigArgTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   std::vector<Value> args = {Value::Token(), Value(UBits(1, 1))};
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
   ASSERT_EQ(result.events.trace_msgs.size(), 1);
@@ -143,7 +144,7 @@ TEST(IrJitTest, TraceFmtBigArgTest) {
 }
 
 // This test verifies that a compiled JIT function can be re-used.
-TEST(IrJitTest, ReuseTest) {
+TEST(FunctionJitTest, ReuseTest) {
   Package package("my_package");
   std::string ir_text = R"(
   fn get_identity(x: bits[8]) -> bits[8] {
@@ -153,7 +154,7 @@ TEST(IrJitTest, ReuseTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(2, 8))}),
               IsOkAndHolds(Value(UBits(2, 8))));
   EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(4, 8))}),
@@ -162,7 +163,7 @@ TEST(IrJitTest, ReuseTest) {
               IsOkAndHolds(Value(UBits(7, 8))));
 }
 
-TEST(IrJitTest, OneHotZeroBit) {
+TEST(FunctionJitTest, OneHotZeroBit) {
   Package package("my_package");
   std::string ir_text = R"(
   fn get_identity(x: bits[0]) -> bits[1] {
@@ -172,13 +173,13 @@ TEST(IrJitTest, OneHotZeroBit) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   EXPECT_THAT(RunJitNoEvents(jit.get(), {Value(UBits(0, 0))}),
               IsOkAndHolds(Value(UBits(1, 1))));
 }
 
 // Very basic smoke test for packed types.
-TEST(IrJitTest, PackedSmoke) {
+TEST(FunctionJitTest, PackedSmoke) {
   Package package("my_package");
   std::string ir_text = R"(
   fn get_identity(x: bits[8]) -> bits[8] {
@@ -188,7 +189,7 @@ TEST(IrJitTest, PackedSmoke) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
   uint8_t input_data[] = {0x5a, 0xa5};
   uint8_t output_data;
   PackedBitsView<8> input(input_data, 0);
@@ -209,7 +210,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   std::string ir_text = absl::Substitute(ir_template, kBitWidth);
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
-  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
   Value v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
   Bits a(v.bits());
   v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
@@ -240,7 +241,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
 }
 
 // Smoke test of PackedBitsViews in the JIT.
-TEST(IrJitTest, PackedBits) {
+TEST(FunctionJitTest, PackedBits) {
   std::minstd_rand bitgen;
 
   // The usual suspects:
@@ -327,7 +328,7 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   std::string ir_text = absl::Substitute(ir_template, kBitWidth, kNumElements);
   XLS_ASSIGN_OR_RETURN(Function * function,
                        Parser::ParseFunction(ir_text, &package));
-  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
 
   std::vector<Bits> bits_vector;
   for (int i = 0; i < kNumElements; i++) {
@@ -361,7 +362,7 @@ absl::Status TestSimpleArray(std::minstd_rand& bitgen) {
   return absl::OkStatus();
 }
 
-TEST(IrJitTest, PackedArrays) {
+TEST(FunctionJitTest, PackedArrays) {
   std::minstd_rand bitgen;
   XLS_ASSERT_OK((TestSimpleArray<4, 4>(bitgen)));
   XLS_ASSERT_OK((TestSimpleArray<4, 15>(bitgen)));
@@ -397,7 +398,7 @@ absl::Status TestTuples(std::minstd_rand& bitgen) {
   XLS_ASSIGN_OR_RETURN(
       Function * function,
       CreateTupleFunction(&package, tuple_type, kReplacementIndex));
-  XLS_ASSIGN_OR_RETURN(auto jit, IrJit::Create(function));
+  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
 
   Value input_tuple = RandomValue(tuple_type, &bitgen);
   TestData<TupleT> input_tuple_data(input_tuple);
@@ -423,7 +424,7 @@ absl::Status TestTuples(std::minstd_rand& bitgen) {
   return absl::OkStatus();
 }
 
-TEST(IrJitTest, PackedTuples) {
+TEST(FunctionJitTest, PackedTuples) {
   using PackedFloat32T =
       PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, PackedBitsView<23>>;
 
@@ -455,7 +456,7 @@ TEST(IrJitTest, PackedTuples) {
   }
 }
 
-TEST(IrJitTest, ArrayConcatArrayOfBits) {
+TEST(FunctionJitTest, ArrayConcatArrayOfBits) {
   Package package("my_package");
 
   std::string ir_text = R"(
@@ -467,7 +468,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBits) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -478,7 +479,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBits) {
   EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
 }
 
-TEST(IrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
+TEST(FunctionJitTest, ArrayConcatArrayOfBitsMixedOperands) {
   Package package("my_package");
 
   std::string ir_text = R"(
@@ -492,7 +493,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -505,7 +506,7 @@ TEST(IrJitTest, ArrayConcatArrayOfBitsMixedOperands) {
   EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
 }
 
-TEST(IrJitTest, ArrayConcatArrayOfArrays) {
+TEST(FunctionJitTest, ArrayConcatArrayOfArrays) {
   Package package("my_package");
 
   std::string ir_text = R"(
@@ -522,7 +523,7 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
                            Parser::ParseFunction(ir_text, &package));
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(function));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
 
   std::vector<Value> args;
   EXPECT_THAT(RunJitNoEvents(jit.get(), args), IsOkAndHolds(ret));
@@ -532,7 +533,7 @@ TEST(IrJitTest, ArrayConcatArrayOfArrays) {
 // xls/interpereter/ir_evaluator_test_base.cc because those recompile
 // the test function each time they run it. These tests check that
 // reusing the test function also works.
-TEST(IrJitTest, Assert) {
+TEST(FunctionJitTest, Assert) {
   Package p("assert_test");
   FunctionBuilder b("fun", &p);
   auto p0 = b.Param("tkn", p.GetTokenType());
@@ -540,7 +541,7 @@ TEST(IrJitTest, Assert) {
   b.Assert(p0, p1, "the assertion error message");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(f));
 
   std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1))};
   EXPECT_THAT(RunJitNoEvents(jit.get(), ok_args), IsOkAndHolds(Value::Token()));
@@ -551,7 +552,7 @@ TEST(IrJitTest, Assert) {
                        testing::HasSubstr("the assertion error message")));
 }
 
-TEST(IrJitTest, FunAssert) {
+TEST(FunctionJitTest, FunAssert) {
   Package p("fun_assert_test");
 
   FunctionBuilder fun_builder("fun", &p);
@@ -576,7 +577,7 @@ TEST(IrJitTest, FunAssert) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * top, top_builder.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(top));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(top));
 
   std::vector<Value> ok_args = {Value(UBits(6, 5))};
   EXPECT_THAT(RunJitNoEvents(jit.get(), ok_args),
@@ -588,7 +589,7 @@ TEST(IrJitTest, FunAssert) {
                        testing::HasSubstr("x is more than 7")));
 }
 
-TEST(IrJitTest, TwoAssert) {
+TEST(FunctionJitTest, TwoAssert) {
   Package p("assert_test");
   FunctionBuilder b("fun", &p);
   auto p0 = b.Param("tkn", p.GetTokenType());
@@ -600,7 +601,7 @@ TEST(IrJitTest, TwoAssert) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto jit, IrJit::Create(f));
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(f));
 
   std::vector<Value> ok_args = {Value::Token(), Value(UBits(1, 1)),
                                 Value(UBits(1, 1))};
@@ -631,7 +632,7 @@ TEST(IrJitTest, TwoAssert) {
                        testing::HasSubstr("first assertion error message")));
 }
 
-TEST(IrJitTest, TokenCompareError) {
+TEST(FunctionJitTest, TokenCompareError) {
   Package p("token_eq");
   FunctionBuilder b("fun", &p);
   auto p0 = b.Param("tkn", p.GetTokenType());
@@ -640,14 +641,14 @@ TEST(IrJitTest, TokenCompareError) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
-  EXPECT_THAT(IrJit::Create(f),
+  EXPECT_THAT(FunctionJit::Create(f),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr("Tokens are incomparable")));
 }
 
 // Make sure the token comparison error is still reported when the token is
 // inside a larger structure.
-TEST(IrJitTest, CompoundTokenCompareError) {
+TEST(FunctionJitTest, CompoundTokenCompareError) {
   Package p("compound_token_eq");
   FunctionBuilder b("fun", &p);
 
@@ -660,7 +661,7 @@ TEST(IrJitTest, CompoundTokenCompareError) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
 
-  EXPECT_THAT(IrJit::Create(f),
+  EXPECT_THAT(FunctionJit::Create(f),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr("Tokens are incomparable")));
 }

@@ -66,6 +66,13 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
   return llvm_type;
 }
 
+llvm::Type* LlvmTypeConverter::ConvertToPackedLlvmType(const Type* type) const {
+  // LLVM doesn't support zero-width integer types so use i1 for XLS zero-bit
+  // types.
+  int64_t width = std::max(type->GetFlatBitCount(), int64_t{1});
+  return llvm::IntegerType::get(context_, width);
+}
+
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
     const Type* type, const Value& value) const {
   return ToLlvmConstant(ConvertToLlvmType(type), value);

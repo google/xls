@@ -94,6 +94,21 @@ class OrcJit {
   std::vector<char> object_code_;
 };
 
+// Calls the dump method on the given LLVM object and returns the string.
+template <typename T>
+std::string DumpLlvmObjectToString(const T& llvm_object) {
+  std::string buffer;
+  llvm::raw_string_ostream ostream(buffer);
+  llvm_object.print(ostream);
+  ostream.flush();
+  return buffer;
+}
+
+// Calls the dump method on the given LLVM module object and returns the string.
+// DumpLlvmObjectToString cannot be used because modules are dumped slightly
+// differently.
+std::string DumpLlvmModuleToString(const llvm::Module& module);
+
 }  // namespace xls
 
 #endif  // XLS_JIT_ORC_JIT_H_

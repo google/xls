@@ -92,7 +92,7 @@ which are optional, are described below:
 
     [(Code example)](https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f)
 
-1.  [LLVM JIT](https://github.com/google/xls/tree/main/xls/jit/function_builder_visitor.h)
+1.  [LLVM JIT](https://github.com/google/xls/tree/main/xls/jit/ir_builder_visitor.h)
 
     The LLVM JIT enables fast simulation of the XLS IR. The JIT constructs LLVM
     IR for each XLS operation which is then optimized by LLVM and runs natively

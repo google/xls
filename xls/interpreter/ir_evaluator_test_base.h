@@ -60,7 +60,7 @@ struct IrEvaluatorTestParam {
 };
 
 // Public face of the suite of tests to run against IR evaluators
-// (IrInterpreter, LlvmIrJit). Users should instantiate with an
+// (IrInterpreter, FunctionJit). Users should instantiate with an
 // INSTANTIATE_TEST_SUITE_P macro; see llvm_ir_jit_test.cc for an example.
 class IrEvaluatorTestBase
     : public IrTestBase,

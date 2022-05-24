@@ -16,9 +16,8 @@
 #include "absl/status/status.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/proc.h"
-#include "xls/jit/function_builder_visitor.h"
 #include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/proc_builder_visitor.h"
+#include "xls/jit/proc_jit.h"
 
 namespace xls {
 
@@ -51,12 +50,10 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
   while (true) {
     // RunWithViews takes an array of arg view pointers - even if they're unused
     // during execution, tokens still occupy one of those spots.
-    std::vector<uint8_t*> args = {nullptr, thread_data->proc_state.get()};
-    XLS_CHECK_OK(thread_data->jit->RunWithViews(
-        absl::MakeSpan(args),
-        absl::MakeSpan(thread_data->proc_state.get(),
-                       thread_data->proc_state_size),
-        thread_data));
+    absl::StatusOr<InterpreterResult<Value>> next_state_or =
+        thread_data->jit->Run(thread_data->proc_state, thread_data);
+    XLS_CHECK_OK(next_state_or.status());
+    thread_data->proc_state = next_state_or.value().value;
 
     absl::MutexLock lock(&thread_data->mutex);
     if (thread_data->thread_state == ThreadData::State::kCancelled) {
@@ -127,8 +124,8 @@ absl::Status SerialProcRuntime::Init() {
   for (int i = 0; i < package_->procs().size(); i++) {
     auto thread = std::make_unique<ThreadData>();
     Proc* proc = package_->procs()[i].get();
-    XLS_ASSIGN_OR_RETURN(thread->jit, IrJit::CreateProc(proc, queue_mgr_.get(),
-                                                        &RecvFn, &SendFn));
+    XLS_ASSIGN_OR_RETURN(
+        thread->jit, ProcJit::Create(proc, queue_mgr_.get(), &RecvFn, &SendFn));
 
     absl::MutexLock lock(&thread->mutex);
     thread->sent_data = false;
@@ -214,7 +211,7 @@ absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
   Type* type = package_->GetTypeForValue(value);
 
   XLS_RET_CHECK(!threads_.empty());
-  IrJit* jit = threads_.front()->jit.get();
+  ProcJit* jit = threads_.front()->jit.get();
   int64_t size = jit->type_converter()->GetTypeByteSize(type);
   auto buffer = std::make_unique<uint8_t[]>(size);
   jit->runtime()->BlitValueToBuffer(value, type,
@@ -231,7 +228,7 @@ absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
   Type* type = channel->type();
 
   XLS_RET_CHECK(!threads_.empty());
-  IrJit* jit = threads_.front()->jit.get();
+  ProcJit* jit = threads_.front()->jit.get();
   int64_t size = jit->type_converter()->GetTypeByteSize(type);
   auto buffer = std::make_unique<uint8_t[]>(size);
 
@@ -249,7 +246,7 @@ absl::StatusOr<Proc*> SerialProcRuntime::proc(int64_t index) const {
     return absl::InvalidArgumentError(
         absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
   }
-  return dynamic_cast<Proc*>(threads_[index]->jit->function());
+  return dynamic_cast<Proc*>(threads_[index]->jit->proc());
 }
 
 absl::StatusOr<Value> SerialProcRuntime::SerialProcRuntime::ProcState(
@@ -259,22 +256,14 @@ absl::StatusOr<Value> SerialProcRuntime::SerialProcRuntime::ProcState(
         absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
   }
 
-  XLS_ASSIGN_OR_RETURN(Proc * p, proc(index));
-  return threads_[index]->jit->runtime()->UnpackBuffer(
-      threads_[index]->proc_state.get(), p->GetUniqueStateType());
+  return threads_[index]->proc_state;
 }
 
 void SerialProcRuntime::ResetState() {
   for (int i = 0; i < package_->procs().size(); i++) {
     Proc* proc = package_->procs()[i].get();
     auto thread = threads_[i].get();
-    IrJit* jit = thread->jit.get();
-    thread->proc_state_size = jit->GetReturnTypeSize();
-    thread->proc_state = std::make_unique<uint8_t[]>(thread->proc_state_size);
-    jit->runtime()->BlitValueToBuffer(
-        proc->GetUniqueInitValue(),
-        FunctionBuilderVisitor::GetEffectiveReturnValue(proc)->GetType(),
-        absl::MakeSpan(thread->proc_state.get(), jit->GetReturnTypeSize()));
+    thread->proc_state = proc->GetUniqueInitValue();
   }
 }
 

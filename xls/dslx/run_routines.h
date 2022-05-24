@@ -24,7 +24,7 @@
 #include "xls/dslx/symbolic_bindings.h"
 #include "xls/ir/function.h"
 #include "xls/ir/package.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 
 namespace xls::dslx {
 
@@ -59,15 +59,15 @@ class RunComparator {
   //
   // Note: There is no locking in jit compilation or on the jit function cache
   // so this function is *not* thread-safe.
-  absl::StatusOr<IrJit*> GetOrCompileJitFunction(std::string ir_name,
-                                                 xls::Function* ir_function);
+  absl::StatusOr<FunctionJit*> GetOrCompileJitFunction(
+      std::string ir_name, xls::Function* ir_function);
 
  private:
   friend class RunRoutinesTest_TestInvokedFunctionDoesJit_Test;
   friend class RunRoutinesTest_QuickcheckInvokedFunctionDoesJit_Test;
   friend class RunRoutinesTest_NoSeedStillQuickChecks_Test;
 
-  absl::flat_hash_map<std::string, std::unique_ptr<IrJit>> jit_cache_;
+  absl::flat_hash_map<std::string, std::unique_ptr<FunctionJit>> jit_cache_;
   CompareMode mode_;
 };
 

@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef XLS_JIT_FUNCTION_BUILDER_VISITOR_H_
-#define XLS_JIT_FUNCTION_BUILDER_VISITOR_H_
+#ifndef XLS_JIT_IR_BUILDER_VISITOR_H_
+#define XLS_JIT_IR_BUILDER_VISITOR_H_
 
 #include <vector>
 
@@ -30,23 +30,24 @@
 namespace xls {
 
 // Visitor to construct LLVM IR for each encountered XLS IR node. Based on
-// DfsVisitorWithDefault to highlight any unhandled IR nodes.
-class FunctionBuilderVisitor : public DfsVisitorWithDefault {
+// DfsVisitorWithDefault to highlight any unhandled IR nodes. This class handles
+// translation of almost all XLS node types. The exception are Params and
+// proc-specific or block-specific operands (e.g., Send or Receive) which should
+// be handled in derived classes specific to XLS Functions, Procs or Blocks.
+class IrBuilderVisitor : public DfsVisitorWithDefault {
  public:
   // Args:
-  //   xls_fn: the XLS function being translated.
-  //   llvm_fn: the [empty] LLVM function being populated.
-  //   is_top: true if this is the top-level function being translated,
-  //     false if this is a function invocation from already inside "LLVM
-  //     space".
-  static absl::Status Visit(llvm::Module* module, llvm::Function* llvm_fn,
-                            FunctionBase* xls_fn,
-                            LlvmTypeConverter* type_converter, bool is_top);
-
-  absl::Status DefaultHandler(Node* node) override {
-    return absl::UnimplementedError(
-        absl::StrCat("Unhandled node: ", node->ToString()));
-  }
+  //  llvm_fn: empty function which in which the translation of `xls_fn` will be
+  //    built.
+  //  xls_fn: XLS FunctionBase being translated.
+  //  function_builder: a callable which creates an LLVM function implementing
+  //    the given XLS function. This is used to build functions called by nodes
+  //    in `xls_fn` (such as invoke).
+  IrBuilderVisitor(llvm::Function* llvm_fn, FunctionBase* xls_fn,
+                   LlvmTypeConverter* type_converter,
+                   std::function<absl::StatusOr<llvm::Function*>(Function*)>
+                       function_builder);
+  absl::Status DefaultHandler(Node* node) override;
 
   absl::Status HandleAdd(BinOp* binop) override;
   absl::Status HandleAndReduce(BitwiseReductionOp* op) override;
@@ -63,11 +64,7 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
       DynamicBitSlice* dynamic_bit_slice) override;
   absl::Status HandleConcat(Concat* concat) override;
   absl::Status HandleCountedFor(CountedFor* counted_for) override;
-  absl::Status HandleCover(Cover* cover) override {
-    // TODO(rspringer): 2021-09-17: Add coverpoint support to the JIT.
-    // GitHub issue #499.
-    return absl::OkStatus();
-  }
+  absl::Status HandleCover(Cover* cover) override;
   absl::Status HandleDecode(Decode* decode) override;
   absl::Status HandleDynamicCountedFor(
       DynamicCountedFor* dynamic_counted_for) override;
@@ -91,7 +88,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* op) override;
-  absl::Status HandleParam(Param* param) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* binop) override;
   absl::Status HandleSMod(BinOp* binop) override;
@@ -117,11 +113,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleXorReduce(BitwiseReductionOp* op) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
-  // Returns the node of the function/proc which is used as the return value of
-  // the LLVM function. This is necessary because procs do not have return
-  // values. In this case the recurrent next-state value is used.
-  static Node* GetEffectiveReturnValue(FunctionBase* function_base);
-
   // Creates a zero-valued LLVM constant for the given type, be it a Bits,
   // Array, or Tuple.
   static llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
@@ -142,19 +133,12 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
                              llvm::IRBuilder<>* builder);
 
  protected:
-  FunctionBuilderVisitor(llvm::Module* module, llvm::Function* llvm_fn,
-                         FunctionBase* xls_fn,
-                         LlvmTypeConverter* type_converter, bool is_top);
-
   llvm::LLVMContext& ctx() { return ctx_; }
   llvm::Module* module() { return module_; }
   llvm::Function* llvm_fn() { return llvm_fn_; }
   llvm::IRBuilder<>* builder() { return builder_.get(); }
   LlvmTypeConverter* type_converter() { return type_converter_; }
   absl::flat_hash_map<Node*, llvm::Value*>& node_map() { return node_map_; }
-
-  // Actual driver for the building process (Build is a creation/init shim).
-  absl::Status BuildInternal();
 
   // Saves the assocation between the given XLS IR Node and the matching LLVM
   // Value.
@@ -185,7 +169,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
     builder_ = std::move(new_builder);
   }
 
- private:
   // Common handler for all arithmetic ops.
   absl::Status HandleArithOp(ArithOp* arith_op);
 
@@ -220,10 +203,6 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
   // Converts the given XLS Value into an LLVM constant.
   absl::StatusOr<llvm::Constant*> ConvertToLlvmConstant(Type* type,
                                                         const Value& value);
-
-  // Looks up and returns the given function in the module, translating it into
-  // LLVM first, if necessary.
-  absl::StatusOr<llvm::Function*> GetModuleFunction(Function* xls_function);
 
   // Returns the result of indexing into 'array' using the scalar index value
   // 'index'. 'array_size' is the number of elements in the array.
@@ -262,20 +241,17 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
     return {GetInterpreterEventsPtr(), GetUserDataPtr(), GetJitRuntimePtr()};
   }
 
+  // Gets the built function representing the given XLS function, or builds it
+  // if it has not yet been built.
+  absl::StatusOr<llvm::Function*> GetOrBuildFunction(Function* function);
+
   llvm::LLVMContext& ctx_;
   llvm::Module* module_;
   llvm::Function* llvm_fn_;
   FunctionBase* xls_fn_;
   std::unique_ptr<llvm::IRBuilder<>> builder_;
   LlvmTypeConverter* type_converter_;
-
-  // Per the Build() comment, is_top_ is true if this is the top-level function
-  // being translated.
-  bool is_top_;
-
-  // The last value constructed during this traversal - represents the return
-  // from calculation.
-  llvm::Value* return_value_;
+  std::function<absl::StatusOr<llvm::Function*>(Function*)> function_builder_;
 
   // Maps an XLS Node to the resulting LLVM Value.
   absl::flat_hash_map<Node*, llvm::Value*> node_map_;
@@ -288,4 +264,4 @@ class FunctionBuilderVisitor : public DfsVisitorWithDefault {
 
 }  // namespace xls
 
-#endif  // XLS_JIT_FUNCTION_BUILDER_VISITOR_H_
+#endif  // XLS_JIT_IR_BUILDER_VISITOR_H_

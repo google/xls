@@ -33,7 +33,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 #include "xls/jit/llvm_type_converter.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
@@ -252,7 +252,7 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
     XLS_ASSIGN_OR_RETURN(f, package->GetFunction(top));
   }
   XLS_ASSIGN_OR_RETURN(std::vector<char> object_code,
-                       IrJit::CreateObjectFile(f));
+                       FunctionJit::CreateObjectFile(f));
   XLS_RETURN_IF_ERROR(SetFileContents(
       output_object_path, std::string(object_code.begin(), object_code.end())));
 

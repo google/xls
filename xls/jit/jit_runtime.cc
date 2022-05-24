@@ -170,25 +170,6 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
   }
 }
 
-template <typename T>
-std::string JitRuntime::DumpToString(const T& llvm_object) {
-  std::string buffer;
-  llvm::raw_string_ostream ostream(buffer);
-  llvm_object.print(ostream);
-  ostream.flush();
-  return buffer;
-}
-
-template <>
-std::string JitRuntime::DumpToString<llvm::Module>(
-    const llvm::Module& llvm_object) {
-  std::string buffer;
-  llvm::raw_string_ostream ostream(buffer);
-  llvm_object.print(ostream, nullptr);
-  ostream.flush();
-  return buffer;
-}
-
 }  // namespace xls
 
 extern "C" {

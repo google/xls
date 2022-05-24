@@ -85,14 +85,15 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 
 }  // namespace
 
-absl::StatusOr<IrJit*> RunComparator::GetOrCompileJitFunction(
+absl::StatusOr<FunctionJit*> RunComparator::GetOrCompileJitFunction(
     std::string ir_name, xls::Function* ir_function) {
   auto it = jit_cache_.find(ir_name);
   if (it != jit_cache_.end()) {
     return it->second.get();
   }
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(ir_function));
-  IrJit* result = jit.get();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                       FunctionJit::Create(ir_function));
+  FunctionJit* result = jit.get();
   jit_cache_[ir_name] = std::move(jit);
   return result;
 }
@@ -141,7 +142,7 @@ absl::Status RunComparator::RunComparison(
     case CompareMode::kJit: {
       // TODO(https://github.com/google/xls/issues/506): Also compare events
       // once the DSLX interpreter supports them (and the JIT supports traces).
-      XLS_ASSIGN_OR_RETURN(IrJit * jit,
+      XLS_ASSIGN_OR_RETURN(FunctionJit * jit,
                            GetOrCompileJitFunction(ir_name, ir_function));
       XLS_ASSIGN_OR_RETURN(ir_result, DropInterpreterEvents(jit->Run(ir_args)));
       mode_str = "JIT";
@@ -194,8 +195,9 @@ absl::StatusOr<QuickCheckResults> DoQuickCheck(xls::Function* xls_function,
                                                RunComparator* run_comparator,
                                                int64_t seed,
                                                int64_t num_tests) {
-  XLS_ASSIGN_OR_RETURN(IrJit * jit, run_comparator->GetOrCompileJitFunction(
-                                        std::move(ir_name), xls_function));
+  XLS_ASSIGN_OR_RETURN(FunctionJit * jit,
+                       run_comparator->GetOrCompileJitFunction(
+                           std::move(ir_name), xls_function));
 
   QuickCheckResults results;
   std::minstd_rand rng_engine(seed);

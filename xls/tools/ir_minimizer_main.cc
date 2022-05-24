@@ -33,7 +33,7 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/verifier.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
 #include "xls/passes/arith_simplification_pass.h"
 #include "xls/passes/array_simplification_pass.h"
 #include "xls/passes/bit_slice_simplification_pass.h"
@@ -187,7 +187,8 @@ absl::StatusOr<bool> StillFailsHelper(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package, ParsePackage(ir_text));
   XLS_RET_CHECK(inputs.has_value());
   XLS_ASSIGN_OR_RETURN(Function * main, package->GetTopAsFunction());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(main));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                       FunctionJit::Create(main));
   InterpreterResult<Value> jit_result;
   if (absl::GetFlag(FLAGS_test_only_inject_jit_result).empty()) {
     XLS_ASSIGN_OR_RETURN(jit_result, jit->Run(*inputs));

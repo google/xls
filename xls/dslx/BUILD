@@ -1045,7 +1045,7 @@ cc_library(
         "//xls/interpreter:ir_interpreter",
         "//xls/interpreter:random_value",
         "//xls/ir",
-        "//xls/jit:ir_jit",
+        "//xls/jit:function_jit",
     ],
 )
 

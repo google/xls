@@ -33,7 +33,8 @@
 #include "xls/interpreter/random_value.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/ir/node_iterator.h"
-#include "xls/jit/ir_jit.h"
+#include "xls/jit/function_jit.h"
+#include "xls/jit/proc_jit.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
@@ -396,7 +397,8 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   if (function_base->IsFunction()) {
     Function* function = function_base->AsFunctionOrDie();
     absl::Time start_jit_compile = absl::Now();
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<IrJit> jit, IrJit::Create(function));
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                         FunctionJit::Create(function));
     std::cout << absl::StreamFormat(
         "JIT compile time: %dms\n",
         DurationToMs(absl::Now() - start_jit_compile));
@@ -442,8 +444,8 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_manager,
                        JitChannelQueueManager::Create(proc->package()));
   XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<IrJit> jit,
-      IrJit::CreateProc(proc, queue_manager.get(), &DummyRecvFn, &DummySendFn));
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_manager.get(), &DummyRecvFn, &DummySendFn));
   std::cout << absl::StreamFormat(
       "JIT compile time: %dms\n",
       DurationToMs(absl::Now() - start_jit_compile));
