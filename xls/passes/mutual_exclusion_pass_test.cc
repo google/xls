@@ -89,6 +89,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelSends) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
+  XLS_EXPECT_OK(VerifyProc(proc, true));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
@@ -111,6 +112,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 2);
+  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
@@ -138,6 +140,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
+  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, Complex) {
@@ -172,6 +175,7 @@ TEST_F(MutualExclusionPassTest, Complex) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
+  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
@@ -199,6 +203,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 1);
+  XLS_EXPECT_OK(VerifyProc(proc, true));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
@@ -226,6 +231,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
+  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
@@ -258,6 +264,43 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
+  XLS_EXPECT_OK(VerifyProc(proc, false));
+}
+
+TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
+     package test_module
+
+     chan test_channel(
+       bits[32], id=0, kind=streaming, ops=send_receive,
+       flow_control=ready_valid, metadata="""""")
+
+     chan other_channel(
+       bits[32], id=1, kind=streaming, ops=send_receive,
+       flow_control=ready_valid, metadata="""""")
+
+     top proc main(__token: token, __state: bits[1], init={0}) {
+       not.1: bits[1] = not(__state)
+       receive.2: (token, bits[32]) = receive(__token, channel_id=1)
+       tuple_index.3: token = tuple_index(receive.2, index=0)
+       tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
+       receive.5: (token, bits[32]) = receive(tuple_index.3, predicate=__state, channel_id=0)
+       tuple_index.7: token = tuple_index(receive.5, index=0)
+       tuple_index.8: bits[32] = tuple_index(receive.5, index=1)
+       receive.9: (token, bits[32]) = receive(tuple_index.3, predicate=not.1, channel_id=0)
+       tuple_index.10: token = tuple_index(receive.9, index=0)
+       tuple_index.11: bits[32] = tuple_index(receive.9, index=1)
+       add.12: bits[32] = add(tuple_index.4, tuple_index.8)
+       add.13: bits[32] = add(add.12, tuple_index.11)
+       after_all.14: token = after_all(tuple_index.7, tuple_index.10)
+       send.15: token = send(after_all.14, add.13, channel_id=0)
+       next (send.15, not.1)
+     }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
+  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 }  // namespace

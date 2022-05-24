@@ -614,6 +614,20 @@ absl::StatusOr<std::vector<Node*>> PredicateVectorFromNodes(
   return predicates;
 }
 
+// Get the token produced by the given receive node. This avoids creating a new
+// `tuple_index` node if one already exists.
+absl::StatusOr<Node*> GetTokenOfReceive(Node* receive) {
+  FunctionBase* f = receive->function_base();
+  for (Node* user : receive->users()) {
+    if (user->Is<TupleIndex>()) {
+      if (user->As<TupleIndex>()->index() == 0) {
+        return user;
+      }
+    }
+  }
+  return f->MakeNode<TupleIndex>(std::nullopt, receive, 0);
+}
+
 // Given a set of nodes, returns all nodes in the token dag that feed into this
 // set but are not contained within it. The ordering of the result is guaranteed
 // to be deterministic.
@@ -631,7 +645,11 @@ absl::StatusOr<std::vector<Node*>> ComputeTokenInputs(
         absl::flat_hash_set<Node*> children = token_dag.at(node);
         for (Node* child : children) {
           if (!nodes_set.contains(child)) {
-            token_inputs_unsorted.insert(child);
+            Node* token = child;
+            if (child->Is<Receive>()) {
+              XLS_ASSIGN_OR_RETURN(token, GetTokenOfReceive(child));
+            }
+            token_inputs_unsorted.insert(token);
           }
         }
       }
