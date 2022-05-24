@@ -47,6 +47,7 @@ class ProcInliningPassTest : public IrTestBase {
 
     PassOptions options;
     options.inline_procs = true;
+    options.use_new_proc_inliner = false;
     PassResults results;
     XLS_ASSIGN_OR_RETURN(bool changed,
                          ProcInliningPass().Run(p, options, &results));

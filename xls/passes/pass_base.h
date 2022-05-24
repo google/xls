@@ -67,7 +67,7 @@ struct PassOptions {
 
   // TODO(meheff): 2022/4/4 Remove when proc state optimization lands and flop
   // count with new proc inliner is comparable to the old one.
-  bool use_new_proc_inliner = false;
+  bool use_new_proc_inliner = true;
 
   // If this is not `std::nullopt`, convert array indexes with fewer than or
   // equal to the given number of possible indices (by range analysis) into
