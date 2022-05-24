@@ -2723,7 +2723,6 @@ TEST_F(TranslatorTest, TopFunctionNoPragma) {
       int asdf(int a) {
         return a + 1;
       })";
-  auto ret = SourceToIr(content);
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kNotFound,
@@ -2740,6 +2739,30 @@ TEST_F(TranslatorTest, Function) {
       })";
 
   Run({{"a", 3}}, 3, content);
+}
+
+TEST_F(TranslatorTest, FunctionNoOutputs) {
+  const std::string content = R"(
+      void do_nothing(int a) {
+        (void)a;
+      }
+      int my_package(int a) {
+        do_nothing(a);
+        return a;
+      })";
+
+  Run({{"a", 3}}, 3, content);
+}
+
+TEST_F(TranslatorTest, TopFunctionNoOutputs) {
+  const std::string content = R"(
+      void my_package(int a) {
+        (void)a;
+      })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
+                                            testing::HasSubstr("no outputs")));
 }
 
 TEST_F(TranslatorTest, DefaultArg) {

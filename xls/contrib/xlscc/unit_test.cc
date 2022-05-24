@@ -130,8 +130,7 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
                                      std::vector<absl::string_view> clang_argv,
                                      bool io_test_mode) {
   auto parser = std::make_unique<xlscc::CCParser>();
-  XLS_RETURN_IF_ERROR(
-      ScanTempFileWithContent(temp, clang_argv, parser.get()));
+  XLS_RETURN_IF_ERROR(ScanTempFileWithContent(temp, clang_argv, parser.get()));
   // When loop unrolling is failing, it tends to run slowly.
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
@@ -162,7 +161,6 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     xls::TempFile& temp, std::vector<absl::string_view> argv,
     xlscc::CCParser* translator) {
-
   std::string ps = temp.path();
 
   absl::Status ret;
@@ -176,7 +174,6 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
                                : absl::MakeSpan(&argv[0], argv.size())));
   return absl::OkStatus();
 }
-
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc,

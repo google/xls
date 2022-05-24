@@ -1327,13 +1327,11 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     return_bvals.push_back(op.ret_value);
   }
 
-  if (return_bvals.empty()) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Function %s has no outputs at %s",
-                        funcdecl->getNameAsString(), LocString(*funcdecl)));
-  }
-
   sf.return_value_count = return_bvals.size();
+
+  if (return_bvals.empty()) {
+    return &sf;
+  }
 
   if (return_bvals.size() == 1) {
     // XLS functions return the last value added to the FunctionBuilder
@@ -2618,7 +2616,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (!is_channel) {
       continue;
     }
-
+    //
     const clang::Expr* call_arg = expr_args[pi];
     if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
       return absl::UnimplementedError(
@@ -2657,6 +2655,13 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   // Make sure subroutine is generated
   XLS_ASSIGN_OR_RETURN(GeneratedFunction * func,
                        TranslateFunctionToXLS(funcdecl));
+
+  XLS_CHECK_NE(func, nullptr);
+
+  // Function with no outputs
+  if (func->xls_func == nullptr) {
+    return CValue();
+  }
 
   std::vector<xls::BValue> args;
   int expected_returns = 0;
@@ -2897,7 +2902,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       }
     }
   }
-
   xls::BValue raw_return = context().fb->Invoke(args, func->xls_func, loc);
   XLS_CHECK(expected_returns == 0 || raw_return.valid());
 
@@ -5026,6 +5030,13 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
       GeneratedFunction * ret,
       GenerateIR_Function(top_function, top_function->getNameAsString(),
                           force_static));
+
+  if (ret->xls_func == nullptr) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Top function %s has no outputs at %s", top_function->getNameAsString(),
+        LocString(*top_function)));
+  }
+
   return ret;
 }
 
