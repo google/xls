@@ -12,38 +12,40 @@ module TupleOfArrays(
   end
 
   // ===== Pipe stage 1:
+  wire [15:0] p1_tuple_index_8_comb[2];
+  wire [7:0] p1_tuple_index_9_comb[3];
+  assign p1_tuple_index_8_comb[0] = p0_x[15:0];
+  assign p1_tuple_index_8_comb[1] = p0_x[31:16];
+  assign p1_tuple_index_9_comb[0] = p0_x[39:32];
+  assign p1_tuple_index_9_comb[1] = p0_x[47:40];
+  assign p1_tuple_index_9_comb[2] = p0_x[55:48];
 
   // Registers for pipe stage 1:
-  reg [55:0] p1_x;
+  reg [15:0] p1_tuple_index_8[2];
+  reg [7:0] p1_tuple_index_9[3];
   always_ff @ (posedge clk) begin
-    p1_x <= p0_x;
+    p1_tuple_index_8 <= p1_tuple_index_8_comb;
+    p1_tuple_index_9 <= p1_tuple_index_9_comb;
   end
 
   // ===== Pipe stage 2:
-  wire [15:0] p2_tuple_index_10_comb[2];
-  wire [7:0] p2_tuple_index_11_comb[3];
-  assign p2_tuple_index_10_comb[0] = p1_x[15:0];
-  assign p2_tuple_index_10_comb[1] = p1_x[31:16];
-  assign p2_tuple_index_11_comb[0] = p1_x[39:32];
-  assign p2_tuple_index_11_comb[1] = p1_x[47:40];
-  assign p2_tuple_index_11_comb[2] = p1_x[55:48];
 
   // Registers for pipe stage 2:
-  reg [15:0] p2_tuple_index_10[2];
-  reg [7:0] p2_tuple_index_11[3];
+  reg [15:0] p2_tuple_index_8[2];
+  reg [7:0] p2_tuple_index_9[3];
   always_ff @ (posedge clk) begin
-    p2_tuple_index_10 <= p2_tuple_index_10_comb;
-    p2_tuple_index_11 <= p2_tuple_index_11_comb;
+    p2_tuple_index_8 <= p1_tuple_index_8;
+    p2_tuple_index_9 <= p1_tuple_index_9;
   end
 
   // ===== Pipe stage 3:
-  wire [55:0] p3_tuple_16_comb;
-  assign p3_tuple_16_comb = {{p2_tuple_index_10[1], p2_tuple_index_10[0]}, {p2_tuple_index_11[2], p2_tuple_index_11[1], p2_tuple_index_11[0]}};
+  wire [55:0] p3_tuple_18_comb;
+  assign p3_tuple_18_comb = {{p2_tuple_index_8[1], p2_tuple_index_8[0]}, {p2_tuple_index_9[2], p2_tuple_index_9[1], p2_tuple_index_9[0]}};
 
   // Registers for pipe stage 3:
-  reg [55:0] p3_tuple_16;
+  reg [55:0] p3_tuple_18;
   always_ff @ (posedge clk) begin
-    p3_tuple_16 <= p3_tuple_16_comb;
+    p3_tuple_18 <= p3_tuple_18_comb;
   end
-  assign out = p3_tuple_16;
+  assign out = p3_tuple_18;
 endmodule

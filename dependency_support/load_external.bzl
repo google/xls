@@ -180,3 +180,18 @@ def load_external_repositories():
         strip_prefix = "ac_types-57d89634cb5034a241754f8f5347803213dabfca",
         build_file = "@com_google_xls//dependency_support/com_github_hlslibs_ac_types:bundled.BUILD.bazel",
     )
+
+    git_repository(
+        name = "platforms",
+        tag = "0.0.5",
+        remote = "https://github.com/bazelbuild/platforms.git",
+    )
+
+    git_repository(
+        name = "com_google_ortools",
+        commit = "525162feaadaeef640783b2eaea38cf4b623877f",
+        shallow_since = "1647023481 +0100",
+        remote = "https://github.com/google/or-tools.git",
+        # Removes undesired dependencies like Eigen, BLISS, SCIP
+        patches = ["@com_google_xls//dependency_support/com_google_ortools:remove_deps.diff"],
+    )

@@ -65,6 +65,7 @@ cc_library(
         ":function_partition",
         ":pipeline_schedule_cc_proto",
         ":schedule_bounds",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -74,9 +75,11 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/data_structures:binary_search",
+        "//xls/data_structures:graph_contraction",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
+        "@com_google_ortools//ortools/linear_solver",
     ],
 )
 

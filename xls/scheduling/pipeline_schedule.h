@@ -33,7 +33,10 @@ enum class SchedulingStrategy {
   ASAP,
 
   // Minimize the number of pipeline registers when scheduling.
-  MINIMIZE_REGISTERS
+  MINIMIZE_REGISTERS,
+
+  // Minimize the number of pipeline registers when scheduling using SDC-method
+  MINIMIZE_REGISTERS_SDC,
 };
 
 // Returns the list of ordering of cycles (pipeline stages) in which to compute
@@ -52,7 +55,7 @@ std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length);
 class SchedulingOptions {
  public:
   explicit SchedulingOptions(
-      SchedulingStrategy strategy = SchedulingStrategy::MINIMIZE_REGISTERS)
+      SchedulingStrategy strategy = SchedulingStrategy::MINIMIZE_REGISTERS_SDC)
       : strategy_(strategy) {}
 
   // Returns the scheduling strategy.
