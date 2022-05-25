@@ -25,22 +25,56 @@
 #include "xls/delay_model/delay_estimator.h"
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/scheduling/pipeline_schedule.h"
 
 const char kUsage[] = R"(
 Dumps various codegen-related metrics about a block and corresponding Verilog
 file. Designed to be used with run_benchmarks.py script.
 
 Usage:
-   benchmark_codegen_main --delay_model=DELAY_MODEL IR_FILE VERILOG_FILE
+   benchmark_codegen_main --delay_model=DELAY_MODEL \
+     OPT_IR_FILE BLOCK_IR_FILE VERILOG_FILE
 )";
 
 ABSL_FLAG(std::string, top, "",
           "Name of top block to use in lieu of the default.");
 ABSL_FLAG(std::string, delay_model, "",
           "Delay model name to use from registry.");
+ABSL_FLAG(int64_t, clock_period_ps, 0,
+          "The number of picoseconds in a cycle to use when scheduling.");
+ABSL_FLAG(int64_t, pipeline_stages, 0,
+          "The number of stages in the pipeline when scheduling.");
 
 namespace xls {
 namespace {
+
+absl::Status ScheduleAndPrintStats(Package* package,
+                                   const DelayEstimator& delay_estimator,
+                                   absl::optional<int64_t> clock_period_ps,
+                                   absl::optional<int64_t> pipeline_stages) {
+  SchedulingOptions options;
+  if (clock_period_ps.has_value()) {
+    options.clock_period_ps(*clock_period_ps);
+  }
+  if (pipeline_stages.has_value()) {
+    options.pipeline_stages(*pipeline_stages);
+  }
+
+  absl::optional<FunctionBase*> top = package->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Top entity not set for package: %s.", package->name()));
+  }
+  absl::Time start = absl::Now();
+  XLS_ASSIGN_OR_RETURN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(top.value(), delay_estimator, options));
+  absl::Duration total_time = absl::Now() - start;
+  std::cout << absl::StreamFormat("Scheduling time: %dms\n",
+                                  total_time / absl::Milliseconds(1));
+
+  return absl::OkStatus();
+}
 
 absl::StatusOr<Block*> GetTopBlock(Package* package) {
   if (!absl::GetFlag(FLAGS_top).empty()) {
@@ -58,19 +92,49 @@ absl::StatusOr<Block*> GetTopBlock(Package* package) {
   return top.value()->AsBlockOrDie();
 }
 
-absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
+absl::Status RealMain(absl::string_view opt_ir_path,
+                      absl::string_view block_ir_path,
+                      absl::string_view verilog_path,
                       absl::optional<const DelayEstimator*> delay_estimator) {
-  XLS_VLOG(1) << "Reading IR file: " << ir_path;
-  XLS_ASSIGN_OR_RETURN(std::string ir_contents, GetFileContents(ir_path));
+  XLS_VLOG(1) << "Reading optimized IR file: " << opt_ir_path;
+  XLS_ASSIGN_OR_RETURN(std::string opt_ir_contents,
+                       GetFileContents(opt_ir_path));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> opt_package,
+                       Parser::ParsePackage(opt_ir_contents));
+
+  XLS_VLOG(1) << "Reading block IR file: " << opt_ir_path;
+  XLS_ASSIGN_OR_RETURN(std::string block_ir_contents,
+                       GetFileContents(block_ir_path));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> block_package,
+                       Parser::ParsePackage(block_ir_contents));
 
   XLS_VLOG(1) << "Reading Verilog file: " << verilog_path;
   XLS_ASSIGN_OR_RETURN(std::string verilog_contents,
                        GetFileContents(verilog_path));
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir_contents));
-  XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(package.get()));
+  absl::optional<int64_t> clock_period_ps;
+  if (absl::GetFlag(FLAGS_clock_period_ps) > 0) {
+    clock_period_ps = absl::GetFlag(FLAGS_clock_period_ps);
+  }
+  absl::optional<int64_t> pipeline_stages;
+  if (absl::GetFlag(FLAGS_pipeline_stages) > 0) {
+    pipeline_stages = absl::GetFlag(FLAGS_pipeline_stages);
+  }
 
+  if (delay_estimator.has_value() &&
+      (clock_period_ps.has_value() || pipeline_stages.has_value())) {
+    // This may not be exactly how the scheduler is called because we're only
+    // passing two of potentially numerous scheduling-related
+    // arguments. However, since we're only printing the scheduling time this is
+    // probably ok.
+    // TODO(meheff): 2022/05/25 Fix this by maybe passing in proto of all the
+    // scheduling options.
+    XLS_RETURN_IF_ERROR(
+        ScheduleAndPrintStats(opt_package.get(), *delay_estimator.value(),
+                              clock_period_ps, pipeline_stages));
+  }
+
+  XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));
   XLS_ASSIGN_OR_RETURN(verilog::BlockMetricsProto metrics,
                        verilog::GenerateBlockMetrics(top, delay_estimator));
   std::cout << absl::StreamFormat("Flop count: %d\n", metrics.flop_count());
@@ -116,9 +180,10 @@ int main(int argc, char** argv) {
   std::vector<absl::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
-  if (positional_arguments.size() != 2) {
+  if (positional_arguments.size() != 3) {
     XLS_LOG(QFATAL) << absl::StreamFormat(
-        "Expected invocation:\n  %s IR_FILE VERILOG_FILE", argv[0]);
+        "Expected invocation:\n  %s OPT_IR_FILE BLOCK_IR_FILE VERILOG_FILE",
+        argv[0]);
   }
 
   absl::StatusOr<absl::optional<const xls::DelayEstimator*>>
@@ -126,6 +191,7 @@ int main(int argc, char** argv) {
   XLS_QCHECK_OK(delay_estimator_or.status());
 
   XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], positional_arguments[1],
+                              positional_arguments[2],
                               delay_estimator_or.value()));
   return EXIT_SUCCESS;
 }

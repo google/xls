@@ -65,6 +65,9 @@ CodegenInfo = provider(
         "top": "String: Name of top level block in the IR.",
         "verilog_line_map_file": "File: The Verilog line map file.",
         "verilog_file": "File: The Verilog file.",
+        "pipeline_stages": "Optional(string): The number of pipeline stages.",
+        "clock_period_ps": "Optional(string): The clock period used for " +
+                           "scheduling.",
     },
 )
 

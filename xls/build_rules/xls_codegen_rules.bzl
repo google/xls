@@ -29,7 +29,7 @@ load(
 )
 load("//xls/build_rules:xls_config_rules.bzl", "CONFIG")
 load("//xls/build_rules:xls_ir_rules.bzl", "xls_ir_common_attrs")
-load("//xls/build_rules:xls_providers.bzl", "CodegenInfo")
+load("//xls/build_rules:xls_providers.bzl", "CodegenInfo", "OptIRInfo")
 load(
     "//xls/build_rules:xls_toolchains.bzl",
     "get_executable_from",
@@ -297,6 +297,8 @@ def xls_ir_verilog_impl(ctx, src):
             block_ir_file = block_ir_file,
             delay_model = codegen_args.get("delay_model"),
             top = codegen_args.get("module_name", codegen_args.get("top")),
+            pipeline_stages = codegen_args.get("pipeline_stages"),
+            clock_period_ps = codegen_args.get("clock_period_ps"),
         ),
         my_generated_files,
         runfiles,
@@ -371,17 +373,23 @@ def _xls_benchmark_verilog_impl(ctx):
         get_xls_toolchain_info(ctx).benchmark_codegen_tool,
     )
     codegen_info = ctx.attr.verilog_target[CodegenInfo]
+    opt_ir_info = ctx.attr.verilog_target[OptIRInfo]
     if not codegen_info.top:
         fail("Verilog target '%s' does not provide a top value" %
              ctx.attr.verilog_target.label.name)
-    cmd = "{} {} {} --top={}".format(
-        benchmark_codegen_tool.short_path,
-        codegen_info.block_ir_file.short_path,
-        codegen_info.verilog_file.short_path,
-        codegen_info.top,
+    cmd = "{tool} {opt_ir} {block_ir} {verilog} --top={top}".format(
+        opt_ir = opt_ir_info.opt_ir_file.short_path,
+        verilog = codegen_info.verilog_file.short_path,
+        top = codegen_info.top,
+        tool = benchmark_codegen_tool.short_path,
+        block_ir = codegen_info.block_ir_file.short_path,
     )
     if codegen_info.delay_model:
         cmd += " --delay_model={}".format(codegen_info.delay_model)
+    if codegen_info.pipeline_stages:
+        cmd += " --pipeline_stages={}".format(codegen_info.pipeline_stages)
+    if codegen_info.clock_period_ps:
+        cmd += " --clock_period_ps={}".format(codegen_info.clock_period_ps)
     executable_file = ctx.actions.declare_file(ctx.label.name + ".sh")
 
     # Get runfiles
@@ -392,6 +400,7 @@ def _xls_benchmark_verilog_impl(ctx):
         ctx,
         [benchmark_codegen_tool_runfiles],
         [
+            opt_ir_info.opt_ir_file,
             codegen_info.block_ir_file,
             codegen_info.verilog_file,
         ],

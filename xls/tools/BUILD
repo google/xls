@@ -1146,6 +1146,7 @@ cc_binary(
         "//xls/delay_model:delay_estimator",
         "//xls/delay_model:delay_estimators",
         "//xls/ir:ir_parser",
+        "//xls/scheduling:pipeline_schedule",
     ],
 )
 

@@ -23,7 +23,16 @@ from xls.common import test_base
 BENCHMARK_CODEGEN_MAIN_PATH = runfiles.get_path(
     'xls/tools/benchmark_codegen_main')
 
-SIMPLE_IR = """package add
+OPT_IR = """package add
+
+top fn my_function(a: bits[32], b: bits[32]) -> bits[32] {
+  sum: bits[32] = add(a, b)
+  not_sum: bits[32] = not(sum)
+  ret not_not_sum: bits[32] = not(not_sum)
+}
+"""
+
+BLOCK_IR = """package add
 
 top block my_block(clk: clock, a: bits[32], b: bits[32], out: bits[32]) {
   reg a_reg(bits[32])
@@ -61,10 +70,12 @@ endmodule
 class CodeGenMainTest(test_base.TestCase):
 
   def test_simple_block(self):
-    ir_file = self.create_tempfile(content=SIMPLE_IR)
+    opt_ir_file = self.create_tempfile(content=OPT_IR)
+    block_ir_file = self.create_tempfile(content=BLOCK_IR)
     verilog_file = self.create_tempfile(content=SIMPLE_VERILOG)
     output = subprocess.check_output([
-        BENCHMARK_CODEGEN_MAIN_PATH, '--delay_model=unit', ir_file.full_path,
+        BENCHMARK_CODEGEN_MAIN_PATH, '--delay_model=unit',
+        '--clock_period_ps=10', opt_ir_file.full_path, block_ir_file.full_path,
         verilog_file.full_path
     ]).decode('utf-8')
 
@@ -74,13 +85,15 @@ class CodeGenMainTest(test_base.TestCase):
     self.assertIn('Max input-to-reg delay: 0ps', output)
     self.assertIn('Max reg-to-output delay: 2ps', output)
     self.assertIn('Lines of Verilog: 7', output)
+    self.assertIn('Scheduling time:', output)
 
   def test_simple_block_no_delay_model(self):
-    ir_file = self.create_tempfile(content=SIMPLE_IR)
+    opt_ir_file = self.create_tempfile(content=OPT_IR)
+    block_ir_file = self.create_tempfile(content=BLOCK_IR)
     verilog_file = self.create_tempfile(content=SIMPLE_VERILOG)
     output = subprocess.check_output([
-        BENCHMARK_CODEGEN_MAIN_PATH, ir_file.full_path,
-        verilog_file.full_path
+        BENCHMARK_CODEGEN_MAIN_PATH, opt_ir_file.full_path,
+        block_ir_file.full_path, verilog_file.full_path
     ]).decode('utf-8')
 
     self.assertIn('Flop count: 96', output)
