@@ -112,7 +112,6 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 2);
-  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
@@ -140,7 +139,6 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
-  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, Complex) {
@@ -175,7 +173,6 @@ TEST_F(MutualExclusionPassTest, Complex) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 3);
-  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoParallelReceives) {
@@ -231,7 +228,6 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceives) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
-  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
@@ -264,7 +260,6 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(false));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
-  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
@@ -300,7 +295,6 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kReceive), 2);
-  XLS_EXPECT_OK(VerifyProc(proc, false));
 }
 
 }  // namespace
