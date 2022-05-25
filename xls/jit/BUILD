@@ -332,12 +332,6 @@ cc_library(
     ],
 )
 
-cc_library(
-    name = "ir_jit",
-    hdrs = ["ir_jit.h"],
-    deps = [":function_jit"],
-)
-
 cc_test(
     name = "proc_jit_test",
     srcs = ["proc_jit_test.cc"],
