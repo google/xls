@@ -329,8 +329,12 @@ void XlsccTestBase::ProcTest(
   std::list<std::string> ir_texts;
   std::string package_text;
 
+  // file names are included in the package IR. Reuse same file name to
+  // prevent non-determinism in IR text
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
+                           xls::TempFile::CreateWithContent(content, ".cc"));
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
-    XLS_ASSERT_OK(ScanFile(content));
+    XLS_ASSERT_OK(ScanFile(temp));
     package_.reset(new xls::Package("my_package"));
     XLS_ASSERT_OK(
         translator_->GenerateIR_Block(package_.get(), block_spec).status());

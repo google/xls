@@ -739,7 +739,9 @@ class Translator {
   friend class CInstantiableTypeAlias;
 
   std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
-  std::string ErrorMessage(std::string message, xls::SourceLocation loc);
+  template<typename... Args>
+  std::string ErrorMessage(xls::SourceLocation loc,
+  const absl::FormatSpec<Args...>& format, const Args&... args);
 
   // This object is used to push a new translation context onto the stack
   //  and then to pop it via RAII. This guard provides options for which bits of

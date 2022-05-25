@@ -6354,7 +6354,7 @@ TEST_F(TranslatorTest, InvalidUnrolledLoop) {
                                     testing::HasSubstr("maximum")));
 }
 
-TEST_F(TranslatorTest, NonPramaNestedLoop) {
+TEST_F(TranslatorTest, NonPragmaNestedLoop) {
   const std::string content = R"(
     long long my_package(long long a) {
       #pragma hls_unroll yes
@@ -6369,7 +6369,7 @@ TEST_F(TranslatorTest, NonPramaNestedLoop) {
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kUnimplemented,
-                  testing::HasSubstr("loop missing #pragma at")));
+                  testing::HasSubstr("loop missing #pragma")));
 }
 
 TEST_F(TranslatorTest, Label) {
