@@ -690,7 +690,7 @@ cc_library(
     srcs = ["format_strings.cc"],
     hdrs = ["format_strings.h"],
     deps = [
-        "//xls/ir:format_preference",
+        ":format_preference",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:variant",
@@ -1215,6 +1215,39 @@ cc_test(
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "conversion_utils",
+    srcs = ["conversion_utils.cc"],
+    hdrs = ["conversion_utils.h"],
+    deps = [
+        ":bits",
+        ":ir",
+        ":type",
+        ":value",
+        "//xls/common/logging",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "conversion_utils_test",
+    srcs = ["conversion_utils_test.cc"],
+    deps = [
+        ":conversion_utils",
+        ":ir",
+        ":type",
+        ":value",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_googletest//:gtest",
     ],
 )
