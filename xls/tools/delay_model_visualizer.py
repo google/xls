@@ -70,7 +70,7 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
   if specialization_kind:
     title += ' ' + specialization_kind
 
-  if len(op_model.delay_factors) == 1:
+  if len(op_model.delay_expressions) == 1:
     fig, ax = pyplot.subplots()
 
     # Plot the real data points as circles.
@@ -84,12 +84,12 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_factor_description(op_model.delay_factors[0]))
+        delay_model.delay_expression_description(op_model.delay_expressions[0]))
     ax.set_ylabel('delay (ps)')
     pyplot.ylim(bottom=0)
     pyplot.xlim(left=1)
 
-  if len(op_model.delay_factors) == 2:
+  elif len(op_model.delay_expressions) == 2:
     x_actual, y_actual, z_actual = list(zip(*op_model.raw_data_points))
     fig = pyplot.figure()
     ax = fig.add_subplot(1, 1, 1, projection='3d')
@@ -120,10 +120,14 @@ def maybe_plot_op_model(op_model: delay_model.OpModel,
 
     pyplot.title(title)
     ax.set_xlabel(
-        delay_model.delay_factor_description(op_model.delay_factors[0]))
+        delay_model.delay_expression_description(op_model.delay_expressions[0]))
     ax.set_ylabel(
-        delay_model.delay_factor_description(op_model.delay_factors[1]))
+        delay_model.delay_expression_description(op_model.delay_expressions[1]))
     ax.set_zlabel('delay (ps)')
+
+  else:
+    # More than two delay expressions not supported.
+    return
 
   if specialization_kind:
     filename = '%s_%s.png' % (op_model.op, specialization_kind)

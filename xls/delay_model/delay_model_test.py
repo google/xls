@@ -1048,6 +1048,25 @@ class DelayModelTest(absltest.TestCase):
     delay_model.DelayModel(
         text_format.Parse(proto_text, delay_model_pb2.DelayModel()))
 
+  def test_description(self):
+    e = delay_model_pb2.DelayExpression()
+    e.bin_op = delay_model_pb2.DelayExpression.BinaryOperation.ADD
+    e.lhs_expression.factor.source = delay_model_pb2.DelayFactor.Source.RESULT_BIT_COUNT
+    e.rhs_expression.factor.source = delay_model_pb2.DelayFactor.Source.OPERAND_BIT_COUNT
+    e.rhs_expression.factor.operand_number = 1
+    self.assertEqual(
+        delay_model.delay_expression_description(e),
+        '(Result bit count + Operand 1 bit count)')
+
+    f = delay_model_pb2.DelayExpression()
+    f.constant = 42
+    self.assertEqual(delay_model.delay_expression_description(f), '42')
+
+    f = delay_model_pb2.DelayExpression()
+    f.factor.source = delay_model_pb2.DelayFactor().Source.RESULT_BIT_COUNT
+    self.assertEqual(
+        delay_model.delay_expression_description(f), 'Result bit count')
+
 
 if __name__ == '__main__':
   absltest.main()

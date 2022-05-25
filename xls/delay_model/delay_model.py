@@ -124,22 +124,53 @@ def delay_factor_description(factor: delay_model_pb2.DelayFactor) -> Text:
   }[factor.source]
 
 
+def delay_expression_description(exp: delay_model_pb2.DelayExpression) -> Text:
+  """Returns a brief description of a delay expression."""
+  if exp.HasField('bin_op'):
+    lhs = delay_expression_description(exp.lhs_expression)
+    rhs = delay_expression_description(exp.rhs_expression)
+    e = delay_model_pb2.DelayExpression.BinaryOperation
+    if exp.bin_op == e.ADD:
+      return '({} + {})'.format(lhs, rhs)
+    elif exp.bin_op == e.DIVIDE:
+      return '({} / {})'.format(lhs, rhs)
+    elif exp.bin_op == e.MAX:
+      return 'max({}, {})'.format(lhs, rhs)
+    elif exp.bin_op == e.MIN:
+      return 'min({}, {})'.format(lhs, rhs)
+    elif exp.bin_op == e.MULTIPLY:
+      return '({} * {})'.format(lhs, rhs)
+    elif exp.bin_op == e.POWER:
+      return 'pow({}, {})'.format(lhs, rhs)
+    else:
+      assert exp.bin_op == e.SUB
+      return '({} - {})'.format(lhs, rhs)
+  elif exp.HasField('factor'):
+    return delay_factor_description(exp.factor)
+  else:
+    assert exp.HasField('constant')
+    return str(exp.constant)
+
+
 def _operation_delay_factor(factor: delay_model_pb2.DelayFactor,
                             operation: delay_model_pb2.Operation) -> int:
   """Returns the value of a delay factor extracted from an operation."""
   e = delay_model_pb2.DelayFactor.Source
-  return {
-      e.RESULT_BIT_COUNT:
-          lambda: operation.bit_count,
-      e.OPERAND_BIT_COUNT:
-          lambda: operation.operands[factor.operand_number].bit_count,
-      e.OPERAND_COUNT:
-          lambda: len(operation.operands),
-      e.OPERAND_ELEMENT_COUNT:
-          lambda: operation.operands[factor.operand_number].element_count,
-      e.OPERAND_ELEMENT_BIT_COUNT:
-          lambda: operation.operands[factor.operand_number].bit_count,
-  }[factor.source]()
+  if factor.source == e.RESULT_BIT_COUNT:
+    return operation.bit_count
+  elif factor.source == e.OPERAND_BIT_COUNT:
+    operand = operation.operands[factor.operand_number]
+    if operand.element_count > 0:
+      return operand.bit_count * operand.element_count
+    else:
+      return operand.bit_count
+  elif factor.source == e.OPERAND_COUNT:
+    return len(operation.operands)
+  elif factor.source == e.OPERAND_ELEMENT_COUNT:
+    return operation.operands[factor.operand_number].element_count
+  else:
+    assert factor.source == e.OPERAND_ELEMENT_BIT_COUNT
+    return operation.operands[factor.operand_number].bit_count
 
 
 def _operation_delay_expression(expression: delay_model_pb2.DelayExpression,
