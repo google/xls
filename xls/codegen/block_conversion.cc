@@ -2427,8 +2427,16 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
 
 absl::StatusOr<Block*> FunctionToCombinationalBlock(
     Function* f, absl::string_view block_name) {
-  Block* block =
-      f->package()->AddBlock(std::make_unique<Block>(block_name, f->package()));
+  return FunctionToCombinationalBlock(f,
+                                      CodegenOptions().module_name(block_name));
+}
+
+absl::StatusOr<Block*> FunctionToCombinationalBlock(
+    Function* f, const CodegenOptions& options) {
+  std::string module_name(
+      options.module_name().value_or(SanitizeIdentifier(f->name())));
+  Block* block = f->package()->AddBlock(
+      std::make_unique<Block>(module_name, f->package()));
 
   // A map from the nodes in 'f' to their corresponding node in the block.
   absl::flat_hash_map<Node*, Node*> node_map;
@@ -2463,7 +2471,6 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
 }
 
 absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
-                                                absl::string_view block_name,
                                                 const CodegenOptions& options) {
   XLS_VLOG(3) << "Converting proc to combinational block:";
   XLS_VLOG_LINES(3, proc->DumpIr());
@@ -2484,8 +2491,11 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
                       })));
   }
 
+  std::string module_name = std::string{options.module_name().has_value()
+                                            ? options.module_name().value()
+                                            : proc->name()};
   Block* block = proc->package()->AddBlock(
-      std::make_unique<Block>(block_name, proc->package()));
+      std::make_unique<Block>(module_name, proc->package()));
 
   XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io,
                        CloneProcNodesIntoBlock(proc, options, block));

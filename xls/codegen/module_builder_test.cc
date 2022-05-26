@@ -57,8 +57,7 @@ class ModuleBuilderTest : public VerilogTestBase {};
 TEST_P(ModuleBuilderTest, AddTwoNumbers) {
   VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x,
                            mb.AddInputPort("x", p.GetBitsType(32)));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y,
@@ -74,8 +73,7 @@ TEST_P(ModuleBuilderTest, NewSections) {
   VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
 
@@ -96,8 +94,7 @@ TEST_P(ModuleBuilderTest, Registers) {
   VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog(),
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
@@ -124,8 +121,7 @@ TEST_P(ModuleBuilderTest, DifferentResetPassedToAssignRegisters) {
   reset.set_name("rst");
   reset.set_asynchronous(false);
   reset.set_active_low(false);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog(),
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk", reset);
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
 
@@ -152,8 +148,7 @@ TEST_P(ModuleBuilderTest, RegisterWithSynchronousReset) {
   reset.set_name("rst");
   reset.set_asynchronous(false);
   reset.set_active_low(false);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog(),
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk", reset);
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
@@ -185,8 +180,7 @@ TEST_P(ModuleBuilderTest, RegisterWithAsynchronousActiveLowReset) {
   reset.set_name("rst");
   reset.set_asynchronous(true);
   reset.set_active_low(true);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog(),
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk", reset);
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
@@ -214,8 +208,7 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnable) {
   VerilogFile file(UseSystemVerilog());
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog(),
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk");
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
@@ -245,8 +238,7 @@ TEST_P(ModuleBuilderTest, RegisterWithLoadEnableAndReset) {
   reset.set_name("rstn");
   reset.set_asynchronous(true);
   reset.set_active_low(true);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog(),
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options(),
                    /*clk_name=*/"clk", reset);
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
@@ -279,8 +271,7 @@ TEST_P(ModuleBuilderTest, ComplexComputation) {
   Package p(TestBaseName());
   Type* u32 = p.GetBitsType(32);
   Type* u16 = p.GetBitsType(16);
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
   mb.declaration_section()->Add<Comment>(std::nullopt, "Declaration section.");
@@ -301,8 +292,7 @@ TEST_P(ModuleBuilderTest, ReturnConstantArray) {
   VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   Value ar_value = Make2DArray(7, {{0x33, 0x12, 0x42}, {0x1, 0x2, 0x3}});
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * ar,
                            mb.DeclareModuleConstant("ar", ar_value));
@@ -316,8 +306,7 @@ TEST_P(ModuleBuilderTest, PassThroughArray) {
   VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   ArrayType* ar_type = package.GetArrayType(4, package.GetBitsType(13));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * a, mb.AddInputPort("a", ar_type));
   XLS_ASSERT_OK(mb.AddOutputPort("out", ar_type, a));
@@ -330,8 +319,7 @@ TEST_P(ModuleBuilderTest, ReturnConstantTuple) {
   VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   Value tuple =
       Value::Tuple({Value(UBits(0x8, 8)), Make1DArray(24, {0x3, 0x6, 0x9}),
                     Value(UBits(0xab, 16))});
@@ -346,8 +334,7 @@ TEST_P(ModuleBuilderTest, PassThroughTuple) {
   VerilogFile file(UseSystemVerilog());
   // The XLS IR package is just used for type management.
   Package package(TestBaseName());
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   TupleType* tuple_type = package.GetTupleType(
       {package.GetBitsType(42), package.GetArrayType(7, package.GetBitsType(6)),
        package.GetTupleType({})});
@@ -370,8 +357,7 @@ TEST_P(ModuleBuilderTest, SmulAsFunction) {
   BValue z_smul_z = fb.SMul(z_param, z_param);
   XLS_ASSERT_OK(fb.Build());
 
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u32));
@@ -397,8 +383,7 @@ TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
   BValue dyn_slice_w_z_10 = fb.DynamicBitSlice(fb.Param("w", u16), z_param, 10);
   XLS_ASSERT_OK(fb.Build());
 
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u32));
@@ -432,8 +417,7 @@ TEST_P(ModuleBuilderTest, BitSliceUpdateAsFunction) {
   BValue update = fb.BitSliceUpdate(x_param, start_param, value_param);
   XLS_ASSERT_OK(fb.Build());
 
-  ModuleBuilder mb(TestBaseName(), &file,
-                   /*use_system_verilog=*/UseSystemVerilog());
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * start, mb.AddInputPort("start", u16));
   XLS_ASSERT_OK_AND_ASSIGN(LogicRef * value, mb.AddInputPort("value", u8));

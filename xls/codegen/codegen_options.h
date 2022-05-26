@@ -242,6 +242,16 @@ class CodegenOptions {
     return streaming_channel_ready_suffix_;
   }
 
+  // Emit bounds checking on array-index operations in Verilog. In the XLS IR an
+  // out of bounds array-index operation returns the maximal index element in
+  // the array. This can be expensive to synthesize. Setting this value to false
+  // may result in mismatches between IR-level evaluation and Verilog
+  // simulation.
+  CodegenOptions& array_index_bounds_checking(bool value);
+  bool array_index_bounds_checking() const {
+    return array_index_bounds_checking_;
+  }
+
  private:
   absl::optional<std::string> entry_;
   absl::optional<std::string> module_name_;
@@ -263,6 +273,7 @@ class CodegenOptions {
   std::string streaming_channel_data_suffix_ = "";
   std::string streaming_channel_ready_suffix_ = "_rdy";
   std::string streaming_channel_valid_suffix_ = "_vld";
+  bool array_index_bounds_checking_ = true;
 };
 
 }  // namespace xls::verilog

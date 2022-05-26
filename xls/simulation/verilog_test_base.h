@@ -24,6 +24,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/vast.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
@@ -112,6 +113,12 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
     std::vector<std::string> parts = absl::StrSplit(TestName(), '/');
     XLS_CHECK_EQ(parts.size(), 2);
     return parts.front();
+  }
+
+  // Returns a CodegenOptions data structure with the system verilog option set
+  // to the test param value.
+  CodegenOptions codegen_options() {
+    return CodegenOptions().use_system_verilog(UseSystemVerilog());
   }
 
   // Returns the Verilog simulator as determined by the test parameter.

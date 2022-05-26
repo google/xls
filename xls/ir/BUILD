@@ -503,6 +503,7 @@ cc_library(
         ":ir",
         ":ir_parser",
         ":value_test_util",
+        "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
         "//xls/common:source_location",

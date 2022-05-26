@@ -57,6 +57,10 @@ class BlockConversionTest : public IrTestBase {
     XLS_CHECK(output_port != nullptr);
     return output_port;
   }
+
+  CodegenOptions codegen_options() {
+    return CodegenOptions().module_name(TestName());
+  }
 };
 
 // Unit delay delay estimator.
@@ -311,7 +315,9 @@ TEST_F(BlockConversionTest, SimpleFunction) {
   BValue y = fb.Param("y", p->GetBitsType(32));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.Add(x, y)));
   XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block, FunctionToCombinationalBlock(f, "SimpleFunctionBlock"));
+      Block * block,
+      FunctionToCombinationalBlock(
+          f, codegen_options().module_name("SimpleFunctionBlock")));
 
   EXPECT_EQ(block->name(), "SimpleFunctionBlock");
   EXPECT_EQ(block->GetPorts().size(), 3);
@@ -326,7 +332,7 @@ TEST_F(BlockConversionTest, ZeroInputs) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Literal(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block,
-                           FunctionToCombinationalBlock(f, "ZeroInputsBlock"));
+                           FunctionToCombinationalBlock(f, codegen_options()));
 
   EXPECT_EQ(block->GetPorts().size(), 1);
 
@@ -341,8 +347,8 @@ TEST_F(BlockConversionTest, ZeroWidthInputsAndOutput) {
   fb.Param("z", p->GetBitsType(1234));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            fb.BuildWithReturnValue(fb.Tuple({x, y})));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block, FunctionToCombinationalBlock(f, "SimpleFunctionBlock"));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           FunctionToCombinationalBlock(f, codegen_options()));
 
   EXPECT_EQ(block->GetPorts().size(), 4);
 }
@@ -496,8 +502,8 @@ fn __implicit_token__main() -> () {
   )";
   XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
   XLS_ASSERT_OK_AND_ASSIGN(auto f, p->GetFunction("__implicit_token__main"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto block, FunctionToCombinationalBlock(f, "ImplicitTokenBlock"));
+  XLS_ASSERT_OK_AND_ASSIGN(auto block,
+                           FunctionToCombinationalBlock(f, codegen_options()));
   XLS_ASSERT_OK(VerifyBlock(block));
 }
 
@@ -522,9 +528,8 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
   EXPECT_THAT(FindNode("out", block),
               m::OutputPort("out", m::Neg(m::InputPort("in"))));
 }
@@ -641,9 +646,8 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block_default_suffix,
-      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block_default_suffix,
+                           ProcToCombinationalBlock(proc, codegen_options()));
 
   EXPECT_TRUE(HasNode("in", block_default_suffix));
   EXPECT_TRUE(HasNode("in_rdy", block_default_suffix));
@@ -661,12 +665,12 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
   EXPECT_FALSE(HasNode("out2_rdy", block_default_suffix));
   EXPECT_FALSE(HasNode("out2_vld", block_default_suffix));
 
-  CodegenOptions options = CodegenOptions()
+  CodegenOptions options = codegen_options()
                                .streaming_channel_data_suffix("_data")
                                .streaming_channel_ready_suffix("_ready")
                                .streaming_channel_valid_suffix("_valid");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block_nondefault_suffix,
-                           ProcToCombinationalBlock(proc, TestName(), options));
+                           ProcToCombinationalBlock(proc, options));
 
   XLS_VLOG_LINES(3, block_nondefault_suffix->DumpIr());
 
@@ -725,9 +729,8 @@ proc my_proc(my_token: token, my_state: (), init={()}) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
   EXPECT_THAT(
       FindNode("out", block),
       m::OutputPort("out",
@@ -755,9 +758,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
               m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1))));
@@ -783,9 +785,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("in", block), m::InputPort("in"));
@@ -811,9 +812,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
                            Parser::ParsePackage(ir_text));
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("my_proc"));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, TestName(), CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
@@ -847,9 +847,8 @@ TEST_F(BlockConversionTest, TwoToOneProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(/*next_state=*/std::vector<BValue>()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, "the_proc", CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
 
   // Input B selected, input valid and output ready asserted.
   EXPECT_THAT(
@@ -924,9 +923,8 @@ TEST_F(BlockConversionTest, OneToTwoProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(/*next_state=*/std::vector<BValue>()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, "the_proc", CodegenOptions()));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                           ProcToCombinationalBlock(proc, codegen_options()));
 
   // Output B selected. Input valid and output readies asserted.
   EXPECT_THAT(
@@ -2468,11 +2466,11 @@ TEST_F(BlockConversionTest, BlockWithNonMutuallyExclusiveSends) {
 
   // Combinational test
   {
-    CodegenOptions options;
+    CodegenOptions options = codegen_options();
     options.module_name(TestName());
     options.valid_control("input_valid", "output_valid");
 
-    EXPECT_THAT(ProcToCombinationalBlock(proc, TestName(), options).status(),
+    EXPECT_THAT(ProcToCombinationalBlock(proc, options).status(),
                 status_testing::StatusIs(
                     absl::StatusCode::kUnimplemented,
                     testing::HasSubstr("not proven to be mutually exclusive")));
@@ -2736,7 +2734,7 @@ INSTANTIATE_TEST_SUITE_P(
                         CodegenOptions::IOKind::kZeroLatencyBuffer)),
     MultiIOWithStatePipelinedProcTestSweepFixture::PrintToStringParamName);
 
-TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
+TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBlock) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
 
@@ -2814,7 +2812,7 @@ TEST_F(BlockConversionTest, IOSignatureProcToPipelinedBLock) {
             "out_streaming_ready");
 }
 
-TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
+TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
   Package package(TestName());
   Type* u32 = package.GetBitsType(32);
 
@@ -2853,8 +2851,8 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBLock) {
   EXPECT_FALSE(out_streaming_rv->HasCompletedBlockPortNames());
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      Block * block,
-      ProcToCombinationalBlock(proc, "the_proc", CodegenOptions()));
+      Block * block, ProcToCombinationalBlock(
+                         proc, codegen_options().module_name("the_proc")));
   XLS_VLOG_LINES(2, block->DumpIr());
 
   EXPECT_TRUE(in_single_val->HasCompletedBlockPortNames());

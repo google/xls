@@ -1061,6 +1061,7 @@ cc_binary(
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:codegen_options",
         "//xls/codegen:combinational_generator",
         "//xls/codegen:module_signature",
         "//xls/codegen:module_signature_cc_proto",

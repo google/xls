@@ -46,7 +46,7 @@ TEST_P(CombinationalGeneratorTest, RrotToCombinationalText) {
   auto rrot32_data = sample_packages::BuildRrot32();
   Function* f = rrot32_data.second;
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -71,7 +71,7 @@ TEST_P(CombinationalGeneratorTest, RandomExpression) {
   auto out = fb.Add(lhs, rhs, /*loc=*/absl::nullopt, /*name=*/"the_output");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -90,7 +90,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsLiteral) {
   fb.Literal(UBits(123, 8));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(ModuleSimulator::BitsMap()),
@@ -103,7 +103,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsTupleLiteral) {
   fb.Literal(Value::Tuple({Value(UBits(123, 8)), Value(UBits(42, 32))}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(
@@ -117,7 +117,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsEmptyTuple) {
   fb.Literal(Value::Tuple({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
@@ -130,7 +130,7 @@ TEST_P(CombinationalGeneratorTest, PassesEmptyTuple) {
   fb.Param("x", package.GetTupleType({}));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
@@ -147,7 +147,7 @@ TEST_P(CombinationalGeneratorTest, TakesEmptyTuple) {
   fb.Add(a, c, /*loc=*/absl::nullopt, /*name=*/"sum");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
@@ -163,7 +163,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsParam) {
   fb.Param("a", u8);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"a", UBits(0x42, 8)}}),
@@ -181,7 +181,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionWhichRequiresNamedIntermediate) {
                          /*loc=*/absl::nullopt, /*name=*/"slice_n_dice");
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(out));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -219,7 +219,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionsOfTuples) {
   auto return_value = fb.Tuple({a_plus_b, c0_minus_c1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(return_value));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -253,8 +253,8 @@ top fn main(x: bits[123]) -> bits[123] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -280,8 +280,8 @@ top fn main(x: bits[32], y: bits[32]) -> bits[44] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -309,8 +309,8 @@ top fn main(x: bits[3]) -> bits[4] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -348,8 +348,8 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -394,8 +394,8 @@ top fn main(a: bits[32],
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
@@ -409,6 +409,78 @@ top fn main(a: bits[32],
   XLS_ASSERT_OK_AND_ASSIGN(
       Value expected, DropInterpreterEvents(InterpretFunction(fn, arguments)));
   EXPECT_THAT(simulator.Run(arguments), IsOkAndHolds(expected));
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* array_u8 = package.GetArrayType(3, u8);
+  auto a = fb.Param("A", array_u8);
+  auto index = fb.Param("index", u8);
+  fb.ArrayIndex(a, {index});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(
+                       f, codegen_options().array_index_bounds_checking(true)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+                             {"index", Value(UBits(1, 8))}}),
+              IsOkAndHolds(Value(UBits(40, 8))));
+  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+                             {"index", Value(UBits(3, 8))}}),
+              IsOkAndHolds(Value(UBits(50, 8))));
+  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+                             {"index", Value(UBits(42, 8))}}),
+              IsOkAndHolds(Value(UBits(50, 8))));
+
+  // The out of bounds value should return the highest index value.
+  ModuleTestbench mtb(result.verilog_text, result.signature, GetSimulator());
+  mtb.Set("A", UBits(0xabcdef, 24));
+  mtb.Set("index", UBits(42, 8));
+  mtb.ExpectEq("out", 0xab);
+  XLS_EXPECT_OK(mtb.Run());
+}
+
+TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u8 = package.GetBitsType(8);
+  Type* array_u8 = package.GetArrayType(3, u8);
+  auto a = fb.Param("A", array_u8);
+  auto index = fb.Param("index", u8);
+  fb.ArrayIndex(a, {index});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result,
+      GenerateCombinationalModule(
+          f, codegen_options().array_index_bounds_checking(false)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetSimulator());
+  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+                             {"index", Value(UBits(1, 8))}}),
+              IsOkAndHolds(Value(UBits(40, 8))));
+  EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
+                             {"index", Value(UBits(2, 8))}}),
+              IsOkAndHolds(Value(UBits(50, 8))));
+
+  // The out of bounds value should return X.
+  ModuleTestbench mtb(result.verilog_text, result.signature, GetSimulator());
+  mtb.Set("A", UBits(0xabcdef, 24));
+  mtb.Set("index", UBits(3, 8));
+  mtb.ExpectX("out");
+  XLS_EXPECT_OK(mtb.Run());
 }
 
 TEST_P(CombinationalGeneratorTest, TwoDArray) {
@@ -430,7 +502,7 @@ TEST_P(CombinationalGeneratorTest, TwoDArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(123, 8))},
@@ -452,7 +524,7 @@ TEST_P(CombinationalGeneratorTest, ReturnTwoDArray) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(
@@ -478,8 +550,8 @@ top fn main(idx: bits[2]) -> bits[32][3] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -520,8 +592,8 @@ top fn main(idx: bits[2]) -> bits[32][2][3] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -580,8 +652,8 @@ top fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -640,8 +712,8 @@ top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
 
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
-  XLS_ASSERT_OK_AND_ASSIGN(auto result, GenerateCombinationalModule(
-                                            top.value(), UseSystemVerilog()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -700,7 +772,7 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(0, 8))},
@@ -710,7 +782,7 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue p = fb.Param("p", package.GetBitsType(8));
@@ -722,7 +794,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -770,7 +842,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue p = fb.Param("p", package.GetBitsType(1));
@@ -780,7 +852,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -798,7 +870,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue s = fb.Param("s", package.GetBitsType(2));
@@ -808,7 +880,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -842,7 +914,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(function, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(function, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -870,7 +942,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBitsMixedOperands) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(function, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(function, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -900,7 +972,7 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
                            Parser::ParseFunction(ir_text, &package));
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(function, UseSystemVerilog()));
+      auto result, GenerateCombinationalModule(function, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -922,7 +994,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
   auto ret = fb.ArrayIndex(a, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -951,7 +1023,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithNarrowIndex) {
   auto ret = fb.ArrayIndex(a, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -973,7 +1045,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithLiteralIndex) {
   auto ret = fb.ArrayIndex(a, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -993,7 +1065,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexNilIndex) {
   auto ret = fb.ArrayIndex(a, {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1016,7 +1088,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSingleElement) {
   auto ret = fb.ArrayIndex(a, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1041,7 +1113,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSubArray) {
   auto ret = fb.ArrayIndex(a, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1057,15 +1129,11 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSubArray) {
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
            {"idx", Value(UBits(1, 16))}}),
       IsOkAndHolds(Value::UBitsArray({44, 55, 66}, 8).value()));
-  // Out-of-bounds index should return the max element.
-  // TODO(meheff): Handle when out-of-bounds access is handled.
-  // EXPECT_THAT(
-  //     simulator.Run(
-  //         {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}},
-  //         8).value()},
-  //          {"idx", Value(UBits(42, 16))}}),
-  //     IsOkAndHolds(
-  //         Value::UBitsArray({44, 55, 66}, 8).value()));
+  EXPECT_THAT(
+      simulator.Run(
+          {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
+           {"idx", Value(UBits(42, 16))}}),
+      IsOkAndHolds(Value::UBitsArray({44, 55, 66}, 8).value()));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateLiteralIndex) {
@@ -1078,7 +1146,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateLiteralIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1100,7 +1168,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateVariableIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1128,7 +1196,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1153,7 +1221,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DVariableIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1197,7 +1265,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralAndVariableIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx0, idx1});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -1228,7 +1296,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayLiteralIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1252,7 +1320,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayVariableIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {idx});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1285,7 +1353,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayNilIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1310,7 +1378,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateBitsNilIndex) {
   auto ret = fb.ArrayUpdate(a, update_value, {});
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
@@ -1323,7 +1391,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateBitsNilIndex) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1336,14 +1404,14 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1353,14 +1421,14 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f, fb.BuildWithReturnValue(fb.ArrayUpdate(a, value, {idx})));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1369,7 +1437,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
                                              a, start, /*width=*/3)));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -1385,7 +1453,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1394,7 +1462,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
                                              a, start, /*width=*/3)));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -1408,7 +1476,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(codegen_options().use_system_verilog());
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1417,7 +1485,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
                                              a, start, /*width=*/5)));
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
-                           GenerateCombinationalModule(f, UseSystemVerilog()));
+                           GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());

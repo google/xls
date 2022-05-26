@@ -17,6 +17,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/common/logging/logging.h"
@@ -281,9 +282,10 @@ void IrTestBase::RunAndExpectEq(
     EXPECT_TRUE(top.has_value());
     EXPECT_TRUE(top.value()->IsFunction());
 
-    XLS_ASSERT_OK_AND_ASSIGN(verilog::ModuleGeneratorResult result,
-                             verilog::GenerateCombinationalModule(
-                                 top.value(), /*use_system_verilog=*/false));
+    XLS_ASSERT_OK_AND_ASSIGN(
+        verilog::ModuleGeneratorResult result,
+        verilog::GenerateCombinationalModule(
+            top.value(), verilog::CodegenOptions().use_system_verilog(false)));
 
     absl::flat_hash_map<std::string, Value> arg_set;
     for (const auto& pair : args) {

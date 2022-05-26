@@ -152,6 +152,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:codegen_options",
         "//xls/codegen:vast",
         "//xls/common:golden_files",
         "//xls/common/file:filesystem",

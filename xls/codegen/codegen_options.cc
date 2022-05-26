@@ -158,4 +158,9 @@ CodegenOptions& CodegenOptions::streaming_channel_ready_suffix(
   return *this;
 }
 
+CodegenOptions& CodegenOptions::array_index_bounds_checking(bool value) {
+  array_index_bounds_checking_ = value;
+  return *this;
+}
+
 }  // namespace xls::verilog

@@ -37,6 +37,7 @@
 #include "absl/types/span.h"
 // TODO(taktoa): 2021-03-10 maybe switch to https://github.com/injinj/linecook
 #include "linenoise.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.h"
 #include "xls/codegen/module_signature.pb.h"
@@ -406,7 +407,7 @@ absl::Status CommandVerilog(absl::optional<std::string> function_name) {
   // TODO(taktoa): 2021-03-10 add ability to generate non-combinational modules
   XLS_ASSIGN_OR_RETURN(
       verilog::ModuleGeneratorResult result,
-      verilog::GenerateCombinationalModule(main, /*use_system_verilog=*/false));
+      verilog::GenerateCombinationalModule(main, verilog::CodegenOptions()));
   std::cout << result.verilog_text;
   return absl::OkStatus();
 }

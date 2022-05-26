@@ -34,15 +34,7 @@ namespace verilog {
 // otherwise it will be Verilog. This adds a proc to the package which
 // represents the combinational module. This proc is used for code generation.
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    FunctionBase* func, bool use_system_verilog = true,
-    absl::string_view module_name = "", absl::string_view gate_format = "");
-
-// Emits the given function or proc as a combinational Verilog module.
-//
-// If given a proc, the proc must be able to be represented as a purely
-// combinational block.
-absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    FunctionBase* module, const CodegenOptions& options);
+    FunctionBase* func, const CodegenOptions& options);
 
 }  // namespace verilog
 }  // namespace xls

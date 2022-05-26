@@ -48,36 +48,16 @@ namespace xls {
 namespace verilog {
 
 absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
-    FunctionBase* func, bool use_system_verilog, absl::string_view module_name,
-    absl::string_view gate_format) {
-  CodegenOptions codegen_options;
-  codegen_options.use_system_verilog(use_system_verilog);
-  if (!module_name.empty()) {
-    codegen_options.module_name(module_name);
-  }
-  if (!gate_format.empty()) {
-    codegen_options.gate_format(gate_format);
-  }
-
-  return GenerateCombinationalModule(func, codegen_options);
-}
-
-absl::StatusOr<ModuleGeneratorResult> GenerateCombinationalModule(
     FunctionBase* module, const CodegenOptions& options) {
-  std::string module_name(
-      options.module_name().value_or(SanitizeIdentifier(module->name())));
-
   Block* block = nullptr;
 
   XLS_RET_CHECK(module->IsProc() || module->IsFunction());
   if (module->IsFunction()) {
-    XLS_ASSIGN_OR_RETURN(
-        block, FunctionToCombinationalBlock(dynamic_cast<Function*>(module),
-                                            module_name));
+    XLS_ASSIGN_OR_RETURN(block, FunctionToCombinationalBlock(
+                                    dynamic_cast<Function*>(module), options));
   } else {
-    XLS_ASSIGN_OR_RETURN(block,
-                         ProcToCombinationalBlock(dynamic_cast<Proc*>(module),
-                                                  module_name, options));
+    XLS_ASSIGN_OR_RETURN(
+        block, ProcToCombinationalBlock(dynamic_cast<Proc*>(module), options));
   }
 
   CodegenPassUnit unit(module->package(), block);

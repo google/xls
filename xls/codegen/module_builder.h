@@ -22,6 +22,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/node.h"
 #include "xls/ir/package.h"
@@ -40,7 +41,7 @@ namespace verilog {
 class ModuleBuilder {
  public:
   ModuleBuilder(absl::string_view name, VerilogFile* file,
-                bool use_system_verilog,
+                CodegenOptions options,
                 absl::optional<std::string_view> clk_name = absl::nullopt,
                 absl::optional<ResetProto> rst = absl::nullopt);
 
@@ -315,9 +316,7 @@ class ModuleBuilder {
   // A dummy package is required to generate types from Values.
   Package package_;
 
-  // True if SystemVerilog constructs can be used. Otherwise the emitted code is
-  // strictly Verilog.
-  bool use_system_verilog_;
+  CodegenOptions options_;
 
   LogicRef* clk_ = nullptr;
   absl::optional<Reset> rst_;

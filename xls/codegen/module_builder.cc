@@ -136,7 +136,7 @@ absl::Status ModuleBuilder::AddAssignmentToGeneratedExpression(
   // Assign arrays element by element unless using SystemVerilog AND
   // sv_array_expr is true.
   if (xls_type != nullptr && xls_type->IsArray() &&
-      !(use_system_verilog_ && sv_array_expr)) {
+      !(options_.use_system_verilog() && sv_array_expr)) {
     ArrayType* array_type = xls_type->AsArrayOrDie();
     for (int64_t i = 0; i < array_type->size(); ++i) {
       std::vector<Expression*> input_elements;
@@ -159,7 +159,7 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
     Expression* lhs, const Value& value,
     std::function<void(Expression*, Expression*)> add_assignment) {
   if (value.IsArray()) {
-    if (use_system_verilog_) {
+    if (options_.use_system_verilog()) {
       // If using system verilog emit using an array assignment pattern like so:
       //   logic [4:0] foo [0:4][0:1] = '{'{5'h0, 5'h1}, '{..}, ...}
       XLS_ASSIGN_OR_RETURN(Expression * rhs,
@@ -181,13 +181,13 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
 }
 
 ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
-                             bool use_system_verilog,
+                             CodegenOptions options,
                              absl::optional<absl::string_view> clk_name,
                              absl::optional<ResetProto> rst_proto)
     : module_name_(SanitizeIdentifier(name)),
       file_(file),
       package_("__ModuleBuilder_type_generator"),
-      use_system_verilog_(use_system_verilog) {
+      options_(std::move(options)) {
   module_ = file_->AddModule(module_name_, std::nullopt);
   functions_section_ = module_->Add<ModuleSection>(std::nullopt);
   constants_section_ = module_->Add<ModuleSection>(std::nullopt);
@@ -399,7 +399,7 @@ absl::StatusOr<Expression*> ModuleBuilder::EmitAsInlineExpression(
     XLS_ASSIGN_OR_RETURN(VerilogFunction * func, DefineFunction(node));
     return file_->Make<VerilogFunctionCall>(node->loc(), func, inputs);
   }
-  return NodeToExpression(node, inputs, file_);
+  return NodeToExpression(node, inputs, file_, options_);
 }
 
 // Emits a copy and update of an array as a sequence of assignments.
@@ -582,7 +582,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
         XLS_ASSIGN_OR_RETURN(
             IndexableExpression * rhs,
             ArrayIndexExpression(inputs[0]->AsIndexableExpressionOrDie(),
-                                 inputs.subspan(1), node->As<ArrayIndex>()));
+                                 inputs.subspan(1), node->As<ArrayIndex>(),
+                                 options_));
         XLS_RETURN_IF_ERROR(AddAssignment(
             array_type, ref, rhs, [&](Expression* lhs, Expression* rhs) {
               assignment_section()->Add<ContinuousAssignment>(node->loc(), lhs,
@@ -919,7 +920,7 @@ absl::Status ModuleBuilder::EmitAssert(
     return absl::OkStatus();
   }
 
-  if (!use_system_verilog_) {
+  if (!options_.use_system_verilog()) {
     // Asserts are a SystemVerilog only feature.
     // TODO(meheff): 2021/02/27 We should raise an error here or possibly emit a
     // construct like: if (!condition) $display("Assert failed ...");
@@ -957,7 +958,7 @@ absl::Status ModuleBuilder::EmitTrace(
   if (clk_ == nullptr) {
     // Make a fresh always_comb or always @* block for combinational traces
     // so that each trace only fires when its own inputs change.
-    if (use_system_verilog_) {
+    if (options_.use_system_verilog()) {
       trace_always = trace_section_->Add<AlwaysComb>(trace->loc());
     } else {
       std::vector<SensitivityListElement> sensitivity_list = {
@@ -1044,7 +1045,7 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
 
 absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
                                       Expression* condition) {
-  if (!use_system_verilog_) {
+  if (!options_.use_system_verilog()) {
     // Coverpoints are a SystemVerilog only feature.
     XLS_LOG(WARNING) << "Coverpoints are only supported in SystemVerilog.";
     return absl::OkStatus();
@@ -1173,7 +1174,7 @@ absl::Status ModuleBuilder::AssignRegisters(
     }
   }
   AlwaysBase* always;
-  if (use_system_verilog_) {
+  if (options_.use_system_verilog()) {
     always =
         assignment_section()->Add<AlwaysFf>(std::nullopt, sensitivity_list);
   } else {

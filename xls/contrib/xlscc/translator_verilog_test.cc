@@ -42,14 +42,7 @@ using xls::status_testing::IsOkAndHolds;
 constexpr char kTestName[] = "translator_verilog_test";
 constexpr char kTestdataPath[] = "xls/contrib/xlscc/testdata";
 
-class TranslatorVerilogTest : public xls::verilog::VerilogTestBase {
- protected:
-  xls::verilog::CodegenOptions codegen_options() {
-    xls::verilog::CodegenOptions options;
-    options.use_system_verilog(UseSystemVerilog());
-    return options;
-  }
-};
+class TranslatorVerilogTest : public xls::verilog::VerilogTestBase {};
 
 // What's being tested here is that the IR produced is generatable
 //  by the combinational generator. For example, it will fail without
@@ -116,9 +109,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   XLS_VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Block * block,
-                           xls::verilog::ProcToCombinationalBlock(
-                               proc, proc->name(), codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Block * block,
+      xls::verilog::ProcToCombinationalBlock(proc, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog, xls::verilog::GenerateVerilog(
                                                     block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -247,9 +240,9 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   XLS_VLOG(1) << "Simplifying IR..." << std::endl;
   XLS_ASSERT_OK(translator->InlineAllInvokes(&package));
 
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Block * block,
-                           xls::verilog::ProcToCombinationalBlock(
-                               proc, proc->name(), codegen_options()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      xls::Block * block,
+      xls::verilog::ProcToCombinationalBlock(proc, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(
       xls::verilog::ModuleSignature signature,
       xls::verilog::GenerateSignature(codegen_options(), block));

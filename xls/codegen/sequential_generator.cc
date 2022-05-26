@@ -417,9 +417,12 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
     const ModuleSignature& signature) {
   // Make builder.
   XLS_RET_CHECK(signature.proto().has_module_name());
+  // TODO(meheff): 2022/5/25 Fold sequential generator options into codegen
+  // options.
+  CodegenOptions codegen_options;
+  codegen_options.use_system_verilog(sequential_options_.use_system_verilog());
   module_builder_ = std::make_unique<ModuleBuilder>(
-      signature.proto().module_name(), &file_,
-      sequential_options_.use_system_verilog(),
+      signature.proto().module_name(), &file_, codegen_options,
       /*clk_name=*/"clk",
       signature.proto().has_reset()
           ? absl::optional<ResetProto>(signature.proto().reset())

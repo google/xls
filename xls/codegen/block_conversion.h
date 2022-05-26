@@ -44,9 +44,13 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
                                             const CodegenOptions& options,
                                             Proc* proc);
 
-// Converts a function into a block of the given name (the function name is
-// ignored). Function arguments become input ports, function return value
-// becomes an output port. Returns a pointer to the block.
+// Converts a function into a combinational block. Function arguments become
+// input ports, function return value becomes an output port. Returns a pointer
+// to the block.
+absl::StatusOr<Block*> FunctionToCombinationalBlock(
+    Function* f, const CodegenOptions& options);
+
+// TODO(meheff): 2022/05/25 Remove this overload.
 absl::StatusOr<Block*> FunctionToCombinationalBlock(
     Function* f, absl::string_view block_name);
 
@@ -57,7 +61,6 @@ absl::StatusOr<Block*> FunctionToCombinationalBlock(
 // control. Receives/sends of single-value channels become input/output ports in
 // the returned block.
 absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
-                                                absl::string_view block_name,
                                                 const CodegenOptions& options);
 
 }  // namespace verilog

@@ -59,8 +59,10 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
   absl::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   FunctionBase* entry = top.value();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto result, GenerateCombinationalModule(entry, UseSystemVerilog()));
+  CodegenOptions options;
+  options.use_system_verilog(UseSystemVerilog());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(entry, options));
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);

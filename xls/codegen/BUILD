@@ -316,6 +316,7 @@ cc_library(
     srcs = ["node_expressions.cc"],
     hdrs = ["node_expressions.h"],
     deps = [
+        ":codegen_options",
         ":flattening",
         ":vast",
         "@com_google_absl//absl/status",
@@ -367,6 +368,7 @@ cc_library(
     srcs = ["module_builder.cc"],
     hdrs = ["module_builder.h"],
     deps = [
+        ":codegen_options",
         ":flattening",
         ":lint_annotate",
         ":node_expressions",

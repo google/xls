@@ -191,9 +191,9 @@ absl::Status Run(absl::string_view cpp_path) {
       xls::verilog::CodegenOptions codegen_options;
       codegen_options.use_system_verilog(false);
 
-      XLS_ASSIGN_OR_RETURN(xls::Block * xls_block,
-                           xls::verilog::ProcToCombinationalBlock(
-                               proc, proc->name(), codegen_options));
+      XLS_ASSIGN_OR_RETURN(
+          xls::Block * xls_block,
+          xls::verilog::ProcToCombinationalBlock(proc, codegen_options));
       std::cerr << "Generating Verilog..." << std::endl;
 
       xls::verilog::VerilogLineMap verilog_line_map;

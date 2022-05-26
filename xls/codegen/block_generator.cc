@@ -297,8 +297,7 @@ class BlockGenerator {
         options_(options),
         reset_proto_(reset_proto),
         file_(file),
-        mb_(block->name(), file_, options.use_system_verilog(), clock_name,
-            reset_proto) {}
+        mb_(block->name(), file_, options, clock_name, reset_proto) {}
 
   // Generates and returns the Verilog text for the underlying block.
   absl::Status Emit() {

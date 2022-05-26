@@ -365,8 +365,7 @@ TEST_P(ModuleSimulatorCodegenTest, CombinationalModule) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      GenerateCombinationalModule(func,
-                                  /*use_system_verilog=*/UseSystemVerilog()));
+      GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -389,8 +388,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      GenerateCombinationalModule(func,
-                                  /*use_system_verilog=*/UseSystemVerilog()));
+      GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -411,8 +409,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnParameter) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      GenerateCombinationalModule(func,
-                                  /*use_system_verilog=*/UseSystemVerilog()));
+      GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -468,8 +465,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughArrayCombinationalModule) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.BuildWithReturnValue(x));
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      GenerateCombinationalModule(func,
-                                  /*use_system_verilog=*/UseSystemVerilog()));
+      GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());
@@ -487,8 +483,7 @@ TEST_P(ModuleSimulatorCodegenTest, ConstructArrayCombinationalModule) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(
       ModuleGeneratorResult result,
-      GenerateCombinationalModule(func,
-                                  /*use_system_verilog=*/UseSystemVerilog()));
+      GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
                             GetSimulator());

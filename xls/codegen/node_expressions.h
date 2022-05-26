@@ -18,6 +18,7 @@
 
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/vast.h"
 #include "xls/ir/node.h"
 
@@ -54,7 +55,8 @@ bool OperandMustBeNamedReference(Node* node, int64_t operand_no);
 // inputs. If the node cannot be expressed as an expression (e.g., CountedFor),
 // then an error is returned.
 absl::StatusOr<Expression*> NodeToExpression(
-    Node* node, absl::Span<Expression* const> inputs, VerilogFile* file);
+    Node* node, absl::Span<Expression* const> inputs, VerilogFile* file,
+    const CodegenOptions& options);
 
 // Returns true if the expression for the given Node should be inlined into its
 // uses. Expressions are inlined if they are unary and have very terse
@@ -66,7 +68,7 @@ bool ShouldInlineExpressionIntoMultipleUses(Node* node);
 // described by the given ArrayIndex operation.
 absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     IndexableExpression* array, absl::Span<Expression* const> indices,
-    ArrayIndex* array_index);
+    ArrayIndex* array_index, const CodegenOptions& options);
 
 }  // namespace verilog
 }  // namespace xls

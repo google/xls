@@ -378,7 +378,8 @@ absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
 }  // namespace
 
 absl::StatusOr<Expression*> NodeToExpression(
-    Node* node, absl::Span<Expression* const> inputs, VerilogFile* file) {
+    Node* node, absl::Span<Expression* const> inputs, VerilogFile* file,
+    const CodegenOptions& options) {
   auto unimplemented = [&]() {
     return absl::UnimplementedError(
         absl::StrFormat("Node cannot be emitted as a Verilog expression: %s",
@@ -431,7 +432,8 @@ absl::StatusOr<Expression*> NodeToExpression(
     }
     case Op::kArrayIndex:
       return ArrayIndexExpression(inputs[0]->AsIndexableExpressionOrDie(),
-                                  inputs.subspan(1), node->As<ArrayIndex>());
+                                  inputs.subspan(1), node->As<ArrayIndex>(),
+                                  options);
     case Op::kArrayUpdate: {
       // This is only reachable as a corner case where the "array" operand of
       // the array update is not an array type. This is only possible with empty
@@ -641,7 +643,7 @@ bool ShouldInlineExpressionIntoMultipleUses(Node* node) {
 
 absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     IndexableExpression* array, absl::Span<Expression* const> indices,
-    ArrayIndex* array_index) {
+    ArrayIndex* array_index, const CodegenOptions& options) {
   VerilogFile* file = array->file();
   IndexableExpression* value = array;
   Type* type = array_index->array()->GetType();
@@ -659,8 +661,9 @@ absl::StatusOr<IndexableExpression*> ArrayIndexExpression(
     // indicating that the access is inbounds).
     // TODO(meheff) 2021-03-25 Simplify this when we have a better way of
     // handling OOB accesses.
-    if (Bits::MinBitCountUnsigned(array_type->size()) >
-        index_type->bit_count()) {
+    if (!options.array_index_bounds_checking() ||
+        Bits::MinBitCountUnsigned(array_type->size()) >
+            index_type->bit_count()) {
       // Index cannot be out-of-bounds because it is not wide enough to express
       // an out-of-bounds value.
       clamped_index = index;
