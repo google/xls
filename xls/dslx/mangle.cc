@@ -18,6 +18,37 @@
 #include "xls/common/status/ret_check.h"
 
 namespace xls::dslx {
+namespace {
+
+// Converts the given InterpValue into a string form appropriate for name
+// mangling: we need a means of disambiguating value- or struct-parameterized
+// function names, and so we need to be able to represent instantiation values.
+std::string MangleInterpValue(const InterpValue& value) {
+  if (value.IsBits() || value.IsEnum()) {
+    auto bits_value = InterpValue::MakeBits(/*is_signed=*/value.IsSigned(),
+                                            value.GetBitsOrDie());
+    std::string s =
+        bits_value.ToString(/*humanize=*/true, FormatPreference::kDecimal);
+    // Negatives are not valid characters in IR symbols so replace leading '-'
+    // with 'm'.
+    return absl::StrReplaceAll(s, {{"-", "m"}});
+  }
+
+  XLS_CHECK(value.IsArray() || value.IsTuple())
+      << "Only bits, enums, arrays, or tuples can be name-mangled.";
+  std::vector<std::string> members;
+  for (const auto& member : value.GetValuesOrDie()) {
+    members.push_back(MangleInterpValue(member));
+  }
+
+  // Since functions can't be overloaded, there's no risk of name collision:
+  // each parametric in a Function specification has a dedicated location in the
+  // mangled name. Functions with identical parametric values are identical.
+  return absl::StrFormat("__%d%s__", members.size(),
+                         absl::StrJoin(members, "_"));
+}
+
+}  // namespace
 
 // LINT.IfChange
 absl::StatusOr<std::string> MangleDslxName(
@@ -30,20 +61,7 @@ absl::StatusOr<std::string> MangleDslxName(
     for (const SymbolicBinding& item : symbolic_bindings->bindings()) {
       symbolic_bindings_keys.insert(item.identifier);
       const InterpValue& value = item.value;
-      // TODO(google/xls#460): Non-integral InterpValues can't be mangled yet.
-      if (!value.IsBits() && !value.IsEnum()) {
-        return absl::UnimplementedError(
-            absl::StrFormat("Cannot mangle parametric values of kind: %s",
-                            TagToString(value.tag())));
-      }
-      auto bits_value = InterpValue::MakeBits(/*is_signed=*/value.IsSigned(),
-                                              value.GetBitsOrDie());
-      std::string s =
-          bits_value.ToString(/*humanize=*/true, FormatPreference::kDecimal);
-      // Negatives are not valid characters in IR symbols so replace leading '-'
-      // with 'm'.
-      s = absl::StrReplaceAll(s, {{"-", "m"}});
-      symbolic_bindings_values.push_back(s);
+      symbolic_bindings_values.push_back(MangleInterpValue(value));
     }
   }
   absl::btree_set<std::string> difference;

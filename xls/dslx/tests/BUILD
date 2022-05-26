@@ -160,6 +160,8 @@ dslx_lang_test(
     convert_to_ir = False,
 )
 
+dslx_lang_test(name = "struct_as_parametric")
+
 dslx_lang_test(name = "subtract_to_negative")
 
 dslx_lang_test(name = "trace")

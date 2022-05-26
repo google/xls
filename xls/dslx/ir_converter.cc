@@ -33,6 +33,7 @@
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/extract_conversion_order.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/proc_config_ir_converter.h"
@@ -2349,15 +2350,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
                          ResolveType(parametric_binding->type_annotation()));
     XLS_ASSIGN_OR_RETURN(ConcreteTypeDim parametric_width_ctd,
                          parametric_type->GetTotalBitCount());
-    XLS_ASSIGN_OR_RETURN(int64_t bit_count, parametric_width_ctd.GetAsInt64());
-    Value param_value;
-    if (sb_value->IsSigned()) {
-      XLS_ASSIGN_OR_RETURN(int64_t bit_value, sb_value->GetBitValueInt64());
-      param_value = Value(SBits(bit_value, bit_count));
-    } else {
-      XLS_ASSIGN_OR_RETURN(uint64_t bit_value, sb_value->GetBitValueUint64());
-      param_value = Value(UBits(bit_value, bit_count));
-    }
+    XLS_ASSIGN_OR_RETURN(Value param_value, InterpValueToValue(*sb_value));
     DefConst(parametric_binding, param_value);
     XLS_RETURN_IF_ERROR(
         DefAlias(parametric_binding, /*to=*/parametric_binding->name_def()));
