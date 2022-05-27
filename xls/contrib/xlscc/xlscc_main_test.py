@@ -114,49 +114,6 @@ class XlsccMainTest(absltest.TestCase):
         block_pb_file.full_path
     ])
 
-  def test_gen_combinational_verilog_2(self):
-    cpp_file = self.create_tempfile(file_path="src.cc", content=BLOCK_CPP_SRC2)
-
-    block_out = hls_block_pb2.HLSBlock()
-    block_out.name = "my_function"
-
-    channel = hls_block_pb2.HLSChannel()
-    channel.name = "dir"
-    channel.is_input = True
-    channel.type = hls_block_pb2.ChannelType.DIRECT_IN
-    block_out.channels.add().CopyFrom(channel)
-
-    channel = hls_block_pb2.HLSChannel()
-    channel.name = "out"
-    channel.is_input = False
-    channel.type = hls_block_pb2.ChannelType.FIFO
-    block_out.channels.add().CopyFrom(channel)
-
-    block_pb_file = self.create_tempfile(file_path="block.pb")
-
-    with open(block_pb_file.full_path, "wb") as f:
-      f.write(block_out.SerializeToString())
-
-    package_ir = subprocess.check_output([
-        XLSCC_MAIN_PATH, cpp_file.full_path, "--block_pb",
-        block_pb_file.full_path, "--dump_ir_only"
-    ]).decode("utf-8")
-
-    # Do some simple checking of the ir output.
-    self.assertNotIn("module my_function_proc(", package_ir)
-    self.assertNotIn("output wire [31:0] out", package_ir)
-    self.assertIn("fn my_function(", package_ir)
-    self.assertIn("receive(tkn, channel_id=0", package_ir)
-
-    verilog = subprocess.check_output([
-        XLSCC_MAIN_PATH, cpp_file.full_path, "--block_pb",
-        block_pb_file.full_path
-    ]).decode("utf-8")
-
-    # Do some simple checking of the verilog output.
-    self.assertIn("module my_function_proc(", verilog)
-    self.assertIn("output wire [31:0] out", verilog)
-
 
 if __name__ == "__main__":
   absltest.main()

@@ -20,8 +20,6 @@
 #include <fstream>
 #include <streambuf>
 
-#include "xls/common/logging/log_flags.h"
-
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
@@ -31,16 +29,14 @@
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Stmt.h"
-#include "xls/codegen/block_conversion.h"
-#include "xls/codegen/block_generator.h"
 #include "xls/common/init_xls.h"
+#include "xls/common/logging/log_flags.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/ir/block.h"
-#include "xls/passes/standard_pipeline.h"
 
 const char kUsage[] = R"(
 Generates XLS IR from a given C++ file, or generates Verilog in the special
@@ -75,9 +71,6 @@ ABSL_FLAG(std::vector<std::string>, include_dirs, std::vector<std::string>(),
 
 ABSL_FLAG(std::string, meta_out, "",
           "Path at which to output metadata protobuf");
-
-ABSL_FLAG(bool, dump_ir_only, false,
-          "Output proc IR and do not continue to block/verilog generation");
 
 ABSL_FLAG(std::string, verilog_line_map_out, "",
           "Path at which to output Verilog line map protobuf");
@@ -180,40 +173,9 @@ absl::Status Run(absl::string_view cpp_path) {
                          translator.GenerateIR_Block(&package, block));
 
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
-    if (absl::GetFlag(FLAGS_dump_ir_only)) {
-      std::cerr << "Saving Package IR..." << std::endl;
-      translator.AddSourceInfoToPackage(package);
-      XLS_RETURN_IF_ERROR(
-          write_to_output(absl::StrCat(package.DumpIr(), "\n")));
-    } else {
-      XLS_RETURN_IF_ERROR(translator.InlineAllInvokes(&package));
-      translator.AddSourceInfoToPackage(package);
-      xls::verilog::CodegenOptions codegen_options;
-      codegen_options.use_system_verilog(false);
-
-      XLS_ASSIGN_OR_RETURN(
-          xls::Block * xls_block,
-          xls::verilog::ProcToCombinationalBlock(proc, codegen_options));
-      std::cerr << "Generating Verilog..." << std::endl;
-
-      xls::verilog::VerilogLineMap verilog_line_map;
-      XLS_ASSIGN_OR_RETURN(std::string verilog,
-                           xls::verilog::GenerateVerilog(
-                               xls_block, codegen_options, &verilog_line_map));
-
-      for (int64_t i = 0; i < verilog_line_map.mapping_size(); ++i) {
-        verilog_line_map.mutable_mapping(i)->set_verilog_file(output_absolute);
-      }
-
-      std::string verilog_line_map_out_path =
-          absl::GetFlag(FLAGS_verilog_line_map_out);
-      if (!verilog_line_map_out_path.empty()) {
-        XLS_RETURN_IF_ERROR(
-            xls::SetTextProtoFile(verilog_line_map_out_path, verilog_line_map));
-      }
-
-      XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(verilog, "\n")));
-    }
+    std::cerr << "Saving Package IR..." << std::endl;
+    translator.AddSourceInfoToPackage(package);
+    XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
   }
 
   const std::string metadata_out_path = absl::GetFlag(FLAGS_meta_out);

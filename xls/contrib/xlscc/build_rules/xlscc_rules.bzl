@@ -51,7 +51,6 @@ _IR_FILE_EXTENSION = ".ir"
 _PROTOBIN_FILE_EXTENSION = ".protobin"
 _BINARYPB_FILE_EXTENSION = ".binarypb"
 _DEFAULT_XLSCC_ARGS = {
-    "dump_ir_only": "True",
     "top": "Run",
 }
 
@@ -156,7 +155,6 @@ def _xls_cc_ir_impl(ctx):
         "defines",
         "include_dirs",
         "meta_out",
-        "dump_ir_only",
     )
 
     xlscc_args = append_default_to_args(
