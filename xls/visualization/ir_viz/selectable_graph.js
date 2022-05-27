@@ -67,13 +67,13 @@ class SelectionChangeSet {
  */
 class SelectableGraph {
   /**
-   * @param {!irGraph.IrGraph} irGraph
+   * @param {!irGraph.IrGraph} irGraphInstance
    */
-  constructor(irGraph) {
+  constructor(irGraphInstance) {
     /**
      * @private @const {!irGraph.IrGraph}
      */
-    this.irGraph_ = irGraph;
+    this.irGraph_ = irGraphInstance;
 
     /**
      * The ids set of currently selected nodes.

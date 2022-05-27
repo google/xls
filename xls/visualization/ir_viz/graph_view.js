@@ -336,17 +336,17 @@ function buildCytoscapeGraph(graphElement, selectableGraph, showOnlySelected) {
  */
 class GraphView {
   /**
-   * @param {!selectableGraph.SelectableGraph} selectableGraph The IR graph and
-   *     selection state
+   * @param {!selectableGraph.SelectableGraph} selectableGraphInstance The IR
+   *     graph and selection state
    * @param {!Element} graphElement The DOM element to render the graph into.
    * @param {boolean} showOnlySelected Whether to show only selected nodes in
    *     the graph.
    */
-  constructor(selectableGraph, graphElement, showOnlySelected) {
+  constructor(selectableGraphInstance, graphElement, showOnlySelected) {
     /**
      * @private @const {!selectableGraph.SelectableGraph}
      */
-    this.selectableGraph_ = selectableGraph;
+    this.selectableGraph_ = selectableGraphInstance;
 
     /**
      * The DOM element to hold the graph visualization.
