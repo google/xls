@@ -977,6 +977,32 @@ cc_library(
 )
 
 cc_library(
+    name = "unroll_proc",
+    srcs = ["unroll_proc.cc"],
+    hdrs = ["unroll_proc.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:ret_check",
+        "//xls/ir",
+    ],
+)
+
+cc_test(
+    name = "unroll_proc_test",
+    srcs = ["unroll_proc_test.cc"],
+    deps = [
+        ":unroll_proc",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "conditional_specialization_pass",
     srcs = ["conditional_specialization_pass.cc"],
     hdrs = ["conditional_specialization_pass.h"],
