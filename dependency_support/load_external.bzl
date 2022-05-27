@@ -114,10 +114,13 @@ def load_external_repositories():
         ],
     )
 
+    # Released on 2022-04-22, current as of 2022-05-27
+    # https://github.com/bazelbuild/rules_python/releases/tag/0.8.1
     http_archive(
         name = "rules_python",
-        url = "https://github.com/bazelbuild/rules_python/releases/download/0.1.0/rules_python-0.1.0.tar.gz",
-        sha256 = "b6d46438523a3ec0f3cead544190ee13223a52f6a6765a29eae7b7cc24cc83a0",
+        sha256 = "cdf6b84084aad8f10bf20b46b77cb48d83c319ebe6458a18e9d2cebf57807cdd",
+        strip_prefix = "rules_python-0.8.1",
+        url = "https://github.com/bazelbuild/rules_python/archive/refs/tags/0.8.1.tar.gz",
     )
 
     http_archive(
@@ -183,8 +186,11 @@ def load_external_repositories():
 
     git_repository(
         name = "platforms",
-        tag = "0.0.5",
         remote = "https://github.com/bazelbuild/platforms.git",
+        # Apparently the arguments below are the reproducible form of this tag.
+        # tag = "0.0.5",
+        commit = "fbd0d188dac49fbcab3d2876a2113507e6fc68e9",
+        shallow_since = "1644333305 -0500",
     )
 
     git_repository(
