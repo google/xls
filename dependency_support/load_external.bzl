@@ -61,12 +61,13 @@ def load_external_repositories():
         shallow_since = "1635790430 +0000",
     )
 
-    # Commit on 2021-12-03, current as of 2022-05-04
+    # Commit on 2021-12-03, current as of 2022-05-31
     http_archive(
         name = "pybind11_bazel",
         strip_prefix = "pybind11_bazel-72cbbf1fbc830e487e3012862b7b720001b70672",
         urls = ["https://github.com/pybind/pybind11_bazel/archive/72cbbf1fbc830e487e3012862b7b720001b70672.tar.gz"],
         sha256 = "516c1b3a10d87740d2b7de6f121f8e19dde2c372ecbfe59aef44cd1872c10395",
+        patches = ["@com_google_xls//dependency_support/pybind11_bazel:sysconfig_fix.patch"],
     )
 
     http_archive(
@@ -162,11 +163,13 @@ def load_external_repositories():
         build_file = "@com_google_xls//dependency_support/linenoise:bundled.BUILD.bazel",
     )
 
+    # Released on 2022-05-20, current as of 2022-05-31.
+    # https://github.com/grpc/grpc/releases/tag/v1.46.3
     http_archive(
         name = "com_github_grpc_grpc",
-        urls = ["https://github.com/grpc/grpc/archive/v1.43.0.tar.gz"],
-        sha256 = "9647220c699cea4dafa92ec0917c25c7812be51a18143af047e20f3fb05adddc",
-        strip_prefix = "grpc-1.43.0",
+        urls = ["https://github.com/grpc/grpc/archive/v1.46.3.tar.gz"],
+        sha256 = "d6cbf22cb5007af71b61c6be316a79397469c58c82a942552a62e708bce60964",
+        strip_prefix = "grpc-1.46.3",
         # repo_mapping = {"@com_github_google_re2": "@com_googlesource_code_re2"},
         # Note: repo mapping doesn't seem to work for gRPC because it
         # explicitly binds the re2 name to the com_googlesource_code_re2 repo.

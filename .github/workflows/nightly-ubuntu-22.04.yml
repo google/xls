@@ -1,0 +1,36 @@
+# https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions
+# See also: https://github.com/marketplace/actions/bazel-action
+
+name: Nightly Ubuntu 22.04
+on:
+  schedule:
+    # Nightly at midnight -- uses UTC, so 7am.
+    - cron:  '0 7 * * *'
+  # This lets us trigger manually from the UI.
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Nightly Ubuntu 22.04
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v3
+        with:
+          path: "~/.cache/bazel"
+          # Create/use a cache called bazel-cache-22_04-<commit hash>
+          # and read the latest cache with prefix bazel-cache-22_04-
+          # if it doesn't already exist.
+          key: bazel-cache-22_04-${{ github.sha }}
+          restore-keys: bazel-cache-22_04-
+      - name: Install bazelisk
+        run: |
+          curl -LO "https://github.com/bazelbuild/bazelisk/releases/download/v1.1.0/bazelisk-linux-amd64"
+          mkdir -p "${GITHUB_WORKSPACE}/bin/"
+          mv bazelisk-linux-amd64 "${GITHUB_WORKSPACE}/bin/bazel"
+          chmod +x "${GITHUB_WORKSPACE}/bin/bazel"
+      # Note: xlscc is excluded because it builds Clang, and that can make
+      # builds time out.
+      - name: Bazel Test All (opt)
+        run: |
+          "${GITHUB_WORKSPACE}/bin/bazel" test -c opt -- //xls/... -//xls/contrib/xlscc/...
