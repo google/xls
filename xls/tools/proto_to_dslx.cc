@@ -821,10 +821,19 @@ absl::Status EmitIntegralData(
 
     std::vector<dslx::Expr*> array_elements;
     for (int submsg_idx = 0; submsg_idx < num_submsgs; submsg_idx++) {
-      uint64_t value = GetFieldValue(message, *reflection, *fd, submsg_idx);
-      array_elements.push_back(module->Make<dslx::Number>(
-          span, absl::StrCat(value), dslx::NumberKind::kOther,
-          array_elem_type));
+      if (IsFieldSigned(field_type)) {
+        int64_t value = static_cast<int64_t>(
+            GetFieldValue(message, *reflection, *fd, submsg_idx));
+        array_elements.push_back(module->Make<dslx::Number>(
+            span, absl::StrCat(value), dslx::NumberKind::kOther,
+            array_elem_type));
+
+      } else {
+        uint64_t value = GetFieldValue(message, *reflection, *fd, submsg_idx);
+        array_elements.push_back(module->Make<dslx::Number>(
+            span, absl::StrCat(value), dslx::NumberKind::kOther,
+            array_elem_type));
+      }
     }
 
     return EmitArray(

@@ -45,10 +45,10 @@ class IrWrapper {
   // name is the unmangled name.
   absl::StatusOr<Function*> GetIrFunction(absl::string_view name) const;
 
-  // Retrieve top level package
+  // Retrieve top level package.
   absl::StatusOr<Package*> GetIrPackage() const;
 
-  // Retrieve and create (if needed) the JIT for the given function name
+  // Retrieve and create (if needed) the JIT for the given function name.
   absl::StatusOr<FunctionJit*> GetAndMaybeCreateFunctionJit(
       absl::string_view name);
 
@@ -75,7 +75,7 @@ class IrWrapper {
                                             /*additional_search_paths=*/{})),
         package_(std::make_unique<Package>(package_name)) {}
 
-  // Pointers to the each of the DSLX modules explicitly given to this wrapper
+  // Pointers to the each of the DSLX modules explicitly given to this wrapper.
   //
   // Ownership of this and all other DSLX modules is with import_data_;
   dslx::Module* top_module_;
@@ -87,7 +87,7 @@ class IrWrapper {
   // IR Package.
   std::unique_ptr<Package> package_;
 
-  // Holds pre-compiled IR Jit
+  // Holds pre-compiled IR Jit.
   absl::flat_hash_map<Function*, std::unique_ptr<FunctionJit>>
       pre_compiled_function_jit_;
 };
