@@ -63,9 +63,7 @@ pub fn GetLatency() -> s64 {
   XLS_VLOG_LINES(3, get_latency->DumpIr());
   EXPECT_EQ(get_latency->DumpIr(),
             R"(fn __top__GetLatency() -> bits[64] {
-  literal.1: bits[64] = literal(value=1, id=1, pos=0,5,49)
-  params: (bits[64]) = tuple(literal.1, id=2, pos=0,5,31)
-  ret params_latency: bits[64] = tuple_index(params, index=0, id=3, pos=0,4,15)
+  ret params_latency: bits[64] = literal(value=1, id=5, pos=0,4,15)
 }
 )");
 }

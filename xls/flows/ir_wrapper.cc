@@ -25,6 +25,7 @@
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/passes/standard_pipeline.h"
 
 namespace xls {
 using dslx::Module;
@@ -79,7 +80,9 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
       ir_wrapper.top_module_, &ir_wrapper.import_data_, convert_options,
       /*traverse_tests=*/false, ir_wrapper.package_.get()));
 
-  // TODO(tedhong): 2022-05-17 Optimize IR
+  // Optimize IR using default options
+  XLS_RETURN_IF_ERROR(
+      RunStandardPassPipeline(ir_wrapper.package_.get()).status());
 
   return std::move(ir_wrapper);
 }
