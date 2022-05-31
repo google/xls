@@ -88,6 +88,8 @@ class NodeIrContext {
 
   bool HasEnvironment() const { return environment_.has_value(); }
 
+  LlvmTypeConverter* type_converter() const { return type_converter_; }
+
  private:
   // Creates an empty LLVM function with the appropriate type signature.
   static llvm::Function* CreateFunction(Node* node,
@@ -98,6 +100,7 @@ class NodeIrContext {
   Node* node_;
   llvm::Function* llvm_function_;
   std::unique_ptr<llvm::IRBuilder<>> builder_;
+  LlvmTypeConverter* type_converter_;
   std::vector<llvm::Value*> operands_;
   absl::optional<Environment> environment_;
 };
@@ -244,11 +247,13 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // Common handler for binary, unary, and nary nodes. `build_results` produces
   // the llvm Value to use as the result.
   absl::Status HandleUnaryOp(
-      Node* node,
-      std::function<llvm::Value*(llvm::Value*, llvm::IRBuilder<>&)>);
+      Node* node, std::function<llvm::Value*(llvm::Value*, llvm::IRBuilder<>&)>,
+      bool is_signed = false);
   absl::Status HandleBinaryOp(
-      Node* node, std::function<llvm::Value*(llvm::Value*, llvm::Value*,
-                                             llvm::IRBuilder<>&)>);
+      Node* node,
+      std::function<llvm::Value*(llvm::Value*, llvm::Value*,
+                                 llvm::IRBuilder<>&)>,
+      bool is_signed = false);
   absl::Status HandleNaryOp(
       Node* node, std::function<llvm::Value*(absl::Span<llvm::Value* const>,
                                              llvm::IRBuilder<>&)>);
@@ -278,6 +283,14 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
       NodeIrContext& node_context, llvm::Value* result,
       std::optional<std::unique_ptr<llvm::IRBuilder<>>> exit_builder =
           std::nullopt);
+
+  llvm::Value* MaybeAsSigned(llvm::Value* v, Type* xls_type,
+                             llvm::IRBuilder<>& builder, bool is_signed) {
+    if (is_signed) {
+      return type_converter()->AsSignedValue(v, xls_type, builder);
+    }
+    return v;
+  }
 
   llvm::Function* dispatch_fn_;
   FunctionBase* xls_fn_;

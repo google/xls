@@ -317,6 +317,7 @@ TEST_P(IrEvaluatorTestBase, InterpretZeroExtend) {
   XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 3, 8));
   XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 3, 1024));
   XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 1024, 1025));
+  XLS_ASSERT_OK(RunZeroExtendTest(GetParam(), 29, 58));
 }
 
 absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
@@ -1171,6 +1172,9 @@ TEST_P(IrEvaluatorTestBase, InterpretConcat) {
   XLS_ASSERT_OK(RunConcatTest(GetParam(), args));
 
   args = {{"a", Value(UBits(4, 8))}, {"b", Value(UBits(1, 8))}};
+  XLS_ASSERT_OK(RunConcatTest(GetParam(), args));
+
+  args = {{"a", Value(UBits(4, 6))}, {"b", Value(UBits(23, 14))}};
   XLS_ASSERT_OK(RunConcatTest(GetParam(), args));
 
   args = {{"a", Value(SBits(-1, 8))}, {"b", Value(SBits(-1, 8))}};
@@ -3273,6 +3277,34 @@ TEST_P(IrEvaluatorTestBase, GateBitsTypeTest) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
   EXPECT_THAT(RunWithUint64sNoEvents(f, {1, 42}), 42);
   EXPECT_THAT(RunWithUint64sNoEvents(f, {0, 42}), 0);
+}
+
+TEST_P(IrEvaluatorTestBase, ZeroExtendFromParam) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto data = b.Param("data", p->GetBitsType(29));
+  b.Param("x", p->GetBitsType(19));
+  b.Param("y", p->GetBitsType(34));
+  b.ZeroExtend(data, 58);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(
+      RunWithNoEvents(f, {Value(UBits(0x100000, 29)), Value(UBits(0x55555, 19)),
+                          Value(UBits(0x200, 34))}),
+      IsOkAndHolds(Value(UBits(0x100000, 58))));
+}
+
+TEST_P(IrEvaluatorTestBase, ThreeWayConcat) {
+  auto p = CreatePackage();
+  FunctionBuilder b(TestName(), p.get());
+  auto x = b.Param("x", p->GetBitsType(3));
+  auto y = b.Param("y", p->GetBitsType(7));
+  auto z = b.Param("z", p->GetBitsType(8));
+  b.Concat({x, y, z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(
+      RunWithNoEvents(f, {Value(UBits(0b101, 3)), Value(UBits(0b0011001, 7)),
+                          Value(UBits(0b10110001, 8))}),
+      IsOkAndHolds(Value(UBits(0b101001100110110001, 18))));
 }
 
 TEST_P(IrEvaluatorTestBase, GateCompoundTypeTest) {

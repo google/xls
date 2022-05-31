@@ -77,6 +77,7 @@ cc_library(
     deps = [
         ":jit_runtime",
         ":llvm_type_converter",
+        ":orc_jit",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",

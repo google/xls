@@ -25,6 +25,19 @@ LlvmTypeConverter::LlvmTypeConverter(llvm::LLVMContext* context,
                                      const llvm::DataLayout& data_layout)
     : context_(*context), data_layout_(data_layout) {}
 
+int64_t LlvmTypeConverter::GetLlvmBitCount(int64_t xls_bit_count) const {
+  // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
+  // unoptimized IR, so for the time being we make a dummy 1-bit value.
+  // See https://github.com/google/xls/issues/76
+  if (xls_bit_count <= 1) {
+    return 1;
+  }
+  if (xls_bit_count <= 8) {
+    return 8;
+  }
+  return int64_t{1} << CeilOfLog2(xls_bit_count);
+}
+
 llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
   auto it = type_cache_.find(xls_type);
   if (it != type_cache_.end()) {
@@ -32,13 +45,8 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
   }
   llvm::Type* llvm_type;
   if (xls_type->IsBits()) {
-    int64_t bit_count = xls_type->AsBitsOrDie()->bit_count();
-    XLS_CHECK_GE(bit_count, 0);
-    // LLVM does not accept 0-bit types, and we want to be able to JIT-compile
-    // unoptimized IR, so for the time being we make a dummy 1-bit value.
-    // See https://github.com/google/xls/issues/76
-    bit_count = std::max(bit_count, static_cast<int64_t>(1));
-    llvm_type = llvm::IntegerType::get(context_, bit_count);
+    llvm_type = llvm::IntegerType::get(
+        context_, GetLlvmBitCount(xls_type->AsBitsOrDie()));
   } else if (xls_type->IsTuple()) {
     std::vector<llvm::Type*> tuple_types;
 
@@ -125,12 +133,11 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(
         llvm::ArrayRef<uint64_t>(absl::bit_cast<const uint64_t*>(bytes.data()),
                                  CeilOfRatio(static_cast<int>(bytes.size()),
                                              static_cast<int>(CHAR_BIT)));
-    return llvm::ConstantInt::get(type,
-                                  llvm::APInt(xls_bits.bit_count(), array_ref));
-  } else {
-    XLS_ASSIGN_OR_RETURN(uint64_t bits, value.bits().ToUint64());
-    return llvm::ConstantInt::get(type, bits);
+    int64_t llvm_bit_count = GetLlvmBitCount(xls_bits.bit_count());
+    return llvm::ConstantInt::get(type, llvm::APInt(llvm_bit_count, array_ref));
   }
+  XLS_ASSIGN_OR_RETURN(uint64_t bits, value.bits().ToUint64());
+  return llvm::ConstantInt::get(type, bits);
 }
 
 int64_t LlvmTypeConverter::GetTypeByteSize(const Type* type) const {
@@ -145,6 +152,57 @@ llvm::Value* LlvmTypeConverter::GetToken() const {
   llvm::ArrayType* token_type =
       llvm::ArrayType::get(llvm::IntegerType::get(context_, 1), 0);
   return llvm::ConstantArray::get(token_type, {});
+}
+
+llvm::Value* LlvmTypeConverter::AsSignedValue(
+    llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder,
+    std::optional<llvm::Type*> dest_type) const {
+  XLS_CHECK(xls_type->IsBits());
+  int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
+  llvm::Value* signed_value;
+  if (xls_bit_count <= 1) {
+    signed_value = value;
+  } else {
+    llvm::Value* sign_bit = builder.CreateTrunc(
+        builder.CreateLShr(
+            value, llvm::ConstantInt::get(value->getType(), xls_bit_count - 1)),
+        builder.getIntNTy(1));
+    signed_value = builder.CreateSelect(
+        sign_bit,
+        builder.CreateOr(InvertedPaddingMask(xls_type, builder), value), value);
+  }
+  return dest_type.has_value()
+             ? builder.CreateSExt(signed_value, dest_type.value())
+             : signed_value;
+}
+
+llvm::Value* LlvmTypeConverter::PaddingMask(Type* xls_type,
+                                            llvm::IRBuilder<>& builder) const {
+  XLS_CHECK(xls_type->IsBits());
+  int64_t xls_bit_count = xls_type->AsBitsOrDie()->bit_count();
+  int64_t llvm_bit_count = GetLlvmBitCount(xls_type->AsBitsOrDie());
+  if (xls_bit_count == 0) {
+    // Special-case zero-bit types to avoid overshifting and producing poison
+    // values.
+    return llvm::ConstantInt::get(ConvertToLlvmType(xls_type), 0);
+  }
+  return builder.CreateLShr(
+      llvm::ConstantInt::getSigned(ConvertToLlvmType(xls_type), -1),
+      llvm_bit_count - xls_bit_count);
+}
+
+llvm::Value* LlvmTypeConverter::InvertedPaddingMask(
+    Type* xls_type, llvm::IRBuilder<>& builder) const {
+  return builder.CreateNot(PaddingMask(xls_type, builder));
+}
+
+llvm::Value* LlvmTypeConverter::ClearPaddingBits(
+    llvm::Value* value, Type* xls_type, llvm::IRBuilder<>& builder) const {
+  if (!xls_type->IsBits()) {
+    // TODO(meheff): Handle non-bits types.
+    return value;
+  }
+  return builder.CreateAnd(value, PaddingMask(xls_type, builder));
 }
 
 }  // namespace xls

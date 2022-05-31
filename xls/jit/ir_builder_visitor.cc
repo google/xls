@@ -20,6 +20,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/events.h"
 #include "xls/ir/value_helpers.h"
+#include "xls/jit/orc_jit.h"
 
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
 #include <sanitizer/msan_interface.h>
@@ -62,16 +63,21 @@ std::vector<std::string> ConcatVectors(absl::Span<const std::string> a,
 
 // Emit an LLVM shift operation corresponding to the semantics of the given XLS
 // op.
-llvm::Value* EmitShiftOp(Op op, llvm::Value* lhs, llvm::Value* rhs,
-                         llvm::IRBuilder<>* builder) {
+llvm::Value* EmitShiftOp(Node* shift, llvm::Value* lhs, llvm::Value* rhs,
+                         llvm::IRBuilder<>* builder,
+                         LlvmTypeConverter* type_converter) {
+  Op op = shift->op();
   // Shift operands are allowed to be different sizes in the [XLS] IR, so
   // we need to cast them to be the same size here (for LLVM).
   int common_width = std::max(lhs->getType()->getIntegerBitWidth(),
                               rhs->getType()->getIntegerBitWidth());
   llvm::Type* dest_type =
-      llvm::IntegerType::get(builder->getContext(), common_width);
-  llvm::Value* wide_lhs = op == Op::kShra ? builder->CreateSExt(lhs, dest_type)
-                                          : builder->CreateZExt(lhs, dest_type);
+      llvm::Type::getIntNTy(builder->getContext(), common_width);
+  llvm::Value* wide_lhs =
+      op == Op::kShra
+          ? type_converter->AsSignedValue(lhs, shift->operand(0)->GetType(),
+                                          *builder, dest_type)
+          : builder->CreateZExt(lhs, dest_type);
   llvm::Value* wide_rhs = builder->CreateZExt(rhs, dest_type);
   // In LLVM, an overshifted shift creates poison.
   llvm::Value* is_overshift = builder->CreateICmpUGE(
@@ -267,6 +273,7 @@ absl::StatusOr<std::vector<CompareTerm>> ExpandTerms(
 absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
                                             llvm::Value* index,
                                             int64_t array_size,
+                                            LlvmTypeConverter* type_converter,
                                             llvm::IRBuilder<>* builder) {
   int64_t index_width = index->getType()->getIntegerBitWidth();
 
@@ -289,9 +296,8 @@ absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
   // zero MSb to prevent LLVM from interpreting this as such.
   std::vector<llvm::Value*> gep_indices = {
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()), 0),
-      builder->CreateZExt(
-          inbounds_index,
-          llvm::IntegerType::get(builder->getContext(), index_width + 1))};
+      builder->CreateZExt(inbounds_index,
+                          type_converter->GetLlvmBitsType(index_width + 1))};
 
   llvm::Type* array_type = array->getType();
   // Ideally, we'd use IRBuilder::CreateExtractValue here, but that requires
@@ -516,6 +522,7 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   NodeIrContext nc;
   nc.node_ = node;
   nc.llvm_function_ = CreateFunction(node, type_converter, module, environment);
+  nc.type_converter_ = type_converter;
 
   nc.builder_ = std::make_unique<llvm::IRBuilder<>>(
       llvm::BasicBlock::Create(module->getContext(), "entry", nc.llvm_function_,
@@ -544,11 +551,12 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
 
 void NodeIrContext::Finalize(llvm::Value* result,
                              absl::optional<llvm::IRBuilder<>*> exit_builder) {
-  if (exit_builder.has_value()) {
-    exit_builder.value()->CreateRet(result);
-  } else {
-    builder().CreateRet(result);
+  llvm::IRBuilder<>* b =
+      exit_builder.has_value() ? exit_builder.value() : &builder();
+  if (node()->GetType()->IsBits()) {
+    result = type_converter()->ClearPaddingBits(result, node()->GetType(), *b);
   }
+  b->CreateRet(result);
 }
 
 IrBuilderVisitor::IrBuilderVisitor(
@@ -576,13 +584,11 @@ absl::Status IrBuilderVisitor::HandleAdd(BinOp* binop) {
 }
 
 absl::Status IrBuilderVisitor::HandleAndReduce(BitwiseReductionOp* op) {
-  return HandleUnaryOp(op, [](llvm::Value* operand, llvm::IRBuilder<>& b) {
+  return HandleUnaryOp(op, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
     // AND-reduce is equivalent to checking if every bit is set in the
     // input.
-    llvm::IntegerType* operand_type =
-        llvm::cast<llvm::IntegerType>(operand->getType());
     return b.CreateICmpEQ(
-        operand, llvm::ConstantInt::get(operand_type, operand_type->getMask()));
+        operand, type_converter()->PaddingMask(op->operand(0)->GetType(), b));
   });
 }
 
@@ -732,9 +738,10 @@ absl::Status IrBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
   // Index operands start at 1.
   for (int64_t i = 1; i < index->operand_count(); ++i) {
     llvm::Value* index_value = node_context.operand(i);
-    XLS_ASSIGN_OR_RETURN(
-        element, IndexIntoArray(element, index_value,
-                                element_type->AsArrayOrDie()->size(), &b));
+    XLS_ASSIGN_OR_RETURN(element,
+                         IndexIntoArray(element, index_value,
+                                        element_type->AsArrayOrDie()->size(),
+                                        type_converter(), &b));
     element_type = element_type->AsArrayOrDie()->element_type();
   }
   return FinalizeNodeIrContext(node_context, element);
@@ -755,7 +762,8 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   // this will possibly push us over a performance cliff.
   int64_t index_bits = start->getType()->getIntegerBitWidth() +
                        Bits::MinBitCountSigned(width) + 1;
-  llvm::Type* index_type = b.getIntNTy(index_bits);
+  llvm::Type* index_type = type_converter()->ConvertToLlvmType(
+      slice->package()->GetBitsType(index_bits));
   llvm::Type* result_type =
       type_converter_->ConvertToLlvmType(slice->GetType());
   llvm::Type* result_element_type = type_converter_->ConvertToLlvmType(
@@ -773,7 +781,8 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
     XLS_ASSIGN_OR_RETURN(
         llvm::Value * value,
         IndexIntoArray(array, index,
-                       slice->array()->GetType()->AsArrayOrDie()->size(), &b));
+                       slice->array()->GetType()->AsArrayOrDie()->size(),
+                       type_converter(), &b));
     std::vector<llvm::Value*> gep_indices = {
         llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), i)};
     llvm::Value* gep = b.CreateGEP(result_element_type, alloca, gep_indices);
@@ -814,8 +823,7 @@ absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
     int64_t index_bitwidth = index->getType()->getIntegerBitWidth();
     int64_t comparison_bitwidth = std::max(index_bitwidth, int64_t{64});
     llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
-        llvm::Type::getIntNTy(ctx(), comparison_bitwidth),
-        element_type->AsArrayOrDie()->size());
+        b.getIntNTy(comparison_bitwidth), element_type->AsArrayOrDie()->size());
     llvm::Value* index_value_comparison_bitwidth =
         b.CreateZExt(index, llvm::Type::getIntNTy(ctx(), comparison_bitwidth));
     llvm::Value* is_index_inbounds =
@@ -909,7 +917,7 @@ absl::Status IrBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
   // Then shift and "mask" (by casting) the input value.
   llvm::Value* shifted_value = b.CreateLShr(value, start);
   llvm::Value* truncated_value = b.CreateTrunc(
-      shifted_value, llvm::IntegerType::get(ctx(), bit_slice->width()));
+      shifted_value, type_converter()->ConvertToLlvmType(bit_slice->GetType()));
 
   return FinalizeNodeIrContext(node_context, truncated_value);
 }
@@ -923,7 +931,8 @@ absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   llvm::Value* start = node_context.operand(1);
   llvm::Value* update_value = node_context.operand(2);
 
-  llvm::IntegerType* result_type = b.getIntNTy(update->BitCountOrDie());
+  llvm::Type* result_type =
+      type_converter()->ConvertToLlvmType(update->GetType());
 
   // Zero extend each value to the max of any of the values' widths.
   int max_width = std::max(std::max(to_update->getType()->getIntegerBitWidth(),
@@ -939,11 +948,11 @@ absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   // If start is greater than or equal to the width of to_update, then the
   // updated slice is entirely out of bounds the result of the operation is
   // simply to_update.
-  llvm::Value* in_bounds = b.CreateICmpULT(
-      start_wide,
-      llvm::ConstantInt::get(max_width_type,
-                             to_update->getType()->getIntegerBitWidth()),
-      "start_is_inbounds");
+  llvm::Value* in_bounds =
+      b.CreateICmpULT(start_wide,
+                      llvm::ConstantInt::get(
+                          max_width_type, update->operand(0)->BitCountOrDie()),
+                      "start_is_inbounds");
 
   // Create a mask 00..0011..11 where the number of ones is equal to the
   // width of the update value. Then the updated value is:
@@ -955,7 +964,7 @@ absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   XLS_ASSIGN_OR_RETURN(
       llvm::Value * mask,
       type_converter_->ToLlvmConstant(
-          update->package()->GetBitsType(max_width),
+          max_width_type,
           Value(bits_ops::ZeroExtend(
               Bits::AllOnes(update->update_value()->BitCountOrDie()),
               max_width))));
@@ -1005,8 +1014,8 @@ absl::Status IrBuilderVisitor::HandleDynamicBitSlice(
 
   // "out_of_bounds" indicates whether slice is completely out of bounds.
   llvm::Value* out_of_bounds = b.CreateICmpUGE(start_ext, bit_width);
-  llvm::IntegerType* return_type =
-      llvm::IntegerType::get(ctx(), dynamic_bit_slice->width());
+  llvm::Type* return_type =
+      type_converter_->ConvertToLlvmType(dynamic_bit_slice->GetType());
   XLS_ASSIGN_OR_RETURN(
       llvm::Constant * zeros,
       type_converter_->ToLlvmConstant(return_type,
@@ -1034,7 +1043,7 @@ absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
   llvm::Type* dest_type = type_converter_->ConvertToLlvmType(concat->GetType());
   llvm::Value* base = llvm::ConstantInt::get(dest_type, 0);
 
-  int current_shift = dest_type->getIntegerBitWidth();
+  int current_shift = concat->BitCountOrDie();
   for (int64_t i = 0; i < concat->operand_count(); ++i) {
     Node* xls_operand = concat->operand(i);
     llvm::Value* operand = node_context.operand(i);
@@ -1106,7 +1115,8 @@ absl::Status IrBuilderVisitor::HandleDecode(Decode* decode) {
   llvm::IRBuilder<>& b = node_context.builder();
   llvm::Value* input = node_context.operand(0);
 
-  llvm::Type* result_type = llvm::IntegerType::get(ctx(), decode->width());
+  llvm::Type* result_type =
+      type_converter_->ConvertToLlvmType(decode->GetType());
   // If the input value is greater than this op's width, then return 0.
   // In that case, the shl will produce a poison value, but it'll be unused.
   llvm::Value* cast_input = b.CreateZExt(input, result_type);
@@ -1190,7 +1200,8 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
   // trip_count is zero-extended because the input trip_count is treated as
   // to be unsigned while stride is treated as signed.
   llvm::Value* trip_count_ext = b.CreateZExt(trip_count, index_type);
-  llvm::Value* stride_ext = b.CreateSExt(stride, index_type);
+  llvm::Value* stride_ext = type_converter()->AsSignedValue(
+      stride, dynamic_counted_for->stride()->GetType(), b, index_type);
 
   // Calculate index limit and jump entry loop predheader.
   llvm::Value* index_limit = b.CreateMul(trip_count_ext, stride_ext);
@@ -1513,11 +1524,13 @@ absl::Status IrBuilderVisitor::HandleOneHot(OneHot* one_hot) {
 
     // If the input is zero, then return the special high-bit value.
     llvm::Value* zero_value = llvm::ConstantInt::get(input_type, 0);
-    llvm::Value* width_value = llvm::ConstantInt::get(input_type, input_width);
+    llvm::Value* width_value = llvm::ConstantInt::get(
+        input_type, one_hot->operand(0)->GetType()->GetFlatBitCount());
     llvm::Value* eq_zero = b.CreateICmpEQ(input, zero_value);
     llvm::Value* shift_amount = b.CreateSelect(eq_zero, width_value, zeroes);
 
-    llvm::Type* result_type = input_type->getWithNewBitWidth(input_width + 1);
+    llvm::Type* result_type =
+        type_converter()->ConvertToLlvmType(one_hot->GetType());
     result = b.CreateShl(llvm::ConstantInt::get(result_type, 1),
                          b.CreateZExt(shift_amount, result_type));
   } else {
@@ -1573,22 +1586,34 @@ absl::Status IrBuilderVisitor::HandleReverse(UnOp* reverse) {
       reverse, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
         llvm::Function* reverse_fn = llvm::Intrinsic::getDeclaration(
             module(), llvm::Intrinsic::bitreverse, {operand->getType()});
-        return b.CreateCall(reverse_fn, {operand});
+        // Shift right logically by native width - natural with.
+        llvm::Value* result = b.CreateCall(reverse_fn, {operand});
+        result = b.CreateLShr(
+            result,
+            llvm::ConstantInt::get(result->getType(),
+                                   type_converter()->GetLlvmBitCount(
+                                       reverse->GetType()->AsBitsOrDie()) -
+                                       reverse->GetType()->GetFlatBitCount()));
+        return result;
       });
 }
 
 absl::Status IrBuilderVisitor::HandleSDiv(BinOp* binop) {
   return HandleBinaryOp(
-      binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+      binop,
+      [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return EmitDiv(lhs, rhs, /*is_signed=*/true, type_converter(), &b);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleSMod(BinOp* binop) {
   return HandleBinaryOp(
-      binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+      binop,
+      [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return EmitMod(lhs, rhs, /*is_signed=*/true, &b);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
@@ -1623,59 +1648,73 @@ absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
 
 absl::Status IrBuilderVisitor::HandleSGe(CompareOp* ge) {
   return HandleBinaryOp(
-      ge, [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+      ge,
+      [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return b.CreateICmpSGE(lhs, rhs);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleSGt(CompareOp* gt) {
   return HandleBinaryOp(
-      gt, [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+      gt,
+      [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return b.CreateICmpSGT(lhs, rhs);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleSignExtend(ExtendOp* sign_ext) {
   return HandleUnaryOp(
-      sign_ext, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
+      sign_ext,
+      [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
         llvm::Type* new_type =
-            llvm::IntegerType::get(ctx(), sign_ext->new_bit_count());
+            type_converter_->ConvertToLlvmType(sign_ext->GetType());
         return b.CreateSExt(operand, new_type);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleSLe(CompareOp* le) {
   return HandleBinaryOp(
-      le, [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+      le,
+      [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return b.CreateICmpSLE(lhs, rhs);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleSLt(CompareOp* lt) {
   return HandleBinaryOp(
-      lt, [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+      lt,
+      [](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         return b.CreateICmpSLT(lhs, rhs);
-      });
+      },
+      /*is_signed=*/true);
 }
 
 absl::Status IrBuilderVisitor::HandleShll(BinOp* binop) {
   return HandleBinaryOp(
       binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
-        return EmitShiftOp(binop->op(), lhs, rhs, &b);
+        return EmitShiftOp(binop, lhs, rhs, &b, type_converter());
       });
 }
 
 absl::Status IrBuilderVisitor::HandleShra(BinOp* binop) {
   return HandleBinaryOp(
       binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
-        return EmitShiftOp(binop->op(), lhs, rhs, &b);
+        // Only the LHS is treated as a signed number.
+        return EmitShiftOp(binop,
+                           type_converter()->AsSignedValue(
+                               lhs, binop->operand(0)->GetType(), b),
+                           rhs, &b, type_converter());
       });
 }
 
 absl::Status IrBuilderVisitor::HandleShrl(BinOp* binop) {
   return HandleBinaryOp(
       binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
-        return EmitShiftOp(binop->op(), lhs, rhs, &b);
+        return EmitShiftOp(binop, lhs, rhs, &b, type_converter());
       });
 }
 
@@ -1771,31 +1810,40 @@ absl::Status IrBuilderVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
   return HandleUnaryOp(
       zero_ext, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
         llvm::Type* new_type =
-            llvm::IntegerType::get(ctx(), zero_ext->new_bit_count());
+            type_converter_->ConvertToLlvmType(zero_ext->GetType());
         return b.CreateZExt(operand, new_type);
       });
 }
 
 absl::Status IrBuilderVisitor::HandleUnaryOp(
-    Node* node, std::function<llvm::Value*(llvm::Value*, llvm::IRBuilder<>&)>
-                    build_result) {
+    Node* node,
+    std::function<llvm::Value*(llvm::Value*, llvm::IRBuilder<>&)> build_result,
+    bool is_signed) {
   XLS_RET_CHECK_EQ(node->operand_count(), 1);
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(node, {"operand"}));
   return FinalizeNodeIrContext(
       node_context,
-      build_result(node_context.operand(0), node_context.builder()));
+      build_result(
+          MaybeAsSigned(node_context.operand(0), node->operand(0)->GetType(),
+                        node_context.builder(), is_signed),
+          node_context.builder()));
 }
 
 absl::Status IrBuilderVisitor::HandleBinaryOp(
     Node* node,
     std::function<llvm::Value*(llvm::Value*, llvm::Value*, llvm::IRBuilder<>&)>
-        build_result) {
+        build_result,
+    bool is_signed) {
   XLS_RET_CHECK_EQ(node->operand_count(), 2);
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(node, {"lhs", "rhs"}));
-  llvm::Value* lhs = node_context.operand(0);
-  llvm::Value* rhs = node_context.operand(1);
+  llvm::Value* lhs =
+      MaybeAsSigned(node_context.operand(0), node->operand(0)->GetType(),
+                    node_context.builder(), is_signed);
+  llvm::Value* rhs =
+      MaybeAsSigned(node_context.operand(1), node->operand(1)->GetType(),
+                    node_context.builder(), is_signed);
   return FinalizeNodeIrContext(node_context,
                                build_result(lhs, rhs, node_context.builder()));
 }
@@ -1820,12 +1868,16 @@ absl::Status IrBuilderVisitor::HandleBinaryOpWithOperandConversion(
     bool is_signed) {
   XLS_RET_CHECK_EQ(node->operand_count(), 2);
   llvm::Type* result_type = type_converter_->ConvertToLlvmType(node->GetType());
-  return HandleBinaryOp(node, [&](llvm::Value* lhs, llvm::Value* rhs,
-                                  llvm::IRBuilder<>& b) {
-    llvm::Value* converted_lhs = b.CreateIntCast(lhs, result_type, is_signed);
-    llvm::Value* converted_rhs = b.CreateIntCast(rhs, result_type, is_signed);
-    return build_result(converted_lhs, converted_rhs, b);
-  });
+  return HandleBinaryOp(
+      node, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
+        llvm::Value* converted_lhs =
+            MaybeAsSigned(lhs, node->operand(0)->GetType(), b, is_signed);
+        llvm::Value* converted_rhs =
+            MaybeAsSigned(rhs, node->operand(1)->GetType(), b, is_signed);
+        return build_result(
+            b.CreateIntCast(converted_lhs, result_type, is_signed),
+            b.CreateIntCast(converted_rhs, result_type, is_signed), b);
+      });
 }
 
 llvm::Constant* IrBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {

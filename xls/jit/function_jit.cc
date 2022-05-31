@@ -81,7 +81,15 @@ absl::StatusOr<llvm::Value*> PackValueHelper(llvm::Value* element,
   switch (element_type->kind()) {
     case TypeKind::kBits:
       if (element->getType() != buffer->getType()) {
-        element = builder->CreateZExt(element, buffer->getType());
+        if (element->getType()->getIntegerBitWidth() >
+            buffer->getType()->getIntegerBitWidth()) {
+          // The LLVM type of the subelement is wider than the packed value of
+          // the entire type. This can happen because bits types are padded up
+          // to powers of two.
+          element = builder->CreateTrunc(element, buffer->getType());
+        } else {
+          element = builder->CreateZExt(element, buffer->getType());
+        }
       }
       element = builder->CreateShl(element, bit_offset);
       return builder->CreateOr(buffer, element);
@@ -138,8 +146,10 @@ absl::StatusOr<llvm::Value*> UnpackValue(
     const LlvmTypeConverter& type_converter, llvm::IRBuilder<>* builder) {
   switch (param_type->kind()) {
     case TypeKind::kBits:
-      return builder->CreateTrunc(
-          packed_value, type_converter.ConvertToPackedLlvmType(param_type));
+      return builder->CreateZExt(
+          builder->CreateTrunc(
+              packed_value, type_converter.ConvertToPackedLlvmType(param_type)),
+          type_converter.ConvertToLlvmType(param_type));
     case TypeKind::kArray: {
       // Create an empty array and plop in every element.
       ArrayType* array_type = param_type->AsArrayOrDie();
