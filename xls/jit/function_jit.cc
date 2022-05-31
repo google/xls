@@ -58,22 +58,15 @@ class FunctionBuilderVisitor : public IrBuilderVisitor {
     // Params are passed by value as the first arguments to the function.
     XLS_ASSIGN_OR_RETURN(int index,
                          param->function_base()->GetParamIndex(param));
-    llvm::Function* llvm_function = builder()->GetInsertBlock()->getParent();
-
+    llvm::Function* llvm_function =
+        dispatch_builder()->GetInsertBlock()->getParent();
     return StoreResult(param, llvm_function->getArg(index));
   }
 
   // Finishes building the function by adding a return statement.
   absl::Status Finalize() {
     Node* return_value = xls_fn_->AsFunctionOrDie()->return_value();
-    Type* xls_return_type = return_value->GetType();
-    llvm::Type* llvm_return_type =
-        type_converter()->ConvertToLlvmType(xls_return_type);
-    if (llvm_return_type->isVoidTy()) {
-      builder()->CreateRetVoid();
-    } else {
-      builder()->CreateRet(node_map().at(return_value));
-    }
+    dispatch_builder()->CreateRet(node_map().at(return_value));
     return absl::OkStatus();
   }
 };
@@ -359,7 +352,6 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
   XLS_ASSIGN_OR_RETURN(fn_address,
                        jit->orc_jit_->LoadSymbol(packed_wrapper_name));
   jit->packed_invoker_ = absl::bit_cast<PackedJitFunctionType>(fn_address);
-
   return jit;
 }
 

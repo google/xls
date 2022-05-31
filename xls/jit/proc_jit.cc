@@ -64,25 +64,26 @@ class ProcBuilderVisitor : public IrBuilderVisitor {
 
   // The first argument to the proc function is the proc state.
   absl::Status HandleParam(Param* param) override {
-    if (param == proc()->GetUniqueStateParam()) {
-      return StoreResult(param, llvm_fn_->getArg(0));
-    }
-    XLS_RET_CHECK_EQ(param, proc()->TokenParam());
+    llvm::Function* llvm_function =
+        dispatch_builder()->GetInsertBlock()->getParent();
 
-    return StoreResult(param, type_converter()->GetToken());
+    llvm::Value* value;
+    if (param == proc()->GetUniqueStateParam()) {
+      value = llvm_function->getArg(0);
+    } else {
+      XLS_RET_CHECK_EQ(param, proc()->TokenParam());
+      value = type_converter()->GetToken();
+    }
+
+    return StoreResult(param, value);
   }
 
   // Builds the IR to return the next state value.
   absl::Status Finalize() {
     Node* next_state = xls_fn_->AsProcOrDie()->GetUniqueNextState();
-    Type* xls_state_type = next_state->GetType();
-    llvm::Type* llvm_state_type =
-        type_converter()->ConvertToLlvmType(xls_state_type);
-    if (llvm_state_type->isVoidTy()) {
-      builder()->CreateRetVoid();
-    } else {
-      builder()->CreateRet(node_map().at(next_state));
-    }
+    llvm::Value* llvm_next_value = node_map().at(next_state);
+    dispatch_builder()->CreateRet(llvm_next_value);
+
     return absl::OkStatus();
   }
 
@@ -91,11 +92,13 @@ class ProcBuilderVisitor : public IrBuilderVisitor {
  private:
   absl::StatusOr<llvm::Value*> InvokeRecvCallback(llvm::IRBuilder<>* builder,
                                                   JitChannelQueue* queue,
-                                                  Receive* receive);
+                                                  Receive* receive,
+                                                  llvm::Value* user_data);
 
   absl::Status InvokeSendCallback(llvm::IRBuilder<>* builder,
                                   JitChannelQueue* queue, Send* send,
-                                  Node* data);
+                                  llvm::Value* llvm_data,
+                                  llvm::Value* user_data);
 
  public:
   JitChannelQueueManager* queue_mgr_;
@@ -104,7 +107,8 @@ class ProcBuilderVisitor : public IrBuilderVisitor {
 };
 
 absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
-    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive) {
+    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive,
+    llvm::Value* user_data) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
@@ -133,7 +137,7 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
       llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(receive)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, recv_bytes),
-      GetUserDataPtr(),
+      user_data,
   };
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
       llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(recv_fn_));
@@ -146,26 +150,41 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
 }
 
 absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
+  std::vector<std::string> operand_names = {"tkn"};
+  if (recv->predicate().has_value()) {
+    operand_names.push_back("predicate");
+  }
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(recv, operand_names,
+                                        /*include_context_args=*/true));
+  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::Value* user_data = node_context.GetUserData();
+
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr_->GetQueueById(recv->channel_id()));
-  llvm::Value* result;
   if (recv->predicate().has_value()) {
+    llvm::Value* predicate = node_context.operand(1);
+
     // First, declare the join block (so the case blocks can refer to it).
-    llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
-        ctx(), absl::StrCat(recv->GetName(), "_join"), llvm_fn());
+    llvm::BasicBlock* join_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_join"),
+                                 node_context.llvm_function());
 
     // Create a block/branch for the true predicate case.
-    llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
-        ctx(), absl::StrCat(recv->GetName(), "_true"), llvm_fn(), join_block);
+    llvm::BasicBlock* true_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_true"),
+                                 node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
-    XLS_ASSIGN_OR_RETURN(llvm::Value * true_result,
-                         InvokeRecvCallback(&true_builder, queue, recv));
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Value * true_result,
+        InvokeRecvCallback(&true_builder, queue, recv, user_data));
     true_builder.CreateBr(join_block);
 
     // And the same for a false predicate - this will return an empty/zero
     // value. Creating an empty struct emits ops, so it needs a builder.
-    llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
-        ctx(), absl::StrCat(recv->GetName(), "_false"), llvm_fn(), join_block);
+    llvm::BasicBlock* false_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_false"),
+                                 node_context.llvm_function(), join_block);
     llvm::IRBuilder<> false_builder(false_block);
     llvm::Type* result_type =
         type_converter()->ConvertToLlvmType(recv->GetType());
@@ -173,8 +192,7 @@ absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
     false_builder.CreateBr(join_block);
 
     // Next, create a branch op w/the original builder,
-    builder()->CreateCondBr(node_map().at(recv->predicate().value()),
-                            true_block, false_block);
+    b.CreateCondBr(predicate, true_block, false_block);
 
     // then join the two branches back together.
     auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
@@ -183,24 +201,25 @@ absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {
         join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
     phi->addIncoming(true_result, true_block);
     phi->addIncoming(false_result, false_block);
-    result =
+    llvm::Value* result =
         join_builder->CreateInsertValue(phi, type_converter()->GetToken(), {0});
 
-    // Finally, set this's IRBuilder to be the output block's (since that's
-    // where the Function continues).
-    set_builder(std::move(join_builder));
-  } else {
-    XLS_ASSIGN_OR_RETURN(llvm::Value * invoke,
-                         InvokeRecvCallback(builder(), queue, recv));
-    result =
-        builder()->CreateInsertValue(invoke, type_converter()->GetToken(), {0});
+    return FinalizeNodeIrContext(node_context, result,
+                                 /*exit_builder=*/std::move(join_builder));
   }
-  return StoreResult(recv, result);
+  XLS_ASSIGN_OR_RETURN(llvm::Value * invoke,
+                       InvokeRecvCallback(&b, queue, recv, user_data));
+  llvm::Value* result =
+      b.CreateInsertValue(invoke, type_converter()->GetToken(), {0});
+
+  return FinalizeNodeIrContext(node_context, result);
 }
 
 absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
                                                     JitChannelQueue* queue,
-                                                    Send* send, Node* data) {
+                                                    Send* send,
+                                                    llvm::Value* llvm_data,
+                                                    llvm::Value* user_data) {
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
@@ -223,12 +242,12 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
   // the data anyway, since llvm::Values don't automatically correspond to
   // pointer-referencable storage; that's what allocas are for).
   std::vector<Type*> tuple_elems;
-  tuple_elems.push_back(data->GetType());
+  tuple_elems.push_back(send->data()->GetType());
   TupleType tuple_type(tuple_elems);
   llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(&tuple_type);
   int64_t send_type_size = type_converter()->GetTypeByteSize(&tuple_type);
   llvm::Value* tuple = CreateTypedZeroValue(send_op_types);
-  tuple = builder->CreateInsertValue(tuple, node_map().at(data), {0u});
+  tuple = builder->CreateInsertValue(tuple, llvm_data, {0u});
   llvm::AllocaInst* alloca = builder->CreateAlloca(send_op_types);
   builder->CreateStore(tuple, alloca);
 
@@ -237,7 +256,7 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
       llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(send)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
       llvm::ConstantInt::get(int64_type, send_type_size),
-      GetUserDataPtr(),
+      user_data,
   };
 
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
@@ -249,37 +268,51 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
 }
 
 absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
+  std::vector<std::string> operand_names = {"tkn", "data"};
+  if (send->predicate().has_value()) {
+    operand_names.push_back("predicate");
+  }
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(send, operand_names,
+                                        /*include_context_args=*/true));
+  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::Value* data = node_context.operand(1);
+  llvm::Value* user_data = node_context.GetUserData();
+
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr_->GetQueueById(send->channel_id()));
   if (send->predicate().has_value()) {
-    // First, declare the join block (so the case blocks can refer to it).
-    llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
-        ctx(), absl::StrCat(send->GetName(), "_join"), llvm_fn());
+    llvm::Value* predicate = node_context.operand(2);
 
-    llvm::BasicBlock* true_block = llvm::BasicBlock::Create(
-        ctx(), absl::StrCat(send->GetName(), "_true"), llvm_fn(), join_block);
+    // First, declare the join block (so the case blocks can refer to it).
+    llvm::BasicBlock* join_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_join"),
+                                 node_context.llvm_function());
+
+    llvm::BasicBlock* true_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_true"),
+                                 node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
     XLS_RETURN_IF_ERROR(
-        InvokeSendCallback(&true_builder, queue, send, send->data()));
+        InvokeSendCallback(&true_builder, queue, send, data, user_data));
     true_builder.CreateBr(join_block);
 
-    llvm::BasicBlock* false_block = llvm::BasicBlock::Create(
-        ctx(), absl::StrCat(send->GetName(), "_false"), llvm_fn(), join_block);
+    llvm::BasicBlock* false_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_false"),
+                                 node_context.llvm_function(), join_block);
     llvm::IRBuilder<> false_builder(false_block);
     false_builder.CreateBr(join_block);
 
-    builder()->CreateCondBr(node_map().at(send->predicate().value()),
-                            true_block, false_block);
+    b.CreateCondBr(predicate, true_block, false_block);
 
-    auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
-
-    set_builder(std::move(join_builder));
-
-  } else {
-    XLS_RETURN_IF_ERROR(
-        InvokeSendCallback(builder(), queue, send, send->data()));
+    auto exit_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+    return FinalizeNodeIrContext(node_context, type_converter_->GetToken(),
+                                 std::move(exit_builder));
   }
-  return StoreResult(send, type_converter()->GetToken());
+  // Unconditional send.
+  XLS_RETURN_IF_ERROR(InvokeSendCallback(&b, queue, send, data, user_data));
+
+  return FinalizeNodeIrContext(node_context, type_converter_->GetToken());
 }
 
 // Builds and returns and LLVM function which executes a single tick of the

@@ -250,7 +250,49 @@ std::unique_ptr<llvm::Module> OrcJit::NewModule(absl::string_view name) {
   return module;
 }
 
+namespace {
+
+// Check that every operand of every instruction is in the same function as the
+// instruction itself. This is a very common error which is not checked by the
+// LLVM verifier(!).
+absl::Status VerifyModule(const llvm::Module& module) {
+  for (const llvm::Function& function : module.functions()) {
+    for (const llvm::BasicBlock& basic_block : function) {
+      for (const llvm::Instruction& inst : basic_block) {
+        int64_t i = 0;
+        for (const llvm::Use& use : inst.operands()) {
+          if (const llvm::Instruction* inst_use =
+                  llvm::dyn_cast<llvm::Instruction>(&use)) {
+            XLS_RET_CHECK_EQ(inst_use->getFunction(), &function)
+                << absl::StreamFormat(
+                       "In function `%s`, operand %d of this instruction is "
+                       "from different function `%s`: %s",
+                       function.getName().str(), i,
+                       inst_use->getFunction()->getName().str(),
+                       DumpLlvmObjectToString(inst));
+          } else if (const llvm::Argument* arg_use =
+                         llvm::dyn_cast<llvm::Argument>(&use)) {
+            XLS_RET_CHECK_EQ(arg_use->getParent(), &function)
+                << absl::StreamFormat(
+                       "In function `%s`, operand %d of this instruction is "
+                       "from different function `%s`: %s",
+                       function.getName().str(), i,
+                       arg_use->getParent()->getName().str(),
+                       DumpLlvmObjectToString(inst));
+          }
+
+          ++i;
+        }
+      }
+    }
+  }
+  return absl::OkStatus();
+}
+
+}  // namespace
+
 absl::Status OrcJit::CompileModule(std::unique_ptr<llvm::Module>&& module) {
+  XLS_RETURN_IF_ERROR(VerifyModule(*module));
   llvm::Error error = transform_layer_->add(
       dylib_, llvm::orc::ThreadSafeModule(std::move(module), context_));
   if (error) {

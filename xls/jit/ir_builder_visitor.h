@@ -29,11 +29,88 @@
 
 namespace xls {
 
+// Abstraction gathering together the necessary context for emitting the LLVM IR
+// for a given node. This data structure decouples IR generation for the the
+// top-level function from the IR generation of each node. This enables, for
+// example, emitting a node as a separate functoin.
+class NodeIrContext {
+ public:
+  // The evironment pointers passed into the top-level function.
+  struct Environment {
+    // Pointer to the interpreter events.
+    llvm::Value* events;
+    // Pointer to the user data used in send/receive operations.
+    llvm::Value* user_data;
+    // Pointer to the JIT runtime.
+    llvm::Value* jit_runtime;
+  };
+
+  // Args:
+  //   node : The XLS node the LLVM IR is being generated for.
+  //   operand_names : the names of the operand of `node`. If possible, these
+  //     will be used to name the LLVM values of the operands.
+  //   operands : the LLVM values of the operands of `node`.
+  //   environment : optional top-level environment pointers. Should be
+  //     specified if the LLVM IR generated for `node` needs access to these
+  //     values.
+  static absl::StatusOr<NodeIrContext> Create(
+      Node* node, absl::Span<const std::string> operand_names,
+      LlvmTypeConverter* type_converter, llvm::Module* module,
+      std::optional<Environment> environment = std::nullopt);
+
+  // Completes the LLVM function by adding a return statement with the given
+  // result. If `exit_builder` is specified then it is used to build the return
+  // statement. Otherwise `entry_builder()` is used.
+  void Finalize(llvm::Value* result,
+                absl::optional<llvm::IRBuilder<>*> exit_builder);
+
+  Node* node() const { return node_; }
+
+  // The LLVM function that the generated code for the node is placed into,
+  llvm::Function* llvm_function() const { return llvm_function_; }
+
+  // Returns the IR builder to use for building code for this XLS node.
+  llvm::IRBuilder<>& builder() const { return *builder_; }
+
+  // Returns the arguments of the LLVM function corresponding to the operands of
+  // the XLS node.
+  absl::Span<llvm::Value* const> operands() const { return operands_; }
+
+  // Returns the argument of the LLVM function corresponding to the i-th operand
+  // of the XLS node.
+  llvm::Value* operand(int64_t i) const { return operands_.at(i); }
+
+  // Get one of the environment arguments. CHECK fails is the environment was
+  // not specified on construction.
+  llvm::Value* GetInterpreterEvents() const { return environment_->events; }
+  llvm::Value* GetUserData() const { return environment_->user_data; }
+  llvm::Value* GetJitRuntime() const { return environment_->jit_runtime; }
+
+  bool HasEnvironment() const { return environment_.has_value(); }
+
+ private:
+  // Creates an empty LLVM function with the appropriate type signature.
+  static llvm::Function* CreateFunction(Node* node,
+                                        LlvmTypeConverter* type_converter,
+                                        llvm::Module* module,
+                                        std::optional<Environment> environment);
+
+  Node* node_;
+  llvm::Function* llvm_function_;
+  std::unique_ptr<llvm::IRBuilder<>> builder_;
+  std::vector<llvm::Value*> operands_;
+  absl::optional<Environment> environment_;
+};
+
 // Visitor to construct LLVM IR for each encountered XLS IR node. Based on
 // DfsVisitorWithDefault to highlight any unhandled IR nodes. This class handles
 // translation of almost all XLS node types. The exception are Params and
 // proc-specific or block-specific operands (e.g., Send or Receive) which should
 // be handled in derived classes specific to XLS Functions, Procs or Blocks.
+//
+// The visitor builds up top-level "dispatch" function and one function for each
+// XLS node. The dispatch function calls the node functions in topological order
+// feeding the appropriate operand values.
 class IrBuilderVisitor : public DfsVisitorWithDefault {
  public:
   // Args:
@@ -133,10 +210,16 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
                              llvm::IRBuilder<>* builder);
 
  protected:
-  llvm::LLVMContext& ctx() { return ctx_; }
-  llvm::Module* module() { return module_; }
-  llvm::Function* llvm_fn() { return llvm_fn_; }
-  llvm::IRBuilder<>* builder() { return builder_.get(); }
+  llvm::LLVMContext& ctx() { return dispatch_function()->getContext(); }
+  llvm::Module* module() { return dispatch_function()->getParent(); }
+
+  // Return the top-level dispatch function. The dispatch function calls each of
+  // the XLS node functions in sequence.
+  llvm::Function* dispatch_function() { return dispatch_fn_; }
+
+  // Returns the top-level builder for the function. This builder is initialized
+  // to the entry block of `dispatch_function()`.
+  llvm::IRBuilder<>* dispatch_builder() { return dispatch_builder_.get(); }
   LlvmTypeConverter* type_converter() { return type_converter_; }
   absl::flat_hash_map<Node*, llvm::Value*>& node_map() { return node_map_; }
 
@@ -149,117 +232,61 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // temporary, user data and JIT runtime. These are descriptive convenience
   // functions for getting them.
   llvm::Value* GetJitRuntimePtr() {
-    return llvm_fn_->getArg(llvm_fn_->arg_size() - 1);
+    return dispatch_fn_->getArg(dispatch_fn_->arg_size() - 1);
   }
   llvm::Value* GetUserDataPtr() {
-    return llvm_fn_->getArg(llvm_fn_->arg_size() - 2);
+    return dispatch_fn_->getArg(dispatch_fn_->arg_size() - 2);
   }
   llvm::Value* GetInterpreterEventsPtr() {
-    return llvm_fn_->getArg(llvm_fn_->arg_size() - 3);
-  }
-  llvm::Value* GetOutputPtr() {
-    return llvm_fn_->getArg(llvm_fn_->arg_size() - 4);
+    return dispatch_fn_->getArg(dispatch_fn_->arg_size() - 3);
   }
 
-  // Updates the active IRBuilder. This is used when dealing with branches (and
-  // _ONLY_ with branches), which require new BasicBlocks, and thus, new
-  // IRBuilders. When branches re-converge, this function should be called with
-  // the IRBuilder for that new BasicBlock.
-  void set_builder(std::unique_ptr<llvm::IRBuilder<>> new_builder) {
-    builder_ = std::move(new_builder);
-  }
+  // Common handler for binary, unary, and nary nodes. `build_results` produces
+  // the llvm Value to use as the result.
+  absl::Status HandleUnaryOp(
+      Node* node,
+      std::function<llvm::Value*(llvm::Value*, llvm::IRBuilder<>&)>);
+  absl::Status HandleBinaryOp(
+      Node* node, std::function<llvm::Value*(llvm::Value*, llvm::Value*,
+                                             llvm::IRBuilder<>&)>);
+  absl::Status HandleNaryOp(
+      Node* node, std::function<llvm::Value*(absl::Span<llvm::Value* const>,
+                                             llvm::IRBuilder<>&)>);
 
-  // Common handler for all arithmetic ops.
-  absl::Status HandleArithOp(ArithOp* arith_op);
-
-  // Common handler for all binary ops.
-  absl::Status HandleBinOp(BinOp* binop);
-
-  // Generates all shift operations.
-  llvm::Value* EmitShiftOp(Op op, llvm::Value* lhs, llvm::Value* rhs);
-
-  // Generates a divide operation.
-  llvm::Value* EmitDiv(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-
-  // Generates a modulo operation.
-  llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed);
-
-  // Local struct to hold the individual elements of a (possibly) compound
-  // comparison.
-  struct CompareTerm {
-    llvm::Value* lhs;
-    llvm::Value* rhs;
-  };
-
-  // Expand the lhs and rhs of a comparison into a vector of the individual leaf
-  // terms to compare.
-  absl::StatusOr<std::vector<CompareTerm>> ExpandTerms(Node* lhs, Node* rhs,
-                                                       Node* src);
-
-  // ORs together all elements in the two given values, be they Bits, Arrays, or
-  // Tuples.
-  llvm::Value* CreateAggregateOr(llvm::Value* lhs, llvm::Value* rhs);
-
-  // Converts the given XLS Value into an LLVM constant.
-  absl::StatusOr<llvm::Constant*> ConvertToLlvmConstant(Type* type,
-                                                        const Value& value);
-
-  // Returns the result of indexing into 'array' using the scalar index value
-  // 'index'. 'array_size' is the number of elements in the array.
-  absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
-                                              llvm::Value* index,
-                                              int64_t array_size);
-
-  // Build the LLVM IR to invoke the callback that records assertions.
-  absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
-                                    const std::string& message);
-
-  // Build the LLVM IR to invoke the callback that creates a trace buffer.
-  absl::StatusOr<llvm::Value*> InvokeCreateBufferCallback(
-      llvm::IRBuilder<>* builder);
-
-  // Build the LLVM IR that handles string fragment format steps.
-  absl::Status InvokeStringStepCallback(llvm::IRBuilder<>* builder,
-                                        const std::string& step_string,
-                                        llvm::Value* buffer_ptr);
-
-  // Build the LLVM IR that handles formatting a runtime value according to a
-  // format preference.
-  absl::Status InvokeFormatStepCallback(llvm::IRBuilder<>* builder,
-                                        FormatPreference format,
-                                        xls::Type* operand_type,
-                                        llvm::Value* operand,
-                                        llvm::Value* buffer_ptr);
-
-  // Build the LLVM IR to invoke the callback that records traces.
-  absl::Status InvokeRecordTraceCallback(llvm::IRBuilder<>* builder,
-                                         llvm::Value* buffer_ptr);
-
-  // Get the required assertion status and user data arguments that need to be
-  // included at the end of the argument list for every function call.
-  std::vector<llvm::Value*> GetRequiredArgs() {
-    return {GetInterpreterEventsPtr(), GetUserDataPtr(), GetJitRuntimePtr()};
-  }
+  // HandleBinaryOp variant which converts the operands to result type prior to
+  // calling `build_result`.
+  absl::Status HandleBinaryOpWithOperandConversion(
+      Node* node,
+      std::function<llvm::Value*(llvm::Value*, llvm::Value*,
+                                 llvm::IRBuilder<>&)>
+          build_result,
+      bool is_signed);
 
   // Gets the built function representing the given XLS function, or builds it
   // if it has not yet been built.
   absl::StatusOr<llvm::Function*> GetOrBuildFunction(Function* function);
 
-  llvm::LLVMContext& ctx_;
-  llvm::Module* module_;
-  llvm::Function* llvm_fn_;
+  // Creates and returns a new NodeIrContext for the given XLS node.
+  absl::StatusOr<NodeIrContext> NewNodeIrContext(
+      Node* node, absl::Span<const std::string> operand_names,
+      bool include_environment = false);
+
+  // Finalizes the given NodeIrContext (adds a return statement with the given
+  // result) and adds a call in the top-level LLVM function to the node
+  // function.
+  absl::Status FinalizeNodeIrContext(
+      NodeIrContext& node_context, llvm::Value* result,
+      std::optional<std::unique_ptr<llvm::IRBuilder<>>> exit_builder =
+          std::nullopt);
+
+  llvm::Function* dispatch_fn_;
   FunctionBase* xls_fn_;
-  std::unique_ptr<llvm::IRBuilder<>> builder_;
+  std::unique_ptr<llvm::IRBuilder<>> dispatch_builder_;
   LlvmTypeConverter* type_converter_;
   std::function<absl::StatusOr<llvm::Function*>(Function*)> function_builder_;
 
   // Maps an XLS Node to the resulting LLVM Value.
   absl::flat_hash_map<Node*, llvm::Value*> node_map_;
-
-  // Holds storage for array indexing ops. Since we need to dump arrays to
-  // storage to extract elements (i.e., for GEPs), it makes sense to only create
-  // and store the array once.
-  absl::flat_hash_map<llvm::Value*, llvm::AllocaInst*> array_storage_;
 };
 
 }  // namespace xls
