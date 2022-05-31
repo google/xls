@@ -331,5 +331,15 @@ TEST_F(LeafTypeTreeTest, ArrayOfEmptyTuples) {
   EXPECT_EQ(tree.CopySubtree({4}).ToString(), "()");
 }
 
+TEST_F(LeafTypeTreeTest, OutOfBoundsTest) {
+  LeafTypeTree<int64_t> tree(AsType("(bits[32], (), (()))"));
+  EXPECT_THAT(tree.GetSubelements({1}), ElementsAre());
+  EXPECT_THAT(tree.GetSubelements({2}), ElementsAre());
+  EXPECT_THAT(tree.GetSubelements({2, 0}), ElementsAre());
+  EXPECT_EQ(tree.CopySubtree({1}).ToString(), "()");
+  EXPECT_EQ(tree.CopySubtree({2}).ToString(), "(())");
+  EXPECT_EQ(tree.CopySubtree({2, 0}).ToString(), "()");
+}
+
 }  // namespace
 }  // namespace xls
