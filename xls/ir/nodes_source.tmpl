@@ -62,7 +62,10 @@ Type* GetMapType(Node* operand, Function* to_apply) {
    , {{ member.name }}({{ member.init }})
 {%- endfor -%}
 {
-{% for op in op_class.operands %}
+  XLS_CHECK(IsOpClass<{{op_class.name}}>(op_))
+    << "Op `" << op_
+    << "` is not a valid op for Node class `{{op_class.name}}`.";
+{%- for op in op_class.operands %}
    {{ op.add_method }}({{ op.name }});
 {%- endfor %}
 }

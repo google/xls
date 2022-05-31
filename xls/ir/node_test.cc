@@ -486,5 +486,22 @@ fn ReplaceUses(x: bits[8], y: bits[8]) -> bits[8] {
   EXPECT_TRUE(FindNode("y", f)->IsDead());
 }
 
+TEST_F(NodeTest, IncorrectOpClass) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(32));
+  BValue y = fb.Param("y", p->GetBitsType(32));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  // Cast to void to avoid unused status build error.
+  EXPECT_DEATH(
+      (void)f->MakeNode<ArithOp>(absl::nullopt, x.node(), y.node(), 32,
+                                 Op::kAdd),
+      HasSubstr("Op `add` is not a valid op for Node class `ArithOp`"));
+  EXPECT_DEATH(
+      (void)f->MakeNode<UnOp>(absl::nullopt, x.node(), Op::kAssert),
+      HasSubstr("Op `assert` is not a valid op for Node class `UnOp`"));
+}
+
 }  // namespace
 }  // namespace xls
