@@ -31,6 +31,37 @@ namespace xls {
 using dslx::Module;
 using dslx::TypecheckedModule;
 
+absl::StatusOr<dslx::Module*> IrWrapper::GetDslxModule(
+    absl::string_view name) const {
+  XLS_RET_CHECK(top_module_ != nullptr);
+
+  if (top_module_->name() == name) {
+    return top_module_;
+  }
+
+  for (Module* m : other_modules_) {
+    XLS_RET_CHECK(m != nullptr);
+    if (m->name() == name) {
+      return m;
+    }
+  }
+
+  std::vector<std::string_view> valid_module_names;
+  valid_module_names.push_back(top_module_->name());
+  for (Module* m : other_modules_) {
+    valid_module_names.push_back(m->name());
+  }
+
+  return absl::NotFoundError(
+      absl::StrFormat("Could not find module with name %s, valid modules [%s]",
+                      name, absl::StrJoin(valid_module_names, ", ")));
+}
+
+absl::StatusOr<Package*> IrWrapper::GetIrPackage() const {
+  XLS_RET_CHECK(package_ != nullptr);
+  return package_.get();
+}
+
 absl::StatusOr<IrWrapper> IrWrapper::Create(
     absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
     absl::string_view top_module_path, std::unique_ptr<Module> other_module,
@@ -62,7 +93,8 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
         TypecheckedModule module_typechecked,
         TypecheckModule(std::move(other_modules[i]), other_modules_path[i],
                         &ir_wrapper.import_data_));
-    XLS_VLOG_LINES(3, module_typechecked.module->ToString());
+    ir_wrapper.other_modules_.push_back(module_typechecked.module);
+    XLS_VLOG_LINES(3, ir_wrapper.other_modules_.back()->ToString());
   }
 
   XLS_RET_CHECK(top_module != nullptr);
@@ -96,6 +128,21 @@ absl::StatusOr<Function*> IrWrapper::GetIrFunction(
                                             dslx::CallingConvention::kTypical));
 
   return package_->GetFunction(mangled_name);
+}
+
+absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
+    absl::string_view name) {
+  XLS_ASSIGN_OR_RETURN(Function * f, GetIrFunction(name));
+
+  if (pre_compiled_function_jit_.contains(f)) {
+    return pre_compiled_function_jit_.at(f).get();
+  }
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
+                       FunctionJit::Create(f));
+  pre_compiled_function_jit_[f] = std::move(jit);
+
+  return pre_compiled_function_jit_[f].get();
 }
 
 }  // namespace xls

@@ -29,43 +29,69 @@ namespace xls {
 namespace {
 
 TEST(IrWrapperTest, DslxToIrOk) {
-  constexpr absl::string_view kParamsDslx = R"(
-pub struct ParamsProto {
+  constexpr absl::string_view kParamsDslx = R"(pub struct ParamsProto {
   latency: sN[64],
 }
+pub const params = ParamsProto { latency: sN[64]:7 };)";
 
-pub const params = ParamsProto { latency: sN[64]:1 } ;
-)";
-
-  constexpr absl::string_view kTopDslx = R"(
-import param
-
+  constexpr absl::string_view kTopDslx = R"(import param
 pub fn GetLatency() -> s64 {
   param::params.latency
-}
-)";
+})";
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<dslx::Module> params_module,
-      dslx::ParseModule(kParamsDslx, "params_module", "param"));
+      dslx::ParseModule(kParamsDslx, "params_module.x", "param"));
 
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
-                           dslx::ParseModule(kTopDslx, "top_module", "top"));
+                           dslx::ParseModule(kTopDslx, "top_module.x", "top"));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       IrWrapper ir_wrapper,
       IrWrapper::Create("test_package", std::move(top_module), "top_module.x",
                         std::move(params_module), "params_module.x"));
 
+  // Test that modules can be retrieved.
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * params,
+                           ir_wrapper.GetDslxModule("param"));
+  EXPECT_EQ(params->ToString(), kParamsDslx);
+
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * top, ir_wrapper.GetDslxModule("top"));
+  EXPECT_EQ(top->ToString(), kTopDslx);
+
+  EXPECT_THAT(
+      ir_wrapper.GetDslxModule("not_a_module"),
+      status_testing::StatusIs(absl::StatusCode::kNotFound,
+                               testing::HasSubstr("Could not find module")));
+
+  // Test that the ir can be compiled and retrieved.
   XLS_ASSERT_OK_AND_ASSIGN(Function * get_latency,
                            ir_wrapper.GetIrFunction("GetLatency"));
 
   XLS_VLOG_LINES(3, get_latency->DumpIr());
   EXPECT_EQ(get_latency->DumpIr(),
             R"(fn __top__GetLatency() -> bits[64] {
-  ret params_latency: bits[64] = literal(value=1, id=5, pos=0,4,15)
+  ret params_latency: bits[64] = literal(value=7, id=5, pos=0,2,15)
 }
 )");
+
+  XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
+  EXPECT_EQ(package->DumpIr(),
+            R"(package test_package
+
+file_number 0 "fake_file.x"
+
+fn __top__GetLatency() -> bits[64] {
+  ret params_latency: bits[64] = literal(value=7, id=5, pos=0,2,15)
+}
+)");
+
+  // Test that that the jit for the function can be retrieved and run.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      FunctionJit * jit, ir_wrapper.GetAndMaybeCreateFunctionJit("GetLatency"));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> ret_val,
+                           jit->Run(absl::Span<const Value>{}));
+  EXPECT_EQ(ret_val.value, Value(UBits(7, 64)));
 }
 
 }  // namespace
