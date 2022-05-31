@@ -6,7 +6,7 @@ To execute the XLS fuzz driver simply run a command line like the following:
 
 ```
 bazel run -c opt \
-  //xls/fuzzer/run_fuzz_multiprocess \
+  //xls/fuzzer:run_fuzz_multiprocess \
   -- --crash_path=/tmp/crashers-$(date +'%Y-%m-%d') --seed=0 --duration=8h
 ```
 
