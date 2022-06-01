@@ -34,6 +34,7 @@
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/proc_config_ir_converter.h"
@@ -3390,52 +3391,6 @@ absl::StatusOr<Value> InterpValueToValue(const InterpValue& iv) {
       return absl::InvalidArgumentError(
           "Cannot convert interpreter value with tag: " +
           TagToString(iv.tag()));
-  }
-}
-
-absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
-                                               const ConcreteType* type) {
-  switch (v.kind()) {
-    case ValueKind::kBits: {
-      InterpValueTag tag = InterpValueTag::kUBits;
-      if (type != nullptr) {
-        XLS_RET_CHECK(type != nullptr);
-        auto* bits_type = dynamic_cast<const BitsType*>(type);
-        tag = bits_type->is_signed() ? InterpValueTag::kSBits
-                                     : InterpValueTag::kUBits;
-      }
-      return InterpValue::MakeBits(tag, v.bits());
-    }
-    case ValueKind::kArray:
-    case ValueKind::kTuple: {
-      auto get_type = [&](int64_t i) -> const ConcreteType* {
-        if (type == nullptr) {
-          return nullptr;
-        }
-        if (v.kind() == ValueKind::kArray) {
-          auto* array_type = dynamic_cast<const ArrayType*>(type);
-          XLS_CHECK(array_type != nullptr);
-          return &array_type->element_type();
-        }
-        auto* tuple_type = dynamic_cast<const TupleType*>(type);
-        XLS_CHECK(tuple_type != nullptr);
-        return &tuple_type->GetMemberType(i);
-      };
-      std::vector<InterpValue> members;
-      for (int64_t i = 0; i < v.elements().size(); ++i) {
-        const Value& e = v.elements()[i];
-        XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                             ValueToInterpValue(e, get_type(i)));
-        members.push_back(iv);
-      }
-      if (v.kind() == ValueKind::kTuple) {
-        return InterpValue::MakeTuple(std::move(members));
-      }
-      return InterpValue::MakeArray(std::move(members));
-    }
-    default:
-      return absl::InvalidArgumentError(
-          "Cannot convert IR value to interpreter value: " + v.ToString());
   }
 }
 

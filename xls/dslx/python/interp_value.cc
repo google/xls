@@ -20,7 +20,7 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
-#include "xls/dslx/ir_converter.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/ir/ir_parser.h"
 
 namespace py = pybind11;

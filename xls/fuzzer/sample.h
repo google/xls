@@ -26,24 +26,6 @@
 
 namespace xls {
 
-// Parses a semicolon-delimited list of values.
-//
-// Example input:
-//  bits[32]:6; (bits[8]:2, bits[16]:4)
-//
-// Returned bits values are always unsigned.
-//
-// Note: these values are parsed to InterpValues, but really they are just IR
-// values that we're converting into InterpValues. Things like enums or structs
-// (via named tuples) can't be parsed via this mechanism, it's fairly
-// specialized for the scenario we've created in our fuzzing process.
-absl::StatusOr<std::vector<dslx::InterpValue>> ParseArgs(
-    absl::string_view args_text);
-
-// Parses a batch of arguments, one ParseArgs() per line.
-absl::StatusOr<std::vector<std::vector<dslx::InterpValue>>> ParseArgsBatch(
-    absl::string_view args_text);
-
 // Returns a string representation of the args_batch.
 std::string ArgsBatchToText(
     const std::vector<std::vector<dslx::InterpValue>>& args_batch);

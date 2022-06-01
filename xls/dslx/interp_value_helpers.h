@@ -74,6 +74,27 @@ absl::StatusOr<InterpValue> SignConvertValue(const ConcreteType& concrete_type,
 absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
     const FunctionType& fn_type, absl::Span<const InterpValue> args);
 
+// Converts an (IR) value to an interpreter value.
+absl::StatusOr<InterpValue> ValueToInterpValue(
+    const Value& v, const ConcreteType* type = nullptr);
+
+// Parses a semicolon-delimited list of values.
+//
+// Example input:
+//  bits[32]:6; (bits[8]:2, bits[16]:4)
+//
+// Returned bits values are always unsigned.
+//
+// Note: these values are parsed to InterpValues, but really they are just IR
+// values that we're converting into InterpValues. Things like enums or structs
+// (via named tuples) can't be parsed via this mechanism, it's fairly
+// specialized for the scenario we've created in our fuzzing process.
+absl::StatusOr<std::vector<InterpValue>> ParseArgs(absl::string_view args_text);
+
+// Does the above, but for a series of argument strings, one per line of input.
+absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
+    absl::string_view args_text);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_INTERP_VALUE_HELPERS_H_

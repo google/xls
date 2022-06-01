@@ -108,10 +108,6 @@ absl::Status ConvertOneFunctionIntoPackage(
 // Converts an interpreter value to an IR value.
 absl::StatusOr<Value> InterpValueToValue(const InterpValue& v);
 
-// Converts an (IR) value to an interpreter value.
-absl::StatusOr<InterpValue> ValueToInterpValue(
-    const Value& v, const ConcreteType* type = nullptr);
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_IR_CONVERTER_H_

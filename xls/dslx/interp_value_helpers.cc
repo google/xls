@@ -15,10 +15,20 @@
 
 #include <vector>
 
+#include "absl/strings/str_split.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/ir_parser.h"
 
 namespace xls::dslx {
+namespace {
+
+absl::StatusOr<InterpValue> InterpValueFromString(absl::string_view s) {
+  XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(s));
+  return dslx::ValueToInterpValue(value);
+}
+
+}  // namespace
 
 absl::StatusOr<InterpValue> CastBitsToArray(const InterpValue& bits_value,
                                             const ArrayType& array_type) {
@@ -196,6 +206,81 @@ absl::StatusOr<std::vector<InterpValue>> SignConvertArgs(
     converted.push_back(value);
   }
   return converted;
+}
+
+absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
+                                               const ConcreteType* type) {
+  switch (v.kind()) {
+    case ValueKind::kBits: {
+      InterpValueTag tag = InterpValueTag::kUBits;
+      if (type != nullptr) {
+        XLS_RET_CHECK(type != nullptr);
+        auto* bits_type = dynamic_cast<const BitsType*>(type);
+        tag = bits_type->is_signed() ? InterpValueTag::kSBits
+                                     : InterpValueTag::kUBits;
+      }
+      return InterpValue::MakeBits(tag, v.bits());
+    }
+    case ValueKind::kArray:
+    case ValueKind::kTuple: {
+      auto get_type = [&](int64_t i) -> const ConcreteType* {
+        if (type == nullptr) {
+          return nullptr;
+        }
+        if (v.kind() == ValueKind::kArray) {
+          auto* array_type = dynamic_cast<const ArrayType*>(type);
+          XLS_CHECK(array_type != nullptr);
+          return &array_type->element_type();
+        }
+        auto* tuple_type = dynamic_cast<const TupleType*>(type);
+        XLS_CHECK(tuple_type != nullptr);
+        return &tuple_type->GetMemberType(i);
+      };
+      std::vector<InterpValue> members;
+      for (int64_t i = 0; i < v.elements().size(); ++i) {
+        const Value& e = v.elements()[i];
+        XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                             ValueToInterpValue(e, get_type(i)));
+        members.push_back(iv);
+      }
+      if (v.kind() == ValueKind::kTuple) {
+        return InterpValue::MakeTuple(std::move(members));
+      }
+      return InterpValue::MakeArray(std::move(members));
+    }
+    default:
+      return absl::InvalidArgumentError(
+          "Cannot convert IR value to interpreter value: " + v.ToString());
+  }
+}
+
+absl::StatusOr<std::vector<InterpValue>> ParseArgs(
+    absl::string_view args_text) {
+  args_text = absl::StripAsciiWhitespace(args_text);
+  std::vector<InterpValue> args;
+  if (args_text.empty()) {
+    return args;
+  }
+  for (absl::string_view piece : absl::StrSplit(args_text, ';')) {
+    piece = absl::StripAsciiWhitespace(piece);
+    XLS_ASSIGN_OR_RETURN(InterpValue value, InterpValueFromString(piece));
+    args.push_back(value);
+  }
+  return args;
+}
+
+absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
+    absl::string_view args_text) {
+  args_text = absl::StripAsciiWhitespace(args_text);
+  std::vector<std::vector<InterpValue>> args_batch;
+  if (args_text.empty()) {
+    return args_batch;
+  }
+  for (absl::string_view line : absl::StrSplit(args_text, '\n')) {
+    XLS_ASSIGN_OR_RETURN(auto args, ParseArgs(line));
+    args_batch.push_back(std::move(args));
+  }
+  return args_batch;
 }
 
 }  // namespace xls::dslx

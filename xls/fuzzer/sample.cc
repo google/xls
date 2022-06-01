@@ -16,6 +16,7 @@
 
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
+#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/fuzzer/scrub_crasher.h"
 #include "xls/ir/ir_parser.h"
@@ -24,40 +25,6 @@
 namespace xls {
 
 using dslx::InterpValue;
-
-static absl::StatusOr<InterpValue> InterpValueFromString(absl::string_view s) {
-  XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(s));
-  return dslx::ValueToInterpValue(value);
-}
-
-absl::StatusOr<std::vector<InterpValue>> ParseArgs(
-    absl::string_view args_text) {
-  args_text = absl::StripAsciiWhitespace(args_text);
-  std::vector<InterpValue> args;
-  if (args_text.empty()) {
-    return args;
-  }
-  for (absl::string_view piece : absl::StrSplit(args_text, ';')) {
-    piece = absl::StripAsciiWhitespace(piece);
-    XLS_ASSIGN_OR_RETURN(InterpValue value, InterpValueFromString(piece));
-    args.push_back(value);
-  }
-  return args;
-}
-
-absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
-    absl::string_view args_text) {
-  args_text = absl::StripAsciiWhitespace(args_text);
-  std::vector<std::vector<InterpValue>> args_batch;
-  if (args_text.empty()) {
-    return args_batch;
-  }
-  for (absl::string_view line : absl::StrSplit(args_text, '\n')) {
-    XLS_ASSIGN_OR_RETURN(auto args, ParseArgs(line));
-    args_batch.push_back(std::move(args));
-  }
-  return args_batch;
-}
 
 // Converts an interpreter value to an argument string -- we use the
 // IR-converted hex form of the value.
@@ -196,7 +163,7 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
     if (RE2::FullMatch(line, "\\s*//\\s*options:(.*)", &line)) {
       XLS_ASSIGN_OR_RETURN(options, SampleOptions::FromJson(line));
     } else if (RE2::FullMatch(line, "\\s*//\\s*args:(.*)", &line)) {
-      XLS_ASSIGN_OR_RETURN(auto args, ParseArgs(line));
+      XLS_ASSIGN_OR_RETURN(auto args, dslx::ParseArgs(line));
       args_batch.push_back(std::move(args));
     } else {
       input_lines.push_back(line);

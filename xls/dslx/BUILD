@@ -292,7 +292,9 @@ cc_library(
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
+        "//xls/ir:ir_parser",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -944,6 +946,7 @@ cc_library(
         ":extract_conversion_order",
         ":import_routines",
         ":interp_value",
+        ":interp_value_helpers",
         ":ir_conversion_utils",
         ":mangle",
         ":proc_config_ir_converter",
@@ -1037,6 +1040,7 @@ cc_library(
         ":error_printer",
         ":errors",
         ":interp_value",
+        ":interp_value_helpers",
         ":ir_converter",
         ":mangle",
         ":parse_and_typecheck",

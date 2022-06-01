@@ -231,6 +231,7 @@ cc_library(
     deps = [
         ":scrub_crasher",
         "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_helpers",
         "//xls/dslx:ir_converter",
         "//xls/ir:ir_parser",
         "@at_clifford_yosys//:json11",

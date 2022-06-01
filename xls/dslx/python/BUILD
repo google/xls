@@ -64,7 +64,7 @@ xls_pybind_extension(
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:interp_value",
-        "//xls/dslx:ir_converter",
+        "//xls/dslx:interp_value_helpers",
         "//xls/ir:ir_parser",
     ],
 )

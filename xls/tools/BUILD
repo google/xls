@@ -524,6 +524,29 @@ sh_test(
 )
 
 cc_binary(
+    name = "eval_dslx_main",
+    srcs = ["eval_dslx_main.cc"],
+    visibility = ["//xls:xls_users"],
+    deps = [
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:bytecode_emitter",
+        "//xls/dslx:bytecode_interpreter",
+        "//xls/dslx:create_import_data",
+        "//xls/dslx:default_dslx_stdlib_path",
+        "//xls/dslx:interp_value",
+        "//xls/dslx:interp_value_helpers",
+        "//xls/dslx:parse_and_typecheck",
+    ],
+)
+
+cc_binary(
     name = "eval_ir_main",
     srcs = ["eval_ir_main.cc"],
     visibility = ["//xls:xls_users"],
