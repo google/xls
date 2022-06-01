@@ -15,6 +15,7 @@
 #ifndef XLS_IR_CONVERSION_UTILS_H_
 #define XLS_IR_CONVERSION_UTILS_H_
 
+#include <limits>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -74,7 +75,7 @@ namespace xls {
 // An integral of 'int64_t' type boolean can only be converted to a Bits type.
 // The value must fit within bit count defined by 'type'. Otherwise, an error is
 // reported.
-absl::StatusOr<xls::Value> Convert(const Type* type, int64_t value);
+absl::StatusOr<xls::Value> ConvertInt64(const Type* type, int64_t value);
 
 // Convert the uint64_t 'value' from the C++ domain to the IR domain
 // (xls::Value) using 'type' as the conversion type to the IR domain.
@@ -82,7 +83,25 @@ absl::StatusOr<xls::Value> Convert(const Type* type, int64_t value);
 // An integral of 'uint64_t' type boolean can only be converted to a Bits type.
 // The value must fit within bit count defined by 'type'. Otherwise, an error is
 // reported.
-absl::StatusOr<xls::Value> Convert(const Type* type, uint64_t value);
+absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value);
+
+// Convert the integer 'value' from the C++ domain to the IR domain (xls::Value)
+// using 'type' as the conversion type to the IR domain.
+//
+// The type of integer must be smaller or equal to that of an int64_t.
+template <typename T, typename std::enable_if<std::is_unsigned<T>::value,
+                                              T>::type* = nullptr>
+absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
+  static_assert(sizeof(T) <= sizeof(int64_t));
+  return ConvertUint64(type, value);
+}
+
+template <typename T,
+          typename std::enable_if<std::is_signed<T>::value, T>::type* = nullptr>
+absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
+  static_assert(sizeof(T) <= sizeof(int64_t));
+  return ConvertInt64(type, value);
+}
 
 // Convert the absl::Span 'values' from the C++ domain to the IR domain
 // (xls::Value) using 'type' as the conversion type to the IR domain. Note that
@@ -114,6 +133,12 @@ absl::StatusOr<xls::Value> Convert(const Type* type,
                          Convert(array_type->element_type(), values[i]));
   }
   return Value::Array(xls_array);
+}
+
+template <typename T>
+absl::StatusOr<xls::Value> Convert(const Type* type,
+                                   const std::vector<T>& values) {
+  return Convert(type, absl::MakeSpan(values));
 }
 
 namespace internal {

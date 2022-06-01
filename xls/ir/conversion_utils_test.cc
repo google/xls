@@ -36,6 +36,9 @@ TEST(ConversionUtils, ConvertSignedIntegrals) {
   EXPECT_THAT(xls::Convert(&type, static_cast<int64_t>(42)),
               IsOkAndHolds(Value(SBits(42, 10))));
 
+  EXPECT_THAT(xls::Convert(&type, static_cast<int32_t>(42)),
+              IsOkAndHolds(Value(SBits(42, 10))));
+
   ArrayType invalid_type(2, &type);
   EXPECT_THAT(
       xls::Convert(&invalid_type, static_cast<int64_t>(42)),
@@ -51,6 +54,9 @@ TEST(ConversionUtils, ConvertSignedIntegrals) {
 TEST(ConversionUtils, ConvertUnsignedIntegrals) {
   BitsType type(10);
   EXPECT_THAT(xls::Convert(&type, static_cast<uint64_t>(42)),
+              IsOkAndHolds(Value(UBits(42, 10))));
+
+  EXPECT_THAT(xls::Convert(&type, static_cast<uint32_t>(42)),
               IsOkAndHolds(Value(UBits(42, 10))));
 
   ArrayType invalid_type(2, &type);
@@ -71,18 +77,18 @@ TEST(ConversionUtils, ConvertArray) {
       Value::Array({Value(UBits(64, 10)), Value(UBits(42, 10))}));
   Package p("package");
   ArrayType* array_type = p.GetArrayType(2, p.GetBitsType(10));
-  EXPECT_THAT(xls::Convert<int64_t>(array_type, {64, 42}),
+  EXPECT_THAT(xls::Convert(array_type, std::vector<int64_t>{64, 42}),
               IsOkAndHolds(array_golden));
 
   TupleType invalid_type({p.GetBitsType(10), p.GetBitsType(10)});
-  EXPECT_THAT(xls::Convert<int64_t>(&invalid_type, {64, 42}),
+  EXPECT_THAT(xls::Convert(&invalid_type, std::vector<int64_t>{64, 42}),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        testing::HasSubstr(
                            "Invalid type conversion for an absl::Span")));
 
   ArrayType size_mismatch_type(10, p.GetBitsType(10));
   EXPECT_THAT(
-      xls::Convert<int64_t>(&size_mismatch_type, {64, 42}),
+      xls::Convert(&size_mismatch_type, std::vector{64, 42}),
       StatusIs(absl::StatusCode::kInvalidArgument,
                testing::HasSubstr(
                    "Array size mismatch between conversion type and value")));
@@ -163,9 +169,10 @@ TEST(ConversionUtils, ConvertArrayOfUserStruct) {
   Package p("package");
   ArrayType* array_type =
       p.GetArrayType(2, p.GetTupleType({p.GetBitsType(10), p.GetBitsType(1)}));
-  EXPECT_THAT(xls::Convert<UserStruct>(
-                  array_type, {UserStruct{42, false}, UserStruct{64, true}}),
-              IsOkAndHolds(array_golden));
+  EXPECT_THAT(
+      xls::Convert<UserStruct>(
+          array_type, std::vector{UserStruct{42, false}, UserStruct{64, true}}),
+      IsOkAndHolds(array_golden));
 }
 
 TEST(ConversionUtils, ConvertNegativeValues) {

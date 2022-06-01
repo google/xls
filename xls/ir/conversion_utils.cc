@@ -24,7 +24,7 @@
 
 namespace xls {
 
-absl::StatusOr<xls::Value> Convert(const Type* type, int64_t value) {
+absl::StatusOr<xls::Value> ConvertInt64(const Type* type, int64_t value) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsBits()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -38,7 +38,7 @@ absl::StatusOr<xls::Value> Convert(const Type* type, int64_t value) {
   return Value(bit_value);
 }
 
-absl::StatusOr<xls::Value> Convert(const Type* type, uint64_t value) {
+absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsBits()) {
     return absl::InvalidArgumentError(absl::StrFormat(
