@@ -495,11 +495,11 @@ TEST_F(NodeTest, IncorrectOpClass) {
 
   // Cast to void to avoid unused status build error.
   EXPECT_DEATH(
-      (void)f->MakeNode<ArithOp>(absl::nullopt, x.node(), y.node(), 32,
+      (void)f->MakeNode<ArithOp>(SourceInfo(), x.node(), y.node(), 32,
                                  Op::kAdd),
       HasSubstr("Op `add` is not a valid op for Node class `ArithOp`"));
   EXPECT_DEATH(
-      (void)f->MakeNode<UnOp>(absl::nullopt, x.node(), Op::kAssert),
+      (void)f->MakeNode<UnOp>(SourceInfo(), x.node(), Op::kAssert),
       HasSubstr("Op `assert` is not a valid op for Node class `UnOp`"));
 }
 

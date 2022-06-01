@@ -317,16 +317,16 @@ $ tools/benchmark_main crc32.opt.ir --clock_period_ps=500
 Return value delay: 1362ps
 Critical path entry count: 42
 Critical path:
-   1362ps (+  5ps): not.29: bits[32] = not(xor.205: bits[32], pos=0,29,50)
-   1357ps (+ 20ps): xor.205: bits[32] = xor(concat.195: bits[32], and.196: bits[32], pos=0,24,19)
-   1337ps (+ 15ps): and.196: bits[32] = and(neg.194: bits[32], literal.304: bits[32], pos=0,24,33)
-   1322ps (+134ps): neg.194: bits[32] = neg(concat.191: bits[32], pos=0,23,15)
+   1362ps (+  5ps): not.29: bits[32] = not(xor.205: bits[32], pos=[(0,29,50)])
+   1357ps (+ 20ps): xor.205: bits[32] = xor(concat.195: bits[32], and.196: bits[32], pos=[(0,24,19)])
+   1337ps (+ 15ps): and.196: bits[32] = and(neg.194: bits[32], literal.304: bits[32], pos=[(0,24,33)])
+   1322ps (+134ps): neg.194: bits[32] = neg(concat.191: bits[32], pos=[(0,23,15)])
 <snip>
-    154ps (+ 15ps): and.133: bits[32] = and(neg.131: bits[32], literal.19: bits[32], pos=0,24,33)
-    139ps (+134ps): neg.131: bits[32] = neg(concat.219: bits[32], pos=0,23,15)
-      5ps (+  0ps): concat.219: bits[32] = concat(literal.297: bits[31], bit_slice.214: bits[1], pos=0,23,21)
-      5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=0,23,21)
-      5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=0,20,16)
+    154ps (+ 15ps): and.133: bits[32] = and(neg.131: bits[32], literal.19: bits[32], pos=[(0,24,33)])
+    139ps (+134ps): neg.131: bits[32] = neg(concat.219: bits[32], pos=[(0,23,15)])
+      5ps (+  0ps): concat.219: bits[32] = concat(literal.297: bits[31], bit_slice.214: bits[1], pos=[(0,23,21)])
+      5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=[(0,23,21)])
+      5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=[(0,20,16)])
 <snip>
 ```
 

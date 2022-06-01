@@ -130,7 +130,7 @@ absl::StatusOr<CountedFor*> RollIntoProcPass::UnrollCountedForBody(
   // the loop induction variable.
   int64_t countedfor_stride = countedfor->stride();
   int64_t induction_bitcount = countedfor_loopbody->param(0)->BitCountOrDie();
-  const absl::optional<SourceLocation> countedfor_loc = countedfor->loc();
+  SourceInfo countedfor_loc = countedfor->loc();
   XLS_ASSIGN_OR_RETURN(auto stride_literal,
                        countedfor_loopbody->MakeNode<Literal>(
                            countedfor_loc, Value(UBits(countedfor_stride,
@@ -383,10 +383,10 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
   // We want to mux the invariants with their proc state versions so we can
   // allow for CountedFor loops where an invariant is dependent on the receive
   // node. The mux select line will be current trip counter == 0.
-  const absl::optional<SourceLocation> countedfor_loc = counted_for_node->loc();
-  XLS_ASSIGN_OR_RETURN(auto trip_counter,
-                       proc->MakeNode<TupleIndex>(
-                           absl::nullopt, dummy_state_new, kLoopCounter));
+  SourceInfo countedfor_loc = counted_for_node->loc();
+  XLS_ASSIGN_OR_RETURN(
+      auto trip_counter,
+      proc->MakeNode<TupleIndex>(SourceInfo(), dummy_state_new, kLoopCounter));
 
   XLS_ASSIGN_OR_RETURN(auto zero, proc->MakeNode<Literal>(
       countedfor_loc, ZeroOfType(loopbody->param(0)->GetType())));
@@ -420,12 +420,11 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
   // Get the loop induction variable and loop carry variable from the new proc
   // state, as these are parameters to the CountedFor node.
   XLS_ASSIGN_OR_RETURN(auto loop_induction_variable,
-                       proc->MakeNode<TupleIndex>(absl::nullopt,
-                                                  dummy_state_new,
+                       proc->MakeNode<TupleIndex>(SourceInfo(), dummy_state_new,
                                                   kInductionVariable));
-  XLS_ASSIGN_OR_RETURN(auto loop_carry,
-                       proc->MakeNode<TupleIndex>(absl::nullopt,
-                                                  dummy_state_new, kLoopCarry));
+  XLS_ASSIGN_OR_RETURN(
+      auto loop_carry,
+      proc->MakeNode<TupleIndex>(SourceInfo(), dummy_state_new, kLoopCarry));
 
   // Clone the CountedFor nodes into the proc and get the CountedFor return
   // value, which we will use for the next proc state.
@@ -487,10 +486,9 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
                                               absl::nullopt));
 
   // Create the "ReceiveIf" node.
-  XLS_ASSIGN_OR_RETURN(auto receive_val_proc_state,
-                       proc->MakeNode<TupleIndex>(absl::nullopt,
-                                                  dummy_state_new,
-                                                  kReceiveData));
+  XLS_ASSIGN_OR_RETURN(
+      auto receive_val_proc_state,
+      proc->MakeNode<TupleIndex>(SourceInfo(), dummy_state_new, kReceiveData));
   XLS_ASSIGN_OR_RETURN(auto receive_select,
                        ReplaceReceiveWithConditionalReceive (
                            proc, receive_node, is_first_iteration,
@@ -516,8 +514,7 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
   // Select between the proc state and the old next state to update the state
   // from the original proc.
   XLS_ASSIGN_OR_RETURN(auto proc_state_old,
-                       proc->MakeNode<TupleIndex>(absl::nullopt,
-                                                  dummy_state_new,
+                       proc->MakeNode<TupleIndex>(SourceInfo(), dummy_state_new,
                                                   kOriginalState));
   std::vector<Node*> invariant_nodes = {proc_state_old, old_proc_next};
   XLS_ASSIGN_OR_RETURN(auto select_original_proc_state,
@@ -528,9 +525,9 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
   next_state_tuple.push_back(next_loop_trip_counter);
   next_state_tuple.push_back(next_loop_induction_value);
   next_state_tuple.push_back(next_loop_carry);
-  XLS_ASSIGN_OR_RETURN(auto receive_select_val,
-                       proc->MakeNode<TupleIndex>(absl::nullopt,
-                                                  receive_select, 1));
+  XLS_ASSIGN_OR_RETURN(
+      auto receive_select_val,
+      proc->MakeNode<TupleIndex>(SourceInfo(), receive_select, 1));
   next_state_tuple.push_back(receive_select_val);
   for (Node* invariant : invariant_selects) {
     next_state_tuple.push_back(invariant);

@@ -207,7 +207,7 @@ TEST_F(BlockTest, ErrorConditions) {
   Type* u32 = p.GetBitsType(32);
   BValue a = bb.InputPort("a", u32);
   BValue b = bb.InputPort("b", u32);
-  bb.OutputPort("out", bb.Add(a, b, /*loc=*/absl::nullopt, /*name=*/"foo"));
+  bb.OutputPort("out", bb.Add(a, b, SourceInfo(), /*name=*/"foo"));
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
   // Add a port with a name that already exists.
@@ -257,18 +257,18 @@ TEST_F(BlockTest, BlockWithRegisters) {
                            bb.block()->AddRegister("state", u32));
   XLS_ASSERT_OK(bb.block()->AddClockPort("clk"));
 
-  BValue state = bb.RegisterRead(state_reg, /*loc=*/absl::nullopt, "state");
+  BValue state = bb.RegisterRead(state_reg, SourceInfo(), "state");
   BValue x = bb.InputPort("x", u32);
 
   BValue x_d = bb.InsertRegister("x_d", x);
-  BValue sum = bb.Add(x_d, state, /*loc=*/absl::nullopt, "sum");
+  BValue sum = bb.Add(x_d, state, SourceInfo(), "sum");
 
   BValue sum_d = bb.InsertRegister("sum_d", sum);
   BValue out = bb.OutputPort("out", sum_d);
 
-  bb.RegisterWrite(state_reg, sum_d, /*loc=*/absl::nullopt,
+  bb.RegisterWrite(state_reg, sum_d,
                    /*load_enable=*/absl::nullopt, /*reset=*/absl::nullopt,
-                   "state_write");
+                   SourceInfo(), "state_write");
 
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, bb.Build());
 
@@ -414,15 +414,15 @@ TEST_F(BlockTest, DeepPipelineDumpOrderTest) {
 
   BValue p1_x = bb.InsertRegister("p1_x", x);
   BValue p1_y = bb.InsertRegister("p1_y", y);
-  BValue p1_add = bb.Add(p1_x, p1_y, /*loc=*/absl::nullopt, "p1_add");
+  BValue p1_add = bb.Add(p1_x, p1_y, SourceInfo(), "p1_add");
 
   BValue p2_add = bb.InsertRegister("p2_add", p1_add);
   BValue p2_y = bb.InsertRegister("p2_y", p1_y);
-  BValue p2_sub = bb.Subtract(p2_add, p2_y, /*loc=*/absl::nullopt, "p2_sub");
+  BValue p2_sub = bb.Subtract(p2_add, p2_y, SourceInfo(), "p2_sub");
 
   BValue p3_sub = bb.InsertRegister("p3_sub", p2_sub);
-  BValue p3_zero = bb.Literal(UBits(0, 32), /*loc=*/absl::nullopt, "p3_zero");
-  BValue p3_mul = bb.UMul(p3_sub, p3_zero, /*loc=*/absl::nullopt, "p3_mul");
+  BValue p3_zero = bb.Literal(UBits(0, 32), SourceInfo(), "p3_zero");
+  BValue p3_mul = bb.UMul(p3_sub, p3_zero, SourceInfo(), "p3_mul");
 
   bb.OutputPort("result", p3_mul);
 
@@ -619,9 +619,8 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
           HasSubstr(
               "Block my_block has no write operation for register a_reg")));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      RegisterRead * reg_read,
-      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg));
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterRead * reg_read,
+                           block->MakeNode<RegisterRead>(SourceInfo(), reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
   EXPECT_THAT(
@@ -633,21 +632,20 @@ TEST_F(BlockTest, GetRegisterReadWrite) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       RegisterWrite * reg_write,
-      block->MakeNode<RegisterWrite>(
-          /*loc=*/absl::nullopt, a.node(), /*load_enable=*/absl::nullopt,
-          /*reset=*/absl::nullopt, reg));
+      block->MakeNode<RegisterWrite>(SourceInfo(), a.node(),
+                                     /*load_enable=*/absl::nullopt,
+                                     /*reset=*/absl::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg), IsOkAndHolds(reg_read));
   EXPECT_THAT(block->GetRegisterWrite(reg), IsOkAndHolds(reg_write));
 
+  XLS_ASSERT_OK_AND_ASSIGN(RegisterRead * dup_reg_read,
+                           block->MakeNode<RegisterRead>(SourceInfo(), reg));
   XLS_ASSERT_OK_AND_ASSIGN(
-      RegisterRead * dup_reg_read,
-      block->MakeNode<RegisterRead>(/*loc=*/absl::nullopt, reg));
-  XLS_ASSERT_OK_AND_ASSIGN(RegisterWrite * dup_reg_write,
-                           block->MakeNode<RegisterWrite>(
-                               /*loc=*/absl::nullopt, a.node(),
-                               /*load_enable=*/absl::nullopt,
-                               /*reset=*/absl::nullopt, reg));
+      RegisterWrite * dup_reg_write,
+      block->MakeNode<RegisterWrite>(SourceInfo(), a.node(),
+                                     /*load_enable=*/absl::nullopt,
+                                     /*reset=*/absl::nullopt, reg));
 
   EXPECT_THAT(block->GetRegisterRead(reg),
               StatusIs(absl::StatusCode::kInvalidArgument,

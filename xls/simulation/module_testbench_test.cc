@@ -35,37 +35,37 @@ class ModuleTestbenchTest : public VerilogTestBase {
  protected:
   // Creates and returns a module which simply flops its input twice.
   Module* MakeTwoStageIdentityPipeline(VerilogFile* f, int64_t width = 16) {
-    Module* m = f->AddModule("test_module", std::nullopt);
+    Module* m = f->AddModule("test_module", SourceInfo());
     LogicRef* clk =
-        m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+        m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
     LogicRef* in =
-        m->AddInput("in", f->BitVectorType(width, std::nullopt), std::nullopt);
-    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, std::nullopt),
-                                 std::nullopt);
+        m->AddInput("in", f->BitVectorType(width, SourceInfo()), SourceInfo());
+    LogicRef* out = m->AddOutput("out", f->BitVectorType(width, SourceInfo()),
+                                 SourceInfo());
 
     LogicRef* p0 =
-        m->AddReg("p0", f->BitVectorType(width, std::nullopt), std::nullopt);
+        m->AddReg("p0", f->BitVectorType(width, SourceInfo()), SourceInfo());
     LogicRef* p1 =
-        m->AddReg("p1", f->BitVectorType(width, std::nullopt), std::nullopt);
+        m->AddReg("p1", f->BitVectorType(width, SourceInfo()), SourceInfo());
 
-    auto af = m->Add<AlwaysFlop>(std::nullopt, clk);
-    af->AddRegister(p0, in, std::nullopt);
-    af->AddRegister(p1, p0, std::nullopt);
+    auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
+    af->AddRegister(p0, in, SourceInfo());
+    af->AddRegister(p1, p0, SourceInfo());
 
-    m->Add<ContinuousAssignment>(std::nullopt, out, p1);
+    m->Add<ContinuousAssignment>(SourceInfo(), out, p1);
     return m;
   }
   // Creates and returns a module which simply prints two messages.
   Module* MakeTwoMessageModule(VerilogFile* f) {
-    Module* m = f->AddModule("test_module", std::nullopt);
-    m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
-    Initial* initial = m->Add<Initial>(std::nullopt);
+    Module* m = f->AddModule("test_module", SourceInfo());
+    m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
+    Initial* initial = m->Add<Initial>(SourceInfo());
     initial->statements()->Add<Display>(
-        std::nullopt, std::vector<Expression*>{f->Make<QuotedString>(
-                          std::nullopt, "This is the first message.")});
+        SourceInfo(), std::vector<Expression*>{f->Make<QuotedString>(
+                          SourceInfo(), "This is the first message.")});
     initial->statements()->Add<Display>(
-        std::nullopt, std::vector<Expression*>{f->Make<QuotedString>(
-                          std::nullopt, "This is the second message.")});
+        SourceInfo(), std::vector<Expression*>{f->Make<QuotedString>(
+                          SourceInfo(), "This is the second message.")});
     return m;
   }
 };
@@ -149,38 +149,38 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
 
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
   VerilogFile f(UseSystemVerilog());
-  Module* m = f.AddModule("test_module", std::nullopt);
-  LogicRef* clk = m->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+  Module* m = f.AddModule("test_module", SourceInfo());
+  LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* x =
-      m->AddInput("x", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddInput("x", f.BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* y =
-      m->AddInput("y", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddInput("y", f.BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* out0 =
-      m->AddOutput("out0", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddOutput("out0", f.BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* out1 =
-      m->AddOutput("out1", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddOutput("out1", f.BitVectorType(8, SourceInfo()), SourceInfo());
 
   LogicRef* not_x =
-      m->AddReg("not_x", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddReg("not_x", f.BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* sum =
-      m->AddReg("sum", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddReg("sum", f.BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* sum_plus_1 =
-      m->AddReg("sum_plus_1", f.BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddReg("sum_plus_1", f.BitVectorType(8, SourceInfo()), SourceInfo());
 
   // Logic is as follows:
   //
   //  out0 <= x        // one-cycle latency.
   //  sum  <= x + y
   //  out1 <= sum + 1  // two-cycle latency.
-  auto af = m->Add<AlwaysFlop>(std::nullopt, clk);
-  af->AddRegister(not_x, f.BitwiseNot(x, std::nullopt), std::nullopt);
-  af->AddRegister(sum, f.Add(x, y, std::nullopt), std::nullopt);
+  auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
+  af->AddRegister(not_x, f.BitwiseNot(x, SourceInfo()), SourceInfo());
+  af->AddRegister(sum, f.Add(x, y, SourceInfo()), SourceInfo());
   af->AddRegister(sum_plus_1,
-                  f.Add(sum, f.PlainLiteral(1, std::nullopt), std::nullopt),
-                  std::nullopt);
+                  f.Add(sum, f.PlainLiteral(1, SourceInfo()), SourceInfo()),
+                  SourceInfo());
 
-  m->Add<ContinuousAssignment>(std::nullopt, out0, not_x);
-  m->Add<ContinuousAssignment>(std::nullopt, out1, sum_plus_1);
+  m->Add<ContinuousAssignment>(SourceInfo(), out0, not_x);
+  m->Add<ContinuousAssignment>(SourceInfo(), out1, sum_plus_1);
 
   Bits out0_captured;
   Bits out1_captured;
@@ -203,11 +203,11 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
 
 TEST_P(ModuleTestbenchTest, TestTimeout) {
   VerilogFile f(UseSystemVerilog());
-  Module* m = f.AddModule("test_module", std::nullopt);
-  m->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
-  LogicRef* out = m->AddOutput("out", f.ScalarType(std::nullopt), std::nullopt);
-  m->Add<ContinuousAssignment>(std::nullopt, out,
-                               f.PlainLiteral(0, std::nullopt));
+  Module* m = f.AddModule("test_module", SourceInfo());
+  m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* out = m->AddOutput("out", f.ScalarType(SourceInfo()), SourceInfo());
+  m->Add<ContinuousAssignment>(SourceInfo(), out,
+                               f.PlainLiteral(0, SourceInfo()));
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
   tb.WaitFor("out");

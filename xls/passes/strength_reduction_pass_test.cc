@@ -92,7 +92,7 @@ TEST_F(StrengthReductionPassTest, OneBitAddToXor) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
      fn func(x: bits[1], y: bits[1]) -> bits[1] {
-       ret add.3: bits[1] = add(x, y, pos=0,1,2)
+       ret add.3: bits[1] = add(x, y, pos=[(0,1,2)])
      }
   )",
                                                        p.get()));

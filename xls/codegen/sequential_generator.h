@@ -143,7 +143,7 @@ class SequentialModuleBuilder {
   // Assign lhs to rhs (flat bit types only).
   void AddContinuousAssignment(LogicRef* lhs, Expression* rhs) {
     module_builder()->assignment_section()->Add<ContinuousAssignment>(
-        std::nullopt, lhs, rhs);
+        SourceInfo(), lhs, rhs);
   }
 
   // Constructs the sequential module.

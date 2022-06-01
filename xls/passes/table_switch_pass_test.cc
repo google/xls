@@ -470,10 +470,10 @@ TEST_F(TableSwitchPassTest, Crasher70d2fb09) {
   // TableSwitchPass is run.
   std::string program = R"(
 fn main(x0: bits[53]) -> bits[53] {
-  x1: bits[1] = eq(x0, x0, id=2, pos=0,3,20)
-  literal.31: bits[53] = literal(value=0, id=31, pos=0,18,28)
-  x12: bits[53] = sel(x1, cases=[x0, literal.31], id=42, pos=0,18,28)
-  ret x15: bits[53] = sel(x1, cases=[x12, literal.31], id=43, pos=0,21,28)
+  x1: bits[1] = eq(x0, x0, id=2, pos=[(0,3,20)])
+  literal.31: bits[53] = literal(value=0, id=31, pos=[(0,18,28)])
+  x12: bits[53] = sel(x1, cases=[x0, literal.31], id=42, pos=[(0,18,28)])
+  ret x15: bits[53] = sel(x1, cases=[x12, literal.31], id=43, pos=[(0,21,28)])
 }
 )";
 
@@ -490,13 +490,13 @@ package sample
 
 fn main(x4: bits[62], x1: bits[25], x2: bits[24]) -> bits[62] {
   bit_slice.10: bits[24] = bit_slice(x4, start=0, width=24, id=10)
-  eq.69: bits[1] = eq(x2, bit_slice.10, id=69, pos=0,11,28)
-  literal.57: bits[62] = literal(value=0, id=57, pos=0,11,28)
-  literal.5: bits[24] = literal(value=0, id=5, pos=0,3,29)
-  x13: bits[62] = sel(eq.69, cases=[x4, literal.57], id=58, pos=0,11,28)
-  eq.70: bits[1] = eq(x2, literal.5, id=70, pos=0,32,28)
-  x16: bits[62] = sel(eq.69, cases=[x13, literal.57], id=62, pos=0,14,28)
-  ret x28: bits[62] = sel(eq.70, cases=[x16, literal.57], id=66, pos=0,32,28)
+  eq.69: bits[1] = eq(x2, bit_slice.10, id=69, pos=[(0,11,28)])
+  literal.57: bits[62] = literal(value=0, id=57, pos=[(0,11,28)])
+  literal.5: bits[24] = literal(value=0, id=5, pos=[(0,3,29)])
+  x13: bits[62] = sel(eq.69, cases=[x4, literal.57], id=58, pos=[(0,11,28)])
+  eq.70: bits[1] = eq(x2, literal.5, id=70, pos=[(0,32,28)])
+  x16: bits[62] = sel(eq.69, cases=[x13, literal.57], id=62, pos=[(0,14,28)])
+  ret x28: bits[62] = sel(eq.70, cases=[x16, literal.57], id=66, pos=[(0,32,28)])
 }
 )";
 

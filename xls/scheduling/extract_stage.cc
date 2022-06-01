@@ -69,7 +69,7 @@ absl::StatusOr<Function*> ExtractStage(Function* src,
     XLS_RETURN_IF_ERROR(new_f->set_return_value(node_map[src->return_value()]));
   } else {
     XLS_ASSIGN_OR_RETURN(Node * return_tuple,
-                         new_f->MakeNode<Tuple>(absl::nullopt, live_out));
+                         new_f->MakeNode<Tuple>(SourceInfo(), live_out));
     XLS_RETURN_IF_ERROR(new_f->set_return_value(return_tuple));
   }
   return package->AddFunction(std::move(new_f));

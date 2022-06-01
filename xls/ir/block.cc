@@ -289,8 +289,9 @@ absl::StatusOr<OutputPort*> Block::GetOutputPort(absl::string_view name) const {
       absl::StrFormat("Port %s is not an output port", name));
 }
 
-absl::StatusOr<InputPort*> Block::AddInputPort(
-    absl::string_view name, Type* type, absl::optional<SourceLocation> loc) {
+absl::StatusOr<InputPort*> Block::AddInputPort(absl::string_view name,
+                                               Type* type,
+                                               const SourceInfo& loc) {
   if (ports_by_name_.contains(name)) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Block %s already contains a port named %s", this->name(), name));
@@ -310,8 +311,9 @@ absl::StatusOr<InputPort*> Block::AddInputPort(
   return port;
 }
 
-absl::StatusOr<OutputPort*> Block::AddOutputPort(
-    absl::string_view name, Node* operand, absl::optional<SourceLocation> loc) {
+absl::StatusOr<OutputPort*> Block::AddOutputPort(absl::string_view name,
+                                                 Node* operand,
+                                                 const SourceInfo& loc) {
   if (ports_by_name_.contains(name)) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Block %s already contains a port named %s", this->name(), name));

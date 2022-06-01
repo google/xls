@@ -34,7 +34,7 @@ class Proc : public FunctionBase {
        Package* package)
       : FunctionBase(name, package),
         next_token_(AddNode(std::make_unique<Param>(
-            absl::nullopt, token_param_name, package->GetTokenType(), this))) {}
+            SourceInfo(), token_param_name, package->GetTokenType(), this))) {}
 
   // Constructor for a proc with a single state element.
   Proc(absl::string_view name, const Value& init_value,
@@ -43,9 +43,9 @@ class Proc : public FunctionBase {
       : FunctionBase(name, package),
         init_values_({init_value}),
         next_token_(AddNode(std::make_unique<Param>(
-            absl::nullopt, token_param_name, package->GetTokenType(), this))),
+            SourceInfo(), token_param_name, package->GetTokenType(), this))),
         next_state_({AddNode(std::make_unique<Param>(
-            absl::nullopt, state_param_name,
+            SourceInfo(), state_param_name,
             package->GetTypeForValue(init_value), this))}) {}
 
   virtual ~Proc() = default;

@@ -193,7 +193,7 @@ absl::StatusOr<Node*> AddPredicate(Predicates* p, Node* node, Node* pred) {
     Node* existing_predicate = existing_predicate_maybe.value();
     XLS_ASSIGN_OR_RETURN(
         Node * pred_and_existing,
-        f->MakeNode<NaryOp>(std::nullopt,
+        f->MakeNode<NaryOp>(SourceInfo(),
                             std::vector<Node*>({existing_predicate, pred}),
                             Op::kAnd));
     p->SetPredicate(node, pred_and_existing);
@@ -599,7 +599,7 @@ absl::StatusOr<std::vector<absl::flat_hash_set<Node*>>> ComputeMergeClasses(
 absl::StatusOr<std::vector<Node*>> PredicateVectorFromNodes(
     Predicates* p, FunctionBase* f, absl::Span<Node* const> nodes) {
   XLS_ASSIGN_OR_RETURN(Node * literal_true,
-                       f->MakeNode<Literal>(std::nullopt, Value(UBits(1, 1))));
+                       f->MakeNode<Literal>(SourceInfo(), Value(UBits(1, 1))));
 
   std::vector<Node*> predicates;
   predicates.reserve(nodes.size());
@@ -625,7 +625,7 @@ absl::StatusOr<Node*> GetTokenOfReceive(Node* receive) {
       }
     }
   }
-  return f->MakeNode<TupleIndex>(std::nullopt, receive, 0);
+  return f->MakeNode<TupleIndex>(SourceInfo(), receive, 0);
 }
 
 // Given a set of nodes, returns all nodes in the token dag that feed into this
@@ -671,17 +671,17 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
                        ComputeTokenInputs(f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * token,
-                       f->MakeNode<AfterAll>(std::nullopt, token_inputs));
+                       f->MakeNode<AfterAll>(SourceInfo(), token_inputs));
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
                        PredicateVectorFromNodes(p, f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * selector,
-                       f->MakeNode<Concat>(std::nullopt, predicates));
+                       f->MakeNode<Concat>(SourceInfo(), predicates));
 
   XLS_ASSIGN_OR_RETURN(
       Node * predicate,
-      f->MakeNode<BitwiseReductionOp>(std::nullopt, selector, Op::kOrReduce));
+      f->MakeNode<BitwiseReductionOp>(SourceInfo(), selector, Op::kOrReduce));
 
   std::vector<Node*> args;
   args.reserve(to_merge.size());
@@ -690,9 +690,9 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
   }
 
   XLS_ASSIGN_OR_RETURN(Node * data,
-                       f->MakeNode<OneHotSelect>(std::nullopt, selector, args));
+                       f->MakeNode<OneHotSelect>(SourceInfo(), selector, args));
 
-  XLS_ASSIGN_OR_RETURN(Node * send, f->MakeNode<Send>(std::nullopt, token, data,
+  XLS_ASSIGN_OR_RETURN(Node * send, f->MakeNode<Send>(SourceInfo(), token, data,
                                                       predicate, channel_id));
 
   for (Node* node : to_merge) {
@@ -714,38 +714,38 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
                        ComputeTokenInputs(f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * token,
-                       f->MakeNode<AfterAll>(std::nullopt, token_inputs));
+                       f->MakeNode<AfterAll>(SourceInfo(), token_inputs));
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> predicates,
                        PredicateVectorFromNodes(p, f, to_merge));
 
   XLS_ASSIGN_OR_RETURN(Node * predicate,
-                       f->MakeNode<NaryOp>(std::nullopt, predicates, Op::kOr));
+                       f->MakeNode<NaryOp>(SourceInfo(), predicates, Op::kOr));
 
   XLS_ASSIGN_OR_RETURN(
       Node * receive,
-      f->MakeNode<Receive>(std::nullopt, token, predicate, channel_id));
+      f->MakeNode<Receive>(SourceInfo(), token, predicate, channel_id));
 
   XLS_ASSIGN_OR_RETURN(Node * token_output,
-                       f->MakeNode<TupleIndex>(std::nullopt, receive, 0));
+                       f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));
 
   XLS_ASSIGN_OR_RETURN(Node * value_output,
-                       f->MakeNode<TupleIndex>(std::nullopt, receive, 1));
+                       f->MakeNode<TupleIndex>(SourceInfo(), receive, 1));
 
   XLS_ASSIGN_OR_RETURN(
       Node * zero,
-      f->MakeNode<Literal>(std::nullopt, ZeroOfType(value_output->GetType())));
+      f->MakeNode<Literal>(SourceInfo(), ZeroOfType(value_output->GetType())));
 
   std::vector<Node*> gated_output;
   for (int64_t i = 0; i < to_merge.size(); ++i) {
     XLS_ASSIGN_OR_RETURN(
         Node * gated,
-        f->MakeNode<Select>(std::nullopt, predicates[i],
+        f->MakeNode<Select>(SourceInfo(), predicates[i],
                             std::vector<Node*>{zero, value_output},
                             std::nullopt));
     XLS_ASSIGN_OR_RETURN(
         Node * gated_with_token,
-        f->MakeNode<Tuple>(std::nullopt,
+        f->MakeNode<Tuple>(SourceInfo(),
                            std::vector<Node*>{token_output, gated}));
     gated_output.push_back(gated_with_token);
   }

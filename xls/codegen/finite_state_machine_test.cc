@@ -35,10 +35,10 @@ class FiniteStateMachineTest : public VerilogTestBase {};
 
 TEST_P(FiniteStateMachineTest, TrivialFsm) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
@@ -53,10 +53,10 @@ TEST_P(FiniteStateMachineTest, TrivialFsm) {
 
 TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   FsmBuilder fsm("TrivialFsm", module, clk, UseSystemVerilog());
   auto foo = fsm.AddState("Foo");
   auto bar = fsm.AddState("Bar");
@@ -71,7 +71,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
   // qux counts how many times the state "foo" has been entered.
   bar->SetRegisterNextAsExpression(
       qux_out,
-      f.Add(qux_out->logic_ref, f.PlainLiteral(1, std::nullopt), std::nullopt));
+      f.Add(qux_out->logic_ref, f.PlainLiteral(1, SourceInfo()), SourceInfo()));
 
   XLS_ASSERT_OK(fsm.Build());
   XLS_VLOG(1) << f.Emit();
@@ -81,21 +81,21 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
 
 TEST_P(FiniteStateMachineTest, SimpleFsm) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* ready_in =
-      module->AddInput("ready_in", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("ready_in", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* done_out =
-      module->AddOutput("done_out", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddOutput("done_out", f.ScalarType(SourceInfo()), SourceInfo());
 
   // The "done" output is a wire, create a reg copy for assignment in the FSM.
   LogicRef* done =
-      module->AddReg("done", f.ScalarType(std::nullopt), std::nullopt);
-  module->Add<ContinuousAssignment>(std::nullopt, done_out, done);
+      module->AddReg("done", f.ScalarType(SourceInfo()), SourceInfo());
+  module->Add<ContinuousAssignment>(SourceInfo(), done_out, done);
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -105,7 +105,7 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
 
   auto fsm_done_out =
       fsm.AddExistingOutput(done,
-                            /*default_value=*/f.PlainLiteral(0, std::nullopt));
+                            /*default_value=*/f.PlainLiteral(0, SourceInfo()));
 
   idle_state->OnCondition(ready_in).NextState(busy_state);
   busy_state->NextState(done_state);
@@ -119,18 +119,18 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
 
 TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* foo =
-      module->AddInput("foo", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("foo", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* bar =
-      module->AddInput("bar", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("bar", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* qux =
-      module->AddOutput("qux_out", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddOutput("qux_out", f.ScalarType(SourceInfo()), SourceInfo());
 
   FsmBuilder fsm("NestLogic", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -148,11 +148,11 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
       .SetOutput(fsm_qux_out, 42)
       .Else()
       .SetOutput(fsm_qux_out, 123);
-  b_state->OnCondition(f.LogicalAnd(foo, bar, std::nullopt)).NextState(a_state);
+  b_state->OnCondition(f.LogicalAnd(foo, bar, SourceInfo())).NextState(a_state);
 
   XLS_ASSERT_OK(fsm.Build());
 
-  module->Add<ContinuousAssignment>(std::nullopt, qux, fsm_qux_out->logic_ref);
+  module->Add<ContinuousAssignment>(SourceInfo(), qux, fsm_qux_out->logic_ref);
 
   XLS_VLOG(1) << f.Emit();
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
@@ -161,12 +161,12 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
 
 TEST_P(FiniteStateMachineTest, CounterFsm) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst =
-      module->AddInput("rst", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("rst", f.ScalarType(SourceInfo()), SourceInfo());
   FsmBuilder fsm("CounterFsm", module, clk, UseSystemVerilog(),
                  Reset{rst, /*async=*/true, /*active_low=*/false});
   auto foo = fsm.AddState("Foo");
@@ -186,16 +186,16 @@ TEST_P(FiniteStateMachineTest, CounterFsm) {
 
 TEST_P(FiniteStateMachineTest, ComplexFsm) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* foo_in =
-      module->AddInput("foo_in", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("foo_in", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* bar_in =
-      module->AddOutput("bar_in", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddOutput("bar_in", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* qux_in =
-      module->AddOutput("qux_in", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddOutput("qux_in", f.ScalarType(SourceInfo()), SourceInfo());
 
   FsmBuilder fsm("ComplexFsm", module, clk, UseSystemVerilog());
   auto hungry = fsm.AddState("Hungry");
@@ -238,15 +238,15 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
   // values to the outputs such that each code path has exactly one assignment
   // per output.
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
 
-  LogicRef* a = module->AddInput("a", f.ScalarType(std::nullopt), std::nullopt);
-  LogicRef* b = module->AddInput("b", f.ScalarType(std::nullopt), std::nullopt);
+  LogicRef* a = module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* b = module->AddInput("b", f.ScalarType(SourceInfo()), SourceInfo());
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -308,14 +308,14 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
 
 TEST_P(FiniteStateMachineTest, MultipleAssignments) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
 
-  LogicRef* a = module->AddInput("a", f.ScalarType(std::nullopt), std::nullopt);
+  LogicRef* a = module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo());
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});
@@ -334,15 +334,15 @@ TEST_P(FiniteStateMachineTest, MultipleAssignments) {
 
 TEST_P(FiniteStateMachineTest, MultipleConditionalAssignments) {
   VerilogFile f(UseSystemVerilog());
-  Module* module = f.Add(f.Make<Module>(std::nullopt, TestBaseName()));
+  Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
-      module->AddInput("clk", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      module->AddInput("rst_n", f.ScalarType(std::nullopt), std::nullopt);
+      module->AddInput("rst_n", f.ScalarType(SourceInfo()), SourceInfo());
 
-  LogicRef* a = module->AddInput("a", f.ScalarType(std::nullopt), std::nullopt);
-  LogicRef* b = module->AddInput("b", f.ScalarType(std::nullopt), std::nullopt);
+  LogicRef* a = module->AddInput("a", f.ScalarType(SourceInfo()), SourceInfo());
+  LogicRef* b = module->AddInput("b", f.ScalarType(SourceInfo()), SourceInfo());
 
   FsmBuilder fsm("SimpleFsm", module, clk, UseSystemVerilog(),
                  Reset{rst_n, /*async=*/false, /*active_low=*/true});

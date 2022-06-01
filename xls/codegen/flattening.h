@@ -54,7 +54,7 @@ int64_t GetFlatBitIndexOfElement(const ArrayType* array_type, int64_t index);
 // representation in VAST are elided during flattening.
 absl::StatusOr<verilog::Expression*> FlattenTuple(
     absl::Span<verilog::Expression* const> inputs, TupleType* tuple_type,
-    verilog::VerilogFile* file, std::optional<SourceLocation> loc);
+    verilog::VerilogFile* file, const SourceInfo& loc);
 
 // Unflattens the given VAST expression into a unpacked array
 // representation. 'array_type' is the underlying XLS type of the expression.
@@ -62,21 +62,20 @@ absl::StatusOr<verilog::Expression*> FlattenTuple(
 verilog::Expression* UnflattenArray(verilog::IndexableExpression* input,
                                     ArrayType* array_type,
                                     verilog::VerilogFile* file,
-                                    std::optional<SourceLocation> loc);
+                                    const SourceInfo& loc);
 
 // Flattens the given VAST expression into a flat bit vector. 'input' must be an
 // unpacked array. 'array_type' is the underlying XLS type of the expression.
 verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
                                   ArrayType* array_type,
                                   verilog::VerilogFile* file,
-                                  std::optional<SourceLocation> loc);
+                                  const SourceInfo& loc);
 
 // Unflattens the array element at the given index of 'input', a flattened
 // tuple. 'tuple_type' is the underlying XLS type of the tuple.
 verilog::Expression* UnflattenArrayShapedTupleElement(
     verilog::IndexableExpression* input, TupleType* tuple_type,
-    int64_t tuple_index, verilog::VerilogFile* file,
-    std::optional<SourceLocation> loc);
+    int64_t tuple_index, verilog::VerilogFile* file, const SourceInfo& loc);
 
 }  // namespace xls
 

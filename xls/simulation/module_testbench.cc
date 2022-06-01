@@ -352,7 +352,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
 
 absl::Status ModuleTestbench::Run() {
   VerilogFile file(/*use_system_verilog=*/false);
-  Module* m = file.AddModule("testbench", std::nullopt);
+  Module* m = file.AddModule("testbench", SourceInfo());
 
   absl::flat_hash_map<std::string, LogicRef*> port_refs;
   std::vector<Connection> connections;
@@ -364,8 +364,8 @@ absl::Status ModuleTestbench::Run() {
     }
     const std::string& port_name = pair.first;
     LogicRef* ref = m->AddReg(
-        port_name, file.BitVectorType(GetPortWidth(port_name), std::nullopt),
-        std::nullopt);
+        port_name, file.BitVectorType(GetPortWidth(port_name), SourceInfo()),
+        SourceInfo());
     port_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
@@ -378,8 +378,8 @@ absl::Status ModuleTestbench::Run() {
     }
     const std::string& port_name = pair.first;
     LogicRef* ref = m->AddWire(
-        port_name, file.BitVectorType(GetPortWidth(port_name), std::nullopt),
-        std::nullopt);
+        port_name, file.BitVectorType(GetPortWidth(port_name), SourceInfo()),
+        SourceInfo());
     port_refs[port_name] = ref;
     connections.push_back(Connection{port_name, ref});
   }
@@ -387,11 +387,11 @@ absl::Status ModuleTestbench::Run() {
   LogicRef* clk =
       clk_name_.has_value()
           ? port_refs.at(*clk_name_)
-          : m->AddReg("clk", file.ScalarType(std::nullopt), std::nullopt);
+          : m->AddReg("clk", file.ScalarType(SourceInfo()), SourceInfo());
 
   // Instatiate the device under test module.
   const char kInstantiationName[] = "dut";
-  m->Add<Instantiation>(std::nullopt, module_name_, kInstantiationName,
+  m->Add<Instantiation>(SourceInfo(), module_name_, kInstantiationName,
                         /*parameters=*/absl::Span<const Connection>(),
                         connections);
 
@@ -399,15 +399,15 @@ absl::Status ModuleTestbench::Run() {
     // Generate the clock. It has a frequency of two time units. Start clk at 0
     // at time zero to avoid any races with rising edge of clock and
     // any initialization.
-    Initial* initial = m->Add<Initial>(std::nullopt);
+    Initial* initial = m->Add<Initial>(SourceInfo());
     initial->statements()->Add<NonblockingAssignment>(
-        std::nullopt, clk, file.PlainLiteral(0, std::nullopt));
+        SourceInfo(), clk, file.PlainLiteral(0, SourceInfo()));
     initial->statements()->Add<Forever>(
-        std::nullopt,
+        SourceInfo(),
         file.Make<DelayStatement>(
-            std::nullopt, file.PlainLiteral(1, std::nullopt),
-            file.Make<BlockingAssignment>(std::nullopt, clk,
-                                          file.LogicalNot(clk, std::nullopt))));
+            SourceInfo(), file.PlainLiteral(1, SourceInfo()),
+            file.Make<BlockingAssignment>(SourceInfo(), clk,
+                                          file.LogicalNot(clk, SourceInfo()))));
   }
 
   // Insert statements into statement block which delay the simulation for the
@@ -415,38 +415,38 @@ absl::Status ModuleTestbench::Run() {
   // falling edge of the clock.
   auto wait_n_cycles = [&](StatementBlock* statement_block, int64_t n_cycles) {
     XLS_CHECK_GT(n_cycles, 0);
-    Expression* posedge_clk = file.Make<PosEdge>(std::nullopt, clk);
+    Expression* posedge_clk = file.Make<PosEdge>(SourceInfo(), clk);
     if (n_cycles == 1) {
-      statement_block->Add<EventControl>(std::nullopt, posedge_clk);
+      statement_block->Add<EventControl>(SourceInfo(), posedge_clk);
     } else {
       statement_block->Add<RepeatStatement>(
-          std::nullopt, file.PlainLiteral(n_cycles, std::nullopt),
-          file.Make<EventControl>(std::nullopt, posedge_clk));
+          SourceInfo(), file.PlainLiteral(n_cycles, SourceInfo()),
+          file.Make<EventControl>(SourceInfo(), posedge_clk));
     }
-    statement_block->Add<EventControl>(std::nullopt,
-                                       file.Make<NegEdge>(std::nullopt, clk));
+    statement_block->Add<EventControl>(SourceInfo(),
+                                       file.Make<NegEdge>(SourceInfo(), clk));
   };
   {
     // Add a watchdog which stops the simulation after a long time.
-    Initial* initial = m->Add<Initial>(std::nullopt);
+    Initial* initial = m->Add<Initial>(SourceInfo());
     wait_n_cycles(initial->statements(), kSimulationCycleLimit);
     initial->statements()->Add<Display>(
-        std::nullopt, std::vector<Expression*>{file.Make<QuotedString>(
-                          std::nullopt, GetTimeoutMessage())});
-    initial->statements()->Add<Finish>(std::nullopt);
+        SourceInfo(), std::vector<Expression*>{file.Make<QuotedString>(
+                          SourceInfo(), GetTimeoutMessage())});
+    initial->statements()->Add<Finish>(SourceInfo());
   }
 
   {
     // Add a monitor statement which prints out all the port values.
-    Initial* initial = m->Add<Initial>(std::nullopt);
+    Initial* initial = m->Add<Initial>(SourceInfo());
     initial->statements()->Add<Display>(
-        std::nullopt,
+        SourceInfo(),
         std::vector<Expression*>{file.Make<QuotedString>(
-            std::nullopt,
+            SourceInfo(),
             "Starting. Clock rises at start of odd time units:")});
     std::string monitor_fmt = "%t";
     std::vector<Expression*> monitor_args = {
-        file.Make<SystemFunctionCall>(std::nullopt, "time")};
+        file.Make<SystemFunctionCall>(SourceInfo(), "time")};
     for (const Connection& connection : connections) {
       if (connection.port_name == clk_name_) {
         continue;
@@ -455,11 +455,11 @@ absl::Status ModuleTestbench::Run() {
       monitor_args.push_back(connection.expression);
     }
     monitor_args.insert(monitor_args.begin(),
-                        file.Make<QuotedString>(std::nullopt, monitor_fmt));
-    initial->statements()->Add<Monitor>(std::nullopt, monitor_args);
+                        file.Make<QuotedString>(SourceInfo(), monitor_fmt));
+    initial->statements()->Add<Monitor>(SourceInfo(), monitor_args);
   }
 
-  Initial* initial = m->Add<Initial>(std::nullopt);
+  Initial* initial = m->Add<Initial>(SourceInfo());
   wait_n_cycles(initial->statements(), 1);
 
   // All actions occur at the falling edge of the clock to avoid races with
@@ -473,15 +473,15 @@ absl::Status ModuleTestbench::Run() {
             [&](const SetInput& s) {
               if (GetPortWidth(s.port) > 0) {
                 initial->statements()->Add<NonblockingAssignment>(
-                    std::nullopt, port_refs.at(s.port),
-                    file.Literal(s.value, std::nullopt));
+                    SourceInfo(), port_refs.at(s.port),
+                    file.Literal(s.value, SourceInfo()));
               }
             },
             [&](const SetInputX& s) {
               if (GetPortWidth(s.port) > 0) {
                 initial->statements()->Add<NonblockingAssignment>(
-                    std::nullopt, port_refs.at(s.port),
-                    file.Make<XSentinel>(std::nullopt, GetPortWidth(s.port)));
+                    SourceInfo(), port_refs.at(s.port),
+                    file.Make<XSentinel>(SourceInfo(), GetPortWidth(s.port)));
               }
             },
             [&](const WaitForOutput& w) {
@@ -494,16 +494,16 @@ absl::Status ModuleTestbench::Run() {
               if (absl::holds_alternative<Bits>(w.value)) {
                 cmp = file.NotEquals(
                     port_refs.at(w.port),
-                    file.Literal(absl::get<Bits>(w.value), std::nullopt),
-                    std::nullopt);
+                    file.Literal(absl::get<Bits>(w.value), SourceInfo()),
+                    SourceInfo());
               } else if (absl::holds_alternative<IsX>(w.value)) {
-                cmp = file.NotEqualsX(port_refs.at(w.port), std::nullopt);
+                cmp = file.NotEqualsX(port_refs.at(w.port), SourceInfo());
               } else {
                 XLS_CHECK(absl::holds_alternative<IsNotX>(w.value));
-                cmp = file.EqualsX(port_refs.at(w.port), std::nullopt);
+                cmp = file.EqualsX(port_refs.at(w.port), SourceInfo());
               }
               auto whle =
-                  initial->statements()->Add<WhileStatement>(std::nullopt, cmp);
+                  initial->statements()->Add<WhileStatement>(SourceInfo(), cmp);
               wait_n_cycles(whle->statements(), 1);
             },
             [&](const DisplayOutput& c) {
@@ -511,14 +511,14 @@ absl::Status ModuleTestbench::Run() {
               // assignments in the simulator time slot and avoid any potential
               // race conditions.
               initial->statements()->Add<Strobe>(
-                  std::nullopt,
+                  SourceInfo(),
                   std::vector<Expression*>{
                       file.Make<QuotedString>(
-                          std::nullopt,
+                          SourceInfo(),
                           absl::StrFormat("%%t OUTPUT %s = %d'h%%0x (#%d)",
                                           c.port, GetPortWidth(c.port),
                                           c.instance)),
-                      file.Make<SystemFunctionCall>(std::nullopt, "time"),
+                      file.Make<SystemFunctionCall>(SourceInfo(), "time"),
                       port_refs.at(c.port)});
             }},
         action);
@@ -528,7 +528,7 @@ absl::Status ModuleTestbench::Run() {
   // DisplayOutput runs before the final $finish.
   wait_n_cycles(initial->statements(), 1);
 
-  initial->statements()->Add<Finish>(std::nullopt);
+  initial->statements()->Add<Finish>(SourceInfo());
 
   // Concatentate the module Verilog with the testbench verilog to create the
   // verilog text to pass to the simulator.

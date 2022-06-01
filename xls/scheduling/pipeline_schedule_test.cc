@@ -157,7 +157,7 @@ TEST_F(PipelineScheduleTest, InfeasiableScheduleWithReturnValueUsers) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
   BValue x = fb.Param("x", p->GetBitsType(32));
-  BValue ret_value = fb.Not(x, absl::nullopt, "ret_value");
+  BValue ret_value = fb.Not(x, SourceInfo(), "ret_value");
   fb.Negate(ret_value);
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret_value));
 
@@ -703,7 +703,7 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
   TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
   BValue cond = pb.Not(pb.Not(pb.Literal(UBits(0, 1))));
-  BValue rcv = pb.ReceiveIf(in_ch, cond, absl::nullopt, "rcv");
+  BValue rcv = pb.ReceiveIf(in_ch, cond, SourceInfo(), "rcv");
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));

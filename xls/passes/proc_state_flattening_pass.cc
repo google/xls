@@ -56,7 +56,7 @@ absl::Status DecomposeNodeHelper(Node* node, std::vector<Node*>& elements) {
     for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           Node * tuple_index,
-          node->function_base()->MakeNode<TupleIndex>(absl::nullopt, node, i));
+          node->function_base()->MakeNode<TupleIndex>(SourceInfo(), node, i));
       XLS_RETURN_IF_ERROR(DecomposeNodeHelper(tuple_index, elements));
     }
   } else {
@@ -95,7 +95,7 @@ absl::StatusOr<Node*> ComposeNodeHelper(Type* type,
                             linear_index, f));
       tuple_elements.push_back(element);
     }
-    return f->MakeNode<Tuple>(absl::nullopt, tuple_elements);
+    return f->MakeNode<Tuple>(SourceInfo(), tuple_elements);
   }
   return elements[linear_index++];
 }

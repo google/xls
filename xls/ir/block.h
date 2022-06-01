@@ -66,12 +66,11 @@ class Block : public FunctionBase {
   // Adds an input/output port to the block. These methods should be used to add
   // ports rather than FunctionBase::AddNode and FunctionBase::MakeNode (checked
   // later by the verifier).
-  absl::StatusOr<InputPort*> AddInputPort(
-      absl::string_view name, Type* type,
-      absl::optional<SourceLocation> loc = absl::nullopt);
+  absl::StatusOr<InputPort*> AddInputPort(absl::string_view name, Type* type,
+                                          const SourceInfo& loc = SourceInfo());
   absl::StatusOr<OutputPort*> AddOutputPort(
       absl::string_view name, Node* operand,
-      absl::optional<SourceLocation> loc = absl::nullopt);
+      const SourceInfo& loc = SourceInfo());
 
   // Add/get a clock port to the block. The clock is not represented as a value
   // within the IR (no input_port operation), but rather a Block::ClockPort

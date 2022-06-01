@@ -55,6 +55,20 @@ enum BomKindProto {
   BOM_KIND_MISC = 14;
 }
 
+message SourceLocationProto {
+  // The relevant source file, if one exists.
+  // It is possible for this to not exist even though `line` and `col` do exist.
+  optional string file = 1;
+
+  // The relevant line number, if one exists.
+  // If this exists, `col` must exist.
+  optional int64 line = 2;
+
+  // The relevant column number, if one exists.
+  // If this exists, `line` must exist.
+  optional int64 col = 3;
+}
+
 message BomEntryProto {
   // The operation this node is an instance of.
   optional OpProto op = 1;
@@ -75,18 +89,8 @@ message BomEntryProto {
   // n-ary operations (`BOM_KIND_BITWISE`).
   optional int64 number_of_arguments = 5;
 
-  // The source file from which this node was generated, if one exists.
-  // It is possible for this to not exist even though `source_line` and
-  // `source_col` do exist.
-  optional string source_file = 6;
-
-  // The line number from which this node is generated, if one exists.
-  // If this exists, `source_col` must exist.
-  optional int64 source_line = 7;
-
-  // The column number from which this node is generated, if one exists.
-  // If this exists, `source_line` must exist.
-  optional int64 source_col = 8;
+  // The source locations from which this node was generated.
+  repeated SourceLocationProto location = 6;
 }
 
 // Metrics collected for the block after block conversion completes.

@@ -63,7 +63,7 @@ absl::Status InstantiateReadyValidDeviceFunction(
   connections.push_back({ready_valid.output_valid(), output.valid});
   connections.push_back({output_port.name(), output.data});
 
-  m->Add<Instantiation>(std::nullopt, signature.module_name(),
+  m->Add<Instantiation>(SourceInfo(), signature.module_name(),
                         "device_function",
                         /*parameters=*/std::vector<Connection>{},
                         /*connections=*/connections);
@@ -103,7 +103,7 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
   // This relies on the output ready staying asserted for the duration of the
   // computation.
   idle_state
-      ->OnCondition(f->LogicalAnd(input.valid, output.ready, std::nullopt))
+      ->OnCondition(f->LogicalAnd(input.valid, output.ready, SourceInfo()))
       .NextState(computing_state)
       .SetCounter(cycle_counter, latency - 1);
 
@@ -114,9 +114,9 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
       .SetOutput(output_valid_output, 1);
 
   XLS_RETURN_IF_ERROR(fsm.Build());
-  m->Add<ContinuousAssignment>(std::nullopt, input.ready,
+  m->Add<ContinuousAssignment>(SourceInfo(), input.ready,
                                input_ready_output->logic_ref);
-  m->Add<ContinuousAssignment>(std::nullopt, output.valid,
+  m->Add<ContinuousAssignment>(SourceInfo(), output.valid,
                                output_valid_output->logic_ref);
 
   std::vector<Connection> connections;
@@ -132,7 +132,7 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
   connections.push_back({input_port.name(), input.data});
   connections.push_back({output_port.name(), output.data});
 
-  m->Add<Instantiation>(std::nullopt, signature.module_name(),
+  m->Add<Instantiation>(SourceInfo(), signature.module_name(),
                         "device_function",
                         /*parameters=*/std::vector<Connection>{},
                         /*connections=*/connections);
@@ -152,43 +152,43 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
 
   // We're creating a module that *wraps* the compute module with I/O
   // components.
-  Module* io_wrapper = f->AddModule("io_wrapper", std::nullopt);
+  Module* io_wrapper = f->AddModule("io_wrapper", SourceInfo());
 
   LogicRef* clk =
-      io_wrapper->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+      io_wrapper->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      io_wrapper->AddWire("rst_n", f->ScalarType(std::nullopt), std::nullopt);
+      io_wrapper->AddWire("rst_n", f->ScalarType(SourceInfo()), SourceInfo());
   Reset reset{rst_n, /*asynchronous=*/false, /*active_low=*/true};
   XLS_RETURN_IF_ERROR(
       io_strategy->AddTopLevelDependencies(clk, reset, io_wrapper));
 
   IoStrategy::Input input_signals = {
       .rx_byte = io_wrapper->AddWire(
-          "rx_byte", f->BitVectorType(8, std::nullopt), std::nullopt),
+          "rx_byte", f->BitVectorType(8, SourceInfo()), SourceInfo()),
       .rx_byte_valid = io_wrapper->AddWire(
-          "rx_byte_valid", f->ScalarType(std::nullopt), std::nullopt),
+          "rx_byte_valid", f->ScalarType(SourceInfo()), SourceInfo()),
       .rx_byte_done = io_wrapper->AddWire(
-          "rx_byte_done", f->ScalarType(std::nullopt), std::nullopt),
+          "rx_byte_done", f->ScalarType(SourceInfo()), SourceInfo()),
   };
   IoStrategy::Output output_signals = {
       .tx_byte = io_wrapper->AddWire(
-          "tx_byte", f->BitVectorType(8, std::nullopt), std::nullopt),
+          "tx_byte", f->BitVectorType(8, SourceInfo()), SourceInfo()),
       .tx_byte_valid = io_wrapper->AddWire(
-          "tx_byte_valid", f->ScalarType(std::nullopt), std::nullopt),
+          "tx_byte_valid", f->ScalarType(SourceInfo()), SourceInfo()),
       .tx_byte_ready = io_wrapper->AddWire(
-          "tx_byte_ready", f->ScalarType(std::nullopt), std::nullopt),
+          "tx_byte_ready", f->ScalarType(SourceInfo()), SourceInfo()),
   };
   XLS_RETURN_IF_ERROR(io_strategy->InstantiateIoBlocks(
       input_signals, output_signals, io_wrapper));
 
   LogicRef* flat_input = io_wrapper->AddWire(
       "flat_input",
-      f->BitVectorType(signature.TotalDataInputBits(), std::nullopt),
-      std::nullopt);
+      f->BitVectorType(signature.TotalDataInputBits(), SourceInfo()),
+      SourceInfo());
   LogicRef* flat_input_valid = io_wrapper->AddWire(
-      "flat_input_valid", f->ScalarType(std::nullopt), std::nullopt);
+      "flat_input_valid", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* flat_input_ready = io_wrapper->AddWire(
-      "flat_input_ready", f->ScalarType(std::nullopt), std::nullopt);
+      "flat_input_ready", f->ScalarType(SourceInfo()), SourceInfo());
   {
     std::vector<Connection> connections;
     connections.push_back(Connection{"clk", clk});
@@ -201,20 +201,20 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
     connections.push_back(Connection{"data_out_valid", flat_input_valid});
     connections.push_back(Connection{"data_out_ready", flat_input_ready});
     connections.push_back(
-        Connection{"rst_n_in", f->Literal(1, 1, std::nullopt)});
+        Connection{"rst_n_in", f->Literal(1, 1, SourceInfo())});
     connections.push_back(Connection{"rst_n_out", rst_n});
     io_wrapper->Add<Instantiation>(
-        std::nullopt, input_controller_m->name(), "input_controller",
+        SourceInfo(), input_controller_m->name(), "input_controller",
         /*parameters=*/absl::Span<const Connection>(), connections);
   }
   LogicRef* flat_output = io_wrapper->AddWire(
       "flat_output",
-      f->BitVectorType(signature.TotalDataOutputBits(), std::nullopt),
-      std::nullopt);
+      f->BitVectorType(signature.TotalDataOutputBits(), SourceInfo()),
+      SourceInfo());
   LogicRef* flat_output_valid = io_wrapper->AddWire(
-      "flat_output_valid", f->ScalarType(std::nullopt), std::nullopt);
+      "flat_output_valid", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* flat_output_ready = io_wrapper->AddWire(
-      "flat_output_ready", f->ScalarType(std::nullopt), std::nullopt);
+      "flat_output_ready", f->ScalarType(SourceInfo()), SourceInfo());
 
   {
     std::vector<Connection> connections;
@@ -229,7 +229,7 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
     connections.push_back(
         Connection{"byte_out_ready", output_signals.tx_byte_ready});
     io_wrapper->Add<Instantiation>(
-        std::nullopt, output_controller_m->name(), "output_controller",
+        SourceInfo(), output_controller_m->name(), "output_controller",
         /*parameters=*/absl::Span<const Connection>(), connections);
   }
 
@@ -256,27 +256,27 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
 
 // Returns a hex-formatted byte-sized VAST literal of the given value.
 static Literal* Hex8Literal(uint8_t value, VerilogFile* f) {
-  return f->Literal(value, 8, std::nullopt, FormatPreference::kHex);
+  return f->Literal(value, 8, SourceInfo(), FormatPreference::kHex);
 }
 
 absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
-  Module* m = f->AddModule("input_resetter", std::nullopt);
-  auto clk = m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+  Module* m = f->AddModule("input_resetter", SourceInfo());
+  auto clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
   auto byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
   auto byte_in_ready =
-      m->AddOutput("byte_in_ready", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
   auto byte_in_valid =
-      m->AddInput("byte_in_valid", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("byte_in_valid", f->ScalarType(SourceInfo()), SourceInfo());
   auto rst_n_in =
-      m->AddInput("rst_n_in", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("rst_n_in", f->ScalarType(SourceInfo()), SourceInfo());
   auto rst_n_out =
-      m->AddOutput("rst_n_out", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("rst_n_out", f->ScalarType(SourceInfo()), SourceInfo());
 
   LocalParamItemRef* reset_control_code =
-      m->Add<LocalParam>(std::nullopt)
+      m->Add<LocalParam>(SourceInfo())
           ->AddItem("ResetControlCode", Hex8Literal(IoControlCode::kReset, f),
-                    std::nullopt);
+                    SourceInfo());
 
   // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
   // rather than hard-coding it as false.
@@ -292,8 +292,8 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
   // assert the reset signal.
   idle_state
       ->OnCondition(f->LogicalAnd(
-          byte_in_valid, f->Equals(byte_in, reset_control_code, std::nullopt),
-          std::nullopt))
+          byte_in_valid, f->Equals(byte_in, reset_control_code, SourceInfo()),
+          SourceInfo()))
       .NextState(reset_state);
 
   // In the reset state, assert byte_in_ready to clear the reset control code.
@@ -302,53 +302,53 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
       .NextState(idle_state);
   XLS_RETURN_IF_ERROR(fsm.Build());
 
-  m->Add<ContinuousAssignment>(std::nullopt, byte_in_ready,
+  m->Add<ContinuousAssignment>(SourceInfo(), byte_in_ready,
                                byte_in_ready_output->logic_ref);
   m->Add<ContinuousAssignment>(
-      std::nullopt, rst_n_out,
-      f->LogicalAnd(rst_n_in, rst_n_output->logic_ref, std::nullopt));
+      SourceInfo(), rst_n_out,
+      f->LogicalAnd(rst_n_in, rst_n_output->logic_ref, SourceInfo()));
 
   return m;
 }
 
 absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
                                                  VerilogFile* f) {
-  Module* m = f->AddModule("input_shifter", std::nullopt);
-  LogicRef* clk = m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+  Module* m = f->AddModule("input_shifter", SourceInfo());
+  LogicRef* clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* clear =
-      m->AddInput("clear", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("clear", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* write_en =
-      m->AddInput("write_en", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("write_en", f->ScalarType(SourceInfo()), SourceInfo());
 
   LogicRef* data_out = m->AddOutput(
-      "data_out", f->BitVectorType(bit_count, std::nullopt), std::nullopt);
+      "data_out", f->BitVectorType(bit_count, SourceInfo()), SourceInfo());
   LogicRef* done =
-      m->AddOutput("done", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("done", f->ScalarType(SourceInfo()), SourceInfo());
 
   const int64_t n_bytes = CeilOfRatio(bit_count, int64_t{8});
   LocalParamItemRef* n_bytes_ref =
-      m->Add<LocalParam>(std::nullopt)
-          ->AddItem("TotalInputBytes", f->PlainLiteral(n_bytes, std::nullopt),
-                    std::nullopt);
+      m->Add<LocalParam>(SourceInfo())
+          ->AddItem("TotalInputBytes", f->PlainLiteral(n_bytes, SourceInfo()),
+                    SourceInfo());
 
   LogicRef* data_reg = m->AddReg(
-      "data", f->BitVectorType(bit_count, std::nullopt), std::nullopt);
+      "data", f->BitVectorType(bit_count, SourceInfo()), SourceInfo());
   LogicRef* data_reg_next = m->AddReg(
-      "data_next", f->BitVectorType(bit_count, std::nullopt), std::nullopt);
+      "data_next", f->BitVectorType(bit_count, SourceInfo()), SourceInfo());
 
   // A counter which keeps track of the number of bytes shifted in. When the
   // counter reaches zero, the register is full and 'done' is asserted.
   XLS_RET_CHECK_GT(n_bytes, 0);
   LogicRef* byte_countdown = m->AddReg(
       "byte_countdown",
-      f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), std::nullopt),
-      std::nullopt);
+      f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), SourceInfo()),
+      SourceInfo());
   LogicRef* byte_countdown_next = m->AddReg(
       "byte_countdown_next",
-      f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), std::nullopt),
-      std::nullopt);
+      f->BitVectorType(Bits::MinBitCountUnsigned(n_bytes), SourceInfo()),
+      SourceInfo());
 
   // Logic for the counter and shift register:
   //
@@ -361,34 +361,34 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
   //     data_reg_next = data_reg;
   //     byte_countdown_next = byte_countdown;
   //   }
-  auto ac = m->Add<Always>(std::nullopt, std::vector<SensitivityListElement>(
+  auto ac = m->Add<Always>(SourceInfo(), std::vector<SensitivityListElement>(
                                              {ImplicitEventExpression()}));
-  auto cond = ac->statements()->Add<Conditional>(std::nullopt, clear);
-  cond->consequent()->Add<BlockingAssignment>(std::nullopt, byte_countdown_next,
+  auto cond = ac->statements()->Add<Conditional>(SourceInfo(), clear);
+  cond->consequent()->Add<BlockingAssignment>(SourceInfo(), byte_countdown_next,
                                               n_bytes_ref);
   auto else_write_en = cond->AddAlternate(write_en);
   else_write_en->Add<BlockingAssignment>(
-      std::nullopt, data_reg_next,
+      SourceInfo(), data_reg_next,
       f->BitwiseOr(
-          f->Shll(data_reg, f->PlainLiteral(8, std::nullopt), std::nullopt),
-          byte_in, std::nullopt));
+          f->Shll(data_reg, f->PlainLiteral(8, SourceInfo()), SourceInfo()),
+          byte_in, SourceInfo()));
   else_write_en->Add<BlockingAssignment>(
-      std::nullopt, byte_countdown_next,
-      f->Sub(byte_countdown, f->PlainLiteral(1, std::nullopt), std::nullopt));
+      SourceInfo(), byte_countdown_next,
+      f->Sub(byte_countdown, f->PlainLiteral(1, SourceInfo()), SourceInfo()));
   auto els = cond->AddAlternate();
-  els->Add<BlockingAssignment>(std::nullopt, byte_countdown_next,
+  els->Add<BlockingAssignment>(SourceInfo(), byte_countdown_next,
                                byte_countdown);
-  els->Add<BlockingAssignment>(std::nullopt, data_reg_next, data_reg);
+  els->Add<BlockingAssignment>(SourceInfo(), data_reg_next, data_reg);
 
-  auto af = m->Add<AlwaysFlop>(std::nullopt, clk);
-  af->AddRegister(data_reg, data_reg_next, std::nullopt);
-  af->AddRegister(byte_countdown, byte_countdown_next, std::nullopt);
+  auto af = m->Add<AlwaysFlop>(SourceInfo(), clk);
+  af->AddRegister(data_reg, data_reg_next, SourceInfo());
+  af->AddRegister(byte_countdown, byte_countdown_next, SourceInfo());
 
   m->Add<ContinuousAssignment>(
-      std::nullopt, done,
-      f->Equals(byte_countdown, f->PlainLiteral(0, std::nullopt),
-                std::nullopt));
-  m->Add<ContinuousAssignment>(std::nullopt, data_out, data_reg);
+      SourceInfo(), done,
+      f->Equals(byte_countdown, f->PlainLiteral(0, SourceInfo()),
+                SourceInfo()));
+  m->Add<ContinuousAssignment>(SourceInfo(), data_out, data_reg);
 
   return m;
 }
@@ -397,13 +397,13 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
 // machine is in an escaped state (previoius input byte was
 // IoControlCode::kEscape). The module is purely combinational.
 static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
-  Module* m = f->AddModule("escape_decoder", std::nullopt);
+  Module* m = f->AddModule("escape_decoder", SourceInfo());
   LogicRef* byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* byte_out =
-      m->AddOutput("byte_out", f->BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddOutput("byte_out", f->BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* is_escaped =
-      m->AddInput("is_escaped", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("is_escaped", f->ScalarType(SourceInfo()), SourceInfo());
 
   // Logic for the counter and shift register:
   //
@@ -415,42 +415,42 @@ static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
   //     byte_out = byte_in;
   //   }
   LocalParamItemRef* escaped_reset_byte =
-      m->Add<LocalParam>(std::nullopt)
+      m->Add<LocalParam>(SourceInfo())
           ->AddItem("EscapedResetByte",
-                    Hex8Literal(IoEscapeCode::kResetByte, f), std::nullopt);
+                    Hex8Literal(IoEscapeCode::kResetByte, f), SourceInfo());
   LocalParamItemRef* escaped_escape_byte =
-      m->Add<LocalParam>(std::nullopt)
+      m->Add<LocalParam>(SourceInfo())
           ->AddItem("EscapedEscapedByte",
-                    Hex8Literal(IoEscapeCode::kResetByte, f), std::nullopt);
+                    Hex8Literal(IoEscapeCode::kResetByte, f), SourceInfo());
   LocalParamItemRef* reset_control_code =
-      m->Add<LocalParam>(std::nullopt)
+      m->Add<LocalParam>(SourceInfo())
           ->AddItem("ResetControlCode", Hex8Literal(IoControlCode::kReset, f),
-                    std::nullopt);
+                    SourceInfo());
   LocalParamItemRef* escape_control_code =
-      m->Add<LocalParam>(std::nullopt)
+      m->Add<LocalParam>(SourceInfo())
           ->AddItem("EscapeControlCode", Hex8Literal(IoControlCode::kEscape, f),
-                    std::nullopt);
+                    SourceInfo());
   LogicRef* byte_out_reg = m->AddReg(
-      "byte_out_reg", f->BitVectorType(8, std::nullopt), std::nullopt);
-  auto ac = m->Add<Always>(std::nullopt, std::vector<SensitivityListElement>(
+      "byte_out_reg", f->BitVectorType(8, SourceInfo()), SourceInfo());
+  auto ac = m->Add<Always>(SourceInfo(), std::vector<SensitivityListElement>(
                                              {ImplicitEventExpression()}));
   auto cond = ac->statements()->Add<Conditional>(
-      std::nullopt,
+      SourceInfo(),
       f->LogicalAnd(is_escaped,
-                    f->Equals(byte_in, escaped_reset_byte, std::nullopt),
-                    std::nullopt));
-  cond->consequent()->Add<BlockingAssignment>(std::nullopt, byte_out_reg,
+                    f->Equals(byte_in, escaped_reset_byte, SourceInfo()),
+                    SourceInfo()));
+  cond->consequent()->Add<BlockingAssignment>(SourceInfo(), byte_out_reg,
                                               reset_control_code);
   cond
       ->AddAlternate(f->LogicalAnd(
-          is_escaped, f->Equals(byte_in, escaped_escape_byte, std::nullopt),
-          std::nullopt))
-      ->Add<BlockingAssignment>(std::nullopt, byte_out_reg,
+          is_escaped, f->Equals(byte_in, escaped_escape_byte, SourceInfo()),
+          SourceInfo()))
+      ->Add<BlockingAssignment>(SourceInfo(), byte_out_reg,
                                 escape_control_code);
-  cond->AddAlternate()->Add<BlockingAssignment>(std::nullopt, byte_out_reg,
+  cond->AddAlternate()->Add<BlockingAssignment>(SourceInfo(), byte_out_reg,
                                                 byte_in);
 
-  m->Add<ContinuousAssignment>(std::nullopt, byte_out, byte_out_reg);
+  m->Add<ContinuousAssignment>(SourceInfo(), byte_out, byte_out_reg);
 
   return m;
 }
@@ -463,40 +463,40 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
       InputShiftRegisterModule(signature.TotalDataInputBits(), f));
   XLS_ASSIGN_OR_RETURN(Module * decoder_m, EscapeDecoderModule(f));
 
-  Module* m = f->AddModule("input_controller", std::nullopt);
-  LogicRef* clk = m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+  Module* m = f->AddModule("input_controller", SourceInfo());
+  LogicRef* clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
 
   // Byte-wide input with ready/valid flow control.
   LogicRef* byte_in =
-      m->AddInput("byte_in", f->BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddInput("byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* byte_in_valid =
-      m->AddInput("byte_in_valid", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("byte_in_valid", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* byte_in_ready =
-      m->AddOutput("byte_in_ready", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
 
   // Arbitrary width output with ready/valid flow control.
   LogicRef* data_out = m->AddOutput(
       "data_out",
-      f->BitVectorType(signature.TotalDataInputBits(), std::nullopt),
-      std::nullopt);
+      f->BitVectorType(signature.TotalDataInputBits(), SourceInfo()),
+      SourceInfo());
   LogicRef* data_out_ready =
-      m->AddInput("data_out_ready", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("data_out_ready", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* data_out_valid =
-      m->AddOutput("data_out_valid", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("data_out_valid", f->ScalarType(SourceInfo()), SourceInfo());
 
   // The external reset signal.
   LogicRef* rst_n_in =
-      m->AddInput("rst_n_in", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("rst_n_in", f->ScalarType(SourceInfo()), SourceInfo());
 
   // The reset signal generated by the input controller. This is based on the
   // external reset signal and any reset control code passed in via the input.
   LogicRef* rst_n_out =
-      m->AddOutput("rst_n_out", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("rst_n_out", f->ScalarType(SourceInfo()), SourceInfo());
 
   // The byte_in ready signal generated by the reset FSM. This is used to ack
   // the input byte when it is a reset control code.
   LogicRef* reset_fsm_byte_in_ready = m->AddWire(
-      "reset_fsm_byte_in_ready", f->ScalarType(std::nullopt), std::nullopt);
+      "reset_fsm_byte_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
   {
     std::vector<Connection> connections;
     connections.push_back(Connection{"clk", clk});
@@ -505,7 +505,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
     connections.push_back(Connection{"byte_in_ready", reset_fsm_byte_in_ready});
     connections.push_back(Connection{"rst_n_in", rst_n_in});
     connections.push_back(Connection{"rst_n_out", rst_n_out});
-    m->Add<Instantiation>(std::nullopt, reset_m->name(), "resetter",
+    m->Add<Instantiation>(SourceInfo(), reset_m->name(), "resetter",
                           /*parameters=*/absl::Span<const Connection>(),
                           connections);
   }
@@ -513,15 +513,15 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
   // Shift register used to accumulate the input bytes into an arbitrary width
   // register for passing to the device function.
   LogicRef* shifter_clear =
-      m->AddReg("shifter_clear", f->ScalarType(std::nullopt), std::nullopt,
-                /*init=*/f->Literal(UBits(1, 1), std::nullopt));
+      m->AddReg("shifter_clear", f->ScalarType(SourceInfo()), SourceInfo(),
+                /*init=*/f->Literal(UBits(1, 1), SourceInfo()));
   LogicRef* shifter_byte_in = m->AddWire(
-      "shifter_byte_in", f->BitVectorType(8, std::nullopt), std::nullopt);
+      "shifter_byte_in", f->BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* shifter_write_en =
-      m->AddReg("shifter_write_en", f->ScalarType(std::nullopt), std::nullopt,
-                f->Literal(UBits(0, 1), std::nullopt));
+      m->AddReg("shifter_write_en", f->ScalarType(SourceInfo()), SourceInfo(),
+                f->Literal(UBits(0, 1), SourceInfo()));
   LogicRef* shifter_done =
-      m->AddWire("shifter_done", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddWire("shifter_done", f->ScalarType(SourceInfo()), SourceInfo());
   {
     std::vector<Connection> connections;
     connections.push_back(Connection{"clk", clk});
@@ -530,7 +530,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
     connections.push_back(Connection{"write_en", shifter_write_en});
     connections.push_back(Connection{"data_out", data_out});
     connections.push_back(Connection{"done", shifter_done});
-    m->Add<Instantiation>(std::nullopt, shift_m->name(), "shifter",
+    m->Add<Instantiation>(SourceInfo(), shift_m->name(), "shifter",
                           /*parameters=*/absl::Span<const Connection>(),
                           connections);
   }
@@ -545,15 +545,15 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
   auto data_done_state = fsm.AddState("DataDone");
 
   auto shifter_clear_output = fsm.AddExistingOutput(
-      shifter_clear, /*default_value=*/f->PlainLiteral(0, std::nullopt));
+      shifter_clear, /*default_value=*/f->PlainLiteral(0, SourceInfo()));
   auto shifter_write_en_output = fsm.AddExistingOutput(
-      shifter_write_en, /*default_value=*/f->PlainLiteral(0, std::nullopt));
+      shifter_write_en, /*default_value=*/f->PlainLiteral(0, SourceInfo()));
   auto data_out_valid_output = fsm.AddOutput1("data_out_valid_reg", 0);
   auto byte_in_ready_output = fsm.AddOutput1("byte_in_ready_reg", 0);
 
   auto is_escaped_reg =
-      fsm.AddRegister("is_escaped", f->ScalarType(std::nullopt),
-                      f->PlainLiteral(0, std::nullopt));
+      fsm.AddRegister("is_escaped", f->ScalarType(SourceInfo()),
+                      f->PlainLiteral(0, SourceInfo()));
 
   // The initial state clears the input shift register.
   init_state->SetOutput(shifter_clear_output, 1).NextState(idle_state);
@@ -569,10 +569,10 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
       // Not currently in escaped state and escape character received. Enter the
       // escaped state.
       .OnCondition(f->LogicalAnd(
-          f->LogicalNot(is_escaped_reg->logic_ref, std::nullopt),
+          f->LogicalNot(is_escaped_reg->logic_ref, SourceInfo()),
           f->Equals(byte_in, Hex8Literal(IoControlCode::kEscape, f),
-                    std::nullopt),
-          std::nullopt))
+                    SourceInfo()),
+          SourceInfo()))
       .SetRegisterNext(is_escaped_reg, 1)
 
       // Data byte received.
@@ -587,16 +587,16 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
 
   XLS_RETURN_IF_ERROR(fsm.Build());
 
-  m->Add<ContinuousAssignment>(std::nullopt, data_out_valid,
+  m->Add<ContinuousAssignment>(SourceInfo(), data_out_valid,
                                data_out_valid_output->logic_ref);
 
   // The byte_in_ready signal can come from the FSM or the reset module (in case
   // of receiving a reset IO code). Or them together to generate the output
   // signal.
   m->Add<ContinuousAssignment>(
-      std::nullopt, byte_in_ready,
+      SourceInfo(), byte_in_ready,
       f->LogicalOr(byte_in_ready_output->logic_ref, reset_fsm_byte_in_ready,
-                   std::nullopt));
+                   SourceInfo()));
 
   // Filter all byte inputs through the escape decoder.
   {
@@ -604,7 +604,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
     connections.push_back(Connection{"byte_in", byte_in});
     connections.push_back(Connection{"byte_out", shifter_byte_in});
     connections.push_back(Connection{"is_escaped", is_escaped_reg->logic_ref});
-    m->Add<Instantiation>(std::nullopt, decoder_m->name(), "decoder",
+    m->Add<Instantiation>(SourceInfo(), decoder_m->name(), "decoder",
                           /*parameters=*/absl::Span<const Connection>(),
                           connections);
   }
@@ -616,23 +616,23 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
                                                VerilogFile* f) {
   const int64_t output_bits = signature.TotalDataOutputBits();
 
-  Module* m = f->AddModule("output_controller", std::nullopt);
-  LogicRef* clk = m->AddInput("clk", f->ScalarType(std::nullopt), std::nullopt);
+  Module* m = f->AddModule("output_controller", SourceInfo());
+  LogicRef* clk = m->AddInput("clk", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* rst_n =
-      m->AddInput("rst_n", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("rst_n", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* data_in = m->AddInput(
-      "data_in", f->BitVectorType(output_bits, std::nullopt), std::nullopt);
+      "data_in", f->BitVectorType(output_bits, SourceInfo()), SourceInfo());
   LogicRef* data_in_valid =
-      m->AddInput("data_in_valid", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("data_in_valid", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* data_in_ready =
-      m->AddOutput("data_in_ready", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("data_in_ready", f->ScalarType(SourceInfo()), SourceInfo());
 
   LogicRef* byte_out =
-      m->AddOutput("byte_out", f->BitVectorType(8, std::nullopt), std::nullopt);
+      m->AddOutput("byte_out", f->BitVectorType(8, SourceInfo()), SourceInfo());
   LogicRef* byte_out_ready =
-      m->AddInput("byte_out_ready", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddInput("byte_out_ready", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* byte_out_valid =
-      m->AddOutput("byte_out_valid", f->ScalarType(std::nullopt), std::nullopt);
+      m->AddOutput("byte_out_valid", f->ScalarType(SourceInfo()), SourceInfo());
 
   // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
   // rather than hard-coding it as false.
@@ -661,7 +661,7 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
   // Shift and output bytes one at a time until the byte counter reaches zero.
   shifting_state
       ->OnCondition(f->Equals(byte_counter->logic_ref,
-                              f->PlainLiteral(0, std::nullopt), std::nullopt))
+                              f->PlainLiteral(0, SourceInfo()), SourceInfo()))
       .NextState(idle_state)
       .Else()
       .SetOutput(byte_out_valid_output, 1)
@@ -680,21 +680,21 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
       .SetOutput(byte_out_valid_output, 0)
       .SetRegisterNextAsExpression(
           shift_reg, f->Shrl(shift_reg->logic_ref,
-                             f->PlainLiteral(8, std::nullopt), std::nullopt))
+                             f->PlainLiteral(8, SourceInfo()), SourceInfo()))
       .SetRegisterNextAsExpression(
           byte_counter, f->Sub(byte_counter->logic_ref,
-                               f->PlainLiteral(1, std::nullopt), std::nullopt));
+                               f->PlainLiteral(1, SourceInfo()), SourceInfo()));
 
   XLS_RETURN_IF_ERROR(fsm.Build());
 
   // The data output of the module is the LSB of the shift register.
   m->Add<ContinuousAssignment>(
-      std::nullopt, byte_out,
-      f->Slice(shift_reg->logic_ref, f->PlainLiteral(7, std::nullopt),
-               f->PlainLiteral(0, std::nullopt), std::nullopt));
-  m->Add<ContinuousAssignment>(std::nullopt, byte_out_valid,
+      SourceInfo(), byte_out,
+      f->Slice(shift_reg->logic_ref, f->PlainLiteral(7, SourceInfo()),
+               f->PlainLiteral(0, SourceInfo()), SourceInfo()));
+  m->Add<ContinuousAssignment>(SourceInfo(), byte_out_valid,
                                byte_out_valid_output->logic_ref);
-  m->Add<ContinuousAssignment>(std::nullopt, data_in_ready,
+  m->Add<ContinuousAssignment>(SourceInfo(), data_in_ready,
                                data_in_ready_output->logic_ref);
 
   return m;

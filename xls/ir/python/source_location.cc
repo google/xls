@@ -15,6 +15,7 @@
 #include "xls/ir/source_location.h"
 
 #include "pybind11/pybind11.h"
+#include "pybind11/stl.h"
 
 namespace py = pybind11;
 
@@ -26,6 +27,9 @@ PYBIND11_MODULE(source_location, m) {
   py::class_<SourceLocation>(m, "SourceLocation")
       .def(py::init<Fileno, Lineno, Colno>(), py::arg("fileno"),
            py::arg("lineno"), py::arg("colno"));
+
+  py::class_<SourceInfo>(m, "SourceInfo")
+      .def(py::init<std::vector<SourceLocation>>(), py::arg("locations"));
 }
 
 }  // namespace xls

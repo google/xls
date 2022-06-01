@@ -75,7 +75,7 @@ class Node {
   Op op() const { return op_; }
   FunctionBase* function_base() const { return function_base_; }
   Package* package() const;
-  const absl::optional<SourceLocation>& loc() const { return loc_; }
+  const SourceInfo& loc() const { return loc_; }
 
   // Returns the sequence of operands used by this node.
   //
@@ -251,8 +251,8 @@ class Node {
   // uniquifying prefix).
   friend class Block;
 
-  Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-       absl::string_view name, FunctionBase* function);
+  Node(Op op, Type* type, const SourceInfo& loc, absl::string_view name,
+       FunctionBase* function);
 
   std::string ToStringInternal(bool include_operand_types) const;
 
@@ -280,7 +280,7 @@ class Node {
   int64_t id_;
   Op op_;
   Type* type_;
-  absl::optional<SourceLocation> loc_;
+  SourceInfo loc_;
   std::string name_;
 
   std::vector<Node*> operands_;

@@ -1303,17 +1303,16 @@ class NodeChecker : public DfsVisitor {
   }
 };
 
-absl::Status VerifyNodeIdUnique(
-    Node* node,
-    absl::flat_hash_map<int64_t, absl::optional<SourceLocation>>* ids) {
+absl::Status VerifyNodeIdUnique(Node* node,
+                                absl::flat_hash_map<int64_t, SourceInfo>* ids) {
   // TODO(meheff): param IDs currently collide with non-param IDs. All IDs
   // should be globally unique.
   if (!node->Is<Param>()) {
     if (!ids->insert({node->id(), node->loc()}).second) {
-      const absl::optional<SourceLocation>& loc = ids->at(node->id());
+      const SourceInfo& info = ids->at(node->id());
       return absl::InternalError(absl::StrFormat(
-          "ID %d is not unique; previously seen source location: %s",
-          node->id(), loc.has_value() ? loc->ToString().c_str() : "<none>"));
+          "ID %d is not unique; previously seen source location:\n%s",
+          node->id(), info.ToString()));
     }
   }
   return absl::OkStatus();
@@ -1331,7 +1330,7 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
   }
 
   // Verify ids are unique within the function.
-  absl::flat_hash_map<int64_t, absl::optional<SourceLocation>> ids;
+  absl::flat_hash_map<int64_t, SourceInfo> ids;
   ids.reserve(function->node_count());
   for (Node* node : function->nodes()) {
     XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
@@ -1520,18 +1519,20 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
           "Multiple sends associated with the same channel '%s':\n\n",
           channel->name());
       for (Node* send : sends) {
-        if (!send->loc().has_value()) {
+        if (send->loc().locations.empty()) {
           absl::StrAppend(
               &error_message,
               "Send node with no known provenance: ", send->ToString(), "\n\n");
           continue;
         }
-        absl::StrAppend(
-            &error_message,
-            PrintCaret(
-                [&](Fileno fileno) { return package->GetFilename(fileno); },
-                send->loc().value()),
-            "\n");
+        for (const SourceLocation& loc : send->loc().locations) {
+          absl::StrAppend(
+              &error_message,
+              PrintCaret(
+                  [&](Fileno fileno) { return package->GetFilename(fileno); },
+                  loc),
+              "\n");
+        }
       }
       return absl::InternalError(error_message);
     }
@@ -1546,18 +1547,20 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
           "Multiple receives associated with the same channel '%s':\n\n",
           channel->name());
       for (Node* receive : receives) {
-        if (!receive->loc().has_value()) {
+        if (receive->loc().locations.empty()) {
           absl::StrAppend(&error_message,
                           "Receive node with no known provenance: ",
                           receive->ToString(), "\n\n");
           continue;
         }
-        absl::StrAppend(
-            &error_message,
-            PrintCaret(
-                [&](Fileno fileno) { return package->GetFilename(fileno); },
-                receive->loc().value()),
-            "\n");
+        for (const SourceLocation& loc : receive->loc().locations) {
+          absl::StrAppend(
+              &error_message,
+              PrintCaret(
+                  [&](Fileno fileno) { return package->GetFilename(fileno); },
+                  loc),
+              "\n");
+        }
       }
       return absl::InternalError(error_message);
     }
@@ -1617,7 +1620,7 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
 
   // Verify node IDs are unique within the package and uplinks point to this
   // package.
-  absl::flat_hash_map<int64_t, absl::optional<SourceLocation>> ids;
+  absl::flat_hash_map<int64_t, SourceInfo> ids;
   ids.reserve(package->GetNodeCount());
   for (FunctionBase* function : package->GetFunctionBases()) {
     XLS_RET_CHECK(function->package() == package);

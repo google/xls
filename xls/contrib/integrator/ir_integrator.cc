@@ -52,7 +52,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
     XLS_ASSIGN_OR_RETURN(
         Node * args_tuple,
         integration_function->function_->MakeNodeWithName<Param>(
-            /*loc=*/std::nullopt, tuple_name, args_tuple_type));
+            SourceInfo(), tuple_name, args_tuple_type));
 
     // Add TupleIndex nodes inside function to unpack tuple parameter.
     int64_t parameter_index = 0;
@@ -60,7 +60,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
       XLS_ASSIGN_OR_RETURN(
           Node * tuple_index,
           integration_function->function_->MakeNode<TupleIndex>(
-              /*loc=*/std::nullopt, args_tuple, parameter_index));
+              SourceInfo(), args_tuple, parameter_index));
       XLS_RETURN_IF_ERROR(
           integration_function->SetNodeMapping(param, tuple_index));
       parameter_index++;
@@ -74,7 +74,7 @@ IntegrationFunction::MakeIntegrationFunctionWithParamTuples(
     XLS_ASSIGN_OR_RETURN(
         integration_function->global_mux_select_param_,
         integration_function->function_->MakeNodeWithName<Param>(
-            /*loc=*/std::nullopt, "global_mux_select",
+            SourceInfo(), "global_mux_select",
             integration_function->package_->GetBitsType(num_bits)));
   }
 
@@ -96,9 +96,8 @@ absl::StatusOr<Node*> IntegrationFunction::MakeTupleReturnValue() {
   }
 
   // Make tuple.
-  XLS_ASSIGN_OR_RETURN(
-      Node * tuple,
-      function_->MakeNode<Tuple>(/*loc=*/std::nullopt, source_return_mappings));
+  XLS_ASSIGN_OR_RETURN(Node * tuple, function_->MakeNode<Tuple>(
+                                         SourceInfo(), source_return_mappings));
 
   // Set as integration return value.
   XLS_RETURN_IF_ERROR(function_->set_return_value(tuple));
@@ -287,13 +286,13 @@ IntegrationFunction::UnifyIntegrationNodesWithPerMuxSelect(Node* node_a,
   // only configure to one of the input functions.
   std::string select_name =
       node_a->GetName() + "_" + node_b->GetName() + "_mux_sel";
-  XLS_ASSIGN_OR_RETURN(Node * select, function_->MakeNodeWithName<Param>(
-                                          /*loc=*/std::nullopt, select_name,
-                                          package_->GetBitsType(1)));
+  XLS_ASSIGN_OR_RETURN(
+      Node * select, function_->MakeNodeWithName<Param>(
+                         SourceInfo(), select_name, package_->GetBitsType(1)));
   std::vector<Node*> elements = {node_a, node_b};
-  XLS_ASSIGN_OR_RETURN(Node * mux, function_->MakeNode<Select>(
-                                       /*loc=*/std::nullopt, select, elements,
-                                       /*default_value=*/std::nullopt));
+  XLS_ASSIGN_OR_RETURN(
+      Node * mux, function_->MakeNode<Select>(SourceInfo(), select, elements,
+                                              /*default_value=*/std::nullopt));
 
   node_pair_to_mux_[key] = mux;
   return UnifiedNode({mux, /*change=*/UnificationChange::kNewMuxAdded});
@@ -375,11 +374,11 @@ IntegrationFunction::UnifyIntegrationNodesWithGlobalMuxSelectNoMuxArg(
   std::vector<Node*> cases(source_function_base_to_index_.size(), node_a);
   XLS_ASSIGN_OR_RETURN(
       Node * init_mux,
-      function_->MakeNode<Select>(
-          /*loc=*/std::nullopt, global_mux_select_param_, cases,
-          /*default_value=*/
-          IsPowerOfTwo(cases.size()) ? std::nullopt
-                                     : absl::optional<Node*>(node_a)));
+      function_->MakeNode<Select>(SourceInfo(), global_mux_select_param_, cases,
+                                  /*default_value=*/
+                                  IsPowerOfTwo(cases.size())
+                                      ? std::nullopt
+                                      : absl::optional<Node*>(node_a)));
   // Track assigned cases.
   XLS_ASSIGN_OR_RETURN(std::set<int64_t> a_source_indexes,
                        GetSourceFunctionIndexesOfNodesMappedToNode(node_a));

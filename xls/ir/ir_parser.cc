@@ -171,7 +171,7 @@ using KeywordVariant =
     absl::variant<KeywordValue<int64_t>, KeywordValue<IdentifierString>,
                   KeywordValue<QuotedString>, KeywordValue<BValue>,
                   KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
-                  KeywordValue<SourceLocation>, KeywordValue<bool>>;
+                  KeywordValue<SourceInfo>, KeywordValue<bool>>;
 
 // Abstraction for parsing the arguments of a node. The arguments include
 // positional and keyword arguments. The positional arguments are exclusively
@@ -319,8 +319,8 @@ class ArgParser {
                 [&](KeywordValue<std::vector<BValue>>& v) {
                   return v.SetOrReturn(parser_->ParseNameList(name_to_bvalue_));
                 },
-                [&](KeywordValue<SourceLocation>& v) {
-                  return v.SetOrReturn(parser_->ParseSourceLocation());
+                [&](KeywordValue<SourceInfo>& v) {
+                  return v.SetOrReturn(parser_->ParseSourceInfo());
                 }},
         keyword_variant);
     return absl::OkStatus();
@@ -511,25 +511,49 @@ absl::StatusOr<std::vector<BValue>> Parser::ParseNameList(
   return result;
 }
 
-absl::StatusOr<SourceLocation> Parser::ParseSourceLocation() {
-  XLS_ASSIGN_OR_RETURN(Token fileno,
-                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-  XLS_ASSIGN_OR_RETURN(Token lineno,
-                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
-  XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
-  XLS_ASSIGN_OR_RETURN(Token colno,
-                       scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
-  XLS_ASSIGN_OR_RETURN(int64_t fileno_value, fileno.GetValueInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t lineno_value, lineno.GetValueInt64());
-  XLS_ASSIGN_OR_RETURN(int64_t colno_value, colno.GetValueInt64());
-  return SourceLocation(Fileno(fileno_value), Lineno(lineno_value),
-                        Colno(colno_value));
+absl::StatusOr<SourceInfo> Parser::ParseSourceInfo() {
+  XLS_RETURN_IF_ERROR(
+      scanner_.DropTokenOrError(LexicalTokenType::kBracketOpen));
+  SourceInfo result;
+  bool must_end = false;
+  while (true) {
+    if (must_end) {
+      XLS_RETURN_IF_ERROR(
+          scanner_.DropTokenOrError(LexicalTokenType::kBracketClose));
+      break;
+    }
+    if (scanner_.TryDropToken(LexicalTokenType::kBracketClose)) {
+      break;
+    }
+
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenOpen));
+    XLS_ASSIGN_OR_RETURN(Token fileno,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+    XLS_ASSIGN_OR_RETURN(Token lineno,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kComma));
+    XLS_ASSIGN_OR_RETURN(Token colno,
+                         scanner_.PopTokenOrError(LexicalTokenType::kLiteral));
+    XLS_RETURN_IF_ERROR(
+        scanner_.DropTokenOrError(LexicalTokenType::kParenClose));
+
+    XLS_ASSIGN_OR_RETURN(int64_t fileno_value, fileno.GetValueInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t lineno_value, lineno.GetValueInt64());
+    XLS_ASSIGN_OR_RETURN(int64_t colno_value, colno.GetValueInt64());
+    result.locations.push_back(SourceLocation(
+        Fileno(fileno_value), Lineno(lineno_value), Colno(colno_value)));
+    must_end = !scanner_.TryDropToken(LexicalTokenType::kComma);
+  }
+  SourceInfo copied = result;
+  return result;
 }
 
-absl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(
-    Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
-    absl::string_view node_name, ArgParser* arg_parser) {
+absl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(Op op, BuilderBase* fb,
+                                                    SourceInfo* loc,
+                                                    absl::string_view node_name,
+                                                    ArgParser* arg_parser) {
   std::vector<BValue> operands;
 
   if (IsOpClass<BinOp>(op)) {
@@ -622,8 +646,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
   XLS_ASSIGN_OR_RETURN(Op op, StringToOp(op_token.value()));
 
   ArgParser arg_parser(*name_to_value, type, this);
-  absl::optional<SourceLocation>* loc =
-      arg_parser.AddOptionalKeywordArg<SourceLocation>("pos");
+  SourceInfo* loc =
+      arg_parser.AddOptionalKeywordArg<SourceInfo>("pos", SourceInfo());
   absl::optional<int64_t>* id_attribute =
       arg_parser.AddOptionalKeywordArg<int64_t>("id");
   BValue bvalue;

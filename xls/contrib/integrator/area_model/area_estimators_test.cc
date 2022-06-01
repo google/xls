@@ -35,9 +35,9 @@ TEST_F(AreaEstimatorTest, AreaModelTesting2Point5MuxPerNode) {
   auto in1 = fb.Param("in1", p->GetBitsType(2));
   auto in2 = fb.Param("in2", p->GetBitsType(2));
   auto sel_in = fb.Param("sel_in", p->GetBitsType(1));
-  fb.Select(sel_in, {in1, in2}, /*default_value=*/absl::nullopt,
-            /*loc=*/absl::nullopt, "mux");
-  fb.Add(in1, in2, /*loc=*/absl::nullopt, "add");
+  fb.Select(sel_in, {in1, in2}, /*default_value=*/std::nullopt, SourceInfo(),
+            "mux");
+  fb.Add(in1, in2, SourceInfo(), "add");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   Node* add_node = FindNode("add", func);
   Node* mux_node = FindNode("mux", func);
@@ -54,9 +54,9 @@ TEST_F(AreaEstimatorTest, AreaModelIce40Multiply) {
   FunctionBuilder fb("func", p.get());
   auto in1 = fb.Param("in1", p->GetBitsType(16));
   auto in2 = fb.Param("in2", p->GetBitsType(32));
-  fb.UMul(in1, in2, /*result_width=*/16, /*loc=*/absl::nullopt, "mul_c");
-  fb.UMul(in1, in2, /*result_width=*/32, /*loc=*/absl::nullopt, "mul_b");
-  fb.UMul(in1, in2, /*result_width=*/100, /*loc=*/absl::nullopt, "mul_a");
+  fb.UMul(in1, in2, /*result_width=*/16, SourceInfo(), "mul_c");
+  fb.UMul(in1, in2, /*result_width=*/32, SourceInfo(), "mul_b");
+  fb.UMul(in1, in2, /*result_width=*/100, SourceInfo(), "mul_a");
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
   Node* mul_c = FindNode("mul_c", func);

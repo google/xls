@@ -71,7 +71,7 @@ TEST_F(ProcTest, MutateProc) {
   XLS_ASSERT_OK(proc->RemoveNode(add.node()));
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
-      proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
   XLS_ASSERT_OK(
       proc->ReplaceUniqueState("new_state", new_state, Value(UBits(100, 100))));
 
@@ -83,9 +83,9 @@ TEST_F(ProcTest, AddAndRemoveState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "x", p.get());
   BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam(),
-                      absl::nullopt, "my_add");
+                      SourceInfo(), "my_add");
   BValue after_all =
-      pb.AfterAll({pb.GetTokenParam()}, absl::nullopt, "my_after_all");
+      pb.AfterAll({pb.GetTokenParam()}, SourceInfo(), "my_after_all");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, add));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
@@ -148,7 +148,7 @@ TEST_F(ProcTest, AddAndRemoveState) {
 TEST_F(ProcTest, ReplaceState) {
   auto p = CreatePackage();
   ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "x", p.get());
-  BValue forty_two = pb.Literal(UBits(42, 32), absl::nullopt, "forty_two");
+  BValue forty_two = pb.Literal(UBits(42, 32), SourceInfo(), "forty_two");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
                            pb.Build(pb.GetTokenParam(), forty_two));
   EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()), ElementsAre(0));
@@ -220,7 +220,7 @@ TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
-      proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
   EXPECT_THAT(
       proc->ReplaceUniqueState("new_state", new_state, Value(UBits(100, 100))),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -238,7 +238,7 @@ TEST_F(ProcTest, ReplaceStateWithWrongInitValueType) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
-      proc->MakeNode<Literal>(/*loc=*/absl::nullopt, Value(UBits(100, 100))));
+      proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
   EXPECT_THAT(proc->ReplaceUniqueState("new_state", new_state,
                                        /*init_value=*/Value(UBits(0, 42))),
               StatusIs(absl::StatusCode::kInvalidArgument,

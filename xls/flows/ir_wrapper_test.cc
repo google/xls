@@ -71,7 +71,7 @@ pub fn GetLatency() -> s64 {
   XLS_VLOG_LINES(3, get_latency->DumpIr());
   EXPECT_EQ(get_latency->DumpIr(),
             R"(fn __top__GetLatency() -> bits[64] {
-  ret params_latency: bits[64] = literal(value=7, id=5, pos=0,2,15)
+  ret params_latency: bits[64] = literal(value=7, id=5, pos=[(0,2,15)])
 }
 )");
 
@@ -82,7 +82,7 @@ pub fn GetLatency() -> s64 {
 file_number 0 "fake_file.x"
 
 fn __top__GetLatency() -> bits[64] {
-  ret params_latency: bits[64] = literal(value=7, id=5, pos=0,2,15)
+  ret params_latency: bits[64] = literal(value=7, id=5, pos=[(0,2,15)])
 }
 )");
 

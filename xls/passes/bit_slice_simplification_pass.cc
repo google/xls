@@ -33,8 +33,7 @@ absl::StatusOr<bool> SimplifyBitSlice(BitSlice* bit_slice, int64_t opt_level,
   BitsType* operand_type = operand->GetType()->AsBitsOrDie();
 
   // Creates a new bit slice and adds it to the worklist.
-  auto make_bit_slice = [&](absl::optional<SourceLocation> loc, Node* operand,
-                            int64_t start,
+  auto make_bit_slice = [&](const SourceInfo& loc, Node* operand, int64_t start,
                             int64_t width) -> absl::StatusOr<BitSlice*> {
     XLS_ASSIGN_OR_RETURN(BitSlice * new_bit_slice,
                          bit_slice->function_base()->MakeNode<BitSlice>(

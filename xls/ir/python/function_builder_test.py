@@ -36,7 +36,8 @@ class FunctionBuilderTest(absltest.TestCase):
 
     lineno = fileno_mod.Lineno(42)
     colno = fileno_mod.Colno(64)
-    loc = source_location.SourceLocation(fileno, lineno, colno)
+    loc = source_location.SourceInfo(
+        [source_location.SourceLocation(fileno, lineno, colno)])
     fb.add_or(x, x, loc=loc, name='my_or')
     fb.add_not(x, loc=loc, name='why_not')
 
@@ -45,8 +46,8 @@ class FunctionBuilderTest(absltest.TestCase):
     self.assertEqual(
         f.dump_ir(), """\
 fn test_function(x: bits[32]) -> bits[32] {
-  my_or: bits[32] = or(x, x, id=2, pos=0,42,64)
-  ret why_not: bits[32] = not(x, id=3, pos=0,42,64)
+  my_or: bits[32] = or(x, x, id=2, pos=[(0,42,64)])
+  ret why_not: bits[32] = not(x, id=3, pos=[(0,42,64)])
 }
 """)
 
@@ -57,8 +58,8 @@ package test_package
 file_number 0 "my_file.x"
 
 fn test_function(x: bits[32]) -> bits[32] {
-  my_or: bits[32] = or(x, x, id=2, pos=0,42,64)
-  ret why_not: bits[32] = not(x, id=3, pos=0,42,64)
+  my_or: bits[32] = or(x, x, id=2, pos=[(0,42,64)])
+  ret why_not: bits[32] = not(x, id=3, pos=[(0,42,64)])
 }
 """)
 
@@ -156,7 +157,8 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
     fileno = p.get_or_create_fileno('my_file.x')
     lineno = fileno_mod.Lineno(42)
     colno = fileno_mod.Colno(64)
-    loc = source_location.SourceLocation(fileno, lineno, colno)
+    loc = source_location.SourceInfo(
+        [source_location.SourceLocation(fileno, lineno, colno)])
     fb = function_builder.FunctionBuilder('test_function', p)
 
     single_zero_bit = fb.add_literal_value(

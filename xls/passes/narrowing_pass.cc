@@ -283,7 +283,7 @@ absl::StatusOr<bool> MaybeConvertArrayIndexToSelect(
 
   // Helpful shorthands
   FunctionBase* f = array_index->function_base();
-  std::optional<SourceLocation> loc = array_index->loc();
+  SourceInfo loc = array_index->loc();
 
   // Given a possible index (possible based on range query engine data),
   // populate `cases` and `conditions` with the relevant nodes.

@@ -218,7 +218,8 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
   BValue x = fb.Param("x", package.GetBitsType(24));
   BValue y = fb.Param("y", package.GetBitsType(16));
   BValue mac =
-      fb.Add(fb.UMul(x, y, 32, loc1), fb.Literal(UBits(53, 32), loc3), loc2);
+      fb.Add(fb.UMul(x, y, 32, SourceInfo(loc1)),
+             fb.Literal(UBits(53, 32), SourceInfo(loc3)), SourceInfo(loc2));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(mac));
 
@@ -247,56 +248,53 @@ TEST(BlockMetricsGeneratorTest, BillOfMaterials) {
   EXPECT_EQ(proto.bill_of_materials(0).output_width(), 24);
   EXPECT_EQ(proto.bill_of_materials(0).maximum_input_width(), 0);
   EXPECT_EQ(proto.bill_of_materials(0).number_of_arguments(), 0);
-  EXPECT_FALSE(proto.bill_of_materials(0).has_source_file());
-  EXPECT_FALSE(proto.bill_of_materials(0).has_source_line());
-  EXPECT_FALSE(proto.bill_of_materials(0).has_source_col());
+  EXPECT_EQ(proto.bill_of_materials(0).location_size(), 0);
 
   EXPECT_EQ(proto.bill_of_materials(1).op(), ToOpProto(Op::kInputPort));
   EXPECT_EQ(proto.bill_of_materials(1).kind(), BOM_KIND_MISC);
   EXPECT_EQ(proto.bill_of_materials(1).output_width(), 16);
   EXPECT_EQ(proto.bill_of_materials(1).maximum_input_width(), 0);
   EXPECT_EQ(proto.bill_of_materials(1).number_of_arguments(), 0);
-  EXPECT_FALSE(proto.bill_of_materials(1).has_source_file());
-  EXPECT_FALSE(proto.bill_of_materials(1).has_source_line());
-  EXPECT_FALSE(proto.bill_of_materials(1).has_source_col());
+  EXPECT_EQ(proto.bill_of_materials(1).location_size(), 0);
 
   EXPECT_EQ(proto.bill_of_materials(2).op(), ToOpProto(Op::kUMul));
   EXPECT_EQ(proto.bill_of_materials(2).kind(), BOM_KIND_MULTIPLIER);
   EXPECT_EQ(proto.bill_of_materials(2).output_width(), 32);
   EXPECT_EQ(proto.bill_of_materials(2).maximum_input_width(), 24);
   EXPECT_EQ(proto.bill_of_materials(2).number_of_arguments(), 2);
-  EXPECT_EQ(proto.bill_of_materials(2).source_file(), "foo");
-  EXPECT_EQ(proto.bill_of_materials(2).source_line(), 20);
-  EXPECT_EQ(proto.bill_of_materials(2).source_col(), 8);
+  EXPECT_EQ(proto.bill_of_materials(2).location_size(), 1);
+  EXPECT_EQ(proto.bill_of_materials(2).location(0).file(), "foo");
+  EXPECT_EQ(proto.bill_of_materials(2).location(0).line(), 20);
+  EXPECT_EQ(proto.bill_of_materials(2).location(0).col(), 8);
 
   EXPECT_EQ(proto.bill_of_materials(3).op(), ToOpProto(Op::kLiteral));
   EXPECT_EQ(proto.bill_of_materials(3).kind(), BOM_KIND_INSIGNIFICANT);
   EXPECT_EQ(proto.bill_of_materials(3).output_width(), 32);
   EXPECT_EQ(proto.bill_of_materials(3).maximum_input_width(), 0);
   EXPECT_EQ(proto.bill_of_materials(3).number_of_arguments(), 0);
-  EXPECT_FALSE(proto.bill_of_materials(3).has_source_file());
-  EXPECT_TRUE(proto.bill_of_materials(3).has_source_line());
-  EXPECT_TRUE(proto.bill_of_materials(3).has_source_col());
-  EXPECT_EQ(proto.bill_of_materials(3).source_line(), 60);
-  EXPECT_EQ(proto.bill_of_materials(3).source_col(), 4);
+  EXPECT_EQ(proto.bill_of_materials(3).location_size(), 1);
+  EXPECT_FALSE(proto.bill_of_materials(3).location(0).has_file());
+  EXPECT_TRUE(proto.bill_of_materials(3).location(0).has_line());
+  EXPECT_TRUE(proto.bill_of_materials(3).location(0).has_col());
+  EXPECT_EQ(proto.bill_of_materials(3).location(0).line(), 60);
+  EXPECT_EQ(proto.bill_of_materials(3).location(0).col(), 4);
 
   EXPECT_EQ(proto.bill_of_materials(4).op(), ToOpProto(Op::kAdd));
   EXPECT_EQ(proto.bill_of_materials(4).kind(), BOM_KIND_ADDER);
   EXPECT_EQ(proto.bill_of_materials(4).output_width(), 32);
   EXPECT_EQ(proto.bill_of_materials(4).maximum_input_width(), 32);
   EXPECT_EQ(proto.bill_of_materials(4).number_of_arguments(), 2);
-  EXPECT_EQ(proto.bill_of_materials(4).source_file(), "bar");
-  EXPECT_EQ(proto.bill_of_materials(4).source_line(), 25);
-  EXPECT_EQ(proto.bill_of_materials(4).source_col(), 12);
+  EXPECT_EQ(proto.bill_of_materials(4).location_size(), 1);
+  EXPECT_EQ(proto.bill_of_materials(4).location(0).file(), "bar");
+  EXPECT_EQ(proto.bill_of_materials(4).location(0).line(), 25);
+  EXPECT_EQ(proto.bill_of_materials(4).location(0).col(), 12);
 
   EXPECT_EQ(proto.bill_of_materials(5).op(), ToOpProto(Op::kOutputPort));
   EXPECT_EQ(proto.bill_of_materials(5).kind(), BOM_KIND_MISC);
   EXPECT_EQ(proto.bill_of_materials(5).output_width(), 0);
   EXPECT_EQ(proto.bill_of_materials(5).maximum_input_width(), 32);
   EXPECT_EQ(proto.bill_of_materials(5).number_of_arguments(), 1);
-  EXPECT_FALSE(proto.bill_of_materials(5).has_source_file());
-  EXPECT_FALSE(proto.bill_of_materials(5).has_source_line());
-  EXPECT_FALSE(proto.bill_of_materials(5).has_source_col());
+  EXPECT_EQ(proto.bill_of_materials(5).location_size(), 0);
 }
 
 TEST(BlockMetricsGeneratorTest, DelayMetrics) {

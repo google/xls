@@ -60,7 +60,7 @@ void RealMain() {
   verilog::ModuleSignature signature = signature_status.value();
 
   verilog::VerilogFile f(/*use_system_verilog=*/true);
-  f.AddInclude(include, std::nullopt);
+  f.AddInclude(include, SourceInfo());
 
   absl::StatusOr<std::unique_ptr<verilog::IoStrategy>> io_strategy_status =
       verilog::IoStrategyFactory::CreateForDevice(target_device, &f);

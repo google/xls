@@ -53,7 +53,7 @@ class IrConverterMainTest(test_base.TestCase):
     file_number 0 "fake_file.x"
 
     fn __a__f() -> bits[32] {
-      ret literal.1: bits[32] = literal(value=42, id=1, pos=0,0,20)
+      ret literal.1: bits[32] = literal(value=42, id=1, pos=[(0,0,20)])
     }
     """))
 
@@ -66,7 +66,7 @@ class IrConverterMainTest(test_base.TestCase):
     file_number 0 "fake_file.x"
 
     fn __b__f() -> bits[32] {
-      ret literal.1: bits[32] = literal(value=64, id=1, pos=0,0,20)
+      ret literal.1: bits[32] = literal(value=64, id=1, pos=[(0,0,20)])
     }
     """))
 
@@ -83,11 +83,11 @@ class IrConverterMainTest(test_base.TestCase):
     file_number 0 "fake_file.x"
 
     fn __a__f() -> bits[32] {
-      ret literal.1: bits[32] = literal(value=42, id=1, pos=0,0,20)
+      ret literal.1: bits[32] = literal(value=42, id=1, pos=[(0,0,20)])
     }
 
     fn __b__f() -> bits[32] {
-      ret literal.2: bits[32] = literal(value=64, id=2, pos=0,0,20)
+      ret literal.2: bits[32] = literal(value=64, id=2, pos=[(0,0,20)])
     }
     """))
 

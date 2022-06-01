@@ -542,29 +542,28 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed);
 //  as new CValues for assignments to variables declared outside the scope,
 //  up to the next context / outer scope.
 struct TranslationContext {
-  xls::BValue not_full_condition_bval(const xls::SourceLocation& loc) const {
+  xls::BValue not_full_condition_bval(const xls::SourceInfo& loc) const {
     if (!full_condition.valid()) {
       return fb->Literal(xls::UBits(0, 1), loc);
     }
     return fb->Not(full_condition, loc);
   }
 
-  xls::BValue full_condition_bval(const xls::SourceLocation& loc) const {
+  xls::BValue full_condition_bval(const xls::SourceInfo& loc) const {
     if (!full_condition.valid()) {
       return fb->Literal(xls::UBits(1, 1), loc);
     }
     return full_condition;
   }
 
-  xls::BValue not_relative_condition_bval(
-      const xls::SourceLocation& loc) const {
+  xls::BValue not_relative_condition_bval(const xls::SourceInfo& loc) const {
     if (!relative_condition.valid()) {
       return fb->Literal(xls::UBits(0, 1), loc);
     }
     return fb->Not(relative_condition, loc);
   }
 
-  xls::BValue relative_condition_bval(const xls::SourceLocation& loc) const {
+  xls::BValue relative_condition_bval(const xls::SourceInfo& loc) const {
     if (!relative_condition.valid()) {
       return fb->Literal(xls::UBits(1, 1), loc);
     }
@@ -572,7 +571,7 @@ struct TranslationContext {
   }
 
   void and_condition_util(xls::BValue and_condition, xls::BValue& mod_condition,
-                          const xls::SourceLocation& loc) const {
+                          const xls::SourceInfo& loc) const {
     if (!mod_condition.valid()) {
       mod_condition = and_condition;
     } else {
@@ -581,7 +580,7 @@ struct TranslationContext {
   }
 
   void or_condition_util(xls::BValue or_condition, xls::BValue& mod_condition,
-                         const xls::SourceLocation& loc) const {
+                         const xls::SourceInfo& loc) const {
     if (!mod_condition.valid()) {
       mod_condition = or_condition;
     } else {
@@ -739,20 +738,21 @@ class Translator {
   friend class CInstantiableTypeAlias;
 
   std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
-  template<typename... Args>
-  std::string ErrorMessage(xls::SourceLocation loc,
-  const absl::FormatSpec<Args...>& format, const Args&... args);
+  template <typename... Args>
+  std::string ErrorMessage(const xls::SourceInfo& loc,
+                           const absl::FormatSpec<Args...>& format,
+                           const Args&... args);
 
   // This object is used to push a new translation context onto the stack
   //  and then to pop it via RAII. This guard provides options for which bits of
   //  context to propagate up when popping it from the stack.
   struct PushContextGuard {
-    PushContextGuard(Translator& translator, const xls::SourceLocation& loc)
+    PushContextGuard(Translator& translator, const xls::SourceInfo& loc)
         : translator(translator), loc(loc) {
       translator.PushContext();
     }
     PushContextGuard(Translator& translator, xls::BValue and_condition,
-                     const xls::SourceLocation& loc)
+                     const xls::SourceInfo& loc)
         : translator(translator), loc(loc) {
       translator.PushContext();
       absl::Status status = translator.and_condition(and_condition, loc);
@@ -768,7 +768,7 @@ class Translator {
     }
 
     Translator& translator;
-    xls::SourceLocation loc;
+    xls::SourceInfo loc;
   };
 
   // This guard makes pointers translate, instead of generating errors, for a
@@ -880,10 +880,10 @@ class Translator {
   mutable std::unique_ptr<clang::MangleContext> mangler_;
 
   TranslationContext& PushContext();
-  absl::Status PopContext(const xls::SourceLocation& loc);
+  absl::Status PopContext(const xls::SourceInfo& loc);
   absl::Status PropagateVariables(const TranslationContext& from,
                                   TranslationContext& to,
-                                  const xls::SourceLocation& loc);
+                                  const xls::SourceInfo& loc);
 
   xls::Package* package_;
   // Initially contains keys for the parameters of the top function,
@@ -897,48 +897,48 @@ class Translator {
   TranslationContext& context();
 
   absl::Status and_condition(xls::BValue and_condition,
-                             const xls::SourceLocation& loc);
+                             const xls::SourceInfo& loc);
 
   absl::StatusOr<CValue> Generate_UnaryOp(const clang::UnaryOperator* uop,
-                                          const xls::SourceLocation& loc);
+                                          const xls::SourceInfo& loc);
   absl::StatusOr<CValue> Generate_Synthetic_ByOne(
       xls::Op xls_op, bool is_pre, CValue sub_value,
       const clang::Expr* sub_expr,  // For assignment
-      const xls::SourceLocation& loc);
+      const xls::SourceInfo& loc);
   absl::StatusOr<CValue> Generate_BinaryOp(
       clang::BinaryOperator::Opcode clang_op, bool is_assignment,
       std::shared_ptr<CType> result_type, const clang::Expr* lhs,
-      const clang::Expr* rhs, const xls::SourceLocation& loc);
+      const clang::Expr* rhs, const xls::SourceInfo& loc);
   absl::Status MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
                                   std::shared_ptr<CType>& result_type,
-                                  const xls::SourceLocation& loc);
+                                  const xls::SourceInfo& loc);
   absl::StatusOr<CValue> Generate_TernaryOp(xls::BValue cond, CValue true_cv,
                                             CValue false_cv,
                                             std::shared_ptr<CType> result_type,
-                                            const xls::SourceLocation& loc);
+                                            const xls::SourceInfo& loc);
   absl::StatusOr<CValue> Generate_TernaryOp(std::shared_ptr<CType> result_type,
                                             const clang::Expr* cond_expr,
                                             const clang::Expr* true_expr,
                                             const clang::Expr* false_expr,
-                                            const xls::SourceLocation& loc);
+                                            const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_Expr(const clang::Expr* expr,
-                                         const xls::SourceLocation& loc);
+                                         const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_Expr(std::shared_ptr<LValue> expr,
-                                         const xls::SourceLocation& loc);
+                                         const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_MemberExpr(const clang::MemberExpr* expr,
-                                               const xls::SourceLocation& loc);
+                                               const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GenerateIR_Call(const clang::CallExpr* call,
-                                         const xls::SourceLocation& loc);
+                                         const xls::SourceInfo& loc);
 
   absl::StatusOr<CValue> GenerateIR_Call(
       const clang::FunctionDecl* funcdecl,
       std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
-      const xls::SourceLocation& loc);
+      const xls::SourceInfo& loc);
 
   // This is a work-around for non-const operator [] needing to return
   //  a reference to the object being modified.
   absl::StatusOr<bool> ApplyArrayAssignHack(
-      const clang::CXXOperatorCallExpr* op_call, const xls::SourceLocation& loc,
+      const clang::CXXOperatorCallExpr* op_call, const xls::SourceInfo& loc,
       CValue* output);
 
   struct PreparedBlock {
@@ -960,13 +960,13 @@ class Translator {
   absl::Status GenerateIRBlockCheck(
       absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
       const HLSBlock& block, const clang::FunctionDecl* definition,
-      const xls::SourceLocation& body_loc);
+      const xls::SourceInfo& body_loc);
 
   // Creates xls::Channels in the package
   absl::Status GenerateExternalChannels(
       const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
       const HLSBlock& block, const clang::FunctionDecl* definition,
-      const xls::SourceLocation& loc);
+      const xls::SourceInfo& loc);
 
   // Prepares IO channels for generating XLS Proc
   // definition can be null, and then channels_by_name can also be null. They
@@ -975,12 +975,12 @@ class Translator {
       PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
       int64_t next_state_index, const clang::FunctionDecl* definition,
       const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
-      const xls::SourceLocation& body_loc);
+      const xls::SourceInfo& body_loc);
 
   // Returns last invoke's return value
   absl::StatusOr<xls::BValue> GenerateIOInvokes(
       PreparedBlock& prepared, xls::ProcBuilder& pb,
-      const xls::SourceLocation& body_loc);
+      const xls::SourceInfo& body_loc);
 
   struct IOOpReturn {
     bool generate_expr;
@@ -989,20 +989,20 @@ class Translator {
   // Checks if an expression is an IO op, and if so, generates the value
   //  to replace it in IR generation.
   absl::StatusOr<IOOpReturn> InterceptIOOp(const clang::Expr* expr,
-                                           const xls::SourceLocation& loc);
+                                           const xls::SourceInfo& loc);
 
   // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
-                                       const xls::SourceLocation& loc);
+                                       const xls::SourceInfo& loc);
   absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
-                                  const xls::SourceLocation& loc);
+                                  const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> GetChannelType(
-      const clang::ParmVarDecl* channel_param, const xls::SourceLocation& loc);
+      const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
-                                     const xls::SourceLocation& loc);
+                                     const xls::SourceInfo& loc);
   absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
-                                     const xls::SourceLocation& loc);
+                                     const xls::SourceInfo& loc);
 
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
@@ -1013,7 +1013,7 @@ class Translator {
                                const clang::Expr* cond_expr,
                                const clang::Stmt* inc, const clang::Stmt* body,
                                const clang::PresumedLoc& presumed_loc,
-                               const xls::SourceLocation& loc,
+                               const xls::SourceInfo& loc,
                                clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
@@ -1022,7 +1022,7 @@ class Translator {
                                        const clang::Stmt* inc,
                                        const clang::Stmt* body,
                                        clang::ASTContext& ctx,
-                                       const xls::SourceLocation& loc);
+                                       const xls::SourceInfo& loc);
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_PipelinedLoop(const clang::Stmt* init,
                                         const clang::Expr* cond_expr,
@@ -1030,7 +1030,7 @@ class Translator {
                                         const clang::Stmt* body,
                                         int64_t initiation_interval_arg,
                                         clang::ASTContext& ctx,
-                                        const xls::SourceLocation& loc);
+                                        const xls::SourceInfo& loc);
   absl::Status GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
@@ -1041,10 +1041,10 @@ class Translator {
           variable_field_indices,
       const std::vector<const clang::NamedDecl*>& variable_fields_order,
       std::vector<const clang::NamedDecl*>& vars_changed_in_body,
-      const xls::SourceLocation& loc);
+      const xls::SourceInfo& loc);
   absl::Status GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                  clang::ASTContext& ctx,
-                                 const xls::SourceLocation& loc);
+                                 const xls::SourceInfo& loc);
 
   struct ResolvedInheritance {
     std::shared_ptr<CField> base_field;
@@ -1057,43 +1057,41 @@ class Translator {
 
   absl::StatusOr<xls::BValue> GenTypeConvert(CValue const& in,
                                              std::shared_ptr<CType> out_type,
-                                             const xls::SourceLocation& loc);
+                                             const xls::SourceInfo& loc);
   absl::StatusOr<xls::BValue> GenBoolConvert(CValue const& in,
-                                             const xls::SourceLocation& loc);
+                                             const xls::SourceInfo& loc);
 
-  absl::StatusOr<xls::Value> CreateDefaultRawValue(
-      std::shared_ptr<CType> t, const xls::SourceLocation& loc);
-  absl::StatusOr<xls::BValue> CreateDefaultValue(
-      std::shared_ptr<CType> t, const xls::SourceLocation& loc);
+  absl::StatusOr<xls::Value> CreateDefaultRawValue(std::shared_ptr<CType> t,
+                                                   const xls::SourceInfo& loc);
+  absl::StatusOr<xls::BValue> CreateDefaultValue(std::shared_ptr<CType> t,
+                                                 const xls::SourceInfo& loc);
   absl::StatusOr<xls::BValue> CreateInitListValue(
       const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
-      const xls::SourceLocation& loc);
+      const xls::SourceInfo& loc);
   absl::StatusOr<CValue> GetIdentifier(const clang::NamedDecl* decl,
-                                       const xls::SourceLocation& loc,
+                                       const xls::SourceInfo& loc,
                                        bool for_lvalue = false);
   absl::StatusOr<CValue> TranslateVarDecl(const clang::VarDecl* decl,
-                                          const xls::SourceLocation& loc);
+                                          const xls::SourceInfo& loc);
   absl::StatusOr<CValue> TranslateEnumConstantDecl(
-      const clang::EnumConstantDecl* decl, const xls::SourceLocation& loc);
+      const clang::EnumConstantDecl* decl, const xls::SourceInfo& loc);
   absl::Status Assign(const clang::NamedDecl* lvalue, const CValue& rvalue,
-                      const xls::SourceLocation& loc);
+                      const xls::SourceInfo& loc);
   absl::Status Assign(const clang::Expr* lvalue, const CValue& rvalue,
-                      const xls::SourceLocation& loc);
+                      const xls::SourceInfo& loc);
   absl::Status Assign(std::shared_ptr<LValue> lvalue, const CValue& rvalue,
-                      const xls::SourceLocation& loc);
-  absl::Status AssignThis(const CValue& rvalue, const xls::SourceLocation& loc);
+                      const xls::SourceInfo& loc);
+  absl::Status AssignThis(const CValue& rvalue, const xls::SourceInfo& loc);
   absl::StatusOr<CValue> PrepareRValueWithSelect(
       const CValue& lvalue, const CValue& rvalue,
-      const xls::BValue& relative_condition, const xls::SourceLocation& loc);
+      const xls::BValue& relative_condition, const xls::SourceInfo& loc);
 
   absl::Status DeclareVariable(const clang::NamedDecl* lvalue,
-                               const CValue& rvalue,
-                               const xls::SourceLocation& loc,
+                               const CValue& rvalue, const xls::SourceInfo& loc,
                                bool check_unique_ids = true);
 
   absl::Status DeclareStatic(const clang::NamedDecl* lvalue,
-                             const ConstValue& init,
-                             const xls::SourceLocation& loc,
+                             const ConstValue& init, const xls::SourceInfo& loc,
                              bool check_unique_ids = true);
 
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
@@ -1114,9 +1112,9 @@ class Translator {
       const clang::RecordDecl* sd);
 
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
-      const clang::QualType& t, const xls::SourceLocation& loc);
+      const clang::QualType& t, const xls::SourceInfo& loc);
   absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
-                                                const xls::SourceLocation& loc);
+                                                const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(
       std::shared_ptr<CType> t);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstanceDeeply(
@@ -1126,34 +1124,33 @@ class Translator {
 
   absl::StatusOr<int64_t> EvaluateInt64(const clang::Expr& expr,
                                         const class clang::ASTContext& ctx,
-                                        const xls::SourceLocation& loc);
+                                        const xls::SourceInfo& loc);
   absl::StatusOr<bool> EvaluateBool(const clang::Expr& expr,
                                     const class clang::ASTContext& ctx,
-                                    const xls::SourceLocation& loc);
+                                    const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node);
 
   absl::Status ShortCircuitNode(xls::Node* node, xls::BValue& top_bval,
-                                const xls::SourceLocation& loc,
-                                xls::Node* parent,
+                                const xls::SourceInfo& loc, xls::Node* parent,
                                 absl::flat_hash_set<xls::Node*>& visited);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
-                                          const xls::SourceLocation& loc);
+                                          const xls::SourceInfo& loc);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(
-      const CValue& bvalue, const xls::SourceLocation& loc);
+      const CValue& bvalue, const xls::SourceInfo& loc);
 
   absl::StatusOr<xls::Op> XLSOpcodeFromClang(clang::BinaryOperatorKind clang_op,
                                              const CType& left_type,
                                              const CType& result_type,
-                                             const xls::SourceLocation& loc);
+                                             const xls::SourceInfo& loc);
   std::string XLSNameMangle(clang::GlobalDecl decl) const;
 
   xls::BValue MakeFunctionReturn(const std::vector<xls::BValue>& bvals,
-                                 const xls::SourceLocation& loc);
+                                 const xls::SourceInfo& loc);
   xls::BValue GetFunctionReturn(xls::BValue val, int index,
                                 int expected_returns,
                                 const clang::FunctionDecl* func,
-                                const xls::SourceLocation& loc);
+                                const xls::SourceInfo& loc);
 
   absl::Status GenerateMetadataCPPName(const clang::NamedDecl* decl_in,
                                        xlscc_metadata::CPPName* name_out);
@@ -1169,12 +1166,12 @@ class Translator {
                                            CValue rvalue,
                                            const clang::NamedDecl* field_name,
                                            const CStructType& type,
-                                           const xls::SourceLocation& loc);
+                                           const xls::SourceInfo& loc);
   // Creates an BValue for a struct of type stype from field BValues given in
   //  order within bvals.
   xls::BValue MakeStructXLS(const std::vector<xls::BValue>& bvals,
                             const CStructType& stype,
-                            const xls::SourceLocation& loc);
+                            const xls::SourceInfo& loc);
   // Creates a Value for a struct of type stype from field BValues given in
   //  order within bvals.
   xls::Value MakeStructXLS(const std::vector<xls::Value>& vals,
@@ -1185,14 +1182,14 @@ class Translator {
   //  FunctionBuilder from the context
   xls::BValue GetStructFieldXLS(xls::BValue val, int index,
                                 const CStructType& type,
-                                const xls::SourceLocation& loc);
+                                const xls::SourceInfo& loc);
 
   // Returns a BValue for a copy of array_to_update with slice_to_write replaced
   // at start_index.
   absl::StatusOr<xls::BValue> UpdateArraySlice(xls::BValue array_to_update,
                                                xls::BValue start_index,
                                                xls::BValue slice_to_write,
-                                               const xls::SourceLocation& loc);
+                                               const xls::SourceInfo& loc);
   int64_t ArrayBValueWidth(xls::BValue array_bval);
 
  public:
@@ -1206,7 +1203,7 @@ class Translator {
   //  the single field's type
   absl::StatusOr<xls::Type*> GetStructXLSType(
       const std::vector<xls::Type*>& members, const CStructType& type,
-      const xls::SourceLocation& loc);
+      const xls::SourceInfo& loc);
 
   // "Flexible Tuple" functions
   // These functions will create a tuple if there is more than one
@@ -1217,7 +1214,7 @@ class Translator {
 
   // Wraps bvals in a "flexible tuple"
   xls::BValue MakeFlexTuple(const std::vector<xls::BValue>& bvals,
-                            const xls::SourceLocation& loc);
+                            const xls::SourceInfo& loc);
   // Gets the XLS type for a "flexible tuple" made from these elements
   xls::Type* GetFlexTupleType(const std::vector<xls::Type*>& members);
   // Gets the value of a field in a "flexible tuple"
@@ -1226,7 +1223,7 @@ class Translator {
   // n_fields is the total number of fields
   // op_name is passed to the FunctionBuilder
   xls::BValue GetFlexTupleField(xls::BValue val, int index, int n_fields,
-                                const xls::SourceLocation& loc,
+                                const xls::SourceInfo& loc,
                                 std::string_view op_name = "");
   // Changes the value of a field in a "flexible tuple"
   // tuple_val is the "flexible tuple" value
@@ -1235,7 +1232,7 @@ class Translator {
   // n_fields is the total number of fields
   xls::BValue UpdateFlexTupleField(xls::BValue tuple_val, xls::BValue new_val,
                                    int index, int n_fields,
-                                   const xls::SourceLocation& loc);
+                                   const xls::SourceInfo& loc);
 
   void FillLocationProto(const clang::SourceLocation& location,
                          xlscc_metadata::SourceLocation* location_out);
@@ -1246,9 +1243,9 @@ class Translator {
 
   // Convenience calls to CCParser
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
-  std::string LocString(const xls::SourceLocation& loc);
-  xls::SourceLocation GetLoc(const clang::Stmt& stmt);
-  xls::SourceLocation GetLoc(const clang::Decl& decl);
+  std::string LocString(const xls::SourceInfo& loc);
+  xls::SourceInfo GetLoc(const clang::Stmt& stmt);
+  xls::SourceInfo GetLoc(const clang::Decl& decl);
   inline std::string LocString(const clang::Decl& decl) {
     return LocString(GetLoc(decl));
   }

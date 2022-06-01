@@ -304,11 +304,11 @@ class FunctionConverter {
       std::function<xls::BValue(xls::BValue lhs, xls::BValue rhs)>;
 
   // Helpers for HandleEq / HandleNe
-  absl::StatusOr<std::vector<BValue>> BuildTerms(
-      BValue lhs, BValue rhs, absl::optional<SourceLocation>& loc,
-      const BuildTermFn& build_term);
+  absl::StatusOr<std::vector<BValue>> BuildTerms(BValue lhs, BValue rhs,
+                                                 SourceInfo& loc,
+                                                 const BuildTermFn& build_term);
   absl::StatusOr<BValue> BuildTest(BValue lhs, BValue rhs, Op op, Value base,
-                                   absl::optional<SourceLocation>& loc,
+                                   SourceInfo& loc,
                                    const BuildTermFn& build_term);
 
   // AstNode handlers.
@@ -441,29 +441,27 @@ class FunctionConverter {
   using DerefVariant = absl::variant<StructDef*, EnumDef*>;
   absl::StatusOr<DerefVariant> DerefStructOrEnum(TypeDefinition node);
 
-  absl::optional<SourceLocation> ToSourceLocation(
-      const absl::optional<Span>& span) {
+  SourceInfo ToSourceInfo(const absl::optional<Span>& span) {
     if (!options_.emit_positions || !span.has_value()) {
-      return absl::nullopt;
+      return SourceInfo();
     }
     const Pos& start_pos = span->start();
     Lineno lineno(start_pos.lineno());
     Colno colno(start_pos.colno());
     // TODO(leary): 2020-12-20 Figure out the fileno based on the module owner
     // of node.
-    return SourceLocation{fileno_, lineno, colno};
+    return SourceInfo(SourceLocation{fileno_, lineno, colno});
   }
 
   // Defines "node" to map the result of running "ir_func" with "args" -- if
   // emit_positions is on grabs the span from the node and uses it in the call.
   absl::StatusOr<BValue> DefWithStatus(
-      const AstNode* node, const std::function<absl::StatusOr<BValue>(
-                               absl::optional<SourceLocation>)>& ir_func);
+      const AstNode* node,
+      const std::function<absl::StatusOr<BValue>(const SourceInfo&)>& ir_func);
 
   // Specialization for Def() above when the "ir_func" is infallible.
-  BValue Def(
-      const AstNode* node,
-      const std::function<BValue(absl::optional<SourceLocation>)>& ir_func);
+  BValue Def(const AstNode* node,
+             const std::function<BValue(const SourceInfo&)>& ir_func);
 
   // Def(), but for constant/constexpr values, adds a literal as the IR
   // function.
@@ -834,9 +832,8 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
 
 absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
     const AstNode* node,
-    const std::function<absl::StatusOr<BValue>(absl::optional<SourceLocation>)>&
-        ir_func) {
-  absl::optional<SourceLocation> loc = ToSourceLocation(node->GetSpan());
+    const std::function<absl::StatusOr<BValue>(const SourceInfo&)>& ir_func) {
+  SourceInfo loc = ToSourceInfo(node->GetSpan());
   XLS_ASSIGN_OR_RETURN(BValue result, ir_func(loc));
   XLS_VLOG(6) << absl::StreamFormat(
       "Define node '%s' (%s) to be %s @ %s", node->ToString(),
@@ -847,16 +844,18 @@ absl::StatusOr<BValue> FunctionConverter::DefWithStatus(
 
 BValue FunctionConverter::Def(
     const AstNode* node,
-    const std::function<BValue(absl::optional<SourceLocation>)>& ir_func) {
-  return DefWithStatus(node,
-                       [&ir_func](absl::optional<SourceLocation> loc)
-                           -> absl::StatusOr<BValue> { return ir_func(loc); })
+    const std::function<BValue(const SourceInfo&)>& ir_func) {
+  return DefWithStatus(
+             node,
+             [&ir_func](const SourceInfo& loc) -> absl::StatusOr<BValue> {
+               return ir_func(loc);
+             })
       .value();
 }
 
 FunctionConverter::CValue FunctionConverter::DefConst(const AstNode* node,
                                                       xls::Value ir_value) {
-  auto ir_func = [&](absl::optional<SourceLocation> loc) {
+  auto ir_func = [&](const SourceInfo& loc) {
     return function_builder_->Literal(ir_value, loc);
   };
   BValue result = Def(node, ir_func);
@@ -901,13 +900,13 @@ absl::Status FunctionConverter::HandleUnop(const Unop* node) {
   XLS_ASSIGN_OR_RETURN(BValue operand, Use(node->operand()));
   switch (node->unop_kind()) {
     case UnopKind::kNegate: {
-      Def(node, [&](absl::optional<SourceLocation> loc) {
+      Def(node, [&](const SourceInfo& loc) {
         return function_builder_->AddUnOp(xls::Op::kNeg, operand, loc);
       });
       return absl::OkStatus();
     }
     case UnopKind::kInvert: {
-      Def(node, [&](absl::optional<SourceLocation> loc) {
+      Def(node, [&](const SourceInfo& loc) {
         return function_builder_->AddUnOp(xls::Op::kNot, operand, loc);
       });
       return absl::OkStatus();
@@ -923,7 +922,7 @@ absl::Status FunctionConverter::HandleConcat(const Binop* node, BValue lhs,
                        ResolveType(node));
   std::vector<BValue> pieces = {lhs, rhs};
   if (dynamic_cast<BitsType*>(output_type.get()) != nullptr) {
-    Def(node, [&](absl::optional<SourceLocation> loc) {
+    Def(node, [&](const SourceInfo& loc) {
       return function_builder_->Concat(pieces, loc);
     });
     return absl::OkStatus();
@@ -932,14 +931,14 @@ absl::Status FunctionConverter::HandleConcat(const Binop* node, BValue lhs,
   // Fallthrough case should be an ArrayType.
   auto* array_output_type = dynamic_cast<ArrayType*>(output_type.get());
   XLS_RET_CHECK(array_output_type != nullptr);
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArrayConcat(pieces, loc);
   });
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::vector<BValue>> FunctionConverter::BuildTerms(
-    BValue lhs, BValue rhs, absl::optional<SourceLocation>& loc,
+    BValue lhs, BValue rhs, SourceInfo& loc,
     const FunctionConverter::BuildTermFn& build_term) {
   // Since we're building the expanded IR here, it is simpler to check that
   // the types match once at the beginning rather incrementally at each
@@ -999,8 +998,8 @@ absl::StatusOr<std::vector<BValue>> FunctionConverter::BuildTerms(
 }
 
 absl::StatusOr<BValue> FunctionConverter::BuildTest(
-    BValue lhs, BValue rhs, Op op, Value base,
-    absl::optional<SourceLocation>& loc, const BuildTermFn& build_term) {
+    BValue lhs, BValue rhs, Op op, Value base, SourceInfo& loc,
+    const BuildTermFn& build_term) {
   XLS_ASSIGN_OR_RETURN(std::vector<BValue> terms,
                        BuildTerms(lhs, rhs, loc, build_term));
   if (terms.empty()) {
@@ -1016,7 +1015,7 @@ absl::Status FunctionConverter::HandleEq(const Binop* node, BValue lhs,
                                          BValue rhs) {
   return DefWithStatus(
              node,
-             [&](absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+             [&](SourceInfo loc) -> absl::StatusOr<BValue> {
                return BuildTest(lhs, rhs, Op::kAnd, Value::Bool(true), loc,
                                 [this, loc](BValue l, BValue r) {
                                   return function_builder_->Eq(l, r, loc);
@@ -1029,7 +1028,7 @@ absl::Status FunctionConverter::HandleNe(const Binop* node, BValue lhs,
                                          BValue rhs) {
   return DefWithStatus(
              node,
-             [&](absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+             [&](SourceInfo loc) -> absl::StatusOr<BValue> {
                return BuildTest(lhs, rhs, Op::kOr, Value::Bool(false), loc,
                                 [this, loc](BValue l, BValue r) {
                                   return function_builder_->Ne(l, r, loc);
@@ -1079,7 +1078,7 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
     XLS_ASSIGN_OR_RETURN(BValue v, Use(o));
     operands.push_back(v);
   }
-  Def(node, [this, &operands](absl::optional<SourceLocation> loc) {
+  Def(node, [this, &operands](const SourceInfo& loc) {
     return function_builder_->Tuple(std::move(operands), loc);
   });
   return absl::OkStatus();
@@ -1089,7 +1088,7 @@ absl::Status FunctionConverter::HandleParam(const Param* node) {
   XLS_VLOG(5) << "HandleParam: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        ResolveTypeToIr(node->type_annotation()));
-  Def(node->name_def(), [&](absl::optional<SourceLocation> loc) {
+  Def(node->name_def(), [&](const SourceInfo& loc) {
     return function_builder_->Param(node->identifier(), type);
   });
   return absl::OkStatus();
@@ -1167,11 +1166,10 @@ absl::Status FunctionConverter::HandleLet(const Let* node) {
       XLS_VLOG(6) << absl::StreamFormat("Walking level %d index %d: `%s`",
                                         level, index, x->ToString());
       levels.resize(level);
-      levels.push_back(Def(x, [this, &levels, x, level,
-                               index](absl::optional<SourceLocation> loc) {
-        if (loc.has_value()) {
-          loc = ToSourceLocation(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
-                                              : x->GetSpan());
+      levels.push_back(Def(x, [this, &levels, x, level, index](SourceInfo loc) {
+        if (!loc.Empty()) {
+          loc = ToSourceInfo(x->is_leaf() ? ToAstNode(x->leaf())->GetSpan()
+                                          : x->GetSpan());
         }
         BValue tuple = levels.back();
         xls::TupleType* tuple_type = tuple.GetType()->AsTupleOrDie();
@@ -1223,8 +1221,8 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
-        [this, node, new_bit_count](
-            absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+        [this, node,
+         new_bit_count](const SourceInfo& loc) -> absl::StatusOr<BValue> {
           XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
           return function_builder_->BitSlice(input, 0, new_bit_count);
         });
@@ -1233,8 +1231,8 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
     XLS_ASSIGN_OR_RETURN(bool signed_input, IsSigned(*input_type));
     auto bvalue_status = DefWithStatus(
         node,
-        [this, node, new_bit_count, signed_input](
-            absl::optional<SourceLocation> loc) -> absl::StatusOr<BValue> {
+        [this, node, new_bit_count,
+         signed_input](const SourceInfo& loc) -> absl::StatusOr<BValue> {
           XLS_ASSIGN_OR_RETURN(BValue input, Use(node->expr()));
           if (signed_input) {
             return function_builder_->SignExtend(input, new_bit_count);
@@ -1277,7 +1275,7 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
     // arm is selected.
     if (this_arm_selectors.size() > 1) {
       arm_selectors.push_back(function_builder_->AddNaryOp(
-          Op::kOr, this_arm_selectors, ToSourceLocation(arm->span())));
+          Op::kOr, this_arm_selectors, ToSourceInfo(arm->span())));
     } else {
       arm_selectors.push_back(this_arm_selectors[0]);
     }
@@ -1603,7 +1601,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
         {implicit_token_data_->entry_token, activated, init});
   }
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     BValue result = function_builder_->CountedFor(
         init, trip_count, /*stride=*/1, body_function, invariant_args);
     // If a token was threaded through, we grab it and note it's an assertion
@@ -1627,7 +1625,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
                                       ToAstNode(leaf)->ToString(),
                                       ToAstNode(leaf)->GetNodeTypeName());
     if (absl::holds_alternative<WildcardPattern*>(leaf)) {
-      return Def(matcher, [&](absl::optional<SourceLocation> loc) {
+      return Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Literal(UBits(1, 1), loc);
       });
     }
@@ -1635,7 +1633,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
         absl::holds_alternative<ColonRef*>(leaf)) {
       XLS_RETURN_IF_ERROR(Visit(ToAstNode(leaf)));
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
-      return Def(matcher, [&](absl::optional<SourceLocation> loc) {
+      return Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
     }
@@ -1644,7 +1642,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
       auto* name_ref = absl::get<NameRef*>(leaf);
       auto* name_def = absl::get<NameDef*>(name_ref->name_def());
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
-      BValue result = Def(matcher, [&](absl::optional<SourceLocation> loc) {
+      BValue result = Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
       XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
@@ -1652,7 +1650,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
     }
     XLS_RET_CHECK(absl::holds_alternative<NameDef*>(leaf));
     auto* name_def = absl::get<NameDef*>(leaf);
-    BValue ok = Def(name_def, [&](absl::optional<SourceLocation> loc) {
+    BValue ok = Def(name_def, [&](const SourceInfo& loc) {
       return function_builder_->Literal(UBits(1, 1));
     });
     SetNodeToIr(matcher, matched_value);
@@ -1705,7 +1703,7 @@ absl::StatusOr<BValue> FunctionConverter::DefMapWithBuiltin(
   }
 
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
-  return Def(parent_node, [&](absl::optional<SourceLocation> loc) {
+  return Def(parent_node, [&](const SourceInfo& loc) {
     return function_builder_->Map(arg_value, f);
   });
 }
@@ -1753,7 +1751,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   XLS_VLOG(5) << "Getting function with mangled name: " << mangled_name
               << " from package: " << package()->name();
   XLS_ASSIGN_OR_RETURN(xls::Function * f, package()->GetFunction(mangled_name));
-  return Def(node, [&](absl::optional<SourceLocation> loc) -> BValue {
+  return Def(node, [&](const SourceInfo& loc) -> BValue {
     return function_builder_->Map(arg, f, loc);
   });
 }
@@ -1770,7 +1768,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
     XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->rhs())));
     XLS_ASSIGN_OR_RETURN(Bits rhs, GetConstBits(ToAstNode(node->rhs())));
     XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
-    Def(node, [&](absl::optional<SourceLocation> loc) {
+    Def(node, [&](const SourceInfo& loc) {
       return function_builder_->TupleIndex(lhs, index, loc);
     });
   } else if (dynamic_cast<const BitsType*>(lhs_type.value()) != nullptr) {
@@ -1784,7 +1782,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
       XLS_ASSIGN_OR_RETURN(ConcreteTypeDim output_type_dim,
                            output_type->GetTotalBitCount());
       XLS_ASSIGN_OR_RETURN(int64_t width, output_type_dim.GetAsInt64());
-      Def(node, [&](absl::optional<SourceLocation> loc) {
+      Def(node, [&](const SourceInfo& loc) {
         return function_builder_->DynamicBitSlice(lhs, start, width, loc);
       });
     } else {
@@ -1793,14 +1791,14 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
           current_type_info_->GetSliceStartAndWidth(slice,
                                                     GetSymbolicBindingsTuple());
       XLS_RET_CHECK(saw.has_value());
-      Def(node, [&](absl::optional<SourceLocation> loc) {
+      Def(node, [&](const SourceInfo& loc) {
         return function_builder_->BitSlice(lhs, saw->start, saw->width, loc);
       });
     }
   } else {
     XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->rhs())));
     XLS_ASSIGN_OR_RETURN(BValue index, Use(ToAstNode(node->rhs())));
-    Def(node, [&](absl::optional<SourceLocation> loc) {
+    Def(node, [&](const SourceInfo& loc) {
       return function_builder_->ArrayIndex(lhs, {index}, loc);
     });
   }
@@ -1825,7 +1823,7 @@ absl::Status FunctionConverter::HandleArray(const Array* node) {
       members.push_back(members.back());
     }
   }
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     xls::Type* type = members[0].GetType();
     return function_builder_->Array(std::move(members), type, loc);
   });
@@ -1860,7 +1858,7 @@ absl::Status FunctionConverter::HandleUdfInvocation(const Invocation* node,
     args = new_args;
   }
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     BValue result = function_builder_->Invoke(args, f, loc);
     if (!callee_requires_implicit_token) {
       return result;
@@ -1896,9 +1894,8 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
   // The result of the failure call is the argument given; e.g. if we were to
   // remove assertions this is the value that would flow in the case that the
   // assertion was hit.
-  Def(node, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->Identity(arg);
-  });
+  Def(node,
+      [&](const SourceInfo& loc) { return function_builder_->Identity(arg); });
   return absl::OkStatus();
 }
 
@@ -1922,8 +1919,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
   implicit_token_data_->control_tokens.push_back(trace_result_token);
 
   // The result of the trace is the output token, so pass it along.
-  Def(node,
-      [&](absl::optional<SourceLocation> loc) { return trace_result_token; });
+  Def(node, [&](const SourceInfo& loc) { return trace_result_token; });
   return absl::OkStatus();
 }
 
@@ -1951,7 +1947,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
 
   // The result of the cover call is the argument given; e.g. if we were to
   // turn off coverpoints, this is the value that would be used.
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Tuple(std::vector<BValue>());
   });
   return absl::OkStatus();
@@ -1994,7 +1990,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
     XLS_RET_CHECK_EQ(args.size(), 1)
         << called_name << " builtin only accepts a single argument";
-    Def(node, [&](absl::optional<SourceLocation> loc) {
+    Def(node, [&](const SourceInfo& loc) {
       return function_builder_->Identity(args[0], loc);
     });
     return absl::OkStatus();
@@ -2463,7 +2459,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   BValue state = builder_ptr->GetUniqueStateParam();
   for (int i = 1; i < f->params().size(); i++) {
     auto* param = f->params()[i];
-    BValue element = builder_ptr->TupleIndex(state, i - 1, absl::nullopt,
+    BValue element = builder_ptr->TupleIndex(state, i - 1, SourceInfo(),
                                              param->identifier());
     SetNodeToIr(param->name_def(), element);
   }
@@ -2581,7 +2577,7 @@ absl::Status FunctionConverter::HandleSplatStructInstance(
     }
   }
 
-  Def(node, [this, &members](absl::optional<SourceLocation> loc) {
+  Def(node, [this, &members](const SourceInfo& loc) {
     return function_builder_->Tuple(std::move(members), loc);
   });
   return absl::OkStatus();
@@ -2599,7 +2595,7 @@ absl::Status FunctionConverter::HandleStructInstance(
     operands.push_back(operand);
   }
 
-  Def(node, [this, &operands](absl::optional<SourceLocation> loc) {
+  Def(node, [this, &operands](const SourceInfo& loc) {
     return function_builder_->Tuple(std::move(operands), loc);
   });
   return absl::OkStatus();
@@ -2663,7 +2659,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
   bool signed_input = bits_type != nullptr && bits_type->is_signed();
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
-  std::function<BValue(absl::optional<SourceLocation>)> ir_func;
+  std::function<BValue(const SourceInfo&)> ir_func;
 
   switch (node->binop_kind()) {
     // Eq and Ne are handled out of line so that they can expand array and tuple
@@ -2678,17 +2674,17 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       return HandleConcat(node, lhs, rhs);
     // Arithmetic.
     case BinopKind::kAdd:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->Add(lhs, rhs, loc);
       };
       break;
     case BinopKind::kSub:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->Subtract(lhs, rhs, loc);
       };
       break;
     case BinopKind::kMul:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->SMul(lhs, rhs, loc);
         }
@@ -2696,7 +2692,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       };
       break;
     case BinopKind::kDiv:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->SDiv(lhs, rhs, loc);
         }
@@ -2705,7 +2701,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     // Non-equality comparisons.
     case BinopKind::kGe:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->SGe(lhs, rhs, loc);
         }
@@ -2713,7 +2709,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       };
       break;
     case BinopKind::kGt:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->SGt(lhs, rhs, loc);
         }
@@ -2721,7 +2717,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       };
       break;
     case BinopKind::kLe:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->SLe(lhs, rhs, loc);
         }
@@ -2729,7 +2725,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       };
       break;
     case BinopKind::kLt:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->SLt(lhs, rhs, loc);
         }
@@ -2738,7 +2734,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       break;
     // Shifts.
     case BinopKind::kShr:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         if (signed_input) {
           return function_builder_->Shra(lhs, rhs, loc);
         }
@@ -2746,34 +2742,34 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
       };
       break;
     case BinopKind::kShl:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->Shll(lhs, rhs, loc);
       };
       break;
     // Bitwise.
     case BinopKind::kXor:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->Xor(lhs, rhs, loc);
       };
       break;
     case BinopKind::kAnd:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->And(lhs, rhs, loc);
       };
       break;
     case BinopKind::kOr:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->Or(lhs, rhs, loc);
       };
       break;
     // Logical.
     case BinopKind::kLogicalAnd:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->And(lhs, rhs, loc);
       };
       break;
     case BinopKind::kLogicalOr:
-      ir_func = [&](absl::optional<SourceLocation> loc) {
+      ir_func = [&](const SourceInfo& loc) {
         return function_builder_->Or(lhs, rhs, loc);
       };
       break;
@@ -2791,7 +2787,7 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   const std::string& identifier = node->attr()->identifier();
   XLS_ASSIGN_OR_RETURN(int64_t index, struct_type->GetMemberIndex(identifier));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
-  BValue ir = Def(node, [&](absl::optional<SourceLocation> loc) {
+  BValue ir = Def(node, [&](const SourceInfo& loc) {
     return function_builder_->TupleIndex(lhs, index, loc);
   });
   // Give the tuple-index instruction a meaningful name based on the identifier.
@@ -2832,7 +2828,7 @@ absl::Status FunctionConverter::HandleTernary(const Ternary* node) {
 
   XLS_ASSIGN_OR_RETURN(BValue arg2, Use(node->alternate()));
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Select(arg0, arg1, arg2, loc);
   });
   return absl::OkStatus();
@@ -2841,7 +2837,7 @@ absl::Status FunctionConverter::HandleTernary(const Ternary* node) {
 absl::Status FunctionConverter::HandleBuiltinAndReduce(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->AndReduce(arg, loc);
   });
   return absl::OkStatus();
@@ -2861,7 +2857,7 @@ absl::Status FunctionConverter::HandleBuiltinArraySlice(
   XLS_ASSIGN_OR_RETURN(uint64_t width,
                        dynamic_cast<Number*>(width_type->dim())->GetAsUint64());
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArraySlice(arg, start, width, loc);
   });
   return absl::OkStatus();
@@ -2874,7 +2870,7 @@ absl::Status FunctionConverter::HandleBuiltinBitSlice(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(uint64_t start, start_bits.ToUint64());
   XLS_ASSIGN_OR_RETURN(Bits width_bits, GetConstBits(node->args()[2]));
   XLS_ASSIGN_OR_RETURN(uint64_t width, width_bits.ToUint64());
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->BitSlice(arg, start, width, loc);
   });
   return absl::OkStatus();
@@ -2886,7 +2882,7 @@ absl::Status FunctionConverter::HandleBuiltinBitSliceUpdate(
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue start, Use(node->args()[1]));
   XLS_ASSIGN_OR_RETURN(BValue update_value, Use(node->args()[2]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->BitSliceUpdate(arg, start, update_value, loc);
   });
   return absl::OkStatus();
@@ -2895,18 +2891,16 @@ absl::Status FunctionConverter::HandleBuiltinBitSliceUpdate(
 absl::Status FunctionConverter::HandleBuiltinClz(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->Clz(arg, loc);
-  });
+  Def(node,
+      [&](const SourceInfo& loc) { return function_builder_->Clz(arg, loc); });
   return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleBuiltinCtz(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
-    return function_builder_->Ctz(arg, loc);
-  });
+  Def(node,
+      [&](const SourceInfo& loc) { return function_builder_->Ctz(arg, loc); });
   return absl::OkStatus();
 }
 
@@ -2914,7 +2908,7 @@ absl::Status FunctionConverter::HandleBuiltinGate(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 2);
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue value, Use(node->args()[1]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Gate(predicate, value, loc);
   });
   return absl::OkStatus();
@@ -2926,7 +2920,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHot(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(Bits lsb_prio, GetConstBits(node->args()[1]));
   XLS_ASSIGN_OR_RETURN(uint64_t lsb_prio_value, lsb_prio.ToUint64());
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->OneHot(
         input, lsb_prio_value != 0 ? LsbOrMsb::kLsb : LsbOrMsb::kMsb, loc);
   });
@@ -2946,7 +2940,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
     cases.push_back(bvalue_case);
   }
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->OneHotSelect(selector, cases, loc);
   });
   return absl::OkStatus();
@@ -2955,7 +2949,7 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinOrReduce(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->OrReduce(arg, loc);
   });
   return absl::OkStatus();
@@ -2964,7 +2958,7 @@ absl::Status FunctionConverter::HandleBuiltinOrReduce(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinRev(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->Reverse(arg, loc);
   });
   return absl::OkStatus();
@@ -2983,7 +2977,7 @@ absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
       dynamic_cast<BuiltinTypeAnnotation*>(bit_count->type_annotation());
   int64_t new_bit_count = type_annotation->GetBitCount();
 
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->SignExtend(arg, new_bit_count, loc);
   });
   return absl::OkStatus();
@@ -2994,7 +2988,7 @@ absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   XLS_ASSIGN_OR_RETURN(BValue index, Use(node->args()[1]));
   XLS_ASSIGN_OR_RETURN(BValue new_value, Use(node->args()[2]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArrayUpdate(arg, new_value, {index}, loc);
   });
   return absl::OkStatus();
@@ -3003,7 +2997,7 @@ absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
 absl::Status FunctionConverter::HandleBuiltinXorReduce(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 1);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
-  Def(node, [&](absl::optional<SourceLocation> loc) {
+  Def(node, [&](const SourceInfo& loc) {
     return function_builder_->XorReduce(arg, loc);
   });
   return absl::OkStatus();
@@ -3027,7 +3021,7 @@ absl::Status FunctionConverter::CastToArray(const Cast* node,
   }
   std::reverse(slices.begin(), slices.end());
   xls::Type* element_type = package()->GetBitsType(element_bit_count);
-  Def(node, [this, &slices, element_type](absl::optional<SourceLocation> loc) {
+  Def(node, [this, &slices, element_type](const SourceInfo& loc) {
     return function_builder_->Array(std::move(slices), element_type, loc);
   });
   return absl::OkStatus();
@@ -3044,7 +3038,7 @@ absl::Status FunctionConverter::CastFromArray(const Cast* node,
     BValue index = function_builder_->Literal(UBits(i, 32));
     pieces.push_back(function_builder_->ArrayIndex(array, {index}));
   }
-  Def(node, [this, &pieces](absl::optional<SourceLocation> loc) {
+  Def(node, [this, &pieces](const SourceInfo& loc) {
     return function_builder_->Concat(std::move(pieces), loc);
   });
   return absl::OkStatus();

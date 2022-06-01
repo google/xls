@@ -152,13 +152,12 @@ std::string Include::Emit(LineInfo* line_info) const {
 }
 
 DataType* VerilogFile::BitVectorTypeNoScalar(int64_t bit_count,
-                                             std::optional<SourceLocation> loc,
+                                             const SourceInfo& loc,
                                              bool is_signed) {
   return Make<DataType>(loc, PlainLiteral(bit_count, loc), is_signed);
 }
 
-DataType* VerilogFile::BitVectorType(int64_t bit_count,
-                                     std::optional<SourceLocation> loc,
+DataType* VerilogFile::BitVectorType(int64_t bit_count, const SourceInfo& loc,
                                      bool is_signed) {
   XLS_CHECK_GT(bit_count, 0);
   if (bit_count == 1) {
@@ -173,8 +172,7 @@ DataType* VerilogFile::BitVectorType(int64_t bit_count,
 
 DataType* VerilogFile::PackedArrayType(int64_t element_bit_count,
                                        absl::Span<const int64_t> dims,
-                                       std::optional<SourceLocation> loc,
-                                       bool is_signed) {
+                                       const SourceInfo& loc, bool is_signed) {
   XLS_CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
   for (int64_t d : dims) {
@@ -195,7 +193,7 @@ DataType* VerilogFile::PackedArrayType(int64_t element_bit_count,
 
 DataType* VerilogFile::UnpackedArrayType(int64_t element_bit_count,
                                          absl::Span<const int64_t> dims,
-                                         std::optional<SourceLocation> loc,
+                                         const SourceInfo& loc,
                                          bool is_signed) {
   XLS_CHECK_GT(element_bit_count, 0);
   std::vector<Expression*> dim_exprs;
@@ -229,13 +227,12 @@ std::string VerilogFile::Emit(LineInfo* line_info) const {
 
 LocalParamItemRef* LocalParam::AddItem(absl::string_view name,
                                        Expression* value,
-                                       std::optional<SourceLocation> loc) {
+                                       const SourceInfo& loc) {
   items_.push_back(file()->Make<LocalParamItem>(loc, name, value));
   return file()->Make<LocalParamItemRef>(loc, items_.back());
 }
 
-CaseArm::CaseArm(CaseLabel label, VerilogFile* file,
-                 std::optional<SourceLocation> loc)
+CaseArm::CaseArm(CaseLabel label, VerilogFile* file, const SourceInfo& loc)
     : VastNode(file, loc),
       label_(label),
       statements_(file->Make<StatementBlock>(loc)) {}
@@ -274,8 +271,8 @@ Port Port::FromProto(const PortProto& proto, VerilogFile* f) {
   Port port;
   port.direction = proto.direction() == DIRECTION_INPUT ? Direction::kInput
                                                         : Direction::kOutput;
-  port.wire = f->Make<WireDef>(std::nullopt, proto.name(),
-                               f->BitVectorType(proto.width(), std::nullopt));
+  port.wire = f->Make<WireDef>(SourceInfo(), proto.name(),
+                               f->BitVectorType(proto.width(), SourceInfo()));
   return port;
 }
 
@@ -295,15 +292,14 @@ absl::StatusOr<PortProto> Port::ToProto() const {
 }
 
 VerilogFunction::VerilogFunction(absl::string_view name, DataType* result_type,
-                                 VerilogFile* file,
-                                 std::optional<SourceLocation> loc)
+                                 VerilogFile* file, const SourceInfo& loc)
     : VastNode(file, loc),
       name_(name),
       return_value_def_(file->Make<RegDef>(loc, name, result_type)),
       statement_block_(file->Make<StatementBlock>(loc)) {}
 
 LogicRef* VerilogFunction::AddArgument(absl::string_view name, DataType* type,
-                                       std::optional<SourceLocation> loc) {
+                                       const SourceInfo& loc) {
   argument_defs_.push_back(file()->Make<RegDef>(loc, name, type));
   return file()->Make<LogicRef>(loc, argument_defs_.back());
 }
@@ -346,25 +342,25 @@ std::string VerilogFunctionCall::Emit(LineInfo* line_info) const {
 }
 
 LogicRef* Module::AddPortDef(Direction direction, Def* def,
-                             std::optional<SourceLocation> loc) {
+                             const SourceInfo& loc) {
   ports_.push_back(Port{direction, def});
   return file()->Make<LogicRef>(loc, def);
 }
 
 LogicRef* Module::AddInput(absl::string_view name, DataType* type,
-                           std::optional<SourceLocation> loc) {
+                           const SourceInfo& loc) {
   return AddPortDef(Direction::kInput,
                     file()->Make<WireDef>(loc, name, std::move(type)), loc);
 }
 
 LogicRef* Module::AddOutput(absl::string_view name, DataType* type,
-                            std::optional<SourceLocation> loc) {
+                            const SourceInfo& loc) {
   return AddPortDef(Direction::kOutput,
                     file()->Make<WireDef>(loc, name, std::move(type)), loc);
 }
 
 LogicRef* Module::AddReg(absl::string_view name, DataType* type,
-                         std::optional<SourceLocation> loc, Expression* init,
+                         const SourceInfo& loc, Expression* init,
                          ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
@@ -374,8 +370,7 @@ LogicRef* Module::AddReg(absl::string_view name, DataType* type,
 }
 
 LogicRef* Module::AddWire(absl::string_view name, DataType* type,
-                          std::optional<SourceLocation> loc,
-                          ModuleSection* section) {
+                          const SourceInfo& loc, ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
   }
@@ -384,7 +379,7 @@ LogicRef* Module::AddWire(absl::string_view name, DataType* type,
 }
 
 ParameterRef* Module::AddParameter(absl::string_view name, Expression* rhs,
-                                   std::optional<SourceLocation> loc) {
+                                   const SourceInfo& loc) {
   Parameter* param = AddModuleMember(file()->Make<Parameter>(loc, name, rhs));
   return file()->Make<ParameterRef>(loc, param);
 }
@@ -898,7 +893,7 @@ std::string Unary::Emit(LineInfo* line_info) const {
 }
 
 StatementBlock* Case::AddCaseArm(CaseLabel label) {
-  arms_.push_back(file()->Make<CaseArm>(std::nullopt, label));
+  arms_.push_back(file()->Make<CaseArm>(SourceInfo(), label));
   return arms_.back()->statements();
 }
 
@@ -921,17 +916,17 @@ std::string Case::Emit(LineInfo* line_info) const {
 }
 
 Conditional::Conditional(Expression* condition, VerilogFile* file,
-                         std::optional<SourceLocation> loc)
+                         const SourceInfo& loc)
     : Statement(file, loc),
       condition_(condition),
-      consequent_(file->Make<StatementBlock>(std::nullopt)) {}
+      consequent_(file->Make<StatementBlock>(SourceInfo())) {}
 
 StatementBlock* Conditional::AddAlternate(Expression* condition) {
   // The conditional must not have been previously closed with an unconditional
   // alternate ("else").
   XLS_CHECK(alternates_.empty() || alternates_.back().first != nullptr);
   alternates_.push_back(
-      {condition, file()->Make<StatementBlock>(std::nullopt)});
+      {condition, file()->Make<StatementBlock>(SourceInfo())});
   return alternates_.back().second;
 }
 
@@ -954,7 +949,7 @@ std::string Conditional::Emit(LineInfo* line_info) const {
 }
 
 WhileStatement::WhileStatement(Expression* condition, VerilogFile* file,
-                               std::optional<SourceLocation> loc)
+                               const SourceInfo& loc)
     : Statement(file, loc),
       condition_(condition),
       statements_(file->Make<StatementBlock>(loc)) {}
@@ -1046,7 +1041,7 @@ std::string NonblockingAssignment::Emit(LineInfo* line_info) const {
 }
 
 StructuredProcedure::StructuredProcedure(VerilogFile* file,
-                                         std::optional<SourceLocation> loc)
+                                         const SourceInfo& loc)
     : VastNode(file, loc), statements_(file->Make<StatementBlock>(loc)) {}
 
 namespace {
@@ -1092,7 +1087,7 @@ std::string Initial::Emit(LineInfo* line_info) const {
 }
 
 AlwaysFlop::AlwaysFlop(LogicRef* clk, Reset rst, VerilogFile* file,
-                       std::optional<SourceLocation> loc)
+                       const SourceInfo& loc)
     : VastNode(file, loc),
       clk_(clk),
       rst_(rst),
@@ -1110,8 +1105,7 @@ AlwaysFlop::AlwaysFlop(LogicRef* clk, Reset rst, VerilogFile* file,
   assignment_block_ = conditional->AddAlternate();
 }
 
-AlwaysFlop::AlwaysFlop(LogicRef* clk, VerilogFile* file,
-                       std::optional<SourceLocation> loc)
+AlwaysFlop::AlwaysFlop(LogicRef* clk, VerilogFile* file, const SourceInfo& loc)
     : VastNode(file, loc),
       clk_(clk),
       top_block_(file->Make<StatementBlock>(loc)) {
@@ -1121,8 +1115,7 @@ AlwaysFlop::AlwaysFlop(LogicRef* clk, VerilogFile* file,
 }
 
 void AlwaysFlop::AddRegister(LogicRef* reg, Expression* reg_next,
-                             std::optional<SourceLocation> loc,
-                             Expression* reset_value) {
+                             const SourceInfo& loc, Expression* reset_value) {
   if (reset_value != nullptr) {
     XLS_CHECK(reset_block_ != nullptr);
     reset_block_->Add<NonblockingAssignment>(loc, reg, reset_value);

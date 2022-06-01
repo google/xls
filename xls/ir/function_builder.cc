@@ -33,7 +33,7 @@ Type* BValue::GetType() const { return node()->GetType(); }
 
 int64_t BValue::BitCountOrDie() const { return node()->BitCountOrDie(); }
 
-absl::optional<SourceLocation> BValue::loc() const { return node_->loc(); }
+const SourceInfo& BValue::loc() const { return node_->loc(); }
 
 std::string BValue::ToString() const {
   return node_ == nullptr ? std::string("<null BValue>") : node_->ToString();
@@ -69,8 +69,7 @@ BValue BValue::operator-(BValue rhs) { return builder()->Subtract(*this, rhs); }
 BValue BValue::operator+(BValue rhs) { return builder()->Add(*this, rhs); }
 BValue BValue::operator-() { return builder()->Negate(*this); }
 
-BValue BuilderBase::CreateBValue(Node* node,
-                                 absl::optional<SourceLocation> loc) {
+BValue BuilderBase::CreateBValue(Node* node, const SourceInfo& loc) {
   last_node_ = node;
   if (should_verify_) {
     absl::Status verify_status = VerifyNode(last_node_);
@@ -82,8 +81,7 @@ BValue BuilderBase::CreateBValue(Node* node,
 }
 
 template <typename NodeT, typename... Args>
-BValue BuilderBase::AddNode(absl::optional<SourceLocation> loc,
-                            Args&&... args) {
+BValue BuilderBase::AddNode(const SourceInfo& loc, Args&&... args) {
   last_node_ = function_->AddNode<NodeT>(std::make_unique<NodeT>(
       loc, std::forward<Args>(args)..., function_.get()));
   return CreateBValue(last_node_, loc);
@@ -99,18 +97,15 @@ absl::Status BuilderBase::SetAsTop() {
   return package()->SetTop(function_.get());
 }
 
-BValue BuilderBase::SetError(absl::string_view msg,
-                             absl::optional<SourceLocation> loc) {
+BValue BuilderBase::SetError(absl::string_view msg, const SourceInfo& loc) {
   error_pending_ = true;
   error_msg_ = std::string(msg);
-  if (loc.has_value()) {
-    error_loc_.emplace(loc.value());
-  }
+  error_loc_ = loc;
   error_stacktrace_ = GetSymbolizedStackTraceAsString();
   return BValue();
 }
 
-BValue BuilderBase::Literal(Value value, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Literal(Value value, const SourceInfo& loc,
                             absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -118,7 +113,7 @@ BValue BuilderBase::Literal(Value value, absl::optional<SourceLocation> loc,
   return AddNode<xls::Literal>(loc, value, name);
 }
 
-BValue BuilderBase::Negate(BValue x, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Negate(BValue x, const SourceInfo& loc,
                            absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -126,7 +121,7 @@ BValue BuilderBase::Negate(BValue x, absl::optional<SourceLocation> loc,
   return AddUnOp(Op::kNeg, x, loc, name);
 }
 
-BValue BuilderBase::Not(BValue x, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Not(BValue x, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -137,8 +132,7 @@ BValue BuilderBase::Not(BValue x, absl::optional<SourceLocation> loc,
 
 BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
                            absl::optional<BValue> default_value,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -156,15 +150,13 @@ BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
 }
 
 BValue BuilderBase::Select(BValue selector, BValue on_true, BValue on_false,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   return Select(selector, {on_false, on_true}, /*default_value=*/absl::nullopt,
                 loc, name);
 }
 
 BValue BuilderBase::OneHot(BValue input, LsbOrMsb priority,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -173,7 +165,7 @@ BValue BuilderBase::OneHot(BValue input, LsbOrMsb priority,
 
 BValue BuilderBase::OneHotSelect(BValue selector,
                                  absl::Span<const BValue> cases,
-                                 absl::optional<SourceLocation> loc,
+                                 const SourceInfo& loc,
                                  absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -186,7 +178,7 @@ BValue BuilderBase::OneHotSelect(BValue selector,
   return AddNode<xls::OneHotSelect>(loc, selector.node(), cases_nodes, name);
 }
 
-BValue BuilderBase::Clz(BValue x, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Clz(BValue x, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -203,7 +195,7 @@ BValue BuilderBase::Clz(BValue x, absl::optional<SourceLocation> loc,
       x.BitCountOrDie(), loc, name);
 }
 
-BValue BuilderBase::Ctz(BValue x, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Ctz(BValue x, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -220,8 +212,7 @@ BValue BuilderBase::Ctz(BValue x, absl::optional<SourceLocation> loc,
 }
 
 BValue BuilderBase::Match(BValue condition, absl::Span<const Case> cases,
-                          BValue default_value,
-                          absl::optional<SourceLocation> loc,
+                          BValue default_value, const SourceInfo& loc,
                           absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -235,8 +226,7 @@ BValue BuilderBase::Match(BValue condition, absl::Span<const Case> cases,
 
 BValue BuilderBase::MatchTrue(absl::Span<const BValue> case_clauses,
                               absl::Span<const BValue> case_values,
-                              BValue default_value,
-                              absl::optional<SourceLocation> loc,
+                              BValue default_value, const SourceInfo& loc,
                               absl::string_view name) {
   if (case_clauses.size() != case_values.size()) {
     return SetError(
@@ -253,8 +243,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const BValue> case_clauses,
 }
 
 BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
-                              BValue default_value,
-                              absl::optional<SourceLocation> loc,
+                              BValue default_value, const SourceInfo& loc,
                               absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -287,8 +276,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
 }
 
 BValue BuilderBase::AfterAll(absl::Span<const BValue> dependencies,
-                             absl::optional<SourceLocation> loc,
-                             absl::string_view name) {
+                             const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -306,8 +294,7 @@ BValue BuilderBase::AfterAll(absl::Span<const BValue> dependencies,
 }
 
 BValue BuilderBase::Tuple(absl::Span<const BValue> elements,
-                          absl::optional<SourceLocation> loc,
-                          absl::string_view name) {
+                          const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -320,8 +307,7 @@ BValue BuilderBase::Tuple(absl::Span<const BValue> elements,
 }
 
 BValue BuilderBase::Array(absl::Span<const BValue> elements, Type* element_type,
-                          absl::optional<SourceLocation> loc,
-                          absl::string_view name) {
+                          const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -340,8 +326,7 @@ BValue BuilderBase::Array(absl::Span<const BValue> elements, Type* element_type,
   return AddNode<xls::Array>(loc, nodes, element_type, name);
 }
 
-BValue BuilderBase::TupleIndex(BValue arg, int64_t idx,
-                               absl::optional<SourceLocation> loc,
+BValue BuilderBase::TupleIndex(BValue arg, int64_t idx, const SourceInfo& loc,
                                absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -359,8 +344,7 @@ BValue BuilderBase::TupleIndex(BValue arg, int64_t idx,
 BValue BuilderBase::CountedFor(BValue init_value, int64_t trip_count,
                                int64_t stride, Function* body,
                                absl::Span<const BValue> invariant_args,
-                               absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+                               const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -375,7 +359,7 @@ BValue BuilderBase::CountedFor(BValue init_value, int64_t trip_count,
 BValue BuilderBase::DynamicCountedFor(BValue init_value, BValue trip_count,
                                       BValue stride, Function* body,
                                       absl::Span<const BValue> invariant_args,
-                                      absl::optional<SourceLocation> loc,
+                                      const SourceInfo& loc,
                                       absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -390,8 +374,7 @@ BValue BuilderBase::DynamicCountedFor(BValue init_value, BValue trip_count,
 }
 
 BValue BuilderBase::Map(BValue operand, Function* to_apply,
-                        absl::optional<SourceLocation> loc,
-                        absl::string_view name) {
+                        const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -399,8 +382,7 @@ BValue BuilderBase::Map(BValue operand, Function* to_apply,
 }
 
 BValue BuilderBase::Invoke(absl::Span<const BValue> args, Function* to_apply,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -413,8 +395,7 @@ BValue BuilderBase::Invoke(absl::Span<const BValue> args, Function* to_apply,
 }
 
 BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
-                               absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+                               const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -442,8 +423,7 @@ BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
 }
 
 BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
-                               absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+                               const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -468,8 +448,7 @@ BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
 
 BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
                                 absl::Span<const BValue> indices,
-                                absl::optional<SourceLocation> loc,
-                                absl::string_view name) {
+                                const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -516,8 +495,7 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
 }
 
 BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
-                                absl::optional<SourceLocation> loc,
-                                absl::string_view name) {
+                                const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -554,7 +532,7 @@ BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
   return AddNode<xls::ArrayConcat>(loc, node_operands, name);
 }
 
-BValue BuilderBase::Reverse(BValue arg, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Reverse(BValue arg, const SourceInfo& loc,
                             absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -562,7 +540,7 @@ BValue BuilderBase::Reverse(BValue arg, absl::optional<SourceLocation> loc,
   return AddUnOp(Op::kReverse, arg, loc);
 }
 
-BValue BuilderBase::Identity(BValue var, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Identity(BValue var, const SourceInfo& loc,
                              absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -571,8 +549,7 @@ BValue BuilderBase::Identity(BValue var, absl::optional<SourceLocation> loc,
 }
 
 BValue BuilderBase::SignExtend(BValue arg, int64_t new_bit_count,
-                               absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+                               const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -581,8 +558,7 @@ BValue BuilderBase::SignExtend(BValue arg, int64_t new_bit_count,
 }
 
 BValue BuilderBase::ZeroExtend(BValue arg, int64_t new_bit_count,
-                               absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+                               const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -591,8 +567,7 @@ BValue BuilderBase::ZeroExtend(BValue arg, int64_t new_bit_count,
 }
 
 BValue BuilderBase::BitSlice(BValue arg, int64_t start, int64_t width,
-                             absl::optional<SourceLocation> loc,
-                             absl::string_view name) {
+                             const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -600,8 +575,7 @@ BValue BuilderBase::BitSlice(BValue arg, int64_t start, int64_t width,
 }
 
 BValue BuilderBase::BitSliceUpdate(BValue arg, BValue start,
-                                   BValue update_value,
-                                   absl::optional<SourceLocation> loc,
+                                   BValue update_value, const SourceInfo& loc,
                                    absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -611,7 +585,7 @@ BValue BuilderBase::BitSliceUpdate(BValue arg, BValue start,
 }
 
 BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64_t width,
-                                    absl::optional<SourceLocation> loc,
+                                    const SourceInfo& loc,
                                     absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -620,7 +594,7 @@ BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64_t width,
                                        name);
 }
 
-BValue BuilderBase::Encode(BValue arg, absl::optional<SourceLocation> loc,
+BValue BuilderBase::Encode(BValue arg, const SourceInfo& loc,
                            absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -629,8 +603,7 @@ BValue BuilderBase::Encode(BValue arg, absl::optional<SourceLocation> loc,
 }
 
 BValue BuilderBase::Decode(BValue arg, absl::optional<int64_t> width,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -655,88 +628,76 @@ BValue BuilderBase::Decode(BValue arg, absl::optional<int64_t> width,
       /*width=*/width.has_value() ? *width : (1LL << arg_width), name);
 }
 
-BValue BuilderBase::Shra(BValue operand, BValue amount,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::Shra(BValue operand, BValue amount, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kShra, operand, amount, loc, name);
 }
-BValue BuilderBase::Shrl(BValue operand, BValue amount,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::Shrl(BValue operand, BValue amount, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kShrl, operand, amount, loc, name);
 }
-BValue BuilderBase::Shll(BValue operand, BValue amount,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::Shll(BValue operand, BValue amount, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kShll, operand, amount, loc, name);
 }
-BValue BuilderBase::Subtract(BValue lhs, BValue rhs,
-                             absl::optional<SourceLocation> loc,
+BValue BuilderBase::Subtract(BValue lhs, BValue rhs, const SourceInfo& loc,
                              absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kSub, lhs, rhs, loc, name);
 }
-BValue BuilderBase::Add(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::Add(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kAdd, lhs, rhs, loc, name);
 }
-BValue BuilderBase::Or(absl::Span<const BValue> operands,
-                       absl::optional<SourceLocation> loc,
+BValue BuilderBase::Or(absl::Span<const BValue> operands, const SourceInfo& loc,
                        absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddNaryOp(Op::kOr, operands, loc, name);
 }
-BValue BuilderBase::Or(BValue lhs, BValue rhs,
-                       absl::optional<SourceLocation> loc,
+BValue BuilderBase::Or(BValue lhs, BValue rhs, const SourceInfo& loc,
                        absl::string_view name) {
   return Or({lhs, rhs}, loc, name);
 }
 BValue BuilderBase::Xor(absl::Span<const BValue> operands,
-                        absl::optional<SourceLocation> loc,
-                        absl::string_view name) {
+                        const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddNaryOp(Op::kXor, operands, loc, name);
 }
-BValue BuilderBase::Xor(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::Xor(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   return Xor({lhs, rhs}, loc, name);
 }
 BValue BuilderBase::And(absl::Span<const BValue> operands,
-                        absl::optional<SourceLocation> loc,
-                        absl::string_view name) {
+                        const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddNaryOp(Op::kAnd, operands, loc, name);
 }
-BValue BuilderBase::And(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::And(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   return And({lhs, rhs}, loc, name);
 }
 
-BValue BuilderBase::AndReduce(BValue operand,
-                              absl::optional<SourceLocation> loc,
+BValue BuilderBase::AndReduce(BValue operand, const SourceInfo& loc,
                               absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -744,7 +705,7 @@ BValue BuilderBase::AndReduce(BValue operand,
   return AddBitwiseReductionOp(Op::kAndReduce, operand);
 }
 
-BValue BuilderBase::OrReduce(BValue operand, absl::optional<SourceLocation> loc,
+BValue BuilderBase::OrReduce(BValue operand, const SourceInfo& loc,
                              absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -752,8 +713,7 @@ BValue BuilderBase::OrReduce(BValue operand, absl::optional<SourceLocation> loc,
   return AddBitwiseReductionOp(Op::kOrReduce, operand);
 }
 
-BValue BuilderBase::XorReduce(BValue operand,
-                              absl::optional<SourceLocation> loc,
+BValue BuilderBase::XorReduce(BValue operand, const SourceInfo& loc,
                               absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -761,8 +721,7 @@ BValue BuilderBase::XorReduce(BValue operand,
   return AddBitwiseReductionOp(Op::kXorReduce, operand);
 }
 
-BValue BuilderBase::SMul(BValue lhs, BValue rhs,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::SMul(BValue lhs, BValue rhs, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -770,8 +729,7 @@ BValue BuilderBase::SMul(BValue lhs, BValue rhs,
   return AddArithOp(Op::kSMul, lhs, rhs, /*result_width=*/absl::nullopt, loc,
                     name);
 }
-BValue BuilderBase::UMul(BValue lhs, BValue rhs,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::UMul(BValue lhs, BValue rhs, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -780,111 +738,97 @@ BValue BuilderBase::UMul(BValue lhs, BValue rhs,
                     name);
 }
 BValue BuilderBase::SMul(BValue lhs, BValue rhs, int64_t result_width,
-                         absl::optional<SourceLocation> loc,
-                         absl::string_view name) {
+                         const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddArithOp(Op::kSMul, lhs, rhs, result_width, loc, name);
 }
 BValue BuilderBase::UMul(BValue lhs, BValue rhs, int64_t result_width,
-                         absl::optional<SourceLocation> loc,
-                         absl::string_view name) {
+                         const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddArithOp(Op::kUMul, lhs, rhs, result_width, loc, name);
 }
-BValue BuilderBase::UDiv(BValue lhs, BValue rhs,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::UDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kUDiv, lhs, rhs, loc, name);
 }
-BValue BuilderBase::SDiv(BValue lhs, BValue rhs,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::SDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kSDiv, lhs, rhs, loc, name);
 }
-BValue BuilderBase::Eq(BValue lhs, BValue rhs,
-                       absl::optional<SourceLocation> loc,
+BValue BuilderBase::Eq(BValue lhs, BValue rhs, const SourceInfo& loc,
                        absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kEq, lhs, rhs, loc, name);
 }
-BValue BuilderBase::Ne(BValue lhs, BValue rhs,
-                       absl::optional<SourceLocation> loc,
+BValue BuilderBase::Ne(BValue lhs, BValue rhs, const SourceInfo& loc,
                        absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kNe, lhs, rhs, loc, name);
 }
-BValue BuilderBase::UGe(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::UGe(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kUGe, lhs, rhs, loc, name);
 }
-BValue BuilderBase::UGt(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::UGt(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kUGt, lhs, rhs, loc, name);
 }
-BValue BuilderBase::ULe(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::ULe(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kULe, lhs, rhs, loc, name);
 }
-BValue BuilderBase::ULt(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::ULt(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kULt, lhs, rhs, loc, name);
 }
-BValue BuilderBase::SLt(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::SLt(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kSLt, lhs, rhs, loc, name);
 }
-BValue BuilderBase::SLe(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::SLe(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kSLe, lhs, rhs, loc, name);
 }
-BValue BuilderBase::SGe(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::SGe(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kSGe, lhs, rhs, loc, name);
 }
-BValue BuilderBase::SGt(BValue lhs, BValue rhs,
-                        absl::optional<SourceLocation> loc,
+BValue BuilderBase::SGt(BValue lhs, BValue rhs, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -893,8 +837,7 @@ BValue BuilderBase::SGt(BValue lhs, BValue rhs,
 }
 
 BValue BuilderBase::Concat(absl::Span<const BValue> operands,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -919,7 +862,7 @@ FunctionBuilder::FunctionBuilder(absl::string_view name, Package* package,
                   should_verify) {}
 
 BValue FunctionBuilder::Param(absl::string_view name, Type* type,
-                              absl::optional<SourceLocation> loc) {
+                              const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -947,13 +890,13 @@ absl::StatusOr<Function*> FunctionBuilder::Build() {
 absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
     BValue return_value) {
   if (ErrorPending()) {
-    std::string msg = error_msg_ + " ";
-    if (error_loc_.has_value()) {
-      absl::StrAppendFormat(
-          &msg, "File: %d, Line: %d, Col: %d", error_loc_->fileno().value(),
-          error_loc_->lineno().value(), error_loc_->colno().value());
+    std::string msg = absl::StrCat(error_msg_, "\n");
+    for (const SourceLocation& loc : error_loc_.locations) {
+      absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
+                            loc.fileno().value(), loc.lineno().value(),
+                            loc.colno().value());
     }
-    absl::StrAppend(&msg, "\nStack Trace:\n" + error_stacktrace_);
+    absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
     return absl::InvalidArgumentError("Could not build IR: " + msg);
   }
   XLS_RET_CHECK_EQ(return_value.builder(), this);
@@ -990,13 +933,13 @@ Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
                                          absl::Span<const BValue> next_state) {
   if (ErrorPending()) {
-    std::string msg = error_msg_ + " ";
-    if (error_loc_.has_value()) {
-      absl::StrAppendFormat(
-          &msg, "File: %d, Line: %d, Col: %d", error_loc_->fileno().value(),
-          error_loc_->lineno().value(), error_loc_->colno().value());
+    std::string msg = absl::StrCat(error_msg_, "\n");
+    for (const SourceLocation& loc : error_loc_.locations) {
+      absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
+                            loc.fileno().value(), loc.lineno().value(),
+                            loc.colno().value());
     }
-    absl::StrAppend(&msg, "\nStack Trace:\n" + error_stacktrace_);
+    absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
     return absl::InvalidArgumentError("Could not build IR: " + msg);
   }
   if (!GetType(token)->IsToken()) {
@@ -1041,7 +984,7 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
 
 BValue ProcBuilder::StateElement(absl::string_view name,
                                  const Value initial_value,
-                                 absl::optional<SourceLocation> loc) {
+                                 const SourceInfo& loc) {
   absl::StatusOr<xls::Param*> param_or =
       proc()->AppendStateElement(name, initial_value);
   if (!param_or.ok()) {
@@ -1054,7 +997,7 @@ BValue ProcBuilder::StateElement(absl::string_view name,
 }
 
 BValue ProcBuilder::Param(absl::string_view name, Type* type,
-                          absl::optional<SourceLocation> loc) {
+                          const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1073,8 +1016,7 @@ Package* BuilderBase::package() const { return function_->package(); }
 
 BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
                                absl::optional<int64_t> result_width,
-                               absl::optional<SourceLocation> loc,
-                               absl::string_view name) {
+                               const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1103,7 +1045,7 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
   return AddNode<ArithOp>(loc, lhs.node(), rhs.node(), width, op, name);
 }
 
-BValue BuilderBase::AddUnOp(Op op, BValue x, absl::optional<SourceLocation> loc,
+BValue BuilderBase::AddUnOp(Op op, BValue x, const SourceInfo& loc,
                             absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1118,8 +1060,7 @@ BValue BuilderBase::AddUnOp(Op op, BValue x, absl::optional<SourceLocation> loc,
 }
 
 BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
-                             absl::optional<SourceLocation> loc,
-                             absl::string_view name) {
+                             const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1133,7 +1074,7 @@ BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
 }
 
 BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
-                                 absl::optional<SourceLocation> loc,
+                                 const SourceInfo& loc,
                                  absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1149,8 +1090,7 @@ BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
 }
 
 BValue BuilderBase::AddNaryOp(Op op, absl::Span<const BValue> args,
-                              absl::optional<SourceLocation> loc,
-                              absl::string_view name) {
+                              const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1167,7 +1107,7 @@ BValue BuilderBase::AddNaryOp(Op op, absl::Span<const BValue> args,
 }
 
 BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
-                                          absl::optional<SourceLocation> loc,
+                                          const SourceInfo& loc,
                                           absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1179,8 +1119,7 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
 BValue BuilderBase::Assert(BValue token, BValue condition,
                            absl::string_view message,
                            absl::optional<std::string> label,
-                           absl::optional<SourceLocation> loc,
-                           absl::string_view name) {
+                           const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1205,8 +1144,7 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
 BValue BuilderBase::Trace(BValue token, BValue condition,
                           absl::Span<const BValue> args,
                           absl::Span<const FormatStep> format,
-                          absl::optional<SourceLocation> loc,
-                          absl::string_view name) {
+                          const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1252,8 +1190,7 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
 BValue BuilderBase::Trace(BValue token, BValue condition,
                           absl::Span<const BValue> args,
                           absl::string_view format_string,
-                          absl::optional<SourceLocation> loc,
-                          absl::string_view name) {
+                          const SourceInfo& loc, absl::string_view name) {
   auto parse_status = ParseFormatString(format_string);
 
   if (!parse_status.ok()) {
@@ -1264,8 +1201,7 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
 }
 
 BValue BuilderBase::Cover(BValue token, BValue condition,
-                          absl::string_view label,
-                          absl::optional<SourceLocation> loc,
+                          absl::string_view label, const SourceInfo& loc,
                           absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1290,8 +1226,7 @@ BValue BuilderBase::Cover(BValue token, BValue condition,
   return AddNode<xls::Cover>(loc, token.node(), condition.node(), label, name);
 }
 
-BValue BuilderBase::Gate(BValue condition, BValue data,
-                         absl::optional<SourceLocation> loc,
+BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1308,8 +1243,7 @@ BValue BuilderBase::Gate(BValue condition, BValue data,
 }
 
 BValue ProcBuilder::Receive(Channel* channel, BValue token,
-                            absl::optional<SourceLocation> loc,
-                            absl::string_view name) {
+                            const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1325,8 +1259,7 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
 }
 
 BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
-                              absl::optional<SourceLocation> loc,
-                              absl::string_view name) {
+                              const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1350,8 +1283,7 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
 }
 
 BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
-                         absl::optional<SourceLocation> loc,
-                         absl::string_view name) {
+                         const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1366,7 +1298,7 @@ BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
 }
 
 BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
-                           BValue data, absl::optional<SourceLocation> loc,
+                           BValue data, const SourceInfo& loc,
                            absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1388,8 +1320,7 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                             channel->id(), name);
 }
 
-BValue TokenlessProcBuilder::Receive(Channel* channel,
-                                     absl::optional<SourceLocation> loc,
+BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,
                                      absl::string_view name) {
   BValue rcv = ProcBuilder::Receive(channel, GetTokenParam(), loc, name);
   tokens_.push_back(TupleIndex(rcv, 0));
@@ -1397,7 +1328,7 @@ BValue TokenlessProcBuilder::Receive(Channel* channel,
 }
 
 BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
-                                       absl::optional<SourceLocation> loc,
+                                       const SourceInfo& loc,
                                        absl::string_view name) {
   BValue rcv_if =
       ProcBuilder::ReceiveIf(channel, GetTokenParam(), pred, loc, name);
@@ -1406,7 +1337,7 @@ BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
 }
 
 BValue TokenlessProcBuilder::Send(Channel* channel, BValue data,
-                                  absl::optional<SourceLocation> loc,
+                                  const SourceInfo& loc,
                                   absl::string_view name) {
   BValue send = ProcBuilder::Send(channel, GetTokenParam(), data, loc, name);
   tokens_.push_back(send);
@@ -1414,7 +1345,7 @@ BValue TokenlessProcBuilder::Send(Channel* channel, BValue data,
 }
 
 BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
-                                    absl::optional<SourceLocation> loc,
+                                    const SourceInfo& loc,
                                     absl::string_view name) {
   BValue send_if =
       ProcBuilder::SendIf(channel, GetTokenParam(), pred, data, loc, name);
@@ -1424,7 +1355,7 @@ BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
 
 BValue TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
                                     absl::optional<std::string> label,
-                                    absl::optional<SourceLocation> loc,
+                                    const SourceInfo& loc,
                                     absl::string_view name) {
   BValue asrt = BuilderBase::Assert(GetTokenParam(), condition, message, label,
                                     loc, name);
@@ -1445,7 +1376,7 @@ absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
 }
 
 BValue BlockBuilder::Param(absl::string_view name, Type* type,
-                           absl::optional<SourceLocation> loc) {
+                           const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1453,7 +1384,7 @@ BValue BlockBuilder::Param(absl::string_view name, Type* type,
 }
 
 BValue BlockBuilder::InputPort(absl::string_view name, Type* type,
-                               absl::optional<SourceLocation> loc) {
+                               const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1468,7 +1399,7 @@ BValue BlockBuilder::InputPort(absl::string_view name, Type* type,
 }
 
 BValue BlockBuilder::OutputPort(absl::string_view name, BValue operand,
-                                absl::optional<SourceLocation> loc) {
+                                const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1482,8 +1413,7 @@ BValue BlockBuilder::OutputPort(absl::string_view name, BValue operand,
   return CreateBValue(port_status.value(), loc);
 }
 
-BValue BlockBuilder::RegisterRead(Register* reg,
-                                  absl::optional<SourceLocation> loc,
+BValue BlockBuilder::RegisterRead(Register* reg, const SourceInfo& loc,
                                   absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1497,7 +1427,7 @@ BValue BlockBuilder::RegisterRead(Register* reg,
 BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
                                    absl::optional<BValue> load_enable,
                                    absl::optional<BValue> reset,
-                                   absl::optional<SourceLocation> loc,
+                                   const SourceInfo& loc,
                                    absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1515,7 +1445,7 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
 
 BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
                                     absl::optional<BValue> load_enable,
-                                    absl::optional<SourceLocation> loc) {
+                                    const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1535,7 +1465,7 @@ BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
 BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
                                     BValue reset_signal, Reset reset,
                                     absl::optional<BValue> load_enable,
-                                    absl::optional<SourceLocation> loc) {
+                                    const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1554,13 +1484,13 @@ BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
 
 absl::StatusOr<Block*> BlockBuilder::Build() {
   if (ErrorPending()) {
-    std::string msg = error_msg_ + " ";
-    if (error_loc_.has_value()) {
-      absl::StrAppendFormat(
-          &msg, "File: %d, Line: %d, Col: %d", error_loc_->fileno().value(),
-          error_loc_->lineno().value(), error_loc_->colno().value());
+    std::string msg = absl::StrCat(error_msg_, "\n");
+    for (const SourceLocation& loc : error_loc_.locations) {
+      absl::StrAppendFormat(&msg, "  File: %d, Line: %d, Col: %d\n",
+                            loc.fileno().value(), loc.lineno().value(),
+                            loc.colno().value());
     }
-    absl::StrAppend(&msg, "\nStack Trace:\n" + error_stacktrace_);
+    absl::StrAppend(&msg, "Stack Trace:\n" + error_stacktrace_);
     return absl::InvalidArgumentError("Could not build IR: " + msg);
   }
 
@@ -1577,8 +1507,7 @@ absl::StatusOr<Block*> BlockBuilder::Build() {
 
 BValue BlockBuilder::InstantiationInput(Instantiation* instantiation,
                                         absl::string_view port_name,
-                                        BValue data,
-                                        absl::optional<SourceLocation> loc,
+                                        BValue data, const SourceInfo& loc,
                                         absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1595,7 +1524,7 @@ BValue BlockBuilder::InstantiationInput(Instantiation* instantiation,
 
 BValue BlockBuilder::InstantiationOutput(Instantiation* instantiation,
                                          absl::string_view port_name,
-                                         absl::optional<SourceLocation> loc,
+                                         const SourceInfo& loc,
                                          absl::string_view name) {
   if (ErrorPending()) {
     return BValue();

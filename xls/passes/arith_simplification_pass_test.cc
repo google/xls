@@ -640,7 +640,7 @@ TEST_F(ArithSimplificationPassTest, AndWithDuplicateOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = and(x, y, y, x, pos=0,1,5)
+       ret result: bits[32] = and(x, y, y, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -652,7 +652,7 @@ TEST_F(ArithSimplificationPassTest, AndWithSameOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = and(x, x, pos=0,1,5)
+       ret result: bits[32] = and(x, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -664,7 +664,7 @@ TEST_F(ArithSimplificationPassTest, OrWithSameOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = or(x, x, pos=0,1,5)
+       ret result: bits[32] = or(x, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -676,7 +676,7 @@ TEST_F(ArithSimplificationPassTest, NandWithDuplicateOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = nand(x, x, y, y, x, pos=0,1,5)
+       ret result: bits[32] = nand(x, x, y, y, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -688,7 +688,7 @@ TEST_F(ArithSimplificationPassTest, NandWithSameOperands) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = nand(x, x, x, pos=0,1,5)
+       ret result: bits[32] = nand(x, x, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -700,7 +700,7 @@ TEST_F(ArithSimplificationPassTest, XorWithSameOperandsEven) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = xor(x, x, pos=0,1,5)
+       ret result: bits[32] = xor(x, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -712,7 +712,7 @@ TEST_F(ArithSimplificationPassTest, XorWithSameOperandsOdd) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[32], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = xor(x, x, x, pos=0,1,5)
+       ret result: bits[32] = xor(x, x, x, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -737,7 +737,7 @@ TEST_F(ArithSimplificationPassTest, ZeroWidthMulOperand) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
     fn id_or(x: bits[0], y: bits[32]) -> bits[32] {
-       ret result: bits[32] = smul(x, y, pos=0,1,5)
+       ret result: bits[32] = smul(x, y, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));

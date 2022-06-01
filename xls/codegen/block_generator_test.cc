@@ -264,11 +264,11 @@ TEST_P(BlockGeneratorTest, RegisterWithoutClockPort) {
   XLS_ASSERT_OK_AND_ASSIGN(Register * reg,
                            block->AddRegister("reg", a.node()->GetType()));
   XLS_ASSERT_OK(block
-                    ->MakeNode<RegisterWrite>(absl::nullopt, a.node(),
+                    ->MakeNode<RegisterWrite>(SourceInfo(), a.node(),
                                               /*load_enable=*/absl::nullopt,
                                               /*reset=*/absl::nullopt, reg)
                     .status());
-  XLS_ASSERT_OK(block->MakeNode<RegisterRead>(absl::nullopt, reg).status());
+  XLS_ASSERT_OK(block->MakeNode<RegisterRead>(SourceInfo(), reg).status());
 
   EXPECT_THAT(GenerateVerilog(block, codegen_options()).status(),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -516,7 +516,7 @@ TEST_P(BlockGeneratorTest, GatedBitsType) {
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
   BValue x = b.InputPort("x", package.GetBitsType(32));
   BValue y = b.InputPort("y", package.GetBitsType(32));
-  b.Add(b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x"), y);
+  b.Add(b.Gate(cond, x, SourceInfo(), "gated_x"), y);
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   {
@@ -546,7 +546,7 @@ TEST_P(BlockGeneratorTest, GatedSingleBitType) {
   BlockBuilder b(TestBaseName(), &package);
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
   BValue x = b.InputPort("x", package.GetBitsType(1));
-  b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x");
+  b.Gate(cond, x, SourceInfo(), "gated_x");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
@@ -560,7 +560,7 @@ TEST_P(BlockGeneratorTest, GatedTupleType) {
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
   BValue x = b.InputPort("x", package.GetTupleType({package.GetBitsType(32),
                                                     package.GetBitsType(8)}));
-  b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x");
+  b.Gate(cond, x, SourceInfo(), "gated_x");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
@@ -574,7 +574,7 @@ TEST_P(BlockGeneratorTest, GatedArrayType) {
   BlockBuilder b(TestBaseName(), &package);
   BValue cond = b.InputPort("cond", package.GetBitsType(1));
   BValue x = b.InputPort("x", package.GetArrayType(7, package.GetBitsType(32)));
-  b.Gate(cond, x, /*loc=*/absl::nullopt, "gated_x");
+  b.Gate(cond, x, SourceInfo(), "gated_x");
   XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
 
   EXPECT_THAT(GenerateVerilog(block, codegen_options()),

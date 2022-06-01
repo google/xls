@@ -167,12 +167,12 @@ top fn main(x: bits[11]) -> (bits[11], bits[11], bits[11]) {
   literal.42: bits[32] = literal(value=0)
   concat.43: bits[42] = concat(literal.42, bit_slice.2)
   bit_slice.44: bits[10] = bit_slice(concat.43, start=0, width=10)
-  literal.3: bits[1] = literal(value=0, pos=1,2,3)
-  literal.4: bits[1] = literal(value=0, pos=4,5,6)
-  literal.5: bits[1] = literal(value=0, pos=7,8,9)
-  concat.6: bits[11] = concat(bit_slice.44, literal.3, pos=10,11,12)
-  concat.7: bits[11] = concat(bit_slice.44, literal.4, pos=11,12,13)
-  concat.8: bits[11] = concat(bit_slice.44, literal.5, pos=12,13,14)
+  literal.3: bits[1] = literal(value=0, pos=[(1,2,3)])
+  literal.4: bits[1] = literal(value=0, pos=[(4,5,6)])
+  literal.5: bits[1] = literal(value=0, pos=[(7,8,9)])
+  concat.6: bits[11] = concat(bit_slice.44, literal.3, pos=[(10,11,12)])
+  concat.7: bits[11] = concat(bit_slice.44, literal.4, pos=[(11,12,13)])
+  concat.8: bits[11] = concat(bit_slice.44, literal.5, pos=[(12,13,14)])
   ret tuple.9: (bits[11], bits[11], bits[11]) = tuple(concat.6, concat.7, concat.8)
 }
 )"));

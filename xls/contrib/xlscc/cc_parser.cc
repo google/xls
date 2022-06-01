@@ -164,7 +164,7 @@ clang::PresumedLoc CCParser::GetPresumedLoc(const clang::Stmt& stmt) {
   return sm_->getPresumedLoc(stmt.getSourceRange().getBegin());
 }
 
-xls::SourceLocation CCParser::GetLoc(const clang::Stmt& stmt) {
+xls::SourceInfo CCParser::GetLoc(const clang::Stmt& stmt) {
   return GetLoc(GetPresumedLoc(stmt));
 }
 
@@ -172,18 +172,17 @@ clang::PresumedLoc CCParser::GetPresumedLoc(const clang::Decl& decl) {
   return sm_->getPresumedLoc(decl.getSourceRange().getBegin());
 }
 
-xls::SourceLocation CCParser::GetLoc(const clang::Decl& decl) {
+xls::SourceInfo CCParser::GetLoc(const clang::Decl& decl) {
   return GetLoc(GetPresumedLoc(decl));
 }
 
-xls::SourceLocation CCParser::GetLoc(const clang::Expr& expr) {
+xls::SourceInfo CCParser::GetLoc(const clang::Expr& expr) {
   return GetLoc(sm_->getPresumedLoc(expr.getExprLoc()));
 }
 
-xls::SourceLocation CCParser::GetLoc(const clang::PresumedLoc& loc) {
+xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
   if (!loc.isValid()) {
-    return xls::SourceLocation(xls::Fileno(-1), xls::Lineno(-1),
-                               xls::Colno(-1));
+    return xls::SourceInfo();
   }
 
   auto found = file_numbers_.find(loc.getFilename());
@@ -197,8 +196,9 @@ xls::SourceLocation CCParser::GetLoc(const clang::PresumedLoc& loc) {
     id = found->second;
   }
 
-  return xls::SourceLocation(xls::Fileno(id), xls::Lineno(loc.getLine()),
-                             xls::Colno(loc.getColumn()));
+  return xls::SourceInfo(xls::SourceLocation(xls::Fileno(id),
+                                             xls::Lineno(loc.getLine()),
+                                             xls::Colno(loc.getColumn())));
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
@@ -286,16 +286,21 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
   return absl::OkStatus();
 }
 
-std::string CCParser::LocString(const xls::SourceLocation& loc) {
-  std::string found_str = "Unknown";
-  for (const auto& it : file_numbers_) {
-    if (it.second == static_cast<int>(loc.fileno())) {
-      found_str = it.first;
-      break;
+std::string CCParser::LocString(const xls::SourceInfo& loc) {
+  std::vector<std::string> strings;
+  for (const xls::SourceLocation& location : loc.locations) {
+    std::string found_str = "Unknown";
+    for (const auto& it : file_numbers_) {
+      if (it.second == static_cast<int>(location.fileno())) {
+        found_str = it.first;
+        break;
+      }
     }
+    strings.push_back(absl::StrFormat("%s:%i:%i", found_str,
+                                      static_cast<int>(location.lineno()),
+                                      static_cast<int>(location.fileno())));
   }
-  return absl::StrFormat("%s:%i:%i", found_str, static_cast<int>(loc.lineno()),
-                         static_cast<int>(loc.fileno()));
+  return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
 }
 
 bool CCParser::LibToolVisitFunction(clang::FunctionDecl* func) {

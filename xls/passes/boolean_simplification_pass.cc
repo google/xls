@@ -150,8 +150,8 @@ bool TruthTable::MatchesSymmetrical(
 }
 
 absl::StatusOr<Node*> TruthTable::CreateReplacement(
-    const absl::optional<SourceLocation>& original_loc,
-    absl::Span<Node* const> operands, FunctionBase* f) const {
+    const SourceInfo& original_loc, absl::Span<Node* const> operands,
+    FunctionBase* f) const {
   XLS_CHECK_LE(operands.size(), kMaxFrontierNodes);
   std::vector<Node*> this_operands;
   for (int64_t i = 0; i < kMaxFrontierNodes; ++i) {

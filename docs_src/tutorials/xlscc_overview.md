@@ -42,8 +42,8 @@ The resulting `test.opt.ir` file should look something like the following
 package my_package
 
 fn add2(input: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=2, id=2, pos=1,3,3)
-  ret add.3: bits[32] = add(input, literal.2, id=3, pos=1,3,3)
+  literal.2: bits[32] = literal(value=2, id=2, pos=[(1,3,3)])
+  ret add.3: bits[32] = add(input, literal.2, id=3, pos=[(1,3,3)])
 }
 ```
 

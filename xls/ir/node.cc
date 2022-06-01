@@ -34,8 +34,8 @@
 
 namespace xls {
 
-Node::Node(Op op, Type* type, absl::optional<SourceLocation> loc,
-           absl::string_view name, FunctionBase* function_base)
+Node::Node(Op op, Type* type, const SourceInfo& loc, absl::string_view name,
+           FunctionBase* function_base)
     : function_base_(function_base),
       id_(function_base_->package()->GetNextNodeId()),
       op_(op),
@@ -612,11 +612,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       break;
   }
   args.push_back(absl::StrFormat("id=%d", id()));
-  if (loc()) {
-    // Tack the location on as an optional keyword attribute.
-    args.push_back(absl::StrFormat("pos=%d,%d,%d", loc()->fileno().value(),
-                                   loc()->lineno().value(),
-                                   loc()->colno().value()));
+  if (!loc().Empty()) {
+    args.push_back(absl::StrFormat("pos=%s", loc().ToString()));
   }
   absl::StrAppendFormat(&ret, "(%s)", absl::StrJoin(args, ", "));
   return ret;

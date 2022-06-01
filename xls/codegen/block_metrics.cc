@@ -298,14 +298,14 @@ absl::Status GenerateBomEntry(Node* node, BomEntryProto* proto) {
   proto->set_output_width(node->GetType()->GetFlatBitCount());
   proto->set_maximum_input_width(maximum_input_width);
   proto->set_number_of_arguments(node->operands().size());
-  if (node->loc().has_value()) {
-    SourceLocation loc = node->loc().value();
+  for (const SourceLocation& loc : node->loc().locations) {
+    SourceLocationProto* loc_proto = proto->add_location();
     if (std::optional<std::string> file =
             node->package()->GetFilename(loc.fileno())) {
-      proto->set_source_file(file.value());
+      loc_proto->set_file(file.value());
     }
-    proto->set_source_line(static_cast<int32_t>(loc.lineno()));
-    proto->set_source_col(static_cast<int32_t>(loc.colno()));
+    loc_proto->set_line(static_cast<int32_t>(loc.lineno()));
+    loc_proto->set_col(static_cast<int32_t>(loc.colno()));
   }
 
   return absl::OkStatus();

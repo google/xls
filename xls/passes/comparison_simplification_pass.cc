@@ -267,7 +267,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       }
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(absl::nullopt, Value(precise_value.value())));
+          f->MakeNode<Literal>(SourceInfo(), Value(precise_value.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kEq)
                               .status());
@@ -283,7 +283,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       }
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(absl::nullopt, Value(precise_value.value())));
+          f->MakeNode<Literal>(SourceInfo(), Value(precise_value.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kNe)
                               .status());
@@ -297,7 +297,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       }
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(absl::nullopt, Value(limit.value())));
+          f->MakeNode<Literal>(SourceInfo(), Value(limit.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kULt)
                               .status());
@@ -311,7 +311,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       }
       XLS_ASSIGN_OR_RETURN(
           Literal * literal,
-          f->MakeNode<Literal>(absl::nullopt, Value(limit.value())));
+          f->MakeNode<Literal>(SourceInfo(), Value(limit.value())));
       XLS_RETURN_IF_ERROR(node->ReplaceUsesWithNew<CompareOp>(
                                   equivalences.at(node).node, literal, Op::kUGt)
                               .status());

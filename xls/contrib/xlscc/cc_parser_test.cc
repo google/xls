@@ -74,12 +74,13 @@ TEST_F(CCParserTest, SourceMeta) {
   XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
   ASSERT_NE(top_ptr, nullptr);
 
-  xls::SourceLocation loc = parser.GetLoc(*top_ptr);
+  xls::SourceInfo loc = parser.GetLoc(*top_ptr);
 
   xlscc_metadata::MetadataOutput output;
   parser.AddSourceInfoToMetadata(output);
   ASSERT_EQ(output.sources_size(), 1);
-  EXPECT_EQ(static_cast<int32_t>(loc.fileno()),
+  EXPECT_EQ(loc.locations.size(), 1);
+  EXPECT_EQ(static_cast<int32_t>(loc.locations[0].fileno()),
             static_cast<int32_t>(output.sources(0).number()));
 }
 

@@ -223,7 +223,7 @@ absl::StatusOr<Expression*> EmitOneHotSelect(
 //   exprs[0] | exprs[1] | ... | exprs[n]
 absl::StatusOr<Expression*> OrReduction(absl::Span<Expression* const> exprs,
                                         VerilogFile* file,
-                                        std::optional<SourceLocation> loc) {
+                                        const SourceInfo& loc) {
   XLS_RET_CHECK(!exprs.empty());
   Expression* reduction = exprs[0];
   for (int i = 1; i < exprs.size(); ++i) {

@@ -132,17 +132,16 @@ class StateElement {
 
     // Create placeholder state node. Later this will be replaced with an
     // element from the top-level proc state.
-    XLS_ASSIGN_OR_RETURN(element.state_,
-                         proc->MakeNodeWithName<Literal>(
-                             /*loc=*/absl::nullopt, initial_value,
-                             absl::StrFormat("%s_state", name)));
+    XLS_ASSIGN_OR_RETURN(
+        element.state_,
+        proc->MakeNodeWithName<Literal>(SourceInfo(), initial_value,
+                                        absl::StrFormat("%s_state", name)));
 
     // Create placeholder next-tick value for the state element. The caller must
     // call SetNext to replace it with a real state element.
-    XLS_ASSIGN_OR_RETURN(element.next_,
-                         proc->MakeNodeWithName<Literal>(
-                             /*loc=*/absl::nullopt, initial_value,
-                             absl::StrFormat("%s_next", name)));
+    XLS_ASSIGN_OR_RETURN(element.next_, proc->MakeNodeWithName<Literal>(
+                                            SourceInfo(), initial_value,
+                                            absl::StrFormat("%s_next", name)));
     element.next_is_set_ = false;
     return std::move(element);
   }
@@ -216,12 +215,12 @@ class VirtualChannel {
     // Construct placeholder inputs. These will be replaced later.
     XLS_ASSIGN_OR_RETURN(vc.data_in_,
                          proc->MakeNodeWithName<Literal>(
-                             /*loc=*/absl::nullopt, ZeroOfType(channel->type()),
+                             SourceInfo(), ZeroOfType(channel->type()),
                              absl::StrFormat("%s_data_in", channel->name())));
     XLS_ASSIGN_OR_RETURN(
         vc.send_fired_in_,
         proc->MakeNodeWithName<Literal>(
-            /*loc=*/absl::nullopt, Value(UBits(0, 1)),
+            SourceInfo(), Value(UBits(0, 1)),
             absl::StrFormat("%s_send_fired_in", channel->name())));
 
     XLS_ASSIGN_OR_RETURN(
@@ -237,7 +236,7 @@ class VirtualChannel {
       XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kSingleValue);
       XLS_ASSIGN_OR_RETURN(vc.valid_out_,
                            proc->MakeNodeWithName<Literal>(
-                               /*loc=*/absl::nullopt, Value(UBits(1, 1)),
+                               SourceInfo(), Value(UBits(1, 1)),
                                absl::StrFormat("%s_valid", channel->name())));
     }
 
@@ -666,7 +665,7 @@ class ProcThread {
     XLS_ASSIGN_OR_RETURN(
         Node * state_next,
         container_proc_->MakeNodeWithName<Select>(
-            absl::nullopt, /*selector=*/GetProcTickComplete(), /*cases=*/
+            SourceInfo(), /*selector=*/GetProcTickComplete(), /*cases=*/
             std::vector<Node*>{GetDummyState(), next_state},
             /*default_case=*/absl::nullopt,
             absl::StrFormat("%s_next_state", inlined_proc_->name())));
@@ -841,12 +840,12 @@ class ProcThread {
                                    receive_out->users().end());
       XLS_ASSIGN_OR_RETURN(Node * receive_data,
                            container_proc_->MakeNodeWithName<TupleIndex>(
-                               absl::nullopt, receive_out, 1,
+                               SourceInfo(), receive_out, 1,
                                absl::StrFormat("%s_data", channel->name())));
       XLS_ASSIGN_OR_RETURN(
           Node * maybe_saved_data,
           container_proc_->MakeNodeWithName<Select>(
-              absl::nullopt,
+              SourceInfo(),
               /*selector=*/anode.activation_out, /*cases=*/
               std::vector<Node*>{data_state->GetState(), receive_data},
               /*default_case=*/absl::nullopt,
@@ -855,12 +854,12 @@ class ProcThread {
 
       XLS_ASSIGN_OR_RETURN(Node * receive_token,
                            container_proc_->MakeNodeWithName<TupleIndex>(
-                               absl::nullopt, receive_out, 0,
+                               SourceInfo(), receive_out, 0,
                                absl::StrFormat("%s_token", channel->name())));
       XLS_ASSIGN_OR_RETURN(
           Node * saved_receive_out,
           container_proc_->MakeNodeWithName<Tuple>(
-              absl::nullopt, std::vector{receive_token, maybe_saved_data},
+              SourceInfo(), std::vector{receive_token, maybe_saved_data},
               absl::StrFormat("%s_receive_out", channel->name())));
 
       for (Node* old_user : old_users) {
@@ -1042,7 +1041,7 @@ absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
   } else {
     XLS_ASSIGN_OR_RETURN(activation_node.stall_condition,
                          container_proc_->MakeNodeWithName<Literal>(
-                             absl::nullopt, Value(UBits(0, 1)),
+                             SourceInfo(), Value(UBits(0, 1)),
                              absl::StrFormat("%s_stall_condition", name)));
 
     XLS_ASSIGN_OR_RETURN(Node * not_stalled,
@@ -1069,7 +1068,7 @@ absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
     }
     XLS_ASSIGN_OR_RETURN(activation_node.activation_out,
                          container_proc_->MakeNodeWithName<NaryOp>(
-                             absl::nullopt, activation_conditions, Op::kAnd,
+                             SourceInfo(), activation_conditions, Op::kAnd,
                              absl::StrFormat("%s_is_activated", name)));
 
     // Each activation input is held until activation out is asserted.
@@ -1178,11 +1177,11 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
   // original receive is conditional.
   XLS_ASSIGN_OR_RETURN(Node * zero,
                        container_proc_->MakeNodeWithName<Literal>(
-                           /*loc=*/absl::nullopt, ZeroOfType(channel->type()),
+                           SourceInfo(), ZeroOfType(channel->type()),
                            absl::StrFormat("%s_zero", channel->name())));
   XLS_ASSIGN_OR_RETURN(
       Node * data, container_proc_->MakeNodeWithName<Select>(
-                       absl::nullopt,
+                       SourceInfo(),
                        /*selector=*/receive_fired, /*cases=*/
                        std::vector<Node*>{zero, virtual_channel.GetDataOut()},
                        /*default_case=*/absl::nullopt,
@@ -1205,7 +1204,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
     XLS_ASSIGN_OR_RETURN(
         Node * assert_no_data_loss,
         container_proc_->MakeNode<Assert>(
-            absl::nullopt, token, no_data_loss,
+            SourceInfo(), token, no_data_loss,
             /*message=*/
             absl::StrFormat(
                 "Channel %s lost data, send fired but receive did not",
@@ -1217,7 +1216,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
   // The output of a receive operation is a tuple of (token, data).
   XLS_ASSIGN_OR_RETURN(Node * result,
                        container_proc_->MakeNodeWithName<Tuple>(
-                           absl::nullopt, std::vector<Node*>{token, data},
+                           SourceInfo(), std::vector<Node*>{token, data},
                            absl::StrFormat("%s_receive", channel->name())));
   XLS_RETURN_IF_ERROR(receive->ReplaceUsesWith(result));
 
@@ -1270,16 +1269,16 @@ absl::StatusOr<Node*> ProcThread::ConvertToActivatedReceive(
 
   XLS_ASSIGN_OR_RETURN(Node * data,
                        container_proc_->MakeNodeWithName<TupleIndex>(
-                           absl::nullopt, activated_receive, 1,
+                           SourceInfo(), activated_receive, 1,
                            absl::StrFormat("%s_data_in", channel->name())));
   activation_node->data_out = data;
 
   XLS_ASSIGN_OR_RETURN(Node * token, container_proc_->MakeNode<TupleIndex>(
-                                         absl::nullopt, activated_receive, 0));
+                                         SourceInfo(), activated_receive, 0));
   XLS_ASSIGN_OR_RETURN(
       Node * saved_receive,
       container_proc_->MakeNodeWithName<Tuple>(
-          absl::nullopt, std::vector<Node*>{token, data},
+          SourceInfo(), std::vector<Node*>{token, data},
           absl::StrFormat("%s_saved_receive", channel->name())));
 
   // Replace uses of the original receive with the newly created receive.

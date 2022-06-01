@@ -29,7 +29,7 @@ namespace {
 TEST(NodeIteratorTest, ReordersViaDependencies) {
   Package p("p");
   Function f("f", &p);
-  absl::optional<SourceLocation> loc = absl::nullopt;
+  SourceInfo loc;
   XLS_ASSERT_OK_AND_ASSIGN(Node * literal,
                            f.MakeNode<Literal>(loc, Value(UBits(3, 2))));
   XLS_ASSERT_OK_AND_ASSIGN(Node * neg,
@@ -85,7 +85,7 @@ TEST(NodeIteratorTest, Diamond) {
 TEST(NodeIteratorTest, PostOrderNotPreOrder) {
   Package p("p");
   Function f("f", &p);
-  absl::optional<SourceLocation> loc = absl::nullopt;
+  SourceInfo loc;
   XLS_ASSERT_OK_AND_ASSIGN(Node * a,
                            f.MakeNode<Literal>(loc, Value(UBits(0, 2))));
   XLS_ASSERT_OK_AND_ASSIGN(Node * b, f.MakeNode<BinOp>(loc, a, a, Op::kAdd));

@@ -79,17 +79,17 @@ TEST_P(SequentialGeneratorTest, LoopBodyPipelineTest) {
 package LoopBodyPipelineTest
 
 fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  add.5: bits[32] = add(acc, index, pos=0,2,8)
-  literal.6: bits[32] = literal(value=3, pos=0,2,22)
-  add.7: bits[32] = add(add.5, literal.6, pos=0,2,16)
-  literal.8: bits[32] = literal(value=4, pos=0,2,30)
-  ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
+  add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
+  literal.6: bits[32] = literal(value=3, pos=[(0,2,22)])
+  add.7: bits[32] = add(add.5, literal.6, pos=[(0,2,16)])
+  literal.8: bits[32] = literal(value=4, pos=[(0,2,30)])
+  ret add.9: bits[32] = add(add.7, literal.8, pos=[(0,2,24)])
 }
 
 top fn __LoopBodyPipelineTest__main() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, pos=0,3,8)
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
+  literal.1: bits[32] = literal(value=0, pos=[(0,3,8)])
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=[(0,1,5)])
 }
 
 )";
@@ -134,17 +134,17 @@ TEST_P(SequentialGeneratorTest, ModuleSignatureTestSimple) {
 package LoopBodyPipelineTest
 
 fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  add.5: bits[32] = add(acc, index, pos=0,2,8)
-  literal.6: bits[32] = literal(value=3, pos=0,2,22)
-  add.7: bits[32] = add(add.5, literal.6, pos=0,2,16)
-  literal.8: bits[32] = literal(value=4, pos=0,2,30)
-  ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
+  add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
+  literal.6: bits[32] = literal(value=3, pos=[(0,2,22)])
+  add.7: bits[32] = add(add.5, literal.6, pos=[(0,2,16)])
+  literal.8: bits[32] = literal(value=4, pos=[(0,2,30)])
+  ret add.9: bits[32] = add(add.7, literal.8, pos=[(0,2,24)])
 }
 
 top fn __LoopBodyPipelineTest__main() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, pos=0,3,8)
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
+  literal.1: bits[32] = literal(value=0, pos=[(0,3,8)])
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=[(0,1,5)])
 }
 
 )";
@@ -189,17 +189,17 @@ TEST_P(SequentialGeneratorTest, ModuleSignatureTestCustomModuleName) {
 package LoopBodyPipelineTest
 
 fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  add.5: bits[32] = add(acc, index, pos=0,2,8)
-  literal.6: bits[32] = literal(value=3, pos=0,2,22)
-  add.7: bits[32] = add(add.5, literal.6, pos=0,2,16)
-  literal.8: bits[32] = literal(value=4, pos=0,2,30)
-  ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
+  add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
+  literal.6: bits[32] = literal(value=3, pos=[(0,2,22)])
+  add.7: bits[32] = add(add.5, literal.6, pos=[(0,2,16)])
+  literal.8: bits[32] = literal(value=4, pos=[(0,2,30)])
+  ret add.9: bits[32] = add(add.7, literal.8, pos=[(0,2,24)])
 }
 
 top fn __LoopBodyPipelineTest__main() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, pos=0,3,8)
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
+  literal.1: bits[32] = literal(value=0, pos=[(0,3,8)])
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=[(0,1,5)])
 }
 
 )";
@@ -246,18 +246,18 @@ TEST_P(SequentialGeneratorTest, ModuleSignatureTestInvariants) {
 package ModuleSignatureTestInvariants
 
 fn ____ModuleSignatureTestInvariants__main_counted_for_0_body(index: bits[32], acc: bits[32], invar_a: bits[32], invar_b: bits[32]) -> bits[32] {
-  add.10: bits[32] = add(acc, index, pos=0,5,8)
-  add.11: bits[32] = add(add.10, invar_a, pos=0,5,16)
-  ret add.12: bits[32] = add(add.11, invar_b, pos=0,5,26)
+  add.10: bits[32] = add(acc, index, pos=[(0,5,8)])
+  add.11: bits[32] = add(add.10, invar_a, pos=[(0,5,16)])
+  ret add.12: bits[32] = add(add.11, invar_b, pos=[(0,5,26)])
 }
 
 top fn __ModuleSignatureTestInvariants__main() -> bits[32] {
-  literal.4: bits[32] = literal(value=0, pos=0,6,8)
-  literal.1: bits[32] = literal(value=3, pos=0,1,26)
-  literal.2: bits[32] = literal(value=4, pos=0,2,26)
-  literal.3: bits[32] = literal(value=5, pos=0,3,30)
-  literal.5: bits[32] = literal(value=4, pos=0,4,51)
-  ret counted_for.13: bits[32] = counted_for(literal.4, trip_count=4, stride=1, body=____ModuleSignatureTestInvariants__main_counted_for_0_body, invariant_args=[literal.1, literal.2], pos=0,4,5)
+  literal.4: bits[32] = literal(value=0, pos=[(0,6,8)])
+  literal.1: bits[32] = literal(value=3, pos=[(0,1,26)])
+  literal.2: bits[32] = literal(value=4, pos=[(0,2,26)])
+  literal.3: bits[32] = literal(value=5, pos=[(0,3,30)])
+  literal.5: bits[32] = literal(value=4, pos=[(0,4,51)])
+  ret counted_for.13: bits[32] = counted_for(literal.4, trip_count=4, stride=1, body=____ModuleSignatureTestInvariants__main_counted_for_0_body, invariant_args=[literal.1, literal.2], pos=[(0,4,5)])
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -302,17 +302,17 @@ TEST_P(SequentialGeneratorTest, ModuleSignatureSynchronousResetActiveHigh) {
 package LoopBodyPipelineTest
 
 fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  add.5: bits[32] = add(acc, index, pos=0,2,8)
-  literal.6: bits[32] = literal(value=3, pos=0,2,22)
-  add.7: bits[32] = add(add.5, literal.6, pos=0,2,16)
-  literal.8: bits[32] = literal(value=4, pos=0,2,30)
-  ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
+  add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
+  literal.6: bits[32] = literal(value=3, pos=[(0,2,22)])
+  add.7: bits[32] = add(add.5, literal.6, pos=[(0,2,16)])
+  literal.8: bits[32] = literal(value=4, pos=[(0,2,30)])
+  ret add.9: bits[32] = add(add.7, literal.8, pos=[(0,2,24)])
 }
 
 top fn __LoopBodyPipelineTest__main() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, pos=0,3,8)
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
+  literal.1: bits[32] = literal(value=0, pos=[(0,3,8)])
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=[(0,1,5)])
 }
 
 )";
@@ -363,17 +363,17 @@ TEST_P(SequentialGeneratorTest, ModuleSignatureAsynchronousActiveLowReset) {
 package LoopBodyPipelineTest
 
 fn ____LoopBodyPipelineTest__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  add.5: bits[32] = add(acc, index, pos=0,2,8)
-  literal.6: bits[32] = literal(value=3, pos=0,2,22)
-  add.7: bits[32] = add(add.5, literal.6, pos=0,2,16)
-  literal.8: bits[32] = literal(value=4, pos=0,2,30)
-  ret add.9: bits[32] = add(add.7, literal.8, pos=0,2,24)
+  add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
+  literal.6: bits[32] = literal(value=3, pos=[(0,2,22)])
+  add.7: bits[32] = add(add.5, literal.6, pos=[(0,2,16)])
+  literal.8: bits[32] = literal(value=4, pos=[(0,2,30)])
+  ret add.9: bits[32] = add(add.7, literal.8, pos=[(0,2,24)])
 }
 
 top fn __LoopBodyPipelineTest__main() -> bits[32] {
-  literal.1: bits[32] = literal(value=0, pos=0,3,8)
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=0,1,5)
+  literal.1: bits[32] = literal(value=0, pos=[(0,3,8)])
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.10: bits[32] = counted_for(literal.1, trip_count=4, stride=1, body=____LoopBodyPipelineTest__main_counted_for_0_body, pos=[(0,1,5)])
 }
 
 )";
@@ -1595,12 +1595,12 @@ TEST_P(SequentialGeneratorTest, SequentialModuleSimple) {
 package SequentialModuleSimple
 
 fn ____SequentialModuleSimple__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  ret add.5: bits[32] = add(acc, index, pos=0,2,8)
+  ret add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
 }
 
 top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=[(0,1,5)])
 }
 )";
   // Would be better to do this as a parameterized test, but this
@@ -1643,14 +1643,14 @@ TEST_P(SequentialGeneratorTest, SequentialModuleInvariants) {
 package SequentialModuleInvariants
 
 fn ____SequentialModuleInvariants__main_counted_for_0_body(index: bits[32], acc: bits[32], invara: bits[32], invarb: bits[32]) -> bits[32] {
-  add.9: bits[32] = add(acc, index, pos=0,2,8)
-  add.10: bits[32] = add(add.9, invara, pos=0,2,16)
-  ret add.11: bits[32] = add(add.10, invarb, pos=0,2,25)
+  add.9: bits[32] = add(acc, index, pos=[(0,2,8)])
+  add.10: bits[32] = add(add.9, invara, pos=[(0,2,16)])
+  ret add.11: bits[32] = add(add.10, invarb, pos=[(0,2,25)])
 }
 
 top fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], invarb: bits[32]) -> bits[32] {
-  literal.4: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.12: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleInvariants__main_counted_for_0_body, invariant_args=[invara, invarb], pos=0,1,5)
+  literal.4: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.12: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleInvariants__main_counted_for_0_body, invariant_args=[invara, invarb], pos=[(0,1,5)])
 }
 )";
   // Would be better to do this as a parameterized test, but this
@@ -1695,12 +1695,12 @@ TEST_P(SequentialGeneratorTest, SequentialModuleReadyValidTiming) {
 package SequentialModuleSimple
 
 fn ____SequentialModuleSimple__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  ret add.5: bits[32] = add(acc, index, pos=0,2,8)
+  ret add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
 }
 
 top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=[(0,1,5)])
 }
 )";
   // Would be better to do this as a parameterized test, but this
@@ -1808,12 +1808,12 @@ TEST_P(SequentialGeneratorTest, SequentialModuleMultipleUses) {
 package SequentialModuleSimple
 
 fn ____SequentialModuleSimple__main_counted_for_0_body(index: bits[32], acc: bits[32]) -> bits[32] {
-  ret add.5: bits[32] = add(acc, index, pos=0,2,8)
+  ret add.5: bits[32] = add(acc, index, pos=[(0,2,8)])
 }
 
 top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=4, pos=0,1,51)
-  ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=0,1,5)
+  literal.2: bits[32] = literal(value=4, pos=[(0,1,51)])
+  ret counted_for.6: bits[32] = counted_for(init_acc, trip_count=4, stride=1, body=____SequentialModuleSimple__main_counted_for_0_body, pos=[(0,1,5)])
 }
 )";
   // Would be better to do this as a parameterized test, but this

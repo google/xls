@@ -145,20 +145,20 @@ std::string SanitizeIdentifier(absl::string_view name);
 // Base type for a VAST node. All nodes are owned by a VerilogFile.
 class VastNode {
  public:
-  explicit VastNode(VerilogFile* file, std::optional<SourceLocation> loc)
+  explicit VastNode(VerilogFile* file, const SourceInfo& loc)
       : file_(file), loc_(loc) {}
   virtual ~VastNode() = default;
 
   // The file which owns this node.
   VerilogFile* file() const { return file_; }
 
-  const std::optional<SourceLocation>& loc() const { return loc_; }
+  const SourceInfo& loc() const { return loc_; }
 
   virtual std::string Emit(LineInfo* line_info) const = 0;
 
  private:
   VerilogFile* file_;
-  std::optional<SourceLocation> loc_;
+  SourceInfo loc_;
 };
 
 // Trait used for named entities.
@@ -184,13 +184,13 @@ class DataType : public VastNode {
  public:
   // Constructor for a scalar type where no range is specified. Example:
   //   wire foo;
-  explicit DataType(VerilogFile* file, std::optional<SourceLocation> loc)
+  explicit DataType(VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), width_(nullptr), is_signed_(false) {}
 
   // Construct for an potentially signed bit vector type. Example:
   //   signed wire [7:0] foo;
   DataType(Expression* width, bool is_signed, VerilogFile* file,
-           std::optional<SourceLocation> loc)
+           const SourceInfo& loc)
       : VastNode(file, loc), width_(width), is_signed_(is_signed) {}
 
   // Full featured constructor for an arbitrary type including array types.
@@ -201,7 +201,7 @@ class DataType : public VastNode {
   //   wire [7:0][3:0][42:0] foo [123];
   DataType(Expression* width, absl::Span<Expression* const> packed_dims,
            absl::Span<Expression* const> unpacked_dims, bool is_signed,
-           VerilogFile* file, std::optional<SourceLocation> loc)
+           VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc),
         width_(width),
         packed_dims_(packed_dims.begin(), packed_dims.end()),
@@ -277,7 +277,7 @@ class Def : public Statement {
   //   wire foo;
   //   reg bar;
   Def(absl::string_view name, DataKind data_kind, DataType* data_type,
-      VerilogFile* file, std::optional<SourceLocation> loc)
+      VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         name_(name),
         data_kind_(data_kind),
@@ -303,7 +303,7 @@ class Def : public Statement {
 class WireDef : public Def {
  public:
   WireDef(absl::string_view name, DataType* data_type, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+          const SourceInfo& loc)
       : Def(name, DataKind::kWire, data_type, file, loc) {}
 };
 
@@ -312,10 +312,10 @@ class WireDef : public Def {
 class RegDef : public Def {
  public:
   RegDef(absl::string_view name, DataType* data_type, VerilogFile* file,
-         std::optional<SourceLocation> loc)
+         const SourceInfo& loc)
       : Def(name, DataKind::kReg, data_type, file, loc), init_(nullptr) {}
   RegDef(absl::string_view name, DataType* data_type, Expression* init,
-         VerilogFile* file, std::optional<SourceLocation> loc)
+         VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kReg, std::move(data_type), file, loc),
         init_(init) {}
 
@@ -330,10 +330,10 @@ class RegDef : public Def {
 class LogicDef : public Def {
  public:
   LogicDef(absl::string_view name, DataType* data_type, VerilogFile* file,
-           std::optional<SourceLocation> loc)
+           const SourceInfo& loc)
       : Def(name, DataKind::kLogic, data_type, file, loc), init_(nullptr) {}
   LogicDef(absl::string_view name, DataType* data_type, Expression* init,
-           VerilogFile* file, std::optional<SourceLocation> loc)
+           VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kLogic, data_type, file, loc), init_(init) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -352,11 +352,10 @@ class DelayStatement : public Statement {
   // otherwise this is a solitary delay statement:
   //
   //   #${delay};
-  DelayStatement(Expression* delay, VerilogFile* file,
-                 std::optional<SourceLocation> loc)
+  DelayStatement(Expression* delay, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), delay_(delay), delayed_statement_(nullptr) {}
   DelayStatement(Expression* delay, Statement* delayed_statement,
-                 VerilogFile* file, std::optional<SourceLocation> loc)
+                 VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         delay_(delay),
         delayed_statement_(delayed_statement) {}
@@ -371,8 +370,7 @@ class DelayStatement : public Statement {
 // Represents a wait statement.
 class WaitStatement : public Statement {
  public:
-  WaitStatement(Expression* event, VerilogFile* file,
-                std::optional<SourceLocation> loc)
+  WaitStatement(Expression* event, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), event_(event) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -384,8 +382,7 @@ class WaitStatement : public Statement {
 // Represents a forever construct which runs a statement continuously.
 class Forever : public Statement {
  public:
-  Forever(Statement* statement, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+  Forever(Statement* statement, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), statement_(statement) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -398,7 +395,7 @@ class Forever : public Statement {
 class BlockingAssignment : public Statement {
  public:
   BlockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
-                     std::optional<SourceLocation> loc)
+                     const SourceInfo& loc)
       : Statement(file, loc), lhs_(XLS_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -412,7 +409,7 @@ class BlockingAssignment : public Statement {
 class NonblockingAssignment : public Statement {
  public:
   NonblockingAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
-                        std::optional<SourceLocation> loc)
+                        const SourceInfo& loc)
       : Statement(file, loc), lhs_(XLS_DIE_IF_NULL(lhs)), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -432,7 +429,7 @@ class StatementBlock : public VastNode {
   // the parent VerilogFile. Example:
   //   Case* c = Add<Case>(subject);
   template <typename T, typename... Args>
-  inline T* Add(std::optional<SourceLocation> loc, Args&&... args);
+  inline T* Add(const SourceInfo& loc, Args&&... args);
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -449,8 +446,7 @@ using CaseLabel = absl::variant<Expression*, DefaultSentinel>;
 // Represents an arm of a case statement.
 class CaseArm : public VastNode {
  public:
-  CaseArm(CaseLabel label, VerilogFile* file,
-          std::optional<SourceLocation> loc);
+  CaseArm(CaseLabel label, VerilogFile* file, const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
   StatementBlock* statements() { return statements_; }
@@ -463,8 +459,7 @@ class CaseArm : public VastNode {
 // Represents a case statement.
 class Case : public Statement {
  public:
-  Case(Expression* subject, VerilogFile* file,
-       std::optional<SourceLocation> loc)
+  Case(Expression* subject, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), subject_(subject) {}
 
   StatementBlock* AddCaseArm(CaseLabel label);
@@ -479,8 +474,7 @@ class Case : public Statement {
 // Represents an if statement with optional "else if" and "else" blocks.
 class Conditional : public Statement {
  public:
-  Conditional(Expression* condition, VerilogFile* file,
-              std::optional<SourceLocation> loc);
+  Conditional(Expression* condition, VerilogFile* file, const SourceInfo& loc);
 
   // Returns a pointer to the statement block of the consequent.
   StatementBlock* consequent() const { return consequent_; }
@@ -506,7 +500,7 @@ class Conditional : public Statement {
 class WhileStatement : public Statement {
  public:
   WhileStatement(Expression* condition, VerilogFile* file,
-                 std::optional<SourceLocation> loc);
+                 const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -521,7 +515,7 @@ class WhileStatement : public Statement {
 class RepeatStatement : public Statement {
  public:
   RepeatStatement(Expression* repeat_count, Statement* statement,
-                  VerilogFile* file, std::optional<SourceLocation> loc)
+                  VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         repeat_count_(repeat_count),
         statement_(statement) {}
@@ -538,7 +532,7 @@ class RepeatStatement : public Statement {
 class EventControl : public Statement {
  public:
   EventControl(Expression* event_expression, VerilogFile* file,
-               std::optional<SourceLocation> loc)
+               const SourceInfo& loc)
       : Statement(file, loc), event_expression_(event_expression) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -609,7 +603,7 @@ class Expression : public VastNode {
 // Represents an X value.
 class XSentinel : public Expression {
  public:
-  XSentinel(int64_t width, VerilogFile* file, std::optional<SourceLocation> loc)
+  XSentinel(int64_t width, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), width_(width) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -621,8 +615,7 @@ class XSentinel : public Expression {
 // Represents an operation (unary, binary, etc) with a particular precedence.
 class Operator : public Expression {
  public:
-  Operator(int64_t precedence, VerilogFile* file,
-           std::optional<SourceLocation> loc)
+  Operator(int64_t precedence, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), precedence_(precedence) {}
   int64_t precedence() const override { return precedence_; }
 
@@ -633,8 +626,7 @@ class Operator : public Expression {
 // A posedge edge identifier expression.
 class PosEdge : public Expression {
  public:
-  PosEdge(Expression* expression, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+  PosEdge(Expression* expression, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), expression_(expression) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -646,8 +638,7 @@ class PosEdge : public Expression {
 // A negedge edge identifier expression.
 class NegEdge : public Expression {
  public:
-  NegEdge(Expression* expression, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+  NegEdge(Expression* expression, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), expression_(expression) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -669,7 +660,7 @@ class Instantiation : public VastNode {
   Instantiation(absl::string_view module_name, absl::string_view instance_name,
                 absl::Span<const Connection> parameters,
                 absl::Span<const Connection> connections, VerilogFile* file,
-                std::optional<SourceLocation> loc)
+                const SourceInfo& loc)
       : VastNode(file, loc),
         module_name_(module_name),
         instance_name_(instance_name),
@@ -688,8 +679,7 @@ class Instantiation : public VastNode {
 // Represents a reference to an already-defined macro.
 class MacroRef : public Expression {
  public:
-  MacroRef(std::string name, VerilogFile* file,
-           std::optional<SourceLocation> loc)
+  MacroRef(std::string name, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), name_(name) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -702,7 +692,7 @@ class MacroRef : public Expression {
 class Parameter : public NamedTrait {
  public:
   Parameter(absl::string_view name, Expression* rhs, VerilogFile* file,
-            std::optional<SourceLocation> loc)
+            const SourceInfo& loc)
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -717,7 +707,7 @@ class Parameter : public NamedTrait {
 class LocalParamItem : public NamedTrait {
  public:
   LocalParamItem(absl::string_view name, Expression* rhs, VerilogFile* file,
-                 std::optional<SourceLocation> loc)
+                 const SourceInfo& loc)
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
 
   std::string GetName() const override { return name_; }
@@ -733,7 +723,7 @@ class LocalParamItem : public NamedTrait {
 class LocalParamItemRef : public Expression {
  public:
   LocalParamItemRef(LocalParamItem* item, VerilogFile* file,
-                    std::optional<SourceLocation> loc)
+                    const SourceInfo& loc)
       : Expression(file, loc), item_(item) {}
 
   std::string Emit(LineInfo* line_info) const override {
@@ -749,7 +739,7 @@ class LocalParam : public VastNode {
  public:
   using VastNode::VastNode;
   LocalParamItemRef* AddItem(absl::string_view name, Expression* value,
-                             std::optional<SourceLocation> loc);
+                             const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
 
@@ -760,8 +750,7 @@ class LocalParam : public VastNode {
 // Refers to a Parameter's definition for use in an expression.
 class ParameterRef : public Expression {
  public:
-  ParameterRef(Parameter* parameter, VerilogFile* file,
-               std::optional<SourceLocation> loc)
+  ParameterRef(Parameter* parameter, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), parameter_(parameter) {}
 
   std::string Emit(LineInfo* line_info) const override {
@@ -783,7 +772,7 @@ class IndexableExpression : public Expression {
 // Reference to the definition of a WireDef, RegDef, or LogicDef.
 class LogicRef : public IndexableExpression {
  public:
-  LogicRef(Def* def, VerilogFile* file, std::optional<SourceLocation> loc)
+  LogicRef(Def* def, VerilogFile* file, const SourceInfo& loc)
       : IndexableExpression(file, loc), def_(XLS_DIE_IF_NULL(def)) {}
 
   bool IsLogicRef() const override { return true; }
@@ -807,7 +796,7 @@ class LogicRef : public IndexableExpression {
 class Unary : public Operator {
  public:
   Unary(absl::string_view op, Expression* arg, int64_t precedence,
-        VerilogFile* file, std::optional<SourceLocation> loc)
+        VerilogFile* file, const SourceInfo& loc)
       : Operator(precedence, file, loc), op_(op), arg_(arg) {}
 
   bool IsUnary() const override { return true; }
@@ -834,15 +823,13 @@ struct Reset {
 // is now better handled by ModuleBuilder.
 class AlwaysFlop : public VastNode {
  public:
-  AlwaysFlop(LogicRef* clk, VerilogFile* file,
-             std::optional<SourceLocation> loc);
+  AlwaysFlop(LogicRef* clk, VerilogFile* file, const SourceInfo& loc);
   AlwaysFlop(LogicRef* clk, Reset rst, VerilogFile* file,
-             std::optional<SourceLocation> loc);
+             const SourceInfo& loc);
 
   // Add a register controlled by this AlwaysFlop. 'reset_value' can only have a
   // value if the AlwaysFlop has a reset signal.
-  void AddRegister(LogicRef* reg, Expression* reg_next,
-                   std::optional<SourceLocation> loc,
+  void AddRegister(LogicRef* reg, Expression* reg_next, const SourceInfo& loc,
                    Expression* reset_value = nullptr);
 
   std::string Emit(LineInfo* line_info) const override;
@@ -863,8 +850,7 @@ class AlwaysFlop : public VastNode {
 
 class StructuredProcedure : public VastNode {
  public:
-  explicit StructuredProcedure(VerilogFile* file,
-                               std::optional<SourceLocation> loc);
+  explicit StructuredProcedure(VerilogFile* file, const SourceInfo& loc);
 
   StatementBlock* statements() { return statements_; }
 
@@ -884,7 +870,7 @@ using SensitivityListElement =
 class AlwaysBase : public StructuredProcedure {
  public:
   AlwaysBase(absl::Span<const SensitivityListElement> sensitivity_list,
-             VerilogFile* file, std::optional<SourceLocation> loc)
+             VerilogFile* file, const SourceInfo& loc)
       : StructuredProcedure(file, loc),
         sensitivity_list_(sensitivity_list.begin(), sensitivity_list.end()) {}
   std::string Emit(LineInfo* line_info) const override;
@@ -899,7 +885,7 @@ class AlwaysBase : public StructuredProcedure {
 class Always : public AlwaysBase {
  public:
   Always(absl::Span<const SensitivityListElement> sensitivity_list,
-         VerilogFile* file, std::optional<SourceLocation> loc)
+         VerilogFile* file, const SourceInfo& loc)
       : AlwaysBase(sensitivity_list, file, loc) {}
 
  protected:
@@ -909,7 +895,7 @@ class Always : public AlwaysBase {
 // Defines an always_comb block.
 class AlwaysComb : public AlwaysBase {
  public:
-  explicit AlwaysComb(VerilogFile* file, std::optional<SourceLocation> loc)
+  explicit AlwaysComb(VerilogFile* file, const SourceInfo& loc)
       : AlwaysBase({}, file, loc) {}
   std::string Emit(LineInfo* line_info) const override;
 
@@ -937,14 +923,14 @@ class Initial : public StructuredProcedure {
 class Concat : public Expression {
  public:
   Concat(absl::Span<Expression* const> args, VerilogFile* file,
-         std::optional<SourceLocation> loc)
+         const SourceInfo& loc)
       : Expression(file, loc),
         args_(args.begin(), args.end()),
         replication_(nullptr) {}
 
   // Defines a concatenation with replication. Example: {3{1'b101}}
   Concat(Expression* replication, absl::Span<Expression* const> args,
-         VerilogFile* file, std::optional<SourceLocation> loc)
+         VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
         args_(args.begin(), args.end()),
         replication_(replication) {}
@@ -960,7 +946,7 @@ class Concat : public Expression {
 class ArrayAssignmentPattern : public IndexableExpression {
  public:
   ArrayAssignmentPattern(absl::Span<Expression* const> args, VerilogFile* file,
-                         std::optional<SourceLocation> loc)
+                         const SourceInfo& loc)
       : IndexableExpression(file, loc), args_(args.begin(), args.end()) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -972,8 +958,7 @@ class ArrayAssignmentPattern : public IndexableExpression {
 class BinaryInfix : public Operator {
  public:
   BinaryInfix(Expression* lhs, absl::string_view op, Expression* rhs,
-              int64_t precedence, VerilogFile* file,
-              std::optional<SourceLocation> loc)
+              int64_t precedence, VerilogFile* file, const SourceInfo& loc)
       : Operator(precedence, file, loc),
         op_(op),
         lhs_(XLS_DIE_IF_NULL(lhs)),
@@ -991,14 +976,14 @@ class BinaryInfix : public Operator {
 class Literal : public Expression {
  public:
   Literal(Bits bits, FormatPreference format, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+          const SourceInfo& loc)
       : Expression(file, loc),
         bits_(bits),
         format_(format),
         emit_bit_count_(true) {}
 
   Literal(Bits bits, FormatPreference format, bool emit_bit_count,
-          VerilogFile* file, std::optional<SourceLocation> loc)
+          VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
         bits_(bits),
         format_(format),
@@ -1025,8 +1010,7 @@ class Literal : public Expression {
 // Represents a quoted literal string.
 class QuotedString : public Expression {
  public:
-  QuotedString(absl::string_view str, VerilogFile* file,
-               std::optional<SourceLocation> loc)
+  QuotedString(absl::string_view str, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), str_(str) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1048,7 +1032,7 @@ class XLiteral : public Expression {
 class Slice : public Expression {
  public:
   Slice(IndexableExpression* subject, Expression* hi, Expression* lo,
-        VerilogFile* file, std::optional<SourceLocation> loc)
+        VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), subject_(subject), hi_(hi), lo_(lo) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1065,7 +1049,7 @@ class Slice : public Expression {
 class PartSelect : public Expression {
  public:
   PartSelect(IndexableExpression* subject, Expression* start, Expression* width,
-             VerilogFile* file, std::optional<SourceLocation> loc)
+             VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
         subject_(subject),
         start_(start),
@@ -1085,7 +1069,7 @@ class PartSelect : public Expression {
 class Index : public IndexableExpression {
  public:
   Index(IndexableExpression* subject, Expression* index, VerilogFile* file,
-        std::optional<SourceLocation> loc)
+        const SourceInfo& loc)
       : IndexableExpression(file, loc), subject_(subject), index_(index) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1101,7 +1085,7 @@ class Index : public IndexableExpression {
 class Ternary : public Expression {
  public:
   Ternary(Expression* test, Expression* consequent, Expression* alternate,
-          VerilogFile* file, std::optional<SourceLocation> loc)
+          VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
         test_(test),
         consequent_(consequent),
@@ -1125,7 +1109,7 @@ class Ternary : public Expression {
 class ContinuousAssignment : public VastNode {
  public:
   ContinuousAssignment(Expression* lhs, Expression* rhs, VerilogFile* file,
-                       std::optional<SourceLocation> loc)
+                       const SourceInfo& loc)
       : VastNode(file, loc), lhs_(lhs), rhs_(rhs) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1137,8 +1121,7 @@ class ContinuousAssignment : public VastNode {
 
 class BlankLine : public Statement {
  public:
-  BlankLine(VerilogFile* file, std::optional<SourceLocation> loc)
-      : Statement(file, loc) {}
+  BlankLine(VerilogFile* file, const SourceInfo& loc) : Statement(file, loc) {}
   using Statement::Statement;
 
   std::string Emit(LineInfo* line_info) const override { return ""; }
@@ -1150,11 +1133,10 @@ class BlankLine : public Statement {
 //   assert (condition) else $fatal(message);
 class Assert : public Statement {
  public:
-  Assert(Expression* condition, VerilogFile* file,
-         std::optional<SourceLocation> loc)
+  Assert(Expression* condition, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), condition_(condition) {}
   Assert(Expression* condition, absl::string_view error_message,
-         VerilogFile* file, std::optional<SourceLocation> loc)
+         VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         condition_(condition),
         error_message_(error_message) {}
@@ -1177,7 +1159,7 @@ class Assert : public Statement {
 class Cover : public VastNode {
  public:
   Cover(LogicRef* clk, Expression* condition, absl::string_view label,
-        VerilogFile* file, std::optional<SourceLocation> loc)
+        VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), clk_(clk), condition_(condition), label_(label) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1192,8 +1174,7 @@ class Cover : public VastNode {
 // meaningless expression statements that do nothing).
 class Comment : public Statement {
  public:
-  Comment(absl::string_view text, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+  Comment(absl::string_view text, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), text_(text) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1206,7 +1187,7 @@ class Comment : public Statement {
 class InlineVerilogStatement : public Statement {
  public:
   InlineVerilogStatement(absl::string_view text, VerilogFile* file,
-                         std::optional<SourceLocation> loc)
+                         const SourceInfo& loc)
       : Statement(file, loc), text_(text) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1222,7 +1203,7 @@ class InlineVerilogRef : public IndexableExpression {
  public:
   InlineVerilogRef(absl::string_view name,
                    InlineVerilogStatement* raw_statement, VerilogFile* file,
-                   std::optional<SourceLocation> loc)
+                   const SourceInfo& loc)
       : IndexableExpression(file, loc),
         name_(name),
         raw_statement_(raw_statement) {}
@@ -1239,12 +1220,12 @@ class SystemTaskCall : public Statement {
  public:
   // An argumentless invocation of a system task such as: $finish;
   SystemTaskCall(absl::string_view name, VerilogFile* file,
-                 std::optional<SourceLocation> loc)
+                 const SourceInfo& loc)
       : Statement(file, loc), name_(name) {}
 
   // An invocation of a system task with arguments.
   SystemTaskCall(absl::string_view name, absl::Span<Expression* const> args,
-                 VerilogFile* file, std::optional<SourceLocation> loc)
+                 VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         name_(name),
         args_(std::vector<Expression*>(args.begin(), args.end())) {}
@@ -1261,12 +1242,12 @@ class SystemFunctionCall : public Expression {
  public:
   // An argumentless invocation of a system function such as: $time;
   SystemFunctionCall(absl::string_view name, VerilogFile* file,
-                     std::optional<SourceLocation> loc)
+                     const SourceInfo& loc)
       : Expression(file, loc), name_(name) {}
 
   // An invocation of a system function with arguments.
   SystemFunctionCall(absl::string_view name, absl::Span<Expression* const> args,
-                     VerilogFile* file, std::optional<SourceLocation> loc)
+                     VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
         name_(name),
         args_(std::vector<Expression*>(args.begin(), args.end())) {}
@@ -1282,7 +1263,7 @@ class SystemFunctionCall : public Expression {
 class Display : public SystemTaskCall {
  public:
   Display(absl::Span<Expression* const> args, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+          const SourceInfo& loc)
       : SystemTaskCall("display", args, file, loc) {}
 };
 
@@ -1290,7 +1271,7 @@ class Display : public SystemTaskCall {
 class Strobe : public SystemTaskCall {
  public:
   Strobe(absl::Span<Expression* const> args, VerilogFile* file,
-         std::optional<SourceLocation> loc)
+         const SourceInfo& loc)
       : SystemTaskCall("strobe", args, file, loc) {}
 };
 
@@ -1298,30 +1279,28 @@ class Strobe : public SystemTaskCall {
 class Monitor : public SystemTaskCall {
  public:
   Monitor(absl::Span<Expression* const> args, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+          const SourceInfo& loc)
       : SystemTaskCall("monitor", args, file, loc) {}
 };
 
 // Represents a $finish function call.
 class Finish : public SystemTaskCall {
  public:
-  Finish(VerilogFile* file, std::optional<SourceLocation> loc)
+  Finish(VerilogFile* file, const SourceInfo& loc)
       : SystemTaskCall("finish", file, loc) {}
 };
 
 // Represents a $signed function call which casts its argument to signed.
 class SignedCast : public SystemFunctionCall {
  public:
-  SignedCast(Expression* value, VerilogFile* file,
-             std::optional<SourceLocation> loc)
+  SignedCast(Expression* value, VerilogFile* file, const SourceInfo& loc)
       : SystemFunctionCall("signed", {value}, file, loc) {}
 };
 
 // Represents a $unsigned function call which casts its argument to unsigned.
 class UnsignedCast : public SystemFunctionCall {
  public:
-  UnsignedCast(Expression* value, VerilogFile* file,
-               std::optional<SourceLocation> loc)
+  UnsignedCast(Expression* value, VerilogFile* file, const SourceInfo& loc)
       : SystemFunctionCall("unsigned", {value}, file, loc) {}
 };
 
@@ -1329,24 +1308,24 @@ class UnsignedCast : public SystemFunctionCall {
 class VerilogFunction : public VastNode {
  public:
   VerilogFunction(absl::string_view name, DataType* result_type,
-                  VerilogFile* file, std::optional<SourceLocation> loc);
+                  VerilogFile* file, const SourceInfo& loc);
 
   // Adds an argument to the function and returns a reference to its value which
   // can be used in the body of the function.
   LogicRef* AddArgument(absl::string_view name, DataType* type,
-                        std::optional<SourceLocation> loc);
+                        const SourceInfo& loc);
 
   // Adds a RegDef to the function and returns a LogicRef to it. This should be
   // used for adding RegDefs to the function instead of AddStatement because
   // the RegDefs need to appear outside the statement block (begin/end block).
   template <typename... Args>
-  inline LogicRef* AddRegDef(std::optional<SourceLocation> loc, Args&&... args);
+  inline LogicRef* AddRegDef(const SourceInfo& loc, Args&&... args);
 
   // Constructs and adds a statement to the block. Ownership is maintained by
   // the parent VerilogFile. Example:
   //   Case* c = Add<Case>(subject);
   template <typename T, typename... Args>
-  inline T* AddStatement(std::optional<SourceLocation> loc, Args&&... args);
+  inline T* AddStatement(const SourceInfo& loc, Args&&... args);
 
   // Creates and returns a reference to the variable representing the return
   // value of the function. Assigning to this reference sets the return value of
@@ -1379,7 +1358,7 @@ class VerilogFunction : public VastNode {
 class VerilogFunctionCall : public Expression {
  public:
   VerilogFunctionCall(VerilogFunction* func, absl::Span<Expression* const> args,
-                      VerilogFile* file, std::optional<SourceLocation> loc)
+                      VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), func_(func), args_(args.begin(), args.end()) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1422,7 +1401,7 @@ class ModuleSection : public VastNode {
   // maintained by the parent VerilogFile. Templatized on T in order to return a
   // pointer to the derived type.
   template <typename T, typename... Args>
-  inline T* Add(std::optional<SourceLocation> loc, Args&&... args);
+  inline T* Add(const SourceInfo& loc, Args&&... args);
 
   template <typename T>
   T AddModuleMember(T member) {
@@ -1457,8 +1436,7 @@ struct Port {
 // Represents a module definition.
 class Module : public VastNode {
  public:
-  Module(absl::string_view name, VerilogFile* file,
-         std::optional<SourceLocation> loc)
+  Module(absl::string_view name, VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), name_(name), top_(file, loc) {}
 
   // Constructs and adds a node to the module. Ownership is maintained by the
@@ -1466,27 +1444,25 @@ class Module : public VastNode {
   // exceptions are the AddFoo convenience methods defined below which return a
   // Ref to the object created rather than the object itself.
   template <typename T, typename... Args>
-  inline T* Add(std::optional<SourceLocation> loc, Args&&... args);
+  inline T* Add(const SourceInfo& loc, Args&&... args);
 
   // Adds a (wire) port to this module with the given name and type. Returns a
   // reference to that wire.
   LogicRef* AddInput(absl::string_view name, DataType* type,
-                     std::optional<SourceLocation> loc);
+                     const SourceInfo& loc);
   LogicRef* AddOutput(absl::string_view name, DataType* type,
-                      std::optional<SourceLocation> loc);
+                      const SourceInfo& loc);
 
   // Adds a reg/wire definition to the module with the given type and, for regs,
   // initialized with the given value. Returns a reference to the definition.
   LogicRef* AddReg(absl::string_view name, DataType* type,
-                   std::optional<SourceLocation> loc,
-                   Expression* init = nullptr,
+                   const SourceInfo& loc, Expression* init = nullptr,
                    ModuleSection* section = nullptr);
   LogicRef* AddWire(absl::string_view name, DataType* type,
-                    std::optional<SourceLocation> loc,
-                    ModuleSection* section = nullptr);
+                    const SourceInfo& loc, ModuleSection* section = nullptr);
 
   ParameterRef* AddParameter(absl::string_view name, Expression* rhs,
-                             std::optional<SourceLocation> loc);
+                             const SourceInfo& loc);
 
   // Adds a previously constructed VAST construct to the module.
   template <typename T>
@@ -1504,8 +1480,7 @@ class Module : public VastNode {
 
  private:
   // Add the given Def as a port on the module.
-  LogicRef* AddPortDef(Direction direction, Def* def,
-                       std::optional<SourceLocation> loc);
+  LogicRef* AddPortDef(Direction direction, Def* def, const SourceInfo& loc);
 
   std::string EmitMember(LineInfo* line_info, ModuleMember* member);
 
@@ -1518,8 +1493,7 @@ class Module : public VastNode {
 // Represents a file-level inclusion directive.
 class Include : public VastNode {
  public:
-  Include(absl::string_view path, VerilogFile* file,
-          std::optional<SourceLocation> loc)
+  Include(absl::string_view path, VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), path_(path) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1536,10 +1510,10 @@ class VerilogFile {
   explicit VerilogFile(bool use_system_verilog)
       : use_system_verilog_(use_system_verilog) {}
 
-  Module* AddModule(absl::string_view name, std::optional<SourceLocation> loc) {
+  Module* AddModule(absl::string_view name, const SourceInfo& loc) {
     return Add(Make<Module>(loc, name));
   }
-  void AddInclude(absl::string_view path, std::optional<SourceLocation> loc) {
+  void AddInclude(absl::string_view path, const SourceInfo& loc) {
     Add(Make<Include>(loc, path));
   }
 
@@ -1550,7 +1524,7 @@ class VerilogFile {
   }
 
   template <typename T, typename... Args>
-  T* Make(std::optional<SourceLocation> loc, Args&&... args) {
+  T* Make(const SourceInfo& loc, Args&&... args) {
     std::unique_ptr<T> value =
         std::make_unique<T>(std::forward<Args>(args)..., this, loc);
     T* ptr = value.get();
@@ -1561,11 +1535,11 @@ class VerilogFile {
   std::string Emit(LineInfo* line_info = nullptr) const;
 
   verilog::Slice* Slice(IndexableExpression* subject, Expression* hi,
-                        Expression* lo, std::optional<SourceLocation> loc) {
+                        Expression* lo, const SourceInfo& loc) {
     return Make<verilog::Slice>(loc, subject, hi, lo);
   }
   verilog::Slice* Slice(IndexableExpression* subject, int64_t hi, int64_t lo,
-                        std::optional<SourceLocation> loc) {
+                        const SourceInfo& loc) {
     XLS_CHECK_GE(hi, 0);
     XLS_CHECK_GE(lo, 0);
     return Make<verilog::Slice>(loc, subject, MaybePlainLiteral(hi, loc),
@@ -1574,177 +1548,167 @@ class VerilogFile {
 
   verilog::PartSelect* PartSelect(IndexableExpression* subject,
                                   Expression* start, Expression* width,
-                                  std::optional<SourceLocation> loc) {
+                                  const SourceInfo& loc) {
     return Make<verilog::PartSelect>(loc, subject, start, width);
   }
   verilog::PartSelect* PartSelect(IndexableExpression* subject,
                                   Expression* start, int64_t width,
-                                  std::optional<SourceLocation> loc) {
+                                  const SourceInfo& loc) {
     XLS_CHECK_GT(width, 0);
     return Make<verilog::PartSelect>(loc, subject, start,
                                      MaybePlainLiteral(width, loc));
   }
 
   verilog::Index* Index(IndexableExpression* subject, Expression* index,
-                        std::optional<SourceLocation> loc) {
+                        const SourceInfo& loc) {
     return Make<verilog::Index>(loc, subject, index);
   }
   verilog::Index* Index(IndexableExpression* subject, int64_t index,
-                        std::optional<SourceLocation> loc) {
+                        const SourceInfo& loc) {
     XLS_CHECK_GE(index, 0);
     return Make<verilog::Index>(loc, subject, MaybePlainLiteral(index, loc));
   }
 
-  Unary* Negate(Expression* expression, std::optional<SourceLocation> loc) {
+  Unary* Negate(Expression* expression, const SourceInfo& loc) {
     return Make<Unary>(loc, "-", expression, /*precedence=*/12);
   }
-  Unary* BitwiseNot(Expression* expression, std::optional<SourceLocation> loc) {
+  Unary* BitwiseNot(Expression* expression, const SourceInfo& loc) {
     return Make<Unary>(loc, "~", expression, /*precedence=*/12);
   }
-  Unary* LogicalNot(Expression* expression, std::optional<SourceLocation> loc) {
+  Unary* LogicalNot(Expression* expression, const SourceInfo& loc) {
     return Make<Unary>(loc, "!", expression, /*precedence=*/12);
   }
-  Unary* AndReduce(Expression* expression, std::optional<SourceLocation> loc) {
+  Unary* AndReduce(Expression* expression, const SourceInfo& loc) {
     return Make<Unary>(loc, "&", expression, /*precedence=*/12);
   }
-  Unary* OrReduce(Expression* expression, std::optional<SourceLocation> loc) {
+  Unary* OrReduce(Expression* expression, const SourceInfo& loc) {
     return Make<Unary>(loc, "|", expression, /*precedence=*/12);
   }
-  Unary* XorReduce(Expression* expression, std::optional<SourceLocation> loc) {
+  Unary* XorReduce(Expression* expression, const SourceInfo& loc) {
     return Make<Unary>(loc, "^", expression, /*precedence=*/12);
   }
 
   xls::verilog::Concat* Concat(absl::Span<Expression* const> args,
-                               std::optional<SourceLocation> loc) {
+                               const SourceInfo& loc) {
     return Make<xls::verilog::Concat>(loc, args);
   }
   xls::verilog::Concat* Concat(Expression* replication,
                                absl::Span<Expression* const> args,
-                               std::optional<SourceLocation> loc) {
+                               const SourceInfo& loc) {
     return Make<xls::verilog::Concat>(loc, replication, args);
   }
   xls::verilog::Concat* Concat(int64_t replication,
                                absl::Span<Expression* const> args,
-                               std::optional<SourceLocation> loc) {
+                               const SourceInfo& loc) {
     return Make<xls::verilog::Concat>(loc, MaybePlainLiteral(replication, loc),
                                       args);
   }
 
   xls::verilog::ArrayAssignmentPattern* ArrayAssignmentPattern(
-      absl::Span<Expression* const> args, std::optional<SourceLocation> loc) {
+      absl::Span<Expression* const> args, const SourceInfo& loc) {
     return Make<xls::verilog::ArrayAssignmentPattern>(loc, args);
   }
 
-  BinaryInfix* Add(Expression* lhs, Expression* rhs,
-                   std::optional<SourceLocation> loc) {
+  BinaryInfix* Add(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "+", rhs, /*precedence=*/9);
   }
   BinaryInfix* LogicalAnd(Expression* lhs, Expression* rhs,
-                          std::optional<SourceLocation> loc) {
+                          const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "&&", rhs, /*precedence=*/2);
   }
   BinaryInfix* BitwiseAnd(Expression* lhs, Expression* rhs,
-                          std::optional<SourceLocation> loc) {
+                          const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "&", rhs, /*precedence=*/5);
   }
   BinaryInfix* NotEquals(Expression* lhs, Expression* rhs,
-                         std::optional<SourceLocation> loc) {
+                         const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "!=", rhs, /*precedence=*/6);
   }
-  BinaryInfix* Equals(Expression* lhs, Expression* rhs,
-                      std::optional<SourceLocation> loc) {
+  BinaryInfix* Equals(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "==", rhs, /*precedence=*/6);
   }
   BinaryInfix* GreaterThanEquals(Expression* lhs, Expression* rhs,
-                                 std::optional<SourceLocation> loc) {
+                                 const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, ">=", rhs, /*precedence=*/7);
   }
   BinaryInfix* GreaterThan(Expression* lhs, Expression* rhs,
-                           std::optional<SourceLocation> loc) {
+                           const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, ">", rhs, /*precedence=*/7);
   }
   BinaryInfix* LessThanEquals(Expression* lhs, Expression* rhs,
-                              std::optional<SourceLocation> loc) {
+                              const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "<=", rhs, /*precedence=*/7);
   }
   BinaryInfix* LessThan(Expression* lhs, Expression* rhs,
-                        std::optional<SourceLocation> loc) {
+                        const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "<", rhs, /*precedence=*/7);
   }
-  BinaryInfix* Div(Expression* lhs, Expression* rhs,
-                   std::optional<SourceLocation> loc) {
+  BinaryInfix* Div(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "/", rhs, /*precedence=*/10);
   }
-  BinaryInfix* Mod(Expression* lhs, Expression* rhs,
-                   std::optional<SourceLocation> loc) {
+  BinaryInfix* Mod(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "%", rhs, /*precedence=*/10);
   }
-  BinaryInfix* Mul(Expression* lhs, Expression* rhs,
-                   std::optional<SourceLocation> loc) {
+  BinaryInfix* Mul(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "*", rhs, /*precedence=*/10);
   }
   BinaryInfix* BitwiseOr(Expression* lhs, Expression* rhs,
-                         std::optional<SourceLocation> loc) {
+                         const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "|", rhs, /*precedence=*/3);
   }
   BinaryInfix* LogicalOr(Expression* lhs, Expression* rhs,
-                         std::optional<SourceLocation> loc) {
+                         const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "||", rhs, /*precedence=*/1);
   }
   BinaryInfix* BitwiseXor(Expression* lhs, Expression* rhs,
-                          std::optional<SourceLocation> loc) {
+                          const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "^", rhs, /*precedence=*/4);
   }
-  BinaryInfix* Shll(Expression* lhs, Expression* rhs,
-                    std::optional<SourceLocation> loc) {
+  BinaryInfix* Shll(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "<<", rhs, /*precedence=*/8);
   }
-  BinaryInfix* Shra(Expression* lhs, Expression* rhs,
-                    std::optional<SourceLocation> loc) {
+  BinaryInfix* Shra(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, ">>>", rhs, /*precedence=*/8);
   }
-  BinaryInfix* Shrl(Expression* lhs, Expression* rhs,
-                    std::optional<SourceLocation> loc) {
+  BinaryInfix* Shrl(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, ">>", rhs, /*precedence=*/8);
   }
-  BinaryInfix* Sub(Expression* lhs, Expression* rhs,
-                   std::optional<SourceLocation> loc) {
+  BinaryInfix* Sub(Expression* lhs, Expression* rhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "-", rhs, /*precedence=*/9);
   }
 
   // Only for use in testing.
-  BinaryInfix* NotEqualsX(Expression* lhs, std::optional<SourceLocation> loc) {
+  BinaryInfix* NotEqualsX(Expression* lhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "!==", XLiteral(loc), /*precedence=*/6);
   }
-  BinaryInfix* EqualsX(Expression* lhs, std::optional<SourceLocation> loc) {
+  BinaryInfix* EqualsX(Expression* lhs, const SourceInfo& loc) {
     return Make<BinaryInfix>(loc, lhs, "===", XLiteral(loc), /*precedence=*/6);
   }
 
   verilog::Ternary* Ternary(Expression* cond, Expression* consequent,
-                            Expression* alternate,
-                            std::optional<SourceLocation> loc) {
+                            Expression* alternate, const SourceInfo& loc) {
     return Make<verilog::Ternary>(loc, cond, consequent, alternate);
   }
 
-  verilog::XLiteral* XLiteral(std::optional<SourceLocation> loc) {
+  verilog::XLiteral* XLiteral(const SourceInfo& loc) {
     return Make<verilog::XLiteral>(loc);
   }
 
   // Creates an literal with the given value and bit_count.
   verilog::Literal* Literal(uint64_t value, int64_t bit_count,
-                            std::optional<SourceLocation> loc,
+                            const SourceInfo& loc,
                             FormatPreference format = FormatPreference::kHex) {
     return Make<verilog::Literal>(loc, UBits(value, bit_count), format);
   }
 
   // Creates an literal whose value and width is given by a Bits object.
-  verilog::Literal* Literal(const Bits& bits, std::optional<SourceLocation> loc,
+  verilog::Literal* Literal(const Bits& bits, const SourceInfo& loc,
                             FormatPreference format = FormatPreference::kHex) {
     return Make<verilog::Literal>(loc, bits, format);
   }
 
   // Creates a one-bit literal.
-  verilog::Literal* Literal1(int64_t value, std::optional<SourceLocation> loc) {
+  verilog::Literal* Literal1(int64_t value, const SourceInfo& loc) {
     // Avoid taking a bool argument as many types implicitly and undesirably
     // convert to bool
     XLS_CHECK((value == 0) || (value == 1));
@@ -1754,8 +1718,7 @@ class VerilogFile {
   // Creates a decimal literal representing a plain decimal number without a bit
   // count prefix (e.g., "42"). Use for clarity when bit width does not matter,
   // for example, as bit-slice indices.
-  verilog::Literal* PlainLiteral(int32_t value,
-                                 std::optional<SourceLocation> loc) {
+  verilog::Literal* PlainLiteral(int32_t value, const SourceInfo& loc) {
     return Make<verilog::Literal>(loc, SBits(value, 32),
                                   FormatPreference::kDefault,
                                   /*emit_bit_count=*/false);
@@ -1763,43 +1726,37 @@ class VerilogFile {
 
   // Returns a scalar type. Example:
   //   wire foo;
-  DataType* ScalarType(std::optional<SourceLocation> loc) {
-    return Make<DataType>(loc);
-  }
+  DataType* ScalarType(const SourceInfo& loc) { return Make<DataType>(loc); }
 
   // Returns a bit vector type for widths greater than one, and a scalar type
   // for a width of one. The motivation for this special case is avoiding types
   // with trivial single bit ranges "[0:0]" (as in "reg [0:0] foo"). This
   // matches the behavior of the XLS code generation where one-wide Bits types
   // are represented as Verilog scalars.
-  DataType* BitVectorType(int64_t bit_count, std::optional<SourceLocation> loc,
+  DataType* BitVectorType(int64_t bit_count, const SourceInfo& loc,
                           bool is_signed = false);
 
   // As above, but does not produce a scalar value when the bit_count is 1.
   //
   // Generally BitVectorType() should be preferred, this is for use in
   // special-case Verilog operation contexts that cannot use scalars.
-  DataType* BitVectorTypeNoScalar(int64_t bit_count,
-                                  std::optional<SourceLocation> loc,
+  DataType* BitVectorTypeNoScalar(int64_t bit_count, const SourceInfo& loc,
                                   bool is_signed = false);
 
   // Returns a packed array type. Example:
   //   wire [7:0][41:0][122:0] foo;
   DataType* PackedArrayType(int64_t element_bit_count,
                             absl::Span<const int64_t> dims,
-                            std::optional<SourceLocation> loc,
-                            bool is_signed = false);
+                            const SourceInfo& loc, bool is_signed = false);
 
   // Returns an unpacked array type. Example:
   //   wire [7:0] foo[42][123];
   DataType* UnpackedArrayType(int64_t element_bit_count,
                               absl::Span<const int64_t> dims,
-                              std::optional<SourceLocation> loc,
-                              bool is_signed = false);
+                              const SourceInfo& loc, bool is_signed = false);
 
   verilog::Cover* Cover(LogicRef* clk, Expression* condition,
-                        absl::string_view label,
-                        std::optional<SourceLocation> loc) {
+                        absl::string_view label, const SourceInfo& loc) {
     return Make<verilog::Cover>(loc, clk, condition, label);
   }
 
@@ -1809,8 +1766,7 @@ class VerilogFile {
  private:
   // Same as PlainLiteral if value fits in an int32_t. Otherwise creates a
   // 64-bit literal to hold the value.
-  verilog::Literal* MaybePlainLiteral(int64_t value,
-                                      std::optional<SourceLocation> loc) {
+  verilog::Literal* MaybePlainLiteral(int64_t value, const SourceInfo& loc) {
     if (value >= std::numeric_limits<int32_t>::min() &&
         value <= std::numeric_limits<int32_t>::max()) {
       return PlainLiteral(value, loc);
@@ -1825,21 +1781,19 @@ class VerilogFile {
 };
 
 template <typename T, typename... Args>
-inline T* StatementBlock::Add(std::optional<SourceLocation> loc,
-                              Args&&... args) {
+inline T* StatementBlock::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   statements_.push_back(ptr);
   return ptr;
 }
 
 template <typename T, typename... Args>
-inline T* VerilogFunction::AddStatement(std::optional<SourceLocation> loc,
-                                        Args&&... args) {
+inline T* VerilogFunction::AddStatement(const SourceInfo& loc, Args&&... args) {
   return statement_block_->Add<T>(loc, std::forward<Args>(args)...);
 }
 
 template <typename... Args>
-inline LogicRef* VerilogFunction::AddRegDef(std::optional<SourceLocation> loc,
+inline LogicRef* VerilogFunction::AddRegDef(const SourceInfo& loc,
                                             Args&&... args) {
   RegDef* ptr = file()->Make<RegDef>(loc, std::forward<Args>(args)...);
   block_reg_defs_.push_back(ptr);
@@ -1847,15 +1801,14 @@ inline LogicRef* VerilogFunction::AddRegDef(std::optional<SourceLocation> loc,
 }
 
 template <typename T, typename... Args>
-inline T* Module::Add(std::optional<SourceLocation> loc, Args&&... args) {
+inline T* Module::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   AddModuleMember(ptr);
   return ptr;
 }
 
 template <typename T, typename... Args>
-inline T* ModuleSection::Add(std::optional<SourceLocation> loc,
-                             Args&&... args) {
+inline T* ModuleSection::Add(const SourceInfo& loc, Args&&... args) {
   T* ptr = file()->Make<T>(loc, std::forward<Args>(args)...);
   AddModuleMember(ptr);
   return ptr;

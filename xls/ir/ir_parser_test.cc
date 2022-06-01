@@ -203,7 +203,7 @@ TEST(IrParserTest, ParsePosition) {
   ParseFunctionAndCheckDump(
       R"(
 fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret and.1: bits[42] = and(x, y, id=1, pos=0,1,3)
+  ret and.1: bits[42] = and(x, y, id=1, pos=[(0,1,3)])
 }
 )");
 }
@@ -241,7 +241,7 @@ TEST(IrParserTest, PositionalArgumentAfterKeywordArgument) {
   std::string input =
       R"(
 fn f(x: bits[42], y: bits[42]) -> bits[42] {
-  ret and.1: bits[42] = and(x, pos=0,1,3, y)
+  ret and.1: bits[42] = and(x, pos=[(0,1,3)], y)
 }
 )";
   EXPECT_THAT(Parser::ParseFunction(input, &p).status(),
@@ -293,7 +293,7 @@ TEST(IrParserTest, ParseNode) {
   ParseFunctionAndCheckDump(
       R"(
 fn f() -> bits[32] {
-  literal.1: bits[32] = literal(value=3, id=1, pos=0,3,11)
+  literal.1: bits[32] = literal(value=3, id=1, pos=[(0,3,11)])
   ret sub.2: bits[32] = sub(literal.1, literal.1, id=2)
 })");
 }

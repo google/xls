@@ -244,8 +244,8 @@ TEST_F(StandardPipelineTest, LogicAbsorption) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
    // x & (x | y) -> x
    fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
-      or.3: bits[32] = or(x, y, pos=0,1,10)
-      ret and.4: bits[32] = and(x, or.3, pos=0,1,5)
+      or.3: bits[32] = or(x, y, pos=[(0,1,10)])
+      ret and.4: bits[32] = and(x, or.3, pos=[(0,1,5)])
     }
 )",
                                                        p.get()));
@@ -258,10 +258,10 @@ TEST_F(StandardPipelineTest, LogicCombining) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
    // (x & y) | (x | ~y) -> x
   fn id_and(x: bits[32], y: bits[32]) -> bits[32] {
-    not.4: bits[32] = not(y, pos=0,1,18)
-    and.3: bits[32] = and(x, y, pos=0,1,6)
-    and.5: bits[32] = and(x, not.4, pos=0,1,16)
-    ret or.6: bits[32] = or(and.3, and.5, pos=0,1,11)
+    not.4: bits[32] = not(y, pos=[(0,1,18)])
+    and.3: bits[32] = and(x, y, pos=[(0,1,6)])
+    and.5: bits[32] = and(x, not.4, pos=[(0,1,16)])
+    ret or.6: bits[32] = or(and.3, and.5, pos=[(0,1,11)])
   }
 )",
                                                        p.get()));

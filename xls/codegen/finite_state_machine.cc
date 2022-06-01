@@ -24,13 +24,13 @@ namespace verilog {
 
 void FsmBlockBase::EmitAssignments(StatementBlock* statement_block) const {
   for (const auto& assignment : assignments_) {
-    statement_block->Add<BlockingAssignment>(std::nullopt, assignment.lhs,
+    statement_block->Add<BlockingAssignment>(SourceInfo(), assignment.lhs,
                                              assignment.rhs);
   }
   for (const ConditionalFsmBlock& cond_block : conditional_blocks_) {
     if (cond_block.HasAssignments()) {
       Conditional* conditional = statement_block->Add<Conditional>(
-          std::nullopt, cond_block.condition());
+          SourceInfo(), cond_block.condition());
       cond_block.EmitConditionalAssignments(conditional,
                                             conditional->consequent());
     }
@@ -40,13 +40,13 @@ void FsmBlockBase::EmitAssignments(StatementBlock* statement_block) const {
 void FsmBlockBase::EmitStateTransitions(StatementBlock* statement_block,
                                         LogicRef* state_next_var) const {
   if (next_state_ != nullptr) {
-    statement_block->Add<BlockingAssignment>(std::nullopt, state_next_var,
+    statement_block->Add<BlockingAssignment>(SourceInfo(), state_next_var,
                                              next_state_->state_value());
   }
   for (const ConditionalFsmBlock& cond_block : conditional_blocks_) {
     if (cond_block.HasStateTransitions()) {
       Conditional* conditional = statement_block->Add<Conditional>(
-          std::nullopt, cond_block.condition());
+          SourceInfo(), cond_block.condition());
       cond_block.EmitConditionalStateTransitions(
           conditional, conditional->consequent(), state_next_var);
     }
@@ -145,14 +145,14 @@ bool ConditionalFsmBlock::HasAssignmentToOutput(const FsmOutput& output) const {
 LogicRef* FsmBuilder::AddRegDef(absl::string_view name, DataType* data_type,
                                 Expression* init) {
   defs_.push_back(
-      module_->file()->Make<RegDef>(std::nullopt, name, data_type, init));
-  return module_->file()->Make<LogicRef>(std::nullopt, defs_.back());
+      module_->file()->Make<RegDef>(SourceInfo(), name, data_type, init));
+  return module_->file()->Make<LogicRef>(SourceInfo(), defs_.back());
 }
 
 FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64_t width) {
-  LogicRef* ref = AddRegDef(name, file_->BitVectorType(width, std::nullopt));
+  LogicRef* ref = AddRegDef(name, file_->BitVectorType(width, SourceInfo()));
   LogicRef* ref_next = AddRegDef(absl::StrCat(name, "_next"),
-                                 file_->BitVectorType(width, std::nullopt));
+                                 file_->BitVectorType(width, SourceInfo()));
   counters_.push_back(FsmCounter{ref, ref_next, width});
   return &counters_.back();
 }
@@ -186,9 +186,9 @@ FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64_t width,
                                      absl::optional<int64_t> reset_value) {
   Expression* reset_expr =
       reset_value.has_value()
-          ? file_->Literal(UBits(reset_value.value(), width), std::nullopt)
+          ? file_->Literal(UBits(reset_value.value(), width), SourceInfo())
           : nullptr;
-  return AddRegister(name, file_->BitVectorType(width, std::nullopt),
+  return AddRegister(name, file_->BitVectorType(width, SourceInfo()),
                      reset_expr);
 }
 
@@ -201,14 +201,14 @@ FsmRegister* FsmBuilder::AddExistingRegister(LogicRef* reg) {
 
 FsmState* FsmBuilder::AddState(absl::string_view name) {
   if (state_local_param_ == nullptr) {
-    state_local_param_ = file_->Make<LocalParam>(std::nullopt);
+    state_local_param_ = file_->Make<LocalParam>(SourceInfo());
   }
   XLS_CHECK(!absl::c_any_of(states_, [&](const FsmState& s) {
     return s.name() == name;
   })) << absl::StrFormat("State with name \"%s\" already exists.", name);
   Expression* state_value = state_local_param_->AddItem(
       absl::StrCat("State", name),
-      file_->PlainLiteral(states_.size(), std::nullopt), std::nullopt);
+      file_->PlainLiteral(states_.size(), SourceInfo()), SourceInfo());
   states_.emplace_back(name, file_, state_value);
   return &states_.back();
 }
@@ -217,20 +217,20 @@ absl::Status FsmBuilder::BuildStateTransitionLogic(LogicRef* state,
                                                    LogicRef* state_next) {
   // Construct an always block encapsulating the combinational logic for
   // determining state transitions.
-  module_->Add<BlankLine>(std::nullopt);
-  module_->Add<Comment>(std::nullopt, "FSM state transition logic.");
+  module_->Add<BlankLine>(SourceInfo());
+  module_->Add<Comment>(SourceInfo(), "FSM state transition logic.");
   AlwaysBase* ac;
   if (use_system_verilog_) {
-    ac = module_->Add<AlwaysComb>(std::nullopt);
+    ac = module_->Add<AlwaysComb>(SourceInfo());
   } else {
-    ac = module_->Add<Always>(std::nullopt, std::vector<SensitivityListElement>(
+    ac = module_->Add<Always>(SourceInfo(), std::vector<SensitivityListElement>(
                                                 {ImplicitEventExpression()}));
   }
 
   // Set default assignments.
-  ac->statements()->Add<BlockingAssignment>(std::nullopt, state_next, state);
+  ac->statements()->Add<BlockingAssignment>(SourceInfo(), state_next, state);
 
-  Case* case_statement = ac->statements()->Add<Case>(std::nullopt, state);
+  Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), state);
   for (const auto& fsm_state : states_) {
     fsm_state.EmitStateTransitions(
         case_statement->AddCaseArm(fsm_state.state_value()), state_next);
@@ -241,8 +241,8 @@ absl::Status FsmBuilder::BuildStateTransitionLogic(LogicRef* state,
   if (states_.size() != 1 << StateRegisterWidth()) {
     StatementBlock* statements = case_statement->AddCaseArm(DefaultSentinel());
     statements->Add<BlockingAssignment>(
-        std::nullopt, state_next,
-        file_->Make<XSentinel>(std::nullopt, StateRegisterWidth()));
+        SourceInfo(), state_next,
+        file_->Make<XSentinel>(SourceInfo(), StateRegisterWidth()));
   }
   return absl::OkStatus();
 }
@@ -427,19 +427,19 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
 
   // Construct an always block encapsulating the combinational logic for
   // determining output values, next counter values, and next assignment values.
-  module_->Add<BlankLine>(std::nullopt);
-  module_->Add<Comment>(std::nullopt, "FSM output logic.");
+  module_->Add<BlankLine>(SourceInfo());
+  module_->Add<Comment>(SourceInfo(), "FSM output logic.");
 
   AlwaysBase* ac;
   if (use_system_verilog_) {
-    ac = module_->Add<AlwaysComb>(std::nullopt);
+    ac = module_->Add<AlwaysComb>(SourceInfo());
   } else {
-    ac = module_->Add<Always>(std::nullopt, std::vector<SensitivityListElement>(
+    ac = module_->Add<Always>(SourceInfo(), std::vector<SensitivityListElement>(
                                                 {ImplicitEventExpression()}));
   }
 
   for (const FsmRegister& reg : registers_) {
-    ac->statements()->Add<BlockingAssignment>(std::nullopt, reg.next,
+    ac->statements()->Add<BlockingAssignment>(SourceInfo(), reg.next,
                                               reg.logic_ref);
   }
 
@@ -463,11 +463,11 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
 
   for (const FsmCounter& counter : counters_) {
     ac->statements()->Add<BlockingAssignment>(
-        std::nullopt, counter.next,
-        file_->Sub(counter.logic_ref, file_->PlainLiteral(1, std::nullopt),
-                   std::nullopt));
+        SourceInfo(), counter.next,
+        file_->Sub(counter.logic_ref, file_->PlainLiteral(1, SourceInfo()),
+                   SourceInfo()));
   }
-  Case* case_statement = ac->statements()->Add<Case>(std::nullopt, state);
+  Case* case_statement = ac->statements()->Add<Case>(SourceInfo(), state);
   for (const auto& fsm_state : states_) {
     fsm_state.EmitAssignments(
         case_statement->AddCaseArm(fsm_state.state_value()));
@@ -478,7 +478,7 @@ absl::Status FsmBuilder::BuildOutputLogic(LogicRef* state) {
   if (states_.size() != 1 << StateRegisterWidth()) {
     StatementBlock* statements = case_statement->AddCaseArm(DefaultSentinel());
     for (const FsmOutput& output : outputs_) {
-      statements->Add<BlockingAssignment>(std::nullopt, output.logic_ref,
+      statements->Add<BlockingAssignment>(SourceInfo(), output.logic_ref,
                                           output.default_value);
     }
   }
@@ -492,26 +492,26 @@ absl::Status FsmBuilder::Build() {
   }
   is_built_ = true;
 
-  module_->Add<BlankLine>(std::nullopt);
-  module_->Add<Comment>(std::nullopt, absl::StrCat(name_, " ", "FSM:"));
+  module_->Add<BlankLine>(SourceInfo());
+  module_->Add<Comment>(SourceInfo(), absl::StrCat(name_, " ", "FSM:"));
 
   LocalParamItemRef* state_bits =
-      module_->Add<LocalParam>(std::nullopt)
+      module_->Add<LocalParam>(SourceInfo())
           ->AddItem("StateBits",
-                    file_->PlainLiteral(StateRegisterWidth(), std::nullopt),
-                    std::nullopt);
+                    file_->PlainLiteral(StateRegisterWidth(), SourceInfo()),
+                    SourceInfo());
 
   // For each state, define its numeric encoding as a LocalParam gathered in
   // state_values.
   module_->AddModuleMember(state_local_param_);
 
   Expression* initial_state_value = states_.front().state_value();
-  DataType* type = file_->Make<DataType>(std::nullopt, /*width=*/state_bits,
+  DataType* type = file_->Make<DataType>(SourceInfo(), /*width=*/state_bits,
                                          /*is_signed=*/false);
   LogicRef* state =
-      module_->AddReg("state", type, std::nullopt, initial_state_value);
+      module_->AddReg("state", type, SourceInfo(), initial_state_value);
   LogicRef* state_next =
-      module_->AddReg("state_next", type, std::nullopt, initial_state_value);
+      module_->AddReg("state_next", type, SourceInfo(), initial_state_value);
   for (RegDef* def : defs_) {
     module_->AddModuleMember(def);
   }
@@ -521,22 +521,22 @@ absl::Status FsmBuilder::Build() {
 
   AlwaysFlop* af =
       reset_.has_value()
-          ? module_->Add<AlwaysFlop>(std::nullopt, clk_, reset_.value())
-          : module_->Add<AlwaysFlop>(std::nullopt, clk_);
+          ? module_->Add<AlwaysFlop>(SourceInfo(), clk_, reset_.value())
+          : module_->Add<AlwaysFlop>(SourceInfo(), clk_);
   if (reset_.has_value()) {
     Expression* rstate = (reset_state_ == nullptr)
                              ? initial_state_value
                              : reset_state_->state_value();
-    af->AddRegister(state, state_next, std::nullopt, /*reset_value=*/rstate);
+    af->AddRegister(state, state_next, SourceInfo(), /*reset_value=*/rstate);
   } else {
-    af->AddRegister(state, state_next, std::nullopt);
+    af->AddRegister(state, state_next, SourceInfo());
   }
   for (const FsmRegister& reg : registers_) {
-    af->AddRegister(reg.logic_ref, reg.next, std::nullopt,
+    af->AddRegister(reg.logic_ref, reg.next, SourceInfo(),
                     /*reset_value=*/reg.reset_value);
   }
   for (const FsmCounter& counter : counters_) {
-    af->AddRegister(counter.logic_ref, counter.next, std::nullopt);
+    af->AddRegister(counter.logic_ref, counter.next, SourceInfo());
   }
 
   return absl::OkStatus();

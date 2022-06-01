@@ -239,7 +239,7 @@ class NewProcInliningPassTest : public IrTestBase {
     XLS_RET_CHECK(input_ch->type()->IsBits());
     int64_t bit_count = input_ch->type()->AsBitsOrDie()->bit_count();
 
-    absl::optional<SourceLocation> loc;
+    SourceInfo loc;
 
     ProcBuilder b(
         name, ZeroOfType(p->GetTupleType({input_ch->type(), input_ch->type()})),
@@ -1152,7 +1152,7 @@ TEST_F(NewProcInliningPassTest, DoubleNestedLoops) {
     BValue accum = bb.TupleIndex(bb.GetUniqueStateParam(), 1);
     BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.GetTokenParam(), cnt);
     BValue next_accum = bb.Add(accum, bb.TupleIndex(rcv_from_a, 1),
-                               absl::nullopt, "B_accum_next");
+                               SourceInfo(), "B_accum_next");
     BValue send_to_c =
         bb.SendIf(b_to_c, bb.TupleIndex(rcv_from_a, 0), cnt, next_accum);
 
@@ -1187,7 +1187,7 @@ TEST_F(NewProcInliningPassTest, DoubleNestedLoops) {
 
     BValue next_accum = cb.Select(
         cnt_eq_0, cb.TupleIndex(rcv_from_b, 1),
-        cb.Add(accum, cb.Literal(UBits(5, 32)), absl::nullopt, "C_accum_next"));
+        cb.Add(accum, cb.Literal(UBits(5, 32)), SourceInfo(), "C_accum_next"));
 
     BValue send_to_b =
         cb.SendIf(c_to_b, cb.TupleIndex(rcv_from_b, 0), cnt_eq_3, next_accum);

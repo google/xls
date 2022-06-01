@@ -277,9 +277,9 @@ TEST_F(FunctionTest, CloneCountedForRemap) {
   FunctionBuilder fb_main("main", p.get());
   auto init = fb_main.Param("init_acc", p->GetBitsType(2));
   fb_main.CountedFor(init, /*trip_count=*/4, /*stride=*/1, body_a,
-                     /*invariant_args=*/{}, /*loc=*/std::nullopt, "counted_a");
+                     /*invariant_args=*/{}, SourceInfo(), "counted_a");
   fb_main.CountedFor(init, /*trip_count=*/4, /*stride=*/1, body_b,
-                     /*invariant_args=*/{}, /*loc=*/std::nullopt, "counted_b");
+                     /*invariant_args=*/{}, SourceInfo(), "counted_b");
   XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
 
   absl::flat_hash_map<const Function*, Function*> remap;
@@ -309,8 +309,8 @@ TEST_F(FunctionTest, CloneMapRemap) {
 
   FunctionBuilder fb_main("main", p.get());
   auto input = fb_main.Param("input", p->GetArrayType(2, p->GetBitsType(2)));
-  fb_main.Map(input, apply_a, /*loc=*/std::nullopt, "map_a");
-  fb_main.Map(input, apply_b, /*loc=*/std::nullopt, "map_b");
+  fb_main.Map(input, apply_a, SourceInfo(), "map_a");
+  fb_main.Map(input, apply_b, SourceInfo(), "map_b");
   XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
 
   absl::flat_hash_map<const Function*, Function*> remap;
@@ -337,8 +337,8 @@ TEST_F(FunctionTest, CloneInvokeForRemap) {
 
   FunctionBuilder fb_main("main", p.get());
   // TODO finish
-  fb_main.Invoke(/*args=*/{}, apply_a, /*loc=*/std::nullopt, "invoke_a");
-  fb_main.Invoke(/*args=*/{}, apply_b, /*loc=*/std::nullopt, "invoke_b");
+  fb_main.Invoke(/*args=*/{}, apply_a, SourceInfo(), "invoke_a");
+  fb_main.Invoke(/*args=*/{}, apply_b, SourceInfo(), "invoke_b");
   XLS_ASSERT_OK_AND_ASSIGN(Function * main, fb_main.Build());
 
   absl::flat_hash_map<const Function*, Function*> remap;

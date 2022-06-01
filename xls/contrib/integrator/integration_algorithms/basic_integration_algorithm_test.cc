@@ -40,16 +40,14 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationNodesNotCompatible) {
   auto a_in1 = fb_a.Param("a_in1", p->GetBitsType(2));
   auto a_in2 = fb_a.Param("a_in2", p->GetBitsType(2));
 
-  fb_a.Or(a_in1, a_in2,
-          /*loc=*/absl::nullopt, "a_or");
+  fb_a.Or(a_in1, a_in2, SourceInfo(), "a_or");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
 
   FunctionBuilder fb_b("func_b", p.get());
   auto b_in1 = fb_b.Param("b_in1", p->GetBitsType(2));
   auto b_in2 = fb_b.Param("b_in2", p->GetBitsType(2));
 
-  fb_b.And(b_in1, b_in2,
-           /*loc=*/absl::nullopt, "b_and");
+  fb_b.And(b_in1, b_in2, SourceInfo(), "b_and");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -77,8 +75,7 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationMergeNotProfitable) {
   auto a_in3 = fb_a.Param("a_in3", p->GetBitsType(2));
   auto a_in4 = fb_a.Param("a_in4", p->GetBitsType(2));
 
-  fb_a.Or({a_in1, a_in2, a_in3, a_in4},
-          /*loc=*/absl::nullopt, "a_or");
+  fb_a.Or({a_in1, a_in2, a_in3, a_in4}, SourceInfo(), "a_or");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
 
   FunctionBuilder fb_b("func_b", p.get());
@@ -87,8 +84,7 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationMergeNotProfitable) {
   auto b_in3 = fb_b.Param("b_in3", p->GetBitsType(2));
   auto b_in4 = fb_b.Param("b_in4", p->GetBitsType(2));
 
-  fb_b.Or({b_in1, b_in2, b_in3, b_in4},
-          /*loc=*/absl::nullopt, "b_or");
+  fb_b.Or({b_in1, b_in2, b_in3, b_in4}, SourceInfo(), "b_or");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -118,12 +114,9 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationIdentical) {
   auto in2 = fb.Param("in2", p->GetBitsType(2));
   auto in3 = fb.Param("in3", p->GetBitsType(2));
   auto in4 = fb.Param("in4", p->GetBitsType(2));
-  auto add1 = fb.Add(in1, in2,
-                     /*loc=*/absl::nullopt, "add1");
-  auto add2 = fb.Add(in3, in4,
-                     /*loc=*/absl::nullopt, "add2");
-  fb.UMul(add1, add2,
-          /*loc=*/absl::nullopt, "mul");
+  auto add1 = fb.Add(in1, in2, SourceInfo(), "add1");
+  auto add2 = fb.Add(in3, in4, SourceInfo(), "add2");
+  fb.UMul(add1, add2, SourceInfo(), "mul");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("func_b"));
 
@@ -181,12 +174,9 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationDifferentOutput) {
   auto a_in2 = fb_a.Param("in2", p->GetBitsType(2));
   auto a_in3 = fb_a.Param("in3", p->GetBitsType(2));
   auto a_in4 = fb_a.Param("in4", p->GetBitsType(2));
-  auto a_add1 = fb_a.Add(a_in1, a_in2,
-                         /*loc=*/absl::nullopt, "add1");
-  auto a_add2 = fb_a.Add(a_in3, a_in4,
-                         /*loc=*/absl::nullopt, "add2");
-  fb_a.And(a_add1, a_add2,
-           /*loc=*/absl::nullopt, "and");
+  auto a_add1 = fb_a.Add(a_in1, a_in2, SourceInfo(), "add1");
+  auto a_add2 = fb_a.Add(a_in3, a_in4, SourceInfo(), "add2");
+  fb_a.And(a_add1, a_add2, SourceInfo(), "and");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
 
   FunctionBuilder fb_b("func_b", p.get());
@@ -194,12 +184,9 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationDifferentOutput) {
   auto b_in2 = fb_b.Param("in2", p->GetBitsType(2));
   auto b_in3 = fb_b.Param("in3", p->GetBitsType(2));
   auto b_in4 = fb_b.Param("in4", p->GetBitsType(2));
-  auto b_add1 = fb_b.Add(b_in1, b_in2,
-                         /*loc=*/absl::nullopt, "add1");
-  auto b_add2 = fb_b.Add(b_in3, b_in4,
-                         /*loc=*/absl::nullopt, "add2");
-  fb_b.Or(b_add1, b_add2,
-          /*loc=*/absl::nullopt, "or");
+  auto b_add1 = fb_b.Add(b_in1, b_in2, SourceInfo(), "add1");
+  auto b_add2 = fb_b.Add(b_in3, b_in4, SourceInfo(), "add2");
+  fb_b.Or(b_add1, b_add2, SourceInfo(), "or");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -256,14 +243,10 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationDifferentIntermediate) {
   auto a_in3 = fb_a.Param("in3", p->GetBitsType(2));
   auto a_in4 = fb_a.Param("in4", p->GetBitsType(2));
   auto a_in5 = fb_a.Param("in5", p->GetBitsType(2));
-  auto a_add1 = fb_a.Add(a_in1, a_in2,
-                         /*loc=*/absl::nullopt, "add1");
-  auto a_add2 = fb_a.Add(a_in3, a_in4,
-                         /*loc=*/absl::nullopt, "add2");
-  auto a_and = fb_a.And(a_add1, a_add2,
-                        /*loc=*/absl::nullopt, "and");
-  fb_a.UMul(a_in5, a_and,
-            /*loc=*/absl::nullopt, "mul");
+  auto a_add1 = fb_a.Add(a_in1, a_in2, SourceInfo(), "add1");
+  auto a_add2 = fb_a.Add(a_in3, a_in4, SourceInfo(), "add2");
+  auto a_and = fb_a.And(a_add1, a_add2, SourceInfo(), "and");
+  fb_a.UMul(a_in5, a_and, SourceInfo(), "mul");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb_a.Build());
 
   FunctionBuilder fb_b("func_b", p.get());
@@ -272,14 +255,10 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationDifferentIntermediate) {
   auto b_in3 = fb_b.Param("in3", p->GetBitsType(2));
   auto b_in4 = fb_b.Param("in4", p->GetBitsType(2));
   auto b_in5 = fb_b.Param("in5", p->GetBitsType(2));
-  auto b_add1 = fb_b.Add(b_in1, b_in2,
-                         /*loc=*/absl::nullopt, "add1");
-  auto b_add2 = fb_b.Add(b_in3, b_in4,
-                         /*loc=*/absl::nullopt, "add2");
-  auto b_or = fb_b.Or(b_add1, b_add2,
-                      /*loc=*/absl::nullopt, "or");
-  fb_b.UMul(b_in5, b_or,
-            /*loc=*/absl::nullopt, "mul");
+  auto b_add1 = fb_b.Add(b_in1, b_in2, SourceInfo(), "add1");
+  auto b_add2 = fb_b.Add(b_in3, b_in4, SourceInfo(), "add2");
+  auto b_or = fb_b.Or(b_add1, b_add2, SourceInfo(), "or");
+  fb_b.UMul(b_in5, b_or, SourceInfo(), "mul");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, fb_b.Build());
 
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -406,8 +385,7 @@ TEST_F(BasicIntegrationAlgorithmTest, BasicIntegrationLiterals) {
   FunctionBuilder fb("func_a", p.get());
   auto in1 = fb.Param("in1", p->GetBitsType(2));
   auto literal1 = fb.Literal(UBits(2, 2));
-  fb.Add(in1, literal1,
-         /*loc=*/absl::nullopt, "add1");
+  fb.Add(in1, literal1, SourceInfo(), "add1");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_a, fb.Build());
   XLS_ASSERT_OK_AND_ASSIGN(Function * func_b, func_a->Clone("func_b"));
 

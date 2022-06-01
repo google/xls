@@ -308,7 +308,7 @@ absl::Status CInstantiableTypeAlias::GetMetadata(
           proto_arg->set_as_integral(arg.getAsIntegral().getExtValue());
           break;
         case clang::TemplateArgument::ArgKind::Type: {
-          xls::SourceLocation loc = translator.GetLoc(*base_);
+          xls::SourceInfo loc = translator.GetLoc(*base_);
           XLS_ASSIGN_OR_RETURN(
               std::shared_ptr<CType> arg_ctype,
               translator.TranslateTypeFromClang(arg.getAsType(), loc));
@@ -589,7 +589,7 @@ TranslationContext& Translator::PushContext() {
   return context();
 }
 
-absl::Status Translator::PopContext(const xls::SourceLocation& loc) {
+absl::Status Translator::PopContext(const xls::SourceInfo& loc) {
   const bool propagate_up = context().propagate_up;
   const bool propagate_break_up = context().propagate_break_up;
   const bool propagate_continue_up = context().propagate_continue_up;
@@ -655,7 +655,7 @@ absl::Status Translator::PopContext(const xls::SourceLocation& loc) {
 
 absl::Status Translator::PropagateVariables(const TranslationContext& from,
                                             TranslationContext& to,
-                                            const xls::SourceLocation& loc) {
+                                            const xls::SourceInfo& loc) {
   XLS_CHECK_NE(from.sf, nullptr);
   for (const clang::NamedDecl* name :
        from.sf->DeterministicKeyNames(from.variables)) {
@@ -691,11 +691,15 @@ Translator::LookUpInPackage() {
   };
 }
 
-template<typename... Args>
-std::string Translator::ErrorMessage(xls::SourceLocation loc,
-  const absl::FormatSpec<Args...>& format, const Args&... args) {
-  return absl::StrCat(absl::StrFormat(format, args...),
-    PrintCaret(LookUpInPackage(), loc));
+template <typename... Args>
+std::string Translator::ErrorMessage(const xls::SourceInfo& loc,
+                                     const absl::FormatSpec<Args...>& format,
+                                     const Args&... args) {
+  std::string result = absl::StrFormat(format, args...);
+  for (const xls::SourceLocation& location : loc.locations) {
+    absl::StrAppend(&result, "\n", PrintCaret(LookUpInPackage(), location));
+  }
+  return result;
 }
 
 void Translator::AddSourceInfoToPackage(xls::Package& package) {
@@ -705,7 +709,7 @@ void Translator::AddSourceInfoToPackage(xls::Package& package) {
 TranslationContext& Translator::context() { return context_stack_.front(); }
 
 absl::Status Translator::and_condition(xls::BValue and_condition,
-                                       const xls::SourceLocation& loc) {
+                                       const xls::SourceInfo& loc) {
   // Whenever the condition changes,
   // selects need to be generated in the enclosing context (if any)
   if (context().propagate_up && (context_stack_.size() > 2)) {
@@ -734,7 +738,7 @@ absl::Status Translator::and_condition(xls::BValue and_condition,
 }
 
 absl::Status Translator::AssignThis(const CValue& rvalue,
-                                    const xls::SourceLocation& loc) {
+                                    const xls::SourceInfo& loc) {
   XLS_CHECK(context().this_val.rvalue().valid());
   if (*context().this_val.type() != *rvalue.type()) {
     return absl::UnimplementedError(ErrorMessage(loc,
@@ -750,7 +754,7 @@ absl::Status Translator::AssignThis(const CValue& rvalue,
 absl::StatusOr<xls::BValue> Translator::StructUpdate(
     xls::BValue struct_before, CValue rvalue,
     const clang::NamedDecl* field_name, const CStructType& stype,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   const absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CField>>&
       fields_by_name = stype.fields_by_name();
   auto found_field = fields_by_name.find(field_name);
@@ -788,7 +792,7 @@ absl::StatusOr<xls::BValue> Translator::StructUpdate(
 
 xls::BValue Translator::MakeStructXLS(
     const std::vector<xls::BValue>& bvals_reverse, const CStructType& stype,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   std::vector<xls::BValue> bvals = bvals_reverse;
   std::reverse(bvals.begin(), bvals.end());
   XLS_CHECK_EQ(bvals.size(), stype.fields().size());
@@ -808,7 +812,7 @@ xls::Value Translator::MakeStructXLS(
 
 xls::BValue Translator::GetStructFieldXLS(xls::BValue val, int index,
                                           const CStructType& type,
-                                          const xls::SourceLocation& loc) {
+                                          const xls::SourceInfo& loc) {
   XLS_CHECK_LT(index, type.fields().size());
   return type.no_tuple_flag() ? val
                               : context().fb->TupleIndex(
@@ -827,7 +831,7 @@ absl::StatusOr<xls::Value> Translator::GetStructFieldXLS(
 
 absl::StatusOr<xls::Type*> Translator::GetStructXLSType(
     const std::vector<xls::Type*>& members, const CStructType& type,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   if (type.no_tuple_flag() && members.size() != 1) {
     return absl::FailedPreconditionError(ErrorMessage(loc,
     "Pragma hls_no_tuple must be used on structs with only "
@@ -838,14 +842,14 @@ absl::StatusOr<xls::Type*> Translator::GetStructXLSType(
 }
 
 xls::BValue Translator::MakeFlexTuple(const std::vector<xls::BValue>& bvals,
-                                      const xls::SourceLocation& loc) {
+                                      const xls::SourceInfo& loc) {
   XLS_CHECK(!bvals.empty());
   return (bvals.size() == 1) ? bvals[0] : context().fb->Tuple(bvals, loc);
 }
 
 xls::BValue Translator::GetFlexTupleField(xls::BValue val, int index,
                                           int n_fields,
-                                          const xls::SourceLocation& loc,
+                                          const xls::SourceInfo& loc,
                                           std::string_view op_name) {
   XLS_CHECK_GT(n_fields, 0);
   return (n_fields == 1) ? val
@@ -859,14 +863,14 @@ xls::Type* Translator::GetFlexTupleType(
 }
 
 xls::BValue Translator::MakeFunctionReturn(
-    const std::vector<xls::BValue>& bvals, const xls::SourceLocation& loc) {
+    const std::vector<xls::BValue>& bvals, const xls::SourceInfo& loc) {
   return MakeFlexTuple(bvals, loc);
 }
 
 xls::BValue Translator::UpdateFlexTupleField(xls::BValue tuple_val,
                                              xls::BValue new_val, int index,
                                              int n_fields,
-                                             const xls::SourceLocation& loc) {
+                                             const xls::SourceInfo& loc) {
   if (n_fields == 1) {
     return new_val;
   }
@@ -883,7 +887,7 @@ xls::BValue Translator::UpdateFlexTupleField(xls::BValue tuple_val,
 xls::BValue Translator::GetFunctionReturn(xls::BValue val, int index,
                                           int expected_returns,
                                           const clang::FunctionDecl* /*func*/,
-                                          const xls::SourceLocation& loc) {
+                                          const xls::SourceInfo& loc) {
   return GetFlexTupleField(val, index, expected_returns, loc);
 }
 
@@ -896,8 +900,8 @@ std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
   return res;
 }
 
-absl::StatusOr<IOOp*> Translator::AddOpToChannel(
-    IOOp& op, IOChannel* channel, const xls::SourceLocation& loc) {
+absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
+                                                 const xls::SourceInfo& loc) {
   XLS_CHECK_NE(channel, nullptr);
   XLS_CHECK_EQ(op.channel, nullptr);
   op.channel_op_index = channel->total_ops++;
@@ -948,7 +952,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(
 }
 
 absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
-    const clang::ParmVarDecl* channel_param, const xls::SourceLocation& loc) {
+    const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                        StripTypeQualifiers(channel_param->getType()));
 
@@ -973,7 +977,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
 }
 
 absl::Status Translator::CreateChannelParam(
-    const clang::ParmVarDecl* channel_param, const xls::SourceLocation& loc) {
+    const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
   XLS_CHECK(!context().sf->io_channels_by_param.contains(channel_param));
 
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
@@ -996,7 +1000,7 @@ absl::Status Translator::CreateChannelParam(
 }
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
-    const clang::Expr* expr, const xls::SourceLocation& loc) {
+    const clang::Expr* expr, const xls::SourceInfo& loc) {
   if (expr->getStmtClass() == clang::Stmt::CXXMemberCallExprClass) {
     auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(expr);
     const clang::Expr* object = member_call->getImplicitObjectArgument();
@@ -1145,7 +1149,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     XLS_CHECK(trivial);
     definition = funcdecl;
   }
-  xls::SourceLocation body_loc = GetLoc(*definition);
+  xls::SourceInfo body_loc = GetLoc(*definition);
 
   // "this" input for methods
   if ((funcdecl->getKind() == clang::FunctionDecl::Kind::CXXMethod) ||
@@ -1450,7 +1454,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
 
 absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
     clang::BinaryOperatorKind clang_op, const CType& left_type,
-    const CType& result_type, const xls::SourceLocation& loc) {
+    const CType& result_type, const xls::SourceInfo& loc) {
   if (result_type.Is<CIntType>()) {
     auto result_int_type = result_type.As<CIntType>();
     switch (clang_op) {
@@ -1545,7 +1549,7 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
 }
 
 absl::StatusOr<CValue> Translator::TranslateVarDecl(
-    const clang::VarDecl* decl, const xls::SourceLocation& loc) {
+    const clang::VarDecl* decl, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
 
@@ -1569,7 +1573,7 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
 }
 
 absl::StatusOr<CValue> Translator::TranslateEnumConstantDecl(
-    const clang::EnumConstantDecl* decl, const xls::SourceLocation& loc) {
+    const clang::EnumConstantDecl* decl, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
                        TranslateTypeFromClang(decl->getType(), loc));
   auto val = xls::Value(
@@ -1579,7 +1583,7 @@ absl::StatusOr<CValue> Translator::TranslateEnumConstantDecl(
 }
 
 absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
-                                                 const xls::SourceLocation& loc,
+                                                 const xls::SourceInfo& loc,
                                                  bool for_lvalue) {
   if (context().channel_params.contains(decl)) {
     return absl::UnimplementedError(ErrorMessage(loc,
@@ -1622,7 +1626,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
       return found_global->second;
     }
 
-    const xls::SourceLocation global_loc = GetLoc(*name);
+    const xls::SourceInfo global_loc = GetLoc(*name);
 
     CValue value;
 
@@ -1666,7 +1670,7 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
 
 absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
     const CValue& lvalue, const CValue& rvalue,
-    const xls::BValue& relative_condition, const xls::SourceLocation& loc) {
+    const xls::BValue& relative_condition, const xls::SourceInfo& loc) {
   CValue rvalue_to_use = rvalue;
   // Avoid generating unnecessary selects
   absl::StatusOr<xls::Value> const_var_cond = xls::Value(xls::UBits(1, 1));
@@ -1703,7 +1707,7 @@ absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
 
 absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
                                 const CValue& rvalue,
-                                const xls::SourceLocation& loc) {
+                                const xls::SourceInfo& loc) {
   if (context().mask_assignments) {
     return absl::OkStatus();
   }
@@ -1769,7 +1773,7 @@ int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
 
 absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
     xls::BValue array_to_update, xls::BValue start_index,
-    xls::BValue slice_to_write, const xls::SourceLocation& loc) {
+    xls::BValue slice_to_write, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(xls::Value start_index_val,
                        EvaluateBVal(start_index, loc));
   XLS_CHECK(start_index_val.IsBits());
@@ -1815,7 +1819,7 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
 
 absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
                                 const CValue& rvalue,
-                                const xls::SourceLocation& loc) {
+                                const xls::SourceInfo& loc) {
   if (!lvalue->is_select()) {
     return Assign(lvalue->leaf(), rvalue, loc);
   }
@@ -1838,7 +1842,7 @@ absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
 }
 
 absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
-                                const xls::SourceLocation& loc) {
+                                const xls::SourceInfo& loc) {
   switch (lvalue->getStmtClass()) {
     // Assign to a variable using the identifier it was declared with
     // foo = rvalue
@@ -2041,7 +2045,7 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
 
 absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
                                          const CValue& rvalue,
-                                         const xls::SourceLocation& loc,
+                                         const xls::SourceInfo& loc,
                                          bool check_unique_ids) {
   if (context().variables.contains(lvalue)) {
     return absl::UnimplementedError(ErrorMessage(loc,
@@ -2065,7 +2069,7 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
 
 absl::Status Translator::DeclareStatic(const clang::NamedDecl* lvalue,
                                        const ConstValue& init,
-                                       const xls::SourceLocation& loc,
+                                       const xls::SourceInfo& loc,
                                        bool check_unique_ids) {
   XLS_CHECK(!context().sf->static_values.contains(lvalue) ||
             context().sf->static_values.at(lvalue) == init);
@@ -2098,7 +2102,7 @@ absl::Status Translator::DeclareStatic(const clang::NamedDecl* lvalue,
 
 absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
     xls::Op xls_op, bool is_pre, CValue sub_value, const clang::Expr* sub_expr,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   auto sub_type = std::dynamic_pointer_cast<CIntType>(sub_value.type());
   const int width = sub_type->width();
   xls::BValue literal_one = context().fb->Literal(
@@ -2115,7 +2119,7 @@ absl::StatusOr<CValue> Translator::Generate_Synthetic_ByOne(
 }
 
 absl::StatusOr<CValue> Translator::Generate_UnaryOp(
-    const clang::UnaryOperator* uop, const xls::SourceLocation& loc) {
+    const clang::UnaryOperator* uop, const xls::SourceInfo& loc) {
   auto clang_op = uop->getOpcode();
 
   XLS_ASSIGN_OR_RETURN(CValue lhs_cv, GenerateIR_Expr(uop->getSubExpr(), loc));
@@ -2247,7 +2251,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
 absl::StatusOr<CValue> Translator::Generate_BinaryOp(
     clang::BinaryOperatorKind clang_op, bool is_assignment,
     std::shared_ptr<CType> result_type, const clang::Expr* lhs,
-    const clang::Expr* rhs, const xls::SourceLocation& loc) {
+    const clang::Expr* rhs, const xls::SourceInfo& loc) {
   CValue result;
   {
     // Don't reduce operands to logical boolean operators to 1 bit.
@@ -2319,7 +2323,7 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
 absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     std::shared_ptr<CType> result_type, const clang::Expr* cond_expr,
     const clang::Expr* true_expr, const clang::Expr* false_expr,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(CValue sel_val, GenerateIR_Expr(cond_expr, loc));
   XLS_CHECK(sel_val.type()->Is<CBoolType>());
 
@@ -2346,7 +2350,7 @@ absl::StatusOr<CValue> Translator::Generate_TernaryOp(
 
 absl::StatusOr<CValue> Translator::Generate_TernaryOp(
     xls::BValue cond, CValue true_cv, CValue false_cv,
-    std::shared_ptr<CType> result_type, const xls::SourceLocation& loc) {
+    std::shared_ptr<CType> result_type, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(xls::BValue true_val,
                        GenTypeConvert(true_cv, result_type, loc));
   XLS_ASSIGN_OR_RETURN(xls::BValue false_val,
@@ -2429,8 +2433,8 @@ absl::StatusOr<GeneratedFunction*> Translator::TranslateFunctionToXLS(
   }
 }
 
-absl::StatusOr<CValue> Translator::GenerateIR_Call(
-    const clang::CallExpr* call, const xls::SourceLocation& loc) {
+absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
+                                                   const xls::SourceInfo& loc) {
   const clang::FunctionDecl* funcdecl = call->getDirectCallee();
 
   if (funcdecl->getNameAsString() == "__xlscc_unimplemented") {
@@ -2526,7 +2530,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 }
 
 absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
-    const clang::CXXOperatorCallExpr* op_call, const xls::SourceLocation& loc,
+    const clang::CXXOperatorCallExpr* op_call, const xls::SourceInfo& loc,
     CValue* output) {
   // Hack to avoid returning reference object.
   //  xls_int[n] = val
@@ -2589,7 +2593,7 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   // Translate external channels
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* callee_param = funcdecl->getParamDecl(pi);
@@ -2994,8 +2998,8 @@ absl::StatusOr<Translator::ResolvedInheritance> Translator::ResolveInheritance(
   return ResolvedInheritance();
 }
 
-absl::StatusOr<CValue> Translator::GenerateIR_Expr(
-    const clang::Expr* expr, const xls::SourceLocation& loc) {
+absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
+                                                   const xls::SourceInfo& loc) {
   switch (expr->getStmtClass()) {
     case clang::Stmt::UnaryOperatorClass: {
       auto uop = clang_down_cast<const clang::UnaryOperator*>(expr);
@@ -3387,7 +3391,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
 
 absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
                                             std::shared_ptr<CType>& result_type,
-                                            const xls::SourceLocation& loc) {
+                                            const xls::SourceInfo& loc) {
   // Array slices are the size of source arrays, and indices just wrap around.
   // Take the smaller size
   if (true_cv.type()->Is<CArrayType>() && false_cv.type()->Is<CArrayType>() &&
@@ -3414,8 +3418,8 @@ absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
   return absl::OkStatus();
 }
 
-absl::StatusOr<CValue> Translator::GenerateIR_Expr(
-    std::shared_ptr<LValue> expr, const xls::SourceLocation& loc) {
+absl::StatusOr<CValue> Translator::GenerateIR_Expr(std::shared_ptr<LValue> expr,
+                                                   const xls::SourceInfo& loc) {
   if (!expr->is_select()) {
     return GenerateIR_Expr(expr->leaf(), loc);
   }
@@ -3436,7 +3440,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(
 }
 
 absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
-    const clang::MemberExpr* expr, const xls::SourceLocation& loc) {
+    const clang::MemberExpr* expr, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(CValue leftval, GenerateIR_Expr(expr->getBase(), loc));
   XLS_ASSIGN_OR_RETURN(auto itype, ResolveTypeInstance(leftval.type()));
 
@@ -3493,7 +3497,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
 }
 
 absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
-    std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
+    std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CPointerType>()) {
     return xls::BValue();
   }
@@ -3503,7 +3507,7 @@ absl::StatusOr<xls::BValue> Translator::CreateDefaultValue(
 }
 
 absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
-    std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
+    std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CIntType>()) {
     return xls::Value(xls::UBits(0, t->As<CIntType>()->width()));
   } else if (t->Is<CBitsType>()) {
@@ -3541,7 +3545,7 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
 
 absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   if (t->Is<CArrayType>()) {
     auto array_t = t->As<CArrayType>();
     if (array_t->GetSize() != init_list->getNumInits()) {
@@ -3602,7 +3606,7 @@ absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node) {
 }
 
 absl::Status Translator::ShortCircuitNode(
-    xls::Node* node, xls::BValue& top_bval, const xls::SourceLocation& loc,
+    xls::Node* node, xls::BValue& top_bval, const xls::SourceInfo& loc,
     xls::Node* parent, absl::flat_hash_set<xls::Node*>& visited) {
   if (visited.contains(node)) {
     return absl::OkStatus();
@@ -3671,7 +3675,7 @@ absl::Status Translator::ShortCircuitNode(
 }
 
 absl::StatusOr<xls::Value> Translator::EvaluateBVal(
-    xls::BValue bval, const xls::SourceLocation& loc) {
+    xls::BValue bval, const xls::SourceInfo& loc) {
   absl::flat_hash_set<xls::Node*> visited;
   XLS_RETURN_IF_ERROR(
       ShortCircuitNode(bval.node(), bval, loc, nullptr, visited));
@@ -3679,7 +3683,7 @@ absl::StatusOr<xls::Value> Translator::EvaluateBVal(
 }
 
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
-    const CValue& bvalue, const xls::SourceLocation& loc) {
+    const CValue& bvalue, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(xls::Value const_value,
                        EvaluateBVal(bvalue.rvalue(), loc));
   return ConstValue(const_value, bvalue.type());
@@ -3706,7 +3710,7 @@ absl::Status Translator::GenerateIR_Compound(const clang::Stmt* body,
 
 absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
-  const xls::SourceLocation loc = GetLoc(*stmt);
+  const xls::SourceInfo loc = GetLoc(*stmt);
 
   // TODO(seanhaskell): A cleaner way to check if it's any kind of Expr?
   if (absl::StrContains(stmt->getStmtClassName(), "Literal") ||
@@ -3987,7 +3991,7 @@ absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
                                          const clang::Stmt* inc,
                                          const clang::Stmt* body,
                                          const clang::PresumedLoc& presumed_loc,
-                                         const xls::SourceLocation& loc,
+                                         const xls::SourceInfo& loc,
                                          clang::ASTContext& ctx) {
   if (cond_expr != nullptr && cond_expr->isIntegerConstantExpr(ctx)) {
     // special case for "for (;0;) {}" (essentially no op)
@@ -4111,10 +4115,12 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                          typeid(*node).name());
 }
 
-absl::Status Translator::GenerateIR_UnrolledLoop(
-    const clang::Stmt* init, const clang::Expr* cond_expr,
-    const clang::Stmt* inc, const clang::Stmt* body, clang::ASTContext& ctx,
-    const xls::SourceLocation& loc) {
+absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
+                                                 const clang::Expr* cond_expr,
+                                                 const clang::Stmt* inc,
+                                                 const clang::Stmt* body,
+                                                 clang::ASTContext& ctx,
+                                                 const xls::SourceInfo& loc) {
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
   context().propagate_break_up = false;
@@ -4207,7 +4213,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     const clang::Stmt* init, const clang::Expr* cond_expr,
     const clang::Stmt* inc, const clang::Stmt* body,
     int64_t initiation_interval_arg, clang::ASTContext& ctx,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   if (initiation_interval_arg != 1) {
     std::string message = ErrorMessage(loc,
       "Only initiation interval 1 supported");
@@ -4376,7 +4382,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
         variable_field_indices,
     const std::vector<const clang::NamedDecl*>& variable_fields_order,
     std::vector<const clang::NamedDecl*>& vars_changed_in_body,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   const uint64_t total_context_values = context_ctype->fields().size();
 
   std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
@@ -4677,7 +4683,7 @@ static void FlattenCaseOrDefault(
 
 absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
                                            clang::ASTContext& ctx,
-                                           const xls::SourceLocation& loc) {
+                                           const xls::SourceInfo& loc) {
   PushContextGuard switch_guard(*this, loc);
   context().in_switch_body = true;
   context().in_for_body = false;
@@ -4705,7 +4711,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   for (const clang::Stmt* stmt : flat_statements) {
     if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
       auto case_it = clang_down_cast<const clang::CaseStmt*>(stmt);
-      const xls::SourceLocation loc = GetLoc(*case_it);
+      const xls::SourceInfo loc = GetLoc(*case_it);
       XLS_ASSIGN_OR_RETURN(CValue case_val,
                            GenerateIR_Expr(case_it->getLHS(), loc));
       auto case_int_type = std::dynamic_pointer_cast<CIntType>(case_val.type());
@@ -4727,7 +4733,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   // for indexing into case_conds
   int case_idx = 0;
   for (const clang::Stmt* stmt : flat_statements) {
-    const xls::SourceLocation loc = GetLoc(*stmt);
+    const xls::SourceInfo loc = GetLoc(*stmt);
     xls::BValue cond;
 
     if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
@@ -4773,7 +4779,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
 
 absl::StatusOr<int64_t> Translator::EvaluateInt64(
     const clang::Expr& expr, const class clang::ASTContext& ctx,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   clang::Expr::EvalResult result;
   if (!expr.EvaluateAsInt(result, ctx, clang::Expr::SE_NoSideEffects,
                           /*InConstantContext=*/false)) {
@@ -4788,7 +4794,7 @@ absl::StatusOr<int64_t> Translator::EvaluateInt64(
 
 absl::StatusOr<bool> Translator::EvaluateBool(
     const clang::Expr& expr, const class clang::ASTContext& ctx,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   bool result;
   if (!expr.EvaluateAsBooleanCondition(result, ctx,
                                        /*InConstantContext=*/false)) {
@@ -4799,7 +4805,7 @@ absl::StatusOr<bool> Translator::EvaluateBool(
 }
 
 absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
-    const clang::QualType& t, const xls::SourceLocation& loc) {
+    const clang::QualType& t, const xls::SourceInfo& loc) {
   const clang::Type* type = t.getTypePtr();
 
   if (type->getTypeClass() == clang::Type::TypeClass::Builtin) {
@@ -4920,7 +4926,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
 }
 
 absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
-    std::shared_ptr<CType> t, const xls::SourceLocation& loc) {
+    std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CIntType>()) {
     auto it = t->As<CIntType>();
     return package_->GetBitsType(it->width());
@@ -5013,7 +5019,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
 absl::Status Translator::GenerateExternalChannels(
     const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
     const HLSBlock& block, const clang::FunctionDecl* definition,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   for (int pidx = 0; pidx < definition->getNumParams(); ++pidx) {
     const clang::ParmVarDecl* param = definition->getParamDecl(pidx);
 
@@ -5066,7 +5072,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
 
   const clang::FunctionDecl* definition = nullptr;
   top_function->getBody(definition);
-  xls::SourceLocation body_loc = GetLoc(*definition);
+  xls::SourceInfo body_loc = GetLoc(*definition);
   package_ = package;
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
@@ -5122,7 +5128,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
 
 absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
     PreparedBlock& prepared, xls::ProcBuilder& pb,
-    const xls::SourceLocation& body_loc) {
+    const xls::SourceInfo& body_loc) {
   XLS_CHECK(&pb == context().fb);
 
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
@@ -5192,7 +5198,7 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 absl::Status Translator::GenerateIRBlockCheck(
     absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
     const HLSBlock& block, const clang::FunctionDecl* definition,
-    const xls::SourceLocation& body_loc) {
+    const xls::SourceInfo& body_loc) {
   if (!block.has_name()) {
     return absl::InvalidArgumentError(absl::StrFormat("HLSBlock has no name"));
   }
@@ -5241,7 +5247,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
     PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
     int64_t next_state_index, const clang::FunctionDecl* definition,
     const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
-    const xls::SourceLocation& body_loc) {
+    const xls::SourceInfo& body_loc) {
   // For defaults, updates, invokes
   context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
 
@@ -5341,7 +5347,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
 }
 
 absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
-                                               const xls::SourceLocation& loc) {
+                                               const xls::SourceInfo& loc) {
   // Avoid "this", as it's a pointer
   if (object->getStmtClass() == clang::Expr::ImplicitCastExprClass &&
       clang_down_cast<const clang::CastExpr*>(object)
@@ -5356,7 +5362,7 @@ absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
 }
 
 absl::StatusOr<bool> Translator::TypeIsChannel(const clang::QualType& param,
-                                               const xls::SourceLocation& loc) {
+                                               const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped, StripTypeQualifiers(param));
   absl::StatusOr<std::shared_ptr<CType>> obj_type_ret =
       TranslateTypeFromClang(stripped.base, loc);
@@ -5448,7 +5454,7 @@ absl::Status Translator::GenerateFunctionMetadata(
         stripped.base, proto_static_value->mutable_type()));
     XLS_ASSIGN_OR_RETURN(
         std::shared_ptr<CType> ctype,
-        TranslateTypeFromClang(stripped.base, xls::SourceLocation()));
+        TranslateTypeFromClang(stripped.base, xls::SourceInfo()));
     XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(
         *this, initval, proto_static_value->mutable_value()));
   }
@@ -5525,13 +5531,13 @@ absl::Status Translator::GenerateMetadataCPPName(
 absl::Status Translator::GenerateMetadataType(const clang::QualType& type_in,
                                               xlscc_metadata::Type* type_out) {
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       TranslateTypeFromClang(type_in, xls::SourceLocation()));
+                       TranslateTypeFromClang(type_in, xls::SourceInfo()));
   return ctype->GetMetadata(*this, type_out);
 }
 
 absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     CValue const& in, std::shared_ptr<CType> out_type,
-    const xls::SourceLocation& loc) {
+    const xls::SourceInfo& loc) {
   XLS_CHECK_NE(in.type().get(), nullptr);
   XLS_CHECK_NE(out_type.get(), nullptr);
   if (*in.type() == *out_type) {
@@ -5592,7 +5598,7 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
 }
 
 absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
-    CValue const& in, const xls::SourceLocation& loc) {
+    CValue const& in, const xls::SourceInfo& loc) {
   if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
     return absl::UnimplementedError(ErrorMessage(loc,
       "Cannot convert type %s to bool", std::string(*in.type())));
@@ -5606,17 +5612,17 @@ absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
   return context().fb->Ne(in.rvalue(), const0, loc);
 }
 
-std::string Translator::LocString(const xls::SourceLocation& loc) {
+std::string Translator::LocString(const xls::SourceInfo& loc) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->LocString(loc);
 }
 
-xls::SourceLocation Translator::GetLoc(const clang::Stmt& stmt) {
+xls::SourceInfo Translator::GetLoc(const clang::Stmt& stmt) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->GetLoc(stmt);
 }
 
-xls::SourceLocation Translator::GetLoc(const clang::Decl& decl) {
+xls::SourceInfo Translator::GetLoc(const clang::Decl& decl) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->GetLoc(decl);
 }

@@ -26,7 +26,7 @@ namespace verilog {
 
 Ice40IoStrategy::Ice40IoStrategy(VerilogFile* f) : f_(f) {
   for (const char* include : kIncludes) {
-    f_->Add(f_->Make<Include>(std::nullopt, include));
+    f_->Add(f_->Make<Include>(SourceInfo(), include));
   }
 }
 
@@ -34,14 +34,14 @@ absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef* clk,
                                                       Reset reset, Module* m) {
   VerilogFile* f = m->file();
   clk_ = clk;
-  rx_in_ = m->AddInput("rx_in", f->ScalarType(std::nullopt), std::nullopt);
-  tx_out_ = m->AddOutput("tx_out", f->ScalarType(std::nullopt), std::nullopt);
+  rx_in_ = m->AddInput("rx_in", f->ScalarType(SourceInfo()), SourceInfo());
+  tx_out_ = m->AddOutput("tx_out", f->ScalarType(SourceInfo()), SourceInfo());
   LogicRef* clear_to_send_out_n = m->AddOutput(
-      "clear_to_send_out_n", f->ScalarType(std::nullopt), std::nullopt);
+      "clear_to_send_out_n", f->ScalarType(SourceInfo()), SourceInfo());
   clear_to_send_ =
-      m->AddWire("clear_to_send", f->ScalarType(std::nullopt), std::nullopt);
-  m->Add<ContinuousAssignment>(std::nullopt, clear_to_send_out_n,
-                               f->LogicalNot(clear_to_send_, std::nullopt));
+      m->AddWire("clear_to_send", f->ScalarType(SourceInfo()), SourceInfo());
+  m->Add<ContinuousAssignment>(SourceInfo(), clear_to_send_out_n,
+                               f->LogicalNot(clear_to_send_, SourceInfo()));
 
   // The UARTs use a synchronous active-low reset.
   if (!reset.active_low || reset.asynchronous) {
@@ -53,8 +53,8 @@ absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef* clk,
 
   clocks_per_baud_ = m->AddParameter(
       "ClocksPerBaud",
-      f_->Make<MacroRef>(std::nullopt, "DEFAULT_CLOCKS_PER_BAUD"),
-      std::nullopt);
+      f_->Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD"),
+      SourceInfo());
 
   return absl::OkStatus();
 }
@@ -63,7 +63,7 @@ absl::Status Ice40IoStrategy::InstantiateIoBlocks(Input input, Output output,
                                                   Module* m) {
   // Instantiate the UART receiver.
   m->Add<Instantiation>(
-      std::nullopt, "uart_receiver", "rx",
+      SourceInfo(), "uart_receiver", "rx",
       /*parameters=*/
       std::vector<Connection>{{"ClocksPerBaud", clocks_per_baud_}},
       std::vector<Connection>{{"clk", clk_},
@@ -76,7 +76,7 @@ absl::Status Ice40IoStrategy::InstantiateIoBlocks(Input input, Output output,
 
   // Instantiate the UART transmitter.
   m->Add<Instantiation>(
-      std::nullopt, "uart_transmitter", "tx",
+      SourceInfo(), "uart_transmitter", "tx",
       /*parameters=*/
       std::vector<Connection>{{"ClocksPerBaud", clocks_per_baud_}},
       std::vector<Connection>{

@@ -151,10 +151,10 @@ absl::StatusOr<bool> TokenDependencyPass::RunOnFunctionBaseInternal(
         if (input->GetType()->IsToken()) {
           XLS_ASSIGN_OR_RETURN(
               Node * receive_token,
-              f->MakeNode<TupleIndex>(std::nullopt, receive, 0));
+              f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));
           XLS_ASSIGN_OR_RETURN(
               Node * new_token,
-              f->MakeNode<AfterAll>(std::nullopt,
+              f->MakeNode<AfterAll>(SourceInfo(),
                                     std::vector<Node*>{receive_token, input}));
           changed |= io->ReplaceOperand(input, new_token);
         }

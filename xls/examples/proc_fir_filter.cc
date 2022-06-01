@@ -91,18 +91,18 @@ absl::StatusOr<Proc*> CreateFirFilter(absl::string_view name,
   // The input channel gives us the next value to include in x.
   BValue in = pb.Receive(input_channel, pb.GetTokenParam());
 
-  BValue kernel = pb.Literal(kernel_value, absl::nullopt, "kernel");
+  BValue kernel = pb.Literal(kernel_value, SourceInfo(), "kernel");
 
   // The input array x is essentially a shift register, so we can use array
   // operations to remove the oldest element in x and append the new element.
   BValue shiftreg_slicer =
-      pb.Literal(UBits(0, 32), absl::nullopt, "shiftreg_slicer");
+      pb.Literal(UBits(0, 32), SourceInfo(), "shiftreg_slicer");
 
   BValue x_slice = pb.ArraySlice(pb.GetUniqueStateParam(), shiftreg_slicer,
                                  kernel_value.size() - 1);
   BValue new_x = pb.Array({pb.TupleIndex(in, 1)}, kernel_type->element_type(),
-                          absl::nullopt, "new_x");
-  BValue x = pb.ArrayConcat({new_x, x_slice}, absl::nullopt, "x");
+                          SourceInfo(), "new_x");
+  BValue x = pb.ArrayConcat({new_x, x_slice}, SourceInfo(), "x");
 
   BValue accumulator = pb.Literal(ZeroOfType(kernel_type->element_type()));
 

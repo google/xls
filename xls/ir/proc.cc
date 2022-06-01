@@ -172,7 +172,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   XLS_ASSIGN_OR_RETURN(
       Param * param,
-      MakeNodeWithName<Param>(/*loc=*/absl::nullopt, state_param_name,
+      MakeNodeWithName<Param>(SourceInfo(), state_param_name,
                               package()->GetTypeForValue(init_value)));
   XLS_RETURN_IF_ERROR(MoveParamToIndex(param, index + 1));
   if (next_state.has_value()) {

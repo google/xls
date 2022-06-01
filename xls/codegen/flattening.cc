@@ -121,7 +121,7 @@ verilog::Expression* UnflattenArrayHelper(int64_t flat_index_offset,
                                           verilog::IndexableExpression* input,
                                           ArrayType* array_type,
                                           verilog::VerilogFile* file,
-                                          std::optional<SourceLocation> loc) {
+                                          const SourceInfo& loc) {
   std::vector<verilog::Expression*> elements;
   const int64_t element_width = array_type->element_type()->GetFlatBitCount();
   for (int64_t i = 0; i < array_type->size(); ++i) {
@@ -142,15 +142,14 @@ verilog::Expression* UnflattenArrayHelper(int64_t flat_index_offset,
 verilog::Expression* UnflattenArray(verilog::IndexableExpression* input,
                                     ArrayType* array_type,
                                     verilog::VerilogFile* file,
-                                    std::optional<SourceLocation> loc) {
+                                    const SourceInfo& loc) {
   return UnflattenArrayHelper(/*flat_index_offset=*/0, input, array_type, file,
                               loc);
 }
 
 verilog::Expression* UnflattenArrayShapedTupleElement(
     verilog::IndexableExpression* input, TupleType* tuple_type,
-    int64_t tuple_index, verilog::VerilogFile* file,
-    std::optional<SourceLocation> loc) {
+    int64_t tuple_index, verilog::VerilogFile* file, const SourceInfo& loc) {
   XLS_CHECK(tuple_type->element_type(tuple_index)->IsArray());
   ArrayType* array_type = tuple_type->element_type(tuple_index)->AsArrayOrDie();
   return UnflattenArrayHelper(
@@ -161,7 +160,7 @@ verilog::Expression* UnflattenArrayShapedTupleElement(
 verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
                                   ArrayType* array_type,
                                   verilog::VerilogFile* file,
-                                  std::optional<SourceLocation> loc) {
+                                  const SourceInfo& loc) {
   std::vector<verilog::Expression*> elements;
   for (int64_t i = array_type->size() - 1; i >= 0; --i) {
     verilog::IndexableExpression* element = file->Index(input, i, loc);
@@ -177,7 +176,7 @@ verilog::Expression* FlattenArray(verilog::IndexableExpression* input,
 
 absl::StatusOr<verilog::Expression*> FlattenTuple(
     absl::Span<verilog::Expression* const> inputs, TupleType* tuple_type,
-    verilog::VerilogFile* file, std::optional<SourceLocation> loc) {
+    verilog::VerilogFile* file, const SourceInfo& loc) {
   // Tuples are represented as a flat vector of bits. Flatten and concatenate
   // all operands. Only non-zero-width elements of the tuple are represented in
   // inputs.

@@ -16,6 +16,7 @@
 #define XLS_IR_SOURCE_LOCATION_H_
 
 #include "absl/strings/str_format.h"
+#include "absl/strings/str_join.h"
 #include "absl/types/optional.h"
 #include "xls/ir/fileno.h"
 
@@ -44,6 +45,26 @@ class SourceLocation {
   Fileno fileno_;
   Lineno lineno_;
   Colno colno_;
+};
+
+struct SourceInfo {
+  std::vector<SourceLocation> locations;
+
+  SourceInfo() : locations() {}
+  explicit SourceInfo(const SourceLocation& loc) : locations({loc}) {}
+  explicit SourceInfo(absl::Span<const SourceLocation> locs)
+      : locations(locs.begin(), locs.end()) {}
+
+  bool Empty() const { return locations.empty(); }
+
+  std::string ToString() const {
+    std::vector<std::string> strings;
+    strings.reserve(locations.size());
+    for (const SourceLocation& location : locations) {
+      strings.push_back(absl::StrFormat("(%s)", location.ToString()));
+    }
+    return absl::StrFormat("[%s]", absl::StrJoin(strings, ", "));
+  }
 };
 
 }  // namespace xls

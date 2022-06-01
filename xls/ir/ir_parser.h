@@ -201,8 +201,8 @@ class Parser {
   // TODO(meheff): Currently the source location is a sequence of three
   // comma-separated numbers. Encapsulating the numbers in braces or something
   // would make the output less ambiguous. Example:
-  // "and(x,y,pos={1,2,3},foo=bar)" vs "and(x,y,pos=1,2,3,foo=bar)"
-  absl::StatusOr<SourceLocation> ParseSourceLocation();
+  // "and(x,y,pos={1,2,3},foo=bar)" vs "and(x,y,pos=[(1,2,3)],foo=bar)"
+  absl::StatusOr<SourceInfo> ParseSourceInfo();
 
   // Parse type specifications.
   absl::StatusOr<Type*> ParseType(Package* package);
@@ -218,9 +218,10 @@ class Parser {
 
   // Builds a binary or unary BValue with the given Op using the given
   // FunctionBuilder and arg parser.
-  absl::StatusOr<BValue> BuildBinaryOrUnaryOp(
-      Op op, BuilderBase* fb, absl::optional<SourceLocation>* loc,
-      absl::string_view node_name, ArgParser* arg_parser);
+  absl::StatusOr<BValue> BuildBinaryOrUnaryOp(Op op, BuilderBase* fb,
+                                              SourceInfo* loc,
+                                              absl::string_view node_name,
+                                              ArgParser* arg_parser);
 
   // Parses a node in a function/proc body. Example: "foo: bits[32] = add(x, y)"
   absl::StatusOr<BValue> ParseNode(

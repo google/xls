@@ -66,7 +66,7 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
                                                      VerilogFile* file) {
   XLS_RET_CHECK_GT(value.GetFlatBitCount(), 0);
   if (value.IsBits()) {
-    return file->Literal(value.bits(), std::nullopt);
+    return file->Literal(value.bits(), SourceInfo());
   }
   // Compound types are represented as a concatenation of their elements.
   std::vector<Value> value_elements;
@@ -88,7 +88,7 @@ absl::StatusOr<Expression*> FlattenValueToExpression(const Value& value,
       elements.push_back(element_expr);
     }
   }
-  return file->Concat(elements, std::nullopt);
+  return file->Concat(elements, SourceInfo());
 }
 
 // Returns the given array value as an array assignment pattern. For example,
@@ -114,7 +114,7 @@ absl::StatusOr<ArrayAssignmentPattern*> ValueToArrayAssignmentPattern(
     }
     pieces.push_back(element_expr);
   }
-  return file->Make<ArrayAssignmentPattern>(std::nullopt, pieces);
+  return file->Make<ArrayAssignmentPattern>(SourceInfo(), pieces);
 }
 
 }  // namespace
@@ -142,11 +142,11 @@ absl::Status ModuleBuilder::AddAssignmentToGeneratedExpression(
       std::vector<Expression*> input_elements;
       for (Expression* input : inputs) {
         input_elements.push_back(
-            file_->Index(input->AsIndexableExpressionOrDie(), i, std::nullopt));
+            file_->Index(input->AsIndexableExpressionOrDie(), i, SourceInfo()));
       }
       XLS_RETURN_IF_ERROR(AddAssignmentToGeneratedExpression(
           array_type->element_type(),
-          file_->Index(lhs->AsIndexableExpressionOrDie(), i, std::nullopt),
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i, SourceInfo()),
           input_elements, gen_rhs_expr, add_assignment, sv_array_expr));
     }
     return absl::OkStatus();
@@ -168,7 +168,7 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
     } else {
       for (int64_t i = 0; i < value.size(); ++i) {
         XLS_RETURN_IF_ERROR(AddAssignmentFromValue(
-            file_->Index(lhs->AsIndexableExpressionOrDie(), i, std::nullopt),
+            file_->Index(lhs->AsIndexableExpressionOrDie(), i, SourceInfo()),
             value.element(i), add_assignment));
       }
     }
@@ -188,17 +188,17 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
       file_(file),
       package_("__ModuleBuilder_type_generator"),
       options_(std::move(options)) {
-  module_ = file_->AddModule(module_name_, std::nullopt);
-  functions_section_ = module_->Add<ModuleSection>(std::nullopt);
-  constants_section_ = module_->Add<ModuleSection>(std::nullopt);
-  input_section_ = module_->Add<ModuleSection>(std::nullopt);
+  module_ = file_->AddModule(module_name_, SourceInfo());
+  functions_section_ = module_->Add<ModuleSection>(SourceInfo());
+  constants_section_ = module_->Add<ModuleSection>(SourceInfo());
+  input_section_ = module_->Add<ModuleSection>(SourceInfo());
   declaration_and_assignment_section_ =
-      module_->Add<ModuleSection>(std::nullopt);
-  instantiation_section_ = module_->Add<ModuleSection>(std::nullopt);
-  assert_section_ = module_->Add<ModuleSection>(std::nullopt);
-  cover_section_ = module_->Add<ModuleSection>(std::nullopt);
-  output_section_ = module_->Add<ModuleSection>(std::nullopt);
-  trace_section_ = module_->Add<ModuleSection>(std::nullopt);
+      module_->Add<ModuleSection>(SourceInfo());
+  instantiation_section_ = module_->Add<ModuleSection>(SourceInfo());
+  assert_section_ = module_->Add<ModuleSection>(SourceInfo());
+  cover_section_ = module_->Add<ModuleSection>(SourceInfo());
+  output_section_ = module_->Add<ModuleSection>(SourceInfo());
+  trace_section_ = module_->Add<ModuleSection>(SourceInfo());
 
   NewDeclarationAndAssignmentSections();
 
@@ -216,9 +216,9 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
 
 void ModuleBuilder::NewDeclarationAndAssignmentSections() {
   declaration_subsections_.push_back(
-      declaration_and_assignment_section_->Add<ModuleSection>(std::nullopt));
+      declaration_and_assignment_section_->Add<ModuleSection>(SourceInfo()));
   assignment_subsections_.push_back(
-      declaration_and_assignment_section_->Add<ModuleSection>(std::nullopt));
+      declaration_and_assignment_section_->Add<ModuleSection>(SourceInfo()));
 }
 
 absl::Status ModuleBuilder::AssignFromSlice(
@@ -228,7 +228,7 @@ absl::Status ModuleBuilder::AssignFromSlice(
     ArrayType* array_type = xls_type->AsArrayOrDie();
     for (int64_t i = 0; i < array_type->size(); ++i) {
       XLS_RETURN_IF_ERROR(AssignFromSlice(
-          file_->Index(lhs->AsIndexableExpressionOrDie(), i, std::nullopt), rhs,
+          file_->Index(lhs->AsIndexableExpressionOrDie(), i, SourceInfo()), rhs,
           array_type->element_type(),
           slice_start + GetFlatBitIndexOfElement(array_type, i),
           add_assignment));
@@ -237,7 +237,7 @@ absl::Status ModuleBuilder::AssignFromSlice(
     add_assignment(
         lhs, file_->Slice(rhs->AsIndexableExpressionOrDie(),
                           /*hi=*/slice_start + xls_type->GetFlatBitCount() - 1,
-                          /*lo=*/slice_start, std::nullopt));
+                          /*lo=*/slice_start, SourceInfo()));
   }
   return absl::OkStatus();
 }
@@ -255,11 +255,11 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
   LogicRef* ar = module_->AddWire(
       absl::StrCat(SanitizeIdentifier(name), "_unflattened"),
       file_->UnpackedArrayType(NestedElementWidth(array_type),
-                               NestedArrayBounds(array_type), std::nullopt),
-      std::nullopt, input_section());
+                               NestedArrayBounds(array_type), SourceInfo()),
+      SourceInfo(), input_section());
   XLS_RETURN_IF_ERROR(AssignFromSlice(
       ar, port, type->AsArrayOrDie(), 0, [&](Expression* lhs, Expression* rhs) {
-        input_section()->Add<ContinuousAssignment>(std::nullopt, lhs, rhs);
+        input_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);
       }));
   return ar;
 }
@@ -267,26 +267,26 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
 LogicRef* ModuleBuilder::AddInputPort(absl::string_view name,
                                       int64_t bit_count) {
   return module_->AddInput(SanitizeIdentifier(name),
-                           file_->BitVectorType(bit_count, std::nullopt),
-                           std::nullopt);
+                           file_->BitVectorType(bit_count, SourceInfo()),
+                           SourceInfo());
 }
 
 absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
                                           Expression* value) {
   LogicRef* output_port = module_->AddOutput(
       SanitizeIdentifier(name),
-      file_->BitVectorType(type->GetFlatBitCount(), std::nullopt),
-      std::nullopt);
+      file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
+      SourceInfo());
 
   if (type->IsArray()) {
     // The output is flattened so flatten arrays with a sequence of assignments.
     XLS_RET_CHECK(value->IsIndexableExpression());
     output_section()->Add<ContinuousAssignment>(
-        std::nullopt, output_port,
+        SourceInfo(), output_port,
         FlattenArray(value->AsIndexableExpressionOrDie(), type->AsArrayOrDie(),
-                     file_, std::nullopt));
+                     file_, SourceInfo()));
   } else {
-    output_section()->Add<ContinuousAssignment>(std::nullopt, output_port,
+    output_section()->Add<ContinuousAssignment>(SourceInfo(), output_port,
                                                 value);
   }
   return absl::OkStatus();
@@ -296,9 +296,9 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
                                           int64_t bit_count,
                                           Expression* value) {
   LogicRef* output_port = module_->AddOutput(
-      SanitizeIdentifier(name), file_->BitVectorType(bit_count, std::nullopt),
-      std::nullopt);
-  output_section()->Add<ContinuousAssignment>(std::nullopt, output_port, value);
+      SanitizeIdentifier(name), file_->BitVectorType(bit_count, SourceInfo()),
+      SourceInfo());
+  output_section()->Add<ContinuousAssignment>(SourceInfo(), output_port, value);
   return absl::OkStatus();
 }
 
@@ -311,17 +311,17 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
     ref = module_->AddWire(
         SanitizeIdentifier(name),
         file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                 NestedArrayBounds(array_type), std::nullopt),
-        std::nullopt, constants_section());
+                                 NestedArrayBounds(array_type), SourceInfo()),
+        SourceInfo(), constants_section());
   } else {
     ref = module_->AddWire(
         SanitizeIdentifier(name),
-        file_->BitVectorType(type->GetFlatBitCount(), std::nullopt),
-        std::nullopt, constants_section());
+        file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
+        SourceInfo(), constants_section());
   }
   XLS_RETURN_IF_ERROR(
       AddAssignmentFromValue(ref, value, [&](Expression* lhs, Expression* rhs) {
-        constants_section()->Add<ContinuousAssignment>(std::nullopt, lhs, rhs);
+        constants_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);
       }));
   return ref;
 }
@@ -332,19 +332,19 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
     ArrayType* array_type = type->AsArrayOrDie();
     data_type =
         file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                 NestedArrayBounds(array_type), std::nullopt);
+                                 NestedArrayBounds(array_type), SourceInfo());
   } else {
-    data_type = file_->BitVectorType(type->GetFlatBitCount(), std::nullopt);
+    data_type = file_->BitVectorType(type->GetFlatBitCount(), SourceInfo());
   }
-  return module_->AddWire(SanitizeIdentifier(name), data_type, std::nullopt,
+  return module_->AddWire(SanitizeIdentifier(name), data_type, SourceInfo(),
                           declaration_section());
 }
 
 LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
                                          int64_t bit_count) {
   return module_->AddWire(SanitizeIdentifier(name),
-                          file_->BitVectorType(bit_count, std::nullopt),
-                          std::nullopt, declaration_section());
+                          file_->BitVectorType(bit_count, SourceInfo()),
+                          SourceInfo(), declaration_section());
 }
 
 bool ModuleBuilder::CanEmitAsInlineExpression(
@@ -466,7 +466,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       return a;
     }
     return file_->LogicalAnd(absl::get<Expression*>(a),
-                             absl::get<Expression*>(b), std::nullopt);
+                             absl::get<Expression*>(b), SourceInfo());
   };
 
   if (indices.empty()) {
@@ -480,7 +480,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
           /*rhs=*/update_value,
           /*add_assignment=*/
           [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs,
+            assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
                                                             rhs);
           });
     } else if (is_statically_false(index_match)) {
@@ -493,7 +493,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
           /*rhs=*/rhs,
           /*add_assignment=*/
           [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs,
+            assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
                                                             rhs);
           });
     } else {
@@ -503,7 +503,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
       auto gen_ternary = [&](absl::Span<Expression* const> inputs) {
         return file_->Ternary(absl::get<Expression*>(index_match), inputs[0],
-                              inputs[1], std::nullopt);
+                              inputs[1], SourceInfo());
       };
 
       // Emit a continuous assignment with a ternary select. The ternary
@@ -513,7 +513,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
           xls_type, lhs, /*inputs=*/{update_value, rhs}, gen_ternary,
           /*add_assignment=*/
           [&](Expression* lhs, Expression* rhs) {
-            assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs,
+            assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs,
                                                             rhs);
           },
           /*sv_array_expr=*/true);
@@ -538,11 +538,11 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       // Index element is a not literal. The condition is not statically known.
       current_index_match =
           file_->Equals(index_type.expression,
-                        file_->Literal(UBits(i, index_bit_count), std::nullopt),
-                        std::nullopt);
+                        file_->Literal(UBits(i, index_bit_count), SourceInfo()),
+                        SourceInfo());
     }
     XLS_RETURN_IF_ERROR(EmitArrayCopyAndUpdate(
-        file_->Index(lhs, i, std::nullopt), file_->Index(rhs, i, std::nullopt),
+        file_->Index(lhs, i, SourceInfo()), file_->Index(rhs, i, SourceInfo()),
         update_value, indices.subspan(1),
         combine_index_matches(current_index_match, index_match),
         array_type->element_type()));
@@ -1061,7 +1061,7 @@ absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
 absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
   XLS_RETURN_IF_ERROR(
       AddAssignment(type, lhs, rhs, [&](Expression* lhs, Expression* rhs) {
-        assignment_section()->Add<ContinuousAssignment>(std::nullopt, lhs, rhs);
+        assignment_section()->Add<ContinuousAssignment>(SourceInfo(), lhs, rhs);
       }));
   return absl::OkStatus();
 }
@@ -1085,14 +1085,14 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
     reg = module_->AddReg(
         SanitizeIdentifier(name),
         file_->UnpackedArrayType(NestedElementWidth(array_type),
-                                 NestedArrayBounds(array_type), std::nullopt),
-        std::nullopt,
+                                 NestedArrayBounds(array_type), SourceInfo()),
+        SourceInfo(),
         /*init=*/nullptr, declaration_section());
   } else {
     reg = module_->AddReg(
         SanitizeIdentifier(name),
-        file_->BitVectorType(type->GetFlatBitCount(), std::nullopt),
-        std::nullopt, /*init=*/nullptr, declaration_section());
+        file_->BitVectorType(type->GetFlatBitCount(), SourceInfo()),
+        SourceInfo(), /*init=*/nullptr, declaration_section());
   }
   return Register{.ref = reg,
                   .next = next,
@@ -1114,8 +1114,8 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 
   return Register{.ref = module_->AddReg(
                       SanitizeIdentifier(name),
-                      file_->BitVectorType(bit_count, std::nullopt),
-                      std::nullopt, /*init=*/nullptr, declaration_section()),
+                      file_->BitVectorType(bit_count, SourceInfo()),
+                      SourceInfo(), /*init=*/nullptr, declaration_section()),
                   .next = next,
                   .reset_value = reset_value,
                   .load_enable = nullptr,
@@ -1161,24 +1161,24 @@ absl::Status ModuleBuilder::AssignRegisters(
 
   // Construct an always_ff block.
   std::vector<SensitivityListElement> sensitivity_list;
-  sensitivity_list.push_back(file_->Make<PosEdge>(std::nullopt, clk_));
+  sensitivity_list.push_back(file_->Make<PosEdge>(SourceInfo(), clk_));
   if (rst_.has_value()) {
     if (rst_->asynchronous) {
       if (rst_->active_low) {
         sensitivity_list.push_back(
-            file_->Make<NegEdge>(std::nullopt, rst_->signal));
+            file_->Make<NegEdge>(SourceInfo(), rst_->signal));
       } else {
         sensitivity_list.push_back(
-            file_->Make<PosEdge>(std::nullopt, rst_->signal));
+            file_->Make<PosEdge>(SourceInfo(), rst_->signal));
       }
     }
   }
   AlwaysBase* always;
   if (options_.use_system_verilog()) {
     always =
-        assignment_section()->Add<AlwaysFf>(std::nullopt, sensitivity_list);
+        assignment_section()->Add<AlwaysFf>(SourceInfo(), sensitivity_list);
   } else {
-    always = assignment_section()->Add<Always>(std::nullopt, sensitivity_list);
+    always = assignment_section()->Add<Always>(SourceInfo(), sensitivity_list);
   }
   // assignment_block is the block in which the foo <= foo_next assignments
   // go. It can either be conditional (if there is a reset signal) or
@@ -1191,12 +1191,12 @@ absl::Status ModuleBuilder::AssignRegisters(
     // on whether the reset signal is asserted.
     Expression* rst_condition;
     if (rst_->active_low) {
-      rst_condition = file_->LogicalNot(rst_->signal, std::nullopt);
+      rst_condition = file_->LogicalNot(rst_->signal, SourceInfo());
     } else {
       rst_condition = rst_->signal;
     }
     Conditional* conditional =
-        always->statements()->Add<Conditional>(std::nullopt, rst_condition);
+        always->statements()->Add<Conditional>(SourceInfo(), rst_condition);
     for (const Register& reg : registers) {
       if (reg.reset_value == nullptr) {
         // Not all registers may have reset values.
@@ -1206,7 +1206,7 @@ absl::Status ModuleBuilder::AssignRegisters(
           AddAssignment(reg.xls_type, reg.ref, reg.reset_value,
                         [&](Expression* lhs, Expression* rhs) {
                           conditional->consequent()->Add<NonblockingAssignment>(
-                              std::nullopt, lhs, rhs);
+                              SourceInfo(), lhs, rhs);
                         }));
     }
     assignment_block = conditional->AddAlternate();
@@ -1218,10 +1218,10 @@ absl::Status ModuleBuilder::AssignRegisters(
     XLS_RETURN_IF_ERROR(AddAssignment(
         reg.xls_type, reg.ref, reg.next, [&](Expression* lhs, Expression* rhs) {
           assignment_block->Add<NonblockingAssignment>(
-              std::nullopt, lhs,
+              SourceInfo(), lhs,
               reg.load_enable == nullptr
                   ? rhs
-                  : file_->Ternary(reg.load_enable, rhs, lhs, std::nullopt));
+                  : file_->Ternary(reg.load_enable, rhs, lhs, SourceInfo()));
         }));
   }
   return absl::OkStatus();

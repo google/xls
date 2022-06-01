@@ -274,18 +274,18 @@ absl::Status DecomposeNodeHelper(Node* node, std::vector<Node*>& elements) {
     for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
       XLS_ASSIGN_OR_RETURN(
           Node * tuple_index,
-          node->function_base()->MakeNode<TupleIndex>(absl::nullopt, node, i));
+          node->function_base()->MakeNode<TupleIndex>(SourceInfo(), node, i));
       XLS_RETURN_IF_ERROR(DecomposeNodeHelper(tuple_index, elements));
     }
   } else if (node->GetType()->IsArray()) {
     for (int64_t i = 0; i < node->GetType()->AsArrayOrDie()->size(); ++i) {
       XLS_ASSIGN_OR_RETURN(Node * index,
                            node->function_base()->MakeNode<Literal>(
-                               absl::nullopt, Value(UBits(i, 64))));
+                               SourceInfo(), Value(UBits(i, 64))));
       XLS_ASSIGN_OR_RETURN(
           Node * array_index,
           node->function_base()->MakeNode<ArrayIndex>(
-              absl::nullopt, node, std::vector<Node*>({index})));
+              SourceInfo(), node, std::vector<Node*>({index})));
       XLS_RETURN_IF_ERROR(DecomposeNodeHelper(array_index, elements));
     }
   } else {
@@ -326,7 +326,7 @@ absl::StatusOr<Node*> ComposeNodeHelper(Type* type,
                             linear_index, f));
       tuple_elements.push_back(element);
     }
-    return f->MakeNode<Tuple>(absl::nullopt, tuple_elements);
+    return f->MakeNode<Tuple>(SourceInfo(), tuple_elements);
   }
   if (type->IsArray()) {
     std::vector<Node*> array_elements;
@@ -337,7 +337,7 @@ absl::StatusOr<Node*> ComposeNodeHelper(Type* type,
                             linear_index, f));
       array_elements.push_back(element);
     }
-    return f->MakeNode<Array>(absl::nullopt, array_elements,
+    return f->MakeNode<Array>(SourceInfo(), array_elements,
                               type->AsArrayOrDie()->element_type());
   }
   return elements[linear_index++];
@@ -534,7 +534,7 @@ class ProcThread {
     // Add selector to commit state if the activation token is present.
     XLS_ASSIGN_OR_RETURN(proc_state_->next,
                          top_->MakeNodeWithName<Select>(
-                             absl::nullopt, /*selector=*/activation, /*cases=*/
+                             SourceInfo(), /*selector=*/activation, /*cases=*/
                              std::vector<Node*>{GetDummyState(), next_state},
                              /*default_case=*/absl::nullopt,
                              absl::StrFormat("%s_next_state", proc_->name())));
@@ -606,7 +606,7 @@ absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
   XLS_ASSIGN_OR_RETURN(
       element->dummy,
       top_->MakeNodeWithName<Literal>(
-          /*loc=*/absl::nullopt,
+          SourceInfo(),
           ZeroOfType(top_->package()->GetTypeForValue(initial_value)),
           absl::StrFormat("%s_dummy_state", name)));
   // Next element to be filled in by caller.
@@ -622,7 +622,7 @@ absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
 
   XLS_ASSIGN_OR_RETURN(node.dummy_activation_in,
                        top_->MakeNodeWithName<Literal>(
-                           absl::nullopt, Value(UBits(1, 1)),
+                           SourceInfo(), Value(UBits(1, 1)),
                            absl::StrFormat("%s_dummy_activation_in", name)));
   if (!activation_condition.has_value()) {
     // Activation node unconditionally fires when it has the activation
@@ -750,11 +750,11 @@ absl::StatusOr<VirtualSend> ProcThread::CreateVirtualSend(
       int64_t linear_index = variant_linear_indices[i];
       XLS_ASSIGN_OR_RETURN(
           Node * state_element,
-          top_->MakeNode<TupleIndex>(absl::nullopt, saved_data->dummy, i));
+          top_->MakeNode<TupleIndex>(SourceInfo(), saved_data->dummy, i));
       XLS_ASSIGN_OR_RETURN(
           Node * selected_data,
           top_->MakeNodeWithName<Select>(
-              absl::nullopt,
+              SourceInfo(),
               /*selector=*/activation_node->dummy_activation_in,
               /*cases=*/
               std::vector<Node*>{state_element, data_elements[linear_index]},
@@ -773,7 +773,7 @@ absl::StatusOr<VirtualSend> ProcThread::CreateVirtualSend(
     XLS_ASSIGN_OR_RETURN(
         saved_data->next,
         top_->MakeNodeWithName<Tuple>(
-            absl::nullopt, next_saved_data_elements,
+            SourceInfo(), next_saved_data_elements,
             absl::StrFormat("%s_send_hold_next", channel->name())));
   }
 
@@ -790,7 +790,7 @@ absl::StatusOr<VirtualReceive> ProcThread::CreateVirtualReceive(
 
   VirtualReceive virtual_receive;
   virtual_receive.channel = channel;
-  absl::optional<SourceLocation> loc;
+  SourceInfo loc;
 
   // Create a dummy channel data node. Later this will be replaced with
   // the data sent from the the corresponding send node.
@@ -1141,7 +1141,7 @@ absl::Status ReplaceProcState(Proc* proc,
   XLS_ASSIGN_OR_RETURN(
       Node * next,
       proc->MakeNodeWithName<Tuple>(
-          absl::nullopt, nexts,
+          SourceInfo(), nexts,
           absl::StrFormat("%s_next", proc->GetUniqueStateParam()->GetName())));
   XLS_RETURN_IF_ERROR(proc->ReplaceUniqueState(
       proc->GetUniqueStateParam()->name(), next, initial_value));
@@ -1150,7 +1150,7 @@ absl::Status ReplaceProcState(Proc* proc,
     XLS_ASSIGN_OR_RETURN(
         Node * state_element,
         proc->MakeNodeWithName<TupleIndex>(
-            absl::nullopt, proc->GetUniqueStateParam(), i, elements[i].name));
+            SourceInfo(), proc->GetUniqueStateParam(), i, elements[i].name));
     XLS_RETURN_IF_ERROR(elements[i].dummy->ReplaceUsesWith(state_element));
   }
   return absl::OkStatus();

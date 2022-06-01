@@ -318,16 +318,16 @@ class BlockGenerator {
         mb_.NewDeclarationAndAssignmentSections();
         XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_reads, stage_num));
         if (!stage.registers.empty() || !stage.combinational_nodes.empty()) {
-          mb_.declaration_section()->Add<BlankLine>(std::nullopt);
+          mb_.declaration_section()->Add<BlankLine>(SourceInfo());
           mb_.declaration_section()->Add<Comment>(
-              std::nullopt, absl::StrFormat("===== Pipe stage %d:", stage_num));
+              SourceInfo(), absl::StrFormat("===== Pipe stage %d:", stage_num));
           XLS_RETURN_IF_ERROR(EmitLogic(stage.combinational_nodes, stage_num));
 
           if (!stage.registers.empty()) {
             mb_.NewDeclarationAndAssignmentSections();
-            mb_.declaration_section()->Add<BlankLine>(std::nullopt);
+            mb_.declaration_section()->Add<BlankLine>(SourceInfo());
             mb_.declaration_section()->Add<Comment>(
-                std::nullopt,
+                SourceInfo(),
                 absl::StrFormat("Registers for pipe stage %d:", stage_num));
             XLS_RETURN_IF_ERROR(DeclareRegisters(stage.registers));
             XLS_RETURN_IF_ERROR(EmitLogic(stage.reg_writes, stage_num));
@@ -511,7 +511,7 @@ class BlockGenerator {
         // If the value is a bits type it can be emitted inline. Otherwise emit
         // as a module constant.
         if (reset_value.IsBits()) {
-          reset_expr = mb_.file()->Literal(reset_value.bits(), std::nullopt);
+          reset_expr = mb_.file()->Literal(reset_value.bits(), SourceInfo());
         } else {
           XLS_ASSIGN_OR_RETURN(
               reset_expr, mb_.DeclareModuleConstant(
@@ -608,7 +608,7 @@ class BlockGenerator {
                          absl::get<Expression*>(node_exprs_.at(output))});
         }
         mb_.instantiation_section()->Add<Instantiation>(
-            std::nullopt, block_instantiation->instantiated_block()->name(),
+            SourceInfo(), block_instantiation->instantiated_block()->name(),
             block_instantiation->name(),
             /*parameters=*/std::vector<Connection>(), connections);
       }
@@ -722,8 +722,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
   for (Block* block : blocks) {
     XLS_RETURN_IF_ERROR(BlockGenerator::Generate(block, &file, options));
     if (block != blocks.back()) {
-      file.Add(file.Make<BlankLine>(std::nullopt));
-      file.Add(file.Make<BlankLine>(std::nullopt));
+      file.Add(file.Make<BlankLine>(SourceInfo()));
+      file.Add(file.Make<BlankLine>(SourceInfo()));
     }
   }
 
@@ -738,11 +738,12 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
             "Unbalanced calls to LineInfo::{Start, End}");
       }
       for (const LineSpan& span : spans.value()) {
-        if (std::optional<SourceLocation> loc = vast_node->loc()) {
-          int64_t line = static_cast<int32_t>(loc.value().lineno());
+        SourceInfo info = vast_node->loc();
+        for (const SourceLocation& loc : info.locations) {
+          int64_t line = static_cast<int32_t>(loc.lineno());
           VerilogLineMapping* mapping = verilog_line_map->add_mapping();
           mapping->set_source_file(
-              top->package()->GetFilename(loc.value().fileno()).value_or(""));
+              top->package()->GetFilename(loc.fileno()).value_or(""));
           mapping->mutable_source_span()->set_line_start(line);
           mapping->mutable_source_span()->set_line_end(line);
           mapping->set_verilog_file("");  // to be updated later on

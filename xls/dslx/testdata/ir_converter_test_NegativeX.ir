@@ -3,5 +3,5 @@ package test_module
 file_number 0 "fake_file.x"
 
 top fn __test_module__negate(x: bits[32]) -> bits[32] {
-  ret neg.2: bits[32] = neg(x, id=2, pos=0,1,2)
+  ret neg.2: bits[32] = neg(x, id=2, pos=[(0,1,2)])
 }

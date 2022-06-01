@@ -51,7 +51,7 @@ class DataMember(object):
       in the constructor member initializer list.
     equals_tmpl: A Python format string defining the expression for testing this
       member for equality. The format fields are named 'lhs' and 'rhs'. Example:
-        '{lhs}.EqualTo({rhs})'.
+      '{lhs}.EqualTo({rhs})'.
   """
 
   def __init__(self,
@@ -72,8 +72,8 @@ class Method(object):
     name: Name of the method.
     return_cpp_type: The C++ type of the value returned by the method.
     expression: The expression to produce the value returned by the method.
-    expression_is_body: True if expression should be used as a body
-                        rather than a return value.
+    expression_is_body: True if expression should be used as a body rather than
+      a return value.
     params: Optional string of C++ parameters that gets inserted into the method
       signature between "()"s.
     is_const: The method is a const method.
@@ -130,8 +130,8 @@ class Attribute(object):
       equals_tmpl: A Python format string defining the expression for testing
         this member for equality. The format fields are named 'lhs' and 'rhs'.
         For example, '{lhs}.EqualTo({rhs})'.
-      init_args: Optional arguments to pass to the data member constructor.
-        If not specified, this is 'name', the name of the attribute constructor
+      init_args: Optional arguments to pass to the data member constructor. If
+        not specified, this is 'name', the name of the attribute constructor
         argument.
     """
 
@@ -318,9 +318,7 @@ class OpClass(object):
 
   def constructor_args_str(self) -> str:
     """The constructor arguments list as a single string."""
-    args = [
-        ConstructorArgument('loc', 'absl::optional<SourceLocation>', 'loc()')
-    ]
+    args = [ConstructorArgument('loc', 'const SourceInfo&', 'loc()')]
     for o in self.operands:
       if isinstance(o, OperandSpan):
         args.append(ConstructorArgument(o.name, 'absl::Span<Node* const>'))

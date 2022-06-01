@@ -41,10 +41,11 @@ TEST(FunctionBuilderTest, SimpleSourceLocation) {
   FunctionBuilder b("f", &p);
 
   Type* bits_32 = p.GetBitsType(32);
-  auto x = b.Param("x", bits_32, loc);
+  auto x = b.Param("x", bits_32, SourceInfo(loc));
 
-  ASSERT_TRUE(x.loc().has_value());
-  EXPECT_EQ(__FILE__ ":7", p.SourceLocationToString(*x.loc()));
+  ASSERT_EQ(x.node()->loc().locations.size(), 1);
+  EXPECT_EQ(__FILE__ ":7",
+            p.SourceLocationToString(x.node()->loc().locations[0]));
 }
 
 TEST(FunctionBuilderTest, CheckFilenameToFilenoLookup) {
@@ -473,9 +474,9 @@ TEST(FunctionBuilderTest, NamedOps) {
   Package p("p");
   FunctionBuilder b("f", &p);
   BitsType* type = p.GetBitsType(7);
-  BValue and_node = b.And(b.Param("a", type), b.Param("b", type),
-                          /*loc=*/absl::nullopt, /*name=*/"foo");
-  b.Negate(and_node, /*loc=*/absl::nullopt, /*name=*/"bar");
+  BValue and_node = b.And(b.Param("a", type), b.Param("b", type), SourceInfo(),
+                          /*name=*/"foo");
+  b.Negate(and_node, SourceInfo(), /*name=*/"bar");
   XLS_ASSERT_OK_AND_ASSIGN(Function * func, b.Build());
   Node* return_value = func->return_value();
   EXPECT_EQ(return_value->op(), Op::kNeg);
@@ -714,7 +715,7 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc, pb.Build(pb.GetTokenParam(), /*next_state=*/{
-                                x, pb.Add(x, y, std::nullopt, "x_plus_y"), z}));
+                                x, pb.Add(x, y, SourceInfo(), "x_plus_y"), z}));
   EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
   EXPECT_EQ(proc->GetStateParam(1)->GetName(), "y");
