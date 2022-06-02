@@ -141,14 +141,14 @@
 // args: bits[60]:0x400_0000_0000; bits[18]:0x0
 // args: bits[60]:0x1000; bits[18]:0x2_1040
 // args: bits[60]:0xfff_ffff_ffff_ffff; bits[18]:0x1_5c22
-const W1_V1 = u1:0x1;
-const W2_V2 = u2:0x2;
+const W1_V1 = u32:0x1;
+const W2_V2 = u32:0x2;
 type x7 = u1;
 type x13 = u10;
 fn main(x0: s60, x1: s18) -> (u12, u43, u12, u43, u7, u20, u58, u43, s47, u26, x13[W2_V2], u40, u58, u43, s47, u43, u26, (s60,), s18, u40, u43) {
   let x2: u40 = u40:0x4000000000;
   let x3: s47 = s47:0x100000000;
-  let x4: u1 = (x0)[0xe+:u1];
+  let x4: u1 = (x0 as u60)[0xe+:u1];
   let x5: u43 = (((x4) ++ (x2)) ++ (x4)) ++ (x4);
   let x6: x7[W1_V1] = ((x4) as x7[W1_V1]);
   let x8: u20 = (x5)[:0x14];
@@ -162,7 +162,7 @@ fn main(x0: s60, x1: s18) -> (u12, u43, u12, u43, u7, u20, u58, u43, s47, u26, x
   let x15: u7 = (x5)[x4+:u7];
   let x16: (s60,) = (x0,);
   let x17: u43 = u43:0x10000000000;
-  let x18: u38 = (x3)[0x9+:u38];
+  let x18: u38 = (x3 as u47)[0x9+:u38];
   let x19: u43 = (x5)[:];
   let x20: u58 = (x18) ++ (x8);
   let x21: u26 = u26:0x10;

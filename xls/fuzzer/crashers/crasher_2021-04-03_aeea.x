@@ -150,8 +150,8 @@
 // args: bits[34]:0x3_11b9_22dc; [bits[52]:0xc_46e4_4bf2_e7b5, bits[52]:0xf_ffff_ffff_ffff, bits[52]:0xd_c7d5_8a70_8400, bits[52]:0xa_aaaa_aaaa_aaaa, bits[52]:0x20_0000, bits[52]:0xc_58fc_8333_efdd]; bits[40]:0xff_ffff_ffff; (bits[3]:0x0); bits[17]:0x0
 // args: bits[34]:0x0; [bits[52]:0xa_aaaa_aaaa_aaaa, bits[52]:0xa_aaaa_aaaa_aaaa, bits[52]:0x7_ffff_ffff_ffff, bits[52]:0x4_0049_9e1f_8c91, bits[52]:0x8_2b9c_1307_bc2b, bits[52]:0xf_ffff_ffff_ffff]; bits[40]:0xfa_7714_6157; (bits[3]:0x3); bits[17]:0x1_39f3
 // args: bits[34]:0x2_aaaa_aaaa; [bits[52]:0x7_ffff_ffff_ffff, bits[52]:0xa_aaaa_aaaa_aaaa, bits[52]:0x6_a2a0_4b02_f5f6, bits[52]:0xb_2aaa_aabc_1000, bits[52]:0x200_0000_0000, bits[52]:0x0]; bits[40]:0xb0_2efa_aabf; (bits[3]:0x4); bits[17]:0x0
-const W2_V2 = u2:2;
-const W3_V6 = u3:6;
+const W2_V2 = u32:2;
+const W3_V6 = u32:6;
 type x2 = s52;
 type x10 = s17;
 type x25 = x2;

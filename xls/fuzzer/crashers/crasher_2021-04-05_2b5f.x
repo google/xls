@@ -145,7 +145,7 @@
 // args: [bits[50]:0x1_5555_5555_5555, bits[50]:0x0, bits[50]:0x3_020a_8a8e_e944, bits[50]:0x2_aaaa_aaaa_aaaa, bits[50]:0x2_0000, bits[50]:0x1_5555_5555_5555, bits[50]:0x1_5555_5555_5555, bits[50]:0x100_0000, bits[50]:0x800_0000]; bits[5]:0x2; bits[18]:0x2_aaaa; bits[51]:0x1000; bits[30]:0x2aaa_aaaa; bits[58]:0x2af_aeca_25a9_111c
 // args: [bits[50]:0x2_aaaa_aaaa_aaaa, bits[50]:0x800_0000_0000, bits[50]:0x2_0000_0000_0000, bits[50]:0x1_ffff_ffff_ffff, bits[50]:0x1_5555_5555_5555, bits[50]:0x1_5555_5555_5555, bits[50]:0x0, bits[50]:0x1_ffff_ffff_ffff, bits[50]:0x3_ffff_ffff_ffff]; bits[5]:0x0; bits[18]:0x1_5da1; bits[51]:0x200_0000_0000; bits[30]:0x2aaa_aaaa; bits[58]:0x3ff_ffff_ffff_ffff
 // args: [bits[50]:0x1_ffff_ffff_ffff, bits[50]:0x3_2fc3_f4e5_9806, bits[50]:0x1_e829_9697_a313, bits[50]:0x2_aaaa_aaaa_aaaa, bits[50]:0x2_aaaa_aaaa_aaaa, bits[50]:0x1_ffff_ffff_ffff, bits[50]:0x2_aaaa_aaaa_aaaa, bits[50]:0x0, bits[50]:0x2000_0000]; bits[5]:0x1; bits[18]:0x1_ffff; bits[51]:0x4_7850_584e_c038; bits[30]:0x3000_4049; bits[58]:0x0
-const W4_V9 = u4:9;
+const W4_V9 = u32:9;
 type x1 = s50;
 type x12 = bool;
 type x16 = u51;

@@ -31,7 +31,7 @@ type x19 = s53;
 fn main(x0: s29, x1: (), x2: s53, x3: u43, x4: s51) -> ((s53, u43, u18), (), u43, u18, u43) {
   let x5: s51 = (x4) & (x4);
   let x6: s53 = (((x3) as s53)) ^ (x2);
-  let x7: u18 = (x4)[x3+:u18];
+  let x7: u18 = (x4 as u51)[x3+:u18];
   let x8: s29 = (x0) & (((x6) as s29));
   let x9: u43 = (((x6) as u43)) + (x3);
   let x10: s51 = (x4) | (((x6) as s51));

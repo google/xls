@@ -169,7 +169,7 @@ fn main(x0: s46, x1: s42) -> (s42, u2, s46, bool) {
   }(x5);
   let x8: (s42, s46) = (x1, x0);
   let x9: s42 = (x2) ^ (x6);
-  let x10: u42 = (x1)[x5+:u42];
+  let x10: u42 = (x1 as u42)[x5+:u42];
   let x11: u2 = (((x5) as u2)) * (x4);
   let x12: bool = xor_reduce(x7);
   let x13: bool = (x5)[x7+:bool];

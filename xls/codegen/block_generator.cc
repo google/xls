@@ -54,7 +54,8 @@ bool IsRepresentable(Type* type) {
 // operand which is not represented by an Expression*.
 absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
-    const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs) {
+    const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs,
+    absl::string_view name, bool emit_as_assignment) {
   if (node->Is<xls::Assert>() || node->Is<xls::Cover>()) {
     // Asserts are statements, not expressions, and are emitted after all other
     // operations.
@@ -74,8 +75,16 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
       nonempty_elements.push_back(
           absl::get<Expression*>(node_exprs.at(operand)));
     }
-    return FlattenTuple(nonempty_elements, node->GetType()->AsTupleOrDie(),
-                        mb->file(), node->loc());
+    XLS_ASSIGN_OR_RETURN(
+        Expression * expr,
+        FlattenTuple(nonempty_elements, node->GetType()->AsTupleOrDie(),
+                     mb->file(), node->loc()));
+    if (emit_as_assignment) {
+      LogicRef* ref = mb->DeclareVariable(name, node->GetType());
+      XLS_RETURN_IF_ERROR(mb->Assign(ref, expr, node->GetType()));
+      return ref;
+    }
+    return expr;
   }
   return absl::UnimplementedError(
       absl::StrFormat("Unable to generate code for: %s", node->ToString()));
@@ -416,6 +425,33 @@ class BlockGenerator {
         continue;
       }
 
+      // If the node has an assigned name then don't emit as an inline
+      // expression. This ensures the name appears in the generated Verilog.
+      auto emit_as_assignment = [this](Node* n) {
+        if (n->HasAssignedName() ||
+            (n->users().size() > 1 &&
+             !ShouldInlineExpressionIntoMultipleUses(n)) ||
+            n->function_base()->HasImplicitUse(n) ||
+            !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
+          return true;
+        }
+        // Emit operands of RegisterWrite's as assignments rather than inline
+        // to avoid having logic in the always_ff blocks.
+        for (Node* user : n->users()) {
+          if (user->Is<RegisterWrite>()) {
+            return true;
+          }
+        }
+        return false;
+      };
+
+      // Name of the node if it gets emitted as a separate assignment.
+      std::string name =
+          stage.has_value()
+              ? absl::StrCat(PipelineSignalName(node->GetName(), stage.value()),
+                             "_comb")
+              : node->GetName();
+
       // If any of the operands do not have an Expression* representation then
       // handle the node specially.
       if (std::any_of(
@@ -424,7 +460,8 @@ class BlockGenerator {
               })) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
-            CodegenNodeWithUnrepresentedOperands(node, &mb_, node_exprs_));
+            CodegenNodeWithUnrepresentedOperands(node, &mb_, node_exprs_, name,
+                                                 emit_as_assignment(node)));
         continue;
       }
 
@@ -462,32 +499,7 @@ class BlockGenerator {
         continue;
       }
 
-      // If the node has an assigned name then don't emit as an inline
-      // expression. This ensures the name appears in the generated Verilog.
-      auto emit_as_assignment = [this](Node* n) {
-        if (n->HasAssignedName() ||
-            (n->users().size() > 1 &&
-             !ShouldInlineExpressionIntoMultipleUses(n)) ||
-            n->function_base()->HasImplicitUse(n) ||
-            !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
-          return true;
-        }
-        // Emit operands of RegisterWrite's as assignments rather than inline
-        // to avoid having logic in the always_ff blocks.
-        for (Node* user : n->users()) {
-          if (user->Is<RegisterWrite>()) {
-            return true;
-          }
-        }
-        return false;
-      };
-
       if (emit_as_assignment(node)) {
-        std::string name =
-            stage.has_value() ? absl::StrCat(PipelineSignalName(node->GetName(),
-                                                                stage.value()),
-                                             "_comb")
-                              : node->GetName();
         XLS_ASSIGN_OR_RETURN(node_exprs_[node],
                              mb_.EmitAsAssignment(name, node, inputs));
       } else {
