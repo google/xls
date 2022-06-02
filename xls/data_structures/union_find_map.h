@@ -138,7 +138,7 @@ class UnionFindMap {
     uint32_t size;
   };
 
-  absl::optional<uint32_t> GetIndex(const K& key) {
+  absl::optional<uint32_t> GetIndex(const K& key) const {
     if (!key_to_index_.contains(key)) {
       return absl::nullopt;
     }

@@ -234,6 +234,18 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "union_find",
+    hdrs = ["union_find.h"],
+    deps = [
+        ":union_find_map",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/types:optional",
+        "//xls/common/logging",
+    ],
+)
+
 cc_test(
     name = "inline_bitmap_test",
     srcs = ["inline_bitmap_test.cc"],

@@ -17,7 +17,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
-#include "xls/data_structures/union_find_map.h"
+#include "xls/data_structures/union_find.h"
 
 namespace xls {
 namespace netlist {
@@ -41,20 +41,12 @@ void Cluster::SortCells() {
 
 std::vector<Cluster> FindLogicClouds(const Module& module,
                                      bool include_vacuous) {
-  UnionFindMap<Cell*, absl::monostate> cell_to_uf;
+  UnionFind<Cell*> cell_to_uf;
 
-  auto merge_monostate = [](absl::monostate x, absl::monostate y) {
-    return absl::monostate();
-  };
-
-  // Gets-or-adds the given cell to the UnionFindMap
+  // Gets-or-adds the given cell to the UnionFind.
   auto get_uf = [&cell_to_uf](Cell* c) -> Cell* {
-    if (auto pair = cell_to_uf.Find(c)) {
-      return pair->first;
-    } else {
-      cell_to_uf.Insert(c, absl::monostate());
-      return c;
-    }
+    cell_to_uf.Insert(c);
+    return cell_to_uf.Find(c);
   };
 
   // Helper for debugging that counts the number of equivalence classes in
@@ -72,9 +64,9 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
     if (cell->kind() == CellKind::kFlop) {
       // For flops we just make sure an equivalence class is present in the
       // map, in case it doesn't have any cells on the input side.
-      (void)get_uf(cell);
+      get_uf(cell);
       XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                  << " equivalence classes for " << cell_to_uf.GetKeys().size()
+                  << " equivalence classes for " << cell_to_uf.size()
                   << " cells.";
       continue;
     }
@@ -94,10 +86,10 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
         }
         XLS_VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
                                           cell->name(), connected->name());
-        cell_to_uf.Union(get_uf(cell), get_uf(connected), merge_monostate);
+        cell_to_uf.Union(get_uf(cell), get_uf(connected));
         XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                    << " equivalence classes for "
-                    << cell_to_uf.GetKeys().size() << " cells.";
+                    << " equivalence classes for " << cell_to_uf.size()
+                    << " cells.";
       }
     }
 
@@ -110,10 +102,10 @@ std::vector<Cluster> FindLogicClouds(const Module& module,
         }
         XLS_VLOG(4) << absl::StreamFormat("-- Cell %s is connected to cell %s",
                                           cell->name(), connected->name());
-        cell_to_uf.Union(get_uf(cell), get_uf(connected), merge_monostate);
+        cell_to_uf.Union(get_uf(cell), get_uf(connected));
         XLS_VLOG(4) << "--- Now " << count_equivalence_classes()
-                    << " equivalence classes for "
-                    << cell_to_uf.GetKeys().size() << " cells.";
+                    << " equivalence classes for " << cell_to_uf.size()
+                    << " cells.";
       }
     }
   }

@@ -224,7 +224,7 @@ cc_library(
     deps = [
         ":netlist",
         "//xls/common/logging",
-        "//xls/data_structures:union_find_map",
+        "//xls/data_structures:union_find",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
     ],
