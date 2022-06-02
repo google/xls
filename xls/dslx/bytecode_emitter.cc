@@ -857,14 +857,19 @@ void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
       namedef_to_slot_.insert({name_def, namedef_to_slot_.size()});
     }
     int64_t slot = namedef_to_slot_.at(name_def);
-    bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kStore,
-                                 Bytecode::SlotIndex(slot)));
+    Add(Bytecode::MakeStore(tree->span(), Bytecode::SlotIndex(slot)));
   } else {
-    bytecode_.push_back(Bytecode(tree->span(), Bytecode::Op::kExpandTuple));
+    Add(Bytecode(tree->span(), Bytecode::Op::kExpandTuple));
     for (const auto& node : tree->nodes()) {
       DestructureLet(node);
     }
   }
+}
+
+absl::Status BytecodeEmitter::HandleJoin(const Join* node) {
+  // Since we serially execute top-to-bottom, every node is an implicit join.
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeToken()));
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleLet(const Let* node) {

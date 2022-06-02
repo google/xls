@@ -72,9 +72,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleFormatMacro(const FormatMacro* node) override;
   absl::Status HandleIndex(const Index* node) override;
   absl::Status HandleInvocation(const Invocation* node) override;
-  absl::Status HandleJoin(const Join* node) override {
-    return DefaultHandler(node);
-  }
+  absl::Status HandleJoin(const Join* node) override;
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;
@@ -94,12 +92,6 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleTernary(const Ternary* node) override;
   absl::Status HandleUnop(const Unop* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
-
-  absl::Status DefaultHandler(const Expr* node) {
-    return absl::UnimplementedError(
-        absl::StrFormat("Unhandled node kind: %s: %s", node->GetNodeTypeName(),
-                        node->ToString()));
-  }
 
   absl::Status CastArrayToBits(Span span, ArrayType* from_array,
                                BitsType* to_bits);

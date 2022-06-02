@@ -140,6 +140,14 @@ xls_dslx_opt_ir(
     library = ":fp32_fmac_dslx",
 )
 
+xls_dslx_test(
+    name = "fp32_fmac_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":fp32_fmac_dslx",
+)
+
 # TODO(b/152546795): 2021-03-08 Takes too long (~5 minutes). Add
 # xls_ir_equivalence_test.
 xls_eval_ir_test(
