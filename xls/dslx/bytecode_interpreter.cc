@@ -70,7 +70,7 @@ absl::Status BytecodeInterpreter::InitFrame(
   // In "mission mode" we expect type_info to be non-null in the frame, but for
   // bytecode-level testing we may not have an AST.
   TypeInfo* type_info = nullptr;
-  if (bf->owner()) {
+  if (bf->owner() != nullptr) {
     type_info = import_data_->GetRootTypeInfo(bf->owner()).value();
   }
   frames_.push_back(
@@ -94,14 +94,12 @@ absl::Status BytecodeInterpreter::Run(PostFnEvalHook post_fn_eval_hook) {
       const Bytecode& bytecode = bytecodes.at(frame->pc());
       XLS_VLOG(2) << std::hex << "PC: " << frame->pc() << " : "
                   << bytecode.ToString();
-      if (!stack_.empty()) {
-        XLS_VLOG(2) << " - TOS: " << stack_.back().ToString();
-      }
+      XLS_VLOG(3) << " - TOS pre: "
+                  << (stack_.empty() ? "-empty-" : stack_.back().ToString());
       int64_t old_pc = frame->pc();
       XLS_RETURN_IF_ERROR(EvalNextInstruction());
-      if (!stack_.empty()) {
-        XLS_VLOG(2) << " - TOS: " << stack_.back().ToString();
-      }
+      XLS_VLOG(3) << " - TOS post: "
+                  << (stack_.empty() ? "-empty-" : stack_.back().ToString());
 
       if (bytecode.op() == Bytecode::Op::kCall) {
         frame = &frames_.back();
@@ -1005,6 +1003,7 @@ absl::Status BytecodeInterpreter::EvalWidthSlice(const Bytecode& bytecode) {
   InterpValue oob_value(InterpValue::MakeUBits(width_value, /*value=*/0));
   XLS_ASSIGN_OR_RETURN(InterpValue start, Pop());
   if (!start.FitsInUint64()) {
+    XLS_RETURN_IF_ERROR(Pop().status());
     stack_.push_back(oob_value);
     return absl::OkStatus();
   }

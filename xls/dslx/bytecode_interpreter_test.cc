@@ -702,6 +702,39 @@ fn width_slice() -> s16 {
   EXPECT_EQ(int_value, 0xadbe);
 }
 
+// Makes sure we properly handle an OOB width slice and don't leave an extra
+// value on the stack.
+TEST(BytecodeInterpreterTest, OobWidthSlice) {
+  constexpr absl::string_view kProgram = R"(
+fn oob_slicer(a: u32) -> (u32, u32) {
+  let b = u32:0xfeedf00d;
+  let c = uN[128]:0xffffffffffffffffffffffffffffffff;
+  let d = (u32:0xffffffff)[c +: u16];
+  (a, b)
+}
+
+fn oob_width_slice() -> (u32, u32)[4] {
+  let a = u32[4]:[u32:0, u32:1, u32:2, u32:3];
+  map(a, oob_slicer)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue result, Interpret(&import_data, kProgram, "oob_width_slice"));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* array_elements,
+                           result.GetValues());
+  for (int i = 0; i < array_elements->size(); i++) {
+    XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* tuple_elements,
+                             array_elements->at(i).GetValues());
+    XLS_ASSERT_OK_AND_ASSIGN(uint64_t value,
+                             tuple_elements->at(0).GetBitValueUint64());
+    EXPECT_EQ(value, i);
+    XLS_ASSERT_OK_AND_ASSIGN(value, tuple_elements->at(1).GetBitValueUint64());
+    EXPECT_EQ(value, 0xfeedf00d);
+  }
+}
+
 TEST(BytecodeInterpreterTest, WidthSliceWithZext) {
   constexpr absl::string_view kProgram = R"(
 fn width_slice() -> u32 {
