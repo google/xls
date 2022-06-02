@@ -193,6 +193,7 @@ generate_crasher_regression_tests(
     srcs = glob(["crashers/*"]),
     failing = [
         "crashers/crasher_2021-02-28_ce06.x",
+        "crashers/crasher_2022-05-31_3ad6.x",
     ],
     prefix = package_name(),
     tags = {
