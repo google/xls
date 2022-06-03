@@ -372,6 +372,7 @@ cc_library(
         "fileno.h",
         "source_location.h",
     ],
+    visibility = ["//xls:xls_best_effort_users"],
     deps = [
         "//xls/common:strong_int",
         "@com_google_absl//absl/strings",
