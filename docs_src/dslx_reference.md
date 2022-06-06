@@ -1926,14 +1926,16 @@ omitted.
 `assert_eq` cannot be synthesized into equivalent Verilog. Because of that it is
 recommended to use it within `test` constructs (interpretation) only.
 
-### `trace_fmt!`
+### trace_fmt!
 
 DSLX supports printf-style debugging via the `trace_fmt!` builtin, which allows
 dumping of current values to stdout. For example:
 
 ```dslx
-// Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging.
-#![interp_main_alsologtostderr = "true"]
+// Note: to see `trace_fmt!` output you need to be seeing `INFO` level logging,
+// enabled by adding the '--alsologtostderr' flag to the command line (among
+// other means). For example:
+// bazel run -c opt //xls/dslx:interpreter_main  /path/to/dslx/file.x -- --alsologtostderr
 
 fn shifty(x: u8, y: u3) -> u8 {
   let _ = trace_fmt!("x: {:x} y: {}", x, y);
