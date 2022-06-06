@@ -78,13 +78,13 @@ bool IsOneOf(ObjT* obj) {
 // (Note that this includes all the Expr node leaf kinds listed in
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
-  X(Join)                         \
   X(BuiltinNameDef)               \
   X(ChannelDecl)                  \
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
   X(Import)                       \
+  X(Join)                         \
   X(MatchArm)                     \
   X(Module)                       \
   X(NameDef)                      \
@@ -253,6 +253,8 @@ enum class AstNodeKind {
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
 
+class AstNode;
+
 // Abstract base class for AST nodes.
 class AstNode {
  public:
@@ -267,6 +269,8 @@ class AstNode {
   virtual std::string ToString() const = 0;
 
   virtual absl::optional<Span> GetSpan() const = 0;
+
+  AstNode* parent() const { return parent_; }
 
   // Retrieves all the child nodes for this AST node.
   //
@@ -295,8 +299,14 @@ class AstNode {
 
   Module* owner() const { return owner_; }
 
+  // Marks this node as the parent of all its child nodes.
+  void SetParentage();
+
  private:
+  void set_parent(AstNode* parent) { parent_ = parent; }
+
   Module* owner_;
+  AstNode* parent_ = nullptr;
 };
 
 // Visits transitively from the root down using post-order visitation (visit
@@ -698,7 +708,7 @@ class NameRef : public Expr {
   std::string ToString() const override { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(name_def_)};
+    return {};
   }
 
   template <typename T>
@@ -724,34 +734,6 @@ class NameRef : public Expr {
  private:
   AnyNameDef name_def_;
   std::string identifier_;
-};
-
-// Used to represent a named reference to a Constant name definition.
-class ConstRef : public NameRef {
- public:
-  using NameRef::NameRef;
-
-  AstNodeKind kind() const override { return AstNodeKind::kConstRef; }
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleConstRef(this);
-  }
-  absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleConstRef(this);
-  }
-
-  absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
-
-  // When holding a ConstRef we know that the corresponding NameDef cannot be
-  // builtin (since consts are user constructs).
-  NameDef* name_def() const { return absl::get<NameDef*>(NameRef::name_def()); }
-
-  // Returns the constant definition that this ConstRef is referring to.
-  ConstantDef* GetConstantDef() const {
-    AstNode* definer = name_def()->definer();
-    XLS_CHECK(definer != nullptr);
-    return down_cast<ConstantDef*>(definer);
-  }
 };
 
 enum class NumberKind {
@@ -963,7 +945,7 @@ class TypeRef : public AstNode {
   std::string ToString() const override { return text_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(type_definition_)};
+    return {};
   }
 
   const std::string& text() const { return text_; }
@@ -1732,7 +1714,10 @@ class EnumDef : public AstNode {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    std::vector<AstNode*> results = {name_def_, type_annotation_};
+    std::vector<AstNode*> results = {name_def_};
+    if (want_types && type_annotation_ != nullptr) {
+      results.push_back(type_annotation_);
+    }
     for (const EnumMember& item : values_) {
       results.push_back(item.name_def);
       results.push_back(ToAstNode(item.value));
@@ -2389,12 +2374,10 @@ class Cast : public Expr {
 //
 //  is_public: Indicates whether the constant had a public annotation
 //    (applicable to module level constant definitions only)
-//  is_local: Indicates whether the constant was defined in a "local" function
-//    scope (as opposed to module-level scope).
 class ConstantDef : public AstNode {
  public:
   ConstantDef(Module* owner, Span span, NameDef* name_def, Expr* value,
-              bool is_public, bool is_local);
+              bool is_public);
 
   AstNodeKind kind() const { return AstNodeKind::kConstantDef; }
 
@@ -2416,14 +2399,12 @@ class ConstantDef : public AstNode {
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
   bool is_public() const { return is_public_; }
-  bool is_local() const { return is_local_; }
 
  private:
   Span span_;
   NameDef* name_def_;
   Expr* value_;
   bool is_public_;
-  bool is_local_;
 };
 
 // Tree of name definition nodes; e.g.
@@ -2535,7 +2516,7 @@ class NameDefTree : public AstNode {
 class Let : public Expr {
  public:
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
-      TypeAnnotation* type, Expr* rhs, Expr* body, ConstantDef* const_def);
+      TypeAnnotation* type, Expr* rhs, Expr* body, bool is_const);
 
   AstNodeKind kind() const { return AstNodeKind::kLet; }
 
@@ -2555,7 +2536,7 @@ class Let : public Expr {
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   Expr* rhs() const { return rhs_; }
   Expr* body() const { return body_; }
-  ConstantDef* constant_def() const { return constant_def_; }
+  bool is_const() const { return is_const_; }
 
  private:
   // Names that are bound by this let expression; e.g. in
@@ -2576,8 +2557,49 @@ class Let : public Expr {
   Expr* body_;
 
   // Whether or not this is a constant binding; constant bindings cannot be
-  // shadowed. May be null.
-  ConstantDef* constant_def_;
+  // shadowed.
+  bool is_const_;
+};
+
+// Used to represent a named reference to a Constant name definition.
+class ConstRef : public NameRef {
+ public:
+  using NameRef::NameRef;
+
+  AstNodeKind kind() const override { return AstNodeKind::kConstRef; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleConstRef(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleConstRef(this);
+  }
+
+  absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
+
+  // When holding a ConstRef we know that the corresponding NameDef cannot be
+  // builtin (since consts are user constructs).
+  NameDef* name_def() const { return absl::get<NameDef*>(NameRef::name_def()); }
+
+  // Returns the constant definition that this ConstRef is referring to.
+  ConstantDef* GetConstantDef() const {
+    AstNode* definer = name_def()->definer();
+    XLS_CHECK(definer != nullptr);
+    return down_cast<ConstantDef*>(definer);
+  }
+
+  Expr* GetValue() const {
+    AstNode* definer = name_def()->definer();
+    XLS_CHECK(definer != nullptr);
+    // Definer will only ever be a ConstantDef or a Let.
+    if (ConstantDef* cd = dynamic_cast<ConstantDef*>(definer); cd != nullptr) {
+      return cd->value();
+    }
+
+    Let* let = dynamic_cast<Let*>(definer);
+    XLS_CHECK_NE(let, nullptr);
+    return let->rhs();
+  }
 };
 
 // A channel declaration, e.g., let (p, c) = chan u32.
@@ -2674,6 +2696,7 @@ class Module : public AstNode {
     std::unique_ptr<T> node =
         std::make_unique<T>(this, std::forward<Args>(args)...);
     T* ptr = node.get();
+    ptr->SetParentage();
     nodes_.push_back(std::move(node));
     return ptr;
   }

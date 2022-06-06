@@ -105,7 +105,9 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(ColonRef);
   DEFAULT_HANDLER(ConstantArray);
   DEFAULT_HANDLER(ConstantDef);
-  DEFAULT_HANDLER(ConstRef);
+  absl::Status HandleConstRef(const ConstRef* n) {
+    return n->name_def()->Accept(this);
+  }
   DEFAULT_HANDLER(EnumDef);
   DEFAULT_HANDLER(For);
   DEFAULT_HANDLER(FormatMacro);
@@ -128,7 +130,12 @@ class NameDefCollector : public AstNodeVisitor {
     return absl::OkStatus();
   }
   DEFAULT_HANDLER(NameDefTree);
-  DEFAULT_HANDLER(NameRef);
+  absl::Status HandleNameRef(const NameRef* n) override {
+    if (absl::holds_alternative<NameDef*>(n->name_def())) {
+      return absl::get<NameDef*>(n->name_def())->Accept(this);
+    }
+    return absl::OkStatus();
+  }
   DEFAULT_HANDLER(Number);
   DEFAULT_HANDLER(Param);
   DEFAULT_HANDLER(ParametricBinding);

@@ -516,6 +516,13 @@ class Parser : public TokenParser {
       absl::string_view proc_name, bool is_public);
 
   std::unique_ptr<Module> module_;
+
+  // `Let` nodes are created _after_ those that use their namedefs (due to the
+  // chaining of the `body` member variable. We need to know, though, if a
+  // reference to such an NDT (or element thereof) is to a constant or not, so
+  // we can emit either a ConstRef or NameRef. This set holds those NDTs known
+  // to be constant for that purpose.
+  absl::flat_hash_set<NameDefTree*> const_ndts_;
 };
 
 const Span& GetSpan(const absl::variant<NameDef*, WildcardPattern*>& v);

@@ -529,20 +529,15 @@ TEST_F(ParserTest, LocalConstBinding) {
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
   auto* const_let = dynamic_cast<Let*>(f->body());
   ASSERT_NE(const_let, nullptr);
-  auto* constant_def = const_let->constant_def();
-  ASSERT_NE(constant_def, nullptr);
-  EXPECT_EQ("u8:42", constant_def->value()->ToString());
+  ASSERT_TRUE(const_let->is_const());
+  EXPECT_EQ("u8:42", const_let->rhs()->ToString());
 
   auto* const_ref = dynamic_cast<ConstRef*>(const_let->body());
   ASSERT_NE(const_ref, nullptr);
   NameDef* name_def = const_ref->name_def();
   EXPECT_EQ(name_def->ToString(), "FOO");
   AstNode* definer = name_def->definer();
-  EXPECT_EQ(definer, constant_def);
-
-  std::vector<AstNode*> const_let_children =
-      const_let->GetChildren(/*want_types=*/false);
-  EXPECT_THAT(const_let_children, testing::Contains(constant_def));
+  EXPECT_EQ(definer, const_let);
 }
 
 TEST_F(ParserTest, BitSliceOfCall) {
@@ -993,6 +988,43 @@ TEST_F(ParserTest, NumberSpan) {
   // TODO(https://github.com/google/xls/issues/438): 2021-05-24 Fix the
   // parsing/reporting of number spans so that the span starts at 0,0.
   EXPECT_EQ(number->span(), Span(Pos(kFilename, 0, 4), Pos(kFilename, 0, 6)));
+}
+
+// Verifies that we can walk backwards through a tree. In this case, from the
+// terminal node to the defining expr.
+TEST(ParserBackrefTest, CanFindDefiner) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let foo = u32:0 + u32:1;
+  let bar = u32:3 + foo;
+  let baz = bar + foo;
+  foo
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                           parser.ParseModule());
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  // Get the terminal expr.
+  Expr* current_expr = f->body();
+  while (dynamic_cast<Let*>(current_expr) != nullptr) {
+    current_expr = dynamic_cast<Let*>(current_expr)->body();
+  }
+  NameRef* nameref = dynamic_cast<NameRef*>(current_expr);
+  ASSERT_NE(nameref, nullptr);
+
+  // The parent let should be 3 "parent" ticks back...
+  AstNode* current_node = nameref;
+  for (int i = 0; i < 3; i++) {
+    current_node = current_node->parent();
+  }
+  Let* foo_parent = dynamic_cast<Let*>(current_node);
+  ASSERT_NE(foo_parent, nullptr);
+  // The easiest way to verify what we've got the right node is just to do a
+  // string comparison, even if it's not pretty.
+  EXPECT_EQ(foo_parent->rhs()->ToString(), "(u32:0) + (u32:1)");
 }
 
 }  // namespace xls::dslx

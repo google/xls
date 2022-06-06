@@ -951,8 +951,8 @@ absl::Status ProtoToDslxManager::AddProtoInstantiationToDslxModule(
   dslx::Span span{dslx::Pos{}, dslx::Pos{}};
   auto* name_def = module_->Make<dslx::NameDef>(span, std::string(binding_name),
                                                 /*definer=*/nullptr);
-  auto* constant_def = module_->Make<dslx::ConstantDef>(
-      span, name_def, expr, /*is_public=*/true, /*is_local=*/false);
+  auto* constant_def = module_->Make<dslx::ConstantDef>(span, name_def, expr,
+                                                        /*is_public=*/true);
   name_def->set_definer(constant_def);
   XLS_RETURN_IF_ERROR(module_->AddTop(constant_def));
 

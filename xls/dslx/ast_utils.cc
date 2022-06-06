@@ -13,8 +13,10 @@
 // limitations under the License.
 #include "xls/dslx/ast_utils.h"
 
+#include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/ast.h"
 
 namespace xls::dslx {
 namespace {
@@ -169,6 +171,64 @@ absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
   }
 
   return absl::get<EnumDef*>(td);
+}
+
+absl::Status VerifyParentage(const Module* module) {
+  for (const ModuleMember member : module->top()) {
+    if (std::holds_alternative<Function*>(member)) {
+      return VerifyParentage(std::get<Function*>(member));
+    }
+    if (std::holds_alternative<Proc*>(member)) {
+      return VerifyParentage(std::get<Proc*>(member));
+    }
+    if (std::holds_alternative<TestFunction*>(member)) {
+      return VerifyParentage(std::get<TestFunction*>(member));
+    }
+    if (std::holds_alternative<TestProc*>(member)) {
+      return VerifyParentage(std::get<TestProc*>(member));
+    }
+    if (std::holds_alternative<QuickCheck*>(member)) {
+      return VerifyParentage(std::get<QuickCheck*>(member));
+    }
+    if (std::holds_alternative<TypeDef*>(member)) {
+      return VerifyParentage(std::get<TypeDef*>(member));
+    }
+    if (std::holds_alternative<StructDef*>(member)) {
+      return VerifyParentage(std::get<StructDef*>(member));
+    }
+    if (std::holds_alternative<ConstantDef*>(member)) {
+      return VerifyParentage(std::get<ConstantDef*>(member));
+    }
+    if (std::holds_alternative<EnumDef*>(member)) {
+      return VerifyParentage(std::get<EnumDef*>(member));
+    }
+    if (std::holds_alternative<Import*>(member)) {
+      return VerifyParentage(std::get<Import*>(member));
+    }
+  }
+
+  return absl::OkStatus();
+}
+
+absl::Status VerifyParentage(const AstNode* root) {
+  if (const Module* module = dynamic_cast<const Module*>(root);
+      module != nullptr) {
+    return VerifyParentage(module);
+  }
+
+  for (const auto* child : root->GetChildren(/*want_types=*/true)) {
+    XLS_RETURN_IF_ERROR(VerifyParentage(child));
+    if (child->parent() != root) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Child \"%s\" (%s) of node \"%s\" (%s) had "
+          "node \"%s\" (%s) as its parent.",
+          child->ToString(), child->GetNodeTypeName(), root->ToString(),
+          root->GetNodeTypeName(), child->parent()->ToString(),
+          child->parent()->GetNodeTypeName()));
+    }
+  }
+
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx

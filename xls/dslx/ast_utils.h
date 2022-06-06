@@ -46,6 +46,10 @@ absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
     ImportData* import_data, const TypeInfo* type_info,
     const ColonRef* colon_ref);
 
+// Verifies that every node's child thinks that that node is its parent.
+absl::Status VerifyParentage(const Module* module);
+absl::Status VerifyParentage(const AstNode* root);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_AST_UTILS_H_

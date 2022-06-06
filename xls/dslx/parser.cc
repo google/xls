@@ -14,6 +14,8 @@
 
 #include "xls/dslx/parser.h"
 
+#include <variant>
+
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -22,6 +24,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/ast_utils.h"
 #include "xls/dslx/bindings.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/scanner.h"
@@ -98,6 +101,7 @@ absl::StatusOr<Function*> Parser::ParseFunction(
                         "times; previously @ %s'",
                         f->identifier(), item->second->span().ToString()));
   }
+  XLS_RETURN_IF_ERROR(VerifyParentage(f));
   return f;
 }
 
@@ -250,6 +254,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     }
   }
 
+  XLS_RETURN_IF_ERROR(VerifyParentage(module_.get()));
   return std::move(module_);
 }
 
@@ -569,8 +574,25 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
                                          *tok->GetValue(), tok->span()));
   AnyNameDef name_def = BoundNodeToAnyNameDef(bn);
   txn.CommitAndCancelCleanup(&cleanup);
-  if (absl::holds_alternative<ConstantDef*>(bn)) {
+  if (std::holds_alternative<ConstantDef*>(bn)) {
     return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
+  }
+
+  if (std::holds_alternative<NameDef*>(bn)) {
+    // As opposed to the AnyNameDef above.
+    AstNode* node = std::get<NameDef*>(bn);
+    while (node->parent() != nullptr &&
+           node->parent()->kind() == AstNodeKind::kNameDefTree) {
+      node = node->parent();
+    }
+
+    // Since Let construction is deferred, we can't look up the definer of this
+    // NameDef[Tree]; it doesn't exist yet. Instead, we just note that a given
+    // NDT is const (or not, by omission in the set).
+    if (dynamic_cast<NameDefTree*>(node) != nullptr &&
+        const_ndts_.contains(dynamic_cast<NameDefTree*>(node))) {
+      return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
+    }
   }
   return module_->Make<NameRef>(tok->span(), *tok->GetValue(), name_def);
 }
@@ -829,9 +851,12 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
   if (IsOneOf<Number, Array>(term)) {
     if (auto* n = dynamic_cast<Number*>(term)) {
       n->set_type_annotation(type);
+      // We just added a type annotation - a new child node - to `n`.
+      n->SetParentage();
     } else {
       auto* a = dynamic_cast<Array*>(term);
       a->set_type_annotation(type);
+      a->SetParentage();
     }
     return term;
   }
@@ -1461,6 +1486,20 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
                                    std::move(parametrics));
 }
 
+ColonRef::Subject CloneSubject(Module* module,
+                               const ColonRef::Subject subject) {
+  if (std::holds_alternative<NameRef*>(subject)) {
+    NameRef* name_ref = std::get<NameRef*>(subject);
+    return module->Make<NameRef>(name_ref->span(), name_ref->identifier(),
+                                 name_ref->name_def());
+  }
+
+  ColonRef* colon_ref = std::get<ColonRef*>(subject);
+  ColonRef::Subject clone_subject = CloneSubject(module, colon_ref->subject());
+  return module->Make<ColonRef>(colon_ref->span(), clone_subject,
+                                colon_ref->attr());
+}
+
 absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token spawn, PopKeywordOrError(Keyword::kSpawn));
   XLS_ASSIGN_OR_RETURN(auto name_or_colon_ref, ParseNameOrColonRef(bindings));
@@ -1474,7 +1513,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   Expr* spawnee;
   Expr* config_ref;
   Expr* next_ref;
-  if (absl::holds_alternative<NameRef*>(name_or_colon_ref)) {
+  if (std::holds_alternative<NameRef*>(name_or_colon_ref)) {
     NameRef* name_ref = absl::get<NameRef*>(name_or_colon_ref);
     spawnee = name_ref;
     // We avoid name collisions b/w exiesting functions and Proc config/next fns
@@ -1501,11 +1540,17 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
     ColonRef* colon_ref = absl::get<ColonRef*>(name_or_colon_ref);
     spawnee = colon_ref;
 
+    // Problem: If naively assigned, the colon_ref subject would end up being a
+    // child of both `config_ref` and `next_ref`, which is forbidden. To avoid
+    // this, just clone the subject (references are easily clonable).
     config_ref =
         module_->Make<ColonRef>(colon_ref->span(), colon_ref->subject(),
                                 absl::StrCat(colon_ref->attr(), ".config"));
+
+    ColonRef::Subject clone_subject =
+        CloneSubject(module_.get(), colon_ref->subject());
     next_ref =
-        module_->Make<ColonRef>(colon_ref->span(), colon_ref->subject(),
+        module_->Make<ColonRef>(colon_ref->span(), clone_subject,
                                 absl::StrCat(colon_ref->attr(), ".next"));
   }
 
@@ -1591,8 +1636,7 @@ absl::StatusOr<ConstantDef*> Parser::ParseConstantDef(bool is_public,
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
   Span span(start_pos, GetPos());
-  auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public,
-                                            /*is_local=*/false);
+  auto* result = module_->Make<ConstantDef>(span, name_def, expr, is_public);
   name_def->set_definer(result);
   bindings->Add(name_def->identifier(), result);
   return result;
@@ -1772,11 +1816,21 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   std::vector<Param*> params;
 
+  // We need to collect proc members 2x, the reason being that otherwise (if we
+  // used the same members for both the config fn as well as the overall proc),
+  // then we'd end up with dual ownership, which is forbidden. Cloning Param
+  // nodes could be difficult, so instead, we can just parse 2x by using the
+  // transaction mechanism.
+  Transaction txn(this, &bindings);
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_members,
+                       CollectProcMembers(&bindings));
+  txn.Rollback();
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_members,
                        CollectProcMembers(&bindings));
+
   XLS_ASSIGN_OR_RETURN(
       Function * config,
-      ParseProcConfig(&bindings, parametric_bindings, proc_members,
+      ParseProcConfig(&bindings, parametric_bindings, config_members,
                       name_def->identifier(), is_public));
   XLS_RETURN_IF_ERROR(module_->AddTop(config));
   outer_bindings->Add(config->name_def()->identifier(), config->name_def());
@@ -1795,6 +1849,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   name_def->set_definer(proc);
   config->set_proc(proc);
   next->set_proc(proc);
+  XLS_RETURN_IF_ERROR(VerifyParentage(proc));
   return proc;
 }
 
@@ -1884,6 +1939,19 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
     name_def_tree = module_->Make<NameDefTree>(name_def->span(), name_def);
   }
 
+  if (const_) {
+    // Mark this NDT as const to determine if refs to it should be ConstRefs
+    // or NameRefs. Also disallow destructuring assignment for constants.
+    const_ndts_.insert(name_def_tree);
+    if (name_def_tree->Flatten().size() != 1) {
+      return ParseErrorStatus(
+          name_def_tree->span(),
+          absl::StrFormat(
+              "Constant definitions can not use destructuring assignment: %s",
+              name_def_tree->ToString()));
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(bool dropped_colon, TryDropToken(TokenKind::kColon));
   TypeAnnotation* annotated_type = nullptr;
   if (dropped_colon) {
@@ -1893,18 +1961,14 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
-  ConstantDef* const_def = nullptr;
-  if (const_ && name_def != nullptr) {
-    Span span(name_def->span().start(), rhs->span().limit());
-    const_def = module_->Make<ConstantDef>(
-        span, name_def, rhs, /*is_public=*/false, /*is_local=*/true);
-    new_bindings.Add(name_def->identifier(), const_def);
-    name_def->set_definer(const_def);
-  }
   XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&new_bindings));
   Span span(start_tok.span().start(), GetPos());
-  return module_->Make<Let>(span, name_def_tree, annotated_type, rhs, body,
-                            const_def);
+  Let* let = module_->Make<Let>(span, name_def_tree, annotated_type, rhs, body,
+                                const_);
+  if (const_) {
+    name_def->set_definer(let);
+  }
+  return let;
 }
 
 absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {

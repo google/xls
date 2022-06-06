@@ -58,7 +58,7 @@ class NameRefCollector : public ExprVisitor {
     return absl::OkStatus();
   }
   absl::Status HandleConstRef(const ConstRef* expr) override {
-    XLS_RETURN_IF_ERROR(expr->GetConstantDef()->value()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->GetValue()->AcceptExpr(this));
     return absl::OkStatus();
   }
   absl::Status HandleFor(const For* expr) override {

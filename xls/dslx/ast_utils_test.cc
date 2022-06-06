@@ -29,8 +29,20 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       module.Make<NameDef>(Span::Fake(), "config_name", nullptr);
   NameDef* next_name_def =
       module.Make<NameDef>(Span::Fake(), "next_name", nullptr);
-  Function* config = nullptr;
-  Function* next = nullptr;
+  BuiltinTypeAnnotation* return_type =
+      module.Make<BuiltinTypeAnnotation>(Span::Fake(), BuiltinType::kU32);
+  Number* body =
+      module.Make<Number>(Span::Fake(), "7", NumberKind::kOther, nullptr);
+  Function* config = module.Make<Function>(
+      Span::Fake(), config_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(), return_type, body,
+      Function::Tag::kProcConfig, /*is_public=*/true);
+  Function* next = module.Make<Function>(
+      Span::Fake(), next_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(), return_type, body,
+      Function::Tag::kProcNext, /*is_public=*/true);
   std::vector<Param*> members;
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc =
@@ -60,8 +72,21 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
       import_module->Make<NameDef>(Span::Fake(), "config_name", nullptr);
   NameDef* next_name_def =
       import_module->Make<NameDef>(Span::Fake(), "next_name", nullptr);
-  Function* config = nullptr;
-  Function* next = nullptr;
+  BuiltinTypeAnnotation* return_type =
+      import_module->Make<BuiltinTypeAnnotation>(Span::Fake(),
+                                                 BuiltinType::kU32);
+  Number* body = import_module->Make<Number>(Span::Fake(), "7",
+                                             NumberKind::kOther, nullptr);
+  Function* config = import_module->Make<Function>(
+      Span::Fake(), config_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(), return_type, body,
+      Function::Tag::kProcConfig, /*is_public=*/true);
+  Function* next = import_module->Make<Function>(
+      Span::Fake(), next_name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/std::vector<Param*>(), return_type, body,
+      Function::Tag::kProcNext, /*is_public=*/true);
   std::vector<Param*> members;
   std::vector<ParametricBinding*> bindings;
   Proc* original_proc = import_module->Make<Proc>(

@@ -133,7 +133,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
     const ConstantDef* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Noting constant: " << node->ToString();
-  ctx->type_info()->NoteConstant(node->name_def(), node);
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
   const FnStackEntry& peek_entry = ctx->fn_stack().back();
@@ -428,8 +427,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBinop(const Binop* node,
         "Binary operations can only be applied to bits-typed operands.");
   }
 
-  ConstexprEvaluator evaluator(ctx, lhs.get());
-  XLS_RETURN_IF_ERROR(node->AcceptExpr(&evaluator));
   return lhs;
 }
 
@@ -637,8 +634,15 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
   XLS_RETURN_IF_ERROR(BindNames(node->name_def_tree(), *rhs, ctx,
                                 ctx->type_info()->GetConstExpr(node->rhs())));
 
-  if (node->constant_def() != nullptr) {
-    XLS_RETURN_IF_ERROR(ctx->Deduce(node->constant_def()).status());
+  if (node->is_const()) {
+    TypeInfo* ti = ctx->type_info();
+    XLS_RET_CHECK(ti->GetConstExpr(node->rhs()).has_value());
+    ti->NoteConstExpr(node, ti->GetConstExpr(node->rhs()).value());
+    // Reminder: we don't allow name destructuring in constant defs, so this
+    // is expected to never fail.
+    XLS_RET_CHECK_EQ(node->name_def_tree()->GetNameDefs().size(), 1);
+    ti->NoteConstExpr(node->name_def_tree()->GetNameDefs()[0],
+                      ti->GetConstExpr(node->rhs()).value());
   }
 
   return ctx->Deduce(node->body());

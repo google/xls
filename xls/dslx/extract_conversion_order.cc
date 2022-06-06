@@ -311,8 +311,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     absl::optional<ProcId> proc_id;
     auto maybe_proc = callee_info->callee->proc();
     if (maybe_proc.has_value()) {
-      XLS_RET_CHECK(proc_id_.has_value())
-          << "Functions cannot spawning procs - this should be caught earlier.";
+      XLS_RET_CHECK(proc_id_.has_value()) << "Functions cannot spawn procs.";
 
       std::vector<Proc*> proc_stack = proc_id_.value().proc_stack;
       proc_stack.push_back(maybe_proc.value());
@@ -398,6 +397,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
       // Note that constant definitions may be local -- we /only/ pass our
       // bindings if it is a local constant definition. Otherwise it's at the
       // top level and we use fresh bindings.
+      // We need a new visitor since it's acting on a different module.
       InvocationVisitor sub_visitor(import_mod, import_type_info, bindings_,
                                     proc_id_);
       XLS_RETURN_IF_ERROR(
@@ -426,8 +426,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
       return absl::OkStatus();
     }
 
-    ConstantDef* const_def = down_cast<ConstantDef*>(definer);
-    if (const_def->is_local()) {
+    if (dynamic_cast<Let*>(definer) != nullptr) {
       // We've already walked any local constant definitions.
       return absl::OkStatus();
     }
@@ -435,10 +434,16 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     SymbolicBindings empty_bindings;
     InvocationVisitor sub_visitor(module_, type_info_, empty_bindings,
                                   proc_id_);
-    XLS_RETURN_IF_ERROR(
-        WalkPostOrder(const_def, &sub_visitor, /*want_types=*/true));
-    callees_.insert(callees_.end(), sub_visitor.callees().begin(),
-                    sub_visitor.callees().end());
+    XLS_RETURN_IF_ERROR(WalkPostOrder(definer, this, /*want_types=*/true));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTypeRef(const TypeRef* n) {
+    SymbolicBindings empty_bindings;
+    InvocationVisitor sub_visitor(module_, type_info_, empty_bindings,
+                                  proc_id_);
+    XLS_RETURN_IF_ERROR(WalkPostOrder(ToAstNode(n->type_definition()), this,
+                                      /*want_types=*/false));
     return absl::OkStatus();
   }
 

@@ -131,6 +131,12 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
 
+void AstNode::SetParentage() {
+  for (AstNode* kiddo : GetChildren(/*want_types=*/true)) {
+    kiddo->set_parent(this);
+  }
+}
+
 absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
                            bool want_types) {
   for (AstNode* child : root->GetChildren(want_types)) {
@@ -479,9 +485,7 @@ std::string MatchArm::ToString() const {
 
 std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  if (want_types) {
-    results.push_back(GetStructNode());
-  }
+  results.reserve(members_.size());
   for (auto& item : members_) {
     results.push_back(item.second);
   }
@@ -518,13 +522,12 @@ std::string For::ToString() const {
 }
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
-                         Expr* value, bool is_public, bool is_local)
+                         Expr* value, bool is_public)
     : AstNode(owner),
       span_(std::move(span)),
       name_def_(name_def),
       value_(value),
-      is_public_(is_public),
-      is_local_(is_local) {}
+      is_public_(is_public) {}
 
 std::string ConstantDef::ToString() const {
   std::string privacy;
@@ -959,9 +962,7 @@ bool IsConstant(AstNode* node) {
 
 std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
-  if (want_types) {
-    results.push_back(ToAstNode(struct_ref_));
-  }
+  results.reserve(members_.size() + 1);
   for (auto& item : members_) {
     results.push_back(item.second);
   }
@@ -1405,8 +1406,13 @@ Function::Function(Module* owner, Span span, NameDef* name_def,
 std::vector<AstNode*> Function::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
   results.push_back(name_def());
-  for (ParametricBinding* binding : parametric_bindings()) {
-    results.push_back(binding);
+  if (tag_ == Tag::kNormal) {
+    // The parametric bindings of a proc are shared between the proc itself and
+    // the two functions it contains. Thus, they should have a single owner, the
+    // proc, and the other two functions "borrow" them.
+    for (ParametricBinding* binding : parametric_bindings()) {
+      results.push_back(binding);
+    }
   }
   if (return_type_ != nullptr && want_types) {
     results.push_back(return_type_);
@@ -1789,14 +1795,13 @@ NameDefTree::Flatten1() {
 // -- class Let
 
 Let::Let(Module* owner, Span span, NameDefTree* name_def_tree,
-         TypeAnnotation* type_annotation, Expr* rhs, Expr* body,
-         ConstantDef* const_def)
+         TypeAnnotation* type_annotation, Expr* rhs, Expr* body, bool is_const)
     : Expr(owner, std::move(span)),
       name_def_tree_(name_def_tree),
       type_annotation_(type_annotation),
       rhs_(rhs),
       body_(body),
-      constant_def_(const_def) {}
+      is_const_(is_const) {}
 
 std::vector<AstNode*> Let::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def_tree_};
@@ -1805,15 +1810,12 @@ std::vector<AstNode*> Let::GetChildren(bool want_types) const {
   }
   results.push_back(rhs_);
   results.push_back(body_);
-  if (constant_def_ != nullptr) {
-    results.push_back(constant_def_);
-  }
   return results;
 }
 
 std::string Let::ToString() const {
   return absl::StrFormat(
-      "%s %s%s = %s;\n%s", constant_def_ == nullptr ? "let" : "const",
+      "%s %s%s = %s;\n%s", is_const_ ? "const" : "let",
       name_def_tree_->ToString(),
       type_annotation_ == nullptr ? "" : ": " + type_annotation_->ToString(),
       rhs_->ToString(), body_->ToString());

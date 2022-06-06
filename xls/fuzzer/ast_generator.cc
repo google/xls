@@ -315,8 +315,7 @@ ConstRef* AstGenerator::GetOrCreateConstRef(
         module_->Make<NameDef>(fake_span_, identifier, /*definer=*/nullptr);
     constant_def = module_->Make<ConstantDef>(fake_span_, name_def,
                                               MakeNumber(value, size_type),
-                                              /*is_public=*/false,
-                                              /*is_local=*/false);
+                                              /*is_public=*/false);
     name_def->set_definer(constant_def);
     constants_[identifier] = constant_def;
   }
@@ -1260,7 +1259,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   auto* ndt = module_->Make<NameDefTree>(fake_span_, name_def);
   auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
                                  /*type=*/rhs.type, /*rhs=*/rhs.expr,
-                                 /*body=*/body.expr, /*const_def=*/nullptr);
+                                 /*body=*/body.expr, /*is_const=*/false);
   return TypedExpr{let, body.type};
 }
 

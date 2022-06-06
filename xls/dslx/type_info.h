@@ -208,14 +208,6 @@ class TypeInfo {
 
   Module* module() const { return module_; }
 
-  // Notes a constant definition associated with a given NameDef AST node.
-  void NoteConstant(const NameDef* name_def, const ConstantDef* constant_def) {
-    name_to_const_[name_def] = constant_def;
-  }
-
-  // Returns the expression for a ConstantDef that has the given name_def.
-  absl::optional<Expr*> GetConstant(NameDef* name_def) const;
-
   // Notes the evaluation of a constexpr to a value, as discovered during type
   // checking. Some constructs *require* constexprs, e.g. slice bounds or
   // for-loop range upper limits.
@@ -276,7 +268,6 @@ class TypeInfo {
   Module* module_;
   absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
-  absl::flat_hash_map<const NameDef*, const ConstantDef*> name_to_const_;
   absl::flat_hash_map<const Instantiation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const AstNode*, InterpValue> const_exprs_;

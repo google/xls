@@ -536,6 +536,7 @@ cc_library(
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
     ],
 )
@@ -630,6 +631,7 @@ cc_library(
     hdrs = ["parser.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         ":bindings",
         ":builtins_metadata",
         ":scanner",

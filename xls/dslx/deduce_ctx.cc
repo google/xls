@@ -103,17 +103,11 @@ absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
   }
 
   for (const ConstRef* const_ref : freevars.GetConstRefs()) {
-    ConstantDef* constant_def = const_ref->GetConstantDef();
     XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString()
-                << " def: " << constant_def->ToString();
-    absl::optional<InterpValue> value =
-        type_info->GetConstExpr(constant_def->value());
+                << " def: " << const_ref->ToString();
+    Expr* const_expr = const_ref->GetValue();
+    absl::optional<InterpValue> value = type_info->GetConstExpr(const_expr);
     if (!value.has_value()) {
-      // Could be a tuple or similar, not part of the (currently integral-only)
-      // constexpr environment.
-      XLS_VLOG(5) << "Could not find constexpr value for constant def: `"
-                  << constant_def->ToString() << "` @ " << constant_def->value()
-                  << " in " << type_info;
       continue;
     }
 
