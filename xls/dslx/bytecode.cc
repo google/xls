@@ -642,6 +642,7 @@ std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
 
 std::string BytecodeFunction::ToString() const {
   std::vector<std::string> lines;
+  lines.reserve(bytecodes_.size());
   for (const auto& bytecode : bytecodes_) {
     lines.push_back(bytecode.ToString());
   }

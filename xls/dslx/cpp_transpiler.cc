@@ -144,17 +144,20 @@ absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
   }
   if (bit_count <= 8) {
     return prefix + "int8_t";
-  } else if (bit_count <= 16) {
-    return prefix + "int16_t";
-  } else if (bit_count <= 32) {
-    return prefix + "int32_t";
-  } else if (bit_count <= 64) {
-    return prefix + "int64_t";
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Only bit types up to 64b wide are currently supported: ",
-                     annot->ToString()));
   }
+  if (bit_count <= 16) {
+    return prefix + "int16_t";
+  }
+  if (bit_count <= 32) {
+    return prefix + "int32_t";
+  }
+  if (bit_count <= 64) {
+    return prefix + "int64_t";
+  }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Only bit types up to 64b wide are currently supported: ",
+                   annot->ToString()));
 }
 
 absl::StatusOr<std::string> ArrayTypeAnnotationToString(
@@ -207,22 +210,25 @@ absl::StatusOr<std::string> TypeAnnotationToString(
           dynamic_cast<const BuiltinTypeAnnotation*>(annot);
       builtin != nullptr) {
     return BuiltinTypeAnnotationToString(xpile_data, builtin);
-  } else if (const ArrayTypeAnnotation* array =
+  }
+  if (const ArrayTypeAnnotation* array =
                  dynamic_cast<const ArrayTypeAnnotation*>(annot);
              array != nullptr) {
     return ArrayTypeAnnotationToString(xpile_data, array);
-  } else if (const TupleTypeAnnotation* tuple =
+  }
+  if (const TupleTypeAnnotation* tuple =
                  dynamic_cast<const TupleTypeAnnotation*>(annot);
              tuple != nullptr) {
     return TupleTypeAnnotationToString(xpile_data, tuple);
-  } else if (const TypeRefTypeAnnotation* type_ref =
+  }
+  if (const TypeRefTypeAnnotation* type_ref =
                  dynamic_cast<const TypeRefTypeAnnotation*>(annot);
              type_ref != nullptr) {
     return type_ref->ToString();
-  } else {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Unknown TypeAnnotation kind: ", annot->ToString()));
   }
+
+  return absl::InvalidArgumentError(
+      absl::StrCat("Unknown TypeAnnotation kind: ", annot->ToString()));
 }
 
 absl::StatusOr<Sources> TranspileTypeDef(const TranspileData& xpile_data,
@@ -313,12 +319,14 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
         absl::StrCat("elements[", element_index, "]"),
         absl::StrCat(object_name, ".", field_name), as_builtin_type.value(),
         indent_level);
-  } else if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
+  }
+  if (auto* array_type = dynamic_cast<ArrayTypeAnnotation*>(type)) {
     // GetAsBuiltinType covers the integral case above.
     return GenerateArrayFromValue(
         xpile_data, array_type, absl::StrCat("elements[", element_index, "]"),
         absl::StrCat(object_name, ".", field_name), indent_level);
-  } else if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
+  }
+  if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
     TypeDefinition type_definition =
         typeref_type->type_ref()->type_definition();
     if (absl::holds_alternative<TypeDef*>(type_definition)) {
@@ -326,13 +334,15 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
           xpile_data, object_name, field_name, element_index,
           absl::get<TypeDef*>(type_definition)->type_annotation(),
           indent_level);
-    } else if (absl::holds_alternative<EnumDef*>(type_definition)) {
+    }
+    if (absl::holds_alternative<EnumDef*>(type_definition)) {
       EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
       return GenerateEnumFromValue(
           xpile_data, absl::StrCat("elements[", element_index, "]"),
           absl::StrCat(object_name, ".", field_name), enum_def->identifier(),
           enum_def->type_annotation(), indent_level);
-    } else if (absl::holds_alternative<StructDef*>(type_definition)) {
+    }
+    if (absl::holds_alternative<StructDef*>(type_definition)) {
       return absl::Substitute(
           "$0auto $1_or = $2::FromValue(elements[$3]);\n"
           "$0if (!$1_or.ok()) {\n"
@@ -444,7 +454,8 @@ $0elements.push_back($2_value);)";
           xpile_data, member_name,
           absl::get<TypeDef*>(type_definition)->type_annotation(),
           indent_level);
-    } else if (absl::holds_alternative<EnumDef*>(type_definition)) {
+    }
+    if (absl::holds_alternative<EnumDef*>(type_definition)) {
       EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
       XLS_ASSIGN_OR_RETURN(
           absl::optional<BuiltinType> enum_as_builtin_type,
@@ -506,14 +517,16 @@ absl::StatusOr<absl::optional<int64_t>> GetFieldWidth(
                                         xpile_data.import_data, type));
   if (as_builtin_type.has_value()) {
     return GetBuiltinTypeBitCount(as_builtin_type.value());
-  } else if (auto* typeref_type =
+  }
+  if (auto* typeref_type =
                  dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeDefinition type_definition =
         typeref_type->type_ref()->type_definition();
     if (absl::holds_alternative<TypeDef*>(type_definition)) {
       return GetFieldWidth(
           xpile_data, absl::get<TypeDef*>(type_definition)->type_annotation());
-    } else if (absl::holds_alternative<EnumDef*>(type_definition)) {
+    }
+    if (absl::holds_alternative<EnumDef*>(type_definition)) {
       EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
       return GetFieldWidth(xpile_data, enum_def->type_annotation());
     }

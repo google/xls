@@ -707,10 +707,14 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     }
 
     return Lt(rhs).value().IsTrue();
-  } else if (IsTuple()) {
+  }
+
+  if (IsTuple()) {
     if (rhs.IsArray()) {
       return true;
-    } else if (rhs.IsBits()) {
+    }
+
+    if (rhs.IsBits()) {
       return false;
     }
   } else {
@@ -724,7 +728,9 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
   int64_t rhs_length = rhs.GetLength().value();
   if (lhs_length < rhs_length) {
     return true;
-  } else if (rhs_length < lhs_length) {
+  }
+
+  if (rhs_length < lhs_length) {
     return false;
   }
 
@@ -734,7 +740,9 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
     InterpValue rhs_element = rhs.Index(index).value();
     if (lhs_element < rhs_element) {
       return true;
-    } else if (rhs_element < lhs_element) {
+    }
+
+    if (rhs_element < lhs_element) {
       return false;
     }
   }

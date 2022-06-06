@@ -14,7 +14,7 @@
 
 # Frontend syntax.
 
-# pytype test and library
+# pytype tests are present in this file
 # cc_proto_library is used in this file
 
 load("@xls_pip_deps//:requirements.bzl", "requirement")
@@ -22,23 +22,6 @@ load("@xls_pip_deps//:requirements.bzl", "requirement")
 package(
     default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
-)
-
-py_library(
-    name = "bit_helpers",
-    srcs = ["bit_helpers.py"],
-    srcs_version = "PY3",
-)
-
-py_test(
-    name = "bit_helpers_test",
-    srcs = ["bit_helpers_test.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":bit_helpers",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
 )
 
 cc_library(

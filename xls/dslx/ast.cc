@@ -551,7 +551,7 @@ Array::Array(Module* owner, Span span, std::vector<Expr*> members,
 ConstantArray::ConstantArray(Module* owner, Span span,
                              std::vector<Expr*> members, bool has_ellipsis)
     : Array(owner, std::move(span), std::move(members), has_ellipsis) {
-  for (Expr* expr : members) {
+  for (Expr* expr : this->members()) {
     XLS_CHECK(IsConstant(expr))
         << "non-constant in constant array: " << expr->ToString();
   }
@@ -983,6 +983,7 @@ std::string SplatStructInstance::ToString() const {
 
 std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
+  results.reserve(patterns_.size());
   for (NameDefTree* ndt : patterns_) {
     results.push_back(ndt);
   }
@@ -1196,6 +1197,7 @@ FormatMacro::FormatMacro(Module* owner, Span span, std::string macro,
 
 std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
   std::vector<AstNode*> results;
+  results.reserve(args_.size());
   for (Expr* arg : args_) {
     results.push_back(arg);
   }
@@ -1255,6 +1257,7 @@ std::string StructDef::ToString() const {
 
 std::vector<std::string> StructDef::GetMemberNames() const {
   std::vector<std::string> names;
+  names.reserve(members_.size());
   for (auto& item : members_) {
     names.push_back(item.first->identifier());
   }
@@ -1322,6 +1325,7 @@ std::string TypeRefTypeAnnotation::ToString() const {
   std::string parametric_str = "";
   if (!parametrics_.empty()) {
     std::vector<std::string> pieces;
+    pieces.reserve(parametrics_.size());
     for (Expr* e : parametrics_) {
       pieces.push_back(e->ToString());
     }
@@ -1637,6 +1641,7 @@ std::vector<AstNode*> Join::GetChildren(bool want_types) const {
 
 std::string TestProc::ToString() const {
   std::vector<std::string> next_args;
+  next_args.reserve(next_args_.size());
   for (const auto* expr : next_args_) {
     next_args.push_back(expr->ToString());
   }
@@ -1745,13 +1750,13 @@ std::vector<AstNode*> NameDefTree::GetChildren(bool want_types) const {
 std::string NameDefTree::ToString() const {
   if (is_leaf()) {
     return ToAstNode(leaf())->ToString();
-  } else {
-    std::string guts =
-        absl::StrJoin(nodes(), ", ", [](std::string* out, NameDefTree* node) {
-          absl::StrAppend(out, node->ToString());
-        });
-    return absl::StrFormat("(%s)", guts);
   }
+
+  std::string guts =
+      absl::StrJoin(nodes(), ", ", [](std::string* out, NameDefTree* node) {
+        absl::StrAppend(out, node->ToString());
+      });
+  return absl::StrFormat("(%s)", guts);
 }
 
 std::vector<NameDefTree::Leaf> NameDefTree::Flatten() const {

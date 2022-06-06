@@ -64,7 +64,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
     XLS_ASSIGN_OR_RETURN(int64_t bit_count, value.GetBitCount());
     return std::make_unique<BitsType>(/*is_signed*/ value.IsSigned(),
                                       /*size=*/bit_count);
-  } else if (value.tag() == InterpValueTag::kArray) {
+  }
+
+  if (value.tag() == InterpValueTag::kArray) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          value.GetValues());
     if (elements->empty()) {
@@ -75,7 +77,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
     XLS_ASSIGN_OR_RETURN(int64_t size, value.GetLength());
     auto dim = ConcreteTypeDim::CreateU32(size);
     return std::make_unique<ArrayType>(std::move(element_type), dim);
-  } else if (value.tag() == InterpValueTag::kTuple) {
+  }
+
+  if (value.tag() == InterpValueTag::kTuple) {
     XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
                          value.GetValues());
     std::vector<std::unique_ptr<ConcreteType>> members;
@@ -86,10 +90,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
     }
 
     return std::make_unique<TupleType>(std::move(members));
-  } else {
-    return absl::InvalidArgumentError(
-        "Only bits, array, and tuple types can be converted into concrete.");
   }
+
+  return absl::InvalidArgumentError(
+      "Only bits, array, and tuple types can be converted into concrete.");
 }
 
 // -- class ConcreteTypeDim
@@ -557,6 +561,7 @@ bool FunctionType::operator==(const ConcreteType& other) const {
 
 std::vector<const ConcreteType*> FunctionType::GetParams() const {
   std::vector<const ConcreteType*> results;
+  results.reserve(params_.size());
   for (const auto& param : params_) {
     results.push_back(param.get());
   }

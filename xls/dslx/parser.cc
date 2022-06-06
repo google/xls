@@ -277,10 +277,10 @@ Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(Keyword::kFn)) {
       return ParseTestFunction(bindings, directive_tok.span());
-    } else {
-      return ParseErrorStatus(
-          peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
     }
+
+    return ParseErrorStatus(
+        peek->span(), absl::StrCat("Invalid test type: ", peek->ToString()));
   }
   if (directive_name == "test_proc") {
     std::vector<Expr*> initial_values;
@@ -2014,8 +2014,8 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   Bindings enum_bindings(bindings);
 
-  auto parse_enum_entry = [this, &enum_bindings,
-                           type_annotation]() -> absl::StatusOr<EnumMember> {
+  auto parse_enum_entry = [this,
+                           &enum_bindings]() -> absl::StatusOr<EnumMember> {
     XLS_ASSIGN_OR_RETURN(NameDef * name_def, ParseNameDef(&enum_bindings));
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
     XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&enum_bindings));

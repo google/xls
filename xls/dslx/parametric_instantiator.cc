@@ -221,14 +221,14 @@ absl::Status ParametricInstantiator::SymbolicBindDims(const T& param_type,
     auto saw_type =
         std::make_unique<BitsType>(/*signed=*/false, /*size=*/seen_value);
     return XlsTypeErrorStatus(span_, *saw_type, arg_type, message);
-  } else {
-    // Error is conflicting argument types.
-    std::string message = absl::StrFormat(
-        "Parametric value %s was bound to different values at different "
-        "places in invocation; saw: %d; then: %d",
-        pdim_name, seen_value, arg_dim);
-    return XlsTypeErrorStatus(span_, param_type, arg_type, message);
   }
+
+  // Error is conflicting argument types.
+  std::string message = absl::StrFormat(
+      "Parametric value %s was bound to different values at different "
+      "places in invocation; saw: %d; then: %d",
+      pdim_name, seen_value, arg_dim);
+  return XlsTypeErrorStatus(span_, param_type, arg_type, message);
 }
 
 absl::Status ParametricInstantiator::SymbolicBindTuple(
