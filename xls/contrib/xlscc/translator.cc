@@ -3800,6 +3800,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       for (auto decl : declstmt->decls()) {
         if (decl->getKind() == clang::Decl::Kind::Typedef) break;
         if (decl->getKind() == clang::Decl::Kind::StaticAssert) break;
+        if (decl->getKind() == clang::Decl::Kind::Enum) break;
+
         if (decl->getKind() != clang::Decl::Kind::Var) {
           return absl::UnimplementedError(ErrorMessage(loc,
               "DeclStmt other than Var (%s)", decl->getDeclKindName()));

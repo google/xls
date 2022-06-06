@@ -6588,6 +6588,18 @@ TEST_F(TranslatorTest, ParameterPack) {
   Run({{"a", 1}, {"b", 2}, {"c", 3}}, 20, content);
 }
 
+TEST_F(TranslatorTest, FunctionEnum) {
+  const std::string content = R"(
+    #pragma hls_top
+    int sum(int a) {
+        enum b { B0 = 0, B1 = 1 };
+        return B1 + a;
+    }
+    )";
+  Run({{"a", 5}}, 6, content);
+}
+
+
 }  // namespace
 
 }  // namespace xlscc
