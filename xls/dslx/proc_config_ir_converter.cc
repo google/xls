@@ -19,6 +19,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
+#include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/symbolic_bindings.h"
@@ -103,13 +104,8 @@ absl::Status ProcConfigIrConverter::HandleFunction(const Function* node) {
 absl::Status ProcConfigIrConverter::HandleInvocation(const Invocation* node) {
   XLS_LOG(INFO) << "ProcConfigIrConverter::HandleInvocation: "
                 << node->ToString();
-  absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
-  if (!const_value.has_value()) {
-    return absl::InternalError(
-        "Invocation should have been converted to const expr during "
-        "typechecking.");
-  }
-  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.value().ConvertToIr());
+  XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;
   return absl::OkStatus();
 }
@@ -155,12 +151,8 @@ absl::Status ProcConfigIrConverter::HandleNameRef(const NameRef* node) {
 }
 
 absl::Status ProcConfigIrConverter::HandleNumber(const Number* node) {
-  absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
-  if (!const_value.has_value()) {
-    return absl::InternalError(
-        "Number should have been converted to const expr during typechecking.");
-  }
-  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.value().ConvertToIr());
+  XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;
   return absl::OkStatus();
 }
@@ -203,9 +195,10 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   // Store the "next" function's initial args, while we have them.
   std::vector<Value> initial_values;
   for (const auto& arg : node->next()->args()) {
-    auto maybe_constexpr = type_info_->GetConstExpr(arg);
-    XLS_RET_CHECK(maybe_constexpr.has_value());
-    XLS_ASSIGN_OR_RETURN(auto ir_value, maybe_constexpr.value().ConvertToIr());
+    XLS_ASSIGN_OR_RETURN(InterpValue value, ConstexprEvaluator::EvaluateToValue(
+                                                import_data_, type_info_,
+                                                bindings_, arg, nullptr));
+    XLS_ASSIGN_OR_RETURN(auto ir_value, value.ConvertToIr());
     initial_values.push_back(ir_value);
   }
   proc_data_->id_to_initial_values[new_id] = initial_values;
@@ -221,13 +214,8 @@ absl::Status ProcConfigIrConverter::HandleStructInstance(
     const StructInstance* node) {
   XLS_VLOG(3) << "ProcConfigIrConverter::HandleStructInstance: "
               << node->ToString();
-  absl::optional<InterpValue> const_value = type_info_->GetConstExpr(node);
-  if (!const_value.has_value()) {
-    return absl::InternalError(
-        "Struct instance should have been converted to const expr during "
-        "typechecking.");
-  }
-  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.value().ConvertToIr());
+  XLS_ASSIGN_OR_RETURN(InterpValue const_value, type_info_->GetConstExpr(node));
+  XLS_ASSIGN_OR_RETURN(auto ir_value, const_value.ConvertToIr());
   node_to_ir_[node] = ir_value;
   return absl::OkStatus();
 }

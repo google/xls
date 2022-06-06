@@ -63,10 +63,9 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
                             absl::nullopt));
 
   std::vector<ProcInstance> proc_instances;
-  absl::optional<InterpValue> maybe_terminator =
-      type_info->GetConstExpr(tp->proc()->config()->params()[0]);
-  XLS_RET_CHECK(maybe_terminator.has_value());
-  InterpValue terminator = maybe_terminator.value();
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue terminator,
+      type_info->GetConstExpr(tp->proc()->config()->params()[0]));
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
       import_data, type_info, tp->proc(), terminator, tp->next_args(),
       &proc_instances));

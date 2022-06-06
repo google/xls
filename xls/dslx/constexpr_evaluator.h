@@ -17,20 +17,28 @@
 #include "absl/status/status.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/deduce_ctx.h"
+#include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {
 
 // Simple visitor to perform automatic dispatch to constexpr evaluate AST
 // expressions.
-// TODO(rspringer): 2021-10-15, issue #508: Not all expression nodes are
-// currently covered, but will need to be shortly.
 class ConstexprEvaluator : public xls::dslx::ExprVisitor {
  public:
-  static absl::Status Evaluate(DeduceCtx* ctx, const Expr* expr,
-                               const ConcreteType* concrete_type = nullptr) {
-    ConstexprEvaluator evaluator(ctx, concrete_type);
-    return expr->AcceptExpr(&evaluator);
-  }
+  // Evaluates the given expression to determine if it's constexpr or not, and
+  // updates `type_info` accordingly. Returns success as long as no error
+  // occurred during evaluation, even if `expr` is non-constexpr.
+  static absl::Status Evaluate(ImportData* import_data, TypeInfo* type_info,
+                               const SymbolicBindings& bindings,
+                               const Expr* expr,
+                               const ConcreteType* concrete_type = nullptr);
+
+  // Performs the same action as `Evaluate`, but returns the resulting constexpr
+  // value. Returns an error status if `expr` is non-constexpr.
+  static absl::StatusOr<InterpValue> EvaluateToValue(
+      ImportData* import_data, TypeInfo* type_info,
+      const SymbolicBindings& bindings, const Expr* expr,
+      const ConcreteType* concrete_type = nullptr);
 
   // A concrete type is only necessary when:
   //  - Deducing a Number that is undecorated and whose type is specified by
@@ -40,8 +48,6 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   //    `u32[4]:[0, 1, ...]`. The type is needed to determine the number of
   //    elements to fill in.
   // In all other cases, `concrete_type` can be nullptr.
-  ConstexprEvaluator(DeduceCtx* ctx, const ConcreteType* concrete_type)
-      : ctx_(ctx), concrete_type_(concrete_type) {}
   ~ConstexprEvaluator() override {}
 
   absl::Status HandleArray(const Array* expr) override;
@@ -90,6 +96,14 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
  private:
+  ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
+                     SymbolicBindings bindings,
+                     const ConcreteType* concrete_type)
+      : import_data_(import_data),
+        type_info_(type_info),
+        bindings_(bindings),
+        concrete_type_(concrete_type) {}
+
   bool IsConstExpr(const Expr* expr);
 
   // Interprets the given expression. Prior to calling this function, it's
@@ -101,9 +115,31 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status InterpretExpr(
       const Expr* expr, absl::flat_hash_set<const NameDef*> bypass_env = {});
 
-  DeduceCtx* ctx_;
+  ImportData* import_data_;
+  TypeInfo* type_info_;
+  SymbolicBindings bindings_;
   const ConcreteType* concrete_type_;
 };
+
+// Creates a map of symbol name to value for all known symbols in the current
+// environment. This will be populated with symbolic bindings as well as
+// constexpr freevars of "node", which is useful when there are local
+// const bindings closed over e.g. in function scope.
+//
+// `type_info` is required to look up the value of previously computed
+// constexprs.
+// `bypass_env` is a set of NameDefs to skip when constructing the constexpr
+// env. This is needed for `for` loop constexpr eval, in cases where a
+// loop-scoped variable shadows the initial value, to be able to resolve the
+// outer [constexpr] value.
+//
+// TODO(rspringer): 2022-05-29: `bypass_env` seems pretty nonintuitive and
+// fragile; could there be another way of ignoring for loop-declared NameDefs?
+// AIUI, they're the only reason this is needed.
+absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
+    ImportData* import_data, TypeInfo* type_info, const Expr* node,
+    const SymbolicBindings& symbolic_bindings,
+    absl::flat_hash_set<const NameDef*> bypass_env = {});
 
 }  // namespace xls::dslx
 

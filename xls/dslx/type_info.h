@@ -221,7 +221,9 @@ class TypeInfo {
   // Note that these index over AstNodes instead of Exprs so that NameDefs can
   // be used as constexpr keys.
   void NoteConstExpr(const AstNode* const_expr, InterpValue value);
-  absl::optional<InterpValue> GetConstExpr(const AstNode* const_expr) const;
+  bool IsKnownConstExpr(const AstNode* node);
+  bool IsKnownNonConstExpr(const AstNode* node);
+  absl::StatusOr<InterpValue> GetConstExpr(const AstNode* const_expr) const;
 
   // Retrieves a string that shows the module associated with this type info and
   // which imported modules are present, suitable for debugging.
@@ -270,7 +272,7 @@ class TypeInfo {
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
   absl::flat_hash_map<const Instantiation*, InstantiationData> instantiations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  absl::flat_hash_map<const AstNode*, InterpValue> const_exprs_;
+  absl::flat_hash_map<const AstNode*, absl::optional<InterpValue>> const_exprs_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };

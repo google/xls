@@ -26,6 +26,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "xls/dslx/type_info.h"
 #include "xls/dslx/typecheck.h"
 
@@ -50,6 +51,14 @@ absl::StatusOr<TestData> CreateTestData(absl::string_view module_text) {
   return std::move(test_data);
 }
 
+absl::StatusOr<ConcreteType*> GetConcreteType(TypeInfo* ti, Expr* expr) {
+  auto maybe_type = ti->GetItem(expr);
+  if (!maybe_type.has_value()) {
+    return absl::NotFoundError("");
+  }
+  return maybe_type.value();
+}
+
 TEST(ConstexprEvaluatorTest, HandleAttr_Simple) {
   constexpr absl::string_view kModule = R"(
 struct MyStruct {
@@ -71,9 +80,13 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("Foo"));
 
   Attr* attr = down_cast<Attr*>(f->body());
-  absl::optional<InterpValue> maybe_value = type_info->GetConstExpr(attr);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 14);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(type_info, attr));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
+                                             SymbolicBindings(), attr, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(attr));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 14);
 }
 
 TEST(ConstexprEvaluatorTest, HandleNumber_Simple) {
@@ -88,9 +101,12 @@ const kFoo = u32:7;
                            module->GetConstantDef("kFoo"));
   Number* number = down_cast<Number*>(constant_def->value());
 
-  absl::optional<InterpValue> maybe_value = type_info->GetConstExpr(number);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 7);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(type_info, number));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
+                                             SymbolicBindings(), number, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(number));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 7);
 }
 
 TEST(ConstexprEvaluatorTest, HandleCast_Simple) {
@@ -109,9 +125,12 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("Foo"));
 
   Cast* cast = down_cast<Cast*>(f->body());
-  absl::optional<InterpValue> maybe_value = type_info->GetConstExpr(cast);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 13);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(type_info, cast));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
+                                             SymbolicBindings(), cast, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(cast));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 13);
 }
 
 TEST(ConstexprEvaluatorTest, HandleTernary) {
@@ -126,10 +145,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
 
-  Ternary* cast = down_cast<Ternary*>(f->body());
-  absl::optional<InterpValue> maybe_value = type_info->GetConstExpr(cast);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 500);
+  Ternary* ternary = down_cast<Ternary*>(f->body());
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(type_info, ternary));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &test_data.import_data, type_info, SymbolicBindings(), ternary, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, type_info->GetConstExpr(ternary));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 500);
 }
 
 TEST(ConstexprEvaluatorTest, HandleStructInstance_Simple) {
@@ -151,14 +173,16 @@ fn Foo() -> MyStruct {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("Foo"));
 
   StructInstance* struct_instance = down_cast<StructInstance*>(f->body());
-  absl::optional<InterpValue> maybe_value =
-      type_info->GetConstExpr(struct_instance);
-  ASSERT_TRUE(maybe_value.has_value());
-  InterpValue element_value =
-      maybe_value.value().Index(InterpValue::MakeUBits(1, 0)).value();
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(type_info, struct_instance));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
+                                             SymbolicBindings(),
+                                             struct_instance, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           type_info->GetConstExpr(struct_instance));
+  InterpValue element_value = value.Index(InterpValue::MakeUBits(1, 0)).value();
   EXPECT_EQ(element_value.GetBitValueInt64().value(), 666);
-  element_value =
-      maybe_value.value().Index(InterpValue::MakeUBits(1, 1)).value();
+  element_value = value.Index(InterpValue::MakeUBits(1, 1)).value();
   EXPECT_EQ(element_value.GetBitValueInt64().value(), 777);
 }
 
@@ -184,14 +208,16 @@ fn main() -> MyStruct {
 
   SplatStructInstance* struct_instance =
       down_cast<SplatStructInstance*>(f->body());
-  absl::optional<InterpValue> maybe_value =
-      type_info->GetConstExpr(struct_instance);
-  ASSERT_TRUE(maybe_value.has_value());
-  InterpValue element_value =
-      maybe_value.value().Index(InterpValue::MakeUBits(1, 0)).value();
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(type_info, struct_instance));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
+                                             SymbolicBindings(),
+                                             struct_instance, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           type_info->GetConstExpr(struct_instance));
+  InterpValue element_value = value.Index(InterpValue::MakeUBits(1, 0)).value();
   EXPECT_EQ(element_value.GetBitValueUint64().value(), 1000);
-  element_value =
-      maybe_value.value().Index(InterpValue::MakeUBits(1, 1)).value();
+  element_value = value.Index(InterpValue::MakeUBits(1, 1)).value();
   EXPECT_EQ(element_value.GetBitValueInt64().value(), 200000);
 }
 
@@ -216,10 +242,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   ColonRef* colon_ref = down_cast<ColonRef*>(f->body());
-  absl::optional<InterpValue> maybe_value =
-      tm.type_info->GetConstExpr(colon_ref);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 100);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, colon_ref));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), colon_ref, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(colon_ref));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 100);
 }
 
 TEST(ConstexprEvaluatorTest, HandleColonRefToEnum) {
@@ -246,10 +275,13 @@ fn main() -> imported::MyEnum {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   ColonRef* colon_ref = down_cast<ColonRef*>(f->body());
-  absl::optional<InterpValue> maybe_value =
-      tm.type_info->GetConstExpr(colon_ref);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 3);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, colon_ref));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), colon_ref, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(colon_ref));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 3);
 }
 
 TEST(ConstexprEvaluatorTest, HandleIndex) {
@@ -268,9 +300,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   Index* index = down_cast<Index*>(f->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(index);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), 300);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, index));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             SymbolicBindings(), index, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(index));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 300);
 }
 
 TEST(ConstexprEvaluatorTest, HandleSlice) {
@@ -289,9 +325,13 @@ fn main() -> u16 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   Index* index = down_cast<Index*>(f->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(index);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xadbe);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, index));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             SymbolicBindings(), index, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(index));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 0xadbe);
 }
 
 TEST(ConstexprEvaluatorTest, HandleWidthSlice) {
@@ -310,9 +350,13 @@ fn main() -> u16 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   Index* index = down_cast<Index*>(f->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(index);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xadbe);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, index));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             SymbolicBindings(), index, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(index));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 0xadbe);
 }
 
 TEST(ConstexprEvaluatorTest, HandleXlsTuple) {
@@ -333,10 +377,14 @@ fn main() -> (u32, u32, u32) {
   elements.push_back(InterpValue::MakeU32(1));
   elements.push_back(InterpValue::MakeU32(2));
   elements.push_back(InterpValue::MakeU32(3));
-  absl::optional<InterpValue> maybe_value =
-      tm.type_info->GetConstExpr(xls_tuple);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value(), InterpValue::MakeTuple(elements));
+
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, xls_tuple));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), xls_tuple, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(xls_tuple));
+  EXPECT_EQ(value, InterpValue::MakeTuple(elements));
 }
 
 TEST(ConstexprEvaluatorTest, HandleMatch) {
@@ -357,9 +405,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   Match* match = down_cast<Match*>(f->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(match);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 2);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, match));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             SymbolicBindings(), match, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(match));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 2);
 }
 
 TEST(ConstexprEvaluatorTest, HandleFor_Simple) {
@@ -378,9 +430,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   For* xls_for = down_cast<For*>(f->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0x1c);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, xls_for));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(xls_for));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 0x1c);
 }
 
 TEST(ConstexprEvaluatorTest, HandleFor_OutsideRefs) {
@@ -400,9 +456,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0x5f794);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, xls_for));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(xls_for));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 0x5f794);
 }
 
 TEST(ConstexprEvaluatorTest, HandleFor_InitShadowed) {
@@ -421,9 +481,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xbf0b);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, xls_for));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(xls_for));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 0xbf0b);
 }
 
 // Tests constexpr evaluation of `for` loops with misc. internal expressions (to
@@ -447,9 +511,13 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(xls_for);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueUint64().value(), 0xbf23);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, xls_for));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(xls_for));
+  EXPECT_EQ(value.GetBitValueUint64().value(), 0xbf23);
 }
 
 TEST(ConstexprEvaluatorTest, HandleUnop) {
@@ -466,9 +534,41 @@ fn main() -> s32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
   Unop* unop = down_cast<Unop*>(f->body());
-  absl::optional<InterpValue> maybe_value = tm.type_info->GetConstExpr(unop);
-  ASSERT_TRUE(maybe_value.has_value());
-  EXPECT_EQ(maybe_value.value().GetBitValueInt64().value(), -1337);
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, unop));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
+                                             SymbolicBindings(), unop, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value, tm.type_info->GetConstExpr(unop));
+  EXPECT_EQ(value.GetBitValueInt64().value(), -1337);
+}
+
+// Verifies that we can still constexpr evaluate, even when a variable declared
+// inside a for loop shadows a var outside.
+TEST(ConstexprEvaluatorTest, ShadowedVar) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let my_var = u32:32;
+  for (i, my_var) : (u32, u32) in range(u32:0, u32:4) {
+    let my_var = my_var - u32:8;
+    i + my_var
+  }(my_var)
+})";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  Let* let = down_cast<Let*>(f->body());
+  For* xls_for = down_cast<For*>(let->body());
+  XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
+                           GetConcreteType(tm.type_info, xls_for));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), xls_for, type));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(xls_for));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 6);
 }
 
 }  // namespace

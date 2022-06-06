@@ -451,13 +451,8 @@ absl::Status BytecodeEmitter::HandleChannelDecl(const ChannelDecl* node) {
   // Channels are created as constexpr values during type deduction/constexpr
   // evaluation, since they're concrete values that need to be shared amongst
   // two actors.
-  absl::optional<InterpValue> maybe_channel = type_info_->GetConstExpr(node);
-  if (!maybe_channel.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("Could not find value for channel (declared at ",
-                     node->span().ToString(), ")."));
-  }
-  Add(Bytecode::MakeLiteral(node->span(), maybe_channel.value()));
+  XLS_ASSIGN_OR_RETURN(InterpValue channel, type_info_->GetConstExpr(node));
+  Add(Bytecode::MakeLiteral(node->span(), channel));
   return absl::OkStatus();
 }
 
@@ -467,15 +462,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
   // ResolveTypeDefToEnum.
   absl::string_view attr = colon_ref->attr();
   XLS_ASSIGN_OR_RETURN(Expr * value_expr, enum_def->GetValue(attr));
-
-  absl::optional<InterpValue> value_or = type_info->GetConstExpr(value_expr);
-  if (!value_or.has_value()) {
-    return absl::InternalError(absl::StrFormat(
-        "Could not find value for enum \"%s\" attribute \"%s\".",
-        enum_def->identifier(), attr));
-  }
-
-  return value_or.value();
+  return type_info->GetConstExpr(value_expr);
 }
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
@@ -500,14 +487,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
 
   XLS_RET_CHECK(absl::holds_alternative<ConstantDef*>(*member.value()));
   ConstantDef* constant_def = absl::get<ConstantDef*>(*member.value());
-  absl::optional<InterpValue> maybe_value =
-      type_info->GetConstExpr(constant_def->value());
-  if (!maybe_value.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("Could not find constexpr value for ConstantDef \"",
-                     constant_def->ToString(), "\"."));
-  }
-  return maybe_value.value();
+  return type_info->GetConstExpr(constant_def->value());
 }
 
 absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
@@ -916,13 +896,7 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
 
   if (auto* cd = dynamic_cast<ConstantDef*>(name_def->definer());
       cd != nullptr) {
-    absl::optional<InterpValue> const_value =
-        type_info_->GetConstExpr(cd->value());
-    if (!const_value.has_value()) {
-      return absl::InternalError(
-          absl::StrCat("Could not find value for constant: ", cd->ToString()));
-    }
-    return const_value.value();
+    return type_info_->GetConstExpr(cd->value());
   }
 
   // The value is either a local name or a symbolic binding.
@@ -939,7 +913,8 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
   }
 
   return absl::InternalError(absl::StrCat(
-      "Could not find slot or binding for name: ", name_def->ToString()));
+      "Could not find slot or binding for name: ", name_def->ToString(), " @ ",
+      name_def->span().ToString()));
 }
 
 absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
@@ -1033,13 +1008,9 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
     std::vector<InterpValue> arg_values;
     arg_values.reserve(args.size());
     for (const auto* arg : args) {
-      absl::optional<InterpValue> maybe_arg_value =
-          type_info_->GetConstExpr(arg);
-      if (!maybe_arg_value.has_value()) {
-        return absl::InternalError(
-            absl::StrCat("Spawn arg wasn't constexpr: ", arg->ToString()));
-      }
-      arg_values.push_back(maybe_arg_value.value());
+      XLS_ASSIGN_OR_RETURN(InterpValue arg_value,
+                           type_info_->GetConstExpr(arg));
+      arg_values.push_back(arg_value);
     }
     return arg_values;
   };

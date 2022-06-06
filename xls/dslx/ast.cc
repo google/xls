@@ -322,7 +322,7 @@ FreeVariables AstNode::GetFreeVariables(const Pos* start_pos) const {
     const AstNode* n = it.Next();
     if (const auto* name_ref = dynamic_cast<const NameRef*>(n)) {
       // If a start position was given we test whether the name definition
-      // occurs before that start positions. (If none was given we accept all
+      // occurs before that start position. (If none was given we accept all
       // name refs.)
       if (start_pos == nullptr) {
         freevars.Add(name_ref->identifier(), name_ref);

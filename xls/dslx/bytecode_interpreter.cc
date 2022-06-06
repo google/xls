@@ -1503,12 +1503,8 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     std::vector<ProcInstance>* proc_instances) {
   std::vector<InterpValue> next_arg_values;
   for (const Expr* arg : next_args) {
-    absl::optional<InterpValue> maybe_arg_value = type_info->GetConstExpr(arg);
-    if (!maybe_arg_value.has_value()) {
-      return absl::InvalidArgumentError(absl::StrCat(
-          "Top-level proc arg, \"", arg->ToString(), "\", was not constexpr."));
-    }
-    next_arg_values.push_back(maybe_arg_value.value());
+    XLS_ASSIGN_OR_RETURN(InterpValue arg_value, type_info->GetConstExpr(arg));
+    next_arg_values.push_back(arg_value);
   }
 
   return EvalSpawnInternal(

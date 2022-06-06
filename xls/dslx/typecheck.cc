@@ -184,8 +184,9 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
   auto constexpr_eval = [&](int64_t argno) -> absl::StatusOr<InterpValue> {
     Expr* arg = invocation->args()[argno];
 
-    auto env = MakeConstexprEnv(arg, ctx->fn_stack().back().symbolic_bindings(),
-                                ctx->type_info());
+    XLS_ASSIGN_OR_RETURN(
+        auto env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), arg,
+                                   ctx->fn_stack().back().symbolic_bindings()));
 
     XLS_ASSIGN_OR_RETURN(
         InterpValue value,
@@ -333,6 +334,12 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
       ScopedFnStackEntry scoped(ctx, module);
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> next_arg_type,
                            ctx->Deduce(test_proc->next_args()[i]));
+      // We need to eagerly evaluate next args: we can't wait to do so inside
+      // the BytecodeInterpreter, as that'd create a circular dependency.
+      XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+          ctx->import_data(), ctx->type_info(),
+          ctx->fn_stack().back().symbolic_bindings(), test_proc->next_args()[i],
+          nullptr));
       scoped.Finish();
       if (**param_type != *next_arg_type) {
         return TypeInferenceErrorStatus(
@@ -484,12 +491,16 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
                                 "Explicit parametric type mismatch.");
     }
 
-    ConstexprEvaluator evaluator(parent_ctx, value_type.get());
-    XLS_RETURN_IF_ERROR(value->AcceptExpr(&evaluator));
-    auto constexpr_value = parent_ctx->type_info()->GetConstExpr(value);
-    if (constexpr_value.has_value()) {
+    // We have to be at least one fn deep to be instantiating a parametric, so
+    // referencing fn_stack::back is safe.
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        parent_ctx->import_data(), parent_ctx->type_info(),
+        parent_ctx->fn_stack().back().symbolic_bindings(), value,
+        value_type.get()));
+    if (parent_ctx->type_info()->IsKnownConstExpr(value)) {
       explicit_bindings.insert(
-          {binding->identifier(), constexpr_value.value()});
+          {binding->identifier(),
+           parent_ctx->type_info()->GetConstExpr(value).value()});
     } else {
       parametric_constraints.push_back(
           ParametricConstraint(*binding, std::move(binding_type), value));

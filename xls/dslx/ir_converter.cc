@@ -1388,19 +1388,19 @@ absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(
   Expr* start = iterable_call->args()[0];
   Expr* limit = iterable_call->args()[1];
 
-  absl::optional<InterpValue> interp_value =
-      current_type_info_->GetConstExpr(start);
-  if (!interp_value || !interp_value->IsBits() ||
-      interp_value->GetBitValueUint64().value() != 0) {
+  XLS_ASSIGN_OR_RETURN(InterpValue value,
+                       current_type_info_->GetConstExpr(start));
+  // TODO(rspringer): 2022-05-25: Relax this restriction.
+  if (!value.IsBits() || value.GetBitValueUint64().value() != 0) {
     return error();
   }
 
-  absl::optional<InterpValue> value = current_type_info_->GetConstExpr(limit);
-  XLS_RET_CHECK(value.has_value() && value->IsBits());
-  if (value->IsSigned()) {
-    return value->GetBitValueInt64();
+  XLS_ASSIGN_OR_RETURN(value, current_type_info_->GetConstExpr(limit));
+  XLS_RET_CHECK(value.IsBits());
+  if (value.IsSigned()) {
+    return value.GetBitValueInt64();
   }
-  return value->GetBitValueUint64();
+  return value.GetBitValueUint64();
 }
 
 // Convert a NameDefTree node variant to an AstNode pointer (either the leaf

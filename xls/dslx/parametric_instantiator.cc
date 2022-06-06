@@ -18,6 +18,7 @@
 #include "absl/types/variant.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
+#include "xls/dslx/constexpr_evaluator.h"
 
 namespace xls::dslx {
 namespace internal {
@@ -34,8 +35,10 @@ absl::StatusOr<InterpValue> InterpretExpr(
     ctx = new_ctx_holder.get();
   }
 
-  absl::flat_hash_map<std::string, InterpValue> env =
-      MakeConstexprEnv(expr, symbolic_bindings, ctx->type_info());
+  absl::flat_hash_map<std::string, InterpValue> env;
+  XLS_ASSIGN_OR_RETURN(
+      env, MakeConstexprEnv(ctx->import_data(), ctx->type_info(), expr,
+                            symbolic_bindings));
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,

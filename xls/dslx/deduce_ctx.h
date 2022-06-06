@@ -220,21 +220,6 @@ class DeduceCtx {
 ParametricExpression::Env ToParametricEnv(
     const SymbolicBindings& symbolic_bindings);
 
-// Makes a constexpr environment suitable for passing to
-// Interpreter::InterpExpr(). This will be populated with symbolic bindings
-// as well as a constexpr freevars of "node", which is useful when there are
-// local const bindings closed over e.g. in function scope.
-//
-// `type_info` is required to look up the value of previously computed
-// constexprs.
-// `bypass_env` is a set of NameDefs to skip when constructing the constexpr
-// env. This is needed for `for` loop constexpr eval, in cases where a
-// loop-scoped variable shadows the initial value, to be able to resolve the
-// outer [constexpr] value.
-absl::flat_hash_map<std::string, InterpValue> MakeConstexprEnv(
-    const Expr* node, const SymbolicBindings& symbolic_bindings,
-    TypeInfo* type_info, absl::flat_hash_set<const NameDef*> bypass_env = {});
-
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_DEDUCE_CTX_H_

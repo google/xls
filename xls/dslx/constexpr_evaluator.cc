@@ -17,6 +17,7 @@
 
 #include "absl/strings/match.h"
 #include "absl/types/variant.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
@@ -181,6 +182,8 @@ class NameRefCollector : public ExprVisitor {
     return result;
   }
 
+  absl::flat_hash_set<const NameDef*>& inside_name_defs() { return name_defs_; }
+
  private:
   std::vector<const NameRef*> name_refs_;
   absl::flat_hash_set<const NameDef*> name_defs_;
@@ -209,28 +212,63 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
 
 }  // namespace
 
-bool ConstexprEvaluator::IsConstExpr(const Expr* expr) {
-  return ctx_->type_info()->GetConstExpr(expr).has_value();
+/* static */ absl::Status ConstexprEvaluator::Evaluate(
+    ImportData* import_data, TypeInfo* type_info,
+    const SymbolicBindings& bindings, const Expr* expr,
+    const ConcreteType* concrete_type) {
+  if (type_info->IsKnownConstExpr(expr) ||
+      type_info->IsKnownNonConstExpr(expr)) {
+    return absl::OkStatus();
+  }
+  ConstexprEvaluator evaluator(import_data, type_info, bindings, concrete_type);
+  return expr->AcceptExpr(&evaluator);
 }
 
-absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
-  if (IsConstExpr(expr->lhs())) {
-    XLS_RETURN_IF_ERROR(InterpretExpr(expr));
+/* static */ absl::StatusOr<InterpValue> ConstexprEvaluator::EvaluateToValue(
+    ImportData* import_data, TypeInfo* type_info,
+    const SymbolicBindings& bindings, const Expr* expr,
+    const ConcreteType* concrete_type) {
+  XLS_RETURN_IF_ERROR(Evaluate(import_data, type_info, bindings, expr));
+  if (type_info->IsKnownConstExpr(expr)) {
+    return type_info->GetConstExpr(expr);
+  }
+  return absl::InvalidArgumentError(
+      absl::StrCat("Expr was not constexpr: ", expr->ToString()));
+}
+
+// Evaluates the given expression and terminates current function execution
+// if it is not constexpr.
+#define EVAL_AS_CONSTEXPR_OR_RETURN(EXPR)                            \
+  if (!type_info_->IsKnownConstExpr(EXPR) &&                         \
+      !type_info_->IsKnownNonConstExpr(EXPR)) {                      \
+    ConcreteType* sub_type = nullptr;                                \
+    if (type_info_->GetItem(EXPR).has_value()) {                     \
+      sub_type = type_info_->GetItem(EXPR).value();                  \
+    }                                                                \
+    ConstexprEvaluator sub_eval(import_data_, type_info_, bindings_, \
+                                sub_type);                           \
+    XLS_RETURN_IF_ERROR(EXPR->AcceptExpr(&sub_eval));                \
+  }                                                                  \
+  if (!type_info_->IsKnownConstExpr(EXPR)) {                         \
+    return absl::OkStatus();                                         \
   }
 
-  return absl::OkStatus();
+// Assigns the constexpr value of the given expression to the LHS or terminates
+// execution if it's not constexpr.
+#define GET_CONSTEXPR_OR_RETURN(LHS, EXPR) \
+  EVAL_AS_CONSTEXPR_OR_RETURN(EXPR);       \
+  LHS = type_info_->GetConstExpr(EXPR).value();
+
+absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
+  return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
-    absl::optional<InterpValue> maybe_value =
-        ctx_->type_info()->GetConstExpr(member);
-    if (!maybe_value.has_value()) {
-      return absl::OkStatus();
-    }
-
-    values.push_back(maybe_value.value());
+    GET_CONSTEXPR_OR_RETURN(InterpValue value, member);
+    values.push_back(value);
   }
 
   if (concrete_type_ != nullptr) {
@@ -257,24 +295,21 @@ absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
 
   // No need to fire up the interpreter. We can handle this one.
   XLS_ASSIGN_OR_RETURN(InterpValue array, InterpValue::MakeArray(values));
-  ctx_->type_info()->NoteConstExpr(expr, array);
+  type_info_->NoteConstExpr(expr, array);
   return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleBinop : " << expr->ToString();
-  if (IsConstExpr(expr->lhs()) && IsConstExpr(expr->rhs())) {
-    XLS_RETURN_IF_ERROR(InterpretExpr(expr));
-  }
-  return absl::OkStatus();
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->rhs());
+  return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleCast : " << expr->ToString();
-  if (IsConstExpr(expr->expr())) {
-    XLS_RETURN_IF_ERROR(InterpretExpr(expr));
-  }
-  return absl::OkStatus();
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->expr());
+  return InterpretExpr(expr);
 }
 
 // Creates an InterpValue for the described channel or array of channels.
@@ -303,8 +338,7 @@ absl::StatusOr<InterpValue> CreateChannelValue(
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
   // Keep in mind that channels come in tuples, so peel out the first element.
-  absl::optional<ConcreteType*> maybe_decl_type =
-      ctx_->type_info()->GetItem(expr);
+  absl::optional<ConcreteType*> maybe_decl_type = type_info_->GetItem(expr);
   if (!maybe_decl_type.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Could not find type for expr \"%s\" @ %s",
@@ -326,16 +360,14 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
 
   absl::StatusOr<InterpValue> channels =
       CreateChannelValue(&tuple_type->GetMemberType(0));
-  ctx_->type_info()->NoteConstExpr(
+  type_info_->NoteConstExpr(
       expr, InterpValue::MakeTuple({channels.value(), channels.value()}));
   return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
-  TypeInfo* type_info = ctx_->type_info();
-  XLS_ASSIGN_OR_RETURN(
-      auto subject,
-      ResolveColonRefSubject(ctx_->import_data(), type_info, expr));
+  XLS_ASSIGN_OR_RETURN(auto subject,
+                       ResolveColonRefSubject(import_data_, type_info_, expr));
 
   if (absl::holds_alternative<EnumDef*>(subject)) {
     // LHS is an EnumDef! Extract the value of the attr being referenced.
@@ -345,22 +377,13 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
 
     // Since enum defs can't [currently] be parameterized, this is safe.
     XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                         ctx_->import_data()->GetRootTypeInfoForNode(enum_def));
+                         import_data_->GetRootTypeInfoForNode(enum_def));
 
-    absl::optional<ConcreteType*> maybe_concrete_type =
-        type_info->GetItem(enum_def);
-    if (!maybe_concrete_type.has_value()) {
-      return absl::InternalError(absl::StrCat(
-          "Could not find concrete type for EnumDef: ", enum_def->ToString()));
-    }
-
-    absl::optional<InterpValue> maybe_final_value =
-        type_info->GetConstExpr(member_value_expr);
-    if (!maybe_final_value.has_value()) {
-      return absl::InternalError(absl::StrCat("Failed to constexpr evaluate: ",
-                                              member_value_expr->ToString()));
-    }
-    ctx_->type_info()->NoteConstExpr(expr, maybe_final_value.value());
+    XLS_RETURN_IF_ERROR(
+        Evaluate(import_data_, type_info, bindings_, member_value_expr));
+    XLS_RET_CHECK(type_info->IsKnownConstExpr(member_value_expr));
+    type_info_->NoteConstExpr(
+        expr, type_info->GetConstExpr(member_value_expr).value());
     return absl::OkStatus();
   }
 
@@ -381,18 +404,15 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(type_info, ctx_->import_data()->GetRootTypeInfo(module));
+  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                       import_data_->GetRootTypeInfo(module));
 
   ConstantDef* constant_def = absl::get<ConstantDef*>(*maybe_member.value());
-  absl::optional<InterpValue> maybe_value =
-      type_info->GetConstExpr(constant_def->value());
-  if (!maybe_value.has_value()) {
-    return absl::InternalError(
-        absl::StrCat("Could not find constexpr value for ConstantDef \"",
-                     constant_def->ToString(), "\"."));
-  }
-
-  ctx_->type_info()->NoteConstExpr(expr, maybe_value.value());
+  XLS_RETURN_IF_ERROR(
+      Evaluate(import_data_, type_info, bindings_, constant_def->value()));
+  XLS_RET_CHECK(type_info->IsKnownConstExpr(constant_def->value()));
+  type_info_->NoteConstExpr(
+      expr, type_info->GetConstExpr(constant_def->value()).value());
   return absl::OkStatus();
 }
 
@@ -404,34 +424,35 @@ absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
   // A `for` loop evaluates constexpr if its init and enumeration values as
   // well as any external NameRefs are constexpr.
   XLS_VLOG(3) << "ConstexprEvaluator::HandleFor: " << expr->ToString();
-  if (!IsConstExpr(expr->init()) || !IsConstExpr(expr->iterable())) {
-    return absl::OkStatus();
-  }
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->init());
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->iterable());
 
   // Since a `for` loop can refer to vars outside the loop body itself, we need
   // to make sure that every NameRef is also constexpr.
-  std::vector<NameDefTree::Leaf> bound_refs = expr->names()->Flatten();
-  absl::flat_hash_set<const NameDef*> bound_defs;
-  for (const auto& leaf : bound_refs) {
-    if (std::holds_alternative<NameDef*>(leaf)) {
-      bound_defs.insert(std::get<NameDef*>(leaf));
-    }
-  }
+  std::vector<NameDef*> bound_defs = expr->names()->GetNameDefs();
+  absl::flat_hash_set<const NameDef*> bound_def_set(bound_defs.begin(),
+                                                    bound_defs.end());
 
   NameRefCollector collector;
   XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(&collector));
   for (const NameRef* name_ref : collector.outside_name_refs()) {
     // We can't bind to a BuiltinNameDef, so this std::get is safe.
-    if (!IsConstExpr(name_ref) &&
-        !bound_defs.contains(std::get<NameDef*>(name_ref->name_def()))) {
+    XLS_RETURN_IF_ERROR(name_ref->AcceptExpr(this));
+    if (!type_info_->IsKnownConstExpr(name_ref) &&
+        !bound_def_set.contains(std::get<NameDef*>(name_ref->name_def()))) {
       return absl::OkStatus();
     }
   }
 
+  // When constexpr eval'ing, we also don't want names declared inside the loop
+  // to shadow the [potentially] constexpr values declared outside.
+  bound_def_set.insert(collector.inside_name_defs().begin(),
+                       collector.inside_name_defs().end());
+
   // We don't [yet] have a static assert fn, meaning that we don't want to catch
   // runtime errors here. If we detect that a program has failed (due to
   // execution of a `fail!` or unmatched `match`, then just assume we're ok.
-  absl::Status status = InterpretExpr(expr, bound_defs);
+  absl::Status status = InterpretExpr(expr, bound_def_set);
   if (!status.ok() && !absl::StartsWith(status.message(), "FailureError")) {
     return status;
   }
@@ -440,23 +461,24 @@ absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
 
 absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
-  bool rhs_is_constexpr;
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
+
   if (absl::holds_alternative<Expr*>(expr->rhs())) {
-    rhs_is_constexpr = IsConstExpr(absl::get<Expr*>(expr->rhs()));
+    EVAL_AS_CONSTEXPR_OR_RETURN(absl::get<Expr*>(expr->rhs()));
   } else if (absl::holds_alternative<Slice*>(expr->rhs())) {
     Slice* slice = absl::get<Slice*>(expr->rhs());
-    rhs_is_constexpr =
-        IsConstExpr(slice->start()) && IsConstExpr(slice->limit());
+    if (slice->start() != nullptr) {
+      EVAL_AS_CONSTEXPR_OR_RETURN(slice->start());
+    }
+    if (slice->limit() != nullptr) {
+      EVAL_AS_CONSTEXPR_OR_RETURN(slice->limit());
+    }
   } else {
     WidthSlice* width_slice = absl::get<WidthSlice*>(expr->rhs());
-    rhs_is_constexpr = IsConstExpr(width_slice->start());
+    EVAL_AS_CONSTEXPR_OR_RETURN(width_slice->start());
   }
 
-  if (IsConstExpr(expr->lhs()) && rhs_is_constexpr) {
-    return InterpretExpr(expr);
-  }
-
-  return absl::OkStatus();
+  return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
@@ -466,15 +488,11 @@ absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
   bool callee_is_map =
       callee_name_ref != nullptr && callee_name_ref->identifier() == "map";
   if (callee_is_map) {
-    if (!IsConstExpr(expr->args()[0])) {
-      return absl::OkStatus();
-    }
+    EVAL_AS_CONSTEXPR_OR_RETURN(expr->args()[0])
   } else {
     // A regular invocation is constexpr iff its args are constexpr.
     for (const auto* arg : expr->args()) {
-      if (!IsConstExpr(arg)) {
-        return absl::OkStatus();
-      }
+      EVAL_AS_CONSTEXPR_OR_RETURN(arg)
     }
   }
 
@@ -490,26 +508,22 @@ absl::Status ConstexprEvaluator::HandleInvocation(const Invocation* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleMatch(const Match* expr) {
-  if (!IsConstExpr(expr->matched())) {
-    return absl::OkStatus();
-  }
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->matched());
 
   for (const auto* arm : expr->arms()) {
-    if (!IsConstExpr(arm->expr())) {
-      return absl::OkStatus();
-    }
+    EVAL_AS_CONSTEXPR_OR_RETURN(arm->expr());
   }
 
   return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleNameRef(const NameRef* expr) {
-  absl::optional<InterpValue> constexpr_value =
-      ctx_->type_info()->GetConstExpr(ToAstNode(expr->name_def()));
-
-  if (constexpr_value.has_value()) {
-    ctx_->type_info()->NoteConstExpr(expr, constexpr_value.value());
+  AstNode* name_def = ToAstNode(expr->name_def());
+  if (type_info_->IsKnownNonConstExpr(name_def) ||
+      !type_info_->IsKnownConstExpr(name_def)) {
+    return absl::Status();
   }
+  type_info_->NoteConstExpr(expr, type_info_->GetConstExpr(name_def).value());
   return absl::OkStatus();
 }
 
@@ -533,10 +547,8 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
 absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
   // Numbers should always be [constexpr] evaluatable.
   absl::flat_hash_map<std::string, InterpValue> env;
-  if (!ctx_->fn_stack().empty()) {
-    env = MakeConstexprEnv(expr, ctx_->fn_stack().back().symbolic_bindings(),
-                           ctx_->type_info());
-  }
+  XLS_ASSIGN_OR_RETURN(
+      env, MakeConstexprEnv(import_data_, type_info_, expr, bindings_));
 
   std::unique_ptr<BitsType> temp_type;
   const ConcreteType* type_ptr;
@@ -544,7 +556,9 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
     // If the number is annotated with a type, then extract it to pass to
     // EvaluateNumber (for consistency checking). It might be that the type is
     // parametric, in which case we'll need to fully instantiate it.
-    type_ptr = ctx_->type_info()->GetItem(expr->type_annotation()).value();
+    auto maybe_type_ptr = type_info_->GetItem(expr->type_annotation());
+    XLS_RET_CHECK(maybe_type_ptr.has_value());
+    type_ptr = maybe_type_ptr.value();
     const BitsType* bt = down_cast<const BitsType*>(type_ptr);
     if (bt->size().IsParametric()) {
       XLS_ASSIGN_OR_RETURN(temp_type, InstantiateParametricNumberType(env, bt));
@@ -566,7 +580,7 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
   }
 
   XLS_ASSIGN_OR_RETURN(InterpValue value, EvaluateNumber(expr, type_ptr));
-  ctx_->type_info()->NoteConstExpr(expr, value);
+  type_info_->NoteConstExpr(expr, value);
 
   return absl::OkStatus();
 }
@@ -575,14 +589,10 @@ absl::Status ConstexprEvaluator::HandleSplatStructInstance(
     const SplatStructInstance* expr) {
   // A struct instance is constexpr iff all its members and the basis struct are
   // constexpr.
-  if (!IsConstExpr(expr->splatted())) {
-    return absl::OkStatus();
-  }
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->splatted());
 
   for (const auto& [k, v] : expr->members()) {
-    if (!IsConstExpr(v)) {
-      return absl::OkStatus();
-    }
+    EVAL_AS_CONSTEXPR_OR_RETURN(v);
   }
   return InterpretExpr(expr);
 }
@@ -591,37 +601,31 @@ absl::Status ConstexprEvaluator::HandleStructInstance(
     const StructInstance* expr) {
   // A struct instance is constexpr iff all its members are constexpr.
   for (const auto& [k, v] : expr->GetUnorderedMembers()) {
-    if (!IsConstExpr(v)) {
-      return absl::OkStatus();
-    }
+    EVAL_AS_CONSTEXPR_OR_RETURN(v);
   }
   return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleTernary(const Ternary* expr) {
   // Simple enough that we don't need to invoke the interpreter.
-  if (!IsConstExpr(expr->test()) || !IsConstExpr(expr->consequent()) ||
-      !IsConstExpr(expr->alternate())) {
-    return absl::OkStatus();
-  }
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->test());
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->consequent());
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->alternate());
 
-  TypeInfo* type_info = ctx_->type_info();
-  InterpValue test = type_info->GetConstExpr(expr->test()).value();
+  InterpValue test = type_info_->GetConstExpr(expr->test()).value();
   if (test.IsTrue()) {
-    type_info->NoteConstExpr(
-        expr, type_info->GetConstExpr(expr->consequent()).value());
+    type_info_->NoteConstExpr(
+        expr, type_info_->GetConstExpr(expr->consequent()).value());
   } else {
-    type_info->NoteConstExpr(
-        expr, type_info->GetConstExpr(expr->alternate()).value());
+    type_info_->NoteConstExpr(
+        expr, type_info_->GetConstExpr(expr->alternate()).value());
   }
 
   return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleUnop(const Unop* expr) {
-  if (!IsConstExpr(expr->operand())) {
-    return absl::OkStatus();
-  }
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->operand());
 
   return InterpretExpr(expr);
 }
@@ -629,53 +633,92 @@ absl::Status ConstexprEvaluator::HandleUnop(const Unop* expr) {
 absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
-    absl::optional<InterpValue> maybe_value =
-        ctx_->type_info()->GetConstExpr(member);
-    if (!maybe_value.has_value()) {
-      return absl::OkStatus();
-    }
-
-    values.push_back(maybe_value.value());
+    GET_CONSTEXPR_OR_RETURN(InterpValue value, member);
+    values.push_back(value);
   }
 
   // No need to fire up the interpreter. We can handle this one.
-  ctx_->type_info()->NoteConstExpr(expr, InterpValue::MakeTuple(values));
+  type_info_->NoteConstExpr(expr, InterpValue::MakeTuple(values));
   return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::InterpretExpr(
     const Expr* expr, absl::flat_hash_set<const NameDef*> bypass_env) {
-  absl::optional<FnCtx> fn_ctx;
   absl::flat_hash_map<std::string, InterpValue> env;
-  if (!ctx_->fn_stack().empty()) {
-    env = MakeConstexprEnv(expr, ctx_->fn_stack().back().symbolic_bindings(),
-                           ctx_->type_info(), bypass_env);
+  XLS_ASSIGN_OR_RETURN(env, MakeConstexprEnv(import_data_, type_info_, expr,
+                                             bindings_, bypass_env));
 
-    const FnStackEntry& peek_entry = ctx_->fn_stack().back();
-    if (peek_entry.f() != nullptr) {
-      fn_ctx.emplace(FnCtx{peek_entry.module()->name(), peek_entry.name(),
-                           peek_entry.symbolic_bindings()});
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> bf,
+                       BytecodeEmitter::EmitExpression(import_data_, type_info_,
+                                                       expr, env, bindings_));
+
+  XLS_ASSIGN_OR_RETURN(InterpValue constexpr_value,
+                       BytecodeInterpreter::Interpret(import_data_, bf.get(),
+                                                      /*args=*/{}));
+  type_info_->NoteConstExpr(expr, constexpr_value);
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
+    ImportData* import_data, TypeInfo* type_info, const Expr* node,
+    const SymbolicBindings& symbolic_bindings,
+    absl::flat_hash_set<const NameDef*> bypass_env) {
+  XLS_CHECK_EQ(node->owner(), type_info->module())
+      << "expr `" << node->ToString()
+      << "` from module: " << node->owner()->name()
+      << " vs type info module: " << type_info->module()->name();
+  XLS_VLOG(5) << "Creating constexpr environment for node: "
+              << node->ToString();
+  absl::flat_hash_map<std::string, InterpValue> env;
+  absl::flat_hash_map<std::string, InterpValue> values;
+
+  for (auto [id, value] : symbolic_bindings.ToMap()) {
+    env.insert({id, value});
+  }
+
+  // Collect all the freevars that are constexpr.
+  FreeVariables freevars = node->GetFreeVariables();
+  XLS_VLOG(5) << "freevars for " << node->ToString() << ": "
+              << freevars.GetFreeVariableCount();
+  freevars = freevars.DropBuiltinDefs();
+  for (const auto& [name, name_refs] : freevars.values()) {
+    const NameRef* target_ref = nullptr;
+    for (const NameRef* name_ref : name_refs) {
+      if (!bypass_env.contains(absl::get<NameDef*>(name_ref->name_def()))) {
+        target_ref = name_ref;
+        break;
+      }
+    }
+
+    if (target_ref == nullptr) {
+      continue;
+    }
+
+    XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
+        import_data, type_info, symbolic_bindings, target_ref, nullptr));
+    absl::StatusOr<InterpValue> const_expr =
+        type_info->GetConstExpr(target_ref);
+    if (const_expr.ok()) {
+      env.insert({name, const_expr.value()});
     }
   }
 
-  SymbolicBindings symbolic_bindings;
-  if (!ctx_->fn_stack().empty()) {
-    const FnStackEntry& entry = ctx_->fn_stack().back();
-    symbolic_bindings = entry.symbolic_bindings();
+  for (const ConstRef* const_ref : freevars.GetConstRefs()) {
+    XLS_VLOG(5) << "analyzing constant reference: " << const_ref->ToString()
+                << " def: " << const_ref->ToString();
+    Expr* const_expr = const_ref->GetValue();
+    absl::StatusOr<InterpValue> value = type_info->GetConstExpr(const_expr);
+    if (!value.ok()) {
+      continue;
+    }
+
+    XLS_VLOG(5) << "freevar env record: " << const_ref->identifier() << " => "
+                << value->ToString();
+    env.insert({const_ref->identifier(), *value});
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::EmitExpression(ctx_->import_data(), ctx_->type_info(),
-                                      expr, env, symbolic_bindings));
-
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue constexpr_value,
-      BytecodeInterpreter::Interpret(ctx_->import_data(), bf.get(),
-                                     /*args=*/{}));
-  ctx_->type_info()->NoteConstExpr(expr, constexpr_value);
-
-  return absl::OkStatus();
+  return env;
 }
 
 }  // namespace xls::dslx

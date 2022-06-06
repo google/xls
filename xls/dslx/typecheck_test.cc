@@ -1103,7 +1103,7 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
     }
 
     absl::Status HandleNumber(const Number* node) {
-      if (!type_info_->GetConstExpr(node).has_value()) {
+      if (!type_info_->GetConstExpr(node).ok()) {
         all_numbers_constexpr_ = false;
       }
       return absl::OkStatus();

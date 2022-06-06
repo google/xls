@@ -14,6 +14,7 @@
 
 #include "xls/dslx/type_info.h"
 
+#include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 
 namespace xls::dslx {
@@ -66,10 +67,10 @@ void TypeInfo::NoteConstExpr(const AstNode* const_expr, InterpValue value) {
   const_exprs_.insert({const_expr, value});
 }
 
-absl::optional<InterpValue> TypeInfo::GetConstExpr(
+absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
     const AstNode* const_expr) const {
   if (auto it = const_exprs_.find(const_expr); it != const_exprs_.end()) {
-    return it->second;
+    return it->second.value();
   }
 
   if (parent_ != nullptr) {
@@ -79,7 +80,16 @@ absl::optional<InterpValue> TypeInfo::GetConstExpr(
     return parent_->GetConstExpr(const_expr);
   }
 
-  return absl::nullopt;
+  return absl::NotFoundError(absl::StrCat(
+      "No constexpr value found for node \"", const_expr->ToString(), "\"."));
+}
+
+bool TypeInfo::IsKnownConstExpr(const AstNode* node) {
+  return const_exprs_.contains(node) && const_exprs_.at(node).has_value();
+}
+
+bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) {
+  return const_exprs_.contains(node) && !const_exprs_.at(node).has_value();
 }
 
 bool TypeInfo::Contains(AstNode* key) const {
