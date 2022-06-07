@@ -24,6 +24,7 @@
 
 namespace xls {
 
+namespace internal {
 absl::StatusOr<xls::Value> ConvertInt64(const Type* type, int64_t value) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsBits()) {
@@ -51,6 +52,7 @@ absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value) {
       Bits bit_value, UBitsWithStatus(value, type->AsBitsOrDie()->bit_count()));
   return Value(bit_value);
 }
+}  // namespace internal
 
 absl::StatusOr<xls::Value> Convert(const Type* type,
                                    const std::tuple<>& tuple) {

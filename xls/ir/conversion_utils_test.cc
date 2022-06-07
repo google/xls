@@ -140,6 +140,19 @@ TEST(ConversionUtils, ConvertTupleWithArray) {
               IsOkAndHolds(Value::Tuple({Value(UBits(64, 10)), element1})));
 }
 
+TEST(ConversionUtils, ConvertTupleWithValueAsElement) {
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Value element1,
+      Value::Array({Value(UBits(42, 10)), Value(UBits(64, 10))}));
+  Package p("package");
+  TupleType tuple_type(
+      {p.GetBitsType(10), p.GetArrayType(2, p.GetBitsType(10))});
+  absl::StatusOr<Value> result_or =
+      xls::Convert(&tuple_type, std::make_tuple(64, element1));
+  EXPECT_THAT(result_or,
+              IsOkAndHolds(Value::Tuple({Value(UBits(64, 10)), element1})));
+}
+
 struct UserStruct {
   int64_t integer_value;
   bool boolean_value;

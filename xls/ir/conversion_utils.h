@@ -15,6 +15,7 @@
 #ifndef XLS_IR_CONVERSION_UTILS_H_
 #define XLS_IR_CONVERSION_UTILS_H_
 
+#include <cstdint>
 #include <limits>
 #include <tuple>
 #include <utility>
@@ -24,9 +25,10 @@
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
-#include "xls/ir/function.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/ir/value_helpers.h"
 
 // Utilities for conversions between a value represented in the C++ domain to
 // the IR domain (xls::Value).
@@ -69,6 +71,7 @@
 
 namespace xls {
 
+namespace internal {
 // Convert the int64_t 'value' from the C++ domain to the IR domain (xls::Value)
 // using 'type' as the conversion type to the IR domain.
 //
@@ -84,23 +87,25 @@ absl::StatusOr<xls::Value> ConvertInt64(const Type* type, int64_t value);
 // The value must fit within bit count defined by 'type'. Otherwise, an error is
 // reported.
 absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value);
+}  // namespace internal
 
 // Convert the integer 'value' from the C++ domain to the IR domain (xls::Value)
 // using 'type' as the conversion type to the IR domain.
 //
 // The type of integer must be smaller or equal to that of an int64_t.
-template <typename T, typename std::enable_if<std::is_unsigned<T>::value,
+template <typename T,
+          typename std::enable_if<std::is_unsigned_v<T>, T>::type* = nullptr>
+absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
+  static_assert(sizeof(T) <= sizeof(uint64_t));
+  return internal::ConvertUint64(type, static_cast<uint64_t>(value));
+}
+
+template <typename T, typename std::enable_if<std::is_signed_v<T> &&
+                                                  !std::is_floating_point_v<T>,
                                               T>::type* = nullptr>
 absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
   static_assert(sizeof(T) <= sizeof(int64_t));
-  return ConvertUint64(type, value);
-}
-
-template <typename T,
-          typename std::enable_if<std::is_signed<T>::value, T>::type* = nullptr>
-absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
-  static_assert(sizeof(T) <= sizeof(int64_t));
-  return ConvertInt64(type, value);
+  return internal::ConvertInt64(type, static_cast<int64_t>(value));
 }
 
 // Convert the absl::Span 'values' from the C++ domain to the IR domain
@@ -147,8 +152,32 @@ namespace internal {
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple);
 
-// Recursive case for tuple conversion: at least one element exist for
-// conversion.
+// Recursive cases for tuple conversion.
+// Scenario where the value is of type xls::Value, thus no conversion is
+// required.
+template <typename... ValuesType>
+absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
+                                  std::vector<Value>& xls_tuple,
+                                  xls::Value value, ValuesType... values) {
+  XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
+  if (index >= xls_tuple.size()) {
+    // When the user is using the Convert(..., std::tuple...), the following
+    // error should not occur.
+    return absl::InvalidArgumentError(
+        absl::StrFormat("The current element count exceeds the element count "
+                        "used for memory allocation. Expected (%d), got (%d).",
+                        xls_tuple.size(), index));
+  }
+  Type* element_type = type->element_type(index);
+  if (!ValueConformsToType(value, element_type)) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Type mismatch for a xls::Value. Expected type (%s), got value (%s).",
+        element_type->ToString(), value.ToString()));
+  }
+  xls_tuple[index] = value;
+  return ConvertTupleElements(type, index + 1, xls_tuple, values...);
+}
+// Scenario where at least one element exist for conversion.
 template <typename ValueType, typename... ValuesType>
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple,
