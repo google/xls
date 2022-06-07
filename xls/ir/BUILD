@@ -1252,6 +1252,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
     ],
 )

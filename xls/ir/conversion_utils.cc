@@ -18,6 +18,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -81,6 +82,33 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
   return absl::OkStatus();
 }
 
+absl::Status ConvertTupleElements(const xls::Value& tuple, int64_t index,
+                                  int64_t num_elements) {
+  if (index < num_elements) {
+    // When the user is using the ConvertFromXlsValue(..., std::tuple...), the
+    // following error should not occur.
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Insufficient tuple elements to convert. Expected (%d), got (%d).",
+        num_elements, index));
+  }
+  return absl::OkStatus();
+}
 }  // namespace internal
+
+absl::Status ConvertFromXlsValue(const xls::Value& value, bool& cpp_value) {
+  if (!value.IsBits()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Invalid type conversion for bool input. A bool value can only be "
+        "converted using a bits type. Expected type (bits), got value (%s).",
+        value.ToString()));
+  }
+  if (!value.bits().FitsInNBitsUnsigned(1)) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Value does not fit in bool type. Value requires %d bits, got 1.",
+        value.bits().bit_count()));
+  }
+  XLS_ASSIGN_OR_RETURN(cpp_value, value.bits().ToUint64());
+  return absl::OkStatus();
+}
 
 }  // namespace xls

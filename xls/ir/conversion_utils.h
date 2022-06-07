@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <limits>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -30,8 +31,14 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 
-// Utilities for conversions between a value represented in the C++ domain to
-// the IR domain (xls::Value).
+// Utilities for conversions from a value represented in the C++ domain to
+// the IR domain (xls::Value), and vice-versa, from the IR domain (xls::Value)
+// to a value represented in the C++ domain.
+
+namespace xls {
+
+// Below are utilities for conversions from a value represented in the C++
+// domain to the IR domain (xls::Value).
 //
 // The conversion are performed recursively. As a result, when converting to an
 // array and a tuple, the elements within the array and tuple are also
@@ -68,8 +75,6 @@
 //      }  // namespace xls
 //
 // Note that the conversion function leverages the conversion for tuples.
-
-namespace xls {
 
 namespace internal {
 // Convert the int64_t 'value' from the C++ domain to the IR domain (xls::Value)
@@ -110,8 +115,9 @@ absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
 
 // Convert the absl::Span 'values' from the C++ domain to the IR domain
 // (xls::Value) using 'type' as the conversion type to the IR domain. Note that
-// the function uses a recursive mechanism to that also converts the elements of
-// the absl::Span. Please see file comment for more information.
+// the function uses a recursive mechanism that also converts the elements of
+// the absl::Span. Please see comment above regarding conversion to the IR
+// domain for more information.
 //
 // The 'type' must be of array type. The 'type' and absl::Span must define the
 // same number of elements for the array. Otherwise, an error is reported.
@@ -163,10 +169,10 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
   if (index >= xls_tuple.size()) {
     // When the user is using the Convert(..., std::tuple...), the following
     // error should not occur.
-    return absl::InvalidArgumentError(
-        absl::StrFormat("The current element count exceeds the element count "
-                        "used for memory allocation. Expected (%d), got (%d).",
-                        xls_tuple.size(), index));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "The current element index exceeds the element count "
+        "in the tuple. The current element index cannot exceed %d, got %d.",
+        xls_tuple.size() - 1, index));
   }
   Type* element_type = type->element_type(index);
   if (!ValueConformsToType(value, element_type)) {
@@ -186,10 +192,10 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
   if (index >= xls_tuple.size()) {
     // When the user is using the Convert(..., std::tuple...), the following
     // error should not occur.
-    return absl::InvalidArgumentError(
-        absl::StrFormat("The current element count exceeds the element count "
-                        "used for memory allocation. Expected (%d), got (%d).",
-                        xls_tuple.size(), index));
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "The current element index exceeds the element count "
+        "in the tuple. The current element index cannot exceed %d, got %d.",
+        xls_tuple.size() - 1, index));
   }
   XLS_ASSIGN_OR_RETURN(xls_tuple[index],
                        xls::Convert(type->element_type(index), value));
@@ -210,7 +216,8 @@ absl::Status UnpackTuple(const TupleType* type, std::vector<Value>& xls_tuple,
 // Convert the std::tuple 'tuple' from the C++ domain to the IR domain
 // (xls::Value) using 'type' as the conversion type to the IR domain. Note that
 // the function uses a recursive mechanism to that also converts the elements of
-// the std::tuple. Please see file comment for more information.
+// the std::tuple. Please see comment above regarding conversion to the IR
+// domain for more information.
 //
 // The 'type' must be of tuple type. The 'type' and std::tuple must define the
 // same number of elements for the tuple. Otherwise, an error is reported.
@@ -240,6 +247,237 @@ absl::StatusOr<xls::Value> Convert(const Type* type,
 
 // Conversion for an empty tuple.
 absl::StatusOr<xls::Value> Convert(const Type* type, const std::tuple<>& tuple);
+
+// Below are utilities for conversions from the IR domain (xls::Value) to a
+// value represented in the C++ domain.
+//
+// The conversion are performed recursively. As a result, when converting from
+// an array and a tuple, the elements within the array and tuple are also
+// converted.
+//
+// To leverage the recursive mechanism when performing conversions for
+// user-defined types such as Classes and Structs, the conversion function must
+// have the following signature, where 'MyClassOrStruct' is a user-defined class
+// or struct:
+//
+//        absl::Status ConvertFromXlsValue(const xls::Value& value,
+//        MyClassOrStruct& my_object);
+//
+// Moreover, the function must be placed in the 'xls' namespace.
+//
+// For example, for the following user-defined struct:
+//     namespace userspace {
+//       struct UserStruct {
+//        int64_t integer_value;
+//        bool boolean_value;
+//       };
+//     }  // namespace userspace
+//
+//  the conversion function would be as follows:
+//
+//     namespace xls {
+//
+//        absl::Status ConvertFromXlsValue(const xls::Value& user_struct_value,
+//                                   userspace::UserStruct& user_struct) {
+//          return xls::ConvertFromXlsValue(user_struct_value,
+//                                    std::tuple<int64_t&, bool&>(
+//                                      user_struct.integer_value,
+//                                      user_struct.boolean_value)
+//                                    );
+//
+//      }  // namespace xls
+//
+// Note that the conversion function leverages the conversion for tuples.
+
+namespace internal {
+constexpr int64_t kBitPerByte = 8;
+}  // namespace internal
+
+// Convert the value from the IR domain (xls::Value) to a bool type in the C++
+// domain.
+//
+// The function emits an error when:
+//   1. the xls::Value is not of bits type, or,
+//   2. the xls::Value does not fit in 1 bit.
+absl::Status ConvertFromXlsValue(const xls::Value& value, bool& cpp_value);
+
+// Convert the value from the IR domain (xls::Value) to a signed integral type
+// defined by the template 'T' in the C++ domain.
+//
+// The function emits an error when:
+//   1. the xls::Value is not of bits type, or,
+//   2. the xls::Value does not fit in type T.
+template <typename T, typename std::enable_if<
+                          std::is_signed_v<T> && !std::is_floating_point_v<T> &&
+                              !std::is_const_v<T>,
+                          bool>::type = true>
+absl::Status ConvertFromXlsValue(const xls::Value& value, T& cpp_value) {
+  if (!value.IsBits()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid type conversion for signed integral input. A "
+                        "signed integral value can only be converted using a "
+                        "bits type. Expected type (bits), got value (%s).",
+                        value.ToString()));
+  }
+  int64_t cpp_value_bit_count = sizeof(T) * internal::kBitPerByte;
+  if (!value.bits().FitsInNBitsSigned(cpp_value_bit_count)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Value does not fit in signed integral type. Value "
+                        "requires %d bits, got %d.",
+                        value.bits().bit_count(), cpp_value_bit_count));
+  }
+  XLS_ASSIGN_OR_RETURN(cpp_value, value.bits().ToInt64());
+  return absl::OkStatus();
+}
+
+// Convert the value from the IR domain (xls::Value) to a unsigned integral type
+// defined by the template 'T' in the C++ domain.
+//
+// The function emits an error when:
+//   1. the xls::Value is not of bits type, or,
+//   2. the xls::Value does not fit in type T.
+template <typename T,
+          typename std::enable_if<std::is_unsigned_v<T> && !std::is_const_v<T>,
+                                  bool>::type = true>
+absl::Status ConvertFromXlsValue(const xls::Value& value, T& cpp_value) {
+  if (!value.IsBits()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Invalid type conversion for unsigned integral input. An unsigned "
+        "integral value can only be converted using a bits type. Expected type "
+        "(bits), got value (%s).",
+        value.ToString()));
+  }
+  int64_t cpp_value_bit_count = sizeof(T) * internal::kBitPerByte;
+  if (!value.bits().FitsInNBitsUnsigned(cpp_value_bit_count)) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Value does not fit in unsigned integral type. Value "
+                        "requires %d bits, got %d.",
+                        value.bits().bit_count(), cpp_value_bit_count));
+  }
+  XLS_ASSIGN_OR_RETURN(cpp_value, value.bits().ToUint64());
+  return absl::OkStatus();
+}
+
+// Convert the value from the IR domain (xls::Value) to a std::vector<T> in
+// the C++ domain, where 'T' is defined by the template 'T'. Note that the
+// function uses a recursive mechanism that also converts the elements within
+// the xls::Value. Please see comment above regarding conversion from the IR
+// domain for more information.
+//
+// The function emits an error when:
+//   1. the xls::Value is not of array type, or,
+//   2. the recursive calls to ConvertFromXlsValue emit an error.
+//
+// Template type T needs to be trivially default constructible to use the
+// resize members function of std::vector.
+template <typename T,
+          typename std::enable_if<std::is_trivially_default_constructible_v<T>,
+                                  bool>::type = true>
+absl::Status ConvertFromXlsValue(const xls::Value& array,
+                                 std::vector<T>& cpp_array) {
+  if (!array.IsArray()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid type conversion for std::vector input. A "
+                        "std::vector input can only be converted using an "
+                        "array type. Expected type (array), got value (%s).",
+                        array.ToString()));
+  }
+  cpp_array.resize(array.size());
+  for (int64_t i = 0; i < array.size(); ++i) {
+    XLS_RETURN_IF_ERROR(ConvertFromXlsValue(array.element(i), cpp_array[i]));
+  }
+  return absl::OkStatus();
+}
+
+namespace internal {
+// Base case for tuple conversion: all elements have been converted.
+absl::Status ConvertTupleElements(const xls::Value& tuple, int64_t index,
+                                  int64_t num_elements);
+
+// Recursive cases for tuple conversion.
+// Sceanario where at least one element exist for conversion.
+template <typename ValueType, typename... ValuesType>
+absl::Status ConvertTupleElements(const xls::Value& tuple, int64_t index,
+                                  int64_t num_elements, ValueType& value,
+                                  ValuesType&... values) {
+  if (index >= num_elements) {
+    // When the user is using the ConvertFromXlsValue(..., std::tuple...), the
+    // following error should not occur.
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "The current element index exceeds the element count "
+        "in the tuple. The current element index cannot exceed %d, got %d.",
+        num_elements - 1, index));
+  }
+  XLS_RETURN_IF_ERROR(xls::ConvertFromXlsValue(tuple.element(index), value));
+  return ConvertTupleElements(tuple, index + 1, num_elements, values...);
+}
+
+// Unpack/Flatten the tuple to perform conversion to each element within the
+// tuple.
+template <typename... ValuesType, size_t... I>
+absl::Status UnpackTuple(const xls::Value& tuple,
+                         std::tuple<ValuesType...>& cpp_tuple,
+                         std::index_sequence<I...>) {
+  constexpr size_t num_elements = std::tuple_size_v<std::tuple<ValuesType...>>;
+  return ConvertTupleElements(tuple, 0, num_elements,
+                              std::get<I>(cpp_tuple)...);
+}
+}  // namespace internal
+
+// Convert the value from the IR domain (xls::Value) to a std::tuple<...> in
+// the C++ domain. Note that the function uses a recursive mechanism that also
+// converts the elements within the xls::Value. Please see comment above
+// regarding conversion from the IR domain for more information.
+//
+// The function emits an error when:
+//   1. the xls::Value is not of tuple type, or,
+//   2. there is a size mismatch between the xls::Value and the std::tuple, or,
+//   3. the recursive calls to ConvertFromXlsValue emit an error.
+template <typename... ValuesType>
+absl::Status ConvertFromXlsValue(const xls::Value& tuple,
+                                 std::tuple<ValuesType...>&& cpp_tuple) {
+  if (!tuple.IsTuple()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid type conversion for std::tuple input. A "
+                        "std::tuple input can only be converted using an "
+                        "tuple type. Expected type (tuple), got value (%s).",
+                        tuple.ToString()));
+  }
+  constexpr size_t num_elements = std::tuple_size_v<std::tuple<ValuesType...>>;
+  if (tuple.size() != num_elements) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Tuple size mismatch between conversion type and "
+                        "value. Expected (%d), got (%d).",
+                        tuple.size(), num_elements));
+  }
+  XLS_RETURN_IF_ERROR(internal::UnpackTuple(
+      tuple, cpp_tuple, std::index_sequence_for<ValuesType...>{}));
+  return absl::OkStatus();
+}
+
+// Same function as the above function with an lvalue reference for the
+// std::tuple.
+template <typename... ValuesType>
+absl::Status ConvertFromXlsValue(const xls::Value& tuple,
+                                 std::tuple<ValuesType...>& cpp_tuple) {
+  if (!tuple.IsTuple()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Invalid type conversion for std::tuple input. A "
+                        "std::tuple input can only be converted using an "
+                        "tuple type. Expected type (tuple), got value (%s).",
+                        tuple.ToString()));
+  }
+  constexpr size_t num_elements = std::tuple_size_v<std::tuple<ValuesType...>>;
+  if (tuple.size() != num_elements) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Tuple size mismatch between conversion type and "
+                        "value. Expected (%d), got (%d).",
+                        tuple.size(), num_elements));
+  }
+  XLS_RETURN_IF_ERROR(internal::UnpackTuple(
+      tuple, cpp_tuple, std::index_sequence_for<ValuesType...>{}));
+  return absl::OkStatus();
+}
 
 }  // namespace xls
 
