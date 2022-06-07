@@ -6613,6 +6613,15 @@ TEST_F(TranslatorTest, UnusedTemplate) {
                   testing::HasSubstr("Definition for CXXRecord")));
 }
 
+TEST_F(TranslatorTest, BinaryOpComma) {
+  const std::string content = R"(
+      #pragma hls_top
+      int test(int a) {
+          return (a=5,a+1);
+      })";
+  Run({{"a", 1}}, 6, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

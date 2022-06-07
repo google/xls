@@ -1464,6 +1464,9 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
 absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
     clang::BinaryOperatorKind clang_op, const CType& left_type,
     const CType& result_type, const xls::SourceInfo& loc) {
+  if (clang_op == clang::BinaryOperatorKind::BO_Comma) {
+        return xls::Op::kIdentity;
+  }
   if (result_type.Is<CIntType>()) {
     auto result_int_type = result_type.As<CIntType>();
     switch (clang_op) {
@@ -2281,6 +2284,10 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
                            TranslateTypeFromClang(lhs->getType(), loc));
     }
 
+    if (clang_op == clang::BinaryOperatorKind::BO_Comma) {
+      CValue lhs_cv;
+      XLS_ASSIGN_OR_RETURN(lhs_cv, GenerateIR_Expr(lhs, loc));
+    }
     XLS_ASSIGN_OR_RETURN(
         xls::Op xls_op,
         XLSOpcodeFromClang(clang_op, *input_type, *result_type, loc));
