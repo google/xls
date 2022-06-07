@@ -64,10 +64,6 @@ ABSL_FLAG(int64_t, opt_level, xls::kMaxOptLevel,
                           xls::kMaxOptLevel));
 ABSL_FLAG(bool, inline_procs, false,
           "Whether to inline all procs by calling the proc inlining pass. ");
-// TODO(meheff): 2022/4/4 Remove when proc state optimization lands and flop
-// count with new proc inliner is comparable to the old one.
-ABSL_FLAG(bool, use_new_proc_inliner, true,
-          "Whether to use the new proc inliner when proc inlining.");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls::tools {
@@ -97,7 +93,6 @@ absl::Status RealMain(absl::string_view input_path) {
               ? std::nullopt
               : std::make_optional(convert_array_index_to_select),
       .inline_procs = absl::GetFlag(FLAGS_inline_procs),
-      .use_new_proc_inliner = absl::GetFlag(FLAGS_use_new_proc_inliner),
   };
   XLS_ASSIGN_OR_RETURN(std::string opt_ir,
                        tools::OptimizeIrForEntry(ir, options));

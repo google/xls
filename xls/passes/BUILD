@@ -1025,44 +1025,6 @@ cc_library(
     srcs = ["proc_inlining_pass.cc"],
     hdrs = ["proc_inlining_pass.h"],
     deps = [
-        ":new_proc_inlining_pass",
-        ":passes",
-        "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "@com_google_absl//absl/strings:str_format",
-        "//xls/common/logging",
-        "//xls/ir",
-        "//xls/ir:node_util",
-        "//xls/ir:op",
-        "//xls/ir:value_helpers",
-    ],
-)
-
-cc_test(
-    name = "proc_inlining_pass_test",
-    srcs = ["proc_inlining_pass_test.cc"],
-    deps = [
-        ":dce_pass",
-        ":proc_inlining_pass",
-        "@com_google_absl//absl/status:statusor",
-        "//xls/common:xls_gunit_main",
-        "//xls/common/status:matchers",
-        "//xls/common/status:status_macros",
-        "//xls/interpreter:channel_queue",
-        "//xls/interpreter:proc_network_interpreter",
-        "//xls/ir",
-        "//xls/ir:function_builder",
-        "//xls/ir:ir_test_base",
-        "//xls/ir:value_helpers",
-        "@com_google_googletest//:gtest",
-    ],
-)
-
-cc_library(
-    name = "new_proc_inlining_pass",
-    srcs = ["new_proc_inlining_pass.cc"],
-    hdrs = ["new_proc_inlining_pass.h"],
-    deps = [
         ":bdd_function",
         ":bdd_query_engine",
         ":passes",
@@ -1145,11 +1107,11 @@ cc_test(
 )
 
 cc_test(
-    name = "new_proc_inlining_pass_test",
-    srcs = ["new_proc_inlining_pass_test.cc"],
+    name = "proc_inlining_pass_test",
+    srcs = ["proc_inlining_pass_test.cc"],
     deps = [
         ":dce_pass",
-        ":new_proc_inlining_pass",
+        ":proc_inlining_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

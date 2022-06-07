@@ -189,7 +189,6 @@ def _optimize_ir(ctx, src):
         "opt_level",
         "convert_array_index_to_select",
         "inline_procs",
-        "use_new_proc_inliner",
     )
 
     is_args_valid(opt_ir_args, IR_OPT_FLAGS)

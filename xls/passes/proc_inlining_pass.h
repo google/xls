@@ -24,7 +24,7 @@ namespace xls {
 // Pass which inlines all procs into the top-level proc.
 class ProcInliningPass : public Pass {
  public:
-  ProcInliningPass() : Pass("proc_inlining", "Proc inlining") {}
+  ProcInliningPass() : Pass("proc_inlining", "{roc inlining") {}
   ~ProcInliningPass() override {}
 
  protected:
