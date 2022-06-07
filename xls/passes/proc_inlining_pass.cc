@@ -23,6 +23,7 @@
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/bdd_function.h"
 #include "xls/passes/bdd_query_engine.h"
+#include "xls/passes/dataflow_visitor.h"
 #include "xls/passes/token_provenance_analysis.h"
 
 namespace xls {
@@ -356,6 +357,59 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
   return absl::OkStatus();
 }
 
+// Visitor which computes the data dependencies of `Receive`s. Specifically, for
+// each element of each node the visitor computes which `Receive`s the element
+// is data dependent upon. This is stored as a std::vector<Receive*> for each
+// element of each node. For example, given:
+//
+// foobar = ...
+// rcv0 = Receive(...)
+// rcv1 = Receive(...)
+// rcv0_data = TupleIndex(rcv0, 1)
+// rcv1_data = TupleIndex(rcv0, 1)
+// x = Tuple(rcv0_data, rcv0_data + rcv1_data, foobar)
+//
+// The leaf type tree for `x` might be:
+//
+//   ({rcv0}, {rcv0, rcv1}, {})
+class ReceiveDependencyVisitor : public DataFlowVisitor<std::vector<Receive*>> {
+ public:
+  absl::Status DefaultHandler(Node* node) override {
+    // Token-typed nodes have no receive data sources.
+    if (node->GetType()->IsToken()) {
+      return SetValue(node,
+                      LeafTypeTree<std::vector<Receive*>>(node->GetType()));
+    }
+    // Otherwise, conservatively assume that the data source(s) of
+    // an element of the output might come from any operand data source.
+    LeafTypeTree<std::vector<Receive*>> ltt(node->GetType(),
+                                            FlattenOperandVectors(node));
+    return SetValue(node, std::move(ltt));
+  }
+
+  absl::Status HandleReceive(Receive* receive) override {
+    // A Receive produces a two element tuple: (token, data). The source of
+    // `data` is only this receive (obviously).
+    LeafTypeTree<std::vector<Receive*>> ltt(receive->GetType(),
+                                            {receive->As<Receive>()});
+    // The token element is not considered a data dependency.
+    ltt.Get({0}).clear();
+    return SetValue(receive, std::move(ltt));
+  }
+
+  std::vector<Receive*> FlattenOperandVectors(Node* node) {
+    absl::flat_hash_set<Receive*> elements;
+    for (Node* operand : node->operands()) {
+      for (const std::vector<Receive*>& receives :
+           GetValue(operand).elements()) {
+        elements.insert(receives.begin(), receives.end());
+      }
+    }
+    std::vector<Receive*> element_vec = SetToSortedVector(elements);
+    return element_vec;
+  }
+};
+
 // Returns a map containing each receive and the nodes which may be dependent on
 // the data value of that receive. Data paths are tracked precisely through
 // Tuple and TupleIndex instructions but other node are handled conservatively
@@ -375,92 +429,42 @@ absl::Status VerifyTokenDependencies(Proc* proc) {
 // The following map is returned:
 //
 //   {rcv0: [b, c], rcv1: [c], rcv2: []}
-absl::flat_hash_map<Receive*, std::vector<Node*>> GetReceiveDataDependencies(
-    Proc* inlined_proc) {
-  // This map indicates which Receives each element of each node is data
-  // dependent upon. For example:
-  //
-  // foobar = ...
-  // rcv0 = Receive(...)
-  // rcv1 = Receive(...)
-  // rcv0_data = TupleIndex(rcv0, 1)
-  // rcv1_data = TupleIndex(rcv0, 1)
-  // x = Tuple(rcv0, rcv0+rcv1, foobar)
-  //
-  // The `data_sources` value for `x` might be:
-  //
-  //   ({rcv0}, {rcv0, rcv1}, {})
-  absl::flat_hash_map<Node*, LeafTypeTree<std::vector<Receive*>>> data_sources;
+absl::StatusOr<absl::flat_hash_map<Receive*, std::vector<Node*>>>
+GetReceiveDataDependencies(Proc* inlined_proc) {
+  ReceiveDependencyVisitor visitor;
+  XLS_RETURN_IF_ERROR(inlined_proc->Accept(&visitor));
 
-  // Returns a vector containing all Receive* values contained in the
-  // `data_source` LeafTypeTrees of all operands of `node`. This is the set of
-  // Receives for which `node` may be data-dependent.
-  auto flatten_operands = [&](Node* node) {
-    absl::flat_hash_set<Receive*> elements;
-    for (Node* operand : node->operands()) {
-      for (const std::vector<Receive*>& receives :
-           data_sources.at(operand).elements()) {
-        elements.insert(receives.begin(), receives.end());
-      }
+  if (XLS_VLOG_IS_ON(3)) {
+    XLS_VLOG(3) << absl::StrFormat("Receive data dependencies for proc %s:",
+                                   inlined_proc->name());
+    for (Node* node : TopoSort(inlined_proc)) {
+      XLS_VLOG(3) << absl::StreamFormat(
+          "  %s : %s", node->GetName(),
+          visitor.GetValue(node).ToString([](const std::vector<Receive*>& t) {
+            return absl::StrFormat("{%s}",
+                                   absl::StrJoin(t, ", ", NodeFormatter));
+          }));
     }
-    std::vector<Receive*> element_vec = SetToSortedVector(elements);
-    return element_vec;
-  };
+  }
 
   absl::flat_hash_map<Receive*, std::vector<Node*>> result;
 
-  XLS_VLOG(3) << absl::StrFormat("Receive data dependencies for proc %s:",
-                                 inlined_proc->name());
-  for (Node* node : TopoSort(inlined_proc)) {
+  for (Node* node : inlined_proc->nodes()) {
+    // Ensure every receive operation has an entry in `result` even if it has no
+    // data dependent operations.
     if (node->Is<Receive>()) {
-      // Create a (empty) vector in the returned map for this receive.
       result[node->As<Receive>()];
-      // A Receive produces a two element tuple: (token, data). The source of
-      // `data` is only this receive (obviously).
-      data_sources[node] = LeafTypeTree<std::vector<Receive*>>(
-          node->GetType(), {node->As<Receive>()});
-      // The token element is not considered a data dependency.
-      data_sources.at(node).Get({0}).clear();
-    } else if (node->Is<TupleIndex>()) {
-      // The data source of a tuple index comes from the indexed sub-elements of
-      // the tuple-typed operand.
-      data_sources[node] = data_sources[node->operand(0)].CopySubtree(
-          {node->As<TupleIndex>()->index()});
-    } else if (node->Is<Tuple>()) {
-      // The data sources of a tuple instruction are constructed from the
-      // operands of the tuple.
-      std::vector<std::vector<Receive*>> elements;
-      for (Node* operand : node->operands()) {
-        elements.insert(elements.end(),
-                        data_sources.at(operand).elements().begin(),
-                        data_sources.at(operand).elements().end());
-      }
-      data_sources[node] =
-          LeafTypeTree<std::vector<Receive*>>(node->GetType(), elements);
-    } else if (node->GetType()->IsToken()) {
-      // Token-typed nodes have no data sources.
-      data_sources[node] = LeafTypeTree<std::vector<Receive*>>(node->GetType());
-    } else {
-      // For all other nodes, conservatively assume that the data source(s) of
-      // an element of the output might come from any operand data source.
-      data_sources[node] = LeafTypeTree<std::vector<Receive*>>(
-          node->GetType(), flatten_operands(node));
     }
-    XLS_VLOG(3) << absl::StreamFormat(
-        "  %s : %s", node->GetName(),
-        data_sources.at(node).ToString([](const std::vector<Receive*>& t) {
-          return absl::StrFormat("{%s}", absl::StrJoin(t, ", ", NodeFormatter));
-        }));
   }
 
   // Invert `data_sources` map to Receive* -> std::vector<Node*>.
   for (Node* node : inlined_proc->nodes()) {
-    for (Receive* receive : flatten_operands(node)) {
+    for (Receive* receive : visitor.FlattenOperandVectors(node)) {
       result.at(receive).push_back(node);
     }
   }
 
-  return result;
+  return std::move(result);
 }
 
 struct TokenNode {
@@ -688,10 +692,11 @@ class ProcThread {
   // returned map entry for R. If the receive feeds a next-state node for the
   // proc, then the `sink_activation_node` will be in the respective vector of
   // activation nodes.
-  absl::flat_hash_map<Receive*, std::vector<ActivationNode*>>
+  absl::StatusOr<absl::flat_hash_map<Receive*, std::vector<ActivationNode*>>>
   GetDataDependentActivationNodes() {
-    absl::flat_hash_map<Receive*, std::vector<Node*>> receive_data_deps =
-        GetReceiveDataDependencies(inlined_proc_);
+    absl::flat_hash_map<Receive*, std::vector<Node*>> receive_data_deps;
+    XLS_ASSIGN_OR_RETURN(receive_data_deps,
+                         GetReceiveDataDependencies(inlined_proc_));
 
     absl::flat_hash_set<Node*> next_state_nodes(
         inlined_proc_->NextState().begin(), inlined_proc_->NextState().end());
@@ -741,8 +746,8 @@ class ProcThread {
     // side-effecting users of the receive might not be activated in the same
     // tick as the receive. First identify the side-effecting users (as
     // activation nodes) of the receive.
-    absl::flat_hash_map<Receive*, std::vector<ActivationNode*>> receive_deps =
-        GetDataDependentActivationNodes();
+    absl::flat_hash_map<Receive*, std::vector<ActivationNode*>> receive_deps;
+    XLS_ASSIGN_OR_RETURN(receive_deps, GetDataDependentActivationNodes());
 
     // Use a BDD to determine whether the activation of a particular receive
     // necessarily implies the activation of every side-effecting user of the

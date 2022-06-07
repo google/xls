@@ -21,38 +21,23 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/data_structures/leaf_type_tree.h"
-#include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
-#include "xls/ir/node_iterator.h"
 #include "xls/ir/nodes.h"
-#include "xls/ir/op.h"
-#include "xls/ir/proc.h"
-#include "xls/ir/type.h"
+#include "xls/passes/dataflow_visitor.h"
 
 namespace xls {
+namespace {
 
-absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
-  absl::flat_hash_map<Node*, LeafTypeTree<Node*>> result;
-
-  for (Node* node : TopoSort(f)) {
-    if (!TypeHasToken(node->GetType())) {
-      continue;
-    }
-    // Insert the new element in the map and create a reference to it. This
-    // avoids the use-after-free footgun of `m[a] = m.at(b)` where `m[a]`
-    // invalidates the `m.at(b)` reference.
-    auto [it, inserted] =
-        result.insert({node, LeafTypeTree<Node*>(node->GetType(), nullptr)});
-    LeafTypeTree<Node*>& ltt = it->second;
-
+class TokenProvenanceVisitor : public DataFlowVisitor<Node*> {
+ public:
+  absl::Status DefaultHandler(Node* node) override {
+    LeafTypeTree<Node*> ltt(node->GetType(), nullptr);
     if (node->Is<Literal>() || node->Is<Param>() || node->Is<Assert>() ||
         node->Is<Cover>() || node->Is<Trace>() || node->Is<Receive>() ||
         node->Is<Send>() || node->Is<AfterAll>()) {
@@ -61,27 +46,24 @@ absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
           ltt.elements().at(i) = node;
         }
       }
-    } else if (node->op() == Op::kIdentity) {
-      ltt = result.at(node->operand(0));
-    } else if (node->Is<Tuple>()) {
-      Tuple* tuple = node->As<Tuple>();
-      std::vector<LeafTypeTree<Node*>> children;
-      children.reserve(tuple->operands().size());
-      for (Node* child : tuple->operands()) {
-        children.push_back(
-            result.contains(child)
-                ? result.at(child)
-                : LeafTypeTree<Node*>(child->GetType(), nullptr));
-      }
-      ltt = LeafTypeTree<Node*>(tuple->GetType(), children);
-    } else if (node->Is<TupleIndex>()) {
-      ltt = result.at(node->operand(0))
-                .CopySubtree({node->As<TupleIndex>()->index()});
-    } else {
+    } else if (TypeHasToken(node->GetType())) {
       return absl::InternalError(absl::StrFormat(
           "Node type contains token type even though it shouldn't: %s",
           node->ToString()));
     }
+    return SetValue(node, std::move(ltt));
+  }
+};
+
+}  // namespace
+
+absl::StatusOr<TokenProvenance> TokenProvenanceAnalysis(FunctionBase* f) {
+  TokenProvenanceVisitor visitor;
+  XLS_RETURN_IF_ERROR(f->Accept(&visitor));
+
+  absl::flat_hash_map<Node*, LeafTypeTree<Node*>> result;
+  for (Node* node : f->nodes()) {
+    result.insert({node, visitor.ConsumeValue(node)});
   }
 
   return result;

@@ -637,17 +637,15 @@ cc_library(
     srcs = ["token_provenance_analysis.cc"],
     hdrs = ["token_provenance_analysis.h"],
     deps = [
+        ":dataflow_visitor",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/status:ret_check",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
-        "//xls/ir:op",
-        "//xls/ir:type",
     ],
 )
 
@@ -1027,6 +1025,7 @@ cc_library(
     deps = [
         ":bdd_function",
         ":bdd_query_engine",
+        ":dataflow_visitor",
         ":passes",
         ":token_provenance_analysis",
         "@com_google_absl//absl/status:statusor",
@@ -1072,6 +1071,19 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "dataflow_visitor",
+    hdrs = ["dataflow_visitor.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:ret_check",
+        "//xls/data_structures:leaf_type_tree",
+        "//xls/ir",
+    ],
+)
+
 cc_test(
     name = "proc_state_flattening_pass_test",
     srcs = ["proc_state_flattening_pass_test.cc"],
@@ -1112,6 +1124,9 @@ cc_test(
     deps = [
         ":dce_pass",
         ":proc_inlining_pass",
+        ":proc_state_flattening_pass",
+        ":proc_state_optimization_pass",
+        ":tuple_simplification_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -1758,6 +1773,21 @@ cc_test(
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "dataflow_visitor_test",
+    srcs = ["dataflow_visitor_test.cc"],
+    deps = [
+        ":dataflow_visitor",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
