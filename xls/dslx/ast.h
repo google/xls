@@ -1729,7 +1729,7 @@ class EnumDef : public AstNode {
     }
     for (const EnumMember& item : values_) {
       results.push_back(item.name_def);
-      results.push_back(ToAstNode(item.value));
+      results.push_back(item.value);
     }
     return results;
   }

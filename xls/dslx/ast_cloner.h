@@ -22,6 +22,7 @@ namespace xls::dslx {
 // Creates a deep copy of the given AST node (inside the same module). All nodes
 // in the tree are duplicated.
 absl::StatusOr<AstNode*> CloneAst(AstNode* root);
+absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module);
 
 }  // namespace xls::dslx
 

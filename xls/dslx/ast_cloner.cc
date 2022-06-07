@@ -167,6 +167,32 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleEnumDef(const EnumDef* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    TypeAnnotation* new_type_annotation = nullptr;
+    if (n->type_annotation() != nullptr) {
+      new_type_annotation =
+          down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
+    }
+
+    std::vector<EnumMember> new_values;
+    for (const auto& member : n->values()) {
+      new_values.push_back(
+          EnumMember{down_cast<NameDef*>(old_to_new_.at(member.name_def)),
+                     down_cast<Expr*>(old_to_new_.at(member.value))});
+    }
+
+    EnumDef* new_enum_def =
+        module_->Make<EnumDef>(n->span(), new_name_def, new_type_annotation,
+                               new_values, n->is_public());
+    new_name_def->set_definer(new_enum_def);
+    old_to_new_[n] = new_enum_def;
+
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFunction(const Function* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
@@ -371,6 +397,14 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleQuickCheck(const QuickCheck* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<QuickCheck>(
+        n->GetSpan().value(), down_cast<Function*>(old_to_new_.at(n->f())),
+        n->test_count());
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStructDef(const StructDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -456,6 +490,19 @@ class AstCloner : public AstNodeVisitorWithDefault {
       new_members.push_back(down_cast<TypeAnnotation*>(old_to_new_.at(member)));
     }
     old_to_new_[n] = module_->Make<TupleTypeAnnotation>(n->span(), new_members);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTypeDef(const TypeDef* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    TypeDef* new_td = module_->Make<TypeDef>(
+        n->span(), new_name_def,
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
+        n->is_public());
+    new_name_def->set_definer(new_td);
+    old_to_new_[n] = new_td;
     return absl::OkStatus();
   }
 
@@ -556,6 +603,70 @@ absl::StatusOr<AstNode*> CloneAst(AstNode* root) {
   AstCloner cloner(root->owner());
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
   return cloner.old_to_new().at(root);
+}
+
+absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
+  auto new_module = std::make_unique<Module>(module->name());
+  AstCloner cloner(new_module.get());
+  for (const ModuleMember member : module->top()) {
+    ModuleMember new_member;
+    XLS_RETURN_IF_ERROR(std::visit(
+        Visitor{
+            [&](Function* f) -> absl::Status {
+              XLS_RETURN_IF_ERROR(f->Accept(&cloner));
+              new_member = down_cast<Function*>(cloner.old_to_new().at(f));
+              return absl::OkStatus();
+            },
+            [&](Proc* p) -> absl::Status {
+              XLS_RETURN_IF_ERROR(p->Accept(&cloner));
+              new_member = down_cast<Proc*>(cloner.old_to_new().at(p));
+              return absl::OkStatus();
+            },
+            [&](TestFunction* tf) -> absl::Status {
+              XLS_RETURN_IF_ERROR(tf->Accept(&cloner));
+              new_member = down_cast<TestFunction*>(cloner.old_to_new().at(tf));
+              return absl::OkStatus();
+            },
+            [&](TestProc* tp) -> absl::Status {
+              XLS_RETURN_IF_ERROR(tp->Accept(&cloner));
+              new_member = down_cast<TestProc*>(cloner.old_to_new().at(tp));
+              return absl::OkStatus();
+            },
+            [&](QuickCheck* qc) -> absl::Status {
+              XLS_RETURN_IF_ERROR(qc->Accept(&cloner));
+              new_member = down_cast<QuickCheck*>(cloner.old_to_new().at(qc));
+              return absl::OkStatus();
+            },
+            [&](TypeDef* td) -> absl::Status {
+              XLS_RETURN_IF_ERROR(td->Accept(&cloner));
+              new_member = down_cast<TypeDef*>(cloner.old_to_new().at(td));
+              return absl::OkStatus();
+            },
+            [&](StructDef* sd) -> absl::Status {
+              XLS_RETURN_IF_ERROR(sd->Accept(&cloner));
+              new_member = down_cast<StructDef*>(cloner.old_to_new().at(sd));
+              return absl::OkStatus();
+            },
+            [&](ConstantDef* cd) -> absl::Status {
+              XLS_RETURN_IF_ERROR(cd->Accept(&cloner));
+              new_member = down_cast<ConstantDef*>(cloner.old_to_new().at(cd));
+              return absl::OkStatus();
+            },
+            [&](EnumDef* ed) -> absl::Status {
+              XLS_RETURN_IF_ERROR(ed->Accept(&cloner));
+              new_member = down_cast<EnumDef*>(cloner.old_to_new().at(ed));
+              return absl::OkStatus();
+            },
+            [&](Import* i) -> absl::Status {
+              XLS_RETURN_IF_ERROR(i->Accept(&cloner));
+              new_member = down_cast<Import*>(cloner.old_to_new().at(i));
+              return absl::OkStatus();
+            },
+        },
+        member));
+    XLS_RETURN_IF_ERROR(new_module->AddTop(new_member));
+  }
+  return new_module;
 }
 
 }  // namespace xls::dslx

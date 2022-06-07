@@ -270,5 +270,110 @@ proc my_test_proc {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, EnumDef) {
+  constexpr absl::string_view kProgram = R"(enum MyEnum : u32 {
+  PET = 0,
+  ALL = 1,
+  DOGS = 2,
+  FOREVER = 3,
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(EnumDef * enum_def,
+                           module->GetMemberOrError<EnumDef>("MyEnum"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(enum_def));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, TypeDef) {
+  constexpr absl::string_view kProgram =
+      R"(type RobsUnnecessaryType = uN[0xbeef];)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypeDef * type_def,
+      module->GetMemberOrError<TypeDef>("RobsUnnecessaryType"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_def));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, QuickCheck) {
+  constexpr absl::string_view kProgram = R"(#![quickcheck(test_count=1000)]
+fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
+  (((a) + (b)) + (c)) == ((a) + ((b) + (c)))
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      QuickCheck * quick_check,
+      module->GetMemberOrError<QuickCheck>("my_quickcheck"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(quick_check));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, CloneModule) {
+  constexpr absl::string_view kProgram = R"(import my_import
+enum MyEnum : u8 {
+  DOGS = 0,
+  ARE = 1,
+  GOOD = 2,
+}
+
+fn my_function(a: u32) -> u16 {
+  (a) as u16
+}
+
+proc my_proc {
+  a: u8;
+  b: u32;
+  config() {
+    (u8:32, u32:8)
+  }
+  next(tok: token, state: u16) {
+    let x = my_function(((state) as u32));
+    (((((a) as u16)) + (((b) as u16))) + (x),)
+  }
+})";
+
+  // Note that we're dealing with a post-parsing AST, which means that the proc
+  // config and next functions will be present as top-level functions.
+  constexpr absl::string_view kExpected = R"(import my_import
+enum MyEnum : u8 {
+  DOGS = 0,
+  ARE = 1,
+  GOOD = 2,
+}
+fn my_function(a: u32) -> u16 {
+  ((a) as u16)
+}
+fn my_proc.config() -> (u8, u32) {
+  (u8:32, u32:8)
+}
+fn my_proc.next(tok: token, state: u16) -> (u16,) {
+  let x = my_function(((state) as u32));
+  (((((a) as u16)) + (((b) as u16))) + (x),)
+}
+proc my_proc {
+  a: u8;
+  b: u32;
+  config() {
+    (u8:32, u32:8)
+  }
+  next(tok: token, state: u16) {
+    let x = my_function(((state) as u32));
+    (((((a) as u16)) + (((b) as u16))) + (x),)
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx
