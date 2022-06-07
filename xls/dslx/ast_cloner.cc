@@ -28,6 +28,35 @@ class AstCloner : public AstNodeVisitorWithDefault {
  public:
   AstCloner(Module* module) : module_(module) {}
 
+  absl::Status HandleArray(const Array* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_members;
+    for (const Expr* old_member : n->members()) {
+      new_members.push_back(down_cast<Expr*>(old_to_new_.at(old_member)));
+    }
+
+    Array* array =
+        module_->Make<Array>(n->span(), new_members, n->has_ellipsis());
+    if (n->type_annotation() != nullptr) {
+      array->set_type_annotation(
+          down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    }
+    old_to_new_[n] = array;
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleArrayTypeAnnotation(
+      const ArrayTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    old_to_new_[n] = module_->Make<ArrayTypeAnnotation>(
+        n->span(),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->element_type())),
+        down_cast<Expr*>(old_to_new_.at(n->dim())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleAttr(const Attr* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -65,6 +94,40 @@ class AstCloner : public AstNodeVisitorWithDefault {
     }
 
     old_to_new_[n] = module_->Make<ColonRef>(n->span(), new_subject, n->attr());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleConstantArray(const ConstantArray* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_members;
+    for (const Expr* old_member : n->members()) {
+      new_members.push_back(down_cast<Expr*>(old_to_new_.at(old_member)));
+    }
+    ConstantArray* array =
+        module_->Make<ConstantArray>(n->span(), new_members, n->has_ellipsis());
+    if (n->type_annotation() != nullptr) {
+      array->set_type_annotation(
+          down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
+    }
+    old_to_new_[n] = array;
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleConstantDef(const ConstantDef* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<ConstantDef>(
+        n->span(), down_cast<NameDef*>(old_to_new_.at(n->name_def())),
+        down_cast<Expr*>(old_to_new_.at(n->value())), n->is_public());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleConstRef(const ConstRef* n) override {
+    // TODO: Shouldn't we be guaranteed to have seen this?
+    XLS_RETURN_IF_ERROR(n->name_def()->Accept(this));
+    old_to_new_[n] = module_->Make<ConstRef>(
+        n->span(), n->identifier(),
+        down_cast<NameDef*>(old_to_new_.at(n->name_def())));
     return absl::OkStatus();
   }
 

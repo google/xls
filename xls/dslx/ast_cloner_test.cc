@@ -148,5 +148,24 @@ fn main() -> foo::ImportedStruct {
   EXPECT_EQ(kExpectedFunction, clone->ToString());
 }
 
+TEST(AstClonerTest, ArraysAndConstantDefs) {
+  constexpr absl::string_view kProgram = R"(
+const ARRAY_SIZE = uN[32]:5;
+fn main() -> u32[ARRAY_SIZE] {
+  u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
+})";
+
+  constexpr absl::string_view kExpectedFunction =
+      R"(fn main() -> u32[ARRAY_SIZE] {
+  u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kExpectedFunction, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx
