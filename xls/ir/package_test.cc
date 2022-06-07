@@ -350,9 +350,9 @@ TEST_F(PackageTest, ChannelRemoval) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                               p.GetBitsType(32)));
-  TokenlessProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", &p);
+  TokenlessProcBuilder b(TestName(), "tkn", &p);
   b.Send(ch0, b.Literal(Value(UBits(42, 32))));
-  XLS_ASSERT_OK(b.Build(b.GetUniqueStateParam()).status());
+  XLS_ASSERT_OK(b.Build({}).status());
 
   Package other_p("other");
   XLS_ASSERT_OK_AND_ASSIGN(

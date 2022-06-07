@@ -33,14 +33,14 @@ class ProcTest : public IrTestBase {};
 
 TEST_F(ProcTest, SimpleProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
-                 p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), add));
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {add}));
 
   EXPECT_FALSE(proc->IsFunction());
   EXPECT_TRUE(proc->IsProc());
-
+  EXPECT_EQ(proc->GetStateFlatBitCount(), 32);
   EXPECT_EQ(proc->DumpIr(), R"(proc p(tkn: token, st: bits[32], init={42}) {
   literal.3: bits[32] = literal(value=1, id=3)
   add.4: bits[32] = add(literal.3, st, id=4)
@@ -51,20 +51,20 @@ TEST_F(ProcTest, SimpleProc) {
 
 TEST_F(ProcTest, MutateProc) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
-                 p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   BValue after_all = pb.AfterAll({pb.GetTokenParam()});
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, add));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {add}));
 
   EXPECT_THAT(proc->NextToken(), m::AfterAll(m::Param("tkn")));
   XLS_ASSERT_OK(proc->SetNextToken(proc->TokenParam()));
   XLS_ASSERT_OK(proc->RemoveNode(after_all.node()));
   EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
 
-  EXPECT_THAT(proc->GetUniqueNextState(), m::Add());
-  XLS_ASSERT_OK(proc->SetUniqueNextState(proc->GetUniqueStateParam()));
-  EXPECT_THAT(proc->GetUniqueNextState(), m::Param("st"));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Add());
+  XLS_ASSERT_OK(proc->SetNextStateElement(0, proc->GetStateParam(0)));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("st"));
 
   // Replace the state with a new type. First need to delete the (dead) use of
   // the existing state param.
@@ -72,21 +72,21 @@ TEST_F(ProcTest, MutateProc) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
       proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
-  XLS_ASSERT_OK(
-      proc->ReplaceUniqueState("new_state", new_state, Value(UBits(100, 100))));
+  XLS_ASSERT_OK(proc->ReplaceStateElement(0, "new_state",
+                                          Value(UBits(100, 100)), new_state));
 
-  EXPECT_THAT(proc->GetUniqueNextState(), m::Literal(UBits(100, 100)));
-  EXPECT_THAT(proc->GetUniqueStateParam(), m::Type("bits[100]"));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Literal(UBits(100, 100)));
+  EXPECT_THAT(proc->GetStateParam(0), m::Type("bits[100]"));
 }
 
 TEST_F(ProcTest, AddAndRemoveState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "x", p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam(),
-                      SourceInfo(), "my_add");
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue state = pb.StateElement("x", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state, SourceInfo(), "my_add");
   BValue after_all =
       pb.AfterAll({pb.GetTokenParam()}, SourceInfo(), "my_after_all");
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, add));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {add}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 1);
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
@@ -147,10 +147,11 @@ TEST_F(ProcTest, AddAndRemoveState) {
 
 TEST_F(ProcTest, ReplaceState) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "x", p.get());
+  ProcBuilder pb("p", "tkn", p.get());
+  pb.StateElement("x", Value(UBits(42, 32)));
   BValue forty_two = pb.Literal(UBits(42, 32), SourceInfo(), "forty_two");
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.GetTokenParam(), forty_two));
+                           pb.Build(pb.GetTokenParam(), {forty_two}));
   EXPECT_THAT(proc->GetNextStateIndices(forty_two.node()), ElementsAre(0));
 
   XLS_ASSERT_OK(proc->ReplaceState(
@@ -170,10 +171,10 @@ TEST_F(ProcTest, ReplaceState) {
 TEST_F(ProcTest, StatelessProc) {
   auto p = CreatePackage();
   ProcBuilder pb("p", "tkn", p.get());
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.GetTokenParam(), std::vector<BValue>()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 0);
+  EXPECT_EQ(proc->GetStateFlatBitCount(), 0);
 
   EXPECT_THAT(proc->DumpIr(), HasSubstr("proc p(tkn: token, init={})"));
   EXPECT_THAT(proc->DumpIr(), HasSubstr("next (tkn)"));
@@ -181,11 +182,11 @@ TEST_F(ProcTest, StatelessProc) {
 
 TEST_F(ProcTest, InvalidTokenType) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
-                 p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), {add}));
 
   // Try setting invalid typed nodes as the next token/state.
   EXPECT_THAT(
@@ -197,14 +198,14 @@ TEST_F(ProcTest, InvalidTokenType) {
 
 TEST_F(ProcTest, InvalidStateType) {
   auto p = CreatePackage();
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
-                 p.get());
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), {add}));
 
   EXPECT_THAT(
-      proc->SetUniqueNextState(proc->TokenParam()),
+      proc->SetNextStateElement(0, proc->TokenParam()),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("type token does not match proc state element type")));
 }
@@ -213,36 +214,39 @@ TEST_F(ProcTest, ReplaceStateThatStillHasUse) {
   // Don't call CreatePackage which creates a VerifiedPackage because we
   // intentionally create a malformed proc.
   Package p(TestName());
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st", &p);
-  BValue add = pb.Add(pb.Literal(UBits(1, 32)), pb.GetStateParam(0));
+  ProcBuilder pb("p", "tkn", &p);
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
+  BValue add = pb.Add(pb.Literal(UBits(1, 32)), state);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), add));
+                           pb.Build(pb.AfterAll({pb.GetTokenParam()}), {add}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
       proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
-  EXPECT_THAT(
-      proc->ReplaceUniqueState("new_state", new_state, Value(UBits(100, 100))),
-      StatusIs(absl::StatusCode::kInvalidArgument,
-               HasSubstr("state param st has uses")));
+  EXPECT_THAT(proc->ReplaceStateElement(0, "new_state", Value(UBits(100, 100)),
+                                        new_state),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("state param st has uses")));
 }
 
 TEST_F(ProcTest, ReplaceStateWithWrongInitValueType) {
   // Don't call CreatePackage which creates a VerifiedPackage because we
   // intentionally create a malformed proc.
   Package p(TestName());
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st", &p);
+  ProcBuilder pb("p", "tkn", &p);
+  pb.StateElement("st", Value(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(
       Proc * proc,
-      pb.Build(pb.AfterAll({pb.GetTokenParam()}), pb.Literal(UBits(1, 32))));
+      pb.Build(pb.AfterAll({pb.GetTokenParam()}), {pb.Literal(UBits(1, 32))}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       Node * new_state,
       proc->MakeNode<Literal>(SourceInfo(), Value(UBits(100, 100))));
-  EXPECT_THAT(proc->ReplaceUniqueState("new_state", new_state,
-                                       /*init_value=*/Value(UBits(0, 42))),
-              StatusIs(absl::StatusCode::kInvalidArgument,
-                       HasSubstr("does not match type of initial value")));
+  EXPECT_THAT(
+      proc->ReplaceStateElement(0, "new_state",
+                                /*init_value=*/Value(UBits(0, 42)), new_state),
+      StatusIs(absl::StatusCode::kInvalidArgument,
+               HasSubstr("does not match type of initial value")));
 }
 
 TEST_F(ProcTest, Clone) {
@@ -252,13 +256,13 @@ TEST_F(ProcTest, Clone) {
       p->CreateSingleValueChannel("chan", ChannelOps::kSendReceive,
                                   p->GetBitsType(32)));
 
-  ProcBuilder pb("p", /*init_value=*/Value(UBits(42, 32)), "tkn", "st",
-                 p.get());
+  ProcBuilder pb("p", "tkn", p.get());
+  BValue state = pb.StateElement("st", Value(UBits(42, 32)));
   BValue recv = pb.Receive(channel, pb.GetTokenParam());
-  BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), pb.GetUniqueStateParam());
+  BValue add1 = pb.Add(pb.Literal(UBits(1, 32)), state);
   BValue add2 = pb.Add(add1, pb.TupleIndex(recv, 1));
   BValue send = pb.Send(channel, pb.TupleIndex(recv, 0), add2);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, add2));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {add2}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       SingleValueChannel * cloned_channel,

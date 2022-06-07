@@ -395,32 +395,31 @@ TEST(FunctionBuilderTest, SendAndReceive) {
       Channel * ch3, p.CreateStreamingChannel("ch3", ChannelOps::kSendReceive,
                                               p.GetBitsType(32)));
 
-  ProcBuilder b("sending_receiving", Value(UBits(42, 32)),
-                /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
-  BValue send = b.Send(ch0, b.GetTokenParam(), b.GetUniqueStateParam());
+  ProcBuilder b("sending_receiving", /*token_name=*/"my_token", &p);
+  BValue state = b.StateElement("my_state", Value(UBits(42, 32)));
+  BValue send = b.Send(ch0, b.GetTokenParam(), state);
   BValue receive = b.Receive(ch1, b.GetTokenParam());
   BValue pred = b.Literal(UBits(1, 1));
-  BValue send_if =
-      b.SendIf(ch2, b.GetTokenParam(), pred, b.GetUniqueStateParam());
+  BValue send_if = b.SendIf(ch2, b.GetTokenParam(), pred, state);
   BValue receive_if = b.ReceiveIf(ch3, b.GetTokenParam(), pred);
   BValue after_all = b.AfterAll(
       {send, b.TupleIndex(receive, 0), send_if, b.TupleIndex(receive_if, 0)});
   BValue next_state =
       b.Add(b.TupleIndex(receive, 1), b.TupleIndex(receive_if, 1));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(after_all, {next_state}));
 
   EXPECT_THAT(proc->NextToken(),
               m::AfterAll(m::Send(), m::TupleIndex(m::Receive()),
                           m::Send(m::Param(), m::Param(), m::Literal(1)),
                           m::TupleIndex(m::Receive())));
-  EXPECT_THAT(proc->GetUniqueNextState(),
+  EXPECT_THAT(proc->GetNextStateElement(0),
               m::Add(m::TupleIndex(m::Receive()), m::TupleIndex(m::Receive())));
 
-  EXPECT_EQ(proc->GetUniqueInitValue(), Value(UBits(42, 32)));
-  EXPECT_EQ(proc->GetUniqueStateParam()->GetName(), "my_state");
+  EXPECT_EQ(proc->GetInitValueElement(0), Value(UBits(42, 32)));
+  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_state");
   EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
-  EXPECT_EQ(proc->GetUniqueStateType(), p.GetBitsType(32));
+  EXPECT_EQ(proc->GetStateElementType(0), p.GetBitsType(32));
 
   EXPECT_EQ(send.node()->GetType(), p.GetTokenType());
   EXPECT_EQ(send_if.node()->GetType(), p.GetTokenType());
@@ -659,11 +658,11 @@ TEST(FunctionBuilderTest, DynamicCountedForTest) {
 
 TEST(FunctionBuilderTest, AddParamToProc) {
   Package p("p");
-  ProcBuilder b("param_proc", Value(UBits(42, 32)),
-                /*token_name=*/"my_token", /*state_name=*/"my_state", &p);
+  ProcBuilder b("param_proc", /*token_name=*/"my_token", &p);
+  BValue state = b.StateElement("my_state", Value(UBits(42, 32)));
   b.Param("x", p.GetBitsType(32));
   EXPECT_THAT(
-      b.Build(b.GetTokenParam(), b.GetUniqueStateParam()).status(),
+      b.Build(b.GetTokenParam(), {state}).status(),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Use StateElement to add state parameters to procs")));
 }
@@ -680,15 +679,16 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
-  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue state = pb.StateElement("st", Value(UBits(42, 16)));
   BValue a_plus_b = pb.Add(pb.Receive(a_ch), pb.Receive(b_ch));
-  pb.Send(out_ch, pb.Add(pb.GetUniqueStateParam(), a_plus_b));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(a_plus_b));
+  pb.Send(out_ch, pb.Add(state, a_plus_b));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({a_plus_b}));
 
   EXPECT_THAT(proc->NextToken(), m::AfterAll(m::TupleIndex(m::Receive(), 0),
                                              m::TupleIndex(m::Receive(), 0),
                                              m::Send(m::Channel("out"))));
-  EXPECT_THAT(proc->GetUniqueNextState(),
+  EXPECT_THAT(proc->GetNextStateElement(0),
               m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
                      m::TupleIndex(m::Receive(m::Channel("b")), 1)));
 }
@@ -696,9 +696,7 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
 TEST(FunctionBuilderTest, StatelessProcBuilder) {
   Package p("p");
   ProcBuilder pb("the_proc", "tkn", &p);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      Proc * proc,
-      pb.Build(pb.GetTokenParam(), /*next_state=*/absl::Span<const BValue>()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {}));
   EXPECT_TRUE(proc->StateParams().empty());
 }
 
@@ -730,11 +728,12 @@ TEST(FunctionBuilderTest, ProcWithMultipleStateElements) {
 
 TEST(FunctionBuilderTest, TokenlessProcBuilderNoChannelOps) {
   Package p("p");
-  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetUniqueStateParam()));
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue state = pb.StateElement("st", Value(UBits(42, 16)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({state}));
 
   EXPECT_THAT(proc->NextToken(), m::Param("tkn"));
-  EXPECT_THAT(proc->GetUniqueNextState(), m::Param("st"));
+  EXPECT_THAT(proc->GetNextStateElement(0), m::Param("st"));
 }
 
 TEST(FunctionBuilderTest, Assert) {

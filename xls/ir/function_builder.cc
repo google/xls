@@ -918,16 +918,6 @@ ProcBuilder::ProcBuilder(absl::string_view name, absl::string_view token_name,
                   should_verify),
       token_param_(proc()->TokenParam(), this) {}
 
-ProcBuilder::ProcBuilder(absl::string_view name, const Value& init_value,
-                         absl::string_view token_name,
-                         absl::string_view state_name, Package* package,
-                         bool should_verify)
-    : BuilderBase(std::make_unique<Proc>(name, init_value, token_name,
-                                         state_name, package),
-                  should_verify),
-      token_param_(proc()->TokenParam(), this),
-      state_params_({BValue{proc()->GetUniqueStateParam(), this}}) {}
-
 Proc* ProcBuilder::proc() const { return down_cast<Proc*>(function()); }
 
 absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
@@ -976,10 +966,6 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
     XLS_RETURN_IF_ERROR(VerifyProc(proc));
   }
   return proc;
-}
-
-absl::StatusOr<Proc*> ProcBuilder::Build(BValue token, BValue next_state) {
-  return Build(token, std::vector<BValue>({next_state}));
 }
 
 BValue ProcBuilder::StateElement(absl::string_view name,
@@ -1369,10 +1355,6 @@ absl::StatusOr<Proc*> TokenlessProcBuilder::Build(
     return ProcBuilder::Build(GetTokenParam(), next_state);
   }
   return ProcBuilder::Build(AfterAll(tokens_), next_state);
-}
-
-absl::StatusOr<Proc*> TokenlessProcBuilder::Build(BValue next_state) {
-  return Build(std::vector<BValue>({next_state}));
 }
 
 BValue BlockBuilder::Param(absl::string_view name, Type* type,

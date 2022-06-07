@@ -430,7 +430,7 @@ absl::StatusOr<uint64_t> XlsccTestBase::GetStateBitsForProcNameContains(
         return absl::NotFoundError(absl::StrFormat(
             "Proc with name containing %s already found", name_cont));
       }
-      ret = proc->GetUniqueStateType()->GetFlatBitCount();
+      ret = proc->GetStateElementType(0)->GetFlatBitCount();
       already_found = true;
     }
   }

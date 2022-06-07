@@ -29,24 +29,12 @@ namespace xls {
 // TODO(meheff): Add link to documentation when we have some.
 class Proc : public FunctionBase {
  public:
-  // Constructor for a proc with a no state.
+  // Creates a proc with no state elements.
   Proc(absl::string_view name, absl::string_view token_param_name,
        Package* package)
       : FunctionBase(name, package),
         next_token_(AddNode(std::make_unique<Param>(
             SourceInfo(), token_param_name, package->GetTokenType(), this))) {}
-
-  // Constructor for a proc with a single state element.
-  Proc(absl::string_view name, const Value& init_value,
-       absl::string_view token_param_name, absl::string_view state_param_name,
-       Package* package)
-      : FunctionBase(name, package),
-        init_values_({init_value}),
-        next_token_(AddNode(std::make_unique<Param>(
-            SourceInfo(), token_param_name, package->GetTokenType(), this))),
-        next_state_({AddNode(std::make_unique<Param>(
-            SourceInfo(), state_param_name,
-            package->GetTypeForValue(init_value), this))}) {}
 
   virtual ~Proc() = default;
 
@@ -60,6 +48,9 @@ class Proc : public FunctionBase {
   Param* TokenParam() const { return params().at(0); }
 
   int64_t GetStateElementCount() const { return StateParams().size(); }
+
+  // Returns the total number of bits in the proc state.
+  int64_t GetStateFlatBitCount() const;
 
   // Returns the state parameter node(s).
   absl::Span<Param* const> StateParams() const { return params().subspan(1); }
@@ -136,25 +127,6 @@ class Proc : public FunctionBase {
   absl::StatusOr<Param*> InsertStateElement(
       int64_t index, absl::string_view state_param_name,
       const Value& init_value, std::optional<Node*> next_state = std::nullopt);
-
-  // Methods which only work when the proc has a single state element.
-  // TODO(https://github.com/google/xls/issues/548): Remove.
-  const Value& GetUniqueInitValue() const {
-    XLS_CHECK_EQ(init_values_.size(), 1);
-    return init_values_.front();
-  }
-  Param* GetUniqueStateParam() const {
-    XLS_CHECK_EQ(GetStateElementCount(), 1);
-    return StateParams().front();
-  }
-  Node* GetUniqueNextState() const {
-    XLS_CHECK_EQ(next_state_.size(), 1);
-    return next_state_.front();
-  }
-  Type* GetUniqueStateType() const { return GetUniqueNextState()->GetType(); }
-  absl::Status SetUniqueNextState(Node* next);
-  absl::Status ReplaceUniqueState(absl::string_view state_param_name,
-                                  Node* next_state, const Value& init_value);
 
   bool HasImplicitUse(Node* node) const override {
     return node == NextToken() ||

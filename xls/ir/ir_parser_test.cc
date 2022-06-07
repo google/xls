@@ -1878,10 +1878,10 @@ proc foo(my_token: token, my_state: bits[32], init={42}) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, package->GetProc("foo"));
   EXPECT_EQ(proc->node_count(), 2);
   EXPECT_EQ(proc->params().size(), 2);
-  EXPECT_EQ(proc->GetUniqueInitValue().ToString(), "bits[32]:42");
-  EXPECT_EQ(proc->GetUniqueStateType()->ToString(), "bits[32]");
+  EXPECT_EQ(proc->GetInitValueElement(0).ToString(), "bits[32]:42");
+  EXPECT_EQ(proc->GetStateElementType(0)->ToString(), "bits[32]");
   EXPECT_EQ(proc->TokenParam()->GetName(), "my_token");
-  EXPECT_EQ(proc->GetUniqueStateParam()->GetName(), "my_state");
+  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "my_state");
 }
 
 TEST(IrParserTest, StatelessProcWithInit) {

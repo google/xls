@@ -195,7 +195,7 @@ absl::StatusOr<Value> RollIntoProcPass::CreateInitialState(
   // 3 - Loop carry
   // 4 - Receive data
   // 5, 6, 7, ... - Invariant 1, 2, 3, ...
-  new_state_vals.push_back(proc->GetUniqueInitValue());
+  new_state_vals.push_back(proc->GetInitValueElement(0));
   new_state_vals.push_back(ZeroOfType(loopbody->param(0)->GetType()));
   new_state_vals.push_back(ZeroOfType(loopbody->param(0)->GetType()));
   new_state_vals.push_back(ZeroOfType(initial_value->GetType()));
@@ -369,14 +369,14 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
 
   // Need to keep track of the old proc next state. We will use this when
   // making the new proc state at the end of this pass.
-  Node* old_proc_next = proc->GetUniqueNextState();
-  XLS_ASSIGN_OR_RETURN(Literal * dummy_state_new,
-                       proc->MakeNode<Literal>(
-                           proc->GetUniqueStateParam()->loc(), init_state_new));
+  Node* old_proc_next = proc->GetNextStateElement(0);
+  XLS_ASSIGN_OR_RETURN(
+      Literal * dummy_state_new,
+      proc->MakeNode<Literal>(proc->GetStateParam(0)->loc(), init_state_new));
 
   // Anything that used the old proc state now uses the tuple at index 0.
   XLS_RETURN_IF_ERROR(
-      proc->GetUniqueStateParam()
+      proc->GetStateParam(0)
           ->ReplaceUsesWithNew<TupleIndex>(dummy_state_new, kOriginalState)
           .status());
 
@@ -533,13 +533,14 @@ absl::StatusOr<bool> RollIntoProcPass::RunOnProcInternal(
     next_state_tuple.push_back(invariant);
   }
 
-  XLS_ASSIGN_OR_RETURN(auto new_next_state,
-                       proc->MakeNode<Tuple>(proc->GetUniqueStateParam()->loc(),
-                                             next_state_tuple));
-  XLS_RETURN_IF_ERROR(proc->ReplaceUniqueState(
-      proc->GetUniqueStateParam()->name(), new_next_state, init_state_new));
-  XLS_RETURN_IF_ERROR(
-      dummy_state_new->ReplaceUsesWith(proc->GetUniqueStateParam()));
+  XLS_ASSIGN_OR_RETURN(
+      auto new_next_state,
+      proc->MakeNode<Tuple>(proc->GetStateParam(0)->loc(), next_state_tuple));
+  XLS_RETURN_IF_ERROR(proc->ReplaceStateElement(0,
+                                                proc->GetStateParam(0)->name(),
+                                                init_state_new, new_next_state)
+                          .status());
+  XLS_RETURN_IF_ERROR(dummy_state_new->ReplaceUsesWith(proc->GetStateParam(0)));
   XLS_RETURN_IF_ERROR(proc->RemoveNode(dummy_state_new));
 
   return true;

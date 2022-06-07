@@ -2433,9 +2433,9 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   }
 
   Value initial_value;
-  auto builder = std::make_unique<ProcBuilder>(
-      mangled_name, Value::Tuple(initial_elements), token_name, state_name,
-      package());
+  auto builder =
+      std::make_unique<ProcBuilder>(mangled_name, token_name, package());
+  builder->StateElement(state_name, Value::Tuple(initial_elements));
   tokens_.push_back(builder->GetTokenParam());
   SetNodeToIr(f->params()[0]->name_def(), builder->GetTokenParam());
   auto* builder_ptr = builder.get();
@@ -2457,7 +2457,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   // Now bind all iter args to their elements in the recurrent state.
   // We need to shift indices by one to handle the token arg.
-  BValue state = builder_ptr->GetUniqueStateParam();
+  BValue state = builder_ptr->GetStateParam(0);
   for (int i = 1; i < f->params().size(); i++) {
     auto* param = f->params()[i];
     BValue element = builder_ptr->TupleIndex(state, i - 1, SourceInfo(),
@@ -2502,7 +2502,8 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   BValue result = absl::get<BValue>(node_to_ir_[f->body()]);
   BValue final_token = builder_ptr->AfterAll(tokens_);
-  XLS_ASSIGN_OR_RETURN(xls::Proc * p, builder_ptr->Build(final_token, result));
+  XLS_ASSIGN_OR_RETURN(xls::Proc * p,
+                       builder_ptr->Build(final_token, {result}));
   package_data_.ir_to_dslx[p] = f;
   return absl::OkStatus();
 }

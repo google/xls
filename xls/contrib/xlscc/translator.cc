@@ -4583,8 +4583,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   }
 
   xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
-                      /*init_value=*/xls::Value::Tuple(init_values),
-                      /*token_name=*/"tkn", /*state_name=*/"st", package_);
+                      /*token_name=*/"tkn", package_);
+  pb.StateElement("st", xls::Value::Tuple(init_values));
 
   // For utility functions like MakeStructXls()
   PushContextGuard pb_guard(*this, loc);
@@ -4592,8 +4592,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
 
   xls::BValue token = pb.GetTokenParam();
 
-  xls::BValue first_iter_state_in =
-      pb.TupleIndex(pb.GetUniqueStateParam(), 0, loc);
+  xls::BValue first_iter_state_in = pb.TupleIndex(pb.GetStateParam(0), 0, loc);
 
   xls::BValue recv_condition = first_iter_state_in;
   XLS_CHECK_EQ(recv_condition.GetType()->GetFlatBitCount(), 1);
@@ -4622,7 +4621,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       xls::BValue context_val =
           GetStructFieldXLS(received_context, field_idx, *context_ctype, loc);
       xls::BValue prev_state_val =
-          pb.TupleIndex(pb.GetUniqueStateParam(), state_tup_idx++, loc);
+          pb.TupleIndex(pb.GetStateParam(0), state_tup_idx++, loc);
       context_values[field_idx] =
           pb.Select(first_iter_state_in, context_val, prev_state_val, loc);
     }
@@ -4682,7 +4681,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   }
 
   xls::BValue next_state = pb.Tuple(next_state_values);
-  XLS_RETURN_IF_ERROR(pb.Build(token, next_state).status());
+  XLS_RETURN_IF_ERROR(pb.Build(token, {next_state}).status());
 
   return absl::OkStatus();
 }
@@ -5123,9 +5122,8 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
     static_init_values.push_back(initval.rvalue());
   }
 
-  xls::ProcBuilder pb(block.name() + "_proc",
-                      /*init_value=*/xls::Value::Tuple(static_init_values),
-                      /*token_name=*/"tkn", /*state_name=*/"st", package);
+  xls::ProcBuilder pb(block.name() + "_proc", /*token_name=*/"tkn", package);
+  pb.StateElement("st", xls::Value::Tuple(static_init_values));
 
   prepared.token = pb.GetTokenParam();
 
@@ -5150,7 +5148,7 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   }
   const xls::BValue next_state = pb.Tuple(static_next_values);
 
-  return pb.Build(prepared.token, next_state);
+  return pb.Build(prepared.token, {next_state});
 }
 
 absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
@@ -5359,7 +5357,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
         const uint64_t static_idx =
             prepared.state_index_for_static.at(param.static_value);
         prepared.args.push_back(
-            pb.TupleIndex(pb.GetUniqueStateParam(), static_idx, body_loc));
+            pb.TupleIndex(pb.GetStateParam(0), static_idx, body_loc));
         break;
       }
       default: {

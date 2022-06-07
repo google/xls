@@ -585,11 +585,12 @@ TEST_F(PipelineScheduleTest, ProcSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
-  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -615,7 +616,7 @@ TEST_F(PipelineScheduleTest, StatelessProcSchedule) {
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(std::vector<BValue>({})));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -670,12 +671,13 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
-  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
   BValue cond = pb.Literal(UBits(0, 1));
   BValue rcv = pb.ReceiveIf(in_ch, cond);
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   BValue send = pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -701,12 +703,13 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
-  TokenlessProcBuilder pb("the_proc", Value(UBits(42, 16)), "tkn", "st", &p);
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
   BValue cond = pb.Not(pb.Not(pb.Literal(UBits(0, 1))));
   BValue rcv = pb.ReceiveIf(in_ch, cond, SourceInfo(), "rcv");
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
 
   ASSERT_THAT(
       PipelineSchedule::Run(proc, TestDelayEstimator(),
@@ -728,13 +731,12 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  ProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
   BValue rcv = pb.Receive(ch_in, pb.GetTokenParam());
   BValue send = pb.Send(ch_out, /*token=*/pb.TupleIndex(rcv, 0),
                         /*data=*/pb.TupleIndex(rcv, 1));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {}));
 
   XLS_ASSERT_OK_AND_ASSIGN(const DelayEstimator* delay_estimator,
                            GetDelayEstimator("unit"));
@@ -759,13 +761,13 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
       Channel * out_ch,
       p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
 
-  TokenlessProcBuilder pb("the_proc", Value::Tuple({}), "tkn", "st", &p);
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
 
   BValue rcv = pb.Receive(in_ch);
   BValue out = pb.Negate(pb.Not(pb.Negate(pb.Not(pb.Negate(rcv)))));
   BValue send = pb.Send(out_ch, out);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       PipelineSchedule schedule,
@@ -795,7 +797,7 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
       // receive.3: (token, bits[16]) = receive(tkn, channel_id=0, id=3)
       // st: () = param(st, id=2)
       EXPECT_GE(nodes_in_first_cycle.size(), 3);
-      EXPECT_EQ(nodes_in_first_cycle.size(), 4);  // adjust if scheduler changes
+      EXPECT_EQ(nodes_in_first_cycle.size(), 3);  // adjust if scheduler changes
       EXPECT_TRUE(
           std::all_of(nodes_in_first_cycle.begin(), nodes_in_first_cycle.end(),
                       [](Node* node) -> bool {

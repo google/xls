@@ -51,6 +51,14 @@ std::string Proc::DumpIr() const {
   return res;
 }
 
+int64_t Proc::GetStateFlatBitCount() const {
+  int64_t total = 0;
+  for (Param* param : StateParams()) {
+    total += param->GetType()->GetFlatBitCount();
+  }
+  return total;
+}
+
 absl::StatusOr<int64_t> Proc::GetStateParamIndex(Param* param) const {
   auto it = std::find(StateParams().begin(), StateParams().end(), param);
   if (it == StateParams().end()) {
@@ -191,19 +199,6 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
   return param;
 }
 
-absl::Status Proc::SetUniqueNextState(Node* next) {
-  XLS_RET_CHECK_EQ(GetStateElementCount(), 1);
-  return SetNextStateElement(0, next);
-}
-
-absl::Status Proc::ReplaceUniqueState(absl::string_view state_param_name,
-                                      Node* next_state,
-                                      const Value& init_value) {
-  XLS_RET_CHECK_EQ(GetStateElementCount(), 1);
-  return ReplaceStateElement(0, state_param_name, init_value, next_state)
-      .status();
-}
-
 absl::StatusOr<Proc*> Proc::Clone(
     absl::string_view new_name, Package* target_package,
     absl::flat_hash_map<int64_t, int64_t> channel_remapping) const {
@@ -212,19 +207,24 @@ absl::StatusOr<Proc*> Proc::Clone(
     target_package = package();
   }
   Proc* cloned_proc = target_package->AddProc(std::make_unique<Proc>(
-      new_name, GetUniqueInitValue(), TokenParam()->name(),
-      GetUniqueStateParam()->name(), target_package));
+      new_name, TokenParam()->GetName(), target_package));
+  original_to_clone[TokenParam()] = cloned_proc->TokenParam();
+  for (int64_t i = 0; i < GetStateElementCount(); ++i) {
+    XLS_ASSIGN_OR_RETURN(Param * cloned_param, cloned_proc->AppendStateElement(
+                                                   GetStateParam(i)->GetName(),
+                                                   GetInitValueElement(i)));
+    original_to_clone[GetStateParam(i)] = cloned_param;
+  }
   for (Node* node : TopoSort(const_cast<Proc*>(this))) {
+    if (node->Is<Param>()) {
+      continue;
+    }
     std::vector<Node*> cloned_operands;
     for (Node* operand : node->operands()) {
       cloned_operands.push_back(original_to_clone.at(operand));
     }
 
-    if (node == GetUniqueStateParam()) {
-      original_to_clone[node] = cloned_proc->GetUniqueStateParam();
-    } else if (node == TokenParam()) {
-      original_to_clone[node] = cloned_proc->TokenParam();
-    } else if (node->Is<Receive>()) {
+    if (node->Is<Receive>()) {
       Receive* src = node->As<Receive>();
       int64_t channel_id = channel_remapping.contains(src->channel_id())
                                ? channel_remapping.at(src->channel_id())
@@ -257,8 +257,11 @@ absl::StatusOr<Proc*> Proc::Clone(
   }
   XLS_RETURN_IF_ERROR(
       cloned_proc->SetNextToken(original_to_clone.at(NextToken())));
-  XLS_RETURN_IF_ERROR(cloned_proc->SetUniqueNextState(
-      original_to_clone.at(GetUniqueNextState())));
+
+  for (int64_t i = 0; i < GetStateElementCount(); ++i) {
+    XLS_RETURN_IF_ERROR(cloned_proc->SetNextStateElement(
+        i, original_to_clone.at(GetNextStateElement(i))));
+  }
   return cloned_proc;
 }
 

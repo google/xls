@@ -103,10 +103,11 @@ TEST_F(AnalyzeCriticalPathTest, MultipathFunction) {
 
 TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
   auto p = CreatePackage();
-  TokenlessProcBuilder b(TestName(), Value(UBits(0, 32)), "tkn", "st", p.get());
-  auto neg = b.Negate(b.GetUniqueStateParam());
+  TokenlessProcBuilder b(TestName(), "tkn", p.get());
+  auto st = b.StateElement("st", Value(UBits(0, 32)));
+  auto neg = b.Negate(st);
   auto rev = b.Reverse(neg);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(rev));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({rev}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,
@@ -118,7 +119,7 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithState) {
   EXPECT_EQ(cp[0].path_delay_ps, 2);
   EXPECT_EQ(cp[1].node, neg.node());
   EXPECT_EQ(cp[1].path_delay_ps, 1);
-  EXPECT_EQ(cp[2].node, proc->GetUniqueStateParam());
+  EXPECT_EQ(cp[2].node, proc->GetStateParam(0));
   EXPECT_EQ(cp[2].path_delay_ps, 0);
 }
 
@@ -133,12 +134,12 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {
       Channel * ch_out,
       p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  TokenlessProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", p.get());
+  TokenlessProcBuilder b(TestName(), "tkn", p.get());
   auto in = b.Receive(ch_in);
   auto neg = b.Negate(in);
   auto rev = b.Reverse(neg);
   auto send = b.Send(ch_out, rev);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build(b.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<CriticalPathEntry> cp,

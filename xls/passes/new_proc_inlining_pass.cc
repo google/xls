@@ -529,10 +529,14 @@ class ProcThread {
     XLS_RETURN_IF_ERROR(VerifyTokenDependencies(inlined_proc));
 
     // Create the state element to hold the state of the inlined proc.
-    XLS_ASSIGN_OR_RETURN(proc_thread.proc_state_,
-                         proc_thread.AllocateState(
-                             absl::StrFormat("%s_state", inlined_proc->name()),
-                             inlined_proc->GetUniqueInitValue()));
+    for (int64_t i = 0; i < inlined_proc->GetStateElementCount(); ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          StateElement * element,
+          proc_thread.AllocateState(
+              absl::StrFormat("%s_state", inlined_proc->name()),
+              inlined_proc->GetInitValueElement(i)));
+      proc_thread.proc_state_.push_back(element);
+    }
 
     XLS_RETURN_IF_ERROR(proc_thread.CreateActivationNetwork());
 
@@ -658,18 +662,23 @@ class ProcThread {
   // Sets the next state of the proc thread to the given value. This value is
   // commited to the corresponding element of container proc when the proc
   // thread tick is complete.
-  absl::Status SetNextState(Node* next_state) {
+  absl::Status SetNextState(absl::Span<Node* const> next_state) {
     XLS_VLOG(3) << "SetNextState proc thread for: " << inlined_proc_->name();
 
-    // Add selector to commit state if the proc thread tick is complete.
-    XLS_ASSIGN_OR_RETURN(
-        Node * state_next,
-        container_proc_->MakeNodeWithName<Select>(
-            SourceInfo(), /*selector=*/GetProcTickComplete(), /*cases=*/
-            std::vector<Node*>{GetDummyState(), next_state},
-            /*default_case=*/absl::nullopt,
-            absl::StrFormat("%s_next_state", inlined_proc_->name())));
-    XLS_RETURN_IF_ERROR(proc_state_->SetNext(state_next));
+    XLS_RET_CHECK_EQ(next_state.size(), inlined_proc_->GetStateElementCount());
+
+    for (int64_t i = 0; i < inlined_proc_->GetStateElementCount(); ++i) {
+      // Add selector to commit state if the proc thread tick is complete.
+      XLS_ASSIGN_OR_RETURN(
+          Node * state_next,
+          container_proc_->MakeNodeWithName<Select>(
+              SourceInfo(), /*selector=*/GetProcTickComplete(), /*cases=*/
+              std::vector<Node*>{GetDummyState(i), next_state.at(i)},
+              /*default_case=*/absl::nullopt,
+              absl::StrFormat("%s_%s_next_state", inlined_proc_->name(),
+                              inlined_proc_->GetStateParam(i)->GetName())));
+      XLS_RETURN_IF_ERROR(proc_state_.at(i)->SetNext(state_next));
+    }
     return absl::OkStatus();
   }
 
@@ -959,8 +968,11 @@ class ProcThread {
     return state_elements_;
   }
 
-  // Returns the dummy node representing the proc state in the proc thread.
-  Node* GetDummyState() const { return proc_state_->GetState(); }
+  // Returns the dummy node representing the proc state element in the proc
+  // thread.
+  Node* GetDummyState(int64_t state_index) const {
+    return proc_state_.at(state_index)->GetState();
+  }
 
   Proc* GetInlinedProc() const { return inlined_proc_; }
 
@@ -981,9 +993,9 @@ class ProcThread {
   // later added to the container proc state.
   std::list<StateElement> state_elements_;
 
-  // The state element representing the state of the proc. This points to an
+  // The state elements representing the state of the proc. These point to an
   // element in `state_elements_`.
-  StateElement* proc_state_ = nullptr;
+  std::vector<StateElement*> proc_state_;
 
   // The single bit of state representing the activation bit. This points to an
   // element in `state_elements_`.
@@ -1312,15 +1324,18 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   for (Node* node : topo_sort) {
     XLS_VLOG(3) << absl::StreamFormat("Inlining node %s", node->GetName());
     if (node->Is<Param>()) {
-      if (node == proc_to_inline->GetUniqueStateParam()) {
-        // The dummy state value will later be replaced with an element from the
-        // container proc state.
-        node_map[node] = proc_thread.GetDummyState();
-      } else {
+      if (node == proc_to_inline->TokenParam()) {
         // Connect the inlined token network from `proc` to the token parameter
         // of `container_proc`.
         XLS_RET_CHECK_EQ(node, proc_to_inline->TokenParam());
         node_map[node] = container_proc->TokenParam();
+      } else {
+        // The dummy state value will later be replaced with an element from the
+        // container proc state.
+        XLS_ASSIGN_OR_RETURN(
+            int64_t state_index,
+            proc_to_inline->GetStateParamIndex(node->As<Param>()));
+        node_map[node] = proc_thread.GetDummyState(state_index);
       }
       continue;
     }
@@ -1346,8 +1361,11 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
     }
   }
 
-  XLS_RETURN_IF_ERROR(proc_thread.SetNextState(
-      /*next_state=*/node_map.at(proc_to_inline->GetUniqueNextState())));
+  std::vector<Node*> next_state;
+  for (int64_t i = 0; i < proc_to_inline->GetStateElementCount(); ++i) {
+    next_state.push_back(node_map.at(proc_to_inline->GetNextStateElement(i)));
+  }
+  XLS_RETURN_IF_ERROR(proc_thread.SetNextState(next_state));
 
   // Wire in the next-token value from the inlined proc into the next-token of
   // the container proc. Use an afterall to join the tokens. If the container

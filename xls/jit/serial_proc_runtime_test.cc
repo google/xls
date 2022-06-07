@@ -399,8 +399,7 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
   // using the explicit proc state. However, the state channel has multiple
   // initial values which results in interleaving of difference sequences of
   // iota values.
-  ProcBuilder pb("backedge_proc", /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"nil_state", p.get());
+  ProcBuilder pb("backedge_proc", /*token_name=*/"tok", p.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       p->CreateStreamingChannel(
@@ -420,9 +419,7 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
   BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
-  XLS_ASSERT_OK(
-      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetUniqueStateParam())
-          .status());
+  XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
 
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
 
@@ -452,16 +449,12 @@ TEST(SerialProcRuntimeTest, StateReset) {
       Channel * ch_out,
       package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
 
-  ProcBuilder pb("state_reset",
-                 /*init_value=*/Value::Tuple({Value(SBits(11, 32))}),
-                 /*token_name=*/"tkn", /*state_name=*/"st", &package);
-  BValue in_tuple = pb.TupleIndex(pb.GetUniqueStateParam(), 0);
-  BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), in_tuple);
+  ProcBuilder pb("state_reset", /*token_name=*/"tkn", &package);
+  BValue st = pb.StateElement("st", Value(UBits(11, 32)));
+  BValue send_token = pb.Send(ch_out, pb.GetTokenParam(), st);
   BValue add_lit = pb.Literal(SBits(3, 32));
-  BValue next_int = pb.Add(in_tuple, add_lit);
-  BValue next_state = pb.Tuple({next_int});
-
-  XLS_ASSERT_OK(pb.Build(send_token, next_state));
+  BValue next_int = pb.Add(st, add_lit);
+  XLS_ASSERT_OK(pb.Build(send_token, {next_int}));
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ChannelQueueManager> queue_manager,

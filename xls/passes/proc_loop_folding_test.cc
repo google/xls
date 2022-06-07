@@ -76,9 +76,8 @@ TEST_F(RollIntoProcPassTest, NoCountedFor) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_counted_for";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
-
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
   // Create channels.
@@ -96,11 +95,11 @@ TEST_F(RollIntoProcPassTest, NoCountedFor) {
                                proc_state_type));
 
   BValue lit1 = pb.Literal(UBits(1, 32));
-  BValue adder = pb.Add(pb.GetUniqueStateParam(), lit1);
+  BValue adder = pb.Add(pb.GetStateParam(0), lit1);
   BValue out = pb.Send(ch1, pb.GetTokenParam(), adder);
   BValue after_all = pb.AfterAll({out,  pb.TupleIndex(in, 0)});
   BValue next_state = adder;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(false));
 }
@@ -110,8 +109,8 @@ TEST_F(RollIntoProcPassTest, NoReceive) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_receive";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -133,11 +132,11 @@ TEST_F(RollIntoProcPassTest, NoReceive) {
   BValue accumulator = pb.Literal(ZeroOfType(proc_state_type));
 
   BValue result =
-      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetUniqueStateParam()});
+      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetStateParam(0)});
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({out});
-  BValue next_state = pb.GetUniqueStateParam();
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  BValue next_state = pb.GetStateParam(0);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(false));
 }
@@ -147,8 +146,8 @@ TEST_F(RollIntoProcPassTest, NoSend) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -171,10 +170,10 @@ TEST_F(RollIntoProcPassTest, NoSend) {
   BValue accumulator = pb.Literal(ZeroOfType(proc_state_type));
 
   BValue result =
-      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetUniqueStateParam()});
+      pb.CountedFor(accumulator, 2, 1, loopbody, {pb.GetStateParam(0)});
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0)});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(false));
 }
@@ -185,8 +184,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -220,7 +219,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
@@ -296,8 +295,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -331,7 +330,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc, 2), status_testing::IsOkAndHolds(true));
 
@@ -407,8 +406,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -442,7 +441,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc, 5), status_testing::IsOkAndHolds(true));
 
@@ -524,8 +523,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -556,7 +555,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
@@ -610,8 +609,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -642,7 +641,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
@@ -696,8 +695,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -731,7 +730,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
@@ -789,8 +788,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -824,7 +823,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
@@ -883,8 +882,8 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -919,7 +918,7 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), send_result);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
@@ -982,8 +981,8 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   auto p = CreatePackage();
   Value proc_initial_state = Value(UBits(0, 32));
   std::string name = "no_send";
-  ProcBuilder pb(name, proc_initial_state, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), p.get());
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), p.get());
+  pb.StateElement(absl::StrFormat("%s_state", name), proc_initial_state);
 
   Type* proc_state_type = p->GetTypeForValue(proc_initial_state);
 
@@ -1020,7 +1019,7 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   BValue out = pb.Send(ch1, pb.GetTokenParam(), send_val);
   BValue after_all = pb.AfterAll({pb.TupleIndex(in, 0), out});
   BValue next_state = result;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(after_all, {next_state}));
 
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 

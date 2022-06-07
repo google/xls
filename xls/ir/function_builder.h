@@ -617,11 +617,6 @@ class ProcBuilder : public BuilderBase {
   ProcBuilder(absl::string_view name, absl::string_view token_name,
               Package* package, bool should_verify = true);
 
-  // Builder for xls::Procs which starts with a single state element.
-  // TODO(https://github.com/google/xls/issues/548): Remove.
-  ProcBuilder(absl::string_view name, const Value& init_value,
-              absl::string_view token_name, absl::string_view state_name,
-              Package* package, bool should_verify = true);
   virtual ~ProcBuilder() = default;
 
   // Returns the Proc being constructed.
@@ -633,19 +628,6 @@ class ProcBuilder : public BuilderBase {
   // methods return references to these parameters.
   BValue GetTokenParam() const { return token_param_; }
   BValue GetStateParam(int64_t index) const { return state_params_.at(index); }
-
-  // Return the unique state element. Check fails if the proc does not have
-  // exactly one state element.
-  // TODO(https://github.com/google/xls/issues/548): Remove.
-  BValue GetUniqueStateParam() const {
-    XLS_CHECK_EQ(state_params_.size(), 1);
-    return state_params_.at(0);
-  }
-
-  // Build the proc using the given BValues as the recurrent token and state
-  // respectively. The proc must only have a single state element.
-  // TODO(https://github.com/google/xls/issues/548): Remove.
-  absl::StatusOr<Proc*> Build(BValue token, BValue next_state);
 
   // Build the proc using the given BValues as the recurrent token and next
   // state values respectively. The number of recurrent state eleemnts in
@@ -716,14 +698,6 @@ class TokenlessProcBuilder : public ProcBuilder {
                        Package* package, bool should_verify = true)
       : ProcBuilder(name, token_name, package, should_verify) {}
 
-  // Builder which starts with a single state element.
-  // TODO(https://github.com/google/xls/issues/548): Remove.
-  TokenlessProcBuilder(absl::string_view name, const Value& init_value,
-                       absl::string_view token_name,
-                       absl::string_view state_name, Package* package,
-                       bool should_verify = true)
-      : ProcBuilder(name, init_value, token_name, state_name, package,
-                    should_verify) {}
   virtual ~TokenlessProcBuilder() = default;
 
   // Build the proc using the given BValues as the recurrent state. The
@@ -731,10 +705,6 @@ class TokenlessProcBuilder : public ProcBuilder {
   // operands are all of the tokens from the send(if)/receive(if) operations in
   // the proc.
   absl::StatusOr<Proc*> Build(absl::Span<const BValue> next_state);
-
-  // Build method for a proc with a single state element.
-  // TODO(https://github.com/google/xls/issues/548): Remove.
-  absl::StatusOr<Proc*> Build(BValue next_state);
 
   // Add a receive operation. The type of the data value received is determined
   // by the channel. The returned BValue is the received data itself (*not* the

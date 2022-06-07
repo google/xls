@@ -434,11 +434,6 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
 
   XLS_RET_CHECK(function_base->IsProc());
   Proc* proc = function_base->AsProcOrDie();
-  if (proc->GetStateElementCount() != 1) {
-    // TODO(https://github.com/google/xls/issues/548): Handle multiple state
-    // elements in the JIT.
-    return absl::OkStatus();
-  }
 
   absl::Time start_jit_compile = absl::Now();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_manager,

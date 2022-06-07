@@ -200,20 +200,20 @@ TEST_F(NodeUtilTest, ChannelNodes) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * ch1, p.CreateStreamingChannel("ch1", ChannelOps::kSendOnly,
                                               p.GetBitsType(32)));
-  ProcBuilder b(TestName(), Value::Tuple({}), "tkn", "st", &p);
+  ProcBuilder b(TestName(), "tkn", &p);
+  BValue state = b.StateElement("st", Value(UBits(0, 0)));
   BValue rcv = b.Receive(ch0, b.GetTokenParam());
   BValue send = b.Send(ch1, b.GetTokenParam(), b.Literal(Value(UBits(42, 32))));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
-                           b.Build(b.AfterAll({b.TupleIndex(rcv, 0), send}),
-                                   b.GetUniqueStateParam()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Proc * proc, b.Build(b.AfterAll({b.TupleIndex(rcv, 0), send}), {state}));
 
   EXPECT_TRUE(IsChannelNode(rcv.node()));
   EXPECT_TRUE(IsChannelNode(send.node()));
-  EXPECT_FALSE(IsChannelNode(proc->GetUniqueStateParam()));
+  EXPECT_FALSE(IsChannelNode(proc->GetStateParam(0)));
 
   EXPECT_THAT(GetChannelUsedByNode(rcv.node()), IsOkAndHolds(ch0));
   EXPECT_THAT(GetChannelUsedByNode(send.node()), IsOkAndHolds(ch1));
-  EXPECT_THAT(GetChannelUsedByNode(proc->GetUniqueStateParam()),
+  EXPECT_THAT(GetChannelUsedByNode(proc->GetStateParam(0)),
               StatusIs(absl::StatusCode::kNotFound,
                        HasSubstr("No channel associated with node")));
 }

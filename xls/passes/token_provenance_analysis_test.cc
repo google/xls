@@ -49,7 +49,8 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
       p->CreateStreamingChannel("test_channel", ChannelOps::kSendReceive,
                                 p->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), Value(UBits(0, 0)), "token", "state", p.get());
+  ProcBuilder pb(TestName(), "token", p.get());
+  pb.StateElement("state", Value(UBits(0, 0)));
   BValue recv = pb.Receive(channel, pb.GetTokenParam());
   BValue t1 = pb.TupleIndex(recv, 0);
   BValue t2 = pb.Send(channel, t1, pb.Literal(UBits(50, 32)));
@@ -63,7 +64,8 @@ TEST_F(TokenProvenanceAnalysisTest, Simple) {
   BValue t5 = pb.Cover(t4, pb.Literal(UBits(1, 1)), "trace");
   BValue t6 = pb.AfterAll({t3, t4, t5});
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(t6, pb.Literal(UBits(0, 0))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build(t6, {pb.Literal(UBits(0, 0))}));
   XLS_ASSERT_OK_AND_ASSIGN(TokenProvenance provenance,
                            TokenProvenanceAnalysis(proc));
 

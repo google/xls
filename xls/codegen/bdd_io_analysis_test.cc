@@ -62,15 +62,14 @@ TEST_F(BddIOAnalysisPassTest, SingleStreamingSend) {
       package.CreateSingleValueChannel("out1", ChannelOps::kSendOnly, u32));
 
   Value initial_state = Value(UBits(0, 32));
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
   BValue in_val = pb.Receive(in);
 
   pb.Send(out0, in_val);
   pb.Send(out1, in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -93,8 +92,7 @@ TEST_F(BddIOAnalysisPassTest, StreamingSendWithSendIf) {
       package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
 
   Value initial_state = Value(UBits(0, 32));
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
   BValue in_val = pb.Receive(in);
 
@@ -103,7 +101,7 @@ TEST_F(BddIOAnalysisPassTest, StreamingSendWithSendIf) {
   pb.Send(out0, in_val);
   pb.SendIf(out1, pb.Eq(in_val, one), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -132,8 +130,7 @@ TEST_F(BddIOAnalysisPassTest, MutuallyExclusiveSendIf) {
       package.CreateStreamingChannel("out2", ChannelOps::kSendOnly, u32));
 
   Value initial_state = Value(UBits(0, 32));
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
   BValue in_val = pb.Receive(in);
   BValue sel_val = pb.Receive(sel);
@@ -146,7 +143,7 @@ TEST_F(BddIOAnalysisPassTest, MutuallyExclusiveSendIf) {
   pb.SendIf(out1, pb.Eq(sel_val, one), in_val);
   pb.SendIf(out2, pb.Eq(sel_val, two), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -172,8 +169,8 @@ TEST_F(BddIOAnalysisPassTest, MutuallyExclusiveSendIfWithRange) {
       package.CreateStreamingChannel("out1", ChannelOps::kSendOnly, u32));
 
   Value initial_state = Value(UBits(0, 32));
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(),
+                          /*token_name=*/"tkn", &package);
 
   BValue in_val = pb.Receive(in);
   BValue sel_val = pb.Receive(sel);
@@ -183,7 +180,7 @@ TEST_F(BddIOAnalysisPassTest, MutuallyExclusiveSendIfWithRange) {
   pb.SendIf(out0, pb.ULt(sel_val, one_zero_two_four), in_val);
   pb.SendIf(out1, pb.UGt(sel_val, one_zero_two_four), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));
@@ -212,8 +209,7 @@ TEST_F(BddIOAnalysisPassTest, NonMutuallyExclusiveSendIf) {
       package.CreateStreamingChannel("out2", ChannelOps::kSendOnly, u32));
 
   Value initial_state = Value(UBits(0, 32));
-  TokenlessProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tkn", &package);
 
   BValue in_val = pb.Receive(in);
   BValue sel_val = pb.Receive(sel);
@@ -225,7 +221,7 @@ TEST_F(BddIOAnalysisPassTest, NonMutuallyExclusiveSendIf) {
   pb.SendIf(out1, pb.Eq(sel_val, one), in_val);
   pb.SendIf(out2, pb.Eq(sel_val, one), in_val);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   XLS_ASSERT_OK_AND_ASSIGN(bool mutually_exclusive,
                            AreStreamingOutputsMutuallyExclusive(proc));

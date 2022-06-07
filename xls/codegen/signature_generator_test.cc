@@ -214,13 +214,12 @@ TEST(SignatureGeneratorTest, IOSignatureProcToPipelinedBLock) {
           /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
           FlowControl::kReadyValid));
 
-  TokenlessProcBuilder pb("test", /*init_value=*/Value::Tuple({}),
-                          /*token_name=*/"tkn", /*state_name=*/"st", &package);
+  TokenlessProcBuilder pb("test", /*token_name=*/"tkn", &package);
   BValue in0 = pb.Receive(in_single_val);
   BValue in1 = pb.Receive(in_streaming_rv);
   pb.Send(out_single_val, in0);
   pb.Send(out_streaming_rv, in1);
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetStateParam(0)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
   EXPECT_FALSE(in_single_val->HasCompletedBlockPortNames());
   EXPECT_FALSE(out_single_val->HasCompletedBlockPortNames());

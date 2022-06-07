@@ -39,12 +39,12 @@ class ProcNetworkInterpreterTest : public IrTestBase {};
 absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
                                      int64_t starting_value, int64_t step,
                                      Channel* channel, Package* package) {
-  ProcBuilder pb(proc_name, /*init_value=*/Value(UBits(starting_value, 32)),
-                 /*token_name=*/"tok", /*state_name=*/"prev", package);
-  BValue send_token = pb.Send(channel, pb.GetTokenParam(), pb.GetStateParam(0));
+  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
+  BValue st = pb.StateElement("st", Value(UBits(starting_value, 32)));
+  BValue send_token = pb.Send(channel, pb.GetTokenParam(), st);
 
-  BValue new_value = pb.Add(pb.GetStateParam(0), pb.Literal(UBits(step, 32)));
-  return pb.Build(send_token, new_value);
+  BValue new_value = pb.Add(st, pb.Literal(UBits(step, 32)));
+  return pb.Build(send_token, {new_value});
 }
 
 // Creates a proc which keeps a running sum of all values read through the input
@@ -52,14 +52,14 @@ absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
 absl::StatusOr<Proc*> CreateAccumProc(absl::string_view proc_name,
                                       Channel* in_channel, Channel* out_channel,
                                       Package* package) {
-  ProcBuilder pb(proc_name, /*init_value=*/Value(UBits(0, 32)),
-                 /*token_name=*/"tok", /*state_name=*/"prev", package);
+  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
+  BValue accum = pb.StateElement("accum", Value(UBits(0, 32)));
   BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
-  BValue accum = pb.Add(pb.GetStateParam(0), input);
-  BValue send_token = pb.Send(out_channel, recv_token, accum);
-  return pb.Build(send_token, accum);
+  BValue next_accum = pb.Add(accum, input);
+  BValue send_token = pb.Send(out_channel, recv_token, next_accum);
+  return pb.Build(send_token, {next_accum});
 }
 
 // Creates a proc which simply passes through a received value to a send.
@@ -67,13 +67,12 @@ absl::StatusOr<Proc*> CreatePassThroughProc(absl::string_view proc_name,
                                             Channel* in_channel,
                                             Channel* out_channel,
                                             Package* package) {
-  ProcBuilder pb(proc_name, /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"state", package);
+  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
   BValue token_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue recv_token = pb.TupleIndex(token_input, 0);
   BValue input = pb.TupleIndex(token_input, 1);
   BValue send_token = pb.Send(out_channel, recv_token, input);
-  return pb.Build(send_token, pb.GetStateParam(0));
+  return pb.Build(send_token, {});
 }
 
 // Create a proc which reads tuples of (count: u32, char: u8) from in_channel,
@@ -85,12 +84,9 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
                                                  Package* package) {
   // Proc state is a two-tuple containing: character to write and remaining
   // number of times to write the character.
-  ProcBuilder pb(
-      proc_name,
-      /*init_value=*/Value::Tuple({Value(UBits(0, 8)), Value(UBits(0, 32))}),
-      /*token_name=*/"tok", /*state_name=*/"state", package);
-  BValue last_char = pb.TupleIndex(pb.GetStateParam(0), 0);
-  BValue num_remaining = pb.TupleIndex(pb.GetStateParam(0), 1);
+  ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
+  BValue last_char = pb.StateElement("last_char", Value(UBits(0, 8)));
+  BValue num_remaining = pb.StateElement("num_remaining", Value(UBits(0, 32)));
   BValue receive_next = pb.Eq(num_remaining, pb.Literal(UBits(0, 32)));
   BValue receive_if =
       pb.ReceiveIf(in_channel, pb.GetTokenParam(), receive_next);
@@ -103,14 +99,12 @@ absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
   BValue run_length_is_nonzero = pb.Ne(run_length, pb.Literal(UBits(0, 32)));
   BValue send = pb.SendIf(out_channel, pb.TupleIndex(receive_if, 0),
                           run_length_is_nonzero, this_char);
-  BValue next_state = pb.Tuple(
-      {this_char,
-       pb.Select(
-           run_length_is_nonzero,
-           /*cases=*/{pb.Literal(UBits(0, 32)),
-                      pb.Subtract(run_length, pb.Literal(UBits(1, 32)))})});
+  BValue next_num_remaining =
+      pb.Select(run_length_is_nonzero,
+                /*cases=*/{pb.Literal(UBits(0, 32)),
+                           pb.Subtract(run_length, pb.Literal(UBits(1, 32)))});
 
-  return pb.Build(send, next_state);
+  return pb.Build(send, {this_char, next_num_remaining});
 }
 
 TEST_F(ProcNetworkInterpreterTest, ProcIotaWithExplicitTicks) {
@@ -227,9 +221,8 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
 TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
   // Tests interpreting a proc with no send of receive nodes.
   auto package = CreatePackage();
-  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"prev", package.get());
-  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), pb.GetStateParam(0)));
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
                            ProcNetworkInterpreter::Create(
                                package.get(), /*user_defined_queues*/ {}));
@@ -261,8 +254,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"prev", package.get());
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
   BValue recv_input = pb.Receive(in_channel, pb.GetTokenParam());
   BValue send_to_accum =
       pb.Send(in_accum_channel, /*token=*/pb.TupleIndex(recv_input, 0),
@@ -271,7 +263,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
   BValue send_output =
       pb.Send(out_channel, /*token=*/pb.TupleIndex(recv_from_accum, 0),
               /*data_operands=*/{pb.TupleIndex(recv_from_accum, 1)});
-  XLS_ASSERT_OK(pb.Build(send_output, pb.Tuple({})));
+  XLS_ASSERT_OK(pb.Build(send_output, {}));
 
   XLS_ASSERT_OK(CreateAccumProc("accum", /*in_channel=*/in_accum_channel,
                                 /*out_channel=*/out_accum_channel,
@@ -390,15 +382,14 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   XLS_ASSERT_OK(CreateRunLengthDecoderProc("decoder", input_channel,
                                            decoded_channel, package.get())
                     .status());
-  ProcBuilder pb("filter", /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"nil", package.get());
+  ProcBuilder pb("filter", /*token_name=*/"tok", package.get());
   BValue receive = pb.Receive(decoded_channel, pb.GetTokenParam());
   BValue rx_token = pb.TupleIndex(receive, 0);
   BValue rx_value = pb.TupleIndex(receive, 1);
   BValue rx_value_even =
       pb.Not(pb.BitSlice(rx_value, /*start=*/0, /*width=*/1));
   BValue send_if = pb.SendIf(output_channel, rx_token, rx_value_even, rx_value);
-  XLS_ASSERT_OK(pb.Build(send_if, pb.GetStateParam(0)));
+  XLS_ASSERT_OK(pb.Build(send_if, {}));
 
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   std::vector<Value> inputs = {
@@ -429,9 +420,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
   // using the explicit proc state. The state channel has an initial value, just
   // like a proc's state.
   auto package = CreatePackage();
-  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"nil_state",
-                 package.get());
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
@@ -448,9 +437,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
   BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
-  XLS_ASSERT_OK(
-      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam(0))
-          .status());
+  XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
                            ProcNetworkInterpreter::Create(package.get(), {}));
 
@@ -471,9 +458,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
   // using the explicit proc state. However, the state channel has multiple
   // initial values which results in interleaving of difference sequences of
   // iota values.
-  ProcBuilder pb(TestName(), /*init_value=*/Value::Tuple({}),
-                 /*token_name=*/"tok", /*state_name=*/"nil_state",
-                 package.get());
+  ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * state_channel,
       package->CreateStreamingChannel(
@@ -493,9 +478,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
   BValue next_state = pb.Add(state, pb.Literal(UBits(1, 32)));
   BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
-  XLS_ASSERT_OK(
-      pb.Build(pb.AfterAll({out_send, state_send}), pb.GetStateParam(0))
-          .status());
+  XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
                            ProcNetworkInterpreter::Create(package.get(), {}));
 

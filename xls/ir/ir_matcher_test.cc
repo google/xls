@@ -292,12 +292,13 @@ TEST(IrMatchersTest, SendOps) {
           /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 123));
 
-  ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
-  auto send = b.Send(ch42, b.GetTokenParam(), {b.GetUniqueStateParam()});
-  auto send_if = b.SendIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)),
-                          {b.GetUniqueStateParam()});
+  ProcBuilder b("proc", "my_token", &p);
+  auto state = b.StateElement("my_state", Value(UBits(333, 32)));
+  auto send = b.Send(ch42, b.GetTokenParam(), state);
+  auto send_if =
+      b.SendIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)), {state});
   XLS_ASSERT_OK(
-      b.Build(b.AfterAll({send, send_if}), b.GetUniqueStateParam()).status());
+      b.Build(b.AfterAll({send, send_if}), {b.GetStateParam(0)}).status());
 
   EXPECT_THAT(send.node(), m::Send());
   EXPECT_THAT(send.node(), m::Send(m::Channel(42)));
@@ -326,13 +327,14 @@ TEST(IrMatchersTest, ReceiveOps) {
           /*fifo_depth=*/absl::nullopt, FlowControl::kReadyValid,
           ChannelMetadataProto(), 123));
 
-  ProcBuilder b("proc", Value(UBits(333, 32)), "my_token", "my_state", &p);
+  ProcBuilder b("proc", "my_token", &p);
+  auto state = b.StateElement("my_state", Value(UBits(333, 32)));
   auto receive = b.Receive(ch42, b.GetTokenParam());
   auto receive_if =
       b.ReceiveIf(ch123, b.GetTokenParam(), b.Literal(UBits(1, 1)));
   XLS_ASSERT_OK(b.Build(b.AfterAll({b.TupleIndex(receive, 0),
                                     b.TupleIndex(receive_if, 0)}),
-                        b.GetUniqueStateParam())
+                        {state})
                     .status());
 
   EXPECT_THAT(receive.node(), m::Receive());

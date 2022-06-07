@@ -71,8 +71,9 @@ absl::StatusOr<Proc*> CreateFirFilter(absl::string_view name,
   // Create ProcBuilder and assign two channels.
   // The proc state is a Tuple. Element 0 is the result of the current filter
   // convolution. Element 1 is the current input array x.
-  ProcBuilder pb(name, shiftreg_init, absl::StrFormat("%s_token", name),
-                 absl::StrFormat("%s_state", name), package);
+  ProcBuilder pb(name, absl::StrFormat("%s_token", name), package);
+  BValue state =
+      pb.StateElement(absl::StrFormat("%s_state", name), shiftreg_init);
 
   if (output_channel->type() != kernel_type->element_type()) {
     return absl::InvalidArgumentError(
@@ -98,8 +99,8 @@ absl::StatusOr<Proc*> CreateFirFilter(absl::string_view name,
   BValue shiftreg_slicer =
       pb.Literal(UBits(0, 32), SourceInfo(), "shiftreg_slicer");
 
-  BValue x_slice = pb.ArraySlice(pb.GetUniqueStateParam(), shiftreg_slicer,
-                                 kernel_value.size() - 1);
+  BValue x_slice =
+      pb.ArraySlice(state, shiftreg_slicer, kernel_value.size() - 1);
   BValue new_x = pb.Array({pb.TupleIndex(in, 1)}, kernel_type->element_type(),
                           SourceInfo(), "new_x");
   BValue x = pb.ArrayConcat({new_x, x_slice}, SourceInfo(), "x");
@@ -114,8 +115,7 @@ absl::StatusOr<Proc*> CreateFirFilter(absl::string_view name,
   BValue out = pb.Send(output_channel, pb.GetTokenParam(), result);
 
   BValue after_all = pb.AfterAll({out,  pb.TupleIndex(in, 0)});
-  BValue next_state = x;
-  XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(after_all, next_state));
+  XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(after_all, {x}));
   return proc;
 }
 
