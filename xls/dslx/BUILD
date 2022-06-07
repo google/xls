@@ -25,6 +25,35 @@ package(
 )
 
 cc_library(
+    name = "ast_cloner",
+    srcs = ["ast_cloner.cc"],
+    hdrs = ["ast_cloner.h"],
+    deps = [
+        ":ast",
+        "//xls/common:visitor",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+    ],
+)
+
+cc_test(
+    name = "ast_cloner_test",
+    srcs = ["ast_cloner_test.cc"],
+    deps = [
+        ":ast",
+        ":ast_cloner",
+        ":create_import_data",
+        ":import_data",
+        ":parse_and_typecheck",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "bytecode",
     srcs = ["bytecode.cc"],
     hdrs = ["bytecode.h"],

@@ -984,6 +984,7 @@ class Import : public AstNode {
   NameDef* name_def() const { return name_def_; }
   const Span& span() const { return span_; }
   absl::optional<Span> GetSpan() const override { return span_; }
+  absl::optional<std::string> alias() const { return alias_; }
 
  private:
   // Span of the import in the text.
