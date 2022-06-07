@@ -707,7 +707,7 @@ cc_test(
 cc_test(
     name = "block_conversion_test",
     srcs = ["block_conversion_test.cc"],
-    shard_count = 10,
+    shard_count = 50,
     deps = [
         ":block_conversion",
         ":codegen_options",
