@@ -17,7 +17,7 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
-#include "xls/ir/function.h"
+#include "xls/ir/function_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 

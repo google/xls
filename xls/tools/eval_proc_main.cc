@@ -197,8 +197,10 @@ absl::Status RunSerialJit(
 
       for (int64_t i = 0; i < runtime->NumProcs(); i++) {
         XLS_ASSIGN_OR_RETURN(Proc * p, runtime->proc(i));
-        XLS_ASSIGN_OR_RETURN(Value v, runtime->ProcState(i));
-        XLS_VLOG(1) << "Proc " << p->name() << " : " << v;
+        XLS_ASSIGN_OR_RETURN(std::vector<Value> values, runtime->ProcState(i));
+        XLS_VLOG(1) << absl::StreamFormat(
+            "Proc %s : {%s}", p->name(),
+            absl::StrJoin(values, ", ", ValueFormatter));
       }
     }
   }

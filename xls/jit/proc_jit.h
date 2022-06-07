@@ -20,11 +20,8 @@
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/events.h"
-#include "xls/ir/function.h"
-#include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_view.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -71,13 +68,13 @@ class ProcJit {
       Proc* proc, JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
       SendFnT send_fn, int64_t opt_level = 3);
 
-  // Executes a single tick of the compiled proc. `state` is the initial state
-  // value. The returned value is the next state value.  The optional opaque
+  // Executes a single tick of the compiled proc. `state` are the initial state
+  // values. The returned values are the next state value.  The optional opaque
   // "user_data" argument is passed into Proc send/recv callbacks. Returns both
   // the resulting value and events that happened during evaluation.
   // TODO(meheff) 2022/05/24 Add way to run with packed values.
-  absl::StatusOr<InterpreterResult<Value>> Run(const Value& state,
-                                               void* user_data = nullptr);
+  absl::StatusOr<InterpreterResult<std::vector<Value>>> Run(
+      absl::Span<const Value> state, void* user_data = nullptr);
 
   // Returns the function that the JIT executes.
   Proc* proc() { return proc_; }
@@ -111,15 +108,13 @@ class ProcJit {
 
   Proc* proc_;
 
-  // Size of the proc's state in bytes.
-  int64_t state_type_bytes_;
-
   std::unique_ptr<JitRuntime> ir_runtime_;
 
   // When initialized, this points to the compiled output.
-  using JitFunctionType = void (*)(const uint8_t* const* inputs,
-                                   uint8_t* output, InterpreterEvents* events,
-                                   void* user_data, JitRuntime* jit_runtime);
+  using JitFunctionType = void (*)(const uint8_t* const* state,
+                                   uint8_t* const* next_state,
+                                   InterpreterEvents* events, void* user_data,
+                                   JitRuntime* jit_runtime);
   JitFunctionType invoker_;
 };
 

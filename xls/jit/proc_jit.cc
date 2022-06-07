@@ -62,27 +62,43 @@ class ProcBuilderVisitor : public IrBuilderVisitor {
   absl::Status HandleReceive(Receive* recv) override;
   absl::Status HandleSend(Send* send) override;
 
-  // The first argument to the proc function is the proc state.
+  // The first arguments to the proc function are the existing proc
+  // state. Function signature is:
+  //
+  //   void f(state_0_T state_0, .., state_n_T state_n,
+  //          state_0_t* next_state_0, ..., state_n_T* next_state_n,
+  //          void* events, void* user_data, void* jit_runtime)
   absl::Status HandleParam(Param* param) override {
     llvm::Function* llvm_function =
         dispatch_builder()->GetInsertBlock()->getParent();
 
     llvm::Value* value;
-    if (param == proc()->GetUniqueStateParam()) {
-      value = llvm_function->getArg(0);
-    } else {
-      XLS_RET_CHECK_EQ(param, proc()->TokenParam());
+    if (param == proc()->TokenParam()) {
       value = type_converter()->GetToken();
+    } else {
+      XLS_ASSIGN_OR_RETURN(int64_t index, proc()->GetStateParamIndex(param));
+      value = llvm_function->getArg(index);
     }
 
     return StoreResult(param, value);
   }
 
-  // Builds the IR to return the next state value.
+  // Builds the IR to write the next state value into the appropriate buffer
+  // (passed in as an argument). Function signature is:
+  //
+  //   void f(state_0_T state_0, .., state_n_T state_n,
+  //          state_0_t* next_state_0, ..., state_n_T* next_state_n,
+  //          void* events, void* user_data, void* jit_runtime)
   absl::Status Finalize() {
-    Node* next_state = xls_fn_->AsProcOrDie()->GetUniqueNextState();
-    llvm::Value* llvm_next_value = node_map().at(next_state);
-    dispatch_builder()->CreateRet(llvm_next_value);
+    llvm::Function* llvm_function =
+        dispatch_builder()->GetInsertBlock()->getParent();
+    for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
+      llvm::Value* next_state_ptr =
+          llvm_function->getArg(proc()->GetStateElementCount() + i);
+      dispatch_builder()->CreateStore(
+          node_map().at(proc()->GetNextStateElement(i)), next_state_ptr);
+    }
+    dispatch_builder()->CreateRetVoid();
 
     return absl::OkStatus();
   }
@@ -318,8 +334,9 @@ absl::Status ProcBuilderVisitor::HandleSend(Send* send) {
 // Builds and returns and LLVM function which executes a single tick of the
 // given proc. The LLVM function has the following signature:
 //
-//   stateT f(stateT state,
-//            void* events, void* user_data, void* jit_runtime)
+//   void f(state_0_T state_0, .., state_n_T state_n,
+//          state_0_t* next_state_0, ..., state_n_T* next_state_n,
+//          void* events, void* user_data, void* jit_runtime)
 //
 //   events      : a pointer to an InterpreterEvents object
 //   user_data   : opaque pointer passed on to send and receive functions.
@@ -331,13 +348,21 @@ absl::StatusOr<llvm::Function*> BuildProcFunction(
     ProcJit::RecvFnT recv_fn, ProcJit::SendFnT send_fn, OrcJit& jit) {
   llvm::LLVMContext& context = *jit.GetContext();
 
-  Type* xls_state_type = proc->GetUniqueStateType();
-  llvm::Type* llvm_state_type =
-      jit.GetTypeConverter().ConvertToLlvmType(xls_state_type);
-
+  // Add current state parameters. These are passed by value.
   std::vector<llvm::Type*> param_types;
-  param_types.push_back(
-      jit.GetTypeConverter().ConvertToLlvmType(xls_state_type));
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+    llvm::Type* llvm_state_type =
+        jit.GetTypeConverter().ConvertToLlvmType(proc->GetStateElementType(i));
+    param_types.push_back(llvm_state_type);
+  }
+
+  // Add next state parameters. These are passed by pointer.
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+    llvm::Type* llvm_state_type =
+        jit.GetTypeConverter().ConvertToLlvmType(proc->GetStateElementType(i));
+    param_types.push_back(
+        llvm::PointerType::get(llvm_state_type, /*AddressSpace=*/0));
+  }
 
   // Treat void pointers as int64_t values at the LLVM IR level.
   // Using an actual pointer type triggers LLVM asserts when compiling
@@ -353,7 +378,7 @@ absl::StatusOr<llvm::Function*> BuildProcFunction(
   param_types.push_back(void_ptr_type);
 
   llvm::FunctionType* function_type = llvm::FunctionType::get(
-      llvm_state_type,
+      llvm::Type::getVoidTy(context),
       llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
       /*isVarArg=*/false);
   llvm::Function* llvm_function = llvm::cast<llvm::Function>(
@@ -362,8 +387,13 @@ absl::StatusOr<llvm::Function*> BuildProcFunction(
 
   // Give the function parameters meaningful names.
   int64_t argc = 0;
-  llvm_function->getArg(argc++)->setName(
-      proc->GetUniqueStateParam()->GetName());
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+    llvm_function->getArg(argc++)->setName(proc->GetStateParam(i)->GetName());
+  }
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+    llvm_function->getArg(argc++)->setName(
+        absl::StrFormat("%s_next", proc->GetStateParam(i)->GetName()));
+  }
   llvm_function->getArg(argc++)->setName("__events");
   llvm_function->getArg(argc++)->setName("__user_data");
   llvm_function->getArg(argc++)->setName("__jit_runtime");
@@ -415,17 +445,19 @@ absl::StatusOr<llvm::Function*> ProcJit::BuildWrapper(llvm::Function* callee) {
 
   // Gather the parameter types to build the function type. Signature:
   //
-  //   void f(uint8_t*[] state, uint8_t* next_state,
+  //   void f(uint8_t*[] state, uint8_t*[] next_state,
   //          void* events, void* user_data, void* jit_runtime)
   std::vector<llvm::Type*> param_types;
-  param_types.push_back(llvm::PointerType::get(
-      llvm::ArrayType::get(llvm::Type::getInt8PtrTy(*bare_context), 1),
-      /*AddressSpace=*/0));
-  Type* xls_state_type = proc_->GetUniqueStateType();
-  llvm::Type* llvm_state_type =
-      orc_jit_->GetTypeConverter().ConvertToLlvmType(xls_state_type);
-  param_types.push_back(
-      llvm::PointerType::get(llvm_state_type, /*AddressSpace=*/0));
+  llvm::Type* array_of_i8_type = llvm::ArrayType::get(
+      llvm::PointerType::get(llvm::Type::getInt8Ty(*bare_context),
+                             /*AddressSpace=*/0),
+      proc_->GetStateElementCount());
+  // Argument 0: state pointers
+  param_types.push_back(llvm::PointerType::get(array_of_i8_type,
+                                               /*AddressSpace=*/0));
+  // Argument 1: next state pointers
+  param_types.push_back(llvm::PointerType::get(array_of_i8_type,
+                                               /*AddressSpace=*/0));
 
   // Treat void pointers as int64_t values at the LLVM IR level.
   // Using an actual pointer type triggers LLVM asserts when compiling
@@ -461,14 +493,40 @@ absl::StatusOr<llvm::Function*> ProcJit::BuildWrapper(llvm::Function* callee) {
                                /*InsertBefore=*/nullptr);
   llvm::IRBuilder<> builder(basic_block);
 
-  // Read in the state value the arguments and add them to the list of arguments
-  // to pass to the wrapped function.
-  llvm::Value* arg_array = wrapper_function->getArg(0);
-  llvm::Value* state_value = IrBuilderVisitor::LoadFromPointerArray(
-      0, llvm_state_type, arg_array, 1, &builder);
-
   std::vector<llvm::Value*> args;
-  args.push_back(state_value);
+
+  // Load the state values and add them to the list of arguments to pass to the
+  // wrapped function.
+  llvm::Value* state_array = wrapper_function->getArg(0);
+  for (int64_t i = 0; i < proc_->GetStateElementCount(); ++i) {
+    llvm::Type* llvm_state_type =
+        orc_jit_->GetTypeConverter().ConvertToLlvmType(
+            proc_->GetStateElementType(i));
+    llvm::Value* state_element = IrBuilderVisitor::LoadFromPointerArray(
+        i, llvm_state_type, state_array, proc_->GetStateElementCount(),
+        &builder);
+    state_element->setName(proc_->GetStateParam(i)->GetName());
+    args.push_back(state_element);
+  }
+
+  // The buffers allocated to hold the next-state values. Allocated by the
+  // caller of the wrapper function and passed in as array elements in argument
+  // 1.
+  std::vector<llvm::Value*> next_state_buffers;
+
+  llvm::Value* next_state_array = wrapper_function->getArg(1);
+  for (int64_t i = 0; i < proc_->GetStateElementCount(); ++i) {
+    llvm::Type* llvm_state_type =
+        orc_jit_->GetTypeConverter().ConvertToLlvmType(
+            proc_->GetStateElementType(i));
+    llvm::Value* next_state_ptr = IrBuilderVisitor::LoadPointerFromPointerArray(
+        i, llvm_state_type, next_state_array, proc_->GetStateElementCount(),
+        &builder);
+    next_state_ptr->setName(
+        absl::StrFormat("next_%s_ptr", proc_->GetStateParam(i)->GetName()));
+    args.push_back(next_state_ptr);
+    next_state_buffers.push_back(next_state_ptr);
+  }
 
   // Pass through the final three arguments:
   //   interpreter events, user data, JIT runtime pointer
@@ -476,14 +534,17 @@ absl::StatusOr<llvm::Function*> ProcJit::BuildWrapper(llvm::Function* callee) {
   args.push_back(wrapper_function->getArg(wrapper_function->arg_size() - 2));
   args.push_back(wrapper_function->getArg(wrapper_function->arg_size() - 1));
 
-  llvm::Value* next_state = builder.CreateCall(callee, args);
+  builder.CreateCall(callee, args);
 
-  state_type_bytes_ =
-      orc_jit_->GetTypeConverter().GetTypeByteSize(xls_state_type);
-  IrBuilderVisitor::UnpoisonBuffer(wrapper_function->getArg(1),
-                                   state_type_bytes_, &builder);
+  // Unpoison the next-state buffers.
+  for (int64_t i = 0; i < proc_->GetStateElementCount(); ++i) {
+    int64_t state_type_bytes = orc_jit_->GetTypeConverter().GetTypeByteSize(
+        proc_->GetStateElementType(i));
+    llvm::Value* next_state_buffer = next_state_buffers[i];
+    IrBuilderVisitor::UnpoisonBuffer(next_state_buffer, state_type_bytes,
+                                     &builder);
+  }
 
-  builder.CreateStore(next_state, wrapper_function->getArg(1));
   builder.CreateRetVoid();
 
   XLS_VLOG(3) << absl::StrFormat("LLVM function for %s:", proc_->name());
@@ -492,31 +553,54 @@ absl::StatusOr<llvm::Function*> ProcJit::BuildWrapper(llvm::Function* callee) {
   return wrapper_function;
 }
 
-absl::StatusOr<InterpreterResult<Value>> ProcJit::Run(const Value& state,
-                                                      void* user_data) {
-  Type* state_type = proc_->GetUniqueStateType();
-  if (!ValueConformsToType(state, state_type)) {
-    return absl::InvalidArgumentError(
-        absl::StrFormat("Expected state argument %s to be of type %s",
-                        state.ToString(), state_type->ToString()));
+absl::StatusOr<InterpreterResult<std::vector<Value>>> ProcJit::Run(
+    absl::Span<const Value> state, void* user_data) {
+  // Buffers for state and next-state values. Allocate as std::unique_ptr.
+  std::vector<std::unique_ptr<uint8_t[]>> state_buffers;
+  std::vector<std::unique_ptr<uint8_t[]>> next_state_buffers;
+
+  // Copy of `state_buffers` and `next_state_buffers` but as raw pointers for
+  // passing to the generated function.
+  std::vector<uint8_t*> raw_state_buffers;
+  std::vector<uint8_t*> raw_next_state_buffers;
+  for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
+    Type* state_type = proc_->GetStateElementType(i);
+
+    if (!ValueConformsToType(state[i], state_type)) {
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Expected state argument %s (%d) to be of type %s, is: %s",
+          proc_->GetStateParam(i)->GetName(), i, state_type->ToString(),
+          state[i].ToString()));
+    }
+
+    state_buffers.push_back(std::make_unique<uint8_t[]>(
+        orc_jit_->GetTypeConverter().GetTypeByteSize(state_type)));
+    ir_runtime_->BlitValueToBuffer(
+        state[i], state_type,
+        absl::MakeSpan(state_buffers.back().get(),
+                       type_converter()->GetTypeByteSize(state_type)));
+
+    next_state_buffers.push_back(std::make_unique<uint8_t[]>(
+        orc_jit_->GetTypeConverter().GetTypeByteSize(state_type)));
+
+    raw_state_buffers.push_back(state_buffers[i].get());
+    raw_next_state_buffers.push_back(next_state_buffers[i].get());
   }
-  std::unique_ptr<uint8_t[]> arg_buffer = std::make_unique<uint8_t[]>(
-      orc_jit_->GetTypeConverter().GetTypeByteSize(state_type));
-  ir_runtime_->BlitValueToBuffer(
-      state, state_type,
-      absl::MakeSpan(arg_buffer.get(),
-                     type_converter()->GetTypeByteSize(state_type)));
 
   InterpreterEvents events;
+  invoker_(raw_state_buffers.data(), raw_next_state_buffers.data(), &events,
+           user_data, runtime());
 
-  std::vector<uint8_t*> arg_buffers = {arg_buffer.get()};
-  absl::InlinedVector<uint8_t, 16> result_buffer(state_type_bytes_);
-  invoker_(arg_buffers.data(), result_buffer.data(), &events, user_data,
-           runtime());
+  // Convert from LLVM native type to xls::Value for returning.
+  std::vector<Value> next_state_values;
+  for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
+    Type* state_type = proc_->GetStateElementType(i);
+    next_state_values.push_back(
+        ir_runtime_->UnpackBuffer(next_state_buffers[i].get(), state_type));
+  }
 
-  Value result = ir_runtime_->UnpackBuffer(result_buffer.data(), state_type);
-
-  return InterpreterResult<Value>{std::move(result), std::move(events)};
+  return InterpreterResult<std::vector<Value>>{std::move(next_state_values),
+                                               std::move(events)};
 }
 
 }  // namespace xls

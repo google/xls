@@ -63,8 +63,8 @@ class SerialProcRuntime {
   // Returns the n'th Proc being executed.
   absl::StatusOr<Proc*> proc(int64_t proc_index) const;
 
-  // Returns the current state value in the given proc.
-  absl::StatusOr<Value> ProcState(int64_t proc_index) const;
+  // Returns the current state values in the given proc.
+  absl::StatusOr<std::vector<Value>> ProcState(int64_t proc_index) const;
 
   void ResetState();
 
@@ -82,7 +82,7 @@ class SerialProcRuntime {
     std::unique_ptr<ProcJit> jit;
 
     // The Proc's carried state.
-    Value proc_state;
+    std::vector<Value> proc_state;
 
     absl::Mutex mutex;
     State thread_state ABSL_GUARDED_BY(mutex);

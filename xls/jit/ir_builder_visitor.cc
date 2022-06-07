@@ -1905,6 +1905,14 @@ llvm::Constant* IrBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {
 llvm::Value* IrBuilderVisitor::LoadFromPointerArray(
     int64_t index, llvm::Type* data_type, llvm::Value* pointer_array,
     int64_t pointer_array_size, llvm::IRBuilder<>* builder) {
+  llvm::Value* data_ptr = LoadPointerFromPointerArray(
+      index, data_type, pointer_array, pointer_array_size, builder);
+  return builder->CreateLoad(data_type, data_ptr);
+}
+
+llvm::Value* IrBuilderVisitor::LoadPointerFromPointerArray(
+    int64_t index, llvm::Type* data_type, llvm::Value* pointer_array,
+    int64_t pointer_array_size, llvm::IRBuilder<>* builder) {
   llvm::LLVMContext& context = builder->getContext();
   llvm::Type* pointer_array_type = llvm::ArrayType::get(
       llvm::Type::getInt8PtrTy(context), pointer_array_size);
@@ -1915,13 +1923,12 @@ llvm::Value* IrBuilderVisitor::LoadFromPointerArray(
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), index),
       });
 
-  // The GEP gives a pointer to a u8*; so 'load' is an i8*. Cast it to its full
-  // width so we can load the whole thing.
+  // The GEP gives a pointer to a u8*; so 'load' is an i8*. Cast it to pointer
+  // to the data type.
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(context, 0);
   llvm::LoadInst* load = builder->CreateLoad(int8_ptr_type, gep);
-  llvm::Value* cast = builder->CreateBitCast(
+  return builder->CreateBitCast(
       load, llvm::PointerType::get(data_type, /*AddressSpace=*/0));
-  return builder->CreateLoad(data_type, cast);
 }
 
 absl::Status IrBuilderVisitor::StoreResult(Node* node, llvm::Value* value) {

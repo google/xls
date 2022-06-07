@@ -21,19 +21,17 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
-#include "xls/common/subprocess.h"
-#include "xls/ir/ir_parser.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/jit_runtime.h"
-#include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
 namespace {
+
+using ::testing::ElementsAre;
 
 void EnqueueData(JitChannelQueue* queue, uint32_t data) {
   queue->Send(absl::bit_cast<uint8_t*>(&data), sizeof(uint32_t));
@@ -60,7 +58,6 @@ void CanCompileProcs_send(JitChannelQueue* queue_ptr, Send* send_ptr,
   queue->Send(data_ptr, data_sz);
 }
 
-// Simple smoke-style test that the ProcBuilderVisitor can compile Procs!
 TEST_F(ProcJitTest, CanCompileProcs) {
   const std::string kIrText = R"(
 package p
@@ -89,7 +86,7 @@ proc the_proc(my_token: token, state: (), init={()}) {
 
   {
     EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
                              jit->Run({Value::Tuple({})}));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
   }
@@ -97,7 +94,7 @@ proc the_proc(my_token: token, state: (), init={()}) {
   // Let's make sure we can call it 2x!
   {
     EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
                              jit->Run({Value::Tuple({})}));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
   }
@@ -134,14 +131,14 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
 
   {
     // First: set state to 0; see that recv_if returns 0.
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
                              jit->Run({Value(UBits(0, 1))}));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 0);
   }
 
   {
     // First: set state to 0; see that recv_if returns 0.
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
                              jit->Run({Value(UBits(1, 1))}));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData);
   }
@@ -159,8 +156,8 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
   receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
   tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
-  send.5: token = send(tuple_index.3, tuple_index.4, predicate=state,
-  channel_id=1) next (send.5, state)
+  send.5: token = send(tuple_index.3, tuple_index.4, predicate=state, channel_id=1)
+  next (send.5, state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
@@ -180,15 +177,17 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
   {
     // First: with state 0, make sure no send occurred (i.e., our output queue
     // is empty).
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
                              jit->Run({Value(UBits(0, 1))}));
+    EXPECT_THAT(result.value, ElementsAre(Value(UBits(0, 1))));
     EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->Empty());
   }
 
   {
     // Second: with state 1, make sure we've now got output data.
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result,
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
                              jit->Run({Value(UBits(1, 1))}));
+    EXPECT_THAT(result.value, ElementsAre(Value(UBits(1, 1))));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
   }
 }
@@ -245,7 +244,7 @@ proc the_proc(my_token: token, state: (), init={()}) {
   {
     uint64_t user_data = 7;
     XLS_ASSERT_OK_AND_ASSIGN(
-        InterpreterResult<Value> result,
+        InterpreterResult<std::vector<Value>> result,
         jit->Run({Value::Tuple({})}, absl::bit_cast<void*>(&user_data)));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
     EXPECT_EQ(user_data, 7 * 2 * 3);
@@ -256,7 +255,7 @@ proc the_proc(my_token: token, state: (), init={()}) {
     uint64_t user_data = 7;
     EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
     XLS_ASSERT_OK_AND_ASSIGN(
-        InterpreterResult<Value> result,
+        InterpreterResult<std::vector<Value>> result,
         jit->Run({Value::Tuple({})}, absl::bit_cast<void*>(&user_data)));
     EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
     EXPECT_EQ(user_data, 7 * 2 * 3);
@@ -322,6 +321,108 @@ proc the_proc(my_token: token, state: (), init={()}) {
   tick();
   EXPECT_EQ(DequeueData(streaming_output), 52);
   EXPECT_EQ(DequeueData(streaming_output), 133);
+}
+
+TEST_F(ProcJitTest, StatelessProc) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_in,
+      package->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_out,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
+                           JitChannelQueueManager::Create(package.get()));
+
+  ProcBuilder pb("stateless", /*token_name=*/"tok", package.get());
+  BValue receive = pb.Receive(channel_in, pb.GetTokenParam());
+  BValue send =
+      pb.Send(channel_out, pb.TupleIndex(receive, 0),
+              pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, std::vector<BValue>()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
+                      CanCompileProcs_send));
+
+  EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
+                           jit->Run({Value::Tuple({})}));
+  EXPECT_TRUE(result.value.empty());
+  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 49);
+}
+
+TEST_F(ProcJitTest, MultistateProc) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_in,
+      package->CreateStreamingChannel("in", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_out,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
+                           JitChannelQueueManager::Create(package.get()));
+
+  // Proc pseudocode:
+  //
+  // x = 1
+  // y = 42
+  // while (true):
+  //   tmp = rcv(in)
+  //   send(out, tmp * x + y)
+  //   x += 1
+  //   y += 10
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  BValue x = pb.StateElement("x", Value(UBits(1, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(42, 32)));
+  BValue in = pb.Receive(channel_in);
+  pb.Send(channel_out, pb.Add(pb.UMul(in, x), y));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc,
+                           pb.Build({pb.Add(x, pb.Literal(UBits(1, 32))),
+                                     pb.Add(y, pb.Literal(UBits(10, 32)))}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
+                      CanCompileProcs_send));
+
+  EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
+  EnqueueData(queue_mgr->GetQueueById(0).value(), 10);
+  EnqueueData(queue_mgr->GetQueueById(0).value(), 14);
+
+  std::vector<Value> state = {Value(UBits(1, 32)), Value(UBits(42, 32))};
+  InterpreterResult<std::vector<Value>> result;
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  EXPECT_THAT(result.value,
+              ElementsAre(Value(UBits(2, 32)), Value(UBits(52, 32))));
+  state = result.value;
+
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  EXPECT_THAT(result.value,
+              ElementsAre(Value(UBits(3, 32)), Value(UBits(62, 32))));
+  state = result.value;
+
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  EXPECT_THAT(result.value,
+              ElementsAre(Value(UBits(4, 32)), Value(UBits(72, 32))));
+
+  // 7 * 1 + 42
+  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 49);
+
+  // 10 * 2 + 52
+  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 72);
+
+  // 14 * 3 + 62
+  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 104);
+
+  EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->Empty());
 }
 
 }  // namespace

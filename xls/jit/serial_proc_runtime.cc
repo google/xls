@@ -50,7 +50,7 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
   while (true) {
     // RunWithViews takes an array of arg view pointers - even if they're unused
     // during execution, tokens still occupy one of those spots.
-    absl::StatusOr<InterpreterResult<Value>> next_state_or =
+    absl::StatusOr<InterpreterResult<std::vector<Value>>> next_state_or =
         thread_data->jit->Run(thread_data->proc_state, thread_data);
     XLS_CHECK_OK(next_state_or.status());
     thread_data->proc_state = next_state_or.value().value;
@@ -249,8 +249,8 @@ absl::StatusOr<Proc*> SerialProcRuntime::proc(int64_t index) const {
   return dynamic_cast<Proc*>(threads_[index]->jit->proc());
 }
 
-absl::StatusOr<Value> SerialProcRuntime::SerialProcRuntime::ProcState(
-    int64_t index) const {
+absl::StatusOr<std::vector<Value>>
+SerialProcRuntime::SerialProcRuntime::ProcState(int64_t index) const {
   if (index > threads_.size()) {
     return absl::InvalidArgumentError(
         absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
@@ -263,7 +263,8 @@ void SerialProcRuntime::ResetState() {
   for (int i = 0; i < package_->procs().size(); i++) {
     Proc* proc = package_->procs()[i].get();
     auto thread = threads_[i].get();
-    thread->proc_state = proc->GetUniqueInitValue();
+    thread->proc_state = std::vector<Value>(proc->InitValues().begin(),
+                                            proc->InitValues().end());
   }
 }
 

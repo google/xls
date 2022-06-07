@@ -198,12 +198,21 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   static llvm::Constant* CreateTypedZeroValue(llvm::Type* type);
 
   // Loads a value of type `data_type` from a location indicated by the pointer
-  // at the `index`-th slot in the array pointed to by
-  // `pointer_array`. `pointer_array_type` is the type of the array of pointers.
+  // at the `index`-th slot in the array pointed to by `pointer_array`.
+  // `pointer_array_size` is the size of the array of pointers.
   static llvm::Value* LoadFromPointerArray(int64_t index, llvm::Type* data_type,
                                            llvm::Value* pointer_array,
                                            int64_t pointer_array_size,
                                            llvm::IRBuilder<>* builder);
+
+  // Loads a value of type pointer to `data_type` from the `index`-th slot in
+  // the array pointed to by `pointer_array`. `pointer_array_size` is the
+  // size of the array of pointers.
+  static llvm::Value* LoadPointerFromPointerArray(int64_t index,
+                                                  llvm::Type* data_type,
+                                                  llvm::Value* pointer_array,
+                                                  int64_t pointer_array_size,
+                                                  llvm::IRBuilder<>* builder);
 
   // Marks the given buffer of the given size (in bytes) as "unpoisoned" for
   // MSAN - in other words, prevent false positives from being thrown when
@@ -231,9 +240,11 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status StoreResult(Node* node, llvm::Value* value);
 
   // After the original arguments, JIT-compiled functions always end with
-  // the following four pointer arguments: output buffer, interpreter events
-  // temporary, user data and JIT runtime. These are descriptive convenience
-  // functions for getting them.
+  // the following three pointer arguments:
+  //   interpreter events
+  //   temporary user data
+  //   JIT runtime.
+  // These are descriptive convenience functions for getting them.
   llvm::Value* GetJitRuntimePtr() {
     return dispatch_fn_->getArg(dispatch_fn_->arg_size() - 1);
   }
