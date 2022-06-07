@@ -67,6 +67,14 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleBinop(const Binop* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<Binop>(
+        n->span(), n->binop_kind(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
+        down_cast<Expr*>(old_to_new_.at(n->rhs())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleBuiltinNameDef(const BuiltinNameDef* n) override {
     if (!old_to_new_.contains(n)) {
       old_to_new_[n] = module_->Make<BuiltinNameDef>(n->identifier());
@@ -78,6 +86,14 @@ class AstCloner : public AstNodeVisitorWithDefault {
       const BuiltinTypeAnnotation* n) override {
     old_to_new_[n] =
         module_->Make<BuiltinTypeAnnotation>(n->span(), n->builtin_type());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleCast(const Cast* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<Cast>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->expr())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())));
     return absl::OkStatus();
   }
 
@@ -123,7 +139,6 @@ class AstCloner : public AstNodeVisitorWithDefault {
   }
 
   absl::Status HandleConstRef(const ConstRef* n) override {
-    // TODO: Shouldn't we be guaranteed to have seen this?
     XLS_RETURN_IF_ERROR(n->name_def()->Accept(this));
     old_to_new_[n] = module_->Make<ConstRef>(
         n->span(), n->identifier(),
@@ -401,6 +416,14 @@ class AstCloner : public AstNodeVisitorWithDefault {
 
     old_to_new_[n] = module_->Make<TypeRefTypeAnnotation>(
         n->span(), down_cast<TypeRef*>(n->type_ref()), new_parametrics);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUnop(const Unop* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] =
+        module_->Make<Unop>(n->span(), n->unop_kind(),
+                            down_cast<Expr*>(old_to_new_.at(n->operand())));
     return absl::OkStatus();
   }
 

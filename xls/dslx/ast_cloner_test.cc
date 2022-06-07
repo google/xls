@@ -167,5 +167,41 @@ fn main() -> u32[ARRAY_SIZE] {
   EXPECT_EQ(kExpectedFunction, clone->ToString());
 }
 
+TEST(AstClonerTest, Binops) {
+  constexpr absl::string_view kProgram = R"(fn main() -> u13 {
+  (u13:5) + (u13:500)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, Unops) {
+  constexpr absl::string_view kProgram = R"(fn main() -> u13 {
+  -(u13:500)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, Casts) {
+  constexpr absl::string_view kProgram = R"(fn main() -> u13 {
+  ((-(u17:500)) as u13)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx
