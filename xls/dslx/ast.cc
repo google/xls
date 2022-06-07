@@ -629,34 +629,6 @@ std::string ChannelDecl::ToString() const {
 
 // -- class Module
 
-absl::StatusOr<Function*> Module::GetFunctionOrError(
-    absl::string_view target_name) {
-  for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<Function*>(member)) {
-      Function* f = absl::get<Function*>(member);
-      if (f->identifier() == target_name) {
-        return f;
-      }
-    }
-  }
-  return absl::NotFoundError(absl::StrFormat(
-      "No Function in module %s with name \"%s\"", name_, target_name));
-}
-
-absl::StatusOr<Proc*> Module::GetProcOrError(
-    absl::string_view target_name) const {
-  for (const ModuleMember& member : top_) {
-    if (absl::holds_alternative<Proc*>(member)) {
-      Proc* p = absl::get<Proc*>(member);
-      if (p->identifier() == target_name) {
-        return p;
-      }
-    }
-  }
-  return absl::NotFoundError(absl::StrFormat(
-      "No Proc in module %s with name \"%s\"", name_, target_name));
-}
-
 absl::optional<Function*> Module::GetFunction(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (absl::holds_alternative<Function*>(member)) {
@@ -1418,6 +1390,9 @@ std::vector<AstNode*> Function::GetChildren(bool want_types) const {
       results.push_back(binding);
     }
   }
+  for (Param* p : params_) {
+    results.push_back(p);
+  }
   if (return_type_ != nullptr && want_types) {
     results.push_back(return_type_);
   }
@@ -1490,6 +1465,9 @@ Proc::Proc(Module* owner, Span span, NameDef* name_def,
 
 std::vector<AstNode*> Proc::GetChildren(bool want_types) const {
   std::vector<AstNode*> results = {name_def()};
+  for (ParametricBinding* pb : parametric_bindings_) {
+    results.push_back(pb);
+  }
   for (Param* p : members_) {
     results.push_back(p);
   }

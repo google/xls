@@ -1128,7 +1128,8 @@ fn main() {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "fake.x", "fake", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   IsConstVisitor visitor(tm.type_info);
   XLS_ASSERT_OK(f->Accept(&visitor));
   EXPECT_TRUE(visitor.all_numbers_constexpr());

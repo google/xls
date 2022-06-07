@@ -446,7 +446,7 @@ fn f(p: Point) -> Point {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
   XLS_ASSERT_OK_AND_ASSIGN(TypeDefinition c, m->GetTypeDefinition("Point"));
   ASSERT_TRUE(absl::holds_alternative<StructDef*>(c));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetFunctionOrError("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetMemberOrError<Function>("f"));
   SplatStructInstance* ssi = dynamic_cast<SplatStructInstance*>(f->body());
   ASSERT_TRUE(ssi != nullptr) << f->body()->ToString();
   NameRef* splatted = dynamic_cast<NameRef*>(ssi->splatted());
@@ -1006,7 +1006,8 @@ fn main() -> u32 {
   Parser parser{"test", &s};
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
                            parser.ParseModule());
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
   // Get the terminal expr.
   Expr* current_expr = f->body();
   while (dynamic_cast<Let*>(current_expr) != nullptr) {

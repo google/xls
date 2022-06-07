@@ -405,49 +405,6 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
   BuiltinType builtin_type_;
 };
 
-class ChannelTypeAnnotation : public TypeAnnotation {
- public:
-  enum Direction {
-    kIn,
-    kOut,
-  };
-
-  // If this is a scalar channel, then `dims` will be nullopt.
-  ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
-                        TypeAnnotation* payload,
-                        absl::optional<std::vector<Expr*>> dims);
-
-  absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleChannelTypeAnnotation(this);
-  }
-
-  absl::string_view GetNodeTypeName() const override {
-    return "ChannelTypeAnnotation";
-  }
-
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(payload_)};
-  }
-
-  std::string ToString() const override;
-
-  Direction direction() const { return direction_; }
-  TypeAnnotation* payload() const { return payload_; }
-
-  // A ChannelTypeAnnotation needs to keep its own dims (rather than being
-  // enclosed in an ArrayTypeAnnotation simply because it prints itself in a
-  // different manner than an array does - we want `chan in[32] u32` rather
-  // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
-  // channels, each of which transmits a u32, whereas the latter declares a
-  // single channel that transmits a 32-element array of u32s.
-  absl::optional<std::vector<Expr*>> dims() const { return dims_; }
-
- private:
-  Direction direction_;
-  TypeAnnotation* payload_;
-  absl::optional<std::vector<Expr*>> dims_;
-};
-
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
 class TupleTypeAnnotation : public TypeAnnotation {
  public:
@@ -683,6 +640,57 @@ class Expr : public AstNode {
 
  private:
   Span span_;
+};
+
+// ChannelTypeAnnotation has to be placed after the definition of Expr, so it
+// can convert `dims_` to a set of AstNodes.
+class ChannelTypeAnnotation : public TypeAnnotation {
+ public:
+  enum Direction {
+    kIn,
+    kOut,
+  };
+
+  // If this is a scalar channel, then `dims` will be nullopt.
+  ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
+                        TypeAnnotation* payload,
+                        absl::optional<std::vector<Expr*>> dims);
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleChannelTypeAnnotation(this);
+  }
+
+  absl::string_view GetNodeTypeName() const override {
+    return "ChannelTypeAnnotation";
+  }
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    std::vector<AstNode*> children{payload_};
+    if (dims_.has_value()) {
+      for (Expr* dim : dims_.value()) {
+        children.push_back(dim);
+      }
+    }
+    return children;
+  }
+
+  std::string ToString() const override;
+
+  Direction direction() const { return direction_; }
+  TypeAnnotation* payload() const { return payload_; }
+
+  // A ChannelTypeAnnotation needs to keep its own dims (rather than being
+  // enclosed in an ArrayTypeAnnotation simply because it prints itself in a
+  // different manner than an array does - we want `chan in[32] u32` rather
+  // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
+  // channels, each of which transmits a u32, whereas the latter declares a
+  // single channel that transmits a 32-element array of u32s.
+  absl::optional<std::vector<Expr*>> dims() const { return dims_; }
+
+ private:
+  Direction direction_;
+  TypeAnnotation* payload_;
+  absl::optional<std::vector<Expr*>> dims_;
 };
 
 // Represents a reference to a name (identifier).
@@ -1395,7 +1403,7 @@ class Proc : public AstNode {
     return absl::btree_set<std::string>(keys.begin(), keys.end());
   }
 
-  Function* config() { return config_; }
+  Function* config() const { return config_; }
   Function* next() const { return next_; }
   const std::vector<Param*>& members() const { return members_; }
 
@@ -2166,7 +2174,7 @@ class TestFunction : public AstNode {
   }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {name_def_, body_};
+    return {name_def_};
   }
 
   absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
@@ -2204,7 +2212,11 @@ class TestProc : public AstNode {
     return v->HandleTestProc(this);
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {proc_};
+    std::vector<AstNode*> children{proc_};
+    for (Expr* expr : next_args_) {
+      children.push_back(expr);
+    }
+    return children;
   }
   absl::string_view GetNodeTypeName() const override { return "TestProc"; }
   std::string ToString() const override;
@@ -2213,6 +2225,8 @@ class TestProc : public AstNode {
   absl::optional<Span> GetSpan() const override { return proc_->span(); }
 
   const std::vector<Expr*>& next_args() const { return next_args_; }
+
+  const std::string& identifier() const { return proc_->identifier(); }
 
  private:
   Proc* proc_;
@@ -2704,12 +2718,24 @@ class Module : public AstNode {
 
   absl::Status AddTop(ModuleMember member);
 
-  // Gets a function in this module with the given "target_name", or returns a
+  // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.
-  // TODO(rspringer): 2021-09-25: Once all "new-style" Proc changes land,
-  // determine if we need all these or not.
-  absl::StatusOr<Function*> GetFunctionOrError(absl::string_view target_name);
-  absl::StatusOr<Proc*> GetProcOrError(absl::string_view target_name) const;
+  template <typename T>
+  absl::StatusOr<T*> GetMemberOrError(absl::string_view target_name) {
+    for (ModuleMember& member : top_) {
+      if (absl::holds_alternative<T*>(member)) {
+        T* t = absl::get<T*>(member);
+        if (t->identifier() == target_name) {
+          return t;
+        }
+      }
+    }
+
+    return absl::NotFoundError(
+        absl::StrFormat("No %s in module %s with name \"%s\"", typeid(T).name(),
+                        name_, target_name));
+  }
+
   absl::optional<Function*> GetFunction(absl::string_view target_name);
   absl::optional<Proc*> GetProc(absl::string_view target_name);
 

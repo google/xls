@@ -64,8 +64,8 @@ PYBIND11_MODULE(interpreter, m) {
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
             ParseAndTypecheck(text, "batched.x", "batched", &import_data));
-        XLS_ASSIGN_OR_RETURN(Function * f,
-                             tm.module->GetFunctionOrError(function_name));
+        XLS_ASSIGN_OR_RETURN(
+            Function * f, tm.module->GetMemberOrError<Function>(function_name));
         XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                              tm.type_info->GetItemAs<FunctionType>(f));
 

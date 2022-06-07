@@ -97,6 +97,27 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleChannelTypeAnnotation(
+      const ChannelTypeAnnotation* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    absl::optional<std::vector<Expr*>> new_dims;
+    if (n->dims().has_value()) {
+      std::vector<Expr*> old_dims_vector = n->dims().value();
+      std::vector<Expr*> new_dims_vector;
+      new_dims_vector.reserve(old_dims_vector.size());
+      for (const Expr* expr : old_dims_vector) {
+        new_dims_vector.push_back(down_cast<Expr*>(old_to_new_.at(expr)));
+      }
+      new_dims = new_dims_vector;
+    }
+
+    old_to_new_[n] = module_->Make<ChannelTypeAnnotation>(
+        n->span(), n->direction(),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->payload())), new_dims);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleColonRef(const ColonRef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -163,10 +184,15 @@ class AstCloner : public AstNodeVisitorWithDefault {
       new_params.push_back(down_cast<Param*>(old_to_new_.at(param)));
     }
 
+    TypeAnnotation* new_return_type = nullptr;
+    if (n->return_type() != nullptr) {
+      new_return_type =
+          down_cast<TypeAnnotation*>(old_to_new_.at(n->return_type()));
+    }
     old_to_new_[n] = module_->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        down_cast<TypeAnnotation*>(old_to_new_.at(n->return_type())),
-        down_cast<Expr*>(old_to_new_.at(n->body())), n->tag(), n->is_public());
+        new_return_type, down_cast<Expr*>(old_to_new_.at(n->body())), n->tag(),
+        n->is_public());
     new_name_def->set_definer(old_to_new_.at(n));
     return absl::OkStatus();
   }
@@ -177,6 +203,20 @@ class AstCloner : public AstNodeVisitorWithDefault {
     old_to_new_[n] = module_->Make<Import>(
         n->span(), n->subject(),
         down_cast<NameDef*>(old_to_new_.at(n->name_def())), n->alias());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleInvocation(const Invocation* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_args;
+    new_args.reserve(n->args().size());
+    for (const Expr* arg : n->args()) {
+      new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
+    }
+
+    old_to_new_[n] = module_->Make<Invocation>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())), new_args);
     return absl::OkStatus();
   }
 
@@ -302,6 +342,35 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleProc(const Proc* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<ParametricBinding*> new_parametric_bindings;
+    new_parametric_bindings.reserve(n->parametric_bindings().size());
+    for (const ParametricBinding* pb : n->parametric_bindings()) {
+      new_parametric_bindings.push_back(
+          down_cast<ParametricBinding*>(old_to_new_.at(pb)));
+    }
+
+    std::vector<Param*> new_members;
+    new_members.reserve(n->members().size());
+    for (const Param* member : n->members()) {
+      new_members.push_back(down_cast<Param*>(old_to_new_.at(member)));
+    }
+
+    NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
+    Proc* p = module_->Make<Proc>(
+        n->span(), new_name_def,
+        down_cast<NameDef*>(old_to_new_.at(n->config_name_def())),
+        down_cast<NameDef*>(old_to_new_.at(n->next_name_def())),
+        new_parametric_bindings, new_members,
+        down_cast<Function*>(old_to_new_.at(n->config())),
+        down_cast<Function*>(old_to_new_.at(n->next())), n->is_public());
+    new_name_def->set_definer(p);
+    old_to_new_[n] = p;
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStructDef(const StructDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -351,6 +420,29 @@ class AstCloner : public AstNodeVisitorWithDefault {
 
     old_to_new_[n] =
         module_->Make<StructInstance>(n->span(), new_struct_ref, new_members);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTestFunction(const TestFunction* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    XLS_RETURN_IF_ERROR(n->fn()->Accept(this));
+    old_to_new_[n] = module_->Make<TestFunction>(
+        down_cast<Function*>(old_to_new_.at(n->fn())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTestProc(const TestProc* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_next_args;
+    new_next_args.reserve(n->next_args().size());
+    for (const Expr* next_arg : n->next_args()) {
+      new_next_args.push_back(down_cast<Expr*>(old_to_new_.at(next_arg)));
+    }
+
+    old_to_new_[n] = module_->Make<TestProc>(
+        down_cast<Proc*>(old_to_new_.at(n->proc())), new_next_args);
     return absl::OkStatus();
   }
 

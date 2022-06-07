@@ -1741,7 +1741,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   }
 
   XLS_ASSIGN_OR_RETURN(Function * mapped_fn,
-                       lookup_module->GetFunctionOrError(map_fn_name));
+                       lookup_module->GetMemberOrError<Function>(map_fn_name));
   std::vector<std::string> free = mapped_fn->GetFreeParametricKeys();
   absl::btree_set<std::string> free_set(free.begin(), free.end());
   CallingConvention convention = GetCallingConvention(mapped_fn);
@@ -3346,7 +3346,7 @@ absl::Status ConvertOneFunctionIntoPackage(
                                                  options, package);
   }
 
-  auto proc_or = module->GetProcOrError(entry_function_name);
+  auto proc_or = module->GetMemberOrError<Proc>(entry_function_name);
   if (proc_or.ok()) {
     return ConvertOneFunctionIntoPackageInternal(module, proc_or.value(),
                                                  import_data, symbolic_bindings,

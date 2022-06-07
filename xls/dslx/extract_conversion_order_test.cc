@@ -112,7 +112,8 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrderForEntry(f, tm.type_info));
   ASSERT_EQ(3, order.size());
@@ -122,7 +123,7 @@ fn main() -> u32 { f() }
   EXPECT_FALSE(order[1].IsTop());
   EXPECT_EQ(order[2].f()->identifier(), "main");
   EXPECT_TRUE(order[2].IsTop());
-  XLS_ASSERT_OK_AND_ASSIGN(f, tm.module->GetFunctionOrError("f"));
+  XLS_ASSERT_OK_AND_ASSIGN(f, tm.module->GetMemberOrError<Function>("f"));
   XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(f, tm.type_info));
   ASSERT_EQ(2, order.size());
   EXPECT_EQ(order[0].f()->identifier(), "g");
@@ -144,7 +145,7 @@ fn entry() -> u32 { MY_VALUE }
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("entry"));
+                           tm.module->GetMemberOrError<Function>("entry"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrderForEntry(f, tm.type_info));
   ASSERT_EQ(2, order.size());
@@ -162,7 +163,8 @@ fn main() -> u32 { u32:42 }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrderForEntry(f, tm.type_info));
   ASSERT_EQ(1, order.size());
@@ -182,7 +184,8 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrderForEntry(f, tm.type_info));
   ASSERT_EQ(4, order.size());
@@ -208,7 +211,8 @@ fn main() -> u32 { f() }
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrderForEntry(f, tm.type_info));
   ASSERT_EQ(5, order.size());
@@ -246,7 +250,8 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   std::vector<ConversionRecord> order;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, tm.module->GetProcOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
+                           tm.module->GetMemberOrError<Proc>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(main, tm.type_info));
   ASSERT_EQ(4, order.size());
   ASSERT_TRUE(order[0].proc_id().has_value());
@@ -358,7 +363,8 @@ proc main {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   std::vector<ConversionRecord> order;
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * main, tm.module->GetProcOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * main,
+                           tm.module->GetMemberOrError<Proc>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(order, GetOrderForEntry(main, tm.type_info));
   ASSERT_EQ(18, order.size());
   ASSERT_FALSE(order[0].proc_id().has_value());

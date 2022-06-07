@@ -51,7 +51,8 @@ absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
       TypecheckedModule tm,
       ParseAndTypecheck(program, "test.x", "test", import_data));
 
-  XLS_ASSIGN_OR_RETURN(Function * f, tm.module->GetFunctionOrError(entry));
+  XLS_ASSIGN_OR_RETURN(Function * f,
+                       tm.module->GetMemberOrError<Function>(entry));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(import_data, tm.type_info, f, SymbolicBindings()));
@@ -186,7 +187,8 @@ fn main(x: u32) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -222,7 +224,8 @@ fn main(t: (u32, u32)) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -269,7 +272,8 @@ fn main(x: u32) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -298,7 +302,8 @@ fn main(x: u32) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -321,7 +326,8 @@ fn main(x: u32) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -347,7 +353,8 @@ fn main(x: u32, y: u32, z: u32) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, /*path=*/"test.x", /*module_name=*/"test",
                         &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -906,8 +913,8 @@ fn cast_bits_to_enum() -> MyEnum {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("cast_bits_to_enum"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, tm.module->GetMemberOrError<Function>("cast_bits_to_enum"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -942,7 +949,7 @@ fn has_params(x: u32, y: u64) -> u48 {
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("has_params"));
+                           tm.module->GetMemberOrError<Function>("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -1000,7 +1007,7 @@ fn caller(a: u32) -> u32{
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("caller"));
+                           tm.module->GetMemberOrError<Function>("caller"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -1212,7 +1219,8 @@ fn main(p: bool, x: u32) -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));

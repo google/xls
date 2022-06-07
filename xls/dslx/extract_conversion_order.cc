@@ -199,7 +199,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
     XLS_RET_CHECK(info.has_value());
     Module* module = (*info)->module;
     XLS_ASSIGN_OR_RETURN(Function * f,
-                         module->GetFunctionOrError(colon_ref->attr()));
+                         module->GetMemberOrError<Function>(colon_ref->attr()));
     return CalleeInfo{module, f};
   }
 
@@ -236,7 +236,8 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
     }
 
     Function* f = nullptr;
-    absl::StatusOr<Function*> maybe_f = this_m->GetFunctionOrError(identifier);
+    absl::StatusOr<Function*> maybe_f =
+        this_m->GetMemberOrError<Function>(identifier);
     if (maybe_f.ok()) {
       f = maybe_f.value();
     } else {
@@ -459,7 +460,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     XLS_RET_CHECK(info.has_value());
     Module* module = (*info)->module;
     XLS_ASSIGN_OR_RETURN(Function * f,
-                         module->GetFunctionOrError(colon_ref->attr()));
+                         module->GetMemberOrError<Function>(colon_ref->attr()));
     return CalleeInfo{module, f, (*info)->type_info};
   }
 
@@ -499,7 +500,8 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     }
 
     Function* f = nullptr;
-    absl::StatusOr<Function*> maybe_f = this_m->GetFunctionOrError(identifier);
+    absl::StatusOr<Function*> maybe_f =
+        this_m->GetMemberOrError<Function>(identifier);
     if (maybe_f.ok()) {
       f = maybe_f.value();
     } else {

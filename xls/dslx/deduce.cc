@@ -85,7 +85,7 @@ absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
       << "ColonRef did not refer to an import: " << ref->ToString();
   absl::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(*import);
-  return imported_info.value()->module->GetFunctionOrError(ref->attr());
+  return imported_info.value()->module->GetMemberOrError<Function>(ref->attr());
 }
 
 // Resolves "ref" to an AST proc.
@@ -96,7 +96,7 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
       << "ColonRef did not refer to an import: " << ref->ToString();
   absl::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(*import);
-  return imported_info.value()->module->GetProcOrError(ref->attr());
+  return imported_info.value()->module->GetMemberOrError<Proc>(ref->attr());
 }
 
 // If the width is known for "type", checks that "number" fits in that type.
@@ -2289,7 +2289,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       auto* name_ref = dynamic_cast<NameRef*>(callee);
       XLS_RET_CHECK(name_ref != nullptr);
       const std::string& callee_name = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(proc, ctx->module()->GetProcOrError(callee_name));
+      XLS_ASSIGN_OR_RETURN(proc,
+                           ctx->module()->GetMemberOrError<Proc>(callee_name));
     }
     return proc;
   };
@@ -2442,7 +2443,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
       auto* name_ref = dynamic_cast<NameRef*>(callee);
       XLS_RET_CHECK(name_ref != nullptr);
       const std::string& callee_name = name_ref->identifier();
-      XLS_ASSIGN_OR_RETURN(fn, ctx->module()->GetFunctionOrError(callee_name));
+      XLS_ASSIGN_OR_RETURN(
+          fn, ctx->module()->GetMemberOrError<Function>(callee_name));
     }
     return fn;
   };

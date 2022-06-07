@@ -66,8 +66,9 @@ absl::Status RealMain(
       dslx::TypecheckedModule tm,
       dslx::ParseAndTypecheck(dslx_text, std::string(dslx_path), "the_module",
                               &import_data));
-  XLS_ASSIGN_OR_RETURN(dslx::Function * f,
-                       tm.module->GetFunctionOrError(entry_fn_name));
+  XLS_ASSIGN_OR_RETURN(
+      dslx::Function * f,
+      tm.module->GetMemberOrError<dslx::Function>(entry_fn_name));
   if (f->params().size() != args.size()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Incorrect number of arguments: wanted %d, got %d.",

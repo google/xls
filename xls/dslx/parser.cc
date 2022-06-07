@@ -1757,6 +1757,13 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   auto parse_param = [this, &bindings]() -> absl::StatusOr<Param*> {
     return ParseParam(&bindings);
   };
+
+  // TODO(rspringer): 2022-06-07: Could we instead use the AST cloner for this?
+  Transaction txn(this, &bindings);
+  XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params_for_return_type,
+                       ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
+  txn.Rollback();
+
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
   std::vector<TypeAnnotation*> return_elements;
@@ -1780,7 +1787,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
           "Only the first parameter in a Proc next function may be a token.");
     }
 
-    return_elements.push_back(param->type_annotation());
+    return_elements.push_back(
+        next_params_for_return_type[i]->type_annotation());
   }
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));

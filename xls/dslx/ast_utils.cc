@@ -87,7 +87,8 @@ absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {
 absl::StatusOr<Function*> ResolveFunction(Expr* callee,
                                           const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
-    return name_ref->owner()->GetFunctionOrError(name_ref->identifier());
+    return name_ref->owner()->GetMemberOrError<Function>(
+        name_ref->identifier());
   }
 
   auto* colon_ref = dynamic_cast<ColonRef*>(callee);
@@ -97,12 +98,13 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
   absl::optional<const ImportedInfo*> imported_info =
       type_info->GetImported(*import);
-  return imported_info.value()->module->GetFunctionOrError(colon_ref->attr());
+  return imported_info.value()->module->GetMemberOrError<Function>(
+      colon_ref->attr());
 }
 
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
   if (NameRef* name_ref = dynamic_cast<NameRef*>(callee); name_ref != nullptr) {
-    return name_ref->owner()->GetProcOrError(name_ref->identifier());
+    return name_ref->owner()->GetMemberOrError<Proc>(name_ref->identifier());
   }
 
   auto* colon_ref = dynamic_cast<ColonRef*>(callee);
@@ -112,7 +114,8 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
   absl::optional<const ImportedInfo*> imported_info =
       type_info->GetImported(*import);
-  return imported_info.value()->module->GetProcOrError(colon_ref->attr());
+  return imported_info.value()->module->GetMemberOrError<Proc>(
+      colon_ref->attr());
 }
 
 absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(

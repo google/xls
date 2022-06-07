@@ -199,7 +199,7 @@ static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(
                        ParseAndTypecheck(dslx_text, "get_function_type.x",
                                          "get_function_type", &import_data));
   XLS_ASSIGN_OR_RETURN(dslx::Function * f,
-                       tm.module->GetFunctionOrError(fn_name));
+                       tm.module->GetMemberOrError<dslx::Function>(fn_name));
   XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
                        tm.type_info->GetItemAs<FunctionType>(f));
   std::unique_ptr<ConcreteType> cloned = fn_type->CloneToUnique();

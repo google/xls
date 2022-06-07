@@ -77,7 +77,8 @@ fn Foo() -> u64 {
   Module* module = test_data.module.get();
   TypeInfo* type_info = test_data.type_info;
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("Foo"));
 
   Attr* attr = down_cast<Attr*>(f->body());
 
@@ -122,7 +123,8 @@ fn Foo() -> u64 {
   Module* module = test_data.module.get();
   TypeInfo* type_info = test_data.type_info;
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("Foo"));
 
   Cast* cast = down_cast<Cast*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
@@ -143,7 +145,8 @@ fn main() -> u32 {
   Module* module = test_data.module.get();
   TypeInfo* type_info = test_data.type_info;
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
 
   Ternary* ternary = down_cast<Ternary*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
@@ -170,7 +173,8 @@ fn Foo() -> MyStruct {
   Module* module = test_data.module.get();
   TypeInfo* type_info = test_data.type_info;
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("Foo"));
 
   StructInstance* struct_instance = down_cast<StructInstance*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
@@ -204,7 +208,8 @@ fn main() -> MyStruct {
   Module* module = test_data.module.get();
   TypeInfo* type_info = test_data.type_info;
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           module->GetMemberOrError<Function>("main"));
 
   SplatStructInstance* struct_instance =
       down_cast<SplatStructInstance*>(f->body());
@@ -240,7 +245,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   ColonRef* colon_ref = down_cast<ColonRef*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
@@ -273,7 +279,8 @@ fn main() -> imported::MyEnum {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   ColonRef* colon_ref = down_cast<ColonRef*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
@@ -298,7 +305,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   Index* index = down_cast<Index*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
@@ -323,7 +331,8 @@ fn main() -> u16 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   Index* index = down_cast<Index*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
@@ -348,7 +357,8 @@ fn main() -> u16 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   Index* index = down_cast<Index*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
@@ -371,7 +381,8 @@ fn main() -> (u32, u32, u32) {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   XlsTuple* xls_tuple = down_cast<XlsTuple*>(f->body());
   std::vector<InterpValue> elements;
   elements.push_back(InterpValue::MakeU32(1));
@@ -403,7 +414,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   Match* match = down_cast<Match*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, match));
@@ -428,7 +440,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   For* xls_for = down_cast<For*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
@@ -454,7 +467,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
@@ -479,7 +493,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
@@ -509,7 +524,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
@@ -532,7 +548,8 @@ fn main() -> s32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   Unop* unop = down_cast<Unop*>(f->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, unop));
@@ -559,7 +576,8 @@ fn main() -> u32 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f, tm.module->GetFunctionOrError("main"));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
   Let* let = down_cast<Let*>(f->body());
   For* xls_for = down_cast<For*>(let->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,

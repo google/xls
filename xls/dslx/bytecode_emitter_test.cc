@@ -54,8 +54,8 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("one_plus_one"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f, tm.module->GetMemberOrError<Function>("one_plus_one"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -972,7 +972,7 @@ fn has_params(x: u32, y: u64) -> u48 {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
-                           tm.module->GetFunctionOrError("has_params"));
+                           tm.module->GetMemberOrError<Function>("has_params"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
@@ -1205,7 +1205,7 @@ proc Foo {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetProcOrError("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetMemberOrError<Proc>("Foo"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, p->config(),
@@ -1261,7 +1261,8 @@ proc Parent {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetProcOrError("Child"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * p,
+                           tm.module->GetMemberOrError<Proc>("Child"));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
       BytecodeEmitter::Emit(&import_data, tm.type_info, p->config(),
