@@ -741,8 +741,8 @@ absl::Status Translator::AssignThis(const CValue& rvalue,
                                     const xls::SourceInfo& loc) {
   XLS_CHECK(context().this_val.rvalue().valid());
   if (*context().this_val.type() != *rvalue.type()) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Assignment to this with type %s which is not the class type %s",
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Assignment to this with type %s which is not the class type %s",
         string(*context().this_val.type()), string(*rvalue.type())));
   }
 
@@ -759,17 +759,18 @@ absl::StatusOr<xls::BValue> Translator::StructUpdate(
       fields_by_name = stype.fields_by_name();
   auto found_field = fields_by_name.find(field_name);
   if (found_field == fields_by_name.end()) {
-    return absl::NotFoundError(ErrorMessage(loc,
-        "Assignment to unknown field %s in type %s",
-        field_name->getNameAsString(), string(stype)));
+    return absl::NotFoundError(
+        ErrorMessage(loc, "Assignment to unknown field %s in type %s",
+                     field_name->getNameAsString(), string(stype)));
   }
   const CField& cfield = *found_field->second;
 
   if (*cfield.type() != *rvalue.type()) {
-    return absl::InvalidArgumentError(ErrorMessage(loc,
-        "Cannot assign rvalue of type %s to struct "
-        "field of type %s",
-        string(*rvalue.type()), string(*cfield.type())));
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc,
+                     "Cannot assign rvalue of type %s to struct "
+                     "field of type %s",
+                     string(*rvalue.type()), string(*cfield.type())));
   }
 
   // No tuple update, so we need to rebuild the tuple
@@ -833,10 +834,11 @@ absl::StatusOr<xls::Type*> Translator::GetStructXLSType(
     const std::vector<xls::Type*>& members, const CStructType& type,
     const xls::SourceInfo& loc) {
   if (type.no_tuple_flag() && members.size() != 1) {
-    return absl::FailedPreconditionError(ErrorMessage(loc,
-    "Pragma hls_no_tuple must be used on structs with only "
-                        "1 field, but %s has %i\n",
-                        string(type), members.size()));
+    return absl::FailedPreconditionError(
+        ErrorMessage(loc,
+                     "Pragma hls_no_tuple must be used on structs with only "
+                     "1 field, but %s has %i\n",
+                     string(type), members.size()));
   }
   return type.no_tuple_flag() ? members[0] : package_->GetTupleType(members);
 }
@@ -913,8 +915,8 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
     channel->channel_op_type = op.op;
   } else {
     if (channel->channel_op_type != op.op) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Channels should be either input or output"));
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Channels should be either input or output"));
     }
   }
 
@@ -958,8 +960,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
 
   if (stripped.base->getTypeClass() !=
       clang::Type::TypeClass::TemplateSpecialization) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Channel type should be a template specialization"));
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Channel type should be a template specialization"));
   }
 
   auto template_spec =
@@ -967,8 +969,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
           stripped.base.getTypePtr());
 
   if (template_spec->getNumArgs() != 1) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Channel should have 1 template args"));
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Channel should have 1 template args"));
   }
 
   const clang::TemplateArgument& arg = template_spec->getArg(0);
@@ -1009,13 +1011,13 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     if (is_channel) {
       // Duplicated code in GenerateIR_Call()?
       if (object->getStmtClass() != clang::Stmt::DeclRefExprClass) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "IO ops should be on direct DeclRefs"));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "IO ops should be on direct DeclRefs"));
       }
       auto object_ref = clang_down_cast<const clang::DeclRefExpr*>(object);
       if (object_ref->getDecl()->getKind() != clang::Decl::ParmVar) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "IO ops should be on channel parameters"));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "IO ops should be on channel parameters"));
       }
 
       const clang::FunctionDecl* funcdecl = member_call->getDirectCallee();
@@ -1055,8 +1057,8 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         op.ret_value = op_condition;
       } else if (op_name == "write") {
         if (call->getNumArgs() != 1) {
-          return absl::UnimplementedError(ErrorMessage(loc,
-              "IO write() should have one argument"));
+          return absl::UnimplementedError(
+              ErrorMessage(loc, "IO write() should have one argument"));
         }
 
         XLS_ASSIGN_OR_RETURN(CValue out_val,
@@ -1066,8 +1068,8 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         op.op = OpType::kSend;
 
       } else {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unsupported IO op: %s", op_name));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unsupported IO op: %s", op_name));
       }
 
       XLS_ASSIGN_OR_RETURN(IOOp * op_ptr, AddOpToChannel(op, channel, loc));
@@ -1090,8 +1092,9 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   const bool trivial = funcdecl->hasTrivialBody() || funcdecl->isTrivial();
 
   if (!trivial && !funcdecl->getBody()) {
-    return absl::UnimplementedError(ErrorMessage(GetLoc(*funcdecl),
-        "Function %s used but has no body", funcdecl->getNameAsString()));
+    return absl::UnimplementedError(
+        ErrorMessage(GetLoc(*funcdecl), "Function %s used but has no body",
+                     funcdecl->getNameAsString()));
   }
 
   std::string xls_name;
@@ -1346,8 +1349,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   }
 
   if (!sf.io_ops.empty() && funcdecl->isOverloadedOperator()) {
-    return absl::UnimplementedError(ErrorMessage(body_loc,
-      "IO ops in operator calls are not supported"));
+    return absl::UnimplementedError(
+        ErrorMessage(body_loc, "IO ops in operator calls are not supported"));
   }
 
   XLS_ASSIGN_OR_RETURN(sf.xls_func,
@@ -1415,7 +1418,13 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
           specialization->getDefinition());
     }
 
-    XLS_CHECK(cxx_record != nullptr);
+    if (cxx_record == nullptr) {
+      return absl::UnavailableError(ErrorMessage(
+          GetLoc(*sd),
+          "Definition for CXXRecord '%s' isn't available from Clang. A "
+          "possible work-around is to declare an instance of this class.",
+          signature->base()->getNameAsString()));
+    }
 
     for (auto base : cxx_record->bases()) {
       const clang::RecordDecl* base_struct = base.getType()->getAsRecordDecl();
@@ -1491,9 +1500,9 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
       case clang::BinaryOperatorKind::BO_XorAssign:
         return xls::Op::kXor;
       default:
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented binary operator %i for result %s", clang_op,
-            std::string(result_type)));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented binary operator %i for result %s",
+                         clang_op, std::string(result_type)));
     }
   }
   if (result_type.Is<CBoolType>()) {
@@ -1540,12 +1549,13 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
     if (clang_op == clang::BinaryOperatorKind::BO_Assign) {
       return xls::Op::kIdentity;
     }
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Unimplemented binary operator %i for pointer", clang_op));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unimplemented binary operator %i for pointer", clang_op));
   }
 
-  return absl::UnimplementedError(ErrorMessage(loc,
-      "Binary operators unimplemented for type %s", std::string(result_type)));
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "Binary operators unimplemented for type %s",
+                   std::string(result_type)));
 }
 
 absl::StatusOr<CValue> Translator::TranslateVarDecl(
@@ -1562,9 +1572,10 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
     XLS_ASSIGN_OR_RETURN(init_val, GenTypeConvert(cv, ctype, loc));
     lvalue = cv.lvalue();
     if (ctype->Is<CPointerType>() && !lvalue) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Initializer for pointer has no lvalue (unsupported "
-          "construct such as ternary?)"));
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Initializer for pointer has no lvalue (unsupported "
+                       "construct such as ternary?)"));
     }
   } else {
     XLS_ASSIGN_OR_RETURN(init_val, CreateDefaultValue(ctype, loc));
@@ -1586,8 +1597,9 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                                                  const xls::SourceInfo& loc,
                                                  bool for_lvalue) {
   if (context().channel_params.contains(decl)) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Channel parameter reference unsupported %s", decl->getNameAsString()));
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Channel parameter reference unsupported %s",
+                     decl->getNameAsString()));
   }
 
   auto found = context().variables.find(decl);
@@ -1599,9 +1611,9 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
 
     if (var_decl && var_decl->isStaticDataMember() &&
         (!var_decl->getType().isConstQualified())) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Mutable static data members not implemented %s",
-          decl->getNameAsString()));
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Mutable static data members not implemented %s",
+                       decl->getNameAsString()));
     }
 
     XLS_CHECK(var_decl == nullptr || !var_decl->isStaticLocal() ||
@@ -1610,8 +1622,8 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
     XLS_CHECK(!(enum_decl && var_decl));
 
     if (var_decl == nullptr && enum_decl == nullptr) {
-      return absl::NotFoundError(ErrorMessage(loc,
-          "Undeclared identifier %s", decl->getNameAsString()));
+      return absl::NotFoundError(ErrorMessage(loc, "Undeclared identifier %s",
+                                              decl->getNameAsString()));
     }
 
     const clang::NamedDecl* name =
@@ -1649,8 +1661,8 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
         if (var_decl->isStaticLocal() || var_decl->isStaticDataMember()) {
           // Statics must have constant initialization
           if (!EvaluateBVal(value.rvalue(), global_loc).ok()) {
-            return absl::InvalidArgumentError(ErrorMessage(loc,
-                "Statics must have constant initializers"));
+            return absl::InvalidArgumentError(
+                ErrorMessage(loc, "Statics must have constant initializers"));
           }
         }
       } else {
@@ -1718,8 +1730,8 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
       var_decl != nullptr) {
     if (var_decl->hasGlobalStorage() && (!var_decl->isStaticLocal()) &&
         (!var_decl->isStaticDataMember())) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Assignments to global variables not supported for %s",
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Assignments to global variables not supported for %s",
           lvalue->getNameAsString()));
     }
   }
@@ -1731,8 +1743,9 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
     if (rvalue.type()->Is<CPointerType>()) {
       if (rvalue.lvalue() == nullptr) {
         return absl::UnimplementedError(
-            ErrorMessage(loc, "Initializer for pointer has no lvalue "
-                            "(unsupported construct such as ternary?)"));
+            ErrorMessage(loc,
+                         "Initializer for pointer has no lvalue "
+                         "(unsupported construct such as ternary?)"));
       }
     } else {
       XLS_CHECK(rvalue.rvalue().valid());
@@ -1742,8 +1755,8 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
       // ...
       // foo(&arr[2]); // Modifies indices 2-6
       if (found.lvalue() == nullptr) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Pointer is uninitialized (no lvalue associated)"));
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Pointer is uninitialized (no lvalue associated)"));
       }
       return Assign(found.lvalue(), rvalue, loc);
     }
@@ -1754,8 +1767,8 @@ absl::Status Translator::Assign(const clang::NamedDecl* lvalue,
 
   if (*found.type() != *rvalue.type()) {
     lvalue->dump();
-    return absl::InvalidArgumentError(ErrorMessage(loc,
-        "Cannot assign rvalue of type %s to lvalue of type %s",
+    return absl::InvalidArgumentError(ErrorMessage(
+        loc, "Cannot assign rvalue of type %s to lvalue of type %s",
         std::string(*rvalue.type()), std::string(*found.type())));
   }
 
@@ -1784,7 +1797,7 @@ absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
 
   if (total_width < (const_index + slice_width)) {
     return absl::OutOfRangeError(
-      ErrorMessage(loc, "Array slice out of bounds"));
+        ErrorMessage(loc, "Array slice out of bounds"));
   }
 
   int64_t remaining_width = total_width;
@@ -1911,14 +1924,16 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
                            GenerateIR_Expr(cast->getBase(), loc));
       if (!arr_val.type()->Is<CArrayType>()) {
         return absl::UnimplementedError(
-            ErrorMessage(loc, "Only array subscript assignments directly to "
-                            "arrays supported (not pointers, yet)"));
+            ErrorMessage(loc,
+                         "Only array subscript assignments directly to "
+                         "arrays supported (not pointers, yet)"));
       }
       auto arr_type = arr_val.type()->As<CArrayType>();
       XLS_ASSIGN_OR_RETURN(CValue idx_val,
                            GenerateIR_Expr(cast->getIdx(), loc));
       if (*rvalue.type() != *arr_type->GetElementType()) {
-        return absl::InvalidArgumentError(ErrorMessage(loc,
+        return absl::InvalidArgumentError(ErrorMessage(
+            loc,
             "Cannot assign rvalue of type %s to element of array of type %s",
             std::string(*rvalue.type()),
             std::string(*arr_type->GetElementType())));
@@ -1937,8 +1952,8 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       clang::ValueDecl* member = cast->getMemberDecl();
 
       if (member->getKind() != clang::ValueDecl::Kind::Field) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented assignment to lvalue member kind %s",
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Unimplemented assignment to lvalue member kind %s",
             member->getDeclKindName()));
       }
 
@@ -1964,10 +1979,11 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
         auto newval = CValue(new_tuple, struct_prev_val.type());
         return Assign(cast->getBase(), newval, loc);
       } else {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented fielddecl assignment to "
-            "non-struct typed lvalue of type %s",
-            string(*struct_prev_val.type())));
+        return absl::UnimplementedError(
+            ErrorMessage(loc,
+                         "Unimplemented fielddecl assignment to "
+                         "non-struct typed lvalue of type %s",
+                         string(*struct_prev_val.type())));
       }
     }
     case clang::Stmt::UnaryOperatorClass: {
@@ -1975,8 +1991,8 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       if (uop->getOpcode() == clang::UnaryOperatorKind::UO_AddrOf) {
         if (uop->getSubExpr()->getStmtClass() !=
             clang::Stmt::ArraySubscriptExprClass) {
-          return absl::UnimplementedError(ErrorMessage(loc,
-              "Only assignment to array slices supported via pointers"));
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "Only assignment to array slices supported via pointers"));
         }
         const clang::ArraySubscriptExpr* subscript_sub_expr =
             clang_down_cast<const clang::ArraySubscriptExpr*>(
@@ -2000,10 +2016,11 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
                       CValue(updated_array, base_cv.type()), loc);
       }
       if (uop->getOpcode() != clang::UnaryOperatorKind::UO_Deref) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented assignment to unary operator lvalue "
-            "with opcode %i",
-            uop->getOpcode()));
+        return absl::UnimplementedError(
+            ErrorMessage(loc,
+                         "Unimplemented assignment to unary operator lvalue "
+                         "with opcode %i",
+                         uop->getOpcode()));
       }
 
       // Deref is the pointer dereferencing operator: *ptr
@@ -2036,9 +2053,9 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
     }
     default: {
       lvalue->dump();
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Unimplemented assignment to lvalue of type %s",
-          lvalue->getStmtClassName()));
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Unimplemented assignment to lvalue of type %s",
+                       lvalue->getStmtClassName()));
     }
   }
 }
@@ -2048,15 +2065,15 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
                                          const xls::SourceInfo& loc,
                                          bool check_unique_ids) {
   if (context().variables.contains(lvalue)) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Declaration '%s' duplicated\n", lvalue->getNameAsString()));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Declaration '%s' duplicated\n", lvalue->getNameAsString()));
   }
 
   if (check_unique_ids) {
     if (check_unique_ids_.contains(lvalue)) {
-      return absl::InternalError(ErrorMessage(loc,
-          "Code assumes NamedDecls are unique, but %s isn't",
-          lvalue->getNameAsString()));
+      return absl::InternalError(
+          ErrorMessage(loc, "Code assumes NamedDecls are unique, but %s isn't",
+                       lvalue->getNameAsString()));
     }
   }
   check_unique_ids_.insert(lvalue);
@@ -2142,9 +2159,9 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
 
     const clang::Expr* sub_expr = uop->getSubExpr();
     if (sub_expr->getStmtClass() != clang::Stmt::ArraySubscriptExprClass) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Address of sub expression of class %i",
-          static_cast<int>(sub_expr->getStmtClass())));
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Address of sub expression of class %i",
+                       static_cast<int>(sub_expr->getStmtClass())));
     }
     auto array_subscript_expr =
         clang_down_cast<const clang::ArraySubscriptExpr*>(sub_expr);
@@ -2153,9 +2170,10 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     XLS_ASSIGN_OR_RETURN(CValue base_cv, GenerateIR_Expr(base_expr, loc));
 
     if (!base_cv.type()->Is<CArrayType>()) {
-      return absl::InvalidArgumentError(ErrorMessage(loc,
-        "Address-of (&) operator "
-        "only supported on arrays, for array slicing"));
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc,
+                       "Address-of (&) operator "
+                       "only supported on arrays, for array slicing"));
     }
 
     XLS_ASSIGN_OR_RETURN(CValue array_idx_cv,
@@ -2163,8 +2181,8 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     auto array_int_type =
         std::dynamic_pointer_cast<CIntType>(array_idx_cv.type());
     if (array_int_type == nullptr) {
-      return absl::InvalidArgumentError(ErrorMessage(loc,
-          "Array index must be an integer"));
+      return absl::InvalidArgumentError(
+          ErrorMessage(loc, "Array index must be an integer"));
     }
 
     std::shared_ptr<CType> pointee_type = result_pointer_type->GetPointeeType();
@@ -2219,8 +2237,8 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
         return Generate_Synthetic_ByOne(xls::Op::kSub, false, lhs_cvcv,
                                         uop->getSubExpr(), loc);
       default:
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented unary operator %i", clang_op));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented unary operator %i", clang_op));
     }
   } else if (clang_op == clang::UnaryOperatorKind::UO_Deref &&
              (std::dynamic_pointer_cast<CStructType>(resolved_type) ||
@@ -2238,13 +2256,15 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
             context().fb->AddUnOp(xls::Op::kNot, lhs_cvcv.rvalue(), loc),
             result_type);
       default:
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented unary operator %i", clang_op));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented unary operator %i", clang_op));
     }
   } else {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Unary operators on types other than builtin-int "
-        "unimplemented for type %s", std::string(*result_type)));
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "Unary operators on types other than builtin-int "
+                     "unimplemented for type %s",
+                     std::string(*result_type)));
   }
 }
 
@@ -2307,8 +2327,8 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
             result_type);
 
       } else {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Internal error: unknown XLS op class"));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Internal error: unknown XLS op class"));
       }
     }
   }
@@ -2628,7 +2648,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         (external_channels_by_param_.at(callee_param) !=
          external_channels_by_param_.at(caller_channel_param))) {
       return absl::UnimplementedError(
-          ErrorMessage(loc, "IO ops in pipelined loops in subroutines called "
+          ErrorMessage(loc,
+                       "IO ops in pipelined loops in subroutines called "
                        "with multiple different channel arguments"));
     }
 
@@ -2671,9 +2692,11 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   if (!funcdecl->getReturnType()->isVoidType()) ++expected_returns;
 
   if (expr_args.size() != funcdecl->getNumParams()) {
-    return absl::UnimplementedError(ErrorMessage(loc,
+    return absl::UnimplementedError(ErrorMessage(
+        loc,
         "Parameter count mismatch: %i params in FunctionDecl, %i arguments to "
-        "call", funcdecl->getNumParams(), static_cast<int>(expr_args.size())));
+        "call",
+        funcdecl->getNumParams(), static_cast<int>(expr_args.size())));
   }
 
   // Add other parameters
@@ -2707,8 +2730,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       if (argv.type()->Is<CPointerType>()) {
         if (argv.lvalue() == nullptr) {
           return absl::UnimplementedError(
-              ErrorMessage(loc, "Pointer value has no lvalue (unsupported "
-                              "construct such as ternary?)"));
+              ErrorMessage(loc,
+                           "Pointer value has no lvalue (unsupported "
+                           "construct such as ternary?)"));
         }
         XLS_ASSIGN_OR_RETURN(CValue pass_rval,
                              GenerateIR_Expr(argv.lvalue(), loc));
@@ -2721,7 +2745,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
       if (pass_bval_arr_size < arg_arr_type->GetSize()) {
         return absl::UnimplementedError(
-          ErrorMessage(loc, "Array slice out of bounds"));
+            ErrorMessage(loc, "Array slice out of bounds"));
       }
 
       if (pass_bval_arr_size != arg_arr_type->GetSize()) {
@@ -2747,7 +2771,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     if (*pass_type != *argt) {
-      return absl::InternalError(ErrorMessage(loc,
+      return absl::InternalError(ErrorMessage(
+          loc,
           "Internal error: expression type %s doesn't match "
           "parameter type %s in function %s",
           string(*argv.type()), string(*argt), funcdecl->getNameAsString()));
@@ -2879,8 +2904,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         break;
       }
       default: {
-        return absl::InternalError(ErrorMessage(loc,
-            "Unknown type of SideEffectingParameter"));
+        return absl::InternalError(
+            ErrorMessage(loc, "Unknown type of SideEffectingParameter"));
       }
     }
   }
@@ -3062,9 +3087,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     case clang::Stmt::CharacterLiteralClass: {
       auto charlit = clang_down_cast<const clang::CharacterLiteral*>(expr);
       if (charlit->getKind() != clang::CharacterLiteral::CharacterKind::Ascii) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented character literaly type %i",
-            static_cast<int>(charlit->getKind())));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented character literaly type %i",
+                         static_cast<int>(charlit->getKind())));
       }
       shared_ptr<CType> ctype(new CIntType(8, true, true));
       return CValue(
@@ -3157,9 +3182,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
         if (to_type->Is<CArrayType>()) {
           return GenerateIR_Expr(sub.lvalue(), loc);
         }
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Don't know how to convert %s to pointer type",
-            std::string(*sub.type())));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Don't know how to convert %s to pointer type",
+                         std::string(*sub.type())));
       }
 
       XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
@@ -3224,8 +3249,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                              GenTypeConvert(pv, octype, loc));
         return CValue(converted, octype);
       } else {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unsupported constructor argument count %i", cast->getNumArgs()));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unsupported constructor argument count %i",
+                         cast->getNumArgs()));
       }
     }
     case clang::Stmt::ArraySubscriptExprClass: {
@@ -3357,9 +3383,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       auto* unary_or_type_expr =
           clang_down_cast<const clang::UnaryExprOrTypeTraitExpr*>(expr);
       if (unary_or_type_expr->getKind() != clang::UETT_SizeOf) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented UnaryExprOrTypeTraitExpr kind %i",
-            unary_or_type_expr->getKind()));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented UnaryExprOrTypeTraitExpr kind %i",
+                         unary_or_type_expr->getKind()));
       }
 
       XLS_ASSIGN_OR_RETURN(
@@ -3383,8 +3409,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     }
     default: {
       expr->dump();
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Unimplemented expression %s", expr->getStmtClassName()));
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Unimplemented expression %s", expr->getStmtClassName()));
     }
   }
 }
@@ -3411,8 +3437,8 @@ absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
         context().fb->ArraySlice(false_cv.rvalue(), bval_0, min_size, loc),
         result_type);
   } else {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Select on different lvalue types %s vs %s",
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Select on different lvalue types %s vs %s",
         std::string(*true_cv.type()), std::string(*false_cv.type())));
   }
   return absl::OkStatus();
@@ -3447,8 +3473,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   auto sitype = std::dynamic_pointer_cast<CStructType>(itype);
 
   if (sitype == nullptr) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Unimplemented member access on type %s", string(*itype)));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unimplemented member access on type %s", string(*itype)));
   }
 
   // Get the value referred to
@@ -3471,8 +3497,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   if (member->getKind() != clang::ValueDecl::Kind::Field) {
     // Otherwise only FieldDecl is supported. This is the non-static "foo.bar"
     // form.
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Unimplemented member expression %s", member->getDeclKindName()));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unimplemented member expression %s", member->getDeclKindName()));
   }
 
   auto field = clang_down_cast<clang::FieldDecl*>(member);
@@ -3482,9 +3508,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
       //  with NamedDecl pointers
       fields_by_name.find(absl::implicit_cast<const clang::NamedDecl*>(field));
   if (found_field == fields_by_name.end()) {
-    return absl::NotFoundError(ErrorMessage(loc,
-        "Member access on unknown field %s in type %s",
-        field->getNameAsString(), string(*itype)));
+    return absl::NotFoundError(
+        ErrorMessage(loc, "Member access on unknown field %s in type %s",
+                     field->getNameAsString(), string(*itype)));
   }
   const CField& cfield = *found_field->second;
   // Upcast to NamedDecl because we track unique identifiers
@@ -3538,8 +3564,8 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
     const CPointerType* pointer_type = t->As<CPointerType>();
     return CreateDefaultRawValue(pointer_type->GetPointeeType(), loc);
   } else {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Don't know how to make default for type %s", std::string(*t)));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Don't know how to make default for type %s", std::string(*t)));
   }
 }
 
@@ -3549,8 +3575,8 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
   if (t->Is<CArrayType>()) {
     auto array_t = t->As<CArrayType>();
     if (array_t->GetSize() != init_list->getNumInits()) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Wrong number of initializers"));
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Wrong number of initializers"));
     }
 
     std::vector<xls::BValue> element_vals;
@@ -3566,8 +3592,8 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
       } else {
         XLS_ASSIGN_OR_RETURN(CValue expr_val, GenerateIR_Expr(this_init, loc));
         if (*expr_val.type() != *array_t->GetElementType()) {
-          return absl::UnimplementedError(ErrorMessage(loc,
-              "Wrong initializer type %s", string(*expr_val.type())));
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "Wrong initializer type %s", string(*expr_val.type())));
         }
         this_val = expr_val.rvalue();
       }
@@ -3592,8 +3618,8 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     }
     return MakeStructXLS(field_vals, *struct_type_ptr, loc);
   } else {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Don't know how to interpret initializer list for type %s",
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Don't know how to interpret initializer list for type %s",
         string(*t)));
   }
 }
@@ -3724,8 +3750,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   switch (stmt->getStmtClass()) {
     case clang::Stmt::ReturnStmtClass: {
       if (context().in_pipelined_for_body) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Returns in pipelined loop body unimplemented"));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Returns in pipelined loop body unimplemented"));
       }
       auto rts = clang_down_cast<const clang::ReturnStmt*>(stmt);
       const clang::Expr* rvalue = rts->getRetValue();
@@ -3803,8 +3829,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
         if (decl->getKind() == clang::Decl::Kind::Enum) break;
 
         if (decl->getKind() != clang::Decl::Kind::Var) {
-          return absl::UnimplementedError(ErrorMessage(loc,
-              "DeclStmt other than Var (%s)", decl->getDeclKindName()));
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "DeclStmt other than Var (%s)", decl->getDeclKindName()));
         }
         auto namedecl = clang_down_cast<const clang::NamedDecl*>(decl);
         auto vard = clang_down_cast<const clang::VarDecl*>(decl);
@@ -3898,8 +3924,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
       XLS_ASSIGN_OR_RETURN(CValue cond, GenerateIR_Expr(ifst->getCond(), loc));
       XLS_CHECK(cond.type()->Is<CBoolType>());
       if (ifst->getInit()) {
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unimplemented C++17 if initializers"));
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Unimplemented C++17 if initializers"));
       }
       if (ifst->getThen()) {
         PushContextGuard context_guard(*this, cond.rvalue(), loc);
@@ -3959,8 +3985,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
         //  Not if(...) {return;} break;
         if (context().full_condition_on_enter_block.node() !=
             context().full_switch_cond.node()) {
-          return absl::UnimplementedError(ErrorMessage(loc,
-              "Conditional breaks are not supported"));
+          return absl::UnimplementedError(
+              ErrorMessage(loc, "Conditional breaks are not supported"));
         }
         context().hit_break = true;
       }
@@ -3982,8 +4008,8 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
     default:
       stmt->dump();
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Unimplemented construct %s", stmt->getStmtClassName()));
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Unimplemented construct %s", stmt->getStmtClassName()));
   }
   return absl::OkStatus();
 }
@@ -4019,7 +4045,7 @@ absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
   }
 
   return absl::UnimplementedError(
-    ErrorMessage(loc, "For loop missing #pragma"));
+      ErrorMessage(loc, "For loop missing #pragma"));
 }
 
 int Debug_CountNodes(const xls::Node* node,
@@ -4142,9 +4168,9 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
     check_unique_ids_ = saved_check_ids;
 
     if (nIters >= max_unroll_iters_) {
-      return absl::ResourceExhaustedError(ErrorMessage(loc,
-          "Loop unrolling broke at maximum %i iterations",
-                          max_unroll_iters_));
+      return absl::ResourceExhaustedError(
+          ErrorMessage(loc, "Loop unrolling broke at maximum %i iterations",
+                       max_unroll_iters_));
     }
 
     // Generate condition.
@@ -4217,8 +4243,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     int64_t initiation_interval_arg, clang::ASTContext& ctx,
     const xls::SourceInfo& loc) {
   if (initiation_interval_arg != 1) {
-    std::string message = ErrorMessage(loc,
-      "Only initiation interval 1 supported");
+    std::string message =
+        ErrorMessage(loc, "Only initiation interval 1 supported");
     if (error_on_init_interval_) {
       return absl::UnimplementedError(message);
     }
@@ -4226,8 +4252,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   if (context().this_val.rvalue().valid()) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Pipelined loops in methods unsupported"));
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Pipelined loops in methods unsupported"));
   }
 
   // Generate the loop counter declaration within a private context
@@ -4691,8 +4717,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   context().in_for_body = false;
 
   if (switchst->getInit()) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Switch init"));
+    return absl::UnimplementedError(ErrorMessage(loc, "Switch init"));
   }
   XLS_ASSIGN_OR_RETURN(CValue switch_val,
                        GenerateIR_Expr(switchst->getCond(), loc));
@@ -4785,8 +4810,8 @@ absl::StatusOr<int64_t> Translator::EvaluateInt64(
   clang::Expr::EvalResult result;
   if (!expr.EvaluateAsInt(result, ctx, clang::Expr::SE_NoSideEffects,
                           /*InConstantContext=*/false)) {
-    return absl::InvalidArgumentError(ErrorMessage(loc,
-        "Failed to evaluate expression as int"));
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc, "Failed to evaluate expression as int"));
   }
   const clang::APValue& val = result.Val;
   const llvm::APSInt& aps = val.getInt();
@@ -4800,8 +4825,8 @@ absl::StatusOr<bool> Translator::EvaluateBool(
   bool result;
   if (!expr.EvaluateAsBooleanCondition(result, ctx,
                                        /*InConstantContext=*/false)) {
-    return absl::InvalidArgumentError(ErrorMessage(loc,
-        "Failed to evaluate expression as bool"));
+    return absl::InvalidArgumentError(
+        ErrorMessage(loc, "Failed to evaluate expression as bool"));
   }
   return result;
 }
@@ -4816,8 +4841,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
       return shared_ptr<CType>(new CVoidType());
     }
     if (!builtin->isInteger()) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "BuiltIn type other than integer"));
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "BuiltIn type other than integer"));
     }
     switch (builtin->getKind()) {
       case clang::BuiltinType::Kind::Short:
@@ -4872,8 +4897,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
                 decl->getTypeForDecl()->getAsRecordDecl())));
       }
       default:
-        return absl::UnimplementedError(ErrorMessage(loc,
-            "Unsupported recordtype kind %s in translate: %s",
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Unsupported recordtype kind %s in translate: %s",
             // getDeclKindName() is inherited from multiple base classes, so
             //  it is necessary to up-cast before calling it to avoid an error.
             absl::implicit_cast<const clang::Decl*>(decl)->getDeclKindName(),
@@ -4921,9 +4946,9 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     return std::shared_ptr<CType>(new CPointerType(pointee_type));
   } else {
     type->dump();
-    return absl::UnimplementedError(ErrorMessage(loc,
-        "Unsupported type class in translate: %s",
-                        type->getTypeClassName()));
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Unsupported type class in translate: %s",
+                     type->getTypeClassName()));
   }
 }
 
@@ -5555,8 +5580,8 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     auto out_bits_type = out_type->As<CBitsType>();
     XLS_ASSIGN_OR_RETURN(auto conv_type, ResolveTypeInstance(in.type()));
     if (!conv_type->Is<CBitsType>()) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Cannot convert type %s to bits", std::string(*in.type())));
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Cannot convert type %s to bits", std::string(*in.type())));
     }
     if (conv_type->GetBitWidth() != out_bits_type->GetBitWidth()) {
       return absl::UnimplementedError(absl::StrFormat(
@@ -5569,8 +5594,8 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     return GenBoolConvert(in, loc);
   } else if (out_type->Is<CIntType>()) {
     if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
-      return absl::UnimplementedError(ErrorMessage(loc,
-          "Cannot convert type %s to int", std::string(*in.type())));
+      return absl::UnimplementedError(ErrorMessage(
+          loc, "Cannot convert type %s to int", std::string(*in.type())));
     }
 
     const int expr_width = in.type()->GetBitWidth();
@@ -5594,16 +5619,16 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     XLS_ASSIGN_OR_RETURN(auto t, ResolveTypeInstance(out_type));
     return GenTypeConvert(in, t, loc);
   }
-  return absl::UnimplementedError(ErrorMessage(loc,
-      "Don't know how to convert %s to type %s", std::string(*in.type()),
-      std::string(*out_type)));
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "Don't know how to convert %s to type %s",
+                   std::string(*in.type()), std::string(*out_type)));
 }
 
 absl::StatusOr<xls::BValue> Translator::GenBoolConvert(
     CValue const& in, const xls::SourceInfo& loc) {
   if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
-    return absl::UnimplementedError(ErrorMessage(loc,
-      "Cannot convert type %s to bool", std::string(*in.type())));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Cannot convert type %s to bool", std::string(*in.type())));
   }
   XLS_CHECK_GT(in.type()->GetBitWidth(), 0);
   if (in.type()->GetBitWidth() == 1) {

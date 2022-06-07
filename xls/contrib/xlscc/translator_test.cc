@@ -98,7 +98,6 @@ TEST_F(TranslatorTest, SyntaxError) {
       int my_package(int a) {
         return a+
       })";
-  auto ret = SourceToIr(content);
 
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(
@@ -5778,8 +5777,6 @@ TEST_F(TranslatorTest, StaticMember) {
          return Something::foo++;
        })";
 
-  auto ret = SourceToIr(content);
-
   ASSERT_THAT(SourceToIr(content).status(),
               xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
                                             testing::HasSubstr("static")));
@@ -6599,6 +6596,22 @@ TEST_F(TranslatorTest, FunctionEnum) {
   Run({{"a", 5}}, 6, content);
 }
 
+TEST_F(TranslatorTest, UnusedTemplate) {
+  const std::string content = R"(
+      template <typename T, unsigned N>
+      struct Array { T data[N]; };
+
+      #pragma hls_top
+      int DoSomething(const Array<int, 3>& a) {
+        return 0;
+      }
+    )";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnavailable,
+                  testing::HasSubstr("Definition for CXXRecord")));
+}
 
 }  // namespace
 
