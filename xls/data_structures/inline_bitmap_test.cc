@@ -233,5 +233,66 @@ TEST(InlineBitmapTest, UnsignedComparisons) {
   }
 }
 
+TEST(InlineBitmapTest, Union) {
+  {
+    InlineBitmap b(0);
+    b.Union(InlineBitmap(0));
+  }
+
+  {
+    InlineBitmap b(1);
+    EXPECT_FALSE(b.Get(0));
+    b.Union(InlineBitmap(1));
+    EXPECT_FALSE(b.Get(0));
+    b.Union(InlineBitmap::FromWord(1, 1));
+    EXPECT_TRUE(b.Get(0));
+  }
+
+  {
+    InlineBitmap b(2);
+    EXPECT_FALSE(b.Get(0));
+    b.Union(InlineBitmap(2));
+    EXPECT_FALSE(b.Get(0));
+    EXPECT_FALSE(b.Get(1));
+    b.Union(InlineBitmap::FromWord(2, 2));
+    EXPECT_FALSE(b.Get(0));
+    EXPECT_TRUE(b.Get(1));
+  }
+
+  {
+    InlineBitmap b = InlineBitmap::FromWord(0b00001100, 8);
+    b.Union(InlineBitmap(InlineBitmap::FromWord(0b10001001, 8)));
+    EXPECT_EQ(b.GetWord(0), 0b10001101);
+    b.Union(InlineBitmap(InlineBitmap::FromWord(0b11111111, 8)));
+    EXPECT_EQ(b.GetWord(0), 0b11111111);
+  }
+
+  {
+    InlineBitmap b1(80);
+    b1.SetByte(0, 0xab);
+    b1.SetByte(1, 0xcd);
+    b1.SetByte(2, 0xa5);
+    b1.SetByte(9, 0x84);
+
+    InlineBitmap b2(80);
+    b2.SetByte(0, 0xfb);
+    b2.SetByte(1, 0xee);
+    b2.SetByte(5, 0x42);
+    b2.SetByte(9, 0x31);
+
+    b1.Union(b2);
+    EXPECT_EQ(b1.GetByte(0), 0xfb);
+    EXPECT_EQ(b1.GetByte(1), 0xef);
+    EXPECT_EQ(b1.GetByte(2), 0xa5);
+    EXPECT_EQ(b1.GetByte(3), 0);
+    EXPECT_EQ(b1.GetByte(4), 0);
+    EXPECT_EQ(b1.GetByte(5), 0x42);
+    EXPECT_EQ(b1.GetByte(6), 0);
+    EXPECT_EQ(b1.GetByte(7), 0);
+    EXPECT_EQ(b1.GetByte(8), 0);
+    EXPECT_EQ(b1.GetByte(9), 0xb5);
+  }
+}
+
 }  // namespace
 }  // namespace xls

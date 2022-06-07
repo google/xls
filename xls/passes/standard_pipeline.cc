@@ -161,6 +161,7 @@ std::unique_ptr<CompoundPass> CreateStandardPassPipeline(int64_t opt_level) {
 
   top->Add<UselessAssertRemovalPass>();
   top->Add<UselessIORemovalPass>();
+  top->Add<ProcStateOptimizationPass>();
   top->Add<DeadCodeEliminationPass>();
 
   top->Add<MutualExclusionPass>();

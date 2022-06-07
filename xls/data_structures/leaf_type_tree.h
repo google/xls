@@ -101,6 +101,17 @@ class LeafTypeTree {
   LeafTypeTree(Type* type, absl::Span<const T> elements)
       : type_(type), elements_(elements.begin(), elements.end()) {
     MakeLeafTypes(type_);
+    XLS_CHECK_EQ(leaf_types_.size(), elements_.size());
+  }
+
+  // Constructor which avoids copying by moving elements one-by-one.
+  LeafTypeTree(Type* type, absl::Span<T> elements) : type_(type) {
+    MakeLeafTypes(type_);
+    XLS_CHECK_EQ(leaf_types_.size(), elements.size());
+    elements_.reserve(elements.size());
+    for (T& element : elements) {
+      elements_.push_back(std::move(element));
+    }
   }
 
   Type* type() const { return type_; }

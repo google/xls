@@ -28,7 +28,8 @@ namespace xls {
 // A bitmap that has 64-bits of inline storage by default.
 class InlineBitmap {
  public:
-  static InlineBitmap FromWord(uint64_t word, int64_t bit_count, bool fill) {
+  static InlineBitmap FromWord(uint64_t word, int64_t bit_count,
+                               bool fill = false) {
     InlineBitmap result(bit_count, fill);
     if (bit_count != 0) {
       result.data_[0] = word & result.MaskForWord(0);
@@ -170,6 +171,14 @@ class InlineBitmap {
     }
 
     return 0;
+  }
+
+  // Sets this bitmap to the union of this bitmap and `other`.
+  void Union(const InlineBitmap& other) {
+    XLS_CHECK_EQ(bit_count(), other.bit_count());
+    for (int64_t i = 0; i < data_.size(); ++i) {
+      data_[i] |= other.data_[i];
+    }
   }
 
   int64_t byte_count() const { return CeilOfRatio(bit_count_, int64_t{8}); }

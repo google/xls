@@ -29,6 +29,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+using testing::ElementsAre;
 
 class ProcStateOptimizationPassTest : public IrTestBase {
  protected:
@@ -66,7 +67,7 @@ TEST_F(ProcStateOptimizationPassTest, SimpleNonoptimizableStateProc) {
   EXPECT_EQ(proc->GetStateElementCount(), 2);
 }
 
-TEST_F(ProcStateOptimizationPassTest, ProcWithOneDeadElement) {
+TEST_F(ProcStateOptimizationPassTest, ProcWithDeadElements) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(
       Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
@@ -75,15 +76,53 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithOneDeadElement) {
   TokenlessProcBuilder pb("p", "tkn", p.get());
   BValue x = pb.StateElement("x", Value(UBits(0, 32)));
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue z = pb.StateElement("z", Value(UBits(0, 32)));
   pb.Send(out, x);
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), y}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), y, pb.Not(z)}));
 
-  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
   EXPECT_EQ(proc->GetStateElementCount(), 1);
 
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "x");
+}
+
+TEST_F(ProcStateOptimizationPassTest, CrissCrossDeadElements) {
+  auto p = CreatePackage();
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({y, x}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 0);
+}
+
+TEST_F(ProcStateOptimizationPassTest, CrissCrossDeadAndLiveElements) {
+  auto p = CreatePackage();
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+  BValue a = pb.StateElement("a", Value(UBits(0, 32)));
+  BValue b = pb.StateElement("b", Value(UBits(0, 32)));
+  BValue c = pb.StateElement("c", Value(UBits(0, 32)));
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+
+  pb.Send(out, c);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({b, c, a, y, x}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 5);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
+  EXPECT_THAT(proc->StateParams(), ElementsAre(a.node(), b.node(), c.node()));
 }
 
 TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
@@ -97,7 +136,7 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   BValue y = pb.StateElement("y", Value(UBits(0, 32)));
   BValue send = pb.Send(out, pb.Concat({x, y}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), y}));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({pb.Not(x), pb.Not(y)}));
 
   EXPECT_EQ(proc->GetStateElementCount(), 2);
   EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
@@ -107,6 +146,59 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithZeroWidthElement) {
   EXPECT_THAT(send.node(),
               m::Send(m::Param("tkn"),
                       m::Concat(m::Literal(UBits(0, 0)), m::Param("y"))));
+}
+
+TEST_F(ProcStateOptimizationPassTest, StateElementsIntoTuplesAndOut) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(0, 32)));
+  BValue y = pb.StateElement("y", Value(UBits(0, 32)));
+  BValue z = pb.StateElement("z", Value(UBits(0, 32)));
+
+  BValue xy = pb.Tuple({x, y});
+  BValue xy_z = pb.Tuple({xy, z});
+
+  // Send element `y` from the tuple.
+  pb.Send(out, pb.TupleIndex(xy, 1));
+
+  BValue next_x = y;
+  BValue next_y = pb.TupleIndex(pb.TupleIndex(xy_z, 0), 0);
+  BValue next_z = pb.TupleIndex(xy_z, 1);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({next_x, next_y, next_z}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 3);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  EXPECT_THAT(proc->StateParams(), ElementsAre(x.node(), y.node()));
+}
+
+TEST_F(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+  Value zero(UBits(0, 32));
+  BValue dead_state = pb.StateElement("dead", Value::Tuple({zero, zero}));
+  BValue not_dead_state =
+      pb.StateElement("not_dead", Value::Tuple({zero, zero}));
+  // Send only one tuple element of the `not_dead` state.
+  pb.Send(out, pb.TupleIndex(not_dead_state, 0));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({dead_state, not_dead_state}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 2);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+
+  EXPECT_EQ(proc->GetStateParam(0)->GetName(), "not_dead");
 }
 
 }  // namespace
