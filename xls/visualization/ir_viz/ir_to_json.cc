@@ -302,6 +302,24 @@ static absl::Status WrapNodeUseInSpan(
   return absl::OkStatus();
 }
 
+// Wraps the node identifier of `next` appearing in a next statement.
+static absl::Status WrapNextNodeInSpan(
+    Node* next,
+    const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
+    std::string* str) {
+  std::string next_id = GetNodeUniqueId(next, function_ids);
+  XLS_RETURN_IF_ERROR(WrapTextInSpan(
+      next->GetName(),
+      /*dom_id=*/absl::nullopt,
+      /*classes=*/
+      {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", next_id)},
+      /*data=*/
+      {{"node-id", next_id},
+       {"function-id", function_ids.at(next->function_base())}},
+      str));
+  return absl::OkStatus();
+}
+
 // Wraps the name of the given function in `str` with an appropriate function
 // identifier span.
 static absl::Status WrapFunctionNameInSpan(absl::string_view function_name,
@@ -398,6 +416,28 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
                                    /*dom_id=*/absl::nullopt, &line));
       }
 
+      lines.push_back(std::string{line});
+      continue;
+    }
+
+    // Match proc next statement:
+    //
+    //   next (a, b, c)
+    //
+    // =>
+    //
+    //   next(<span>a</span>, <span>b</span>, <span>c</span>)
+    if (RE2::PartialMatch(line, R"(^\s*next\s*\()")) {
+      XLS_RET_CHECK(current_function->IsProc());
+      Proc* current_proc = current_function->AsProcOrDie();
+
+      // Wrap the next elements in spans.
+      XLS_RETURN_IF_ERROR(
+          WrapNextNodeInSpan(current_proc->NextToken(), function_ids, &line));
+      for (Node* next_state : current_proc->NextState()) {
+        XLS_RETURN_IF_ERROR(
+            WrapNextNodeInSpan(next_state, function_ids, &line));
+      }
       lines.push_back(std::string{line});
       continue;
     }

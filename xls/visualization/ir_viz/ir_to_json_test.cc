@@ -145,5 +145,37 @@ fn main(x: bits[32], xx: bits[32]) -> bits[32] {
   ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), html);
 }
 
+TEST_F(IrToJsonTest, SimpleProc) {
+  XLS_ASSERT_OK_AND_ASSIGN(auto p, ParsePackage(R"(
+package test
+
+chan in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+top proc the_proc(tkn: token, x: bits[32], y: bits[64], init={0, 42}) {
+  rcv: (token, bits[32]) = receive(tkn, channel_id=0)
+  rcv_token: token = tuple_index(rcv, index=0)
+  rcv_data: bits[32] = tuple_index(rcv, index=1)
+  next_x: bits[32] = add(x, rcv_data)
+  not_y: bits[64] = not(y)
+  send: token = send(rcv_token, next_x, channel_id=1)
+  next (send, next_x, not_y)
+}
+)"));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * delay_estimator,
+                           GetDelayEstimator("unit"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::string json, IrToJson(p.get(), *delay_estimator,
+                                                      /*schedule=*/nullptr,
+                                                      /*entry_name=*/"main"));
+  XLS_VLOG(1) << json;
+
+  // Compare the marked up html separately even though it is a field of the
+  // JSON. This makes visual comparison much easier because quotes and newlines
+  // are not escaped.
+  XLS_ASSERT_OK_AND_ASSIGN(std::string html, MarkUpIrText(p.get()));
+  XLS_VLOG(1) << html;
+  ExpectEqualToGoldenFile(GoldenFilePath("htmltext"), html);
+}
+
 }  // namespace
 }  // namespace xls
