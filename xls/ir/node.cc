@@ -466,6 +466,13 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
           "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
       break;
     }
+    case Op::kPrioritySel: {
+      const PrioritySelect* sel = As<PrioritySelect>();
+      args = {operand(0)->GetName()};
+      args.push_back(absl::StrFormat(
+          "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
+      break;
+    }
     case Op::kSel: {
       const Select* sel = As<Select>();
       args = {operand(0)->GetName()};
