@@ -410,6 +410,32 @@ std::string XSentinel::Emit(LineInfo* line_info) const {
   return absl::StrFormat("%d'dx", width_);
 }
 
+static void FourValueFormatter(std::string* out, FourValueBit value) {
+  char value_as_char;
+  switch (value) {
+    case FourValueBit::kZero:
+      value_as_char = '0';
+      break;
+    case FourValueBit::kOne:
+      value_as_char = '1';
+      break;
+    case FourValueBit::kUnknown:
+      value_as_char = 'X';
+      break;
+    case FourValueBit::kHighZ:
+      value_as_char = '?';
+      break;
+  }
+  out->push_back(value_as_char);
+}
+
+std::string FourValueBinaryLiteral::Emit(LineInfo* line_info) const {
+  LineInfoStart(line_info, this);
+  LineInfoEnd(line_info, this);
+  return absl::StrCat(bits_.size(), "'b",
+                      absl::StrJoin(bits_, "", FourValueFormatter));
+}
+
 // Returns a string representation of the given expression minus one.
 static std::string WidthToLimit(LineInfo* line_info, Expression* expr) {
   if (expr->IsLiteral()) {

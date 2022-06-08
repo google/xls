@@ -612,6 +612,28 @@ class XSentinel : public Expression {
   int64_t width_;
 };
 
+// Specifies the four possible values a bit can have under SystemVerilog's
+// 4-valued logic.
+enum class FourValueBit {
+  kZero,
+  kOne,
+  kUnknown,
+  kHighZ,
+};
+
+// Represents a four-valued binary literal, e.g. 4'b0110, 4'b1???, or 4'b01?X.
+class FourValueBinaryLiteral : public Expression {
+ public:
+  FourValueBinaryLiteral(absl::Span<FourValueBit const> value,
+                         VerilogFile* file, const SourceInfo& loc)
+      : Expression(file, loc), bits_(value.begin(), value.end()) {}
+
+  std::string Emit(LineInfo* line_info) const override;
+
+ private:
+  std::vector<FourValueBit> bits_;
+};
+
 // Represents an operation (unary, binary, etc) with a particular precedence.
 class Operator : public Expression {
  public:
