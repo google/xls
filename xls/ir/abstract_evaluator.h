@@ -191,6 +191,16 @@ class AbstractEvaluator {
     return OneHotSelectInternal(selector, case_spans, selector_can_be_zero);
   }
 
+  Vector PrioritySelect(const Vector& selector, absl::Span<const Vector> cases,
+                        bool selector_can_be_zero) {
+    std::vector<absl::Span<const Element>> case_spans;
+    case_spans.reserve(cases.size());
+    for (const Vector& c : cases) {
+      case_spans.push_back(c);
+    }
+    return PrioritySelectInternal(selector, case_spans, selector_can_be_zero);
+  }
+
   Vector Select(const Vector& selector, absl::Span<const Vector> cases,
                 absl::optional<const Vector> default_value = absl::nullopt) {
     // Turn the binary selector into a one-hot selector.
@@ -584,6 +594,39 @@ class AbstractEvaluator {
     for (int64_t i = 0; i < selector.size(); ++i) {
       for (int64_t j = 0; j < width; ++j) {
         result[j] = Or(result[j], And(cases[i][j], selector[i]));
+      }
+    }
+    if (!selector_can_be_zero) {
+      // If the selector cannot be zero, then a bit of the output can only be
+      // zero if one of the respective bits of one of the cases is zero.
+      // Construct such a mask and or it with the result.
+      Vector and_reduction(width, One());
+      for (int64_t i = 0; i < selector.size(); ++i) {
+        if (selector[i] != Zero()) {
+          for (int64_t j = 0; j < width; ++j) {
+            and_reduction[j] = And(and_reduction[j], cases[i][j]);
+          }
+        }
+      }
+      result = BitwiseOr(and_reduction, result);
+    }
+    return result;
+  }
+
+  // An implementation of PrioritySelect which takes a span of spans of Elements
+  // rather than a span of Vectors. This enables the cases to be overlapping
+  // spans of the same underlying vector as is used in the shift implementation.
+  Vector PrioritySelectInternal(absl::Span<const Element> selector,
+                              absl::Span<const absl::Span<const Element>> cases,
+                              bool selector_can_be_zero) {
+    XLS_CHECK_EQ(selector.size(), cases.size());
+    XLS_CHECK_GT(selector.size(), 0);
+    int64_t width = cases.front().size();
+    Vector result(width, Zero());
+    for (int64_t i = selector.size() - 1; i >= 0; --i) {
+      for (int64_t j = 0; j < width; ++j) {
+        result[j] = Or(And(cases[i][j], selector[i]),
+                       And(result[j], Not(selector[i])));
       }
     }
     if (!selector_can_be_zero) {

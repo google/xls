@@ -166,6 +166,7 @@ bool ShouldEvaluate(Node* node) {
     // Select operations.
     case Op::kOneHot:
     case Op::kOneHotSel:
+    case Op::kPrioritySel:
     case Op::kSel:
       return true;
 

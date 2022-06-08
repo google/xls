@@ -15,6 +15,7 @@
 #include "xls/codegen/block_metrics.h"
 
 #include "absl/strings/str_format.h"
+#include "xls/codegen/xls_metrics.pb.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/block.h"
 #include "xls/ir/node_iterator.h"
@@ -228,6 +229,10 @@ BomKindProto OpToBomKind(Op op) {
 
     case Op::kOneHotSel: {
       return BOM_KIND_ONE_HOT_SELECT;
+    }
+
+    case Op::kPrioritySel: {
+      return BOM_KIND_PRIORITY_SELECT;
     }
 
     case Op::kDecode: {

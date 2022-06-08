@@ -898,10 +898,11 @@ Value      | Type
 
 #### **`one_hot_sel`**
 
-Selects between operands based on a one-hot selector.
+Selects between operands based on a one-hot selector, `OR`-ing all selected
+cases if more than one case is selected.
 
 See `one_hot` for an example of the one-hot selector invariant. Note that when
-the one-hot selector is not one-hot, this operation is still well defined.
+the selector is not one-hot, this operation is still well defined.
 
 Note that when `one_hot` operations are used to precondition the `selector`
 operand to `one_hot_sel`, the XLS optimizer will try to determine when they are
@@ -924,6 +925,39 @@ Value      | Type
 The result is the logical OR of all cases `case_{i}` for which the corresponding
 bit `i` is set in the selector. When selector is one-hot this performs a select
 operation.
+
+#### **`priority_sel`**
+
+Selects between operands based on a selector, choosing the highest-priority case
+if more than one case is selected. Each bit in the selector corresponds to a
+case, with the least significant bit corresponding to the first case and having
+the highest priority. If there are no bits in the selector set, no case is
+selected and the default value of 0 is chosen.
+
+See `one_hot` for an example of the one-hot selector invariant. Note that when
+the selector is not one-hot, this operation is still well defined.
+
+Note that when `one_hot` operations are used to precondition the `selector`
+operand to `priority_sel`, the XLS optimizer will try to determine when they are
+unnecessary and subsequently eliminate them.
+
+**Syntax**
+
+```
+result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+```
+
+**Types**
+
+Value      | Type
+---------- | ---------
+`selector` | `bits[N]`
+`case_{i}` | `T`
+`result`   | `T`
+
+The result is the first case `case_{i}` for which the corresponding
+bit `i` is set in the selector. If the selector is known to be one-hot, then the
+`priority_sel()` operation is equivalent to a `one_hot_sel()`.
 
 #### **`invoke`**
 

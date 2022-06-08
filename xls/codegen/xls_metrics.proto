@@ -53,6 +53,8 @@ enum BomKindProto {
   // nodes that are not synthesizable or don't have a well defined notion of
   // cost when considered in isolation (e.g.: register write/read).
   BOM_KIND_MISC = 14;
+  // priority_select
+  BOM_KIND_PRIORITY_SELECT = 15;
 }
 
 message SourceLocationProto {

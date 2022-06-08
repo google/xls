@@ -521,6 +521,8 @@ absl::StatusOr<Expression*> NodeToExpression(
       return EmitOneHotSelect(node->As<OneHotSelect>(),
                               inputs[0]->AsIndexableExpressionOrDie(),
                               inputs.subspan(1), file);
+    case Op::kPrioritySel:
+      return unimplemented();
     case Op::kOr:
       return do_nary_op([file, node](Expression* lhs, Expression* rhs) {
         return file->BitwiseOr(lhs, rhs, node->loc());

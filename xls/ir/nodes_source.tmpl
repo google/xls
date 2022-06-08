@@ -179,6 +179,15 @@ absl::StatusOr<Node*> OneHotSelect::CloneInNewFunction(
                                               name_);
 }
 
+absl::StatusOr<Node*> PrioritySelect::CloneInNewFunction(
+    absl::Span<Node* const> new_operands,
+    FunctionBase* new_function) const {
+  // TODO(meheff): Choose an appropriate name for the cloned node.
+  return new_function->MakeNodeWithName<PrioritySelect>(loc(), new_operands[0],
+                                              new_operands.subspan(1),
+                                              name_);
+}
+
 absl::StatusOr<Node*> ArrayIndex::CloneInNewFunction(
     absl::Span<Node* const> new_operands,
     FunctionBase* new_function) const {

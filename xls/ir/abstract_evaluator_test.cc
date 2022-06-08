@@ -378,6 +378,28 @@ TEST(AbstractEvaluatorTest, SLessThan) {
   EXPECT_EQ(eval.SLessThan(ToBoxedVector(a), ToBoxedVector(b)).value, 0);
 }
 
+TEST(AbstractEvaluatorTest, PrioritySelect) {
+  TestAbstractEvaluator eval;
+  auto test_eq = [&](int64_t expected, const Bits& selector,
+                     absl::Span<const Bits> cases, bool selector_can_be_zero) {
+    std::vector<std::vector<BoxedBool>> boxed_cases;
+    for (auto const& i : cases) {
+      boxed_cases.push_back(ToBoxedVector(i));
+    }
+    EXPECT_EQ(UBits(expected, cases.front().bit_count()),
+              FromBoxedVector(eval.PrioritySelect(
+                  ToBoxedVector(selector), boxed_cases, selector_can_be_zero)));
+  };
+
+  test_eq(0x00FF, UBits(1, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, false);
+  test_eq(0xFF00, UBits(2, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, false);
+  test_eq(0x00FF, UBits(3, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, false);
+  test_eq(0x00FF, UBits(1, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, true);
+  test_eq(0xFF00, UBits(2, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, true);
+  test_eq(0x00FF, UBits(3, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, true);
+  test_eq(0x0000, UBits(0, 2), {UBits(0x00FF, 16), UBits(0xFF00, 16)}, true);
+}
+
 TEST(AbstractEvaluatorTest, BitSliceUpdate) {
   TestAbstractEvaluator eval;
   auto test_eq = [&](int64_t expected, const Bits& a, const Bits& start,

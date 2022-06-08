@@ -763,6 +763,25 @@ OpClass.kinds['ONE_HOT_SELECT'] = OpClass(
     custom_clone_method=True
 )
 
+OpClass.kinds['PRIORITY_SELECT'] = OpClass(
+    name='PrioritySelect',
+    op='Op::kPrioritySel',
+    operands=[Operand('selector'),
+              OperandSpan('cases')],
+    xls_type_expression='cases[0]->GetType()',
+    extra_methods=[Method(name='selector',
+                          return_cpp_type='Node*',
+                          expression='operand(0)'),
+                   Method(name='cases',
+                          return_cpp_type='absl::Span<Node* const>',
+                          expression='operands().subspan(1)'),
+                   Method(name='get_case',
+                          return_cpp_type='Node*',
+                          expression='cases().at(case_no)',
+                          params='int64_t case_no')],
+    custom_clone_method=True
+)
+
 OpClass.kinds['PARAM'] = OpClass(
     name='Param',
     op='Op::kParam',
@@ -1215,6 +1234,12 @@ OPS = [
         enum_name='kOneHotSel',
         name='one_hot_sel',
         op_class=OpClass.kinds['ONE_HOT_SELECT'],
+        properties=[],
+    ),
+    Op(
+        enum_name='kPrioritySel',
+        name='priority_sel',
+        op_class=OpClass.kinds['PRIORITY_SELECT'],
         properties=[],
     ),
     Op(

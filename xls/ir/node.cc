@@ -15,6 +15,7 @@
 #include "xls/ir/node.h"
 
 #include "absl/algorithm/container.h"
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/escaping.h"
 #include "absl/strings/str_cat.h"
@@ -191,6 +192,8 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       XLS_RETURN_IF_ERROR(
           visitor->HandleOneHotSel(down_cast<OneHotSelect*>(this)));
       break;
+    case Op::kPrioritySel:
+      return absl::UnimplementedError("PrioritySel not implemented yet.");
     case Op::kOr:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryOr(down_cast<NaryOp*>(this)));
       break;

@@ -160,6 +160,12 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
           operands[0], operands.subspan(1), /*selector_can_be_zero=*/
           !sel->selector()->Is<OneHot>());
     }
+    case Op::kPrioritySel: {
+      PrioritySelect* sel = node->As<PrioritySelect>();
+      return evaluator->PrioritySelect(
+          operands[0], operands.subspan(1), /*selector_can_be_zero=*/
+          !sel->selector()->Is<OneHot>());
+    }
     case Op::kOr:
       return evaluator->BitwiseOr(operands);
     case Op::kOrReduce:
