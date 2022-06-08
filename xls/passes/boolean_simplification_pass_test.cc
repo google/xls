@@ -23,6 +23,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
+#include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/dce_pass.h"
@@ -240,6 +241,25 @@ fn f(x: bits[3], y: bits[3], z: bits[3]) -> bits[3] {
                                                        p.get()));
   EXPECT_THAT(Run(f), IsOkAndHolds(true));
   EXPECT_THAT(f->return_value(), m::Nand(m::Param("z"), m::Not(m::Param("y"))));
+}
+
+TEST_F(BooleanSimplificationPassTest, ManyPaths) {
+  // Verify that the pass runs quickly even if there are exponentially many
+  // paths to consider.
+  auto p = CreatePackage();
+  Type* u1 = p->GetBitsType(1);
+
+  FunctionBuilder b(TestName(), p.get());
+  BValue x = b.Param("x", u1);
+  BValue y = b.Param("y", u1);
+  BValue tmp = b.And(x, y);
+  for (int64_t i = 0; i < 100; ++i) {
+    tmp = b.And(tmp, tmp);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+
+  EXPECT_THAT(Run(f), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::And(m::Param("x"), m::Param("y")));
 }
 
 // TODO(leary): 2019-10-11 Needs AOI21 logical function to map against.

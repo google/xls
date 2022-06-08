@@ -1245,6 +1245,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/ir:bits_ops",
+        "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",

@@ -377,40 +377,56 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
   // function. At that point we can just look up whether there's a simplified
   // expression of that logical function is and replace it accordingly, as we do
   // in ResolveTruthTable().
-  absl::StatusOr<Bits> FlowFromFrontierToNode(const Frontier& frontier,
-                                              Node* node) {
+  //
+  // Results are memoized in `memoized_results` because this function traces all
+  // paths in an expression which can be exponential in worst case.
+  absl::StatusOr<Bits> FlowFromFrontierToNode(
+      const Frontier& frontier, Node* node,
+      absl::flat_hash_map<Node*, Bits>& memoized_results) {
+    if (auto it = memoized_results.find(node); it != memoized_results.end()) {
+      return it->second;
+    }
+    Bits result;
     if (node == GetX(frontier)) {
-      return TruthTable::GetInitialVector(0);
+      result = TruthTable::GetInitialVector(0);
+    } else if (node == GetY(frontier)) {
+      result = TruthTable::GetInitialVector(1);
+    } else if (node == GetZ(frontier)) {
+      result = TruthTable::GetInitialVector(2);
+    } else {
+      std::vector<Bits> operands;
+      for (Node* operand : node->operands()) {
+        XLS_ASSIGN_OR_RETURN(
+            Bits operand_result,
+            FlowFromFrontierToNode(frontier, operand, memoized_results));
+        operands.push_back(operand_result);
+      }
+      switch (node->op()) {
+        case Op::kAnd:
+          result = bits_ops::NaryAnd(operands);
+          break;
+        case Op::kOr:
+          result = bits_ops::NaryOr(operands);
+          break;
+        case Op::kXor:
+          result = bits_ops::NaryXor(operands);
+          break;
+        case Op::kNand:
+          result = bits_ops::NaryNand(operands);
+          break;
+        case Op::kNor:
+          result = bits_ops::NaryNor(operands);
+          break;
+        case Op::kNot:
+          XLS_RET_CHECK(operands.size() == 1);
+          result = bits_ops::Not(operands[0]);
+          break;
+        default:
+          XLS_LOG(FATAL) << "Expected node to be logical bitwise: " << node;
+      }
     }
-    if (node == GetY(frontier)) {
-      return TruthTable::GetInitialVector(1);
-    }
-    if (node == GetZ(frontier)) {
-      return TruthTable::GetInitialVector(2);
-    }
-    std::vector<Bits> operands;
-    for (Node* operand : node->operands()) {
-      XLS_ASSIGN_OR_RETURN(Bits result,
-                           FlowFromFrontierToNode(frontier, operand));
-      operands.push_back(result);
-    }
-    switch (node->op()) {
-      case Op::kAnd:
-        return bits_ops::NaryAnd(operands);
-      case Op::kOr:
-        return bits_ops::NaryOr(operands);
-      case Op::kXor:
-        return bits_ops::NaryXor(operands);
-      case Op::kNand:
-        return bits_ops::NaryNand(operands);
-      case Op::kNor:
-        return bits_ops::NaryNor(operands);
-      case Op::kNot:
-        XLS_RET_CHECK(operands.size() == 1);
-        return bits_ops::Not(operands[0]);
-      default:
-        XLS_LOG(FATAL) << "Expected node to be logical bitwise: " << node;
-    }
+    memoized_results[node] = result;
+    return std::move(result);
   }
 
   absl::Status HandleLogicOp(Node* node) {
@@ -420,7 +436,9 @@ class BooleanFlowTracker : public DfsVisitorWithDefault {
     if (HasFrontierVector(frontier) &&
         GetFrontierVector(frontier).size() >= 2) {
       const auto& operands = GetFrontierVector(frontier);
-      XLS_ASSIGN_OR_RETURN(Bits result, FlowFromFrontierToNode(frontier, node));
+      absl::flat_hash_map<Node*, Bits> memoized_results;
+      XLS_ASSIGN_OR_RETURN(Bits result, FlowFromFrontierToNode(
+                                            frontier, node, memoized_results));
       XLS_VLOG(3) << "Flow result for " << node << ": "
                   << result.ToString(FormatPreference::kBinary, true);
       XLS_ASSIGN_OR_RETURN(Node * replacement,
