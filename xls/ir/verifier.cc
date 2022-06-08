@@ -760,8 +760,19 @@ class NodeChecker : public DfsVisitor {
   }
 
   absl::Status HandlePrioritySel(PrioritySelect* sel) override {
-    return absl::UnimplementedError(
-        "PrioritySelect not implemented in IR Verifier.");
+    if (sel->operand_count() < 2) {
+      return absl::InternalError(
+          StrFormat("Expected %s to have at least 2 operands", sel->GetName()));
+    }
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(sel, /*operand_no=*/0));
+    XLS_RETURN_IF_ERROR(ExpectDoesNotContainToken(sel));
+    int64_t selector_width = sel->selector()->BitCountOrDie();
+    if (selector_width != sel->cases().size()) {
+      return absl::InternalError(StrFormat("Selector has %d bits for %d cases",
+                                           selector_width,
+                                           sel->cases().size()));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleNaryOr(NaryOp* or_op) override {
