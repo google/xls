@@ -14,6 +14,7 @@
 
 #include "xls/ir/verifier.h"
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -756,6 +757,11 @@ class NodeChecker : public DfsVisitor {
                                            sel->cases().size()));
     }
     return absl::OkStatus();
+  }
+
+  absl::Status HandlePrioritySel(PrioritySelect* sel) override {
+    return absl::UnimplementedError(
+        "PrioritySelect not implemented in IR Verifier.");
   }
 
   absl::Status HandleNaryOr(NaryOp* or_op) override {

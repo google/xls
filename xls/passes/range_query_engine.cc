@@ -221,6 +221,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleNot(UnOp* not_op) override;
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
+  absl::Status HandlePrioritySel(PrioritySelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* or_reduce) override;
   absl::Status HandleOutputPort(OutputPort* output_port) override;
   absl::Status HandleParam(Param* param) override;
@@ -980,6 +981,11 @@ absl::Status RangeQueryVisitor::HandleOneHot(OneHot* one_hot) {
 absl::Status RangeQueryVisitor::HandleOneHotSel(OneHotSelect* sel) {
   engine_->InitializeNode(sel);
   return absl::OkStatus();  // TODO(taktoa): implement
+}
+
+absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
+  engine_->InitializeNode(sel);
+  return absl::OkStatus();  // TODO(google/xls#547): implement
 }
 
 absl::Status RangeQueryVisitor::HandleOrReduce(BitwiseReductionOp* or_reduce) {

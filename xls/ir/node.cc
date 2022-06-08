@@ -193,7 +193,9 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
           visitor->HandleOneHotSel(down_cast<OneHotSelect*>(this)));
       break;
     case Op::kPrioritySel:
-      return absl::UnimplementedError("PrioritySel not implemented yet.");
+      XLS_RETURN_IF_ERROR(
+          visitor->HandlePrioritySel(down_cast<PrioritySelect*>(this)));
+      break;
     case Op::kOr:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryOr(down_cast<NaryOp*>(this)));
       break;

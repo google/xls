@@ -669,6 +669,11 @@ absl::Status IrInterpreter::HandleOneHotSel(OneHotSelect* sel) {
   return SetValueResult(sel, result);
 }
 
+absl::Status IrInterpreter::HandlePrioritySel(PrioritySelect* sel) {
+  return absl::UnimplementedError(
+      "PrioritySel not implemented in IrInterpreter.");
+}
+
 absl::Status IrInterpreter::HandleParam(Param* param) {
   return absl::UnimplementedError("Param not implemented in IrInterpreter");
 }

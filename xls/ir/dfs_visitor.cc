@@ -196,6 +196,10 @@ absl::Status DfsVisitorWithDefault::HandleOneHotSel(OneHotSelect* sel) {
   return DefaultHandler(sel);
 }
 
+absl::Status DfsVisitorWithDefault::HandlePrioritySel(PrioritySelect* sel) {
+  return DefaultHandler(sel);
+}
+
 absl::Status DfsVisitorWithDefault::HandleParam(Param* param) {
   return DefaultHandler(param);
 }
