@@ -302,6 +302,11 @@ inline void NodeAppend(std::string* out, const Node* n) {
   absl::StrAppend(out, n->ToString());
 }
 
+// For use in e.g. absl::StrJoin.
+inline void NodeFormatter(std::string* out, Node* node) {
+  absl::StrAppend(out, node->GetName());
+}
+
 }  // namespace xls
 
 #endif  // XLS_IR_NODE_H_

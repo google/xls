@@ -112,11 +112,6 @@ inline bool IsNotOf(const Node* node, const Node* inverted) {
   return node->op() == Op::kNot && node->operand(0) == inverted;
 }
 
-// For use in e.g. absl::StrJoin.
-inline void NodeFormatter(std::string* out, Node* node) {
-  absl::StrAppend(out, node->GetName());
-}
-
 // Returns an IR expression whose value is equal to the bits of 'operand' at the
 // given indices concated together. 'indices' must be unique and sorted in an
 // ascending order.

@@ -390,21 +390,15 @@ void Node::ClearName() {
 }
 
 std::string Node::ToStringInternal(bool include_operand_types) const {
-  auto node_to_name = [](const Node* n, bool include_type) -> std::string {
-    std::string name = n->GetName();
-    if (include_type) {
-      absl::StrAppend(&name, ": ", n->GetType()->ToString());
-    }
-    return name;
-  };
-
-  std::string ret = node_to_name(this, false);
-  Type* t = GetType();
-  absl::StrAppend(&ret, ": ", t->ToString());
-  absl::StrAppend(&ret, " = ", OpToString(op_));
+  std::string ret = absl::StrCat(GetName(), ": ", GetType()->ToString(), " = ",
+                                 OpToString(op_));
   std::vector<std::string> args;
   for (Node* operand : operands()) {
-    args.push_back(node_to_name(operand, include_operand_types));
+    std::string operand_name = operand->GetName();
+    if (include_operand_types) {
+      absl::StrAppend(&operand_name, ": ", operand->GetType()->ToString());
+    }
+    args.push_back(operand_name);
   }
   switch (op_) {
     case Op::kParam:
@@ -424,12 +418,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args.push_back(
           absl::StrFormat("body=%s", As<CountedFor>()->body()->name()));
       if (!As<CountedFor>()->invariant_args().empty()) {
-        args.push_back(absl::StrFormat(
-            "invariant_args=[%s]",
-            absl::StrJoin(As<CountedFor>()->invariant_args(), ", ",
-                          [](std::string* out, const Node* node) {
-                            absl::StrAppend(out, node->GetName());
-                          })));
+        args.push_back(
+            absl::StrFormat("invariant_args=[%s]",
+                            absl::StrJoin(As<CountedFor>()->invariant_args(),
+                                          ", ", NodeFormatter)));
       }
       break;
     case Op::kDynamicCountedFor:
@@ -443,9 +435,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
         args.push_back(absl::StrFormat(
             "invariant_args=[%s]",
             absl::StrJoin(As<DynamicCountedFor>()->invariant_args(), ", ",
-                          [](std::string* out, const Node* node) {
-                            absl::StrAppend(out, node->GetName());
-                          })));
+                          NodeFormatter)));
       }
       break;
     case Op::kMap:
@@ -468,20 +458,14 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       const OneHotSelect* sel = As<OneHotSelect>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
-          "cases=[%s]", absl::StrJoin(sel->cases(), ", ",
-                                      [](std::string* out, const Node* node) {
-                                        absl::StrAppend(out, node->GetName());
-                                      })));
+          "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
       break;
     }
     case Op::kSel: {
       const Select* sel = As<Select>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
-          "cases=[%s]", absl::StrJoin(sel->cases(), ", ",
-                                      [](std::string* out, const Node* node) {
-                                        absl::StrAppend(out, node->GetName());
-                                      })));
+          "cases=[%s]", absl::StrJoin(sel->cases(), ", ", NodeFormatter)));
       if (sel->default_value().has_value()) {
         args.push_back(
             absl::StrFormat("default=%s", (*sel->default_value())->GetName()));
@@ -528,10 +512,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       const ArrayIndex* index = As<ArrayIndex>();
       args = {operand(0)->GetName()};
       args.push_back(absl::StrFormat(
-          "indices=[%s]", absl::StrJoin(index->indices(), ", ",
-                                        [](std::string* out, const Node* node) {
-                                          absl::StrAppend(out, node->GetName());
-                                        })));
+          "indices=[%s]",
+          absl::StrJoin(index->indices(), ", ", NodeFormatter)));
       break;
     }
     case Op::kArraySlice: {
@@ -543,10 +525,8 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
       args = {update->array_to_update()->GetName(),
               update->update_value()->GetName()};
       args.push_back(absl::StrFormat(
-          "indices=[%s]", absl::StrJoin(update->indices(), ", ",
-                                        [](std::string* out, const Node* node) {
-                                          absl::StrAppend(out, node->GetName());
-                                        })));
+          "indices=[%s]",
+          absl::StrJoin(update->indices(), ", ", NodeFormatter)));
       break;
     }
     case Op::kAssert:
@@ -565,10 +545,7 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
           absl::CEscape(StepsToXlsFormatString(trace->format()))));
       args.push_back(
           absl::StrFormat("data_operands=[%s]",
-                          absl::StrJoin(trace->args(), ", ",
-                                        [](std::string* out, const Node* node) {
-                                          absl::StrAppend(out, node->GetName());
-                                        })));
+                          absl::StrJoin(trace->args(), ", ", NodeFormatter)));
       break;
     }
     case Op::kCover:
@@ -620,18 +597,11 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
 }
 
 std::string Node::GetOperandsString() const {
-  return absl::StrFormat(
-      "[%s]",
-      absl::StrJoin(operands_, ", ", [](std::string* out, const Node* n) {
-        absl::StrAppend(out, n->GetName());
-      }));
+  return absl::StrFormat("[%s]", absl::StrJoin(operands_, ", ", NodeFormatter));
 }
 
 std::string Node::GetUsersString() const {
-  return absl::StrFormat(
-      "[%s]", absl::StrJoin(users_, ", ", [](std::string* out, const Node* n) {
-        absl::StrAppend(out, n->GetName());
-      }));
+  return absl::StrFormat("[%s]", absl::StrJoin(users_, ", ", NodeFormatter));
 }
 
 bool Node::HasUser(const Node* target) const {
