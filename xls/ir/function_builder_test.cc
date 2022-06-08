@@ -200,6 +200,23 @@ TEST(FunctionBuilderTest, MatchTrue) {
                      m::Param("default")}));
 }
 
+TEST(FunctionBuilderTest, PrioritySelectOp) {
+  Package p("p");
+  FunctionBuilder b("f", &p);
+  BitsType* sel_type = p.GetBitsType(3);
+  BitsType* value_type = p.GetBitsType(32);
+  BValue sel = b.Param("sel", sel_type);
+  BValue x = b.Param("x", value_type);
+  BValue y = b.Param("y", value_type);
+  BValue z = b.Param("z", value_type);
+  b.PrioritySelect(sel, {x, y, z});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, b.Build());
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(
+                  m::Param("sel"),
+                  /*cases=*/{m::Param("x"), m::Param("y"), m::Param("z")}));
+}
+
 TEST(FunctionBuilderTest, ConcatTuples) {
   Package p("p");
   FunctionBuilder b("f", &p);

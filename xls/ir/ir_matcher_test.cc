@@ -176,6 +176,47 @@ TEST(IrMatchersTest, OneHotSelect) {
               m::OneHotSelect(m::Name("pred"), {m::Name("x"), m::Name("y")}));
 }
 
+TEST(IrMatchersTest, PrioritySelect) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto pred = fb.Param("pred", p.GetBitsType(2));
+  auto x = fb.Param("x", p.GetBitsType(32));
+  auto y = fb.Param("y", p.GetBitsType(32));
+  fb.PrioritySelect(pred, {x, y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(f->return_value(), m::PrioritySelect());
+  EXPECT_THAT(f->return_value(),
+              m::PrioritySelect(m::Name("pred"), {m::Name("x"), m::Name("y")}));
+}
+
+TEST(IrMatchersTest, OneHotSelectDoesNotMatchPrioritySelect) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto pred = fb.Param("pred", p.GetBitsType(2));
+  auto x = fb.Param("x", p.GetBitsType(32));
+  auto y = fb.Param("y", p.GetBitsType(32));
+  fb.OneHotSelect(pred, {x, y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(f->return_value(), Not(m::PrioritySelect()));
+}
+
+TEST(IrMatchersTest, PrioritySelectDoesNotMatchOneHotSelect) {
+  Package p("p");
+  FunctionBuilder fb("f", &p);
+
+  auto pred = fb.Param("pred", p.GetBitsType(2));
+  auto x = fb.Param("x", p.GetBitsType(32));
+  auto y = fb.Param("y", p.GetBitsType(32));
+  fb.PrioritySelect(pred, {x, y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  EXPECT_THAT(f->return_value(), Not(m::OneHotSelect()));
+}
+
 TEST(IrMatchersTest, Select) {
   Package p("p");
   FunctionBuilder fb("f", &p);

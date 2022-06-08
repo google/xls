@@ -510,6 +510,26 @@ inline ::testing::Matcher<const ::xls::Node*> OneHotSelect() {
       new ::xls::op_matchers::NodeMatcher(Op::kOneHotSel, {}));
 }
 
+// PrioritySelect matcher. Supported forms:
+//
+//   EXPECT_THAT(foo, m::PrioritySelect());
+//   EXPECT_THAT(foo, m::PrioritySelect(m::Param(),
+//                                    /*cases=*/{m::Xor(), m::And});
+inline ::testing::Matcher<const ::xls::Node*> PrioritySelect(
+    ::testing::Matcher<const Node*> selector,
+    std::vector<::testing::Matcher<const Node*>> cases) {
+  std::vector<::testing::Matcher<const Node*>> operands;
+  operands.push_back(selector);
+  operands.insert(operands.end(), cases.begin(), cases.end());
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, operands));
+}
+
+inline ::testing::Matcher<const ::xls::Node*> PrioritySelect() {
+  return ::testing::MakeMatcher(
+      new ::xls::op_matchers::NodeMatcher(Op::kPrioritySel, {}));
+}
+
 // TupleIndex matcher. Supported forms:
 //
 //   EXPECT_THAT(foo, m::TupleIndex());

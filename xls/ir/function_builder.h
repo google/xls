@@ -287,6 +287,12 @@ class BuilderBase {
                       const SourceInfo& loc = SourceInfo(),
                       absl::string_view name = "");
 
+  // Creates a select operation which uses a one-hot selector (rather than a
+  // binary encoded selector as used in Select).
+  BValue PrioritySelect(BValue selector, absl::Span<const BValue> cases,
+                        const SourceInfo& loc = SourceInfo(),
+                        absl::string_view name = "");
+
   // Counts the number of leading zeros in the value 'x'.
   //
   // x must be of bits type. This function returns a value of the same type that

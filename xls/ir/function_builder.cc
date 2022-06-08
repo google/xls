@@ -178,6 +178,21 @@ BValue BuilderBase::OneHotSelect(BValue selector,
   return AddNode<xls::OneHotSelect>(loc, selector.node(), cases_nodes, name);
 }
 
+BValue BuilderBase::PrioritySelect(BValue selector,
+                                 absl::Span<const BValue> cases,
+                                 const SourceInfo& loc,
+                                 absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  std::vector<Node*> cases_nodes;
+  for (const BValue& bvalue : cases) {
+    XLS_CHECK_EQ(selector.builder(), bvalue.builder());
+    cases_nodes.push_back(bvalue.node());
+  }
+  return AddNode<xls::PrioritySelect>(loc, selector.node(), cases_nodes, name);
+}
+
 BValue BuilderBase::Clz(BValue x, const SourceInfo& loc,
                         absl::string_view name) {
   if (ErrorPending()) {
