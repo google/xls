@@ -759,6 +759,17 @@ absl::StatusOr<BValue> Parser::ParseNode(
       bvalue = fb->OneHotSelect(operands[0], *case_args, *loc, node_name);
       break;
     }
+    case Op::kPrioritySel: {
+      std::vector<BValue>* case_args =
+          arg_parser.AddKeywordArg<std::vector<BValue>>("cases");
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
+      if (case_args->empty()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "Expected at least 1 case @ %s", op_token.pos().ToHumanString()));
+      }
+      bvalue = fb->PrioritySelect(operands[0], *case_args, *loc, node_name);
+      break;
+    }
     case Op::kSel: {
       std::vector<BValue>* case_args =
           arg_parser.AddKeywordArg<std::vector<BValue>>("cases");
