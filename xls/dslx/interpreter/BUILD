@@ -48,9 +48,3 @@ py_test(
         "//xls/dslx/python:interpreter",
     ],
 )
-
-filegroup(
-    name = "dslx_test",
-    srcs = ["dslx_test.sh"],
-    visibility = ["//xls:xls_users"],
-)
