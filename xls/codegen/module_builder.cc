@@ -14,6 +14,8 @@
 
 #include "xls/codegen/module_builder.h"
 
+#include <algorithm>
+
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
@@ -1233,6 +1235,7 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
     case Op::kUMul:
     case Op::kDynamicBitSlice:
     case Op::kBitSliceUpdate:
+    case Op::kPrioritySel:
       return true;
     default:
       return false;
@@ -1256,6 +1259,10 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat(
           "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(1)->BitCountOrDie(), node->operand(2)->BitCountOrDie());
+    case Op::kPrioritySel:
+      return absl::StrFormat("%s_%db_%dway", OpToString(node->op()),
+                             node->BitCountOrDie(),
+                             node->operand(0)->BitCountOrDie());
     default:
       XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
@@ -1476,6 +1483,60 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
   return func;
 }
 
+// Defines and returns a function which implements the given UMul node.
+VerilogFunction* DefinePrioritySelectFunction(PrioritySelect* sel,
+                                              absl::string_view function_name,
+                                              ModuleSection* section) {
+  VerilogFile* file = section->file();
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      sel->loc(), function_name,
+      file->BitVectorType(sel->BitCountOrDie(), sel->loc()));
+  Expression* selector = func->AddArgument(
+      "sel", file->BitVectorType(sel->operand(0)->BitCountOrDie(), sel->loc()),
+      sel->loc());
+
+  std::vector<Expression*> cases;
+  cases.reserve(sel->cases().size());
+  for (size_t i = 0; i < sel->cases().size(); ++i) {
+    Node* const node = sel->get_case(i);
+    cases.push_back(func->AddArgument(
+        absl::StrCat("case", i),
+        file->BitVectorType(node->BitCountOrDie(), sel->loc()), sel->loc()));
+  }
+  Case* case_statement =
+      func->AddStatement<Case>(sel->loc(), selector, CaseType::kCasez);
+  // make a ternary vector that looks like ???...?1000...0.
+  // each label will be a sliding window into this larger vector.
+  std::vector<FourValueBit> ternary_vector;
+  ternary_vector.reserve(cases.size() * 2 - 1);
+  std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
+              FourValueBit::kHighZ);
+  ternary_vector.push_back(FourValueBit::kOne);
+  std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
+              FourValueBit::kZero);
+  absl::Span<FourValueBit const> ternary_span = ternary_vector;
+
+  for (size_t i = 0; i < cases.size(); ++i) {
+    absl::StatusOr<Expression*> label_expression =
+        file->Make<FourValueBinaryLiteral>(
+            sel->loc(), ternary_span.subspan(i, cases.size()));
+    XLS_CHECK_OK(label_expression.status());
+    StatementBlock* block =
+        case_statement->AddCaseArm(label_expression.value());
+    block->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(),
+                                   cases[i]);
+  }
+
+  // Add default case that returns zero
+  Expression* zero =
+      file->Literal(0, sel->operand(1)->BitCountOrDie(), sel->loc());
+  case_statement->AddCaseArm(DefaultSentinel())
+      ->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(), zero);
+
+  return func;
+}
+
 }  // namespace
 
 absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
@@ -1497,6 +1558,10 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       break;
     case Op::kBitSliceUpdate:
       func = DefineBitSliceUpdateFunction(node->As<BitSliceUpdate>(),
+                                          function_name, functions_section_);
+      break;
+    case Op::kPrioritySel:
+      func = DefinePrioritySelectFunction(node->As<PrioritySelect>(),
                                           function_name, functions_section_);
       break;
     default:
