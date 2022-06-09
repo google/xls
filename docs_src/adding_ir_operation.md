@@ -160,6 +160,19 @@ which are optional, are described below:
 
     [(Code example)](https://github.com/google/xls/commit/feeac2c4c0bcc73b529cb0c4a976abae47f96730)
 
+1.  [Fuzzer](https://github.com/google/xls/tree/main/xls/fuzzer)
+
+    The fuzzer generates random DSLX functions and random inputs to check and
+    compare different parts of XLS, for example checking that un-optimized and
+    optimized IR give the same outputs when interpreted. If there is an
+    operation in DSLX that maps nicely onto the newly added operation, the
+    fuzzer can be modified to generate functions with DSLX that exercise the
+    new operation. This is done by adding a handler to `AstGenerator`. See
+    [here](./fuzzer.md) for
+    more details on how the fuzzer works and how to run it.
+
+    [(Code example)](https://github.com/google/xls/commit/c09339f3b0c147031eadd626d1a856a860031e05)
+
 1.  Operation-specific optimizations
 
     Typically, a new operation provides optimization opportunities unique to the
