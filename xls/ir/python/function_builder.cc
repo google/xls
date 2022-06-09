@@ -186,6 +186,9 @@ PYBIND11_MODULE(function_builder, m) {
       .def("add_one_hot_sel", FbPyWrap(&FunctionBuilder::OneHotSelect),
            py::arg("selector"), py::arg("cases"), py::arg("loc") = SourceInfo(),
            py::arg("name") = "")
+      .def("add_priority_sel", FbPyWrap(&FunctionBuilder::PrioritySelect),
+           py::arg("selector"), py::arg("cases"), py::arg("loc") = SourceInfo(),
+           py::arg("name") = "")
 
       .def("add_literal_bits", PyWrap(add_literal_bits), py::arg("bits"),
            py::arg("loc") = SourceInfo(), py::arg("name") = "")

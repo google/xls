@@ -202,6 +202,7 @@ fn f(pred_x: bits[1], x: bits[32], pred_y: bits[1], y: bits[32], default: bits[3
 
     fb.add_one_hot(x, lsb_or_msb.LsbOrMsb.LSB, loc=loc)
     fb.add_one_hot_sel(s, [x], loc=loc)
+    fb.add_priority_sel(s, [x], loc=loc)
 
     fb.add_literal_bits(bits_mod.UBits(value=2, bit_count=32), loc=loc)
     fb.add_literal_value(
