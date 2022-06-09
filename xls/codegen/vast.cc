@@ -923,10 +923,22 @@ StatementBlock* Case::AddCaseArm(CaseLabel label) {
   return arms_.back()->statements();
 }
 
+static std::string CaseTypeToString(CaseType case_type) {
+  switch (case_type) {
+    case CaseType::kCase:
+      return "case";
+    case CaseType::kCasez:
+      return "casez";
+    default:
+      XLS_LOG(FATAL) << "Unexpected CaseType with value "
+                     << static_cast<int>(case_type);
+  }
+}
+
 std::string Case::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
-  std::string result =
-      absl::StrFormat("case (%s)\n", subject_->Emit(line_info));
+  std::string result = absl::StrFormat(
+      "%s (%s)\n", CaseTypeToString(case_type_), subject_->Emit(line_info));
   LineInfoIncrease(line_info, 1);
   for (auto& arm : arms_) {
     std::string arm_string = arm->Emit(line_info);

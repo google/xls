@@ -492,6 +492,37 @@ TEST_P(VastTest, Case) {
 endcase)");
 }
 
+TEST_P(VastTest, Casez) {
+  VerilogFile f(UseSystemVerilog());
+  Module* m = f.AddModule("top", SourceInfo());
+  LogicRef* thing_next =
+      m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* thing =
+      m->AddWire("thing", f.BitVectorType(1, SourceInfo()), SourceInfo());
+  LogicRef* my_state =
+      m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
+  AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
+  Case* case_statement =
+      ac->statements()->Add<Case>(SourceInfo(), my_state, CaseType::kCasez);
+  StatementBlock* one_block =
+      case_statement->AddCaseArm(f.Literal(1, 2, SourceInfo()));
+  one_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);
+  StatementBlock* default_block = case_statement->AddCaseArm(DefaultSentinel());
+  default_block->Add<BlockingAssignment>(SourceInfo(), thing_next,
+                                         f.Make<XSentinel>(SourceInfo(), 2));
+
+  EXPECT_EQ(case_statement->Emit(nullptr),
+            R"(casez (my_state)
+  2'h1: begin
+    thing_next = thing;
+  end
+  default: begin
+    thing_next = 2'dx;
+  end
+endcase)");
+}
+
+
 TEST_P(VastTest, CaseWithHighZ) {
   VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("top", SourceInfo());

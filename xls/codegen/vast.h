@@ -456,11 +456,20 @@ class CaseArm : public VastNode {
   StatementBlock* statements_;
 };
 
+enum class CaseType {
+  kCase,
+  kCasez,
+};
+
 // Represents a case statement.
 class Case : public Statement {
  public:
   Case(Expression* subject, VerilogFile* file, const SourceInfo& loc)
-      : Statement(file, loc), subject_(subject) {}
+      : Statement(file, loc), subject_(subject), case_type_(CaseType::kCase) {}
+
+  Case(Expression* subject, CaseType case_type, VerilogFile* file,
+       const SourceInfo& loc)
+      : Statement(file, loc), subject_(subject), case_type_(case_type) {}
 
   StatementBlock* AddCaseArm(CaseLabel label);
 
@@ -469,6 +478,7 @@ class Case : public Statement {
  private:
   Expression* subject_;
   std::vector<CaseArm*> arms_;
+  CaseType case_type_;
 };
 
 // Represents an if statement with optional "else if" and "else" blocks.
