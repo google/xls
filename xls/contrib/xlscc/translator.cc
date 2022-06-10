@@ -1465,7 +1465,7 @@ absl::StatusOr<xls::Op> Translator::XLSOpcodeFromClang(
     clang::BinaryOperatorKind clang_op, const CType& left_type,
     const CType& result_type, const xls::SourceInfo& loc) {
   if (clang_op == clang::BinaryOperatorKind::BO_Comma) {
-        return xls::Op::kIdentity;
+    return xls::Op::kIdentity;
   }
   if (result_type.Is<CIntType>()) {
     auto result_int_type = result_type.As<CIntType>();
@@ -2630,17 +2630,17 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (!is_channel) {
       continue;
     }
-    //
+
     const clang::Expr* call_arg = expr_args[pi];
     if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be DeclRefs"));
+      return absl::UnimplementedError(ErrorMessage(
+          GetLoc(*callee_param), "IO operations should be DeclRefs"));
     }
     auto call_decl_ref_arg =
         clang_down_cast<const clang::DeclRefExpr*>(call_arg);
     if (call_decl_ref_arg->getDecl()->getKind() != clang::Decl::ParmVar) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be on parameters"));
+      return absl::UnimplementedError(ErrorMessage(
+          GetLoc(*callee_param), "IO operations should be on parameters"));
     }
 
     auto caller_channel_param = clang_down_cast<const clang::ParmVarDecl*>(
@@ -2655,7 +2655,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         (external_channels_by_param_.at(callee_param) !=
          external_channels_by_param_.at(caller_channel_param))) {
       return absl::UnimplementedError(
-          ErrorMessage(loc,
+          ErrorMessage(GetLoc(*callee_param),
                        "IO ops in pipelined loops in subroutines called "
                        "with multiple different channel arguments"));
     }
@@ -3406,7 +3406,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved_arg_ctype,
                            ResolveTypeInstanceDeeply(arg_ctype));
 
-      XLS_LOG(WARNING) << "Warning: sizeof evaluating to size in BITS";
+      XLS_LOG(WARNING) << ErrorMessage(
+          loc, "Warning: sizeof evaluating to size in BITS");
 
       const int64_t ret_width = ret_ctype->GetBitWidth();
       return CValue(
