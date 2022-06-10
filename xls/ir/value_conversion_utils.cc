@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "xls/ir/conversion_utils.h"
+#include "xls/ir/value_conversion_utils.h"
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -55,8 +55,8 @@ absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value) {
 }
 }  // namespace internal
 
-absl::StatusOr<xls::Value> Convert(const Type* type,
-                                   const std::tuple<>& tuple) {
+absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type,
+                                             const std::tuple<>& tuple) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsTuple()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -73,8 +73,8 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index < xls_tuple.size()) {
-    // When the user is using the Convert(..., std::tuple...), the following
-    // error should not occur.
+    // When the user is using the ConvertToXlsValue(..., std::tuple...), the
+    // following error should not occur.
     return absl::InvalidArgumentError(absl::StrFormat(
         "Insufficient tuple elements to convert. Expected (%d), got (%d).",
         xls_tuple.size(), index));

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef XLS_IR_CONVERSION_UTILS_H_
-#define XLS_IR_CONVERSION_UTILS_H_
+#ifndef XLS_IR_VALUE_CONVERSION_UTILS_H_
+#define XLS_IR_VALUE_CONVERSION_UTILS_H_
 
 #include <cstdint>
 #include <limits>
@@ -49,7 +49,7 @@ namespace xls {
 // have the following signature, where 'MyClassOrStruct' is a user-defined class
 // or struct:
 //
-//        absl::StatusOr<xls::Value> Convert(const Type& type,
+//        absl::StatusOr<xls::Value> ConvertToXlsValue(const Type& type,
 //                                           const MyClassOrStruct& my_object);
 //
 // Moreover, the function must be placed in the 'xls' namespace.
@@ -66,10 +66,11 @@ namespace xls {
 //
 //     namespace xls {
 //        absl::StatusOr<xls::Value>
-//                          Convert(
+//                          ConvertToXlsValue(
 //                                  const Type& type,
 //                                  const userspace::UserStruct& user_struct) {
-//          return Convert(type, std::make_tuple(user_struct.integer_value,
+//          return ConvertToXlsValue(type,
+//          std::make_tuple(user_struct.integer_value,
 //                                               user_struct.boolean_value));
 //        }
 //      }  // namespace xls
@@ -100,7 +101,7 @@ absl::StatusOr<xls::Value> ConvertUint64(const Type* type, uint64_t value);
 // The type of integer must be smaller or equal to that of an int64_t.
 template <typename T,
           typename std::enable_if<std::is_unsigned_v<T>, T>::type* = nullptr>
-absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
+absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type, T value) {
   static_assert(sizeof(T) <= sizeof(uint64_t));
   return internal::ConvertUint64(type, static_cast<uint64_t>(value));
 }
@@ -108,7 +109,7 @@ absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
 template <typename T, typename std::enable_if<std::is_signed_v<T> &&
                                                   !std::is_floating_point_v<T>,
                                               T>::type* = nullptr>
-absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
+absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type, T value) {
   static_assert(sizeof(T) <= sizeof(int64_t));
   return internal::ConvertInt64(type, static_cast<int64_t>(value));
 }
@@ -122,8 +123,8 @@ absl::StatusOr<xls::Value> Convert(const Type* type, T value) {
 // The 'type' must be of array type. The 'type' and absl::Span must define the
 // same number of elements for the array. Otherwise, an error is reported.
 template <typename T>
-absl::StatusOr<xls::Value> Convert(const Type* type,
-                                   absl::Span<const T> values) {
+absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type,
+                                             absl::Span<const T> values) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsArray()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -140,16 +141,16 @@ absl::StatusOr<xls::Value> Convert(const Type* type,
   }
   std::vector<xls::Value> xls_array(values.size(), xls::Value());
   for (int64_t i = 0; i < values.size(); ++i) {
-    XLS_ASSIGN_OR_RETURN(xls_array[i],
-                         Convert(array_type->element_type(), values[i]));
+    XLS_ASSIGN_OR_RETURN(
+        xls_array[i], ConvertToXlsValue(array_type->element_type(), values[i]));
   }
   return Value::Array(xls_array);
 }
 
 template <typename T>
-absl::StatusOr<xls::Value> Convert(const Type* type,
-                                   const std::vector<T>& values) {
-  return Convert(type, absl::MakeSpan(values));
+absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type,
+                                             const std::vector<T>& values) {
+  return ConvertToXlsValue(type, absl::MakeSpan(values));
 }
 
 namespace internal {
@@ -167,8 +168,8 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   xls::Value value, ValuesType... values) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index >= xls_tuple.size()) {
-    // When the user is using the Convert(..., std::tuple...), the following
-    // error should not occur.
+    // When the user is using the ConvertToXlsValue(..., std::tuple...), the
+    // following error should not occur.
     return absl::InvalidArgumentError(absl::StrFormat(
         "The current element index exceeds the element count "
         "in the tuple. The current element index cannot exceed %d, got %d.",
@@ -190,15 +191,15 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   ValueType value, ValuesType... values) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index >= xls_tuple.size()) {
-    // When the user is using the Convert(..., std::tuple...), the following
-    // error should not occur.
+    // When the user is using the ConvertToXlsValue(..., std::tuple...), the
+    // following error should not occur.
     return absl::InvalidArgumentError(absl::StrFormat(
         "The current element index exceeds the element count "
         "in the tuple. The current element index cannot exceed %d, got %d.",
         xls_tuple.size() - 1, index));
   }
-  XLS_ASSIGN_OR_RETURN(xls_tuple[index],
-                       xls::Convert(type->element_type(index), value));
+  XLS_ASSIGN_OR_RETURN(xls_tuple[index], xls::ConvertToXlsValue(
+                                             type->element_type(index), value));
   return ConvertTupleElements(type, index + 1, xls_tuple, values...);
 }
 
@@ -222,8 +223,8 @@ absl::Status UnpackTuple(const TupleType* type, std::vector<Value>& xls_tuple,
 // The 'type' must be of tuple type. The 'type' and std::tuple must define the
 // same number of elements for the tuple. Otherwise, an error is reported.
 template <typename... ValuesType>
-absl::StatusOr<xls::Value> Convert(const Type* type,
-                                   const std::tuple<ValuesType...>& tuple) {
+absl::StatusOr<xls::Value> ConvertToXlsValue(
+    const Type* type, const std::tuple<ValuesType...>& tuple) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (!type->IsTuple()) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -246,7 +247,8 @@ absl::StatusOr<xls::Value> Convert(const Type* type,
 }
 
 // Conversion for an empty tuple.
-absl::StatusOr<xls::Value> Convert(const Type* type, const std::tuple<>& tuple);
+absl::StatusOr<xls::Value> ConvertToXlsValue(const Type* type,
+                                             const std::tuple<>& tuple);
 
 // Below are utilities for conversions from the IR domain (xls::Value) to a
 // value represented in the C++ domain.
@@ -481,4 +483,4 @@ absl::Status ConvertFromXlsValue(const xls::Value& tuple,
 
 }  // namespace xls
 
-#endif  // XLS_IR_CONVERSION_UTILS_H_
+#endif  // XLS_IR_VALUE_CONVERSION_UTILS_H_

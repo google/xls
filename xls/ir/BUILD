@@ -1222,9 +1222,9 @@ cc_test(
 )
 
 cc_library(
-    name = "conversion_utils",
-    srcs = ["conversion_utils.cc"],
-    hdrs = ["conversion_utils.h"],
+    name = "value_conversion_utils",
+    srcs = ["value_conversion_utils.cc"],
+    hdrs = ["value_conversion_utils.h"],
     deps = [
         ":bits",
         ":ir",
@@ -1241,13 +1241,13 @@ cc_library(
 )
 
 cc_test(
-    name = "conversion_utils_test",
-    srcs = ["conversion_utils_test.cc"],
+    name = "value_conversion_utils_test",
+    srcs = ["value_conversion_utils_test.cc"],
     deps = [
-        ":conversion_utils",
         ":ir",
         ":type",
         ":value",
+        ":value_conversion_utils",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
