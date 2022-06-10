@@ -4040,20 +4040,21 @@ absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
   if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
     return GenerateIR_UnrolledLoop(init, cond_expr, inc, body, ctx, loc);
   }
-  // Allow no #pragma when inside a pipelined loop body, assuming the loops will
-  // be merged via proc inlining
-  if (pragma.type() == Pragma_InitInterval || context().in_pipelined_for_body) {
-    int init_interval = pragma.int_argument();
-    if (pragma.type() == Pragma_Null) {
-      XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
-      init_interval = context().outer_pipelined_loop_init_interval;
-    }
-    return GenerateIR_PipelinedLoop(init, cond_expr, inc, body, init_interval,
-                                    ctx, loc);
+  // Pipelined loops can inherit their initiation interval from enclosing
+  // loops, so they can be allowed not to have a #pragma.
+  int init_interval = pragma.int_argument();
+  // Pragma might not be null, because labels get searched backwards
+  if (pragma.type() != Pragma_InitInterval && context().in_pipelined_for_body) {
+    XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
+    init_interval = context().outer_pipelined_loop_init_interval;
+  }
+  if (init_interval <= 0) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "For loop missing #pragma"));
   }
 
-  return absl::UnimplementedError(
-      ErrorMessage(loc, "For loop missing #pragma"));
+  return GenerateIR_PipelinedLoop(init, cond_expr, inc, body, init_interval,
+                                  ctx, loc);
 }
 
 int Debug_CountNodes(const xls::Node* node,
@@ -4489,6 +4490,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       context().propagate_break_up = false;
       context().propagate_continue_up = false;
       context().in_for_body = true;
+
+      XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
+
       XLS_CHECK_NE(body, nullptr);
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
 
@@ -4989,9 +4993,9 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
     return package_->GetArrayType(it->GetSize(), xls_elem_type);
   } else {
     auto& r = *t;
-    return absl::UnimplementedError(
-        absl::StrFormat("Unsupported CType subclass in TranslateTypeToXLS: %s",
-                        typeid(r).name()));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unsupported CType subclass in TranslateTypeToXLS: %s",
+        typeid(r).name()));
   }
 }
 
