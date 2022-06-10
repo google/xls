@@ -38,6 +38,7 @@ using ac_datatypes::AC_WRAP;
 
 namespace ac {
 using ac_datatypes::ac::log2_ceil;
+using ac_datatypes::ac::log2_floor;
 using ac_datatypes::ac::nbits;
 }  // namespace ac
 
