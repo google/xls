@@ -1074,6 +1074,8 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinOneHot(bytecode);
     case Builtin::kOneHotSel:
       return RunBuiltinOneHotSel(bytecode);
+    case Builtin::kPriorityhSel:
+      return RunBuiltinPrioritySel(bytecode);
     case Builtin::kOrReduce:
       return RunBuiltinOrReduce(bytecode);
     case Builtin::kRange:
@@ -1374,6 +1376,32 @@ absl::Status BytecodeInterpreter::RunBuiltinOneHotSel(
         }
 
         return InterpValue::MakeBits(cases->at(0).tag(), result);
+      });
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinPrioritySel(
+    const Bytecode& bytecode) {
+  return RunBinaryBuiltin(
+      [](const InterpValue& selector,
+         const InterpValue& cases_array) -> absl::StatusOr<InterpValue> {
+        XLS_ASSIGN_OR_RETURN(Bits selector_bits, selector.GetBits());
+        XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* cases,
+                             cases_array.GetValues());
+        if (cases->empty()) {
+          return absl::InternalError(
+              "At least one case must be specified for priority_sel.");
+        }
+        XLS_ASSIGN_OR_RETURN(int64_t result_bit_count,
+                             cases->at(0).GetBitCount());
+        for (int i = 0; i < cases->size(); i++) {
+          if (selector_bits.Get(i)) {
+            XLS_ASSIGN_OR_RETURN(Bits case_bits, cases->at(i).GetBits());
+            return InterpValue::MakeBits(cases->at(0).tag(), case_bits);
+          }
+        }
+
+        Bits empty_result(result_bit_count);
+        return InterpValue::MakeBits(cases->at(0).tag(), empty_result);
       });
 }
 

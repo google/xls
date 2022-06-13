@@ -194,6 +194,7 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinMap(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHot(const Bytecode& bytecode);
   absl::Status RunBuiltinOneHotSel(const Bytecode& bytecode);
+  absl::Status RunBuiltinPrioritySel(const Bytecode& bytecode);
   absl::Status RunBuiltinOrReduce(const Bytecode& bytecode);
   absl::Status RunBuiltinRange(const Bytecode& bytecode);
   absl::Status RunBuiltinRev(const Bytecode& bytecode);

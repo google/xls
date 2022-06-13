@@ -1189,6 +1189,23 @@ fn main() -> u32 {
   EXPECT_EQ(int_value, 0x80604020);
 }
 
+TEST(BytecodeInterpreterTest, BuiltinPrioritySel) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  let cases = u32[8]:[u32:0x1, u32:0x20, u32:0x300, u32:0x4000,
+                      u32:0x50000, u32:0x600000, u32:0x7000000, u32:0x80000000];
+  let selector = u8:0xaa;
+  priority_sel(selector, cases)
+}
+)";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value, value.GetBitValueUint64());
+  EXPECT_EQ(int_value, 0x00000020);
+}
+
 TEST(BytecodeInterpreterTest, BuiltinRange) {
   constexpr absl::string_view kProgram = R"(
 fn main() -> u32[5] {

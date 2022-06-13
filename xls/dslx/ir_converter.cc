@@ -392,6 +392,7 @@ class FunctionConverter {
   absl::Status HandleBuiltinGate(const Invocation* node);
   absl::Status HandleBuiltinOneHot(const Invocation* node);
   absl::Status HandleBuiltinOneHotSel(const Invocation* node);
+  absl::Status HandleBuiltinPrioritySel(const Invocation* node);
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinRev(const Invocation* node);
   absl::Status HandleBuiltinSignex(const Invocation* node);
@@ -2010,6 +2011,7 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"signex", &FunctionConverter::HandleBuiltinSignex},
           {"one_hot", &FunctionConverter::HandleBuiltinOneHot},
           {"one_hot_sel", &FunctionConverter::HandleBuiltinOneHotSel},
+          {"priority_sel", &FunctionConverter::HandleBuiltinPrioritySel},
           {"slice", &FunctionConverter::HandleBuiltinArraySlice},
           {"bit_slice", &FunctionConverter::HandleBuiltinBitSlice},
           {"bit_slice_update", &FunctionConverter::HandleBuiltinBitSliceUpdate},
@@ -2944,6 +2946,26 @@ absl::Status FunctionConverter::HandleBuiltinOneHotSel(const Invocation* node) {
 
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->OneHotSelect(selector, cases, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinPrioritySel(
+    const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue selector, Use(node->args()[0]));
+
+  const Expr* cases_arg = node->args()[1];
+  std::vector<BValue> cases;
+  const auto* array = dynamic_cast<const Array*>(cases_arg);
+  XLS_RET_CHECK_NE(array, nullptr);
+  for (const auto& sel_case : array->members()) {
+    XLS_ASSIGN_OR_RETURN(BValue bvalue_case, Use(sel_case));
+    cases.push_back(bvalue_case);
+  }
+
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->PrioritySelect(selector, cases, loc);
   });
   return absl::OkStatus();
 }

@@ -47,6 +47,7 @@ op_models { op: "kNor" estimator { fixed: 1 } }
 op_models { op: "kNot" estimator { fixed: 1 } }
 op_models { op: "kOneHot" estimator { fixed: 1 } }
 op_models { op: "kOneHotSel" estimator { fixed: 1 } }
+op_models { op: "kPrioritySel" estimator { fixed: 1 } }
 op_models { op: "kOr" estimator { fixed: 1 } }
 op_models { op: "kOrReduce" estimator { fixed: 1 } }
 op_models { op: "kReceive" estimator { fixed: 1 } }

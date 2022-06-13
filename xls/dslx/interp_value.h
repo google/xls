@@ -40,6 +40,7 @@ namespace xls::dslx {
   X("one_hot", kOneHot)                  \
   X("one_hot_sel", kOneHotSel)           \
   X("or_reduce", kOrReduce)              \
+  X("priority_sel", kPriorityhSel)       \
   X("range", kRange)                     \
   X("rev", kRev)                         \
   X("select", kSelect)                   \
