@@ -2,9 +2,9 @@
 <img src='https://google.github.io/xls/images/xls_logo_623_250.png' alt='XLS Logo'>
 </div>
 
-# **XLS**: Accelerated HW Synthesis ![Continuous Integration](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg)
+# **XLS**: Accelerated HW Synthesis
 
-[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) | [**Tutorials**](https://google.github.io/xls/tutorials/)
+[**Docs**](https://google.github.io/xls/) | [**Quick Start**](https://google.github.io/xls/tools_quick_start/) | [**Tutorials**](https://google.github.io/xls/tutorials/) ![Ubuntu 20.04](https://github.com/google/xls/workflows/Continuous%20Integration/badge.svg) ![Ubuntu 22.04](https://github.com/google/xls/workflows/Nightly%20Ubuntu%2022.04/badge.svg)
 
 ## What is XLS?
 
@@ -48,8 +48,10 @@ Currently, XLS must be built from source using the Bazel build system.
 we hope to enable them via continuous integration,
 [see this issue](https://github.com/google/xls/issues/108).
 
-The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution.
-Note that we start by assuming
+The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
+22.04 (Jammy Jellyfish) Linux distributions.
+
+We start by assuming
 [Bazel has been installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
 
 ```console
@@ -60,7 +62,7 @@ Note that we start by assuming
 ~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html
 ~/xls$ # Afterwards we observe:
 ~/xls$ bazel --version
-bazel 4.0.0
+bazel 5.2.0
 
 ~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
 ~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
@@ -70,12 +72,16 @@ bazel 4.0.0
 ~/xls$ bazel test -c opt //...
 ```
 
-A reference build/test environment setup is also provided via `Dockerfile`:
+Reference build/test environment setups are also provided via `Dockerfile`s:
 
 ```console
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
+
+~/xls$ # Several Dockerfiles are available to choose from:
 ~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.
+~/xls$ docker build . -f Dockerfile-ubuntu-20.10
+~/xls$ docker build . -f Dockerfile-ubuntu-22.04
 ```
 
 ## Stack Diagram and Project Layout
