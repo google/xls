@@ -4120,7 +4120,6 @@ TEST_F(TranslatorTest, ForPipelinedII2Error) {
           testing::HasSubstr("nly initiation interval 1")));
 }
 
-
 TEST_F(TranslatorTest, WhilePipelined) {
   const std::string content = R"(
     #include "/xls_builtin.h"
@@ -5887,6 +5886,60 @@ TEST_F(TranslatorTest, StaticProc) {
                     xls::Value(xls::SBits(105, 32))};
 
   ProcTest(content, block_spec, inputs, outputs, /*n_ticks = */ 3);
+}
+
+TEST_F(TranslatorTest, ForPipelinedNoPragma) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int a = in.read();
+
+      for(long i=1;i<=4;++i) {
+        a += i;
+      }
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8,
+             /*max_ticks=*/100,
+             /*top_level_init_interval=*/1);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
 }
 
 std::string NativeOperatorTestIr(std::string op) {

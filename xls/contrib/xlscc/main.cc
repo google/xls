@@ -79,6 +79,9 @@ ABSL_FLAG(bool, error_on_init_interval, false,
           "Generate an error when an initiation interval is requested greater "
           "than supported");
 
+ABSL_FLAG(int, top_level_init_interval, 1,
+          "Initiation interval of block top level (Run/main function)");
+
 namespace xlscc {
 
 absl::Status Run(absl::string_view cpp_path) {
@@ -169,8 +172,10 @@ absl::Status Run(absl::string_view cpp_path) {
     translator.AddSourceInfoToPackage(package);
     XLS_RETURN_IF_ERROR(write_to_output(absl::StrCat(package.DumpIr(), "\n")));
   } else {
-    XLS_ASSIGN_OR_RETURN(xls::Proc * proc,
-                         translator.GenerateIR_Block(&package, block));
+    XLS_ASSIGN_OR_RETURN(
+        xls::Proc * proc,
+        translator.GenerateIR_Block(
+            &package, block, absl::GetFlag(FLAGS_top_level_init_interval)));
 
     XLS_RETURN_IF_ERROR(package.SetTop(proc));
     std::cerr << "Saving Package IR..." << std::endl;

@@ -325,7 +325,7 @@ void XlsccTestBase::ProcTest(
         inputs_by_channel,
     const absl::flat_hash_map<std::string, std::list<xls::Value>>&
         outputs_by_channel,
-    const int min_ticks, const int max_ticks) {
+    const int min_ticks, const int max_ticks, int top_level_init_interval) {
   std::list<std::string> ir_texts;
   std::string package_text;
 
@@ -336,8 +336,10 @@ void XlsccTestBase::ProcTest(
   for (size_t test_i = 0; test_i < determinism_test_repeat_count; ++test_i) {
     XLS_ASSERT_OK(ScanFile(temp));
     package_.reset(new xls::Package("my_package"));
-    XLS_ASSERT_OK(
-        translator_->GenerateIR_Block(package_.get(), block_spec).status());
+    XLS_ASSERT_OK(translator_
+                      ->GenerateIR_Block(package_.get(), block_spec,
+                                         top_level_init_interval)
+                      .status());
     package_text = package_->DumpIr();
     ir_texts.push_back(package_text);
   }

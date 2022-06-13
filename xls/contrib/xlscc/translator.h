@@ -668,7 +668,7 @@ struct TranslationContext {
   // Flag set in pipelined for body
   // TODO(seanhaskell): Remove once all features are supported
   bool in_pipelined_for_body = false;
-  int64_t outer_pipelined_loop_init_interval = -1;
+  int64_t outer_pipelined_loop_init_interval = 0;
 
   // When set to true, the expression is evaluated as an lvalue, for pointer
   // assignments
@@ -714,11 +714,13 @@ class Translator {
   //  parameter & output. It is generated as if static was specified in the
   //  method prototype.
   absl::StatusOr<GeneratedFunction*> GenerateIR_Top_Function(
-      xls::Package* package, bool force_static = false);
+      xls::Package* package, bool force_static = false,
+      int default_init_interval = 0);
 
   // Generates IR as an HLS block / XLS proc.
   absl::StatusOr<xls::Proc*> GenerateIR_Block(xls::Package* package,
-                                              const HLSBlock& block);
+                                              const HLSBlock& block,
+                                              int top_level_init_interval = 0);
 
   // Ideally, this would be done using the opt_main tool, but for now
   //  codegen is done by XLS[cc] for combinational blocks.
@@ -1008,6 +1010,9 @@ class Translator {
                                    clang::ASTContext& ctx);
   absl::Status GenerateIR_Stmt(const clang::Stmt* stmt, clang::ASTContext& ctx);
 
+  absl::Status CheckInitIntervalValidity(int initiation_interval_arg,
+                                         const xls::SourceInfo& loc);
+
   // init, cond, and inc can be nullptr
   absl::Status GenerateIR_Loop(const clang::Stmt* init,
                                const clang::Expr* cond_expr,
@@ -1096,7 +1101,7 @@ class Translator {
 
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
       const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
-      bool force_static = false);
+      bool force_static = false, int default_init_interval = 0);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)

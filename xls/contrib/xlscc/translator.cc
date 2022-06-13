@@ -1088,7 +1088,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     const clang::FunctionDecl* funcdecl, absl::string_view name_override,
-    bool force_static) {
+    bool force_static, int default_init_interval) {
   const bool trivial = funcdecl->hasTrivialBody() || funcdecl->isTrivial();
 
   if (!trivial && !funcdecl->getBody()) {
@@ -1135,6 +1135,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   // Unroll for loops in default function bodies without pragma
   context().for_loops_default_unroll = funcdecl->isDefaulted();
+
+  context().outer_pipelined_loop_init_interval = default_init_interval;
 
   XLS_ASSIGN_OR_RETURN(
       context().return_type,
@@ -4044,8 +4046,9 @@ absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
   // loops, so they can be allowed not to have a #pragma.
   int init_interval = pragma.int_argument();
   // Pragma might not be null, because labels get searched backwards
-  if (pragma.type() != Pragma_InitInterval && context().in_pipelined_for_body) {
-    XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
+  if (pragma.type() != Pragma_InitInterval) {
+    XLS_CHECK(!context().in_pipelined_for_body ||
+              (context().outer_pipelined_loop_init_interval > 0));
     init_interval = context().outer_pipelined_loop_init_interval;
   }
   if (init_interval <= 0) {
@@ -4246,19 +4249,27 @@ GeneratedFunction::GetDeterministicallyOrderedStaticValues() const {
   return ret;
 }
 
-absl::Status Translator::GenerateIR_PipelinedLoop(
-    const clang::Stmt* init, const clang::Expr* cond_expr,
-    const clang::Stmt* inc, const clang::Stmt* body,
-    int64_t initiation_interval_arg, clang::ASTContext& ctx,
-    const xls::SourceInfo& loc) {
+absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
+                                                   const xls::SourceInfo& loc) {
   if (initiation_interval_arg != 1) {
-    std::string message =
-        ErrorMessage(loc, "Only initiation interval 1 supported");
+    std::string message = ErrorMessage(
+        loc,
+        "Only initiation interval 1 supported, %i requested, defaulting to 1",
+        initiation_interval_arg);
     if (error_on_init_interval_) {
       return absl::UnimplementedError(message);
     }
     XLS_LOG(WARNING) << message;
   }
+  return absl::OkStatus();
+}
+
+absl::Status Translator::GenerateIR_PipelinedLoop(
+    const clang::Stmt* init, const clang::Expr* cond_expr,
+    const clang::Stmt* inc, const clang::Stmt* body,
+    int64_t initiation_interval_arg, clang::ASTContext& ctx,
+    const xls::SourceInfo& loc) {
+  XLS_RETURN_IF_ERROR(CheckInitIntervalValidity(initiation_interval_arg, loc));
 
   if (context().this_val.rvalue().valid()) {
     return absl::UnimplementedError(
@@ -5032,7 +5043,7 @@ absl::Status Translator::SelectTop(absl::string_view top_function_name) {
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
-    xls::Package* package, bool force_static) {
+    xls::Package* package, bool force_static, int default_init_interval) {
   const clang::FunctionDecl* top_function = nullptr;
 
   XLS_CHECK_NE(parser_.get(), nullptr);
@@ -5043,7 +5054,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   XLS_ASSIGN_OR_RETURN(
       GeneratedFunction * ret,
       GenerateIR_Function(top_function, top_function->getNameAsString(),
-                          force_static));
+                          force_static, default_init_interval));
 
   if (ret->xls_func == nullptr) {
     return absl::InvalidArgumentError(absl::StrFormat(
@@ -5100,8 +5111,8 @@ absl::Status Translator::GenerateExternalChannels(
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
-                                                        const HLSBlock& block) {
+absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
+    xls::Package* package, const HLSBlock& block, int top_level_init_interval) {
   // Create external channels
   const clang::FunctionDecl* top_function = nullptr;
 
@@ -5112,6 +5123,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   top_function->getBody(definition);
   xls::SourceInfo body_loc = GetLoc(*definition);
   package_ = package;
+
+  XLS_RETURN_IF_ERROR(
+      CheckInitIntervalValidity(top_level_init_interval, body_loc));
 
   absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
 
@@ -5124,8 +5138,9 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(xls::Package* package,
   // Force top function in block to be static.
   // TODO(seanhaskell): Handle block class members
   PreparedBlock prepared;
-  XLS_ASSIGN_OR_RETURN(prepared.xls_func,
-                       GenerateIR_Top_Function(package, true));
+  XLS_ASSIGN_OR_RETURN(
+      prepared.xls_func,
+      GenerateIR_Top_Function(package, true, top_level_init_interval));
 
   std::vector<xls::Value> static_init_values;
   for (const clang::NamedDecl* namedecl :
