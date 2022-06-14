@@ -46,10 +46,13 @@ struct Pipe {
   // Opens a Unix pipe with a C++ friendly interface.
   static absl::StatusOr<Pipe> Open() {
     int descriptors[2];
-    if (pipe2(descriptors, O_CLOEXEC) == -1) {
+    if (pipe(descriptors) != 0 ||
+        fcntl(descriptors[0], F_SETFD, FD_CLOEXEC) != 0||
+        fcntl(descriptors[1], F_SETFD, FD_CLOEXEC) != 0) {
       return absl::InternalError(
-          absl::StrCat("Failed to pipe: ", Strerror(errno)));
+          absl::StrCat("Failed to initialize pipe:", Strerror(errno)));
     }
+
     return Pipe(FileDescriptor(descriptors[0]), FileDescriptor(descriptors[1]));
   }
 

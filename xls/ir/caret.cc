@@ -95,7 +95,8 @@ std::string PrintCaret(
     int64_t slack =
         terminal_width - (line_contents_owned.size() + line_number_width + 3);
     int64_t size =
-        std::max(0l, static_cast<int64_t>(line_contents_owned.size()) + slack);
+        std::max(static_cast<int64_t>(0),
+                 static_cast<int64_t>(line_contents_owned.size()) + slack);
     line_contents_owned = line_contents_owned.substr(0, size - 1);
     absl::StrAppend(&line_contents_owned, "…");
   }
@@ -114,7 +115,8 @@ std::string PrintCaret(
     // to the width of the terminal.
     int64_t slack = terminal_width - prefix.size();
     if (slack < 30) {
-      int64_t size = std::max(0l, static_cast<int64_t>(prefix.size()) + slack);
+      int64_t size = std::max(static_cast<int64_t>(0),
+                              static_cast<int64_t>(prefix.size()) + slack);
       prefix = prefix.substr(0, size);
     }
     absl::StrAppend(&result, PrintWordWrappedWithLinePrefix(
