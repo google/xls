@@ -43,7 +43,7 @@ proc Fmac {
     let (tok_b, input_b) = recv(tok, input_b_consumer);
     let result = fp32_fma::fp32_fma(input_a, input_b, state);
     let tok = join(tok_a, tok_b);
-    let tok = send(tok, result);
+    let tok = send(tok, output_producer, result);
     (result,)
   }
 }
