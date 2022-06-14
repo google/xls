@@ -24,5 +24,6 @@ typedef unsigned long uint32_t;
 typedef signed long int32_t;
 typedef unsigned long uint64_t;
 typedef signed long int64_t;
+typedef unsigned long long int uintmax_t;
 
 #endif  //__STDINT_H__
