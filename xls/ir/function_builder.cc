@@ -206,7 +206,7 @@ BValue BuilderBase::Clz(BValue x, const SourceInfo& loc,
         loc);
   }
   return ZeroExtend(
-      Encode(OneHot(Reverse(x, loc), /*priority=*/LsbOrMsb::kLsb, loc)),
+      Encode(OneHot(Reverse(x, loc), /*priority=*/LsbOrMsb::kLsb, loc), loc),
       x.BitCountOrDie(), loc, name);
 }
 

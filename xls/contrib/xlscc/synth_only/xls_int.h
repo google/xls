@@ -504,6 +504,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
   }
 
   static const int width = Width;
+  static const int i_width = Width;
   static const bool sign = Signed;
 
   // Defines the result types for each operation based on ac_int
@@ -762,6 +763,45 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return *this;
   }
   // --- / Hack
+
+  inline index_t clz() const {
+    XlsInt<Width, false> reverse_out;
+    asm("fn (fid)(a: bits[i]) -> bits[i] { "
+        "  ret (aid): bits[i] = reverse(a, pos=(loc)) }"
+        : "=r"(reverse_out.storage)
+        : "i"(Width), "a"(this->storage));
+
+    XlsInt<Width + 1, false> one_hot_out;
+    asm("fn (fid)(a: bits[i]) -> bits[c] { "
+        "  ret (aid): bits[c] = one_hot(a, lsb_prio=true, pos=(loc)) }"
+        : "=r"(one_hot_out.storage)
+        : "i"(Width), "c"(Width + 1), "a"(reverse_out));
+
+    index_t encode_out;
+    asm("fn (fid)(a: bits[i]) -> bits[c] { "
+        "  ret (aid): bits[c] = encode(a, pos=(loc)) }"
+        : "=r"(encode_out.storage)
+        : "i"(Width + 1), "c"(index_t::width), "a"(one_hot_out));
+
+    // zero_ext is automatic
+    return encode_out;
+  }
+
+  // Counts leading bits. For unsigned values, it's clz,
+  // for signed, the sign bit is ignored, and leading 1s are counted
+  // for negative values.
+  inline index_t leading_sign() const {
+    if (Signed) {
+      int ret = 0;
+      if ((*this) < 0) {
+        ret = (~(*this)).clz();
+      } else {
+        ret = clz();
+      }
+      return ret - 1;
+    }
+    return clz();
+  }
 
   template <int ToW, bool ToSign>
   XlsInt set_slc(index_t offset, XlsInt<ToW, ToSign> slice_raw) {
