@@ -67,7 +67,7 @@ namespace xls {
 //     namespace xls {
 //        absl::StatusOr<xls::Value>
 //                          ConvertToXlsValue(
-//                                  const Type& type,
+//                                  const Type* type,
 //                                  const userspace::UserStruct& user_struct) {
 //          return ConvertToXlsValue(type,
 //          std::make_tuple(user_struct.integer_value,
@@ -165,7 +165,7 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
 template <typename... ValuesType>
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple,
-                                  xls::Value value, ValuesType... values) {
+                                  xls::Value value, ValuesType&... values) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index >= xls_tuple.size()) {
     // When the user is using the ConvertToXlsValue(..., std::tuple...), the
@@ -188,7 +188,7 @@ absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
 template <typename ValueType, typename... ValuesType>
 absl::Status ConvertTupleElements(const TupleType* type, int64_t index,
                                   std::vector<Value>& xls_tuple,
-                                  ValueType value, ValuesType... values) {
+                                  ValueType& value, ValuesType&... values) {
   XLS_CHECK_NE(type, nullptr) << "Type cannot be a nullptr.";
   if (index >= xls_tuple.size()) {
     // When the user is using the ConvertToXlsValue(..., std::tuple...), the
@@ -370,10 +370,10 @@ absl::Status ConvertFromXlsValue(const xls::Value& value, T& cpp_value) {
 //   1. the xls::Value is not of array type, or,
 //   2. the recursive calls to ConvertFromXlsValue emit an error.
 //
-// Template type T needs to be trivially default constructible to use the
+// Template type T needs to be default constructible to use the
 // resize members function of std::vector.
 template <typename T,
-          typename std::enable_if<std::is_trivially_default_constructible_v<T>,
+          typename std::enable_if<std::is_default_constructible_v<T>,
                                   bool>::type = true>
 absl::Status ConvertFromXlsValue(const xls::Value& array,
                                  std::vector<T>& cpp_array) {
