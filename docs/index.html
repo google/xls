@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/">
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
     
     
       
@@ -19,11 +19,12 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.3de6f41f.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.4a0965b7.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.cc9b2e1e.min.css">
+        <link rel="stylesheet" href="assets/stylesheets/palette.cbb835fc.min.css">
         
+      
       
     
     
@@ -1312,9 +1313,8 @@
 <img src='https://google.github.io/xls/images/xls_logo_623_250.png' alt='XLS Logo'>
 </div>
 
-<h1 id="xls-accelerated-hw-synthesis"><strong>XLS</strong>: Accelerated HW Synthesis <!-- CI badge --></h1>
+<h1 id="xls-accelerated-hw-synthesis"><strong>XLS</strong>: Accelerated HW Synthesis</h1>
 <!-- nav -->
-
 <h2 id="what-is-xls">What is XLS?</h2>
 <p>XLS (Accelerated HW Synthesis) aims to be the Software Development Kit (SDK) for
 the End of Moore's Law (EoML) era. In this "age of specialization", software and
@@ -1347,8 +1347,9 @@ what you think!</p>
 <p><em>Note:</em> Binary distributions of the XLS library are not currently available, but
 we hope to enable them via continuous integration,
 <a href="https://github.com/google/xls/issues/108">see this issue</a>.</p>
-<p>The following instructions are for the Ubuntu 20.04 (Focal) Linux distribution.
-Note that we start by assuming
+<p>The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
+22.04 (Jammy Jellyfish) Linux distributions.</p>
+<p>We start by assuming
 <a href="https://docs.bazel.build/versions/master/install-ubuntu.html">Bazel has been installed</a>.</p>
 <div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
 <span class="go">~$ cd xls</span>
@@ -1357,7 +1358,7 @@ Note that we start by assuming
 <span class="go">~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html</span>
 <span class="go">~/xls$ # Afterwards we observe:</span>
 <span class="go">~/xls$ bazel --version</span>
-<span class="go">bazel 4.0.0</span>
+<span class="go">bazel 5.2.0</span>
 
 <span class="go">~/xls$ # Note we&#39;re going to tell Ubuntu that `/usr/bin/env python` is actually python3</span>
 <span class="go">~/xls$ # here, since that is not the case by default on Ubuntu 20.04.</span>
@@ -1366,16 +1367,20 @@ Note that we start by assuming
 <span class="go">~/xls$ # Now build/test everything in optimized build mode.</span>
 <span class="go">~/xls$ bazel test -c opt //...</span>
 </code></pre></div>
-<p>A reference build/test environment setup is also provided via <code>Dockerfile</code>:</p>
+<p>Reference build/test environment setups are also provided via <code>Dockerfile</code>s:</p>
 <div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
 <span class="go">~$ cd xls</span>
+
+<span class="go">~/xls$ # Several Dockerfiles are available to choose from:</span>
 <span class="go">~/xls$ docker build . -f Dockerfile-ubuntu-20.04 # Performs optimized build and test.</span>
+<span class="go">~/xls$ docker build . -f Dockerfile-ubuntu-20.10</span>
+<span class="go">~/xls$ docker build . -f Dockerfile-ubuntu-22.04</span>
 </code></pre></div>
 <h2 id="stack-diagram-and-project-layout">Stack Diagram and Project Layout</h2>
 <p>Navigating a new code base can be daunting; the following description provides a
 high-level view of the important directories and their intended organization /
 purpose, and correspond to the components in this XLS stack diagram:</p>
-<div align='center'>
+<!-- CI badge --><div align='center'>
 <img src='https://google.github.io/xls/images/xls_stack_diagram.png' alt='XLS Stack Diagram'>
 </div>
 
@@ -1531,6 +1536,7 @@ project, see our
 
               
             </article>
+            
           </div>
         </div>
         
@@ -1538,7 +1544,8 @@ project, see our
       
         <footer class="md-footer">
   
-    <nav class="md-footer__inner md-grid" aria-label="Footer">
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
       
         
@@ -1578,10 +1585,10 @@ project, see our
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      <script src="assets/javascripts/bundle.431f3d41.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/optimizations/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
     
     
       
@@ -19,11 +19,12 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.3de6f41f.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4a0965b7.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.cc9b2e1e.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
+      
       
     
     
@@ -1779,14 +1780,14 @@ the operation (amount of delay through the operation) by reducing its bitwidth.<
 we have three operands, but from our bitwise analysis we know that there are two
 constant bits in the MSb as well as two constant bits in the LSb being
 propagated from all of our input operands.</p>
-<p><img alt="One-Hot-Select Before Squeezing" src="../one_hot_select_before.png" />{style="display:block;margin:auto;width:50%"}</p>
+<p><img alt="One-Hot-Select Before Squeezing" src="../one_hot_select_before.png" style="display:block;margin:auto;width:50%" /></p>
 <p>Recognizing that property, we squeeze the one hot select operation -- in the
 "after" diagram below observe we've narrowed the operation by slicing the
 known-constant bits out of the one hot select operation, making it cheaper in
 terms of delay, and propagated the slices up to the input operands -- these
 slices being presented at the output of the operands may in turn let <em>them</em>
 narrow their operation and become cheaper, and this can continue transitively):</p>
-<p><img alt="One-Hot-Select After Squeezing" src="../one_hot_select_after.png" />{style="display:block;margin:auto;width:50%"}</p>
+<p><img alt="One-Hot-Select After Squeezing" src="../one_hot_select_after.png" style="display:block;margin:auto;width:50%" /></p>
 <h3 id="arithmetic-and-shift-operations">Arithmetic and shift operations</h3>
 <p>Most arithmetic ops support mixed bit widths where the operand widths may not be
 the same width as each other or the result. This provides opportunities for
@@ -1903,7 +1904,7 @@ boolean functions".</p>
 <p>In the following example there are two nodes on the "input frontier" for the
 boolean operations (<code>sub</code> and <code>add</code>, which we "rename" to <code>x</code> and <code>y</code> for the
 purposes of analysis).</p>
-<p><img alt="Two-Input Boolean Simplification" src="../two_input_boolean_simplification.png" />{style="display:block;margin:auto;width:75%"}</p>
+<p><img alt="Two-Input Boolean Simplification" src="../two_input_boolean_simplification.png" style="display:block;margin:auto;width:75%" /></p>
 <p>As shown in the picture, the algorithm starts flowing the bit vector, which
 represents all possible input values for <code>x</code> and <code>y</code>. You can see that the <code>not</code>
 which produces <span class="arithmatex">\(\bar{x}\)</span> (marked with a red star) simply inverts all the entries
@@ -2155,6 +2156,7 @@ in the expression to two.</p>
 
               
             </article>
+            
           </div>
         </div>
         
@@ -2162,7 +2164,8 @@ in the expression to two.</p>
       
         <footer class="md-footer">
   
-    <nav class="md-footer__inner md-grid" aria-label="Footer">
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
         
         <a href="../ir_semantics/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Semantics" rel="prev">
@@ -2217,10 +2220,10 @@ in the expression to two.</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      <script src="../assets/javascripts/bundle.431f3d41.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

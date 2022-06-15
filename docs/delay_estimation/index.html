@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/delay_estimation/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
     
     
       
@@ -19,11 +19,12 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.3de6f41f.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4a0965b7.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.cc9b2e1e.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
+      
       
     
     
@@ -1673,16 +1674,16 @@ through the <code>opt_main</code> binary).</p>
 Return value delay: 1362ps
 Critical path entry count: 42
 Critical path:
-   1362ps (+  5ps): not.29: bits[32] = not(xor.205: bits[32], pos=0,29,50)
-   1357ps (+ 20ps): xor.205: bits[32] = xor(concat.195: bits[32], and.196: bits[32], pos=0,24,19)
-   1337ps (+ 15ps): and.196: bits[32] = and(neg.194: bits[32], literal.304: bits[32], pos=0,24,33)
-   1322ps (+134ps): neg.194: bits[32] = neg(concat.191: bits[32], pos=0,23,15)
+   1362ps (+  5ps): not.29: bits[32] = not(xor.205: bits[32], pos=[(0,29,50)])
+   1357ps (+ 20ps): xor.205: bits[32] = xor(concat.195: bits[32], and.196: bits[32], pos=[(0,24,19)])
+   1337ps (+ 15ps): and.196: bits[32] = and(neg.194: bits[32], literal.304: bits[32], pos=[(0,24,33)])
+   1322ps (+134ps): neg.194: bits[32] = neg(concat.191: bits[32], pos=[(0,23,15)])
 &lt;snip&gt;
-    154ps (+ 15ps): and.133: bits[32] = and(neg.131: bits[32], literal.19: bits[32], pos=0,24,33)
-    139ps (+134ps): neg.131: bits[32] = neg(concat.219: bits[32], pos=0,23,15)
-      5ps (+  0ps): concat.219: bits[32] = concat(literal.297: bits[31], bit_slice.214: bits[1], pos=0,23,21)
-      5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=0,23,21)
-      5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=0,20,16)
+    154ps (+ 15ps): and.133: bits[32] = and(neg.131: bits[32], literal.19: bits[32], pos=[(0,24,33)])
+    139ps (+134ps): neg.131: bits[32] = neg(concat.219: bits[32], pos=[(0,23,15)])
+      5ps (+  0ps): concat.219: bits[32] = concat(literal.297: bits[31], bit_slice.214: bits[1], pos=[(0,23,21)])
+      5ps (+  0ps): bit_slice.214: bits[1] = bit_slice(not.208: bits[8], start=0, width=1, pos=[(0,23,21)])
+      5ps (+  5ps): not.208: bits[8] = not(message: bits[8], pos=[(0,20,16)])
 &lt;snip&gt;
 </code></pre></div>
 <p>In addition to the critical path, the cycle-by-cycle breakdown of which
@@ -1690,6 +1691,7 @@ operations have been scheduled is provided in stdout.</p>
 
               
             </article>
+            
           </div>
         </div>
         
@@ -1697,7 +1699,8 @@ operations have been scheduled is provided in stdout.</p>
       
         <footer class="md-footer">
   
-    <nav class="md-footer__inner md-grid" aria-label="Footer">
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
         
         <a href="../scheduling/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Overview" rel="prev">
@@ -1752,10 +1755,10 @@ operations have been scheduled is provided in stdout.</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      <script src="../assets/javascripts/bundle.431f3d41.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

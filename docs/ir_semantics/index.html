@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/ir_semantics/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
     
     
       
@@ -19,11 +19,12 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.3de6f41f.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4a0965b7.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.cc9b2e1e.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
+      
       
     
     
@@ -867,6 +868,13 @@
           <li class="md-nav__item">
   <a href="#one_hot_sel" class="md-nav__link">
     one_hot_sel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#priority_sel" class="md-nav__link">
+    priority_sel
   </a>
   
 </li>
@@ -2100,6 +2108,13 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#priority_sel" class="md-nav__link">
+    priority_sel
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#invoke" class="md-nav__link">
     invoke
   </a>
@@ -2329,6 +2344,7 @@
 <li><a href="#param">param</a></li>
 <li><a href="#sel">sel</a></li>
 <li><a href="#one_hot_sel">one_hot_sel</a></li>
+<li><a href="#priority_sel">priority_sel</a></li>
 <li><a href="#invoke">invoke</a></li>
 <li><a href="#map">map</a></li>
 <li><a href="#dynamic_counted_for">dynamic_counted_for</a></li>
@@ -3711,9 +3727,10 @@ are listed directly in the function signature with their type.</p>
 </tbody>
 </table>
 <h4 id="one_hot_sel"><strong><code>one_hot_sel</code></strong></h4>
-<p>Selects between operands based on a one-hot selector.</p>
+<p>Selects between operands based on a one-hot selector, <code>OR</code>-ing all selected
+cases if more than one case is selected.</p>
 <p>See <code>one_hot</code> for an example of the one-hot selector invariant. Note that when
-the one-hot selector is not one-hot, this operation is still well defined.</p>
+the selector is not one-hot, this operation is still well defined.</p>
 <p>Note that when <code>one_hot</code> operations are used to precondition the <code>selector</code>
 operand to <code>one_hot_sel</code>, the XLS optimizer will try to determine when they are
 unnecessary and subsequently eliminate them.</p>
@@ -3746,6 +3763,46 @@ unnecessary and subsequently eliminate them.</p>
 <p>The result is the logical OR of all cases <code>case_{i}</code> for which the corresponding
 bit <code>i</code> is set in the selector. When selector is one-hot this performs a select
 operation.</p>
+<h4 id="priority_sel"><strong><code>priority_sel</code></strong></h4>
+<p>Selects between operands based on a selector, choosing the highest-priority case
+if more than one case is selected. Each bit in the selector corresponds to a
+case, with the least significant bit corresponding to the first case and having
+the highest priority. If there are no bits in the selector set, no case is
+selected and the default value of 0 is chosen.</p>
+<p>See <code>one_hot</code> for an example of the one-hot selector invariant. Note that when
+the selector is not one-hot, this operation is still well defined.</p>
+<p>Note that when <code>one_hot</code> operations are used to precondition the <code>selector</code>
+operand to <code>priority_sel</code>, the XLS optimizer will try to determine when they are
+unnecessary and subsequently eliminate them.</p>
+<p><strong>Syntax</strong></p>
+<div class="highlight"><pre><span></span><code>result = priority_sel(selector, cases=[case_{0}, ... , case_{N-1}])
+</code></pre></div>
+<p><strong>Types</strong></p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>selector</code></td>
+<td><code>bits[N]</code></td>
+</tr>
+<tr>
+<td><code>case_{i}</code></td>
+<td><code>T</code></td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td><code>T</code></td>
+</tr>
+</tbody>
+</table>
+<p>The result is the first case <code>case_{i}</code> for which the corresponding
+bit <code>i</code> is set in the selector. If the selector is known to be one-hot, then the
+<code>priority_sel()</code> operation is equivalent to a <code>one_hot_sel()</code>.</p>
 <h4 id="invoke"><strong><code>invoke</code></strong></h4>
 <p>Invokes a function. The return value for the invoked function is the result
 value.</p>
@@ -4495,6 +4552,7 @@ instantiated object.</p>
 
               
             </article>
+            
           </div>
         </div>
         
@@ -4502,7 +4560,8 @@ instantiated object.</p>
       
         <footer class="md-footer">
   
-    <nav class="md-footer__inner md-grid" aria-label="Footer">
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
         
         <a href="../tutorials/xlscc_state/" class="md-footer__link md-footer__link--prev" aria-label="Previous: State" rel="prev">
@@ -4557,10 +4616,10 @@ instantiated object.</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      <script src="../assets/javascripts/bundle.431f3d41.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

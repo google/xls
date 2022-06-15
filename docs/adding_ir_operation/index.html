@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/adding_ir_operation/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
     
     
       
@@ -19,11 +19,12 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.3de6f41f.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.4a0965b7.min.css">
       
         
-        <link rel="stylesheet" href="../assets/stylesheets/palette.cc9b2e1e.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
+      
       
     
     
@@ -1290,7 +1291,7 @@ which are optional, are described below:</p>
 <p><a href="https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f">(Code example)</a></p>
 </li>
 <li>
-<p><a href="https://github.com/google/xls/tree/main/xls/jit/function_builder_visitor.h">LLVM JIT</a></p>
+<p><a href="https://github.com/google/xls/tree/main/xls/jit/ir_builder_visitor.h">LLVM JIT</a></p>
 <p>The LLVM JIT enables fast simulation of the XLS IR. The JIT constructs LLVM
   IR for each XLS operation which is then optimized by LLVM and runs natively
   on the host. Implement the new operation in the <code>FunctionBuilderVisitor</code>
@@ -1351,6 +1352,18 @@ which are optional, are described below:</p>
 <p><a href="https://github.com/google/xls/commit/feeac2c4c0bcc73b529cb0c4a976abae47f96730">(Code example)</a></p>
 </li>
 <li>
+<p><a href="https://github.com/google/xls/tree/main/xls/fuzzer">Fuzzer</a></p>
+<p>The fuzzer generates random DSLX functions and random inputs to check and
+  compare different parts of XLS, for example checking that un-optimized and
+  optimized IR give the same outputs when interpreted. If there is an
+  operation in DSLX that maps nicely onto the newly added operation, the
+  fuzzer can be modified to generate functions with DSLX that exercise the
+  new operation. This is done by adding a handler to <code>AstGenerator</code>. See
+  <a href="../fuzzer/">here</a> for
+  more details on how the fuzzer works and how to run it.</p>
+<p><a href="https://github.com/google/xls/commit/c09339f3b0c147031eadd626d1a856a860031e05">(Code example)</a></p>
+</li>
+<li>
 <p>Operation-specific optimizations</p>
 <p>Typically, a new operation provides optimization opportunities unique to the
   node. The details, of course, will be vary for different operations.
@@ -1361,6 +1374,7 @@ which are optional, are described below:</p>
 
               
             </article>
+            
           </div>
         </div>
         
@@ -1368,7 +1382,8 @@ which are optional, are described below:</p>
       
         <footer class="md-footer">
   
-    <nav class="md-footer__inner md-grid" aria-label="Footer">
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
         
         <a href="../xls_style/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Style Guide" rel="prev">
@@ -1423,10 +1438,10 @@ which are optional, are described below:</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      <script src="../assets/javascripts/bundle.431f3d41.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

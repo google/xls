@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_overview/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.2.14">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
     
     
       
@@ -19,11 +19,12 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.3de6f41f.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.4a0965b7.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.cc9b2e1e.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.cbb835fc.min.css">
         
+      
       
     
     
@@ -1351,8 +1352,8 @@ $ ./bazel-bin/xls/tools/xls_opt test.ir &gt; test.opt.ir
 <div class="highlight"><pre><span></span><code>package my_package
 
 fn add2(input: bits[32]) -&gt; bits[32] {
-  literal.2: bits[32] = literal(value=2, id=2, pos=1,3,3)
-  ret add.3: bits[32] = add(input, literal.2, id=3, pos=1,3,3)
+  literal.2: bits[32] = literal(value=2, id=2, pos=[(1,3,3)])
+  ret add.3: bits[32] = add(input, literal.2, id=3, pos=[(1,3,3)])
 }
 </code></pre></div>
 <h2 id="perform-code-generation-into-a-combinational-verilog-block">Perform code-generation into a combinational Verilog block.</h2>
@@ -1451,6 +1452,7 @@ clock cycle so we'll create a pipelined module.</p>
 
               
             </article>
+            
           </div>
         </div>
         
@@ -1458,7 +1460,8 @@ clock cycle so we'll create a pipelined module.</p>
       
         <footer class="md-footer">
   
-    <nav class="md-footer__inner md-grid" aria-label="Footer">
+    
+    <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
         
         <a href="../prefix_scan/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Enumerate and match" rel="prev">
@@ -1513,10 +1516,10 @@ clock cycle so we'll create a pipelined module.</p>
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2a1c317c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.c2e1ee47.min.js"></script>
+      <script src="../../assets/javascripts/bundle.431f3d41.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
