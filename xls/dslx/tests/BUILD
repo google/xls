@@ -268,9 +268,6 @@ xls_dslx_test(
 xls_dslx_test(
     name = "priority_sel",
     srcs = ["priority_sel.x"],
-    dslx_test_args = {
-        "compare": "none",
-    },
 )
 
 dslx_lang_test(name = "reductions")

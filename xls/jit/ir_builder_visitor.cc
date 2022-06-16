@@ -1571,6 +1571,40 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
   return FinalizeNodeIrContext(node_context, result);
 }
 
+absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(
+          sel, ConcatVectors({"selector"},
+                             NumberedStrings("case", sel->cases().size()))));
+  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::Value* selector = node_context.operand(0);
+  absl::Span<llvm::Value* const> cases = node_context.operands().subspan(1);
+  llvm::Type* input_type = cases.front()->getType();
+
+  llvm::Value* typed_zero = CreateTypedZeroValue(input_type);
+  llvm::Value* llvm_false = b.getFalse();
+
+  // Get index to select by counting trailing zeros
+  llvm::Function* cttz = llvm::Intrinsic::getDeclaration(
+      module(), llvm::Intrinsic::cttz, {selector->getType()});
+  llvm::Value* selected_index = b.CreateCall(cttz, {selector, llvm_false});
+
+  // Sel is implemented by a cascading series of select ops, e.g.,
+  // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
+  llvm::Value* llvm_sel = typed_zero;
+  for (int i = sel->cases().size() - 1; i >= 0; i--) {
+    llvm::Value* current_index = llvm::ConstantInt::get(selector->getType(), i);
+    llvm::Value* cmp = b.CreateICmpEQ(selected_index, current_index);
+    llvm_sel = b.CreateSelect(cmp, cases.at(i), llvm_sel);
+  }
+
+  llvm::Value* selector_is_zero =
+      b.CreateICmpEQ(selector, llvm::ConstantInt::get(selector->getType(), 0));
+  llvm_sel = b.CreateSelect(selector_is_zero, typed_zero, llvm_sel);
+  return FinalizeNodeIrContext(node_context, llvm_sel);
+}
+
 absl::Status IrBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
   return HandleUnaryOp(op, [](llvm::Value* operand, llvm::IRBuilder<>& b) {
     // OR-reduce is equivalent to checking if any bit is set in the input.

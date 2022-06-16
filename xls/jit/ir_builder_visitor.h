@@ -167,6 +167,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleNot(UnOp* not_op) override;
   absl::Status HandleOneHot(OneHot* one_hot) override;
   absl::Status HandleOneHotSel(OneHotSelect* sel) override;
+  absl::Status HandlePrioritySel(PrioritySelect* sel) override;
   absl::Status HandleOrReduce(BitwiseReductionOp* op) override;
   absl::Status HandleReverse(UnOp* reverse) override;
   absl::Status HandleSDiv(BinOp* binop) override;
