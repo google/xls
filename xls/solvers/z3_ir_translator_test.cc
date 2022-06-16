@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/substitute.h"
+#include "absl/time/time.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/function_builder.h"
@@ -1583,6 +1584,24 @@ fn f(selector: bits[2]) -> bits[4] {
   Z3_lbool satisfiable = Z3_solver_check(ctx, solver);
   EXPECT_EQ(satisfiable, Z3_L_TRUE);
   Z3_solver_dec_ref(ctx, solver);
+}
+
+TEST_F(Z3IrTranslatorTest, HandlePrioritySelect) {
+  const std::string program = R"(
+fn f(idx: bits[1]) -> bits[4] {
+  literal.1: bits[4] = literal(value=0xf)
+  literal.2: bits[4] = literal(value=0x5)
+  one_hot.4: bits[2] = one_hot(idx, lsb_prio=true)
+  ret priority_sel.3: bits[4] = priority_sel(one_hot.4, cases=[literal.1, literal.2])
+})";
+
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(program, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      bool proven_nez,
+      TryProve(f, f->return_value(), Predicate::NotEqualToZero(),
+               absl::InfiniteDuration()));
+  EXPECT_TRUE(proven_nez);
 }
 
 TEST_F(Z3IrTranslatorTest, HandlesUMul) {

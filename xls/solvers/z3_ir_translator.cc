@@ -1107,6 +1107,16 @@ absl::Status IrTranslator::HandleOneHotSel(OneHotSelect* one_hot) {
       });
 }
 
+absl::Status IrTranslator::HandlePrioritySel(PrioritySelect* sel) {
+  Z3AbstractEvaluator evaluator(ctx_);
+  return HandleSelect(
+      sel, [&evaluator](const std::vector<Z3_ast>& selector,
+                        const std::vector<std::vector<Z3_ast>>& cases) {
+        return evaluator.PrioritySelect(selector, cases,
+                                        /*selector_can_be_zero=*/true);
+      });
+}
+
 absl::Status IrTranslator::HandleSel(Select* sel) {
   Z3AbstractEvaluator evaluator(ctx_);
   Z3OpTranslator op_translator(ctx_);

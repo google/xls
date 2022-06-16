@@ -47,6 +47,7 @@ cc_test(
         ":z3_ir_translator",
         ":z3_utils",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/ir:bits_ops",
