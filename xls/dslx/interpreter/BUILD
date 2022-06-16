@@ -29,6 +29,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        "//xls/dslx/python:interp_value",
         "//xls/dslx/python:interpreter",
         "@com_google_absl_py//absl/testing:absltest",
     ],
