@@ -670,8 +670,13 @@ absl::Status IrInterpreter::HandleOneHotSel(OneHotSelect* sel) {
 }
 
 absl::Status IrInterpreter::HandlePrioritySel(PrioritySelect* sel) {
-  return absl::UnimplementedError(
-      "PrioritySel not implemented in IrInterpreter.");
+  const Bits& selector = ResolveAsBits(sel->selector());
+  for (int64_t i = 0; i < selector.bit_count(); ++i) {
+    if (selector.Get(i)) {
+      return SetValueResult(sel, ResolveAsValue(sel->get_case(i)));
+    }
+  }
+  return SetValueResult(sel, ZeroOfType(sel->GetType()));
 }
 
 absl::Status IrInterpreter::HandleParam(Param* param) {

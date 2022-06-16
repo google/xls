@@ -1367,6 +1367,101 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectArray) {
                   AsValue("[bits[4]:0b1101, bits[4]:0b0111, bits[4]:0b1110]")));
 }
 
+TEST_P(IrEvaluatorTestBase, InterpretPrioritySelect) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn one_hot(p: bits[3], x: bits[8], y: bits[8], z: bits[8]) -> bits[8] {
+    ret priority_sel.1: bits[8] = priority_sel(p, cases=[x, y, z])
+  }
+  )"));
+  absl::flat_hash_map<std::string, Value> args_map = {
+      {"x", Value(UBits(0b00001111, 8))},
+      {"y", Value(UBits(0b00110011, 8))},
+      {"z", Value(UBits(0b01010101, 8))}};
+
+  struct Example {
+    Bits p;
+    Bits output;
+  };
+
+  std::vector<Example> examples = {
+      {UBits(0b000, 3), UBits(0b00000000, 8)},
+      {UBits(0b001, 3), UBits(0b00001111, 8)},
+      {UBits(0b010, 3), UBits(0b00110011, 8)},
+      {UBits(0b011, 3), UBits(0b00001111, 8)},
+      {UBits(0b100, 3), UBits(0b01010101, 8)},
+      {UBits(0b101, 3), UBits(0b00001111, 8)},
+      {UBits(0b110, 3), UBits(0b00110011, 8)},
+      {UBits(0b111, 3), UBits(0b00001111, 8)},
+  };
+
+  for (const auto& example : examples) {
+    std::vector<Value> args = {Value(example.p)};
+    args.push_back(args_map["x"]);
+    args.push_back(args_map["y"]);
+    args.push_back(args_map["z"]);
+    EXPECT_THAT(RunWithNoEvents(function, args),
+                IsOkAndHolds(Value(example.output)));
+  }
+}
+
+TEST_P(IrEvaluatorTestBase, InterpretPriorityNestedTuple) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn priority(p: bits[2], x: (bits[3], (bits[8])), y: (bits[3], (bits[8]))) -> (bits[3], (bits[8])) {
+    ret priority_sel.1: (bits[3], (bits[8])) = priority_sel(p, cases=[x, y])
+  }
+  )"));
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x", AsValue("(bits[3]:0b101, (bits[8]:0b11001100))")},
+      {"y", AsValue("(bits[3]:0b001, (bits[8]:0b00001111))")}};
+
+  args["p"] = AsValue("bits[2]: 0b00");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue("(bits[3]:0b000, (bits[8]:0b00000000))")));
+  args["p"] = AsValue("bits[2]: 0b01");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue("(bits[3]:0b101, (bits[8]:0b11001100))")));
+  args["p"] = AsValue("bits[2]: 0b10");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue("(bits[3]:0b001, (bits[8]:0b00001111))")));
+  args["p"] = AsValue("bits[2]: 0b11");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue("(bits[3]:0b101, (bits[8]:0b11001100))")));
+}
+
+TEST_P(IrEvaluatorTestBase, InterpretPriorityArray) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn priority(p: bits[2], x: bits[4][3], y: bits[4][3]) -> bits[4][3] {
+    ret priority_sel.1: bits[4][3] = priority_sel(p, cases=[x, y])
+  }
+  )"));
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x", AsValue("[bits[4]:0b0001, bits[4]:0b0010, bits[4]:0b0100]")},
+      {"y", AsValue("[bits[4]:0b1100, bits[4]:0b0101, bits[4]:0b1110]")}};
+
+  args["p"] = AsValue("bits[2]: 0b00");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[bits[4]:0b0000, bits[4]:0b0000, bits[4]:0b0000]")));
+  args["p"] = AsValue("bits[2]: 0b01");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[bits[4]:0b0001, bits[4]:0b0010, bits[4]:0b0100]")));
+  args["p"] = AsValue("bits[2]: 0b10");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[bits[4]:0b1100, bits[4]:0b0101, bits[4]:0b1110]")));
+  args["p"] = AsValue("bits[2]: 0b11");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[bits[4]:0b0001, bits[4]:0b0010, bits[4]:0b0100]")));
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretBinarySel) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
