@@ -268,6 +268,8 @@ class AstGenerator {
 
   // Generates an invocation of the one_hot_sel builtin.
   absl::StatusOr<TypedExpr> GenerateOneHotSelectBuiltin(Env* env);
+  // Generates an invocation of the priority_sel builtin.
+  absl::StatusOr<TypedExpr> GeneratePrioritySelectBuiltin(Env* env);
 
   // Returns a binary concatenation of two arrays from env.
   //

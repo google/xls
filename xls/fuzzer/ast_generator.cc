@@ -17,6 +17,7 @@
 #include "absl/strings/match.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -431,6 +432,29 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
   auto* invocation =
       module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("one_hot_sel"),
                                 std::vector<Expr*>{lhs->expr, cases_array});
+  return TypedExpr{invocation, rhs.type};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
+    Env* env) {
+  XLS_ASSIGN_OR_RETURN(
+      TypedExpr lhs,
+      ChooseEnvValueBits(
+          env, /*bit_count=*/RandomIntWithExpectedValue(5, /*lower_limit=*/1)));
+
+  XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env));
+  std::vector<Expr*> cases = {rhs.expr};
+  int64_t total_operands = GetTypeBitCount(lhs.type);
+  for (int64_t i = 0; i < total_operands - 1; ++i) {
+    XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env, rhs.type));
+    cases.push_back(e.expr);
+  }
+
+  auto* cases_array =
+      module_->Make<Array>(fake_span_, cases, /*has_ellipsis=*/false);
+  auto* invocation =
+      module_->Make<Invocation>(fake_span_, MakeBuiltinNameRef("priority_sel"),
+                                std::vector<Expr*>{lhs.expr, cases_array});
   return TypedExpr{invocation, rhs.type};
 }
 
@@ -1059,6 +1083,7 @@ enum OpChoice {
   kMap,
   kNumber,
   kOneHotSelectBuiltin,
+  kPrioritySelectBuiltin,
   kShiftOp,
   kTupleOrIndex,
   kUnop,
@@ -1108,6 +1133,8 @@ int OpProbability(OpChoice op) {
     case kNumber:
       return 3;
     case kOneHotSelectBuiltin:
+      return 1;
+    case kPrioritySelectBuiltin:
       return 1;
     case kShiftOp:
       return 3;
@@ -1210,6 +1237,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kOneHotSelectBuiltin:
         generated = GenerateOneHotSelectBuiltin(env);
+        break;
+      case kPrioritySelectBuiltin:
+        generated = GeneratePrioritySelectBuiltin(env);
         break;
       case kNumber:
         generated = GenerateNumber();

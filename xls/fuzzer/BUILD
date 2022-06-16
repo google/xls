@@ -415,6 +415,7 @@ cc_library(
     deps = [
         "//xls/common:casts",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/dslx:ast",
         "//xls/dslx:scanner",
         "//xls/ir:bits_ops",
