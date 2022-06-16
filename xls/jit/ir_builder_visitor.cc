@@ -553,9 +553,7 @@ void NodeIrContext::Finalize(llvm::Value* result,
                              absl::optional<llvm::IRBuilder<>*> exit_builder) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &builder();
-  if (node()->GetType()->IsBits()) {
-    result = type_converter()->ClearPaddingBits(result, node()->GetType(), *b);
-  }
+  result = type_converter()->ClearPaddingBits(result, node()->GetType(), *b);
   b->CreateRet(result);
 }
 

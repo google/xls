@@ -60,7 +60,9 @@ class FunctionBuilderVisitor : public IrBuilderVisitor {
                          param->function_base()->GetParamIndex(param));
     llvm::Function* llvm_function =
         dispatch_builder()->GetInsertBlock()->getParent();
-    return StoreResult(param, llvm_function->getArg(index));
+    llvm::Value* result = type_converter()->ClearPaddingBits(
+        llvm_function->getArg(index), param->GetType(), *dispatch_builder());
+    return StoreResult(param, result);
   }
 
   // Finishes building the function by adding a return statement.
