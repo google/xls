@@ -26,6 +26,7 @@
 #include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/tools/scheduling_options_flags.h"
 
 const char kUsage[] = R"(
 Dumps various codegen-related metrics about a block and corresponding Verilog
@@ -38,28 +39,14 @@ Usage:
 
 ABSL_FLAG(std::string, top, "",
           "Name of top block to use in lieu of the default.");
-ABSL_FLAG(std::string, delay_model, "",
-          "Delay model name to use from registry.");
-ABSL_FLAG(int64_t, clock_period_ps, 0,
-          "The number of picoseconds in a cycle to use when scheduling.");
-ABSL_FLAG(int64_t, pipeline_stages, 0,
-          "The number of stages in the pipeline when scheduling.");
+ABSL_FLAG(bool, schedule, true, "Enable running the scheduler.");
 
 namespace xls {
 namespace {
 
 absl::Status ScheduleAndPrintStats(Package* package,
                                    const DelayEstimator& delay_estimator,
-                                   absl::optional<int64_t> clock_period_ps,
-                                   absl::optional<int64_t> pipeline_stages) {
-  SchedulingOptions options;
-  if (clock_period_ps.has_value()) {
-    options.clock_period_ps(*clock_period_ps);
-  }
-  if (pipeline_stages.has_value()) {
-    options.pipeline_stages(*pipeline_stages);
-  }
-
+                                   const SchedulingOptions& options) {
   absl::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
@@ -94,8 +81,7 @@ absl::StatusOr<Block*> GetTopBlock(Package* package) {
 
 absl::Status RealMain(absl::string_view opt_ir_path,
                       absl::string_view block_ir_path,
-                      absl::string_view verilog_path,
-                      absl::optional<const DelayEstimator*> delay_estimator) {
+                      absl::string_view verilog_path) {
   XLS_VLOG(1) << "Reading optimized IR file: " << opt_ir_path;
   XLS_ASSIGN_OR_RETURN(std::string opt_ir_contents,
                        GetFileContents(opt_ir_path));
@@ -112,26 +98,15 @@ absl::Status RealMain(absl::string_view opt_ir_path,
   XLS_ASSIGN_OR_RETURN(std::string verilog_contents,
                        GetFileContents(verilog_path));
 
-  absl::optional<int64_t> clock_period_ps;
-  if (absl::GetFlag(FLAGS_clock_period_ps) > 0) {
-    clock_period_ps = absl::GetFlag(FLAGS_clock_period_ps);
-  }
-  absl::optional<int64_t> pipeline_stages;
-  if (absl::GetFlag(FLAGS_pipeline_stages) > 0) {
-    pipeline_stages = absl::GetFlag(FLAGS_pipeline_stages);
-  }
+  absl::optional<DelayEstimator*> delay_estimator;
 
-  if (delay_estimator.has_value() &&
-      (clock_period_ps.has_value() || pipeline_stages.has_value())) {
-    // This may not be exactly how the scheduler is called because we're only
-    // passing two of potentially numerous scheduling-related
-    // arguments. However, since we're only printing the scheduling time this is
-    // probably ok.
-    // TODO(meheff): 2022/05/25 Fix this by maybe passing in proto of all the
-    // scheduling options.
-    XLS_RETURN_IF_ERROR(
-        ScheduleAndPrintStats(opt_package.get(), *delay_estimator.value(),
-                              clock_period_ps, pipeline_stages));
+  if (absl::GetFlag(FLAGS_schedule)) {
+    XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
+                         SetupSchedulingOptions(block_package.get()));
+    XLS_ASSIGN_OR_RETURN(delay_estimator, SetupDelayEstimator());
+
+    XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
+        opt_package.get(), *delay_estimator.value(), scheduling_options));
   }
 
   XLS_ASSIGN_OR_RETURN(Block * top, GetTopBlock(block_package.get()));
@@ -164,15 +139,6 @@ absl::Status RealMain(absl::string_view opt_ir_path,
   return absl::OkStatus();
 }
 
-absl::StatusOr<absl::optional<const DelayEstimator*>> FetchDelayEstimator() {
-  if (absl::GetFlag(FLAGS_delay_model).empty()) {
-    return absl::nullopt;
-  }
-  XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
-                       GetDelayEstimator(absl::GetFlag(FLAGS_delay_model)));
-  return delay_estimator;
-}
-
 }  // namespace
 }  // namespace xls
 
@@ -186,12 +152,7 @@ int main(int argc, char** argv) {
         argv[0]);
   }
 
-  absl::StatusOr<absl::optional<const xls::DelayEstimator*>>
-      delay_estimator_or = xls::FetchDelayEstimator();
-  XLS_QCHECK_OK(delay_estimator_or.status());
-
   XLS_QCHECK_OK(xls::RealMain(positional_arguments[0], positional_arguments[1],
-                              positional_arguments[2],
-                              delay_estimator_or.value()));
+                              positional_arguments[2]));
   return EXIT_SUCCESS;
 }

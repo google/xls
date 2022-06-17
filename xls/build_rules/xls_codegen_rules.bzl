@@ -193,6 +193,7 @@ def xls_ir_verilog_impl(ctx, src):
         "additional_input_delay_ps",
         "pipeline_stages",
         "delay_model",
+        "scheduling_constraints",
         "top",
         "generator",
         "input_valid_signal",

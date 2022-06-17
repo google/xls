@@ -49,6 +49,48 @@ enum class SchedulingStrategy {
 // are tried. This function returns this set of orderings.  Exposed for testing.
 std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length);
 
+enum class IODirection { kReceive, kSend };
+
+// This represents a constraint saying that interactions on the given
+// `source_channel` of the type specified by the given `source_direction`
+// must occur between `minimum_latency` and `maximum_latency` (inclusive) cycles
+// before interactions on the given `target_channel` of the type specified by
+// the given `target_direction`.
+class SchedulingConstraint {
+ public:
+  SchedulingConstraint(absl::string_view source_channel,
+                       IODirection source_direction,
+                       absl::string_view target_channel,
+                       IODirection target_direction, int64_t minimum_latency,
+                       int64_t maximum_latency)
+      : source_channel_(source_channel),
+        source_direction_(source_direction),
+        target_channel_(target_channel),
+        target_direction_(target_direction),
+        minimum_latency_(minimum_latency),
+        maximum_latency_(maximum_latency) {}
+
+  std::string SourceChannel() const { return source_channel_; }
+
+  IODirection SourceDirection() const { return source_direction_; }
+
+  std::string TargetChannel() const { return target_channel_; }
+
+  IODirection TargetDirection() const { return target_direction_; }
+
+  int64_t MinimumLatency() const { return minimum_latency_; }
+
+  int64_t MaximumLatency() const { return maximum_latency_; }
+
+ private:
+  std::string source_channel_;
+  IODirection source_direction_;
+  std::string target_channel_;
+  IODirection target_direction_;
+  int64_t minimum_latency_;
+  int64_t maximum_latency_;
+};
+
 // Options to use when generating a pipeline schedule. At least a clock period
 // or a pipeline length (or both) must be specified. See
 // https://google.github.io/xls/scheduling/ for details on these options.
@@ -109,6 +151,15 @@ class SchedulingOptions {
     return additional_input_delay_ps_;
   }
 
+  // Add a constraint to the set of scheduling constraints.
+  SchedulingOptions& add_constraint(const SchedulingConstraint& constraint) {
+    constraints_.push_back(constraint);
+    return *this;
+  }
+  absl::Span<const SchedulingConstraint> constraints() const {
+    return constraints_;
+  }
+
  private:
   SchedulingStrategy strategy_;
   absl::optional<int64_t> clock_period_ps_;
@@ -116,6 +167,7 @@ class SchedulingOptions {
   absl::optional<int64_t> clock_margin_percent_;
   absl::optional<int64_t> period_relaxation_percent_;
   absl::optional<int64_t> additional_input_delay_ps_;
+  std::vector<SchedulingConstraint> constraints_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.

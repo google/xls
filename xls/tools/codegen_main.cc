@@ -30,6 +30,7 @@
 #include "xls/ir/verifier.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/tools/scheduling_options_flags.h"
 
 const char kUsage[] = R"(
 Generates Verilog RTL from a given IR file. Writes a Verilog file and a module
@@ -47,14 +48,6 @@ Emit a feed-forward pipelined module:
 )";
 
 // LINT.IfChange
-ABSL_FLAG(int64_t, clock_period_ps, 0,
-          "Target clock period, in picoseconds. See "
-          "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(int64_t, pipeline_stages, 0,
-          "The number of stages in the generated pipeline. See "
-          "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(std::string, delay_model, "",
-          "Delay model name to use from registry.");
 ABSL_FLAG(
     std::string, output_verilog_path, "",
     "Specific output path for the Verilog generated. If not specified then "
@@ -113,20 +106,6 @@ ABSL_FLAG(bool, add_idle_output, false,
 ABSL_FLAG(std::string, module_name, "",
           "Explicit name to use for the generated module; if not provided the "
           "mangled IR function name is used");
-ABSL_FLAG(int64_t, clock_margin_percent, 0,
-          "The percentage of clock period to set aside as a margin to ensure "
-          "timing is met. Effectively, this lowers the clock period by this "
-          "percentage amount for the purposes of scheduling. See "
-          "https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(int64_t, period_relaxation_percent, 0,
-          "The percentage of clock period that will be relaxed when "
-          "scheduling without an explicit --clock_period_ps. "
-          "When set to 0, the minimum period that can satisfy scheduling "
-          "constraints will be used.  Increasing this will trade-off an "
-          "increase in critical path delay in favor of decreased register "
-          "count. See https://google.github.io/xls/scheduling for details.");
-ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
-          "The additional delay added to each receive node.");
 // TODO(meheff): Rather than specify all reset (or codegen options in general)
 // as a multitude of flags, these can be specified via a separate file (like a
 // options proto).
@@ -169,43 +148,6 @@ absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
         absl::StrFormat("Top entity not set for package: %s.", p->name()));
   }
   return top.value();
-}
-
-absl::StatusOr<SchedulingOptions> SetupSchedulingOptions() {
-  if (absl::GetFlag(FLAGS_generator) != "pipeline") {
-    return absl::InternalError("Scheduling only supported in pipeline mode.");
-  }
-
-  SchedulingOptions scheduling_options;
-
-  if (absl::GetFlag(FLAGS_pipeline_stages) != 0) {
-    scheduling_options.pipeline_stages(absl::GetFlag(FLAGS_pipeline_stages));
-  }
-  if (absl::GetFlag(FLAGS_clock_period_ps) != 0) {
-    scheduling_options.clock_period_ps(absl::GetFlag(FLAGS_clock_period_ps));
-  }
-  if (absl::GetFlag(FLAGS_clock_margin_percent) != 0) {
-    scheduling_options.clock_margin_percent(
-        absl::GetFlag(FLAGS_clock_margin_percent));
-  }
-  if (absl::GetFlag(FLAGS_period_relaxation_percent) != 0) {
-    scheduling_options.period_relaxation_percent(
-        absl::GetFlag(FLAGS_period_relaxation_percent));
-  }
-  if (absl::GetFlag(FLAGS_additional_input_delay_ps) != 0) {
-    scheduling_options.additional_input_delay_ps(
-        absl::GetFlag(FLAGS_additional_input_delay_ps));
-  }
-
-  return scheduling_options;
-}
-
-absl::StatusOr<DelayEstimator*> SetupDelayEstimator() {
-  if (absl::GetFlag(FLAGS_generator) != "pipeline") {
-    return absl::InternalError("DelayEstimation only supported pipeline mode.");
-  }
-
-  return GetDelayEstimator(absl::GetFlag(FLAGS_delay_model));
 }
 
 absl::StatusOr<verilog::CodegenOptions::IOKind> StrToIOKind(
@@ -344,7 +286,7 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
         << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetupSchedulingOptions());
+                         SetupSchedulingOptions(p.get()));
     XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
                          SetupDelayEstimator());
     XLS_ASSIGN_OR_RETURN(

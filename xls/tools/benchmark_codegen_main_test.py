@@ -92,7 +92,7 @@ class CodeGenMainTest(test_base.TestCase):
     block_ir_file = self.create_tempfile(content=BLOCK_IR)
     verilog_file = self.create_tempfile(content=SIMPLE_VERILOG)
     output = subprocess.check_output([
-        BENCHMARK_CODEGEN_MAIN_PATH, opt_ir_file.full_path,
+        BENCHMARK_CODEGEN_MAIN_PATH, '--schedule=false', opt_ir_file.full_path,
         block_ir_file.full_path, verilog_file.full_path
     ]).decode('utf-8')
 

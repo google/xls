@@ -847,11 +847,28 @@ py_test(
     ],
 )
 
+cc_library(
+    name = "scheduling_options_flags",
+    srcs = ["scheduling_options_flags.cc"],
+    hdrs = ["scheduling_options_flags.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/delay_model:delay_estimator",
+        "//xls/delay_model:delay_estimators",
+        "//xls/scheduling:pipeline_schedule",
+    ],
+)
+
 cc_binary(
     name = "codegen_main",
     srcs = ["codegen_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":scheduling_options_flags",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -1159,6 +1176,7 @@ cc_binary(
     name = "benchmark_codegen_main",
     srcs = ["benchmark_codegen_main.cc"],
     deps = [
+        ":scheduling_options_flags",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",

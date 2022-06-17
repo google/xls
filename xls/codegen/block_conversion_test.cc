@@ -1228,8 +1228,7 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
       0, 9, {{"rst", 1}, {"in_vld", 1}, {"out_rdy", 1}}, inputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(
       0, 2, {{"in_rdy", 1}, {"out_vld", 0}, {"out", 0}}, expected_outputs));
-  XLS_ASSERT_OK(
-      SetSignalsOverCycles(1, 1, {{"out", 0xffffffff}}, expected_outputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(1, 1, {{"out", 0}}, expected_outputs));
   XLS_ASSERT_OK(SetSignalsOverCycles(3, 9, {{"in_rdy", 1}, {"out_vld", 0}},
                                      expected_outputs));
   XLS_ASSERT_OK_AND_ASSIGN(running_out_val,

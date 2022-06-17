@@ -401,9 +401,9 @@ TEST_F(PipelineScheduleTest, JustPipelineLengthGiven) {
   EXPECT_THAT(scheduled_ops(0), UnorderedElementsAre(Op::kParam, Op::kOr));
   EXPECT_THAT(scheduled_ops(1), UnorderedElementsAre(Op::kNeg));
   EXPECT_THAT(scheduled_ops(2), UnorderedElementsAre(Op::kNot));
-  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kSub));
-  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(Op::kUMul, Op::kAdd));
-  EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(Op::kConcat, Op::kNeg));
+  EXPECT_THAT(scheduled_ops(3), UnorderedElementsAre(Op::kAdd, Op::kSub));
+  EXPECT_THAT(scheduled_ops(4), UnorderedElementsAre(Op::kConcat, Op::kUMul));
+  EXPECT_THAT(scheduled_ops(5), UnorderedElementsAre(Op::kNeg));
 }
 
 TEST_F(PipelineScheduleTest, LongPipelineLength) {
@@ -797,7 +797,7 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
       // receive.3: (token, bits[16]) = receive(tkn, channel_id=0, id=3)
       // st: () = param(st, id=2)
       EXPECT_GE(nodes_in_first_cycle.size(), 3);
-      EXPECT_EQ(nodes_in_first_cycle.size(), 3);  // adjust if scheduler changes
+      EXPECT_EQ(nodes_in_first_cycle.size(), 4);  // adjust if scheduler changes
       EXPECT_TRUE(
           std::all_of(nodes_in_first_cycle.begin(), nodes_in_first_cycle.end(),
                       [](Node* node) -> bool {
@@ -807,6 +807,38 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {
                       }));
     }
   }
+}
+
+TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
+  Package p("p");
+  Type* u16 = p.GetBitsType(16);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_ch,
+      p.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u16));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_ch,
+      p.CreateStreamingChannel("out", ChannelOps::kSendOnly, u16));
+  TokenlessProcBuilder pb("the_proc", "tkn", &p);
+  BValue st = pb.StateElement("st", Value(UBits(42, 16)));
+  BValue rcv = pb.Receive(in_ch);
+  BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
+  BValue send = pb.Send(out_ch, out);
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
+      PipelineSchedule::Run(
+          proc, TestDelayEstimator(),
+          SchedulingOptions()
+              .pipeline_stages(10)
+              // TODO: change this to a more meaningful test once codegen
+              // supports send/receive in cycles other than the first and last
+              .add_constraint(SchedulingConstraint("in", IODirection::kReceive,
+                                                   "out", IODirection::kSend, 9,
+                                                   9))));
+
+  EXPECT_EQ(schedule.length(), 10);
+  EXPECT_EQ(schedule.cycle(send.node()) - schedule.cycle(rcv.node()), 9);
 }
 
 }  // namespace
