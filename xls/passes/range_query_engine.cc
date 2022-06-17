@@ -985,7 +985,39 @@ absl::Status RangeQueryVisitor::HandleOneHotSel(OneHotSelect* sel) {
 
 absl::Status RangeQueryVisitor::HandlePrioritySel(PrioritySelect* sel) {
   engine_->InitializeNode(sel);
-  return absl::OkStatus();  // TODO(google/xls#547): implement
+  IntervalSet selector_intervals = GetIntervalSetTree(sel->selector()).Get({});
+  LeafTypeTree<IntervalSet> result(sel->GetType());
+  for (int64_t i = 0; i < result.elements().size(); ++i) {
+    // Initialize all interval sets to empty
+    result.elements()[i] =
+        IntervalSet(result.leaf_types()[i]->GetFlatBitCount());
+  }
+  if (selector_intervals.CoversZero()) {  // possible to see default
+    LeafTypeTree<IntervalSet> all_zero_default(sel->GetType());
+    for (int64_t i = 0; i < all_zero_default.elements().size(); ++i) {
+      // Set all intervals to zero, the default.
+      all_zero_default.elements()[i] = IntervalSet::Precise(
+          UBits(0, all_zero_default.leaf_types()[i]->GetFlatBitCount()));
+    }
+    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
+        IntervalSet::Combine, result, all_zero_default);
+  }
+  auto combine = [&](Node* node) {
+    LeafTypeTree<IntervalSet> tree = GetIntervalSetTree(node);
+    result = LeafTypeTree<IntervalSet>::Zip<IntervalSet, IntervalSet>(
+        IntervalSet::Combine, result, tree);
+  };
+  for (int64_t i = 0; i < sel->cases().size(); ++i) {
+    if (selector_intervals.Covers(
+            bits_ops::ShiftLeftLogical(UBits(1, sel->cases().size()), i))) {
+      combine(sel->cases()[i]);
+    }
+  }
+  for (IntervalSet& intervals : result.elements()) {
+    intervals = MinimizeIntervals(intervals);
+  }
+  SetIntervalSetTree(sel, result);
+  return absl::OkStatus();
 }
 
 absl::Status RangeQueryVisitor::HandleOrReduce(BitwiseReductionOp* or_reduce) {

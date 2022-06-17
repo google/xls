@@ -766,6 +766,67 @@ TEST_F(RangeQueryEngineTest, Sel) {
             engine.GetIntervalSetTree(expr.node()).Get({}));
 }
 
+TEST_F(RangeQueryEngineTest, PrioritySel) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+
+  BValue selector = fb.Param("selector", p->GetBitsType(3));
+  BValue x = fb.Param("x", p->GetBitsType(10));
+  BValue y = fb.Param("y", p->GetBitsType(10));
+  BValue z = fb.Param("z", p->GetBitsType(10));
+  BValue expr = fb.PrioritySelect(selector, {x, y, z});
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  RangeQueryEngine engine;
+
+  IntervalSetTree x_ist =
+      BitsLTT(x.node(), {Interval(UBits(100, 10), UBits(150, 10))});
+  IntervalSetTree y_ist =
+      BitsLTT(y.node(), {Interval(UBits(200, 10), UBits(250, 10))});
+  IntervalSetTree z_ist =
+      BitsLTT(y.node(), {Interval(UBits(300, 10), UBits(350, 10))});
+
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(1, 3), UBits(2, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  // Usual test case where only part of the valid inputs are covered.
+  EXPECT_EQ(IntervalSet::Combine(x_ist.Get({}), y_ist.Get({})),
+            engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(1, 3), UBits(4, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(
+      IntervalSet::Combine(IntervalSet::Combine(x_ist.Get({}), y_ist.Get({})),
+                           z_ist.Get({})),
+      engine.GetIntervalSetTree(expr.node()).Get({}));
+
+  // Test case where default is covered.
+  engine = RangeQueryEngine();
+  engine.SetIntervalSetTree(
+      selector.node(),
+      BitsLTT(selector.node(), {Interval(UBits(0, 3), UBits(1, 3))}));
+  engine.SetIntervalSetTree(x.node(), x_ist);
+  engine.SetIntervalSetTree(y.node(), y_ist);
+  engine.SetIntervalSetTree(z.node(), z_ist);
+  XLS_ASSERT_OK(engine.Populate(f));
+
+  EXPECT_EQ(
+      IntervalSet::Combine(x_ist.Get({}), IntervalSet::Precise(UBits(0, 10))),
+      engine.GetIntervalSetTree(expr.node()).Get({}));
+}
+
 TEST_F(RangeQueryEngineTest, SignExtend) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
