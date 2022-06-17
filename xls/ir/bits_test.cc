@@ -317,15 +317,20 @@ TEST(BitsTest, ToString) {
   };
 
   Bits empty_bits(0);
-  EXPECT_EQ(empty_bits.ToString(FormatPreference::kDecimal), "0");
+  EXPECT_EQ(empty_bits.ToString(FormatPreference::kUnsignedDecimal), "0");
+  EXPECT_EQ(empty_bits.ToString(FormatPreference::kSignedDecimal), "0");
   test_hex(empty_bits, "0x0");
   test_binary(empty_bits, "0b0");
-  EXPECT_EQ(empty_bits.ToString(FormatPreference::kDecimal,
+  EXPECT_EQ(empty_bits.ToString(FormatPreference::kUnsignedDecimal,
+                                /*include_bit_count=*/true),
+            "0 [0 bits]");
+  EXPECT_EQ(empty_bits.ToString(FormatPreference::kSignedDecimal,
                                 /*include_bit_count=*/true),
             "0 [0 bits]");
 
   Bits b1 = UBits(1, 1);
-  EXPECT_EQ(b1.ToString(FormatPreference::kDecimal), "1");
+  EXPECT_EQ(b1.ToString(FormatPreference::kUnsignedDecimal), "1");
+  EXPECT_EQ(b1.ToString(FormatPreference::kSignedDecimal), "-1");
   test_hex(b1, "0x1");
   test_binary(b1, "0b1");
 
@@ -333,12 +338,15 @@ TEST(BitsTest, ToString) {
   test_hex(UBits(1, 16), "0x1");
 
   Bits b42 = UBits(42, 7);
-  EXPECT_EQ(b42.ToString(FormatPreference::kDecimal), "42");
+  EXPECT_EQ(b42.ToString(FormatPreference::kUnsignedDecimal), "42");
+  EXPECT_EQ(b42.ToString(FormatPreference::kSignedDecimal), "42");
   test_hex(b42, "0x2a");
   test_binary(b42, "0b10_1010");
 
   Bits prime64 = PrimeBits(64);
-  EXPECT_EQ(prime64.ToString(FormatPreference::kDecimal),
+  EXPECT_EQ(prime64.ToString(FormatPreference::kUnsignedDecimal),
+            "2892025783495830204");
+  EXPECT_EQ(prime64.ToString(FormatPreference::kSignedDecimal),
             "2892025783495830204");
   test_hex(prime64, "0x2822_8a20_a28a_2abc");
   test_binary(
@@ -363,7 +371,8 @@ TEST(BitsTest, ToString) {
 
 TEST(BitsTest, ToRawString) {
   Bits empty_bits(0);
-  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kDecimal), "0");
+  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kUnsignedDecimal), "0");
+  EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kSignedDecimal), "0");
   EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kHex), "0");
   EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kBinary), "0");
   EXPECT_EQ(empty_bits.ToRawDigits(FormatPreference::kHex,

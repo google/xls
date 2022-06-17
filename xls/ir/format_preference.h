@@ -29,7 +29,8 @@ enum class FormatPreference {
   // hexadecimal is used.
   kDefault,
   kBinary,
-  kDecimal,
+  kSignedDecimal,
+  kUnsignedDecimal,
   kHex,
   kPlainBinary,  // No 0b prefix and no separators as in Rust {:b} and Verilog
                  // %b

@@ -139,7 +139,7 @@ absl::Status RunComparator::RunComparison(
   const char* mode_str = nullptr;
   Value ir_result;
   switch (mode_) {
-    case CompareMode::kJit: {
+    case CompareMode::kJit: {  // Compare to IR JIT.
       // TODO(https://github.com/google/xls/issues/506): Also compare events
       // once the DSLX interpreter supports them (and the JIT supports traces).
       XLS_ASSIGN_OR_RETURN(FunctionJit * jit,
@@ -148,7 +148,7 @@ absl::Status RunComparator::RunComparison(
       mode_str = "JIT";
       break;
     }
-    case CompareMode::kInterpreter: {
+    case CompareMode::kInterpreter: {  // Compare to IR interpreter.
       XLS_ASSIGN_OR_RETURN(ir_result, DropInterpreterEvents(InterpretFunction(
                                           ir_function, ir_args)));
       mode_str = "interpreter";

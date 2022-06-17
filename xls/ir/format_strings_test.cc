@@ -41,13 +41,16 @@ TEST(FormatStringsTest, ParseFormats) {
       R"(x in different formats
 {{}} = {}
 {{:d}} = {:d}
+{{:u}} = {:u}
 {{:#x}} = {:#x}
 {{:#b}} = {:#b})";
 
   std::vector<FormatStep> complex_format = {"x in different formats\n{} = ",
                                             FormatPreference::kDefault,
                                             "\n{:d} = ",
-                                            FormatPreference::kDecimal,
+                                            FormatPreference::kSignedDecimal,
+                                            "\n{:u} = ",
+                                            FormatPreference::kUnsignedDecimal,
                                             "\n{:#x} = ",
                                             FormatPreference::kHex,
                                             "\n{:#b} = ",
@@ -56,7 +59,7 @@ TEST(FormatStringsTest, ParseFormats) {
   EXPECT_THAT(ParseFormatString(complex_format_string),
               IsOkAndHolds(complex_format));
 
-  EXPECT_EQ(OperandsExpectedByFormat(complex_format), 4);
+  EXPECT_EQ(OperandsExpectedByFormat(complex_format), 5);
 
   std::string plain_formats_string = "{:x}{:b}";
   std::vector<FormatStep> plain_formats = {FormatPreference::kPlainHex,

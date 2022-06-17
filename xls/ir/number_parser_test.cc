@@ -114,17 +114,17 @@ TEST(NumberParserTest, ParseNumbersWithoutPrefix) {
                              ParseUnsignedNumberWithoutPrefix(s, format));
     EXPECT_EQ(value, expected);
   };
-  expect_bits_value("0", FormatPreference::kDecimal, UBits(0, 0));
+  expect_bits_value("0", FormatPreference::kUnsignedDecimal, UBits(0, 0));
   expect_bits_value("0", FormatPreference::kBinary, UBits(0, 0));
   expect_bits_value("0", FormatPreference::kHex, UBits(0, 0));
-  expect_bits_value("1", FormatPreference::kDecimal, UBits(1, 1));
+  expect_bits_value("1", FormatPreference::kUnsignedDecimal, UBits(1, 1));
   expect_bits_value("1", FormatPreference::kBinary, UBits(1, 1));
   expect_bits_value("1", FormatPreference::kHex, UBits(1, 1));
 
-  expect_bits_value("42", FormatPreference::kDecimal, UBits(42, 6));
-  expect_bits_value("1234567890", FormatPreference::kDecimal,
+  expect_bits_value("42", FormatPreference::kUnsignedDecimal, UBits(42, 6));
+  expect_bits_value("1234567890", FormatPreference::kUnsignedDecimal,
                     UBits(1234567890ULL, 31));
-  expect_bits_value("12345678901234567890", FormatPreference::kDecimal,
+  expect_bits_value("12345678901234567890", FormatPreference::kUnsignedDecimal,
                     UBits(12345678901234567890ULL, 64));
 
   expect_bits_value("1010_1011_1100", FormatPreference::kBinary,

@@ -34,7 +34,8 @@ TEST(FormatPreferenceTest, ToString) {
   for (auto [value, expected, valid] : std::vector<TestCase>{
            {FormatPreference::kDefault, "default", true},
            {FormatPreference::kBinary, "binary", true},
-           {FormatPreference::kDecimal, "decimal", true},
+           {FormatPreference::kUnsignedDecimal, "unsigned-decimal", true},
+           {FormatPreference::kSignedDecimal, "signed-decimal", true},
            {FormatPreference::kHex, "hex", true},
            {static_cast<FormatPreference>(42), "<invalid format preference>",
             false},

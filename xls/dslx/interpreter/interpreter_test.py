@@ -205,8 +205,8 @@ class InterpreterTest(test_base.TestCase):
 
   def test_for_over_array(self):
     program = textwrap.dedent("""\
-                              #![test]
-                              fn for_over_array_test() {
+    #![test]
+    fn for_over_array_test() {
       let a: u32[3] = u32[3]:[1, 2, 3];
       let result: u32 = for (value, accum): (u32, u32) in a {
         accum + value
@@ -417,23 +417,45 @@ class InterpreterTest(test_base.TestCase):
     self.assertIn('4:21-4:32: 1', result.stderr)
     self.assertIn('6:21-6:32: 2', result.stderr)
 
+  def test_trace_s32(self):
+    program = """
+    #![test]
+    fn trace_test() {
+      let x = u32:4;
+      let _ = trace!(x);
+      let x = s32:-1;
+      let _ = trace!(x);
+      ()
+    }
+    """
+    program_file = self.create_tempfile(content=program)
+    # Trace is logged with XLS_LOG(INFO) so log to stderr to capture output.
+    cmd = [
+        _INTERP_PATH, '--compare=none', '--alsologtostderr',
+        program_file.full_path
+    ]
+    result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
+    self.assertIn('5:21-5:24: 4', result.stderr)
+    self.assertIn('7:21-7:24: -1', result.stderr)
+
   def test_trace_fmt_hello(self):
     program = """
     fn main() {
+      let x = u8:0xF0;
+      let _ = trace_fmt!("Hello world!");
+      let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
       ()
     }
 
     #![test]
     fn hello_test() {
-      let x = u8:0xF0;
-      let _ = trace_fmt!("Hello world!\n");
-      let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
-      ()
+      main()
     }
     """
     program_file = self.create_tempfile(content=program)
     cmd = [_INTERP_PATH, '--alsologtostderr', program_file.full_path]
     result = subp.run(cmd, stderr=subp.PIPE, encoding='utf-8', check=True)
+    print(result.stderr)
     self.assertIn('Hello world!', result.stderr)
     self.assertIn('x is 240, 0xf0 in hex and 0b1111_0000 in binary',
                   result.stderr)

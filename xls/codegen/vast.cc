@@ -707,15 +707,16 @@ std::string Literal::Emit(LineInfo* line_info) const {
   LineInfoEnd(line_info, this);
   if (format_ == FormatPreference::kDefault) {
     XLS_CHECK_LE(bits_.bit_count(), 32);
-    return absl::StrFormat("%s", bits_.ToString(FormatPreference::kDecimal));
+    return absl::StrFormat("%s",
+                           bits_.ToString(FormatPreference::kUnsignedDecimal));
   }
-  if (format_ == FormatPreference::kDecimal) {
+  if (format_ == FormatPreference::kUnsignedDecimal) {
     std::string prefix;
     if (emit_bit_count_) {
       prefix = absl::StrFormat("%d'd", bits_.bit_count());
     }
     return absl::StrFormat("%s%s", prefix,
-                           bits_.ToString(FormatPreference::kDecimal));
+                           bits_.ToString(FormatPreference::kUnsignedDecimal));
   }
   if (format_ == FormatPreference::kBinary) {
     return absl::StrFormat(

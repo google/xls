@@ -969,14 +969,9 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
       pieces.push_front(absl::get<std::string>(trace_element));
     } else {
       XLS_RET_CHECK(!stack.empty());
-      // TODO(rspringer): 2022-02-22: This JIT prints values via the IR's
-      // Value::ToHumanString() function. The problem is that it doesn't print
-      // out negative numbers, which is lossy and confusing. Find a way to unify
-      // these two somehow?
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop(stack));
-      XLS_ASSIGN_OR_RETURN(Value ir_value, value.ConvertToIr());
-      pieces.push_front(
-          ir_value.ToHumanString(absl::get<FormatPreference>(trace_element)));
+      pieces.push_front(value.ToString(
+          /*humanize=*/true, absl::get<FormatPreference>(trace_element)));
     }
   }
 

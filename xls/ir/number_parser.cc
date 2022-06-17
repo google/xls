@@ -39,7 +39,7 @@ static absl::StatusOr<Bits> ParseUnsignedNumberHelper(
         absl::StrFormat("Could not convert %s to a number", orig_string));
   }
 
-  if (format == FormatPreference::kDecimal) {
+  if (format == FormatPreference::kUnsignedDecimal) {
     Bits result(UBits(0, 32));
     Bits bits_10(UBits(10, 8));
     for (int i = 0; i < numeric_string.size(); i++) {
@@ -133,7 +133,7 @@ absl::StatusOr<std::pair<bool, Bits>> GetSignAndMagnitude(
     is_negative = true;
     numeric_substring = numeric_substring.substr(1);
   }
-  FormatPreference format = FormatPreference::kDecimal;
+  FormatPreference format = FormatPreference::kUnsignedDecimal;
   if (numeric_substring.size() >= 2 && numeric_substring[0] == '0') {
     char base_char = numeric_substring[1];
     if (base_char == 'b') {

@@ -321,9 +321,9 @@ endmodule)");
 
 TEST_P(VastTest, Literals) {
   VerilogFile f(UseSystemVerilog());
-  EXPECT_EQ("32'd44",
-            f.Literal(UBits(44, 32), SourceInfo(), FormatPreference::kDecimal)
-                ->Emit(nullptr));
+  EXPECT_EQ("32'd44", f.Literal(UBits(44, 32), SourceInfo(),
+                                FormatPreference::kUnsignedDecimal)
+                          ->Emit(nullptr));
   EXPECT_EQ("1'b1",
             f.Literal(UBits(1, 1), SourceInfo(), FormatPreference::kBinary)
                 ->Emit(nullptr));
@@ -344,9 +344,9 @@ TEST_P(VastTest, Literals) {
       Bits huge,
       ParseNumber("0xabcd_000_0000_1234_4321_0000_aaaa_bbbb_cccc_dddd_eeee"));
 
-  EXPECT_EQ(
-      f.Literal(b0, SourceInfo(), FormatPreference::kDecimal)->Emit(nullptr),
-      "1'd0");
+  EXPECT_EQ(f.Literal(b0, SourceInfo(), FormatPreference::kUnsignedDecimal)
+                ->Emit(nullptr),
+            "1'd0");
 
   EXPECT_EQ(f.Literal(b2, SourceInfo(), FormatPreference::kHex)->Emit(nullptr),
             "3'h2");
@@ -365,9 +365,9 @@ TEST_P(VastTest, Literals) {
   EXPECT_EQ(
       f.Literal(b1234, SourceInfo(), FormatPreference::kHex)->Emit(nullptr),
       "55'h00_0000_0000_04d2");
-  EXPECT_EQ(
-      f.Literal(b1234, SourceInfo(), FormatPreference::kDecimal)->Emit(nullptr),
-      "55'd1234");
+  EXPECT_EQ(f.Literal(b1234, SourceInfo(), FormatPreference::kUnsignedDecimal)
+                ->Emit(nullptr),
+            "55'd1234");
   EXPECT_EQ(
       f.Literal(b1234, SourceInfo(), FormatPreference::kBinary)->Emit(nullptr),
       "55'b000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0100_"

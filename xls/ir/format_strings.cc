@@ -56,9 +56,14 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
       steps.push_back(FormatPreference::kDefault);
       continue;
     }
+    if (consume_substr("{:u}")) {
+      push_fragment();
+      steps.push_back(FormatPreference::kUnsignedDecimal);
+      continue;
+    }
     if (consume_substr("{:d}")) {
       push_fragment();
-      steps.push_back(FormatPreference::kDecimal);
+      steps.push_back(FormatPreference::kSignedDecimal);
       continue;
     }
     if (consume_substr("{:x}")) {

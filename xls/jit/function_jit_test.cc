@@ -102,6 +102,28 @@ TEST(FunctionJitTest, TraceFmtOneArgTest) {
   EXPECT_EQ(result.events.trace_msgs.at(0), "hi I traced: 1");
 }
 
+TEST(FunctionJitTest, TraceFmtSignedTest) {
+  Package package("my_package");
+  std::string ir_text = R"(
+  fn trace_no_args(tkn: token, x: bits[8]) -> token {
+    pred: bits[1] = literal(value=1, id=0)
+    trace.1: token = trace(tkn, pred, format="signed: {:d}", data_operands=[x], id=1)
+    trace.2: token = trace(trace.1, pred, format="unsigned: {:u}", data_operands=[x], id=2)
+    ret trace.3: token = trace(trace.2, pred, format="default: {}", data_operands=[x], id=3)
+  }
+  )";
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           Parser::ParseFunction(ir_text, &package));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto jit, FunctionJit::Create(function));
+  std::vector<Value> args = {Value::Token(), Value(UBits(0xff, 8))};
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> result, jit->Run(args));
+  ASSERT_EQ(result.events.trace_msgs.size(), 3);
+  EXPECT_EQ(result.events.trace_msgs.at(0), "signed: -1");
+  EXPECT_EQ(result.events.trace_msgs.at(1), "unsigned: 255");
+  EXPECT_EQ(result.events.trace_msgs.at(2), "default: 255");
+}
+
 TEST(FunctionJitTest, TraceFmtTwoArgTest) {
   Package package("my_package");
   std::string ir_text = R"(

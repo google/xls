@@ -24,8 +24,10 @@ absl::string_view FormatPreferenceToString(FormatPreference preference) {
       return "default";
     case FormatPreference::kBinary:
       return "binary";
-    case FormatPreference::kDecimal:
-      return "decimal";
+    case FormatPreference::kSignedDecimal:
+      return "signed-decimal";
+    case FormatPreference::kUnsignedDecimal:
+      return "unsigned-decimal";
     case FormatPreference::kHex:
       return "hex";
     case FormatPreference::kPlainBinary:
@@ -43,7 +45,9 @@ absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
       return "{}";
     case FormatPreference::kBinary:
       return "{:#b}";
-    case FormatPreference::kDecimal:
+    case FormatPreference::kUnsignedDecimal:
+      return "{:u}";
+    case FormatPreference::kSignedDecimal:
       return "{:d}";
     case FormatPreference::kHex:
       return "{:#x}";
@@ -66,8 +70,10 @@ absl::string_view FormatPreferenceToVerilogSpecifier(
       // - decide that the default format (or at least the format associated
       // with {}) is decimal after all (matches Rust)
       return "%d";
-    case FormatPreference::kDecimal:
+    case FormatPreference::kSignedDecimal:
       return "%d";
+    case FormatPreference::kUnsignedDecimal:
+      return "%u";
     // Technically, the binary and hex format specifications are slightly wrong
     // because Verilog simulators don't break up long values with underscores as
     // XLS does. Practically speaking, though, it isn't worth doing a complex,
@@ -93,8 +99,10 @@ absl::StatusOr<FormatPreference> FormatPreferenceFromString(
     return FormatPreference::kBinary;
   } else if (s == "hex") {
     return FormatPreference::kHex;
-  } else if (s == "decimal") {
-    return FormatPreference::kDecimal;
+  } else if (s == "signed-decimal") {
+    return FormatPreference::kSignedDecimal;
+  } else if (s == "unsigned-decimal") {
+    return FormatPreference::kUnsignedDecimal;
   } else if (s == "plain_binary") {
     return FormatPreference::kPlainBinary;
   } else if (s == "plain_hex") {

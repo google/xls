@@ -257,7 +257,7 @@ std::string Bits::ToString(FormatPreference preference,
                            bool include_bit_count) const {
   if (preference == FormatPreference::kDefault) {
     if (bit_count() <= 64) {
-      preference = FormatPreference::kDecimal;
+      preference = FormatPreference::kUnsignedDecimal;
     } else {
       preference = FormatPreference::kHex;
     }
@@ -278,7 +278,21 @@ std::string Bits::ToString(FormatPreference preference,
 std::string Bits::ToRawDigits(FormatPreference preference,
                               bool emit_leading_zeros) const {
   XLS_CHECK_NE(preference, FormatPreference::kDefault);
-  if (preference == FormatPreference::kDecimal) {
+  if (preference == FormatPreference::kSignedDecimal) {
+    // Leading zeros don't make a lot of sense in decimal format as there is no
+    // clean correspondence between decimal digits and binary digits.
+    XLS_CHECK(!emit_leading_zeros)
+        << "emit_leading_zeros not supported for decimal format.";
+
+    // TODO(google/xls#461): 2019-04-03 Add support for arbitrary width decimal
+    // emission.
+    XLS_CHECK(FitsInInt64())
+        << "Decimal output not supported for values which do "
+           "not fit in an int64_t";
+    return absl::StrCat(ToInt64().value());
+  }
+
+  if (preference == FormatPreference::kUnsignedDecimal) {
     // Leading zeros don't make a lot of sense in decimal format as there is no
     // clean correspondence between decimal digits and binary digits.
     XLS_CHECK(!emit_leading_zeros)

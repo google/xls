@@ -108,6 +108,9 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
   switch (v.tag()) {
     case InterpValueTag::kUBits: {
       std::string value_str = bits.ToString(format);
+      if (format == FormatPreference::kSignedDecimal && bits.msb()) {
+        value_str = absl::StrCat("-", bits_ops::Negate(bits).ToString(format));
+      }
       if (!include_type_prefix) {
         return value_str;
       }
@@ -116,7 +119,7 @@ static std::string BitsToString(const InterpValue& v, FormatPreference format,
     }
     case InterpValueTag::kSBits: {
       std::string value_str = bits.ToString(format);
-      if ((format == FormatPreference::kDecimal ||
+      if ((format == FormatPreference::kSignedDecimal ||
            format == FormatPreference::kDefault) &&
           bits.msb()) {
         // If we're a signed number in decimal format, give the value for the
@@ -155,8 +158,7 @@ std::string InterpValue::ToString(bool humanize,
     case InterpValueTag::kUBits:
     case InterpValueTag::kSBits:
       return BitsToString(*this, format,
-                          /*include_type_prefix=*/!humanize ||
-                              format == FormatPreference::kBinary);
+                          /*include_type_prefix=*/!humanize);
     case InterpValueTag::kArray:
       return absl::StrFormat("[%s]", make_guts());
     case InterpValueTag::kTuple:

@@ -27,8 +27,8 @@ std::string MangleInterpValue(const InterpValue& value) {
   if (value.IsBits() || value.IsEnum()) {
     auto bits_value = InterpValue::MakeBits(/*is_signed=*/value.IsSigned(),
                                             value.GetBitsOrDie());
-    std::string s =
-        bits_value.ToString(/*humanize=*/true, FormatPreference::kDecimal);
+    std::string s = bits_value.ToString(/*humanize=*/true,
+                                        FormatPreference::kUnsignedDecimal);
     // Negatives are not valid characters in IR symbols so replace leading '-'
     // with 'm'.
     return absl::StrReplaceAll(s, {{"-", "m"}});

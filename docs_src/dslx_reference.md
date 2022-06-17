@@ -1939,12 +1939,16 @@ dumping of current values to stdout. For example:
 
 fn shifty(x: u8, y: u3) -> u8 {
   let _ = trace_fmt!("x: {:x} y: {}", x, y);
+  // Note: y looks different as a negative number when the high bit is set.
+  let _ = trace_fmt!("y as s8: {}", y as s2);
   x << y
 }
 
 #![test]
 fn test_shifty() {
-  assert_eq(shifty(u8:0x42, u3:4), u8:0x20)
+  let _ = assert_eq(shifty(u8:0x42, u3:4), u8:0x20);
+  let _ = assert_eq(shifty(u8:0x42, u3:7), u8:0);
+  ()
 }
 ```
 
@@ -1955,6 +1959,9 @@ corresponding source position:
 [...]
 [ RUN UNITTEST  ] test_shifty
 I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 4
+I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] y as s8: 4
+I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] x: 42 y: 7
+I0510 14:31:17.516227 1247677 bytecode_interpreter.cc:994] y as s8: -1
 [            OK ]
 [...]
 ```
