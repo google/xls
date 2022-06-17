@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <random>
 
 #include "absl/container/btree_map.h"
 #include "absl/status/statusor.h"
@@ -741,6 +742,19 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
         cycle_map, ScheduleToMinimizeRegistersSDC(
                        f, schedule_length, delay_estimator_with_delay, &bounds,
                        clock_period_ps, options.constraints()));
+  } else if (options.strategy() == SchedulingStrategy::RANDOM) {
+    for (Node* node : TopoSort(f)) {
+      int64_t lower_bound = bounds.lb(node);
+      int64_t upper_bound = bounds.ub(node);
+      std::mt19937 gen(options.seed().value_or(0));
+      std::uniform_int_distribution<int64_t> distrib(lower_bound, upper_bound);
+      int64_t cycle = distrib(gen);
+      XLS_RETURN_IF_ERROR(bounds.TightenNodeLb(node, cycle));
+      XLS_RETURN_IF_ERROR(bounds.PropagateLowerBounds());
+      XLS_RETURN_IF_ERROR(bounds.TightenNodeUb(node, cycle));
+      XLS_RETURN_IF_ERROR(bounds.PropagateUpperBounds());
+      cycle_map[node] = cycle;
+    }
   } else {
     XLS_RET_CHECK(options.strategy() == SchedulingStrategy::ASAP);
     XLS_RET_CHECK(!options.pipeline_stages().has_value());

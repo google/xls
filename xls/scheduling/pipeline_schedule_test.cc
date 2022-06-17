@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -839,6 +839,27 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
 
   EXPECT_EQ(schedule.length(), 10);
   EXPECT_EQ(schedule.cycle(send.node()) - schedule.cycle(rcv.node()), 9);
+}
+
+TEST_F(PipelineScheduleTest, RandomSchedule) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  auto x = fb.Param("x", p->GetBitsType(32));
+  for (int64_t i = 0; i < 20; ++i) {
+    x = fb.Negate(x);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * func, fb.Build());
+
+  for (int32_t i = 0; i < 1000; ++i) {
+    // Running the scheduler will call `VerifyTiming`.
+    XLS_ASSERT_OK(
+        PipelineSchedule::Run(func, TestDelayEstimator(),
+                              SchedulingOptions(SchedulingStrategy::RANDOM)
+                                  .seed(i)
+                                  .pipeline_stages(50))
+            .status());
+  }
 }
 
 }  // namespace

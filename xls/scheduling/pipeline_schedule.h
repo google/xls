@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -37,6 +37,9 @@ enum class SchedulingStrategy {
 
   // Minimize the number of pipeline registers when scheduling using SDC-method
   MINIMIZE_REGISTERS_SDC,
+
+  // Create a random but sound schedule. This is useful for testing.
+  RANDOM,
 };
 
 // Returns the list of ordering of cycles (pipeline stages) in which to compute
@@ -160,6 +163,13 @@ class SchedulingOptions {
     return constraints_;
   }
 
+  // The random seed, which is only used if the scheduler is `RANDOM`.
+  SchedulingOptions& seed(int32_t value) {
+    seed_ = value;
+    return *this;
+  }
+  absl::optional<int32_t> seed() const { return seed_; }
+
  private:
   SchedulingStrategy strategy_;
   absl::optional<int64_t> clock_period_ps_;
@@ -168,6 +178,7 @@ class SchedulingOptions {
   absl::optional<int64_t> period_relaxation_percent_;
   absl::optional<int64_t> additional_input_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
+  absl::optional<int32_t> seed_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.
