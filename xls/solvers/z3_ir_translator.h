@@ -46,7 +46,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // AST. The `allow_unsupported` option will cause unsupported ops to be
   // translated into fresh variables of the appropriate type.
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
-      FunctionBase* function_base, bool allow_unsupported = false);
+      FunctionBase* source, bool allow_unsupported = false);
 
   // Translates the given function into a Z3 AST using a preexisting context
   // (i.e., that used by another Z3Translator). This binds the given function
@@ -56,12 +56,19 @@ class IrTranslator : public DfsVisitorWithDefault {
   static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
       Z3_context ctx, FunctionBase* function_base,
       absl::Span<const Z3_ast> imported_params, bool allow_unsupported = false);
+
+  // Translates the given node into a Z3 AST using a preexisting context
+  // (i.e., that used by another Z3Translator).
+  static absl::StatusOr<std::unique_ptr<IrTranslator>> CreateAndTranslate(
+      Z3_context ctx, Node* source, bool allow_unsupported = false);
+
   ~IrTranslator() override;
 
   // Sets the amount of time to allow Z3 to execute before aborting.
   void SetTimeout(absl::Duration timeout);
 
   // Returns the Z3 value (or set of values) corresponding to the given Node.
+  // Translates if the translation is not yet stored.
   Z3_ast GetTranslation(const Node* source);
 
   // Re-translates the function from scratch, using fixed mappings for the
@@ -166,10 +173,10 @@ class IrTranslator : public DfsVisitorWithDefault {
   FunctionBase* xls_function() { return xls_function_; }
 
  private:
-  IrTranslator(Z3_config config, FunctionBase* xls_function);
+  IrTranslator(Z3_config config, FunctionBase* source);
 
-  IrTranslator(Z3_context ctx, FunctionBase* xls_function,
-               absl::Span<const Z3_ast> imported_params);
+  IrTranslator(Z3_context ctx, FunctionBase* source,
+               absl::optional<absl::Span<const Z3_ast>> imported_params);
 
   // Returns the index with the proper bitwidth for the given array_type.
   Z3_ast GetAsFormattedArrayIndex(Z3_ast index, ArrayType* array_type);

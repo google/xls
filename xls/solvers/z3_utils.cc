@@ -218,6 +218,12 @@ Z3_ast DoUnsignedMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, int result_size) {
   return Z3_mk_extract(ctx, result_size - 1, 0, result);
 }
 
+Z3_ast BitVectorToBoolean(Z3_context c, Z3_ast bit_vector) {
+  std::unique_ptr<bool[]> bits(new bool[1]);
+  bits[0] = true;
+  return Z3_mk_eq(c, bit_vector, Z3_mk_bv_numeral(c, 1, &bits[0]));
+}
+
 }  // namespace z3
 }  // namespace solvers
 }  // namespace xls

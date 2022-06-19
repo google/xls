@@ -53,6 +53,8 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/passes/inlining_pass.h"
+#include "xls/solvers/z3_ir_translator.h"
+#include "../z3/src/api/z3_api.h"
 
 namespace xlscc {
 
@@ -888,6 +890,8 @@ class Translator {
                                   const xls::SourceInfo& loc);
 
   xls::Package* package_;
+  int default_init_interval_ = 0;
+
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
   absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*>
@@ -1101,7 +1105,7 @@ class Translator {
 
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
       const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
-      bool force_static = false, int default_init_interval = 0);
+      bool force_static = false);
 
   struct StrippedType {
     StrippedType(clang::QualType base, bool is_ref)
@@ -1136,10 +1140,14 @@ class Translator {
   absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node);
 
   absl::Status ShortCircuitNode(xls::Node* node, xls::BValue& top_bval,
-                                const xls::SourceInfo& loc, xls::Node* parent,
+                                xls::Node* parent,
                                 absl::flat_hash_set<xls::Node*>& visited);
+  absl::Status ShortCircuitBVal(xls::BValue& bval);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
                                           const xls::SourceInfo& loc);
+  absl::StatusOr<Z3_lbool> IsBitSatisfiable(
+      xls::Node* node, Z3_solver& solver,
+      xls::solvers::z3::IrTranslator& z3_translator);
 
   absl::StatusOr<ConstValue> TranslateBValToConstVal(
       const CValue& bvalue, const xls::SourceInfo& loc);

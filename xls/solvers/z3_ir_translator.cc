@@ -22,8 +22,10 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/abstract_evaluator.h"
 #include "xls/ir/abstract_node_evaluator.h"
+#include "xls/ir/function.h"
 #include "xls/ir/nodes.h"
 #include "xls/solvers/z3_utils.h"
 #include "../z3/src/api/z3_api.h"
@@ -178,13 +180,26 @@ class Z3AbstractEvaluator
 }  // namespace
 
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
-    FunctionBase* function_base, bool allow_unsupported) {
-  XLS_RET_CHECK(!function_base->IsBlock());
+    FunctionBase* source, bool allow_unsupported) {
   Z3_config config = Z3_mk_config();
   Z3_set_param_value(config, "proof", "true");
-  auto translator = absl::WrapUnique(new IrTranslator(config, function_base));
+  auto translator = absl::WrapUnique(new IrTranslator(config, source));
   translator->allow_unsupported_ = allow_unsupported;
-  XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
+  if (source != nullptr) {
+    XLS_RET_CHECK(!source->IsBlock());
+    XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+  }
+  return translator;
+}
+
+absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
+    Z3_context ctx, Node* source, bool allow_unsupported) {
+  auto translator = absl::WrapUnique(new IrTranslator(
+      ctx, nullptr, absl::optional<absl::Span<const Z3_ast>>()));
+  translator->allow_unsupported_ = allow_unsupported;
+  if (source != nullptr) {
+    XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
+  }
   return translator;
 }
 
@@ -194,6 +209,7 @@ absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
   auto translator =
       absl::WrapUnique(new IrTranslator(ctx, function_base, imported_params));
   translator->allow_unsupported_ = allow_unsupported;
+  XLS_RET_CHECK(!function_base->IsBlock());
   XLS_RETURN_IF_ERROR(function_base->Accept(translator.get()));
   return translator;
 }
@@ -205,18 +221,19 @@ absl::Status IrTranslator::Retranslate(
   return xls_function_->Accept(this);
 }
 
-IrTranslator::IrTranslator(Z3_config config, FunctionBase* xls_function)
+IrTranslator::IrTranslator(Z3_config config, FunctionBase* source)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
       borrowed_context_(false),
-      xls_function_(xls_function) {}
+      xls_function_(source) {}
 
-IrTranslator::IrTranslator(Z3_context ctx, FunctionBase* xls_function,
-                           absl::Span<const Z3_ast> imported_params)
+IrTranslator::IrTranslator(
+    Z3_context ctx, FunctionBase* source,
+    absl::optional<absl::Span<const Z3_ast>> imported_params)
     : ctx_(ctx),
       borrowed_context_(true),
       imported_params_(imported_params),
-      xls_function_(xls_function) {}
+      xls_function_(source) {}
 
 IrTranslator::~IrTranslator() {
   if (!borrowed_context_) {
@@ -230,6 +247,7 @@ Z3_ast IrTranslator::GetTranslation(const Node* source) {
 }
 
 Z3_ast IrTranslator::GetReturnNode() {
+  XLS_CHECK_NE(xls_function_, nullptr);
   XLS_CHECK(xls_function_->IsFunction());
   return GetTranslation(xls_function_->AsFunctionOrDie()->return_value());
 }
@@ -1195,6 +1213,9 @@ absl::Status IrTranslator::DefaultHandler(Node* node) {
     XLS_ASSIGN_OR_RETURN(Z3_ast fresh,
                          CreateZ3Param(node->GetType(), node->GetName()));
     NoteTranslation(node, fresh);
+    XLS_VLOG(1) << "Unhandled node for conversion from XLS IR to Z3, "
+                   "defaulting to variable: %s"
+                << node->ToString();
     return absl::OkStatus();
   }
   return absl::UnimplementedError(

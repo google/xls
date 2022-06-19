@@ -80,6 +80,8 @@
 #include "xls/passes/standard_pipeline.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/verifier_checker.h"
+#include "xls/solvers/z3_ir_translator.h"
+#include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
 
 using std::list;
@@ -98,6 +100,14 @@ inline To clang_down_cast(From* f) {   // so we only accept pointers
                 "target type not derived from source type");
 
   return static_cast<To>(f);
+}
+
+// Returns monotonically increasing time in seconds
+double doubletime() {
+  struct timeval tv;
+  struct timezone tz;
+  gettimeofday(&tv, &tz);
+  return tv.tv_sec + static_cast<double>(tv.tv_usec) / 1000000.0;
 }
 
 }  // namespace
@@ -1029,6 +1039,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       xls::BValue op_condition = context().full_condition_bval(loc);
       XLS_CHECK(op_condition.valid());
 
+      // Short circuit the op condition if possible
+      XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition));
+
       // Ignore IO ops that are definitely condition = 0
       // XLS opt also does this down-stream, but we try to do it here
       // for cases like "if(constexpr) {ch.read();} else {ch.write();}
@@ -1088,7 +1101,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     const clang::FunctionDecl* funcdecl, absl::string_view name_override,
-    bool force_static, int default_init_interval) {
+    bool force_static) {
   const bool trivial = funcdecl->hasTrivialBody() || funcdecl->isTrivial();
 
   if (!trivial && !funcdecl->getBody()) {
@@ -1135,8 +1148,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   // Unroll for loops in default function bodies without pragma
   context().for_loops_default_unroll = funcdecl->isDefaulted();
-
-  context().outer_pipelined_loop_init_interval = default_init_interval;
+  context().outer_pipelined_loop_init_interval = default_init_interval_;
 
   XLS_ASSIGN_OR_RETURN(
       context().return_type,
@@ -2224,6 +2236,8 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
         return CValue(
             context().fb->AddUnOp(xls::Op::kNeg, lhs_cvcv.rvalue(), loc),
             result_type);
+      case clang::UnaryOperatorKind::UO_Plus:
+        return lhs_cvcv;
       case clang::UnaryOperatorKind::UO_LNot:
       case clang::UnaryOperatorKind::UO_Not:
         return CValue(
@@ -3641,9 +3655,14 @@ absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node) {
   return result;
 }
 
+absl::Status Translator::ShortCircuitBVal(xls::BValue& bval) {
+  absl::flat_hash_set<xls::Node*> visited;
+  return ShortCircuitNode(bval.node(), bval, nullptr, visited);
+}
+
 absl::Status Translator::ShortCircuitNode(
-    xls::Node* node, xls::BValue& top_bval, const xls::SourceInfo& loc,
-    xls::Node* parent, absl::flat_hash_set<xls::Node*>& visited) {
+    xls::Node* node, xls::BValue& top_bval, xls::Node* parent,
+    absl::flat_hash_set<xls::Node*>& visited) {
   if (visited.contains(node)) {
     return absl::OkStatus();
   }
@@ -3654,7 +3673,7 @@ absl::Status Translator::ShortCircuitNode(
   // Index based to avoid modify while iterating
   for (int oi = 0; oi < node->operand_count(); ++oi) {
     xls::Node* op = node->operand(oi);
-    XLS_RETURN_IF_ERROR(ShortCircuitNode(op, top_bval, loc, node, visited));
+    XLS_RETURN_IF_ERROR(ShortCircuitNode(op, top_bval, node, visited));
   }
 
   // Don't duplicate literals
@@ -3666,7 +3685,8 @@ absl::Status Translator::ShortCircuitNode(
 
   // Try to replace the node with a literal
   if (const_result.ok()) {
-    xls::BValue literal_bval = context().fb->Literal(const_result.value(), loc);
+    xls::BValue literal_bval =
+        context().fb->Literal(const_result.value(), node->loc());
 
     if (parent != nullptr) {
       XLS_CHECK(parent->ReplaceOperand(node, literal_bval.node()));
@@ -3712,9 +3732,6 @@ absl::Status Translator::ShortCircuitNode(
 
 absl::StatusOr<xls::Value> Translator::EvaluateBVal(
     xls::BValue bval, const xls::SourceInfo& loc) {
-  absl::flat_hash_set<xls::Node*> visited;
-  XLS_RETURN_IF_ERROR(
-      ShortCircuitNode(bval.node(), bval, loc, nullptr, visited));
   return EvaluateNode(bval.node());
 }
 
@@ -4155,12 +4172,51 @@ std::string Debug_NodeToInfix(const xls::Node* node, int64_t& n_printed) {
                          typeid(*node).name());
 }
 
+absl::StatusOr<Z3_lbool> Translator::IsBitSatisfiable(
+    xls::Node* node, Z3_solver& solver,
+    xls::solvers::z3::IrTranslator& z3_translator) {
+  XLS_CHECK_EQ(node->BitCountOrDie(), 1);
+
+  Z3_context ctx = z3_translator.ctx();
+  xls::solvers::z3::ScopedErrorHandler seh(ctx);
+
+  Z3_ast z3_node = z3_translator.GetTranslation(node);
+
+  Z3_ast asserted = xls::solvers::z3::BitVectorToBoolean(ctx, z3_node);
+  Z3_lbool satisfiable = Z3_solver_check_assumptions(ctx, solver, 1, &asserted);
+
+  if (seh.status().ok()) {
+    return satisfiable;
+  }
+  return seh.status();
+}
+
 absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
                                                  const clang::Expr* cond_expr,
                                                  const clang::Stmt* inc,
                                                  const clang::Stmt* body,
                                                  clang::ASTContext& ctx,
                                                  const xls::SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator_parent,
+      xls::solvers::z3::IrTranslator::CreateAndTranslate(
+          /*source=*/nullptr,
+          /*allow_unsupported=*/true));
+
+  Z3_solver solver =
+      xls::solvers::z3::CreateSolver(z3_translator_parent->ctx(), 1);
+
+  class SolverDeref {
+   public:
+    SolverDeref(Z3_context ctx, Z3_solver solver)
+        : ctx_(ctx), solver_(solver) {}
+    ~SolverDeref() { Z3_solver_dec_ref(ctx_, solver_); }
+
+   private:
+    Z3_context ctx_;
+    Z3_solver solver_;
+  };
+
   // Generate the declaration within a private context
   PushContextGuard for_init_guard(*this, loc);
   context().propagate_break_up = false;
@@ -4176,7 +4232,11 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
   // check. Reset the known set before each iteration.
   auto saved_check_ids = check_unique_ids_;
 
+  double slowest_iter = 0;
+
   for (int64_t nIters = 0;; ++nIters) {
+    const double iter_start = doubletime();
+
     check_unique_ids_ = saved_check_ids;
 
     if (nIters >= max_unroll_iters_) {
@@ -4207,14 +4267,32 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
       context().propagate_break_up = true;
       context().propagate_continue_up = false;
 
-      absl::StatusOr<xls::Value> cond_val = xls::Value(xls::UBits(0, 1));
-
+      // Check condition first
       if (context().relative_break_condition.valid()) {
-        cond_val = EvaluateBVal(context().relative_break_condition, loc);
-      }
+        // Simplify break logic in easy ways;
+        // Z3 fails to solve some cases without this.
+        XLS_RETURN_IF_ERROR(
+            ShortCircuitBVal(context().relative_break_condition));
 
-      if (cond_val.ok() && !cond_val.value().IsAllZeros()) {
-        break;
+        // Use Z3 to check if another loop iteration is possible.
+        xls::BValue not_break =
+            context().fb->Not(context().relative_break_condition);
+
+        XLS_ASSIGN_OR_RETURN(
+            std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator,
+            xls::solvers::z3::IrTranslator::CreateAndTranslate(
+                /*ctx=*/z3_translator_parent->ctx(),
+                /*source=*/not_break.node(),
+                /*allow_unsupported=*/true));
+
+        XLS_ASSIGN_OR_RETURN(
+            Z3_lbool result,
+            IsBitSatisfiable(not_break.node(), solver, *z3_translator));
+
+        // No combination of variables can satisfy !break condition.
+        if (result == Z3_L_FALSE) {
+          break;
+        }
       }
 
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
@@ -4224,6 +4302,15 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
     // Outside of body guard because continue would skip.
     if (inc != nullptr) {
       XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
+    }
+    // Print slow unrolling warning
+    const double iter_end = doubletime();
+    const double iter_seconds = iter_end - iter_start;
+
+    if (iter_seconds > 0.1 && iter_seconds > slowest_iter) {
+      XLS_LOG(WARNING) << ErrorMessage(
+          loc, "Slow loop unrolling iteration %i: %fms", nIters, iter_seconds);
+      slowest_iter = iter_seconds;
     }
   }
 
@@ -5050,11 +5137,12 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
 
   package_ = package;
+  default_init_interval_ = default_init_interval;
 
   XLS_ASSIGN_OR_RETURN(
       GeneratedFunction * ret,
       GenerateIR_Function(top_function, top_function->getNameAsString(),
-                          force_static, default_init_interval));
+                          force_static));
 
   if (ret->xls_func == nullptr) {
     return absl::InvalidArgumentError(absl::StrFormat(

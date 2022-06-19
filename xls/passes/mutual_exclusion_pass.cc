@@ -241,12 +241,6 @@ bool HasIntersection(const absl::flat_hash_set<T>& lhs,
   return false;
 }
 
-Z3_ast BitVectorToBoolean(Z3_context c, Z3_ast bit_vector) {
-  std::unique_ptr<bool[]> bits(new bool[1]);
-  bits[0] = true;
-  return Z3_mk_eq(c, bit_vector, Z3_mk_bv_numeral(c, 1, &bits[0]));
-}
-
 Z3_lbool RunSolver(Z3_context c, Z3_ast asserted) {
   Z3_solver solver = solvers::z3::CreateSolver(c, 1);
   Z3_solver_assert(c, solver, asserted);
@@ -299,7 +293,8 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
   // quadratically many Z3 calls.
   for (const auto& [node, index] : predicate_nodes) {
     Z3_ast translated = translator->GetTranslation(node);
-    if (RunSolver(ctx, BitVectorToBoolean(ctx, translated)) == Z3_L_FALSE) {
+    if (RunSolver(ctx, solvers::z3::BitVectorToBoolean(ctx, translated)) ==
+        Z3_L_FALSE) {
       XLS_VLOG(3) << "Proved that " << node << " is always false";
       // A constant false node is mutually exclusive with all other nodes.
       for (const auto& [other, other_index] : predicate_nodes) {
@@ -361,7 +356,8 @@ absl::Status ComputeMutualExclusion(Predicates* p, FunctionBase* f) {
 
       // We try to find out if `a ∧ b` is satisfiable, which is true iff
       // `a NAND b` is not valid.
-      Z3_ast a_and_b = BitVectorToBoolean(ctx, Z3_mk_bvand(ctx, z3_a, z3_b));
+      Z3_ast a_and_b =
+          solvers::z3::BitVectorToBoolean(ctx, Z3_mk_bvand(ctx, z3_a, z3_b));
 
       Z3_lbool satisfiable = RunSolver(ctx, a_and_b);
 

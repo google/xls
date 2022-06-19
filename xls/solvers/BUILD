@@ -32,6 +32,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/logging:vlog_is_on",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "//xls/data_structures:leaf_type_tree",
         "//xls/ir",
         "//xls/ir:abstract_evaluator",

@@ -1273,20 +1273,17 @@ TEST_F(TranslatorTest, ForUnrollClass) {
 
 TEST_F(TranslatorTest, ForUnrollConditionallyAssignLoopVar) {
   const std::string content = R"(
-      long long my_package(long long a, long long b) {
-        #pragma hls_unroll yes
-        for(int i=1;i<=10;++i) {
-          a += b;
-          a += 2*b;
-          if(a>10)
-            ++i;
-        }
-        return a;
-      })";
-  ASSERT_THAT(
-      SourceToIr(content).status(),
-      xls::status_testing::StatusIs(absl::StatusCode::kResourceExhausted,
-                                    testing::HasSubstr("maximum")));
+       long long my_package(long long a, long long b) {
+         #pragma hls_unroll yes
+         for(int i=0;i<10;++i) {
+           a += b;
+           if(a > 40) {
+             ++i;
+           }
+         }
+         return a;
+       })";
+  Run({{"a", 11}, {"b", 20}}, 131, content);
 }
 
 TEST_F(TranslatorTest, ForUnrollNoInit) {
@@ -6101,6 +6098,17 @@ TEST_F(TranslatorTest, NativeOperatorNeg) {
   Run({{"a", 11}}, -11, content);
   Run({{"a", 0}}, 0, content);
   Run({{"a", -1000}}, 1000, content);
+}
+
+TEST_F(TranslatorTest, NativeOperatorPlus) {
+  const std::string content = R"(
+      long long my_package(long long a) {
+        return (long long)(+a);
+      })";
+
+  Run({{"a", 11}}, 11, content);
+  Run({{"a", 0}}, 0, content);
+  Run({{"a", -1000}}, -1000, content);
 }
 
 TEST_F(TranslatorTest, NativeOperatorShrSigned) {

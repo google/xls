@@ -145,6 +145,7 @@ cc_library(
         "//xls/passes:standard_pipeline",
         "//xls/passes:tuple_simplification_pass",
         "//xls/passes:verifier_checker",
+        "//xls/solvers:z3_ir_translator",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -158,6 +159,7 @@ cc_library(
         "@llvm-project//clang:ast",
         "@llvm-project//clang:basic",
         "@llvm-project//llvm:Support",
+        "@z3//:api",
     ],
 )
 
