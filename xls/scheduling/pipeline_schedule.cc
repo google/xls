@@ -765,6 +765,7 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
   }
 
   auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
+  XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(
       schedule.VerifyTiming(clock_period_ps, delay_estimator_with_delay));
 
