@@ -335,6 +335,7 @@ filegroup(
         "synth_only/xls_fixed.h",
         "synth_only/xls_int.h",
     ],
+    visibility = ["//xls:xls_users"],
 )
 
 cc_binary(
