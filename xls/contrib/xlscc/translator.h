@@ -422,6 +422,11 @@ class ConstValue {
   xls::Value rvalue() const { return value_; }
   std::shared_ptr<CType> type() const { return type_; }
 
+  std::string debug_string() const {
+    return absl::StrFormat("(value=%s, type=%s)", value_.ToString(),
+                           (type_ != nullptr) ? std::string(*type_) : "(null)");
+  }
+
  private:
   xls::Value value_;
   std::shared_ptr<CType> type_;
@@ -653,10 +658,6 @@ struct TranslationContext {
   //  break is detected, which is unsupported and an error.
   xls::BValue full_switch_cond;
 
-  // Don't create side-effects when exploring the tree for unsequenced
-  // assignments
-  bool mask_assignments = false;
-
   // Ignore pointer qualifiers in type translation. Normally pointers
   //  cause an unsupported error, but when this flag is true,
   //  "Foo*" is translated as "Foo".
@@ -680,6 +681,12 @@ struct TranslationContext {
   bool propagate_up = true;
   bool propagate_break_up = true;
   bool propagate_continue_up = true;
+
+  bool mask_assignments = false;
+
+  // Don't create side-effects when exploring.
+  bool mask_side_effects = false;
+  bool any_side_effects_requested = false;
 };
 
 class Translator {
@@ -801,7 +808,7 @@ class Translator {
   struct MaskAssignmentsGuard {
     explicit MaskAssignmentsGuard(Translator& translator)
         : translator(translator),
-          prev_val(translator.context().mask_assignments) {
+          prev_val(translator.context().mask_side_effects) {
       translator.context().mask_assignments = true;
     }
     ~MaskAssignmentsGuard() {
@@ -1000,7 +1007,8 @@ class Translator {
   // IOOp must have io_call, and op members filled in
   // Returns permanent IOOp pointer
   absl::StatusOr<IOOp*> AddOpToChannel(IOOp& op, IOChannel* channel_param,
-                                       const xls::SourceInfo& loc);
+                                       const xls::SourceInfo& loc,
+                                       bool mask = false);
   absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
                                   const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> GetChannelType(
@@ -1013,6 +1021,9 @@ class Translator {
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
   absl::Status GenerateIR_Stmt(const clang::Stmt* stmt, clang::ASTContext& ctx);
+  absl::Status GenerateIR_StaticDecl(const clang::VarDecl* vard,
+                                     const clang::NamedDecl* namedecl,
+                                     const xls::SourceInfo& loc);
 
   absl::Status CheckInitIntervalValidity(int initiation_interval_arg,
                                          const xls::SourceInfo& loc);
@@ -1077,9 +1088,11 @@ class Translator {
   absl::StatusOr<xls::BValue> CreateInitListValue(
       const std::shared_ptr<CType>& t, const clang::InitListExpr* init_list,
       const xls::SourceInfo& loc);
+  absl::StatusOr<CValue> GetOnReset(const xls::SourceInfo& loc);
+  absl::StatusOr<bool> DeclIsOnReset(const clang::NamedDecl* decl);
   absl::StatusOr<CValue> GetIdentifier(const clang::NamedDecl* decl,
-                                       const xls::SourceInfo& loc,
-                                       bool for_lvalue = false);
+                                       const xls::SourceInfo& loc);
+
   absl::StatusOr<CValue> TranslateVarDecl(const clang::VarDecl* decl,
                                           const xls::SourceInfo& loc);
   absl::StatusOr<CValue> TranslateEnumConstantDecl(

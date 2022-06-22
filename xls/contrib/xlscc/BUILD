@@ -206,6 +206,7 @@ cc_test(
     srcs = ["translator_test.cc"],
     shard_count = 32,
     deps = [
+        ":hls_block_cc_proto",
         ":metadata_output_cc_proto",
         ":translator",
         ":unit_test",
@@ -235,6 +236,34 @@ cc_test(
 cc_test(
     name = "translator_pointer_test",
     srcs = ["translator_pointer_test.cc"],
+    deps = [
+        ":translator",
+        ":unit_test",
+        "//xls/codegen:block_conversion",
+        "//xls/codegen:block_generator",
+        "//xls/codegen:codegen_options",
+        "//xls/codegen:combinational_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
+        "//xls/common/logging",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:ir_interpreter",
+        "//xls/interpreter:proc_interpreter",
+        "//xls/ir",
+        "//xls/ir:bits",
+        "//xls/ir:ir_test_base",
+        "//xls/ir:value",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "translator_static_test",
+    srcs = ["translator_static_test.cc"],
     deps = [
         ":translator",
         ":unit_test",

@@ -238,5 +238,21 @@ TEST_F(CCParserTest, SourceManagerInitialized) {
   parser.GetPresumedLoc(*top_ptr);
 }
 
+TEST_F(CCParserTest, FoundOnReset) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #include "/xls_builtin.h"
+    #pragma hls_top
+    int foo(int a, int b) {
+      return a+b;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* on_reset_ptr, parser.GetXlsccOnReset());
+  ASSERT_NE(on_reset_ptr, nullptr);
+}
+
 
 }  // namespace

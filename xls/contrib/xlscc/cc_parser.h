@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/synchronization/blocking_counter.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/RecursiveASTVisitor.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
 #include "clang/include/clang/Frontend/FrontendActions.h"
@@ -120,6 +121,10 @@ class CCParser {
   // Returns nullptr if no top function has been found
   absl::StatusOr<const clang::FunctionDecl*> GetTopFunction() const;
 
+  // Finds the VarDecl for the special xls_builtin.h variable
+  // or an error if not found
+  absl::StatusOr<const clang::VarDecl*> GetXlsccOnReset() const;
+
   void AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output);
   void AddSourceInfoToPackage(xls::Package& package);
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
@@ -136,6 +141,7 @@ class CCParser {
 
  private:
   bool LibToolVisitFunction(clang::FunctionDecl* func);
+  bool LibToolVisitVarDecl(clang::VarDecl* func);
   absl::Status libtool_visit_status_ = absl::OkStatus();
 
   std::unique_ptr<LibToolThread> libtool_thread_;
@@ -144,6 +150,7 @@ class CCParser {
 
   // Scans for top-level function candidates
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
+  absl::Status VisitVarDecl(const clang::VarDecl* funcdecl);
   absl::Status ScanFileForPragmas(absl::string_view filename);
 
   using PragmaLoc = std::tuple<std::string, int>;
@@ -152,6 +159,7 @@ class CCParser {
 
   const clang::FunctionDecl* top_function_ = nullptr;
   absl::string_view top_function_name_ = "";
+  const clang::VarDecl* xlscc_on_reset_ = nullptr;
 
   // For source location
   absl::flat_hash_map<std::string, int> file_numbers_;

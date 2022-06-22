@@ -33,6 +33,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/unit_test.h"
 #include "xls/interpreter/channel_queue.h"
@@ -412,33 +413,6 @@ TEST_F(TranslatorTest, InitListExpr) {
   Run({{"a", 3}}, 33, content);
 }
 
-TEST_F(TranslatorTest, StaticInitListExpr) {
-  const std::string content = R"(
-    int my_package(int a) {
-      static const int test_arr[][6] = {
-          {  10,  0,  0,  0,  0,  0 },
-          {  0,  20,  0,  0,  0,  0 }
-      };
-      return a + test_arr[0][0] + test_arr[1][1] + test_arr[1][0] + test_arr[0][1];
-    })";
-  Run({{"a", 3}}, 33, content);
-}
-
-TEST_F(TranslatorTest, NonConstStaticInitListExpr) {
-  const std::string content = R"(
-    int my_package(int a) {
-      static const int test_arr[][6] = {
-          {  10,  0,  0,  0,  0,  0 },
-          {  a,  20,  0,  0,  0,  0 }
-      };
-      return a + test_arr[0][0] + test_arr[1][1] + test_arr[1][0] + test_arr[0][1];
-    })";
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kInvalidArgument,
-                                            testing::HasSubstr("constant")));
-}
-
 TEST_F(TranslatorTest, ArrayInitLoop) {
   const std::string content = R"(
        struct tss {
@@ -463,15 +437,6 @@ TEST_F(TranslatorTest, StringConstantArray) {
          return a+foo[0];
        })";
   Run({{"a", 11}}, 11 + 'A', content);
-}
-
-TEST_F(TranslatorTest, StaticConst) {
-  const std::string content = R"(
-       long long my_package(long long a) {
-         static const int off = 6;
-         return a+off;
-       })";
-  Run({{"a", 11}}, 11 + 6, content);
 }
 
 TEST_F(TranslatorTest, GlobalInt) {
@@ -1204,8 +1169,6 @@ TEST_F(TranslatorTest, ForUnrollShortCircuitClass) {
   Run({{"a", 11}, {"b", 20}}, 611, content);
 }
 
-// TODO: Not statically determined loop condition break on only one early iter
-
 TEST_F(TranslatorTest, ForUnrollMultiCondBreak) {
   const std::string content = R"(
       long long my_package(long long a, long long b) {
@@ -1896,18 +1859,6 @@ TEST_F(TranslatorTest, CompoundStructAccess) {
          return y.tx.x;
        })";
   Run({{"a", 56}}, 56, content);
-}
-
-TEST_F(TranslatorTest, StaticStructAccess) {
-  const std::string content = R"(
-       struct TestX {
-         static const int x = 50;
-       };
-       int my_package() {
-         TestX y;
-         return y.x;
-       })";
-  Run({}, 50, content);
 }
 
 TEST_F(TranslatorTest, SubstTemplateType) {
@@ -3737,122 +3688,6 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
   }
 }
 
-TEST_F(TranslatorTest, IOProcStatic) {
-  const std::string content = R"(
-    #include "/xls_builtin.h"
-
-    #pragma hls_top
-    void foo(__xls_channel<int>& in,
-             __xls_channel<int>& out) {
-      static int accum = 0;
-      accum += in.read();
-      accum += in.read();
-      out.write(accum);
-    })";
-
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("foo");
-
-    HLSChannel* ch_in = block_spec.add_channels();
-    ch_in->set_name("in");
-    ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
-
-    HLSChannel* ch_out = block_spec.add_channels();
-    ch_out->set_name("out");
-    ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
-  }
-
-  {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
-    inputs["in"] = {
-        xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(7, 32)),
-        xls::Value(xls::SBits(10, 32)), xls::Value(xls::SBits(20, 32))};
-    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(10, 32)),
-                      xls::Value(xls::SBits(40, 32))};
-
-    ProcTest(content, block_spec, inputs, outputs);
-  }
-}
-
-TEST_F(TranslatorTest, IOProcStaticNoIO) {
-  const std::string content = R"(
-    #include "/xls_builtin.h"
-
-    #pragma hls_top
-    void foo(__xls_channel<int>& in,
-             __xls_channel<int>& out) {
-      static int accum = 0;
-      (void)accum;
-    })";
-
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("foo");
-
-    HLSChannel* ch_in = block_spec.add_channels();
-    ch_in->set_name("in");
-    ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
-
-    HLSChannel* ch_out = block_spec.add_channels();
-    ch_out->set_name("out");
-    ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
-  }
-
-  { ProcTest(content, block_spec, {}, {}); }
-}
-
-TEST_F(TranslatorTest, IOProcStaticStruct) {
-  const std::string content = R"(
-    #include "/xls_builtin.h"
-
-    struct Test {
-      char a;
-      short b;
-      int c;
-      long d;
-    };
-
-    #pragma hls_top
-    void foo(__xls_channel<int>& in,
-             __xls_channel<int>& out) {
-      static Test accum = {1, 2, 3, 4};
-      out.write(2*in.read() + accum.d);
-      accum.d++;
-    })";
-
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("foo");
-
-    HLSChannel* ch_in = block_spec.add_channels();
-    ch_in->set_name("in");
-    ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
-
-    HLSChannel* ch_out = block_spec.add_channels();
-    ch_out->set_name("out");
-    ch_out->set_is_input(false);
-    ch_out->set_type(FIFO);
-  }
-
-  {
-    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
-    inputs["in"] = {xls::Value(xls::SBits(3, 32)),
-                    xls::Value(xls::SBits(7, 32))};
-    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-    outputs["out"] = {xls::Value(xls::SBits(10, 32)),
-                      xls::Value(xls::SBits(19, 32))};
-
-    ProcTest(content, block_spec, inputs, outputs);
-  }
-}
-
 TEST_F(TranslatorTest, IOShortCircuitAnd) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -5625,264 +5460,6 @@ TEST_F(TranslatorTest, ForPipelinedIOInBodySubroutine4) {
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
   EXPECT_EQ(top_proc_state_bits, 0);
-}
-
-TEST_F(TranslatorTest, Static) {
-  const std::string content = R"(
-
-       #pragma hls_top
-       int my_package() {
-         static int x = 22;
-         return x++;
-       })";
-
-  const absl::flat_hash_map<std::string, xls::Value> args = {};
-
-  xls::Value expected_vals[] = {
-      xls::Value(xls::SBits(22, 32)),
-      xls::Value(xls::SBits(23, 32)),
-      xls::Value(xls::SBits(24, 32)),
-  };
-
-  RunWithStatics(args, expected_vals, content);
-}
-
-TEST_F(TranslatorTest, StaticCall) {
-  const std::string content = R"(
-      int inner(int input) {
-        static long a = 3;
-        --a;
-        return a * input;
-      }
-
-       #pragma hls_top
-       int my_package(int y) {
-         static int x = 22;
-         int f = inner(x++);
-         return y+f;
-       })";
-
-  const absl::flat_hash_map<std::string, xls::Value> args = {
-      {"y", xls::Value(xls::SBits(10, 32))}};
-
-  xls::Value expected_vals[] = {
-      xls::Value(xls::SBits(54, 32)),
-      xls::Value(xls::SBits(33, 32)),
-      xls::Value(xls::SBits(10, 32)),
-  };
-
-  RunWithStatics(args, expected_vals, content);
-}
-
-TEST_F(TranslatorTest, StaticCallMulti) {
-  const std::string content = R"(
-      int inner() {
-        static int a = 10;
-        a--;
-        return a;
-      }
-
-       #pragma hls_top
-       int my_package(int y) {
-         y += inner();
-         return y + inner();
-      })";
-
-  const absl::flat_hash_map<std::string, xls::Value> args = {
-      {"y", xls::Value(xls::SBits(10, 32))}};
-
-  xls::Value expected_vals[] = {
-      xls::Value(xls::SBits(10 + 9 + 8, 32)),
-      xls::Value(xls::SBits(10 + 7 + 6, 32)),
-      xls::Value(xls::SBits(10 + 5 + 4, 32)),
-  };
-  RunWithStatics(args, expected_vals, content);
-}
-
-TEST_F(TranslatorTest, StaticConditionalAssign) {
-  const std::string content = R"(
-
-       #pragma hls_top
-       int my_package(int y) {
-         static int x = 22;
-         if(y == 1) {
-           x++;
-         }
-         return x;
-       })";
-
-  {
-    const absl::flat_hash_map<std::string, xls::Value> args = {
-        {"y", xls::Value(xls::SBits(1, 32))}};
-    xls::Value expected_vals[] = {
-        xls::Value(xls::SBits(23, 32)),
-        xls::Value(xls::SBits(24, 32)),
-        xls::Value(xls::SBits(25, 32)),
-    };
-    RunWithStatics(args, expected_vals, content);
-  }
-  {
-    const absl::flat_hash_map<std::string, xls::Value> args = {
-        {"y", xls::Value(xls::SBits(0, 32))}};
-    xls::Value expected_vals[] = {
-        xls::Value(xls::SBits(22, 32)),
-        xls::Value(xls::SBits(22, 32)),
-        xls::Value(xls::SBits(22, 32)),
-    };
-    RunWithStatics(args, expected_vals, content);
-  }
-}
-
-TEST_F(TranslatorTest, StaticCallConditionalAssign) {
-  const std::string content = R"(
-       int sub() {
-         static int x = 22;
-         x++;
-         return x;
-       }
-       #pragma hls_top
-       int my_package(int y) {
-         int ret = 111;
-         if(y == 1) {
-           ret = sub();
-         }
-         return ret;
-       })";
-
-  {
-    const absl::flat_hash_map<std::string, xls::Value> args = {
-        {"y", xls::Value(xls::SBits(1, 32))}};
-    xls::Value expected_vals[] = {
-        xls::Value(xls::SBits(23, 32)),
-        xls::Value(xls::SBits(24, 32)),
-        xls::Value(xls::SBits(25, 32)),
-    };
-    RunWithStatics(args, expected_vals, content);
-  }
-  {
-    const absl::flat_hash_map<std::string, xls::Value> args = {
-        {"y", xls::Value(xls::SBits(0, 32))}};
-    xls::Value expected_vals[] = {
-        xls::Value(xls::SBits(111, 32)),
-        xls::Value(xls::SBits(111, 32)),
-        xls::Value(xls::SBits(111, 32)),
-    };
-    RunWithStatics(args, expected_vals, content);
-  }
-}
-
-TEST_F(TranslatorTest, StaticMethodLocal) {
-  const std::string content = R"(
-       struct Thing {
-         int v_;
-
-         Thing(int v) : v_(v) { }
-         int doit() {
-           static int l = 0;
-           ++l;
-           return l + v_;
-         }
-       };
-
-       #pragma hls_top
-       int my_package() {
-         Thing thing(10);
-         return thing.doit();
-       })";
-
-  const absl::flat_hash_map<std::string, xls::Value> args = {};
-
-  xls::Value expected_vals[] = {
-      xls::Value(xls::SBits(11, 32)),
-      xls::Value(xls::SBits(12, 32)),
-      xls::Value(xls::SBits(13, 32)),
-  };
-
-  RunWithStatics(args, expected_vals, content);
-}
-
-TEST_F(TranslatorTest, StaticInnerScopeName) {
-  const std::string content = R"(
-
-       #pragma hls_top
-       int my_package() {
-         static int x = 22;
-         int inner = 0;
-         {
-           static int x = 100;
-           inner = --x;
-         }
-         x += inner;
-         return x;
-       })";
-
-  const absl::flat_hash_map<std::string, xls::Value> args = {};
-
-  xls::Value expected_vals[] = {
-      xls::Value(xls::SBits(121, 32)),
-      xls::Value(xls::SBits(219, 32)),
-      xls::Value(xls::SBits(316, 32)),
-      xls::Value(xls::SBits(412, 32)),
-  };
-
-  RunWithStatics(args, expected_vals, content);
-}
-
-TEST_F(TranslatorTest, StaticMember) {
-  const std::string content = R"(
-       struct Something {
-         static int foo;
-       };
-       #pragma hls_top
-       int my_package() {
-         return Something::foo++;
-       })";
-
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(absl::StatusCode::kUnimplemented,
-                                            testing::HasSubstr("static")));
-}
-
-// Add inner
-TEST_F(TranslatorTest, StaticProc) {
-  const std::string content = R"(
-    #include "/xls_builtin.h"
-
-    #pragma hls_top
-    void st(__xls_channel<int>& in,
-             __xls_channel<int>& out) {
-      const int ctrl = in.read();
-      static long count = 1;
-      out.write(ctrl + count);
-      count += 2;
-    })";
-
-  HLSBlock block_spec;
-  {
-    block_spec.set_name("st");
-
-    HLSChannel* ch_in = block_spec.add_channels();
-    ch_in->set_name("in");
-    ch_in->set_is_input(true);
-    ch_in->set_type(FIFO);
-
-    HLSChannel* ch_out1 = block_spec.add_channels();
-    ch_out1->set_name("out");
-    ch_out1->set_is_input(false);
-    ch_out1->set_type(FIFO);
-  }
-
-  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
-  inputs["in"] = {xls::Value(xls::SBits(55, 32)),
-                  xls::Value(xls::SBits(60, 32)),
-                  xls::Value(xls::SBits(100, 32))};
-
-  absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
-  outputs["out"] = {xls::Value(xls::SBits(56, 32)),
-                    xls::Value(xls::SBits(63, 32)),
-                    xls::Value(xls::SBits(105, 32))};
-
-  ProcTest(content, block_spec, inputs, outputs, /*n_ticks = */ 3);
 }
 
 TEST_F(TranslatorTest, ForPipelinedNoPragma) {

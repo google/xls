@@ -20,6 +20,7 @@
 
 #include "absl/status/status.h"
 #include "absl/synchronization/blocking_counter.h"
+#include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
 #include "clang/include/clang/Frontend/FrontendActions.h"
 #include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
@@ -39,6 +40,10 @@ class LibToolVisitor : public clang::RecursiveASTVisitor<LibToolVisitor> {
   explicit LibToolVisitor(clang::CompilerInstance& CI, CCParser& translator)
       : ast_context_(&(CI.getASTContext())), parser_(translator) {}
   virtual ~LibToolVisitor() {}
+  virtual bool VisitVarDecl(clang::VarDecl* decl) {
+    return parser_.LibToolVisitVarDecl(decl);
+    return true;
+  }
   virtual bool VisitFunctionDecl(clang::FunctionDecl* func) {
     return parser_.LibToolVisitFunction(func);
   }
@@ -308,6 +313,11 @@ bool CCParser::LibToolVisitFunction(clang::FunctionDecl* func) {
   return libtool_visit_status_.ok();
 }
 
+bool CCParser::LibToolVisitVarDecl(clang::VarDecl* func) {
+  if (libtool_visit_status_.ok()) libtool_visit_status_ = VisitVarDecl(func);
+  return libtool_visit_status_.ok();
+}
+
 // Scans for top-level function candidates
 absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
   if (!sm_) {
@@ -341,6 +351,25 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
   return absl::OkStatus();
 }
 
+absl::Status CCParser::VisitVarDecl(const clang::VarDecl* decl) {
+  const std::string name = decl->getNameAsString();
+
+  if (name == "__xlscc_on_reset") {
+    XLS_CHECK(xlscc_on_reset_ == nullptr || xlscc_on_reset_ == decl);
+    xlscc_on_reset_ = decl;
+  }
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<const clang::VarDecl*> CCParser::GetXlsccOnReset() const {
+  if (xlscc_on_reset_ == nullptr) {
+    return absl::NotFoundError(
+        "__xlscc_on_reset not found. Missing /xls_builtin.h?");
+  }
+  return xlscc_on_reset_;
+}
+
 LibToolThread::LibToolThread(absl::string_view source_filename,
                              absl::Span<absl::string_view> command_line_args,
                              CCParser& parser)
@@ -357,10 +386,12 @@ void LibToolThread::Join() { thread_->Join(); }
 void LibToolThread::Run() {
   std::vector<std::string> argv;
   argv.emplace_back("binary");
-  argv.emplace_back(source_filename_);
+  argv.emplace_back("/xls_top.cc");
   for (const auto& view : command_line_args_) {
     argv.emplace_back(view);
   }
+  // For xls_top.cc to include the source file
+  argv.emplace_back("-I.");
   argv.emplace_back("-fsyntax-only");
   argv.emplace_back("-std=c++17");
   argv.emplace_back("-nostdinc");
@@ -398,8 +429,19 @@ class __xls_channel {
 // Bypass no outputs error
 int __xlscc_unimplemented() { return 0; }
 
+bool __xlscc_on_reset = false;
+
 #endif//__XLS_BUILTIN_H
           )"));
+
+  const std::string top_src = absl::StrFormat(R"(
+#include "/xls_builtin.h"
+#include "%s"
+          )",
+                                              source_filename_);
+
+  mem_fs->addFile("/xls_top.cc", 0,
+                  llvm::MemoryBuffer::getMemBuffer(top_src.c_str()));
 
   llvm::IntrusiveRefCntPtr<llvm::vfs::OverlayFileSystem> overlay_fs(
       new llvm::vfs::OverlayFileSystem(llvm::vfs::getRealFileSystem()));
