@@ -204,6 +204,7 @@ cc_test(
 cc_test(
     name = "translator_test",
     srcs = ["translator_test.cc"],
+    shard_count = 32,
     deps = [
         ":metadata_output_cc_proto",
         ":translator",

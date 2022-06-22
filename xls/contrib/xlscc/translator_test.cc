@@ -1087,7 +1087,7 @@ TEST_F(TranslatorTest, ForUnrollShortCircuit) {
 
         long long my_package(long long a, long long b) {
          #pragma hls_unroll yes
-         for(int i=0;i<50 && a<=100;++i) {
+         for(int i=0;i<10 && a<=100;++i) {
            a += b;
           }
          return a;
@@ -1101,7 +1101,7 @@ TEST_F(TranslatorTest, ForUnrollShortCircuit2) {
         long long my_package(long long a, long long b) {
         int i=0;
          #pragma hls_unroll yes
-         for(;i<50 && a<=100;++i) {
+         for(;i<10 && a<=100;++i) {
            a += b;
           }
          return a+i;
@@ -1115,13 +1115,13 @@ TEST_F(TranslatorTest, ForUnrollShortCircuit2A) {
         long long my_package(long long a, long long b) {
          int i=0;
          #pragma hls_unroll yes
-         for(;i<50;++i) {
+         for(;i<10;++i) {
            if(a>100) continue;
            a += b;
           }
          return a+i;
        })";
-  Run({{"a", 11}, {"b", 20}}, 111 + 50, content);
+  Run({{"a", 11}, {"b", 20}}, 111 + 10, content);
 }
 
 TEST_F(TranslatorTest, ForUnrollShortCircuit3) {
