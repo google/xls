@@ -210,6 +210,20 @@ class VirtualChannel {
  public:
   static absl::StatusOr<VirtualChannel> Create(Channel* channel, Proc* proc) {
     XLS_RET_CHECK_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
+    if (channel->kind() == ChannelKind::kStreaming) {
+      StreamingChannel* streaming_channel =
+          down_cast<StreamingChannel*>(channel);
+      if (!streaming_channel->GetFifoDepth().has_value() ||
+          streaming_channel->GetFifoDepth().value() != 0) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Only streaming channels of FIFO depth zero are supported in proc "
+            "inlining. Channel `%s` has depth: %s",
+            streaming_channel->name(),
+            streaming_channel->GetFifoDepth().has_value()
+                ? absl::StrCat(streaming_channel->GetFifoDepth().value())
+                : "(none)"));
+      }
+    }
     VirtualChannel vc;
     vc.channel_ = channel;
 
