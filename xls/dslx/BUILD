@@ -963,6 +963,7 @@ cc_library(
     deps = [
         ":ast",
         ":builtins_metadata",
+        ":constexpr_evaluator",
         ":deduce_ctx",
         ":extract_conversion_order",
         ":import_routines",

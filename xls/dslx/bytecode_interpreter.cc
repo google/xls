@@ -1416,6 +1416,12 @@ absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
          const InterpValue& end) -> absl::StatusOr<InterpValue> {
         XLS_RET_CHECK(start.IsBits());
         XLS_RET_CHECK(end.IsBits());
+        XLS_ASSIGN_OR_RETURN(InterpValue start_gt_end, start.Gt(end));
+        if (start_gt_end.IsTrue()) {
+          return absl::InvalidArgumentError(absl::StrFormat(
+              "range() start must be less than or equal to end: %s vs %s.",
+              start.ToString(), end.ToString()));
+        }
 
         std::vector<InterpValue> elements;
         InterpValue cur = start;

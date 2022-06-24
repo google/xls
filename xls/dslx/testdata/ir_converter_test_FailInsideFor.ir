@@ -3,21 +3,23 @@ package test_module
 file_number 0 "fake_file.x"
 
 fn ____itok__test_module__main_counted_for_0_body(i: bits[32], __token_wrapped: (token, bits[1], bits[32])) -> (token, bits[1], bits[32]) {
-  tuple_index.8: bits[1] = tuple_index(__token_wrapped, index=1, id=8)
-  tuple_index.9: bits[32] = tuple_index(__token_wrapped, index=2, id=9)
-  tuple_index.7: token = tuple_index(__token_wrapped, index=0, id=7)
-  not.10: bits[1] = not(tuple_index.8, id=10)
-  identity.12: bits[32] = identity(tuple_index.9, id=12)
-  assert.11: token = assert(tuple_index.7, not.10, message="Assertion failure via fail! @ test_module.x:4:10-4:13", id=11)
-  ret tuple.13: (token, bits[1], bits[32]) = tuple(tuple_index.7, tuple_index.8, identity.12, id=13)
+  tuple_index.10: bits[1] = tuple_index(__token_wrapped, index=1, id=10)
+  tuple_index.11: bits[32] = tuple_index(__token_wrapped, index=2, id=11)
+  literal.6: bits[32] = literal(value=0, id=6)
+  tuple_index.9: token = tuple_index(__token_wrapped, index=0, id=9)
+  not.12: bits[1] = not(tuple_index.10, id=12)
+  identity.14: bits[32] = identity(tuple_index.11, id=14)
+  add.7: bits[32] = add(i, literal.6, id=7)
+  assert.13: token = assert(tuple_index.9, not.12, message="Assertion failure via fail! @ test_module.x:4:10-4:13", id=13)
+  ret tuple.15: (token, bits[1], bits[32]) = tuple(tuple_index.9, tuple_index.10, identity.14, id=15)
 }
 
 fn __itok__test_module__main(__token: token, __activated: bits[1], x: bits[32]) -> (token, bits[32]) {
   literal.4: bits[32] = literal(value=0, id=4)
-  tuple.14: (token, bits[1], bits[32]) = tuple(__token, __activated, literal.4, id=14)
-  counted_for.15: (token, bits[1], bits[32]) = counted_for(tuple.14, trip_count=1, stride=1, body=____itok__test_module__main_counted_for_0_body, id=15)
-  tuple_index.16: token = tuple_index(counted_for.15, index=0, id=16)
-  after_all.18: token = after_all(tuple_index.16, id=18)
-  tuple_index.17: bits[32] = tuple_index(counted_for.15, index=2, id=17)
-  ret tuple.19: (token, bits[32]) = tuple(after_all.18, tuple_index.17, id=19)
+  tuple.16: (token, bits[1], bits[32]) = tuple(__token, __activated, literal.4, id=16)
+  counted_for.17: (token, bits[1], bits[32]) = counted_for(tuple.16, trip_count=1, stride=1, body=____itok__test_module__main_counted_for_0_body, id=17)
+  tuple_index.18: token = tuple_index(counted_for.17, index=0, id=18)
+  after_all.20: token = after_all(tuple_index.18, id=20)
+  tuple_index.19: bits[32] = tuple_index(counted_for.17, index=2, id=19)
+  ret tuple.21: (token, bits[32]) = tuple(after_all.20, tuple_index.19, id=21)
 }

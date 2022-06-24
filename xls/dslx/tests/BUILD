@@ -505,6 +505,8 @@ dslx_lang_test(
     dslx_entry = "id_6_3_2",
 )
 
+dslx_lang_test(name = "for_nonzero_start")
+
 dslx_lang_test(name = "for_sans_type_annotation")
 
 dslx_lang_test(name = "derived_parametrics")

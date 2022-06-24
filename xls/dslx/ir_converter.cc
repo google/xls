@@ -31,6 +31,7 @@
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
+#include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interp_value.h"
@@ -1363,9 +1364,9 @@ absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(
     const For* node) {
   auto error = [&] {
     return absl::InvalidArgumentError(
-        absl::StrFormat("ConversionError: %s For-loop is of an unsupported "
-                        "form for IR conversion; only a range(0, CONSTANT) "
-                        "call is supported; got iterable: %s",
+        absl::StrFormat("ConversionError: %s For-loop iterable (%s) "
+                        "must be bits-typed, constexpr, and its start must be "
+                        "less than or equal to its limit.",
                         node->span().ToString(), node->iterable()->ToString()));
   };
   auto* iterable_call = dynamic_cast<Invocation*>(node->iterable());
@@ -1389,19 +1390,29 @@ absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(
   Expr* start = iterable_call->args()[0];
   Expr* limit = iterable_call->args()[1];
 
-  XLS_ASSIGN_OR_RETURN(InterpValue value,
-                       current_type_info_->GetConstExpr(start));
-  // TODO(rspringer): 2022-05-25: Relax this restriction.
-  if (!value.IsBits() || value.GetBitValueUint64().value() != 0) {
+  SymbolicBindings bindings(symbolic_binding_map_);
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue start_value,
+      ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+                                          bindings, start, nullptr));
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue limit_value,
+      ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+                                          bindings, limit, nullptr));
+
+  if (!start_value.IsBits() || !limit_value.IsBits()) {
     return error();
   }
 
-  XLS_ASSIGN_OR_RETURN(value, current_type_info_->GetConstExpr(limit));
-  XLS_RET_CHECK(value.IsBits());
-  if (value.IsSigned()) {
-    return value.GetBitValueInt64();
+  XLS_ASSIGN_OR_RETURN(InterpValue trip_count, limit_value.Sub(start_value));
+  XLS_RET_CHECK(trip_count.IsBits());
+  if (trip_count.IsSigned()) {
+    XLS_ASSIGN_OR_RETURN(int64_t trip_count, trip_count.GetBitValueInt64());
+    if (trip_count < 0) {
+      return error();
+    }
   }
-  return value.GetBitValueUint64();
+  return trip_count.GetBitValueUint64();
 }
 
 // Convert a NameDefTree node variant to an AstNode pointer (either the leaf
@@ -1417,12 +1428,6 @@ static AstNode* ToAstNode(
 absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_RETURN_IF_ERROR(Visit(node->init()));
 
-  // TODO(leary): We currently only support counted loops with fixed upper
-  // bounds that start at zero; i.e. those of the form like:
-  //
-  //  for (i, ...): (u32, ...) in range(u32:0, N) {
-  //    ...
-  //  }
   XLS_ASSIGN_OR_RETURN(int64_t trip_count, QueryConstRangeCall(node));
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
@@ -1462,8 +1467,23 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   auto* name_def = dynamic_cast<NameDef*>(ivar);
   XLS_RET_CHECK(name_def != nullptr);
   XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(name_def));
-  body_converter.SetNodeToIr(name_def, body_converter.function_builder_->Param(
-                                           name_def->identifier(), ivar_type));
+  BValue loop_index = body_converter.function_builder_->Param(
+      name_def->identifier(), ivar_type);
+  // IR `counted_for` ops only support a trip count, not a set of iterables, so
+  // we need to add an offset to that trip count/index to support nonzero loop
+  // start indices.
+  // Pulling values out of the iterable invocation is safe, as it was all
+  // checked in QueryConstRangeCall.
+  auto* iterable_call = dynamic_cast<Invocation*>(node->iterable());
+  Expr* iterable_start = iterable_call->args()[0];
+  XLS_ASSIGN_OR_RETURN(InterpValue start_value,
+                       current_type_info_->GetConstExpr(iterable_start));
+  XLS_ASSIGN_OR_RETURN(Value index_offset, InterpValueToValue(start_value));
+  BValue offset_literal =
+      body_converter.function_builder_->Literal(index_offset);
+  BValue offset_sum =
+      body_converter.function_builder_->Add(loop_index, offset_literal);
+  body_converter.SetNodeToIr(name_def, offset_sum);
 
   // Add the loop carry value.
   AstNode* carry = ToAstNode(flat[1]);
