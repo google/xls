@@ -64,6 +64,14 @@ absl::StatusOr<EnumDef*> ResolveTypeDefToEnum(ImportData* import_data,
   return absl::get<EnumDef*>(td);
 }
 
+void FlattenToSetInternal(const AstNode* node,
+                          absl::flat_hash_set<const AstNode*>* the_set) {
+  the_set->insert(node);
+  for (const AstNode* child : node->GetChildren(/*want_types=*/true)) {
+    FlattenToSetInternal(child, the_set);
+  }
+}
+
 }  // namespace
 
 bool IsBuiltinFn(Expr* callee) {
@@ -232,6 +240,12 @@ absl::Status VerifyParentage(const AstNode* root) {
   }
 
   return absl::OkStatus();
+}
+
+absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node) {
+  absl::flat_hash_set<const AstNode*> the_set;
+  FlattenToSetInternal(node, &the_set);
+  return the_set;
 }
 
 }  // namespace xls::dslx

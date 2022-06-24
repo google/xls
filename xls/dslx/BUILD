@@ -30,6 +30,7 @@ cc_library(
     hdrs = ["ast_cloner.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",

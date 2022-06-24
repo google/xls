@@ -59,6 +59,7 @@ bool IsOneOf(ObjT* obj) {
   X(ConstantArray)                 \
   X(ConstRef)                      \
   X(For)                           \
+  X(FormatMacro)                   \
   X(Index)                         \
   X(Invocation)                    \
   X(Let)                           \
@@ -69,7 +70,6 @@ bool IsOneOf(ObjT* obj) {
   X(String)                        \
   X(StructInstance)                \
   X(Ternary)                       \
-  X(FormatMacro)                   \
   X(Unop)                          \
   X(XlsTuple)
 

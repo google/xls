@@ -24,6 +24,11 @@ namespace xls::dslx {
 absl::StatusOr<AstNode*> CloneAst(AstNode* root);
 absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module);
 
+// Verifies that the AST node tree rooted at `new_root` does not contain any of
+// the AST nodes in the tree rooted at `old_root`. In practice, this will verify
+// that a clone doesn't contain any 'old' AST nodes.
+absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_AST_CLONER_H_

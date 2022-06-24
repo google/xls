@@ -50,6 +50,10 @@ absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
 absl::Status VerifyParentage(const Module* module);
 absl::Status VerifyParentage(const AstNode* root);
 
+// Returns the set consisting of all transitive children of the given node (as
+// well as that node itself).
+absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node);
+
 }  // namespace xls::dslx
 
 #endif  // XLS_DSLX_AST_UTILS_H_

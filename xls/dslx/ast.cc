@@ -943,14 +943,21 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
 }
 
 std::string SplatStructInstance::ToString() const {
+  std::string type_name;
+  if (absl::holds_alternative<StructDef*>(struct_ref_)) {
+    type_name = absl::get<StructDef*>(struct_ref_)->identifier();
+  } else {
+    type_name = ToAstNode(struct_ref_)->ToString();
+  }
+
   std::string members_str = absl::StrJoin(
       members_, ", ",
       [](std::string* out, const std::pair<std::string, Expr*>& member) {
         absl::StrAppendFormat(out, "%s: %s", member.first,
                               member.second->ToString());
       });
-  return absl::StrFormat("%s { %s, ..%s }", ToAstNode(struct_ref_)->ToString(),
-                         members_str, splatted_->ToString());
+  return absl::StrFormat("%s { %s, ..%s }", type_name, members_str,
+                         splatted_->ToString());
 }
 
 std::vector<AstNode*> MatchArm::GetChildren(bool want_types) const {

@@ -17,6 +17,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/ast_utils.h"
 
 namespace xls::dslx {
 
@@ -232,6 +233,26 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleIndex(const Index* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    IndexRhs new_rhs = std::visit(
+        Visitor{[&](Expr* expr) -> IndexRhs {
+                  return down_cast<Expr*>(old_to_new_.at(expr));
+                },
+                [&](Slice* slice) -> IndexRhs {
+                  return down_cast<Slice*>(old_to_new_.at(slice));
+                },
+                [&](WidthSlice* width_slice) -> IndexRhs {
+                  return down_cast<WidthSlice*>(old_to_new_.at(width_slice));
+                }},
+        n->rhs());
+
+    old_to_new_[n] = module_->Make<Index>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())), new_rhs);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleInvocation(const Invocation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -405,6 +426,45 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleSlice(const Slice* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<Slice>(
+        n->GetSpan().value(), down_cast<Expr*>(old_to_new_.at(n->start())),
+        down_cast<Expr*>(old_to_new_.at(n->limit())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    // Have to explicitly visit struct def, since it's not a child.
+    StructRef new_struct_ref;
+    if (std::holds_alternative<StructDef*>(n->struct_ref())) {
+      StructDef* old_struct_def = std::get<StructDef*>(n->struct_ref());
+      XLS_RETURN_IF_ERROR(old_struct_def->Accept(this));
+      new_struct_ref = down_cast<StructDef*>(old_to_new_.at(old_struct_def));
+    } else {
+      ColonRef* old_colon_ref = std::get<ColonRef*>(n->struct_ref());
+      XLS_RETURN_IF_ERROR(old_colon_ref->Accept(this));
+      new_struct_ref = down_cast<ColonRef*>(old_to_new_.at(old_colon_ref));
+    }
+
+    const std::vector<std::pair<std::string, Expr*>>& old_members =
+        n->members();
+    std::vector<std::pair<std::string, Expr*>> new_members;
+    new_members.reserve(old_members.size());
+    for (const auto& member : old_members) {
+      new_members.push_back(std::make_pair(
+          member.first, down_cast<Expr*>(old_to_new_.at(member.second))));
+    }
+
+    old_to_new_[n] = module_->Make<SplatStructInstance>(
+        n->span(), new_struct_ref, new_members,
+        down_cast<Expr*>(old_to_new_.at(n->splatted())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStructDef(const StructDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -454,6 +514,16 @@ class AstCloner : public AstNodeVisitorWithDefault {
 
     old_to_new_[n] =
         module_->Make<StructInstance>(n->span(), new_struct_ref, new_members);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleTernary(const Ternary* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    old_to_new_[n] = module_->Make<Ternary>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->test())),
+        down_cast<Expr*>(old_to_new_.at(n->consequent())),
+        down_cast<Expr*>(old_to_new_.at(n->alternate())));
     return absl::OkStatus();
   }
 
@@ -554,7 +624,8 @@ class AstCloner : public AstNodeVisitorWithDefault {
     }
 
     old_to_new_[n] = module_->Make<TypeRefTypeAnnotation>(
-        n->span(), down_cast<TypeRef*>(n->type_ref()), new_parametrics);
+        n->span(), down_cast<TypeRef*>(old_to_new_.at(n->type_ref())),
+        new_parametrics);
     return absl::OkStatus();
   }
 
@@ -563,6 +634,14 @@ class AstCloner : public AstNodeVisitorWithDefault {
     old_to_new_[n] =
         module_->Make<Unop>(n->span(), n->unop_kind(),
                             down_cast<Expr*>(old_to_new_.at(n->operand())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleWidthSlice(const WidthSlice* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<WidthSlice>(
+        n->GetSpan().value(), down_cast<Expr*>(old_to_new_.at(n->start())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->width())));
     return absl::OkStatus();
   }
 
@@ -667,6 +746,25 @@ absl::StatusOr<std::unique_ptr<Module>> CloneModule(Module* module) {
     XLS_RETURN_IF_ERROR(new_module->AddTop(new_member));
   }
   return new_module;
+}
+
+// Verifies that `node` consists solely of "new" AST nodes and none that are
+// in the "old" set.
+absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root) {
+  absl::flat_hash_set<const AstNode*> old_nodes = FlattenToSet(old_root);
+  absl::flat_hash_set<const AstNode*> new_nodes = FlattenToSet(new_root);
+  for (const AstNode* new_node : new_nodes) {
+    if (old_nodes.contains(new_node)) {
+      absl::optional<Span> span = new_node->GetSpan();
+      return absl::InvalidArgumentError(absl::StrFormat(
+          "Node \"%s\" (%s; %s) was found in both the old set and "
+          "new translation!",
+          new_node->ToString(),
+          span.has_value() ? span.value().ToString() : "<no span>",
+          new_node->GetNodeTypeName()));
+    }
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xls::dslx

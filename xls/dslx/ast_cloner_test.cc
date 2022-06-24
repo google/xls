@@ -42,6 +42,7 @@ u32:3)";
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()));
   EXPECT_EQ(kExpected, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f->body(), clone));
 }
 
 TEST(AstClonerTest, NameRefs) {
@@ -60,6 +61,7 @@ a)";
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()));
   EXPECT_EQ(kExpected, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f->body(), clone));
 }
 
 TEST(AstClonerTest, XlsTuple) {
@@ -81,6 +83,7 @@ let b = u32:1;
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()));
   EXPECT_EQ(kExpected, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f->body(), clone));
 }
 
 TEST(AstClonerTest, BasicFunction) {
@@ -96,6 +99,7 @@ TEST(AstClonerTest, BasicFunction) {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, StructDefAndInstance) {
@@ -129,6 +133,7 @@ fn main() -> MyStruct {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, ColonRefToImportedStruct) {
@@ -152,6 +157,7 @@ fn main() -> foo::ImportedStruct {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, ArraysAndConstantDefs) {
@@ -172,6 +178,7 @@ fn main() -> u32[ARRAY_SIZE] {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kExpectedFunction, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, Binops) {
@@ -185,6 +192,7 @@ TEST(AstClonerTest, Binops) {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, Unops) {
@@ -198,6 +206,7 @@ TEST(AstClonerTest, Unops) {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, Casts) {
@@ -211,6 +220,7 @@ TEST(AstClonerTest, Casts) {
                            module->GetMemberOrError<Function>("main"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(f, clone));
 }
 
 TEST(AstClonerTest, Procs) {
@@ -230,6 +240,7 @@ TEST(AstClonerTest, Procs) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, module->GetMemberOrError<Proc>("MyProc"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(p));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(p, clone));
 }
 
 TEST(AstClonerTest, TestFunctions) {
@@ -246,6 +257,7 @@ fn my_test() {
                            module->GetMemberOrError<TestFunction>("my_test"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(tf));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(tf, clone));
 }
 
 TEST(AstClonerTest, TestProcs) {
@@ -268,6 +280,7 @@ proc my_test_proc {
                            module->GetMemberOrError<TestProc>("my_test_proc"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(tp));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(tp, clone));
 }
 
 TEST(AstClonerTest, EnumDef) {
@@ -284,6 +297,7 @@ TEST(AstClonerTest, EnumDef) {
                            module->GetMemberOrError<EnumDef>("MyEnum"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(enum_def));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(enum_def, clone));
 }
 
 TEST(AstClonerTest, TypeDef) {
@@ -297,6 +311,7 @@ TEST(AstClonerTest, TypeDef) {
       module->GetMemberOrError<TypeDef>("RobsUnnecessaryType"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(type_def));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(type_def, clone));
 }
 
 TEST(AstClonerTest, QuickCheck) {
@@ -312,6 +327,7 @@ fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
       module->GetMemberOrError<QuickCheck>("my_quickcheck"));
   XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(quick_check));
   EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(quick_check, clone));
 }
 
 TEST(AstClonerTest, CloneModule) {
@@ -373,6 +389,58 @@ proc my_proc {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
                            CloneModule(module.get()));
   EXPECT_EQ(kExpected, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+}
+
+TEST(AstClonerTest, IndexVariants) {
+  constexpr absl::string_view kProgram = R"(fn main() {
+  let array = u32[5]:[u32:0, u32:1, u32:2, u32:3, u32:4];
+  let index = (array)[2];
+  let slice = ((array)[3])[0:2];
+  let width_slice = ((array)[3])[(array)[0]+:u4];
+  ()
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+}
+
+TEST(AstClonerTest, SplatStructInstance) {
+  constexpr absl::string_view kProgram = R"(struct MyStruct {
+  a: u32,
+  b: u33,
+  c: u34,
+}
+fn main() {
+  let x: MyStruct = MyStruct { a: u32:0, b: u33:1, c: u34:0xbeef };
+  let y: MyStruct = MyStruct { a: u32:0xf00d, c: u34:0xbef0, ..x };
+  ()
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
+}
+
+TEST(AstClonerTest, Ternary) {
+  constexpr absl::string_view kProgram =
+      R"(fn main(a: u32, b: u32, c: u32) -> u32 {
+  if (a) > (u32:5) { b } else { c }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+  XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
 }
 
 }  // namespace
