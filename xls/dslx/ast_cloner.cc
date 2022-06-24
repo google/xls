@@ -21,11 +21,7 @@
 
 namespace xls::dslx {
 
-// TODO(rspringer): 2022-06-06: Make sure all NameDef::definers are set
-// appropriately.
-// TODO(rspringer): 2022-06-06: Switch to AstNodeVisitor (without "WithDefault")
-// once all nodes are supported.
-class AstCloner : public AstNodeVisitorWithDefault {
+class AstCloner : public AstNodeVisitor {
  public:
   AstCloner(Module* module) : module_(module) {}
 
@@ -313,6 +309,19 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleJoin(const Join* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_tokens;
+    new_tokens.reserve(n->tokens().size());
+    for (const Expr* token : n->tokens()) {
+      new_tokens.push_back(down_cast<Expr*>(old_to_new_.at(token)));
+    }
+
+    old_to_new_[n] = module_->Make<Join>(n->span(), new_tokens);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleLet(const Let* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -356,6 +365,11 @@ class AstCloner : public AstNodeVisitorWithDefault {
         n->span(), new_patterns, down_cast<Expr*>(old_to_new_.at(n->expr())));
 
     return absl::OkStatus();
+  }
+
+  absl::Status HandleModule(const Module* n) override {
+    return absl::InvalidArgumentError(
+        "Modules should not be encountered while walking internal AST nodes.");
   }
 
   absl::Status HandleNameDef(const NameDef* n) override {
@@ -818,6 +832,9 @@ class AstCloner : public AstNodeVisitorWithDefault {
 };
 
 absl::StatusOr<AstNode*> CloneAst(AstNode* root) {
+  if (dynamic_cast<Module*>(root) != nullptr) {
+    return absl::InvalidArgumentError("Clone a module via 'CloneModule'.");
+  }
   AstCloner cloner(root->owner());
   XLS_RETURN_IF_ERROR(root->Accept(&cloner));
   return cloner.old_to_new().at(root);

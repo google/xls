@@ -62,6 +62,7 @@ bool IsOneOf(ObjT* obj) {
   X(FormatMacro)                   \
   X(Index)                         \
   X(Invocation)                    \
+  X(Join)                          \
   X(Let)                           \
   X(Match)                         \
   X(NameRef)                       \
@@ -89,7 +90,6 @@ bool IsOneOf(ObjT* obj) {
   X(EnumDef)                      \
   X(Function)                     \
   X(Import)                       \
-  X(Join)                         \
   X(MatchArm)                     \
   X(Module)                       \
   X(NameDef)                      \
