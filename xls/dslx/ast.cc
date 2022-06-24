@@ -1183,6 +1183,21 @@ std::vector<AstNode*> FormatMacro::GetChildren(bool want_types) const {
   return results;
 }
 
+std::string FormatMacro::ToString() const {
+  std::string format_string = "\"";
+  for (const auto& step : format_) {
+    if (std::holds_alternative<std::string>(step)) {
+      absl::StrAppend(&format_string, std::get<std::string>(step));
+    } else {
+      absl::StrAppend(&format_string,
+                      std::string(FormatPreferenceToXlsSpecifier(
+                          std::get<FormatPreference>(step))));
+    }
+  }
+  absl::StrAppend(&format_string, "\"");
+  return absl::StrFormat("%s(%s, %s)", macro_, format_string, FormatArgs());
+}
+
 std::string FormatMacro::FormatArgs() const {
   return absl::StrJoin(args_, ", ", [](std::string* out, Expr* e) {
     absl::StrAppend(out, e->ToString());

@@ -443,5 +443,64 @@ TEST(AstClonerTest, Ternary) {
   XLS_ASSERT_OK(VerifyClone(module.get(), clone.get()));
 }
 
+TEST(AstClonerTest, FormatMacro) {
+  constexpr absl::string_view kProgram = R"(fn main(x: u32) -> u32 {
+  let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
+  ()
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, Match) {
+  // Try to every potential NameDefTree Leaf type (NameRef, NameDef,
+  // WildcardPattern, Number, ColonRef).
+  constexpr absl::string_view kProgram = R"(import foo
+fn main(x: u32, y: u32) -> u32 {
+  match (x, y) {
+    (u32:0, y) => y,
+    (u32:1, a) => (a) + (u32:100),
+    (u32:2, _) => foo::IMPORTED_CONSTANT,
+    (_, u32:100) => u32:200,
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, String) {
+  constexpr absl::string_view kProgram = R"(fn main() -> u8[13] {
+  "dogs are good"
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
+TEST(AstClonerTest, NormalFor) {
+  constexpr absl::string_view kProgram = R"(fn main() -> u32 {
+  for (i, a): (u32, u32) in range(0, u32:100) {
+    (i) + (a)
+  }(u32:0)
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -194,6 +194,32 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleFor(const For* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    old_to_new_[n] = module_->Make<For>(
+        n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
+        down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
+        down_cast<Expr*>(old_to_new_.at(n->iterable())),
+        down_cast<Expr*>(old_to_new_.at(n->body())),
+        down_cast<Expr*>(old_to_new_.at(n->init())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleFormatMacro(const FormatMacro* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<Expr*> new_args;
+    new_args.reserve(n->args().size());
+    for (const Expr* arg : n->args()) {
+      new_args.push_back(down_cast<Expr*>(old_to_new_.at(arg)));
+    }
+
+    old_to_new_[n] = module_->Make<FormatMacro>(n->span(), n->macro(),
+                                                n->format(), new_args);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleFunction(const Function* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     NameDef* new_name_def = down_cast<NameDef*>(old_to_new_.at(n->name_def()));
@@ -280,6 +306,35 @@ class AstCloner : public AstNodeVisitorWithDefault {
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->name_def_tree())),
         new_type, down_cast<Expr*>(old_to_new_.at(n->rhs())),
         down_cast<Expr*>(old_to_new_.at(n->body())), n->is_const());
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleMatch(const Match* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<MatchArm*> new_arms;
+    new_arms.reserve(n->arms().size());
+    for (const MatchArm* arm : n->arms()) {
+      new_arms.push_back(down_cast<MatchArm*>(old_to_new_.at(arm)));
+    }
+
+    old_to_new_[n] = module_->Make<Match>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->matched())), new_arms);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleMatchArm(const MatchArm* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    std::vector<NameDefTree*> new_patterns;
+    new_patterns.reserve(n->patterns().size());
+    for (const NameDefTree* pattern : n->patterns()) {
+      new_patterns.push_back(down_cast<NameDefTree*>(old_to_new_.at(pattern)));
+    }
+
+    old_to_new_[n] = module_->Make<MatchArm>(
+        n->span(), new_patterns, down_cast<Expr*>(old_to_new_.at(n->expr())));
+
     return absl::OkStatus();
   }
 
@@ -465,6 +520,11 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleString(const String* n) override {
+    old_to_new_[n] = module_->Make<String>(n->span(), n->text());
+    return absl::OkStatus();
+  }
+
   absl::Status HandleStructDef(const StructDef* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
@@ -642,6 +702,11 @@ class AstCloner : public AstNodeVisitorWithDefault {
     old_to_new_[n] = module_->Make<WidthSlice>(
         n->GetSpan().value(), down_cast<Expr*>(old_to_new_.at(n->start())),
         down_cast<TypeAnnotation*>(old_to_new_.at(n->width())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleWildcardPattern(const WildcardPattern* n) {
+    old_to_new_[n] = module_->Make<WildcardPattern>(n->span());
     return absl::OkStatus();
   }
 

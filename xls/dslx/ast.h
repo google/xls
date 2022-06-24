@@ -1637,9 +1637,7 @@ class FormatMacro : public Expr {
 
   std::string FormatArgs() const;
 
-  std::string ToString() const override {
-    return absl::StrFormat("%s(%s)", macro_, FormatArgs());
-  }
+  std::string ToString() const override;
 
   const std::string macro() const { return macro_; }
   const absl::Span<Expr* const> args() const { return args_; }
