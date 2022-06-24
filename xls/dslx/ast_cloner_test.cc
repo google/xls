@@ -502,5 +502,63 @@ TEST(AstClonerTest, NormalFor) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, SendsAndRecvsAndSpawns) {
+  constexpr absl::string_view kProgram = R"(import other_module
+proc MyProc {
+  input_p: chan out u32;
+  output_c: chan out u64;
+  config() {
+    let (input_p, input_c) = chan u32;
+    let (output_p, output_c) = chan u64;
+    spawn other_module::OtherProc(input_c, output_p)();
+    (input_p, output_c)
+  }
+  next(tok: token, state: u32) {
+    let tok = send(tok, input_p, state);
+    let tok = send_if(tok, input_p, state > u32:32, state);
+    let (tok, state) = recv(tok, output_c);
+    let (tok, foo) = recv_if(tok, output_c, state > u32:32);
+    ((state) + (foo),)
+  }
+})";
+  constexpr absl::string_view kExpected = R"(import other_module
+fn MyProc.config() -> (chan out u32, chan out u64) {
+  let (input_p, input_c) = chan u32;
+  let (output_p, output_c) = chan u64;
+  spawn other_module::OtherProc(input_c, output_p)();
+  (input_p, output_c)
+}
+fn MyProc.next(tok: token, state: u32) -> (u32,) {
+  let tok = send(tok, input_p, state);
+  let tok = send_if(tok, input_p, (state) > (u32:32), state);
+  let (tok, state) = recv(tok, output_c);
+  let (tok, foo) = recv_if(tok, output_c, (state) > (u32:32));
+  ((state) + (foo),)
+}
+proc MyProc {
+  input_p: chan out u32;
+  output_c: chan out u64;
+  config() {
+    let (input_p, input_c) = chan u32;
+    let (output_p, output_c) = chan u64;
+    spawn other_module::OtherProc(input_c, output_p)();
+    (input_p, output_c)
+  }
+  next(tok: token, state: u32) {
+    let tok = send(tok, input_p, state);
+    let tok = send_if(tok, input_p, (state) > (u32:32), state);
+    let (tok, state) = recv(tok, output_c);
+    let (tok, foo) = recv_if(tok, output_c, (state) > (u32:32));
+    ((state) + (foo),)
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kExpected, clone->ToString());
+}
+
 }  // namespace
 }  // namespace xls::dslx

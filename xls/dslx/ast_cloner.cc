@@ -98,6 +98,26 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleChannelDecl(const ChannelDecl* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+
+    absl::optional<std::vector<Expr*>> new_dims;
+    if (n->dims().has_value()) {
+      std::vector<Expr*> old_dims_vector = n->dims().value();
+      std::vector<Expr*> new_dims_vector;
+      new_dims_vector.reserve(old_dims_vector.size());
+      for (const Expr* expr : old_dims_vector) {
+        new_dims_vector.push_back(down_cast<Expr*>(old_to_new_.at(expr)));
+      }
+      new_dims = std::move(new_dims_vector);
+    }
+
+    old_to_new_[n] = module_->Make<ChannelDecl>(
+        n->span(), down_cast<TypeAnnotation*>(old_to_new_.at(n->type())),
+        new_dims);
+    return absl::OkStatus();
+  }
+
   absl::Status HandleChannelTypeAnnotation(
       const ChannelTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
@@ -481,11 +501,65 @@ class AstCloner : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
+  absl::Status HandleRecv(const Recv* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<Recv>(
+        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
+        down_cast<Expr*>(old_to_new_.at(n->channel())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleRecvIf(const RecvIf* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<RecvIf>(
+        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
+        down_cast<Expr*>(old_to_new_.at(n->channel())),
+        down_cast<Expr*>(old_to_new_.at(n->condition())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSend(const Send* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<Send>(
+        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
+        down_cast<Expr*>(old_to_new_.at(n->channel())),
+        down_cast<Expr*>(old_to_new_.at(n->payload())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSendIf(const SendIf* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<SendIf>(
+        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
+        down_cast<Expr*>(old_to_new_.at(n->channel())),
+        down_cast<Expr*>(old_to_new_.at(n->condition())),
+        down_cast<Expr*>(old_to_new_.at(n->payload())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleSlice(const Slice* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] = module_->Make<Slice>(
         n->GetSpan().value(), down_cast<Expr*>(old_to_new_.at(n->start())),
         down_cast<Expr*>(old_to_new_.at(n->limit())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSpawn(const Spawn* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    XLS_RETURN_IF_ERROR(n->callee()->Accept(this));
+
+    std::vector<Expr*> new_parametrics;
+    new_parametrics.reserve(n->explicit_parametrics().size());
+    for (const Expr* parametric : n->explicit_parametrics()) {
+      new_parametrics.push_back(down_cast<Expr*>(old_to_new_.at(parametric)));
+    }
+
+    old_to_new_[n] = module_->Make<Spawn>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())),
+        down_cast<Invocation*>(old_to_new_.at(n->config())),
+        down_cast<Invocation*>(old_to_new_.at(n->next())), new_parametrics,
+        down_cast<Expr*>(old_to_new_.at(n->body())));
     return absl::OkStatus();
   }
 

@@ -66,6 +66,11 @@ bool IsOneOf(ObjT* obj) {
   X(Match)                         \
   X(NameRef)                       \
   X(Number)                        \
+  X(Recv)                          \
+  X(RecvIf)                        \
+  X(Send)                          \
+  X(SendIf)                        \
+  X(Spawn)                         \
   X(SplatStructInstance)           \
   X(String)                        \
   X(StructInstance)                \
@@ -93,12 +98,7 @@ bool IsOneOf(ObjT* obj) {
   X(ParametricBinding)            \
   X(Proc)                         \
   X(QuickCheck)                   \
-  X(Recv)                         \
-  X(RecvIf)                       \
-  X(Send)                         \
-  X(SendIf)                       \
   X(Slice)                        \
-  X(Spawn)                        \
   X(StructDef)                    \
   X(TestFunction)                 \
   X(TestProc)                     \
@@ -2014,7 +2014,7 @@ class Recv : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(channel_)};
+    return {token_, channel_};
   }
 
   NameRef* token() const { return token_; }
@@ -2045,7 +2045,7 @@ class RecvIf : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(token_), ToAstNode(channel_)};
+    return {token_, channel_, condition_};
   }
 
   NameRef* token() const { return token_; }
@@ -2079,7 +2079,7 @@ class Send : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(token_), ToAstNode(channel_), ToAstNode(payload_)};
+    return {token_, channel_, payload_};
   }
 
   NameRef* token() const { return token_; }
@@ -2112,8 +2112,7 @@ class SendIf : public Expr {
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {ToAstNode(token_), ToAstNode(channel_), ToAstNode(condition_),
-            ToAstNode(payload_)};
+    return {token_, channel_, condition_, payload_};
   }
 
   NameRef* token() const { return token_; }
