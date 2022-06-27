@@ -30,9 +30,11 @@ XLS is used inside of Google for generating feed-forward pipelines from
 "building block" routines / libraries that can be easily retargeted, reused, and
 composed in a latency-insensitive manner.
 
-*Not yet available*, but active work in progress is the implementation of XLS
-*concurrent processes*, in Communicating Sequential Processes (CSP) style, that
-allow pipelines to communicate with each other and induct over time.
+XLS also supports
+[*concurrent processes*](https://google.github.io/xls/tutorials/intro_to_procs/),
+in Communicating Sequential Processes (CSP) style, that allow pipelines to
+communicate with each other and induct over time. This feature is still under
+active development but today supports base use cases.
 
 XLS is still experimental, undergoing rapid development, and not an officially
 supported Google product. Expect bugs and sharp edges. Please help by trying it
