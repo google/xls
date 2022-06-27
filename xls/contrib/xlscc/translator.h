@@ -1116,6 +1116,11 @@ class Translator {
                              const ConstValue& init, const xls::SourceInfo& loc,
                              bool check_unique_ids = true);
 
+  // If the decl given is a forward declaration, the definition with a body will
+  // be returned. This is done in multiple places because the ParamVarDecls vary
+  // in each declaration.
+  absl::StatusOr<const clang::Stmt*> GetFunctionBody(
+      const clang::FunctionDecl*& funcdecl);
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
       const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
       bool force_static = false);

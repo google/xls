@@ -263,7 +263,9 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
                  std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_Unroll);
       } else if ((at = match_pragma(line, "#pragma hls_top")) !=
-                 std::string::npos) {
+                     std::string::npos ||
+                 (at = match_pragma(line, "#pragma hls_design top")) !=
+                     std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_Top);
       } else if ((at = match_pragma(line, init_interval_pragma)) !=
                  std::string::npos) {
@@ -340,12 +342,25 @@ absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
                        FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
 
   if (pragma.type() == Pragma_Top || fname == top_function_name_) {
-    if (top_function_) {
-      return absl::AlreadyExistsError(absl::StrFormat(
-          "Two top functions defined, at %s, previously at %s",
-          LocString(GetLoc(*top_function_)), LocString(GetLoc(*funcdecl))));
+    if (top_function_ == nullptr) {
+      top_function_ = funcdecl;
+    } else if (fname == top_function_name_) {
+      // Already found a function with the top name
+      if (top_function_->getNameAsString() == top_function_name_) {
+        return absl::AlreadyExistsError(absl::StrFormat(
+            "Two top functions defined by name, at %s, previously at %s",
+            LocString(GetLoc(*top_function_)), LocString(GetLoc(*funcdecl))));
+      }
+      // Name takes precedence over pragma
+      top_function_ = funcdecl;
+    } else if (pragma.type() == Pragma_Top) {
+      // If the name doesn't match the top, then it was pragma specified
+      if (top_function_->getNameAsString() != top_function_name_) {
+        return absl::AlreadyExistsError(absl::StrFormat(
+            "Two top functions defined by pragma, at %s, previously at %s",
+            LocString(GetLoc(*top_function_)), LocString(GetLoc(*funcdecl))));
+      }
     }
-    top_function_ = funcdecl;
   }
 
   return absl::OkStatus();

@@ -1113,13 +1113,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     const clang::FunctionDecl* funcdecl, absl::string_view name_override,
     bool force_static) {
-  const bool trivial = funcdecl->hasTrivialBody() || funcdecl->isTrivial();
-
-  if (!trivial && !funcdecl->getBody()) {
-    return absl::UnimplementedError(
-        ErrorMessage(GetLoc(*funcdecl), "Function %s used but has no body",
-                     funcdecl->getNameAsString()));
-  }
+  XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
 
   std::string xls_name;
 
@@ -1170,14 +1164,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   bool add_this_return = false;
   vector<const clang::NamedDecl*> ref_returns;
 
-  // funcdecl parameters may be different for forward declarations
-  const clang::FunctionDecl* definition = nullptr;
-  const clang::Stmt* body = funcdecl->getBody(definition);
-  if (definition == nullptr) {
-    XLS_CHECK(trivial);
-    definition = funcdecl;
-  }
-  xls::SourceInfo body_loc = GetLoc(*definition);
+  xls::SourceInfo body_loc = GetLoc(*funcdecl);
 
   // "this" input for methods
   if ((funcdecl->getKind() == clang::FunctionDecl::Kind::CXXMethod) ||
@@ -1207,7 +1194,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   absl::flat_hash_set<std::string> used_parameter_names;
 
-  for (const clang::ParmVarDecl* p : definition->parameters()) {
+  for (const clang::ParmVarDecl* p : funcdecl->parameters()) {
     auto namedecl = absl::implicit_cast<const clang::NamedDecl*>(p);
 
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
@@ -1323,8 +1310,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
     if (body != nullptr) {
       XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, funcdecl->getASTContext()));
-    } else {
-      XLS_CHECK(trivial);
     }
   }
 
@@ -2671,11 +2656,40 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
   return false;
 }
 
+absl::StatusOr<const clang::Stmt*> Translator::GetFunctionBody(
+    const clang::FunctionDecl*& funcdecl) {
+  const bool trivial = funcdecl->hasTrivialBody() || funcdecl->isTrivial();
+
+  if (!trivial && funcdecl->getBody() == nullptr) {
+    return absl::NotFoundError(ErrorMessage(GetLoc(*funcdecl),
+                                            "Function %s used but has no body",
+                                            funcdecl->getNameAsString()));
+  }
+
+  // funcdecl parameters may be different for forward declarations
+  const clang::FunctionDecl* definition = nullptr;
+  const clang::Stmt* body = funcdecl->getBody(definition);
+  if (definition == nullptr) {
+    if (!trivial) {
+      return absl::NotFoundError(ErrorMessage(
+          GetLoc(*funcdecl), "Function %s has no body or definition",
+          funcdecl->getNameAsString()));
+    }
+  } else {
+    funcdecl = definition;
+  }
+  XLS_CHECK(body != nullptr || trivial);
+  return body;
+}
+
 // this_inout can be nullptr for non-members
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
     const xls::SourceInfo& loc) {
+  XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
+  (void)body;
+
   // Translate external channels
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* callee_param = funcdecl->getParamDecl(pi);
@@ -2703,7 +2717,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     if (!external_channels_by_param_.contains(caller_channel_param)) {
       XLS_CHECK(io_test_mode_)
-          << "Caller channel param not in external_channels_by_param_ map";
+          << "Caller channel param " << caller_channel_param->getNameAsString()
+          << " not in external_channels_by_param_ map";
     }
 
     if (external_channels_by_param_.contains(callee_param) &&
@@ -3059,7 +3074,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   XLS_CHECK(unpacked_returns.empty());
-
   return retval;
 }
 

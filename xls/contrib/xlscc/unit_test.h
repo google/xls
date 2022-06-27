@@ -73,11 +73,11 @@ class XlsccTestBase : public xls::IrTestBase {
   // and using the translator_ data member.
   static absl::Status ScanTempFileWithContent(
       xls::TempFile& temp, std::vector<absl::string_view> argv,
-      xlscc::CCParser* translator);
+      xlscc::CCParser* translator, const char* top_name = "my_package");
 
   static absl::Status ScanTempFileWithContent(
       absl::string_view cpp_src, std::vector<absl::string_view> argv,
-      xlscc::CCParser* translator);
+      xlscc::CCParser* translator, const char* top_name = "my_package");
 
   absl::StatusOr<std::string> SourceToIr(
       xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,

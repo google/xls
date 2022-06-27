@@ -155,22 +155,24 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     absl::string_view cpp_src, std::vector<absl::string_view> argv,
-    xlscc::CCParser* translator) {
+    xlscc::CCParser* translator, const char* top_name) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
-  return ScanTempFileWithContent(temp, argv, translator);
+  return ScanTempFileWithContent(temp, argv, translator, /*top_name=*/top_name);
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
     xls::TempFile& temp, std::vector<absl::string_view> argv,
-    xlscc::CCParser* translator) {
+    xlscc::CCParser* translator, const char* top_name) {
   std::string ps = temp.path();
 
   absl::Status ret;
   argv.push_back("-Werror");
   argv.push_back("-Wall");
   argv.push_back("-Wno-unknown-pragmas");
-  XLS_RETURN_IF_ERROR(translator->SelectTop("my_package"));
+  if (top_name != nullptr) {
+    XLS_RETURN_IF_ERROR(translator->SelectTop(top_name));
+  }
   XLS_RETURN_IF_ERROR(translator->ScanFile(
       temp.path().c_str(), argv.empty()
                                ? absl::Span<absl::string_view>()

@@ -44,6 +44,22 @@ TEST_F(CCParserTest, Basic) {
   EXPECT_NE(top_ptr, nullptr);
 }
 
+TEST_F(CCParserTest, Basic2) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_design top
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  EXPECT_NE(top_ptr, nullptr);
+}
+
 TEST_F(CCParserTest, TopNotFound) {
   xlscc::CCParser parser;
 
@@ -254,5 +270,71 @@ TEST_F(CCParserTest, FoundOnReset) {
   ASSERT_NE(on_reset_ptr, nullptr);
 }
 
+TEST_F(CCParserTest, NameOverPragma) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    int bar(int a, int b) {
+      const int foo = a + b;
+      return foo+1;
+    }
+    #pragma hls_design top
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  XLS_ASSERT_OK(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+  EXPECT_EQ(top_ptr->getNameAsString(), "bar");
+}
+
+TEST_F(CCParserTest, DoubleTopName) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    namespace blah {
+    int bar(int a, int b) {
+      const int foo = a + b;
+      return foo+1;
+    }
+    }  // namespace
+    #pragma hls_design top
+    int bar(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  ASSERT_THAT(
+      ScanTempFileWithContent(cpp_src, {}, &parser, /*top_name=*/"bar"),
+      xls::status_testing::StatusIs(absl::StatusCode::kAlreadyExists,
+                                    testing::HasSubstr("Two top functions")));
+}
+
+TEST_F(CCParserTest, DoubleTopPragma) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_design top
+    int foo(int a, int b) {
+      const int foo = a + b;
+      return foo+1;
+    }
+    #pragma hls_top
+    int bar(int a, int b) {
+      const int foo = a + b;
+      return foo;
+    }
+  )";
+
+  ASSERT_THAT(
+      ScanTempFileWithContent(cpp_src, {}, &parser),
+      xls::status_testing::StatusIs(absl::StatusCode::kAlreadyExists,
+                                    testing::HasSubstr("Two top functions")));
+}
 
 }  // namespace
