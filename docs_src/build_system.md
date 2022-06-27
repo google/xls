@@ -3,11 +3,11 @@
 XLS uses the [Bazel](http://bazel.build) build system for itself and all its
 dependencies. Bazel is an easy to configure and use, and has powerful extension
 facilities. (It's also
-[well-documented](https://docs.bazel.build/versions/master/bazel-overview.html)!)
+[well-documented](https://bazel.build/start/bazel-intro)!)
 XLS provides a number of
-[Starlark](https://docs.bazel.build/versions/master/skylark/language.html)
-[rules](https://docs.bazel.build/versions/master/skylark/rules.html) and
-[macros](https://docs.bazel.build/versions/master/skylark/macros.html) to define
+[Starlark](https://bazel.build/rules/language)
+[rules](https://bazel.build/rules/rules) and
+[macros](https://bazel.build/rules/macros) to define
 a build flow.
 
 [TOC]
@@ -27,7 +27,7 @@ A detailed description of the bazel rules/macros can be found
 
 Understanding the build tree for a new project can be difficult, but fortunately
 Bazel provides a
-[powerful query mechanism](https://docs.bazel.build/versions/master/query.html).
+[powerful query mechanism](https://bazel.build/reference/query).
 `bazel query` enables a user to examine build targets, dependencies between
 them, and much more. A few usage examples are provided here, but the full
 documentation (linked above) is comprehensive.

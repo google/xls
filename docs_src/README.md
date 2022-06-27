@@ -52,14 +52,14 @@ The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
 22.04 (Jammy Jellyfish) Linux distributions.
 
 We start by assuming
-[Bazel has been installed](https://docs.bazel.build/versions/master/install-ubuntu.html).
+[Bazel has been installed](https://bazel.build/install/ubuntu).
 
 ```console
 ~$ git clone https://github.com/google/xls.git
 ~$ cd xls
 
 ~/xls$ # Follow the bazel install instructions:
-~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html
+~/xls$ # https://bazel.build/install/ubuntu
 ~/xls$ # Afterwards we observe:
 ~/xls$ bazel --version
 bazel 5.2.0
@@ -106,7 +106,7 @@ purpose, and correspond to the components in this XLS stack diagram:
 * [`xls`](https://github.com/google/xls/tree/main/xls): Project-named
   subdirectory within the repository, in common Bazel-project style.
 
-  * [`build`](https://github.com/google/xls/tree/main/xls/build): Build macros
+  * [`build`](https://github.com/google/xls/tree/main/xls/BUILD): Build macros
     that create XLS artifacts; e.g. convert DSL to IR, create test targets for
     DSL code, etc.
   * [`codegen`](https://github.com/google/xls/tree/main/xls/codegen): Verilog
@@ -188,7 +188,7 @@ purpose, and correspond to the components in this XLS stack diagram:
   * [`uncore_rtl`](https://github.com/google/xls/tree/main/xls/uncore_rtl):
     Helper RTL that interfaces XLS-generated blocks with device top-level for e.g.
     FPGA experiments.
-  * [`visualization`](https://github.com/google/xls/tree/main/xls/visualzation):
+  * [`visualization`](https://github.com/google/xls/tree/main/xls/visualization):
     Visualization tools to inspect the XLS compiler/system interactively. See
     [IR visualization](https://google.github.io/xls/ir_visualization/).
 
