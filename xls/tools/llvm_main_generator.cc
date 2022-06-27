@@ -33,8 +33,7 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_cat.h"
-#include "absl/strings/str_join.h"
+#include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "llvm/include/llvm/IR/Function.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
 #include "llvm/include/llvm/IR/LLVMContext.h"
@@ -45,7 +44,9 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/jit/jit_runtime.h"
+#include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
+#include "xls/ir/type.h"
 #include "xls/jit/orc_jit.h"
 
 ABSL_FLAG(
@@ -53,42 +54,18 @@ ABSL_FLAG(
     "Entry function to generate a \"main\" for (as mangled in the LLVM IR.");
 ABSL_FLAG(std::string, input, "", "Path to input LLVM IR file.");
 ABSL_FLAG(std::string, output, "", "Path at which to write the output.");
+ABSL_FLAG(std::string, output_type, "",
+          "Type of the function output (expressed as an XLS IR type).");
 
 namespace xls {
 
 // Converts the given LLVM type into a corresponding XLS type.
 using TypeStore = absl::flat_hash_map<llvm::Type*, std::unique_ptr<Type>>;
-Type* ConvertToXlsType(llvm::Type* llvm_type, TypeStore* type_store) {
-  auto it = type_store->find(llvm_type);
-  if (it != type_store->end()) {
-    return it->second.get();
-  }
-
-  std::unique_ptr<Type> xls_type;
-  if (llvm_type->isIntegerTy()) {
-    xls_type = std::make_unique<BitsType>(llvm_type->getIntegerBitWidth());
-  } else if (llvm_type->isArrayTy()) {
-    xls_type = std::make_unique<ArrayType>(
-        llvm_type->getArrayNumElements(),
-        ConvertToXlsType(llvm_type->getArrayElementType(), type_store));
-  } else if (llvm_type->isStructTy()) {
-    std::vector<Type*> types;
-    types.reserve(llvm_type->getStructNumElements());
-    for (int i = 0; i < llvm_type->getStructNumElements(); i++) {
-      types.push_back(
-          ConvertToXlsType(llvm_type->getStructElementType(i), type_store));
-    }
-    xls_type = std::make_unique<TupleType>(types);
-  }
-
-  Type* return_type = xls_type.get();
-  (*type_store)[llvm_type] = std::move(xls_type);
-  return return_type;
-}
 
 absl::Status RealMain(const std::string& input_path,
                       const std::string& output_path,
-                      const std::string& entry_function_name) {
+                      const std::string& entry_function_name,
+                      const std::string& xls_output_type_string) {
   // 1. Load LLVM IR.
   llvm::LLVMContext context;
   llvm::SMDiagnostic parse_error;
@@ -155,10 +132,17 @@ absl::Status RealMain(const std::string& input_path,
   builder.CreateCall(pack_args_type, pack_args_function, pack_args_args);
 
   // 4. Now capture the program output.
-  // 4a. Get the output type of the entry function, nicely encoded as the
-  // pointee of the 2nd argument to the entry fn.
+  // 4a. Get the output type of the entry function.
+  Package package("the_package");
+  XLS_ASSIGN_OR_RETURN(Type * xls_output_type,
+                       Parser::ParseType(xls_output_type_string, &package));
+  XLS_ASSIGN_OR_RETURN(
+      auto jit, OrcJit::Create(/*opt_level=*/0, /*emit_object_code=*/false));
+  LlvmTypeConverter type_converter(&context, jit->GetDataLayout());
+  llvm::Type* base_output_type =
+      type_converter.ConvertToLlvmType(xls_output_type);
   llvm::Type* output_type =
-      entry_function->getArg(1)->getType()->getPointerElementType();
+      llvm::PointerType::get(base_output_type, /*AddressSpace=*/0u);
 
   // 4b. Now create an alloca for it. The entry function will populate this as
   // its second-to-last instruction.
@@ -171,12 +155,9 @@ absl::Status RealMain(const std::string& input_path,
 
   // 6. Finally, unpack and print the output.
   // To avoid having to list the output type on the command line, we:
-  //  - Convert the LLVM type to an XLS type string.
-  //  - Store that type string as a constant in the program.
+  //  - Store the XLS type string as a constant in the program.
   //  - Pass that type string into UnpackAndPrint to parse & use.
   TypeStore type_store;
-  Type* xls_output_type = ConvertToXlsType(output_type, &type_store);
-  std::string xls_output_type_string = xls_output_type->ToString();
   llvm::Constant* type_as_string =
       llvm::ConstantDataArray::getString(context, xls_output_type_string,
                                          /*AddNull=*/true);
@@ -232,8 +213,11 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_input),
-                              absl::GetFlag(FLAGS_output),
-                              absl::GetFlag(FLAGS_entry_function)));
+  XLS_QCHECK(!absl::GetFlag(FLAGS_output_type).empty())
+      << "--output_type cannot be empty.";
+
+  XLS_QCHECK_OK(xls::RealMain(
+      absl::GetFlag(FLAGS_input), absl::GetFlag(FLAGS_output),
+      absl::GetFlag(FLAGS_entry_function), absl::GetFlag(FLAGS_output_type)));
   return 0;
 }
