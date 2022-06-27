@@ -426,6 +426,40 @@ TEST_F(ProcInliningPassTest, NestedProcs) {
                 /*expected_ticks=*/3);
 }
 
+TEST_F(ProcInliningPassTest, NestedProcsFifoDepth1) {
+  // Nested procs where the inner proc does a trivial arithmetic operation.
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+
+  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
+                    .status());
+  XLS_ASSERT_OK(MakeDoublerProc("B", a_to_b, b_to_a, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {2, 4, 6}}},
+                /*expected_ticks=*/3);
+}
+
 TEST_F(ProcInliningPassTest, NestedProcsWithUnspecifiedFifoDepth) {
   // Nested procs where the inner proc does a trivial arithmetic operation.
   auto p = CreatePackage();
@@ -456,8 +490,9 @@ TEST_F(ProcInliningPassTest, NestedProcsWithUnspecifiedFifoDepth) {
       Run(p.get(), /*top=*/"A"),
       StatusIs(
           absl::StatusCode::kUnimplemented,
-          HasSubstr("Only streaming channels of FIFO depth zero are supported "
-                    "in proc inlining. Channel `a_to_b` has depth: (none)")));
+          HasSubstr(
+              "Only streaming channels of FIFO depth one or less are supported "
+              "in proc inlining. Channel `a_to_b` has depth: (none)")));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcsWithNonzeroFifoDepth) {
@@ -491,8 +526,9 @@ TEST_F(ProcInliningPassTest, NestedProcsWithNonzeroFifoDepth) {
       Run(p.get(), /*top=*/"A"),
       StatusIs(
           absl::StatusCode::kUnimplemented,
-          HasSubstr("Only streaming channels of FIFO depth zero are supported "
-                    "in proc inlining. Channel `b_to_a` has depth: 42")));
+          HasSubstr(
+              "Only streaming channels of FIFO depth one or less are supported "
+              "in proc inlining. Channel `b_to_a` has depth: 42")));
 }
 
 TEST_F(ProcInliningPassTest, NestedProcsWithSingleValue) {
@@ -1638,7 +1674,7 @@ TEST_F(ProcInliningPassTest, TriangleProcNetwork) {
                 /*expected_ticks=*/3);
 }
 
-TEST_F(ProcInliningPassTest, DelayedReceive) {
+TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1660,8 +1696,8 @@ TEST_F(ProcInliningPassTest, DelayedReceive) {
   XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
                     .status());
   {
-    // Inner proc does nothing on the first tick. No data should be lost because
-    // the sent data remains on the state.
+    // Inner proc does nothing on the first tick (i.e., doesn't receive
+    // data). This causes data loss because the channel is FIFO depth 0.
     //
     //   st = 0
     //   while(true):
@@ -1692,6 +1728,167 @@ TEST_F(ProcInliningPassTest, DelayedReceive) {
           absl::StatusCode::kAborted,
           HasSubstr(
               "Channel a_to_b lost data, send fired but receive did not")));
+}
+
+TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant0) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+
+  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
+                    .status());
+  {
+    // Inner proc does nothing on the first tick (i.e., doesn't receive
+    // data). Because the FIFO depth is 1, data is stored for a cycle which
+    // avoids data loss.
+    //
+    //   st = 0
+    //   while(true):
+    //    if(st):
+    //       x = rcv(a_to_b)
+    //       send(b_to_a, x + 42)
+    //    st = 1
+    ProcBuilder bb("B", "tkn", p.get());
+    BValue st = bb.StateElement("st", Value(UBits(0, 1)));
+    BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.GetTokenParam(), st);
+    BValue send_to_a = bb.SendIf(
+        b_to_a, bb.TupleIndex(rcv_from_a, 0), st,
+        bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
+    XLS_ASSERT_OK(bb.Build(send_to_a, {bb.Literal(UBits(1, 1))}));
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+  EXPECT_EQ(p->procs().size(), 1);
+
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {43, 44, 45}}});
+}
+
+TEST_F(ProcInliningPassTest, DelayedReceiveWithNoDataLossFifoDepth1Variant1) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+
+  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
+                    .status());
+  {
+    // Inner proc does not receive on the first tick, but does send. Because the
+    // FIFO depth is 1 no data should be lost. On the second tick of the inner
+    // proc, the existing channel state should be received and updated in the
+    // same tick.
+    //
+    //   u32: st = 0
+    //   while(true):
+    //    if st >= 1:
+    //       x = rcv(a_to_b)
+    //    else:
+    //       x = 0
+    //    send(b_to_a, x + 42)
+    //    st = st + 1
+    ProcBuilder bb("B", "tkn", p.get());
+    BValue st = bb.StateElement("st", Value(UBits(0, 32)));
+    BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.GetTokenParam(),
+                                     bb.UGe(st, bb.Literal(UBits(1, 32))));
+    BValue send_to_a = bb.Send(
+        b_to_a, bb.TupleIndex(rcv_from_a, 0),
+        bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
+    XLS_ASSERT_OK(bb.Build(send_to_a, {bb.Add(st, bb.Literal(UBits(1, 32)))}));
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 43, 44}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 43, 44}}});
+}
+
+TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+
+  XLS_ASSERT_OK(MakePassThroughProc("A", ch_in, a_to_b, b_to_a, ch_out, p.get())
+                    .status());
+  {
+    // Inner proc does not receive on the first *two* ticks (i.e., doesn't
+    // receive data). The FIFO depth is 1 but that is insufficent to prevent
+    // data loss.
+    //
+    //   u32: st = 0
+    //   while(true):
+    //    if st >= 2:
+    //       x = rcv(a_to_b)
+    //    else:
+    //       x = 0
+    //    send(b_to_a, x + 42)
+    //    st = st + 1
+    ProcBuilder bb("B", "tkn", p.get());
+    BValue st = bb.StateElement("st", Value(UBits(0, 32)));
+    BValue rcv_from_a = bb.ReceiveIf(a_to_b, bb.GetTokenParam(),
+                                     bb.UGe(st, bb.Literal(UBits(2, 32))));
+    BValue send_to_a = bb.Send(
+        b_to_a, bb.TupleIndex(rcv_from_a, 0),
+        bb.Add(bb.TupleIndex(rcv_from_a, 1), bb.Literal(UBits(42, 32))));
+    XLS_ASSERT_OK(bb.Build(send_to_a, {bb.Add(st, bb.Literal(UBits(1, 32)))}));
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3}}}, {{"out", {42, 42, 43}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3}}}));
+  XLS_EXPECT_OK(interpreter->Tick());
+  EXPECT_THAT(interpreter->Tick(),
+              StatusIs(absl::StatusCode::kAborted,
+                       HasSubstr("Channel a_to_b lost data")));
 }
 
 TEST_F(ProcInliningPassTest, DataLoss) {
@@ -2295,12 +2492,14 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
           Channel * from_top, p->CreateStreamingChannel(
                                   absl::StrFormat("top_to_proc%d", proc_number),
                                   ChannelOps::kSendReceive, u32,
-                                  /*initial_values=*/{}, /*fifo_depth=*/0));
+                                  /*initial_values=*/{},
+                                  /*fifo_depth=*/int64_t{coin_flip(engine)}));
       XLS_ASSERT_OK_AND_ASSIGN(
           Channel * to_top, p->CreateStreamingChannel(
                                 absl::StrFormat("proc%d_to_top", proc_number),
                                 ChannelOps::kSendReceive, u32,
-                                /*initial_values=*/{}, /*fifo_depth=*/0));
+                                /*initial_values=*/{},
+                                /*fifo_depth=*/int64_t{coin_flip(engine)}));
 
       channel_pairs.push_back(ChannelPair{.send_channel = from_top,
                                           .sent = false,
@@ -2521,6 +2720,131 @@ TEST_F(ProcInliningPassTest, ReceivedValueSentAndNext) {
 
   EXPECT_EQ(p->procs().size(), 1);
   EvalAndExpect(p.get(), {{"in", {5, 7, 13}}}, {{"out", {5, 12, 20}}});
+}
+
+TEST_F(ProcInliningPassTest, OffsetSendAndReceive) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  {
+    // Proc A sends every 16 ticks starting at tick 0:
+    //
+    // u32 st = 0
+    // while true:
+    //   if st & 0xf == 0:
+    //     send(a_to_b, st)
+    //   st = st + 1
+    ProcBuilder ab("A", "tkn", p.get());
+    BValue st = ab.StateElement("st", Value(UBits(0, 32)));
+    BValue send_cond =
+        ab.Eq(ab.And(st, ab.Literal(UBits(0xf, 32))), ab.Literal(UBits(0, 32)));
+    BValue send = ab.SendIf(a_to_b, ab.GetTokenParam(), send_cond, st);
+    XLS_ASSERT_OK(ab.Build(send, {ab.Add(st, ab.Literal(UBits(1, 32)))}));
+  }
+
+  {
+    // Proc B receives every 8 ticks starting at tick 7.
+    //
+    // u32 st = 0:
+    // while true:
+    //   if st & 0b111 == 0b111:
+    //     data = rcv(a_to_b)
+    //     send(out, data)
+    //   st = st + 1
+    ProcBuilder bb("1", "tkn", p.get());
+    BValue st = bb.StateElement("st", Value(UBits(0, 32)));
+    BValue cond =
+        bb.Eq(bb.And(st, bb.Literal(UBits(7, 32))), bb.Literal(UBits(7, 32)));
+    BValue rcv = bb.ReceiveIf(a_to_b, bb.GetTokenParam(), cond);
+    BValue rcv_token = bb.TupleIndex(rcv, 0);
+    BValue rcv_data = bb.TupleIndex(rcv, 1);
+    BValue send = bb.SendIf(ch_out, rcv_token, cond, rcv_data);
+    XLS_ASSERT_OK(bb.Build(send, {bb.Add(st, bb.Literal(UBits(1, 32)))}));
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {}, {{"out", {0, 16, 32, 48, 64}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {}, {{"out", {0, 16, 32, 48, 64}}});
+}
+
+// TODO(meheff): 2022/06/23 Handle case where inlining can produce cycles.
+TEST_F(ProcInliningPassTest, DISABLED_InliningProducesCycle) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * b_to_a,
+      p->CreateStreamingChannel("b_to_a", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/0));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  {
+    // On tick 0, outer proc only sends to inner proc (and out). Subsequent
+    // ticks receive from inner proc and then send the value back to inner proc
+    // and to out channel.
+    //
+    // u1 st = 0
+    // while true:
+    //   if st:
+    //     data = rcv(b_to_a)
+    //   else:
+    //     data = 0
+    //   send(a_to_b, data)
+    //   send(out, data)
+    //   st = 1
+    //
+    ProcBuilder ab("A", "tkn", p.get());
+    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue rcv = ab.ReceiveIf(b_to_a, ab.GetTokenParam(), st);
+    BValue rcv_token = ab.TupleIndex(rcv, 0);
+    BValue rcv_data = ab.TupleIndex(rcv, 1);
+    BValue send_to_b = ab.Send(a_to_b, rcv_token, rcv_data);
+    BValue send_out = ab.Send(ch_out, send_to_b, rcv_data);
+    XLS_ASSERT_OK(ab.Build(send_out, {ab.Literal(UBits(1, 1))}));
+  }
+
+  {
+    // Inner proc receives every 8 ticks starting at tick 7:
+    //
+    // while true:
+    //   data = rcv(a_to_b)
+    //   data = data + 1
+    //   send(b_to_a, data)
+    ProcBuilder bb("B", "tkn", p.get());
+    BValue rcv = bb.Receive(a_to_b, bb.GetTokenParam());
+    BValue rcv_token = bb.TupleIndex(rcv, 0);
+    BValue rcv_data = bb.TupleIndex(rcv, 1);
+    BValue send =
+        bb.Send(b_to_a, rcv_token, bb.Add(rcv_data, bb.Literal(UBits(1, 32))));
+    XLS_ASSERT_OK(bb.Build(send, {}));
+  }
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {}, {{"out", {0, 1, 2, 3}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {}, {{"out", {0, 1, 2, 3}}});
 }
 
 }  // namespace

@@ -210,20 +210,6 @@ class VirtualChannel {
  public:
   static absl::StatusOr<VirtualChannel> Create(Channel* channel, Proc* proc) {
     XLS_RET_CHECK_EQ(channel->supported_ops(), ChannelOps::kSendReceive);
-    if (channel->kind() == ChannelKind::kStreaming) {
-      StreamingChannel* streaming_channel =
-          down_cast<StreamingChannel*>(channel);
-      if (!streaming_channel->GetFifoDepth().has_value() ||
-          streaming_channel->GetFifoDepth().value() != 0) {
-        return absl::UnimplementedError(absl::StrFormat(
-            "Only streaming channels of FIFO depth zero are supported in proc "
-            "inlining. Channel `%s` has depth: %s",
-            streaming_channel->name(),
-            streaming_channel->GetFifoDepth().has_value()
-                ? absl::StrCat(streaming_channel->GetFifoDepth().value())
-                : "(none)"));
-      }
-    }
     VirtualChannel vc;
     vc.channel_ = channel;
 
@@ -237,22 +223,104 @@ class VirtualChannel {
         proc->MakeNodeWithName<Literal>(
             SourceInfo(), Value(UBits(0, 1)),
             absl::StrFormat("%s_send_fired_in", channel->name())));
-
     XLS_ASSIGN_OR_RETURN(
-        vc.data_out_,
-        Identity(vc.data_in_, absl::StrFormat("%s_data_out", channel->name())));
+        vc.receive_fired_in_,
+        proc->MakeNodeWithName<Literal>(
+            SourceInfo(), Value(UBits(0, 1)),
+            absl::StrFormat("%s_receive_fired_in", channel->name())));
 
     if (channel->kind() == ChannelKind::kStreaming) {
-      XLS_ASSIGN_OR_RETURN(
-          vc.valid_out_,
-          Identity(vc.send_fired_in_,
-                   absl::StrFormat("%s_valid", channel->name())));
+      StreamingChannel* streaming_channel =
+          down_cast<StreamingChannel*>(channel);
+      if (!streaming_channel->GetFifoDepth().has_value() ||
+          streaming_channel->GetFifoDepth().value() > 1) {
+        return absl::UnimplementedError(absl::StrFormat(
+            "Only streaming channels of FIFO depth one or less are supported "
+            "in proc inlining. Channel `%s` has depth: %s",
+            streaming_channel->name(),
+            streaming_channel->GetFifoDepth().has_value()
+                ? absl::StrCat(streaming_channel->GetFifoDepth().value())
+                : "(none)"));
+      }
+      if (streaming_channel->GetFifoDepth().value() == 1) {
+        // For FIFO depth 1, create a state element which holds the data and one
+        // which indicates whether the data is valid.
+        XLS_ASSIGN_OR_RETURN(
+            vc.saved_data_,
+            StateElement::Create(absl::StrFormat("%s_data", channel->name()),
+                                 ZeroOfType(channel->type()), proc));
+        XLS_ASSIGN_OR_RETURN(
+            vc.saved_data_valid_,
+            StateElement::Create(
+                absl::StrFormat("%s_data_valid", channel->name()),
+                Value(UBits(0, 1)), proc));
+
+        // This data state element is written when `send_fired` is asserted.
+        XLS_ASSIGN_OR_RETURN(
+            Node * data_next,
+            proc->MakeNodeWithName<Select>(
+                SourceInfo(), /*selector=*/vc.send_fired_in_, /*cases=*/
+                std::vector<Node*>{vc.saved_data_->GetState(), vc.data_in_},
+                /*default_case=*/absl::nullopt,
+                absl::StrFormat("%s_data_next", channel->name())));
+        XLS_RETURN_IF_ERROR(vc.saved_data_->SetNext(data_next));
+
+        // The data out of the virtual channel is:
+        //
+        // data_out = data_valid ? data_in : data_state
+        XLS_ASSIGN_OR_RETURN(
+            vc.data_out_,
+            proc->MakeNodeWithName<Select>(
+                SourceInfo(),
+                /*selector=*/vc.saved_data_valid_->GetState(), /*cases=*/
+                std::vector<Node*>{vc.data_in_, vc.saved_data_->GetState()},
+                /*default_case=*/absl::nullopt,
+                absl::StrFormat("%s_data_out", channel->name())));
+
+        // Logic for the data valid bit state:
+        //
+        //  data_valid_next = send && data_valid  ||
+        //                    (send || data_valid) && !receive
+        XLS_ASSIGN_OR_RETURN(
+            Node * send_and_valid,
+            And(vc.GetSendFiredIn(), vc.saved_data_valid_->GetState()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * send_or_valid,
+            Or(vc.GetSendFiredIn(), vc.saved_data_valid_->GetState()));
+        XLS_ASSIGN_OR_RETURN(Node * tmp,
+                             AndNot(send_or_valid, vc.GetReceiveFiredIn()));
+        XLS_ASSIGN_OR_RETURN(
+            Node * valid_next,
+            Or(send_and_valid, tmp,
+               absl::StrFormat("%s_data_valid_next", channel->name())));
+        XLS_RETURN_IF_ERROR(vc.saved_data_valid_->SetNext(valid_next));
+
+        XLS_ASSIGN_OR_RETURN(
+            vc.valid_out_,
+            Or(vc.send_fired_in_, vc.saved_data_valid_->GetState(),
+               absl::StrFormat("%s_valid", channel->name())));
+      } else {
+        // For FIFO depth 0, just pass data through from `data_in` to
+        // `data_out`.
+        XLS_ASSIGN_OR_RETURN(
+            vc.data_out_,
+            Identity(vc.data_in_,
+                     absl::StrFormat("%s_data_out", channel->name())));
+        XLS_ASSIGN_OR_RETURN(
+            vc.valid_out_,
+            Identity(vc.send_fired_in_,
+                     absl::StrFormat("%s_valid", channel->name())));
+      }
     } else {
       XLS_RET_CHECK_EQ(channel->kind(), ChannelKind::kSingleValue);
       XLS_ASSIGN_OR_RETURN(vc.valid_out_,
                            proc->MakeNodeWithName<Literal>(
                                SourceInfo(), Value(UBits(1, 1)),
                                absl::StrFormat("%s_valid", channel->name())));
+      XLS_ASSIGN_OR_RETURN(
+          vc.data_out_,
+          Identity(vc.data_in_,
+                   absl::StrFormat("%s_data_out", channel->name())));
     }
 
     return std::move(vc);
@@ -266,15 +334,35 @@ class VirtualChannel {
     data_in_ = node;
     return absl::OkStatus();
   }
+
+  // Get/set the virtual channel input indicating that the associated send has
+  // fired.
   absl::Status SetSendFiredIn(Node* node) {
     XLS_RETURN_IF_ERROR(send_fired_in_->ReplaceUsesWith(node));
     send_fired_in_ = node;
     return absl::OkStatus();
   }
+  Node* GetSendFiredIn() const { return send_fired_in_; }
+
+  // Get/set the virtual channel input indicating that the associated receive
+  // has fired.
+  absl::Status SetReceiveFiredIn(Node* node) {
+    XLS_RETURN_IF_ERROR(receive_fired_in_->ReplaceUsesWith(node));
+    receive_fired_in_ = node;
+    return absl::OkStatus();
+  }
+  Node* GetReceiveFiredIn() const { return receive_fired_in_; }
 
   // Returns various outputs from the virtual channel.
   Node* GetDataOut() const { return data_out_; }
   Node* GetValidOut() const { return valid_out_; }
+
+  const absl::optional<StateElement>& ChannelDataState() const {
+    return saved_data_;
+  }
+  const absl::optional<StateElement>& ChannelValidState() const {
+    return saved_data_valid_;
+  }
 
  private:
   Channel* channel_;
@@ -282,10 +370,16 @@ class VirtualChannel {
   // Inputs to the virtual channel.
   Node* data_in_;
   Node* send_fired_in_;
+  Node* receive_fired_in_;
 
   // Outputs of the virtual channel.
   Node* data_out_;
   Node* valid_out_;
+
+  // For FIFO depth 1 channels, these state elements holds the channel data and
+  // whether it is valid.
+  absl::optional<StateElement> saved_data_;
+  absl::optional<StateElement> saved_data_valid_;
 };
 
 // Abstraction representing a node in the activation network of a proc
@@ -1198,7 +1292,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
         Identity(activation_node->activation_out,
                  absl::StrFormat("%s_receive_fired", channel->name())));
   }
-
+  XLS_RETURN_IF_ERROR(virtual_channel.SetReceiveFiredIn(receive_fired));
   XLS_RETURN_IF_ERROR(SetStallCondition(activation_node, stall));
 
   // If the receive has not fired, the data value presented to uses of the
@@ -1221,14 +1315,34 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
   Node* token = receive->token();
 
   // For streaming channels which send actual data (e.g., not an empty tuples),
-  // add an assert which fires if data is dropped (sent fired, but receive did
-  // not).
+  // add an assert which fires if data is dropped. There are two different
+  // cases:
+  //
+  //  Stateless channel (fifo-depth 0): data loss if send fired but receive did
+  //    not.
+  //
+  //  Stateful channel (fifo-depth 1): data loss if send fired and channel has
+  //    data but receive did not fire.
   if (channel->kind() == ChannelKind::kStreaming &&
       channel->type()->GetFlatBitCount() > 0) {
-    XLS_ASSIGN_OR_RETURN(
-        Node * data_loss,
-        AndNot(virtual_channel.GetValidOut(), receive_fired,
-               absl::StrFormat("%s_data_loss", channel->name())));
+    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
+    XLS_RET_CHECK(streaming_channel->GetFifoDepth().has_value());
+    XLS_RET_CHECK_LE(streaming_channel->GetFifoDepth().value(), 1);
+    Node* data_loss;
+    if (streaming_channel->GetFifoDepth().value() == 0) {
+      XLS_ASSIGN_OR_RETURN(
+          data_loss, AndNot(virtual_channel.GetValidOut(), receive_fired,
+                            absl::StrFormat("%s_data_loss", channel->name())));
+    } else {
+      // FIFO depth 1.
+      XLS_ASSIGN_OR_RETURN(
+          Node * send_fired_and_channel_has_data,
+          And(virtual_channel.GetSendFiredIn(),
+              virtual_channel.ChannelValidState()->GetState()));
+      XLS_ASSIGN_OR_RETURN(
+          data_loss, AndNot(send_fired_and_channel_has_data, receive_fired,
+                            absl::StrFormat("%s_data_loss", channel->name())));
+    }
     XLS_ASSIGN_OR_RETURN(
         Node * no_data_loss,
         Not(data_loss, absl::StrFormat("%s_no_data_loss", channel->name())));
@@ -1462,11 +1576,21 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
   Proc* container_proc =
       p->AddProc(std::make_unique<Proc>("__container", "tkn", p));
 
+  // Gather all inlined proc state and proc thread book-keeping bits and add to
+  // the top-level proc state.
+  std::vector<StateElement> state_elements;
+
   absl::flat_hash_map<Channel*, VirtualChannel> virtual_channels;
   for (Channel* ch : p->channels()) {
     if (ch->supported_ops() == ChannelOps::kSendReceive) {
       XLS_ASSIGN_OR_RETURN(virtual_channels[ch],
                            VirtualChannel::Create(ch, container_proc));
+      if (virtual_channels[ch].ChannelDataState().has_value()) {
+        state_elements.push_back(
+            virtual_channels[ch].ChannelDataState().value());
+        state_elements.push_back(
+            virtual_channels[ch].ChannelValidState().value());
+      }
     }
   }
 
@@ -1491,10 +1615,6 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
   for (ProcThread& proc_thread : proc_threads) {
     XLS_RETURN_IF_ERROR(proc_thread.MaybeSaveReceivedData(query_engine));
   }
-
-  // Gather all inlined proc state and proc thread book-keeping bits and add to
-  // the top-level proc state.
-  std::vector<StateElement> state_elements;
 
   // Add the inlined (and top) proc state and activation bits.
   for (const ProcThread& proc_thread : proc_threads) {
