@@ -171,7 +171,7 @@ fn main(x0: u26, x1: u1, x2: s14, x3: u2) -> (u35, u35, u35) {
   let x26: s36 = (x15) >> (if ((((x23) as u36)) >= (u36:0xb)) { (u36:0xb) } else { (((x23) as u36)) });
   let x27: s63 = s63:0x200000000000;
   let x28: u2 = one_hot_sel(x5, [x3, x3, x3]);
-  let x29: u3 = (x12)[0x2];
+  let x29: u3 = (x12).2;
   let x30: x31[W32_V5] = ((x6) as x31[W32_V5]);
   (x6, x11, x18)
 }

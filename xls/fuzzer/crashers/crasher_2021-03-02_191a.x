@@ -155,13 +155,13 @@ fn x3(x4: u44) -> (u9, (u9,)) {
   }(x5);
   let x11: u9 = (x7) * (x7);
   let x12: (u9,) = (x11,);
-  let x13: u3 = (x6)[0x0];
+  let x13: u3 = (x6).0;
   let x14: u9 = for (i, x): (u4, u9) in range(u4:0x0, u4:0x3) {
     x
   }(x7);
   let x15: s55 = s55:0x8000000000000;
   let x16: s55 = one_hot_sel(x10, [x15, x15, x15]);
-  let x17: u44 = (x8)[0x0];
+  let x17: u44 = (x8).0;
   let x18: u9 = rev(x11);
   let x19: u9 = !(x9);
   let x20: u9 = for (i, x): (u4, u9) in range(u4:0x0, u4:0x7) {

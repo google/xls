@@ -24,7 +24,7 @@ fn main(x0: (), x1: (s10,)) -> (u11, u11, s10, u11, u11, u11) {
   let x3: u11 = u11:0x325;
   let x4: u11 = gate!((x3) != (x3), x3);
   let x5: u11 = clz(x3);
-  let x6: s10 = (x1)[0];
+  let x6: s10 = (x1).0;
   let x7: u11 = !(x3);
   (x3, x4, x6, x7, x4, x3)
 }

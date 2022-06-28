@@ -82,6 +82,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_SEND_IF = 48;
   AST_NODE_KIND_JOIN = 49;
   AST_NODE_KIND_TEST_PROC = 50;
+  AST_NODE_KIND_TUPLE_INDEX = 51;
 }
 
 message BitsValueProto {

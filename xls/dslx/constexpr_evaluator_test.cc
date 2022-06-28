@@ -515,7 +515,7 @@ fn main() -> u32 {
     let upbeef = beef + i;
     let beeves = u32[4]:[0, 1, 2, 3];
     let beef_tuple = (upbeef, beeves[u32:2]);
-    upbeef + beeves[u32:1] + beef_tuple[u32:1]
+    upbeef + beeves[u32:1] + beef_tuple.1
   } (beef)
 })";
 
@@ -587,6 +587,27 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            tm.type_info->GetConstExpr(xls_for));
   EXPECT_EQ(value.GetBitValueInt64().value(), 6);
+}
+
+TEST(ConstexprEvaluatorTest, BasicTupleIndex) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32 {
+  (u64:64, u32:32, u16:16, u8:8).1
+}
+)";
+
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+  XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
+      &import_data, tm.type_info, SymbolicBindings(), f->body(), nullptr));
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           tm.type_info->GetConstExpr(f->body()));
+  EXPECT_EQ(value.GetBitValueInt64().value(), 32);
 }
 
 }  // namespace

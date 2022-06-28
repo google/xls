@@ -247,7 +247,7 @@ TEST(IrConverterTest, CountedForDestructuring) {
   let t = for (i, (x, y)): (u32, (u32, u8)) in range(u32:0, u32:4) {
     (x + i, y)
   }((u32:0, u8:0));
-  t[0]
+  t.0
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -318,7 +318,7 @@ TEST(IrConverterTest, TupleIndex) {
   const char* program =
       R"(fn main() -> u8 {
   let t = (u32:3, u8:4);
-  t[1]
+  t.1
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -838,7 +838,7 @@ type Foo = (
   u32[THING_COUNT]
 );
 fn get_thing(x: Foo, i: u32) -> u32 {
-  let things: u32[THING_COUNT] = x[0];
+  let things: u32[THING_COUNT] = x.0;
   things[i]
 }
 )";

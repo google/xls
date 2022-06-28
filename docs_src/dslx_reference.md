@@ -387,9 +387,11 @@ example, to access the second element of a tuple (index 1):
 #![test]
 fn test_tuple_access() {
   let t = (u32:2, u8:3);
-  assert_eq(u8:3, t[1])
+  assert_eq(u8:3, t.1)
 }
 ```
+
+Such indices can only be numeric literals; parametric symbols are not allowed.
 
 Tuples can be "destructured", similarly to how pattern matching works in `match`
 expressions, which provides a convenient syntax to name elements of a tuple for

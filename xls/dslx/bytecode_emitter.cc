@@ -168,6 +168,7 @@ class NameDefCollector : public AstNodeVisitor {
   }
   DEFAULT_HANDLER(Ternary);
   DEFAULT_HANDLER(TestProc);
+  DEFAULT_HANDLER(TupleIndex);
   DEFAULT_HANDLER(TupleTypeAnnotation);
   DEFAULT_HANDLER(TypeDef);
   DEFAULT_HANDLER(TypeRef);
@@ -251,9 +252,8 @@ absl::Status BytecodeEmitter::HandleAttr(const Attr* node) {
 
   // This indexing literal needs to be unsigned since InterpValue::Index
   // requires an unsigned value.
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                               InterpValue::MakeU64(member_index)));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeU64(member_index)));
+  Add(Bytecode::MakeIndex(node->span()));
   return absl::OkStatus();
 }
 
@@ -610,7 +610,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
                                Bytecode::SlotIndex(iterable_slot)));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLoad,
                                Bytecode::SlotIndex(index_slot)));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+  Add(Bytecode::MakeIndex(node->span()));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kSwap));
   bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kCreateTuple,
                                Bytecode::NumElements(2)));
@@ -739,7 +739,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
   // Otherwise, it's a regular [array or tuple] index op.
   Expr* expr = absl::get<Expr*>(node->rhs());
   XLS_RETURN_IF_ERROR(expr->AcceptExpr(this));
-  bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+  Add(Bytecode::MakeIndex(node->span()));
   return absl::OkStatus();
 }
 
@@ -1093,9 +1093,8 @@ absl::Status BytecodeEmitter::HandleSplatStructInstance(
       XLS_RETURN_IF_ERROR(new_members.at(member_name)->AcceptExpr(this));
     } else {
       XLS_RETURN_IF_ERROR(node->splatted()->AcceptExpr(this));
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kLiteral,
-                                   InterpValue::MakeU64(i)));
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kIndex));
+      Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeU64(i)));
+      Add(Bytecode::MakeIndex(node->span()));
     }
   }
 
@@ -1105,11 +1104,18 @@ absl::Status BytecodeEmitter::HandleSplatStructInstance(
   return absl::OkStatus();
 }
 
+absl::Status BytecodeEmitter::HandleTupleIndex(const TupleIndex* node) {
+  XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->index()->AcceptExpr(this));
+  Add(Bytecode::MakeIndex(node->span()));
+  return absl::OkStatus();
+}
+
 absl::Status BytecodeEmitter::HandleUnop(const Unop* node) {
   XLS_RETURN_IF_ERROR(node->operand()->AcceptExpr(this));
   switch (node->unop_kind()) {
     case UnopKind::kInvert:
-      bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kInvert));
+      Add(Bytecode::MakeInvert(node->span()));
       break;
     case UnopKind::kNegate:
       bytecode_.push_back(Bytecode(node->span(), Bytecode::Op::kNegate));

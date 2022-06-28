@@ -22,7 +22,7 @@ fn flatten(x: u8[4]) -> u32 {
 }
 
 fn add_members(x: Foo) -> u32 {
-  x[0] + flatten(x[1])
+  x.0 + flatten(x.1)
 }
 
 #![test]

@@ -873,6 +873,7 @@ cc_library(
         ":scanner",
         ":type_and_bindings",
         "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",

@@ -127,6 +127,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "channel declaration";
     case AstNodeKind::kParametricBinding:
       return "parametric binding";
+    case AstNodeKind::kTupleIndex:
+      return "tuple index";
   }
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
@@ -1709,6 +1711,25 @@ std::string QuickCheck::ToString() const {
   }
   return absl::StrFormat("#![quickcheck%s]\n%s", test_count_str,
                          f_->ToString());
+}
+
+TupleIndex::TupleIndex(Module* owner, Span span, Expr* lhs, Number* index)
+    : Expr(owner, std::move(span)), lhs_(lhs), index_(index) {}
+
+absl::Status TupleIndex::Accept(AstNodeVisitor* v) const {
+  return v->HandleTupleIndex(this);
+}
+
+absl::Status TupleIndex::AcceptExpr(ExprVisitor* v) const {
+  return v->HandleTupleIndex(this);
+}
+
+std::string TupleIndex::ToString() const {
+  return absl::StrCat(lhs_->ToString(), ".", index_->ToString());
+}
+
+std::vector<AstNode*> TupleIndex::GetChildren(bool want_types) const {
+  return {lhs_, index_};
 }
 
 std::string XlsTuple::ToString() const {

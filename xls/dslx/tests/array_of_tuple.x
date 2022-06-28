@@ -20,12 +20,12 @@ type Foo = (
 #![test]
 fn array_of_tuple_literal_test() {
   let xs = Foo[2]:[(u8:1, u32:2), (u8:3, u32:4)];
-  let x0 = xs[u32:0];
-  let x1 = xs[u32:1];
-  let _ = assert_eq(x0[0], u8:1);
-  let _ = assert_eq(x0[1], u32:2);
-  let _ = assert_eq(x1[0], u8:3);
-  let _ = assert_eq(x1[1], u32:4);
+  let x0 = xs[0];
+  let x1 = xs[1];
+  let _ = assert_eq(x0.0, u8:1);
+  let _ = assert_eq(x0.1, u32:2);
+  let _ = assert_eq(x1.0, u8:3);
+  let _ = assert_eq(x1.1, u32:4);
   ()
 }
 
@@ -34,10 +34,10 @@ fn array_of_tuple_type_annotation_test() {
   let xs: (u8, u32)[2] = [(u8:1, u32:2), (u8:3, u32:4)];
   let x0 = xs[u32:0];
   let x1 = xs[u32:1];
-  let _ = assert_eq(x0[0], u8:1);
-  let _ = assert_eq(x0[1], u32:2);
-  let _ = assert_eq(x1[0], u8:3);
-  let _ = assert_eq(x1[1], u32:4);
+  let _ = assert_eq(x0.0, u8:1);
+  let _ = assert_eq(x0.1, u32:2);
+  let _ = assert_eq(x1.0, u8:3);
+  let _ = assert_eq(x1.1, u32:4);
   ()
 }
 
@@ -46,9 +46,9 @@ fn multi_dimensional_array_of_tuple_type_annotation_test() {
   let xs: (u8, u32)[2][1] = [[(u8:1, u32:2), (u8:3, u32:4)]];
   let x0 = xs[u32:0][u32:0];
   let x1 = xs[u32:0][u32:1];
-  let _ = assert_eq(x0[0], u8:1);
-  let _ = assert_eq(x0[1], u32:2);
-  let _ = assert_eq(x1[0], u8:3);
-  let _ = assert_eq(x1[1], u32:4);
+  let _ = assert_eq(x0.0, u8:1);
+  let _ = assert_eq(x0.1, u32:2);
+  let _ = assert_eq(x1.0, u8:3);
+  let _ = assert_eq(x1.1, u32:4);
   ()
 }

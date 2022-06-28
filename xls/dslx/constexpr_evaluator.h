@@ -92,6 +92,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* expr) override;
   absl::Status HandleTernary(const Ternary* expr) override;
+  absl::Status HandleTupleIndex(const TupleIndex* expr) override;
   absl::Status HandleUnop(const Unop* expr) override;
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 

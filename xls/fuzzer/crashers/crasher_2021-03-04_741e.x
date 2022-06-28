@@ -150,7 +150,7 @@ fn main(x0: u62, x1: s25, x2: u24) -> (u63, s25, u1, (s25, u24, u25, s20, u1, u1
   let x8: s20 = s20:0x8;
   let x9: u25 = u25:0x100000;
   let x10: (s25, u24, u25, s20, u1, u1, (u48,), u1, (u48,), u62) = (x1, x2, x9, x8, x6, x5, x7, x6, x7, x0);
-  let x11: u48 = (x7)[0x0];
+  let x11: u48 = (x7).0;
   let x12: u25 = one_hot(x2, u1:0x1);
   let x13: u62 = one_hot_sel(x6, [x4]);
   let x14: u15 = (x1 as u25)[x9+:u15];

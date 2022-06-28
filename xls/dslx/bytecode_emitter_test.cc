@@ -505,7 +505,7 @@ fn index_tuple() -> u32 {
   let a = (u16:0, u32:1, u64:2);
   let b = (bits[128]:3, bits[32]:4);
 
-  a[1] + b[1]
+  a.1 + b.1
 }
 )";
 

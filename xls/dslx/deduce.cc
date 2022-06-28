@@ -20,6 +20,7 @@
 #include "absl/container/btree_set.h"
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/bytecode_emitter.h"
@@ -156,6 +157,42 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   ctx->type_info()->NoteConstExpr(node->value(), constexpr_value);
   ctx->type_info()->NoteConstExpr(node->name_def(), constexpr_value);
   return result;
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
+    const TupleIndex* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs_type,
+                       ctx->Deduce(node->lhs()));
+  TupleType* tuple_type = dynamic_cast<TupleType*>(lhs_type.get());
+  if (tuple_type == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), lhs_type.get(),
+        absl::StrCat("Attempted to use tuple indexing on a non-tuple: ",
+                     node->ToString()));
+  }
+
+  ctx->set_in_typeless_number_ctx(true);
+  auto cleanup =
+      absl::MakeCleanup([ctx]() { ctx->set_in_typeless_number_ctx(false); });
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> index_type,
+                       ctx->Deduce(node->index()));
+  std::move(cleanup).Cancel();
+
+  // TupleIndex RHSs are always constexpr numbers.
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue index_value,
+      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
+                                          GetCurrentSymbolicBindings(ctx),
+                                          node->index(), index_type.get()));
+  XLS_ASSIGN_OR_RETURN(int64_t index, index_value.GetBitValueUint64());
+  if (index >= tuple_type->size()) {
+    return TypeInferenceErrorStatus(
+        node->span(), tuple_type,
+        absl::StrCat("Out-of-bounds tuple index specified: ",
+                     node->index()->ToString()));
+  }
+
+  return tuple_type->GetMemberType(index).CloneToUnique();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRef(const TypeRef* node,
@@ -1055,42 +1092,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
   return subject_type;
 }
 
-// Deduces the concrete type for a tuple indexing operation.
-static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTupleIndex(
-    const Index* node, DeduceCtx* ctx, const TupleType& lhs_type) {
-  IndexRhs rhs = node->rhs();
-  auto* expr = absl::get<Expr*>(rhs);
-
-  // TODO(leary): 2020-11-09 When we add unifying type inference this will also
-  // be able to be a ConstRef.
-  auto* number = dynamic_cast<Number*>(expr);
-  if (number == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), &lhs_type,
-        "Tuple index is not a literal number or named constant.");
-  }
-
-  if (number->type_annotation() == nullptr) {
-    ctx->type_info()->SetItem(number, *BitsType::MakeU32());
-  } else {
-    // If the number has an annotated type, flag it as unnecessary.
-    XLS_RETURN_IF_ERROR(ctx->Deduce(number).status());
-    XLS_LOG(WARNING) << absl::StreamFormat(
-        "Warning: type annotation for tuple index is unnecessary @ %s: %s",
-        node->span().ToString(), node->ToString());
-  }
-
-  XLS_ASSIGN_OR_RETURN(int64_t value, number->GetAsUint64());
-  if (value >= lhs_type.size()) {
-    return TypeInferenceErrorStatus(
-        node->span(), &lhs_type,
-        absl::StrFormat("Tuple index %d is out of "
-                        "range for this tuple type.",
-                        value));
-  }
-  return lhs_type.GetMemberType(value).CloneToUnique();
-}
-
 // Returns (start, width), resolving indices via DSLX bit slice semantics.
 static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
     int64_t bit_count, absl::optional<int64_t> start_opt,
@@ -1353,7 +1354,10 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(const Index* node,
   }
 
   if (auto* tuple_type = dynamic_cast<TupleType*>(lhs_type.get())) {
-    return DeduceTupleIndex(node, ctx, *tuple_type);
+    return TypeInferenceErrorStatus(
+        node->span(), tuple_type,
+        "Tuples should not be indexed with array-style syntax. "
+        "Use `tuple.<number>` syntax instead.");
   }
 
   auto* array_type = dynamic_cast<ArrayType*>(lhs_type.get());
@@ -2578,6 +2582,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Spawn)
   DEDUCE_DISPATCH(SplatStructInstance)
   DEDUCE_DISPATCH(StructInstance)
+  DEDUCE_DISPATCH(TupleIndex)
   DEDUCE_DISPATCH(BuiltinTypeAnnotation)
   DEDUCE_DISPATCH(ChannelTypeAnnotation)
   DEDUCE_DISPATCH(ArrayTypeAnnotation)

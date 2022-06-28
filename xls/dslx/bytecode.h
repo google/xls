@@ -242,6 +242,7 @@ class Bytecode {
 
   static Bytecode MakeDup(Span span);
   static Bytecode MakeFail(Span span, std::string);
+  static Bytecode MakeIndex(Span span);
   static Bytecode MakeInvert(Span span);
   static Bytecode MakeJumpDest(Span span);
   static Bytecode MakeJumpRelIf(Span span, JumpTarget target);

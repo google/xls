@@ -63,7 +63,7 @@ fn sponge_capitalize<N: u32>(input: u8[N]) -> u8[N] {
     (result, do_cap)
   }((input, do_cap));
 
-  result[0]
+  result.0
 }
 
 #![test]

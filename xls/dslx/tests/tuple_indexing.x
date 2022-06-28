@@ -15,14 +15,14 @@
 fn tuple_index_all_bits_set(x: (u1, u2, u3, u4)) -> u4 {
   // Tuple index access where the index has all bits set (e.g. demonstrates the index is treated as
   // unsigned).
-  x[u2:0b11]
+  x.0b11
 }
 
 #![test]
 fn test_tuple_index() {
   // Perform tuple indexing without explicitly annotating the type of the index.
-  let _ = assert_eq((u32:42, u4:7)[1], u4:7);
-  let _ = assert_eq((u32:42, u4:7)[0], u32:42);
+  let _ = assert_eq((u32:42, u4:7).1, u4:7);
+  let _ = assert_eq((u32:42, u4:7).0, u32:42);
   let _ = assert_eq(tuple_index_all_bits_set((u1:1, u2:2, u3:3, u4:4)), u4:4);
   ()
 }

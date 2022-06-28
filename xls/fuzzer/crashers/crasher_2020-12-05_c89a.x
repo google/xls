@@ -173,6 +173,6 @@ fn main(x0: s7) -> (u1, s7, u1, u54, u27, s7, u27, u27, u1, s38, s38, u1, u54, u
   let x20: x21[0x1] = ((x7) as x21[0x1]);
   let x22: u54 = ctz(x8);
   let x23: u54 = rev(x3);
-  let x24: u1 = (x19)[0x3];
+  let x24: u1 = (x19).0x3;
   (x7, x0, x18, x9, x5, x0, x1, x4, x18, x13, x13, x7, x22, x23, x18, x13, x0, x19, x7, x23, x12, x17, x2, x11)
 }

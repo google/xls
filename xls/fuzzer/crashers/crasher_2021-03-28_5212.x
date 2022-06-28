@@ -153,7 +153,7 @@ fn main(x0: s46, x1: (u45, u43), x2: s47, x3: u22) -> (uN[484], s47, uN[484], uN
   let x8: uN[484] = (x6) + (((x2) as uN[484]));
   let x9: uN[485] = one_hot(x8, bool:false);
   let x10: bool = and_reduce(x5);
-  let x11: u45 = (x1)[0];
+  let x11: u45 = (x1).0;
   let x12: uN[1760] = (((x7) ++ (x6)) ++ (x6)) ++ (x6);
   let x13: uN[484] = rev(x6);
   let x14: u16 = (x6)[x9+:u16];
@@ -163,7 +163,7 @@ fn main(x0: s46, x1: (u45, u43), x2: s47, x3: u22) -> (uN[484], s47, uN[484], uN
   let x16: uN[485] = (x9)[x5+:uN[485]];
   let x17: uN[294] = (x16)[x16+:uN[294]];
   let x18: uN[484] = (((x11) as uN[484])) + (x13);
-  let x20: u45 = (x1)[0];
+  let x20: u45 = (x1).0;
   let x21: bool = (x10)[x4+:bool];
   let x22: (uN[484], uN[485], u45, s47, s46, u16) = (x6, x9, x11, x2, x0, x14);
   let x23: bool = xor_reduce(x12);

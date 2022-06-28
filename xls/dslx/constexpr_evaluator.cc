@@ -159,6 +159,10 @@ class NameRefCollector : public ExprVisitor {
     XLS_RETURN_IF_ERROR(expr->operand()->AcceptExpr(this));
     return absl::OkStatus();
   }
+  absl::Status HandleTupleIndex(const TupleIndex* expr) override {
+    XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
   absl::Status HandleXlsTuple(const XlsTuple* expr) override {
     for (const Expr* member : expr->members()) {
       XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
@@ -628,6 +632,23 @@ absl::Status ConstexprEvaluator::HandleUnop(const Unop* expr) {
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->operand());
 
   return InterpretExpr(expr);
+}
+
+absl::Status ConstexprEvaluator::HandleTupleIndex(const TupleIndex* expr) {
+  // No need to fire up the interpreter. This one is easy.
+  GET_CONSTEXPR_OR_RETURN(InterpValue tuple, expr->lhs());
+  GET_CONSTEXPR_OR_RETURN(InterpValue index, expr->index());
+
+  XLS_ASSIGN_OR_RETURN(uint64_t index_value, index.GetBitValueUint64());
+  XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* values,
+                       tuple.GetValues());
+  if (index_value < 0 || index_value > values->size()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("%s: Out-of-range tuple index: %d vs %d.",
+                        expr->span().ToString(), index_value, values->size()));
+  }
+  type_info_->NoteConstExpr(expr, values->at(index_value));
+  return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {

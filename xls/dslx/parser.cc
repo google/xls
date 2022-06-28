@@ -1362,11 +1362,22 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       }
       case TokenKind::kDot: {
         DropTokenOrDie();
-        XLS_ASSIGN_OR_RETURN(Token tok,
-                             PopTokenOrError(TokenKind::kIdentifier));
-        XLS_ASSIGN_OR_RETURN(NameDef * attr, TokenToNameDef(tok));
+        XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
         Span span(new_pos, GetPos());
-        lhs = module_->Make<Attr>(span, lhs, attr);
+        if (tok.kind() == TokenKind::kIdentifier) {
+          XLS_ASSIGN_OR_RETURN(NameDef * attr, TokenToNameDef(tok));
+          lhs = module_->Make<Attr>(span, lhs, attr);
+        } else if (tok.kind() == TokenKind::kNumber) {
+          XLS_ASSIGN_OR_RETURN(Number * number, TokenToNumber(tok));
+          lhs = module_->Make<TupleIndex>(span, lhs, number);
+        } else {
+          return ParseErrorStatus(
+              span,
+              absl::StrFormat(
+                  "Unknown dot ('.') reference: expected number or identifier; "
+                  "got %s",
+                  tok.ToString()));
+        }
         break;
       }
       case TokenKind::kOBrack: {

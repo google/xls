@@ -76,6 +76,7 @@ bool IsOneOf(ObjT* obj) {
   X(String)                        \
   X(StructInstance)                \
   X(Ternary)                       \
+  X(TupleIndex)                    \
   X(Unop)                          \
   X(XlsTuple)
 
@@ -249,6 +250,7 @@ enum class AstNodeKind {
   kLet,
   kChannelDecl,
   kParametricBinding,
+  kTupleIndex,
 };
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
@@ -621,6 +623,7 @@ class ExprVisitor {
   virtual absl::Status HandleSplatStructInstance(
       const SplatStructInstance* expr) = 0;
   virtual absl::Status HandleTernary(const Ternary* expr) = 0;
+  virtual absl::Status HandleTupleIndex(const TupleIndex* expr) = 0;
   virtual absl::Status HandleUnop(const Unop* expr) = 0;
   virtual absl::Status HandleXlsTuple(const XlsTuple* expr) = 0;
 };
@@ -2263,6 +2266,25 @@ class QuickCheck : public AstNode {
   Span span_;
   Function* f_;
   absl::optional<int64_t> test_count_;
+};
+
+// Represents an index into a tuple, e.g., "(u32:7, u32:8).1".
+class TupleIndex : public Expr {
+ public:
+  TupleIndex(Module* owner, Span span, Expr* lhs, Number* index);
+  AstNodeKind kind() const { return AstNodeKind::kTupleIndex; }
+  absl::Status Accept(AstNodeVisitor* v) const override;
+  absl::Status AcceptExpr(ExprVisitor* v) const override;
+  absl::string_view GetNodeTypeName() const override { return "TupleIndex"; }
+  std::string ToString() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  Expr* lhs() const { return lhs_; }
+  Number* index() const { return index_; }
+
+ private:
+  Expr* lhs_;
+  Number* index_;
 };
 
 // Represents an XLS tuple expression.

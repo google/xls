@@ -163,7 +163,7 @@ fn main(x0: s53) -> (bool, s53, (s53, s53), u1, s53, s53, u1, s53, u1, (s53, s53
   let x13: u4 = u4:0xa;
   let x14: u1 = (((x10) as u1)) + (x1);
   let x15: s53 = one_hot_sel(x6, [x12]);
-  let x16: s53 = (x11)[0x1];
+  let x16: s53 = (x11).0x1;
   let x17: s53 = -(x15);
   let x18: x19[W32_V1] = ((x10) as x19[W32_V1]);
   let x20: bool = (x5) >> (if ((((x8) as bool)) >= (bool:false)) { (bool:false) } else { (((x8) as bool)) });

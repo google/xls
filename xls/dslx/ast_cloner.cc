@@ -698,6 +698,14 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleTupleIndex(const TupleIndex* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<TupleIndex>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->lhs())),
+        down_cast<Number*>(old_to_new_.at(n->index())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleTupleTypeAnnotation(
       const TupleTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));

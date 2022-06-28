@@ -961,6 +961,30 @@ x)",
                 {"x"});
 }
 
+TEST_F(ParserTest, TupleIndex) {
+  const char* text = R"(
+fn f(x: u32) -> u8 {
+  (u32:6, u32:7).1
+}
+)";
+  Scanner s{"test.x", std::string{text}};
+  Parser p{"test", &s};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * f,
+      p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
+  auto* tuple_index = dynamic_cast<TupleIndex*>(f->body());
+  ASSERT_NE(tuple_index, nullptr);
+
+  Expr* lhs = tuple_index->lhs();
+  EXPECT_EQ(lhs->ToString(), "(u32:6, u32:7)");
+  Number* index = tuple_index->index();
+  EXPECT_EQ(index->ToString(), "1");
+
+  RoundTripExpr("let foo = tuple.0;\nfoo", {"tuple"});
+  RoundTripExpr("let foo = (u32:6, u32:7).1;\nfoo", {"tuple"});
+}
+
 // -- Parse-time errors
 
 TEST_F(ParserTest, BadEnumRef) {

@@ -198,7 +198,7 @@ class InterpreterTest(test_base.TestCase):
     #![test]
     fn indexing_test() {
       let t = (u1:0, u8:1, u32:2);
-      assert_eq(u32:2, t[2])
+      assert_eq(u32:2, t.2)
     }
     """)
     self._parse_and_test(program)
@@ -539,7 +539,7 @@ class InterpreterTest(test_base.TestCase):
       u32[THING_COUNT]
     );
     fn get_thing(x: Foo, i: u32) -> u32 {
-      let things: u32[THING_COUNT] = x[0];
+      let things: u32[THING_COUNT] = x.0;
       things[i]
     }
     #![test]
@@ -606,7 +606,7 @@ class InterpreterTest(test_base.TestCase):
     );
     fn f(s: StructLike) -> StructLike {
       let updated: StructLike = (
-        [s[0][u32:0]+MyType:1, s[0][u32:1]+MyType:1],
+        [s.0[u32:0]+MyType:1, s.0[u32:1]+MyType:1],
       );
       updated
     }

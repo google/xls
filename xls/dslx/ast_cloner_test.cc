@@ -502,6 +502,18 @@ TEST(AstClonerTest, NormalFor) {
   EXPECT_EQ(kProgram, clone->ToString());
 }
 
+TEST(AstClonerTest, TupleIndex) {
+  constexpr absl::string_view kProgram = R"(fn main() -> u32 {
+  (u8:8, u16:16, u32:32, u64:64).2
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto module,
+                           ParseModule(kProgram, "fake_path.x", "the_module"));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> clone,
+                           CloneModule(module.get()));
+  EXPECT_EQ(kProgram, clone->ToString());
+}
+
 TEST(AstClonerTest, SendsAndRecvsAndSpawns) {
   constexpr absl::string_view kProgram = R"(import other_module
 proc MyProc {

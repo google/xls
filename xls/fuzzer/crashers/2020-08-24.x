@@ -45,9 +45,9 @@ fn main(x0: s45, x1: s50, x2: s38, x3: u8, x4: u49, x5: u13, x6: u12, x7: s14, x
     x
   }(x21)
   ;
-    let x32: s50 = (x11)[(u32:0x1)];
+    let x32: s50 = (x11).0x1;
     let x33: u1 = or_reduce(x4);
-    let x34: u49 = (x11)[(u32:0x0)];
+    let x34: u49 = (x11).0x0;
     let x35: u1 = xor_reduce(x20);
     (x25, x30)
 }

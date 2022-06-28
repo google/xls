@@ -728,7 +728,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
     auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(e.type);
     int64_t i = RandRange(tuple_type->size());
     Number* index_expr = MakeNumber(i);
-    return TypedExpr{module_->Make<Index>(fake_span_, e.expr, index_expr),
+    return TypedExpr{module_->Make<TupleIndex>(fake_span_, e.expr, index_expr),
                      tuple_type->members()[i]};
   }
 

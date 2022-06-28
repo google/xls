@@ -631,7 +631,7 @@ fn index_tuple() -> u32 {
   let a = (u32:0, (u32:1, u32:2));
   let b = ((u32:3, (u32:4,)), u32:5);
 
-  a[1][1] + b[0][1][0]
+  a.1.1 + b.0.1.0
 })";
 
   auto import_data = CreateImportDataForTest();

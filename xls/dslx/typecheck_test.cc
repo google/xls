@@ -1226,6 +1226,14 @@ proc entry {
                        HasSubstr("Cannot send on an input channel.")));
 }
 
+TEST(TypecheckTest, BasicTupleIndex) {
+  XLS_EXPECT_OK(Typecheck(R"(
+fn main() -> u18 {
+  (u32:7, u24:6, u18:5, u12:4, u8:3).2
+}
+)"));
+}
+
 // Helper for struct instance based tests.
 absl::Status TypecheckStructInstance(std::string program) {
   program = R"(

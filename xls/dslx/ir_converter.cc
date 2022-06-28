@@ -340,6 +340,7 @@ class FunctionConverter {
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
   absl::Status HandleStructInstance(const StructInstance* node);
   absl::Status HandleTernary(const Ternary* node);
+  absl::Status HandleTupleIndex(const TupleIndex* node);
 
   // Handles invocation of a user-defined function (UDF).
   absl::Status HandleUdfInvocation(const Invocation* node, xls::Function* f,
@@ -706,6 +707,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(StructInstance)
   NO_TRAVERSE_DISPATCH_VISIT(Ternary)
+  NO_TRAVERSE_DISPATCH_VISIT(TupleIndex)
 
   // A macro used for AST types that we never expect to visit (if we do we
   // provide an error message noting it was unexpected).
@@ -1068,6 +1070,19 @@ absl::Status FunctionConverter::HandleString(const String* node) {
   }
   XLS_ASSIGN_OR_RETURN(Value array, Value::Array(elements));
   DefConst(node, array);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleTupleIndex(const TupleIndex* node) {
+  XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->lhs())));
+  XLS_ASSIGN_OR_RETURN(BValue v, Use(node->lhs()));
+  XLS_RETURN_IF_ERROR(Visit(ToAstNode(node->index())));
+  XLS_ASSIGN_OR_RETURN(Bits rhs, GetConstBits(ToAstNode(node->index())));
+  XLS_ASSIGN_OR_RETURN(uint64_t index, rhs.ToUint64());
+
+  Def(node, [this, v, index](const SourceInfo& loc) {
+    return function_builder_->TupleIndex(v, index, loc);
+  });
   return absl::OkStatus();
 }
 

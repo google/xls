@@ -402,7 +402,7 @@ pub fn upow<N: u32>(x: uN[N], n: uN[N]) -> uN[N] {
 
     (n >> 1, p * p, result)
   }((n, p, result));
-  work[2]
+  work.2
 }
 
 pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
@@ -414,7 +414,7 @@ pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
 
     (n >> uN[N]:1, p * p, result)
   }((n, p, result));
-  work[2]
+  work.2
 }
 
 #![test]

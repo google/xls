@@ -162,7 +162,7 @@ fn main(x0: s42, x1: s59, x2: sN[1750], x3: x4[W32_V9]) -> (sN[1750], uN[1621], 
   let x17: (sN[1750], s59, bool, sN[1750]) = (x14, x1, x12, x14);
   let x18: uN[599] = (((x11) as uN[599])) * (x6);
   let x19: sN[1750] = (x5) + (x5);
-  let x20: bool = (x17)[2];
+  let x20: bool = (x17).2;
   let x21: bool = (((x18) as bool)) - (x11);
   let x22: bool = (x20) - (((x5) as bool));
   let x23: s53 = s53:0x8_0000;

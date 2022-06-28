@@ -90,6 +90,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleSplatStructInstance(
       const SplatStructInstance* node) override;
   absl::Status HandleTernary(const Ternary* node) override;
+  absl::Status HandleTupleIndex(const TupleIndex* node) override;
   absl::Status HandleUnop(const Unop* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
 

@@ -314,6 +314,7 @@ std::string Bytecode::MatchArmItem::ToString() const {
   }
 
 DEF_UNARY_BUILDER(Dup);
+DEF_UNARY_BUILDER(Index);
 DEF_UNARY_BUILDER(Invert);
 DEF_UNARY_BUILDER(JumpDest);
 DEF_UNARY_BUILDER(LogicalOr);
