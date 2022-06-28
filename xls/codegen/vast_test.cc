@@ -502,8 +502,8 @@ TEST_P(VastTest, Casez) {
   LogicRef* my_state =
       m->AddWire("my_state", f.BitVectorType(2, SourceInfo()), SourceInfo());
   AlwaysComb* ac = m->Add<AlwaysComb>(SourceInfo());
-  Case* case_statement =
-      ac->statements()->Add<Case>(SourceInfo(), my_state, CaseType::kCasez);
+  Case* case_statement = ac->statements()->Add<Case>(
+      SourceInfo(), my_state, CaseType(CaseKeyword::kCasez));
   StatementBlock* one_block =
       case_statement->AddCaseArm(f.Literal(1, 2, SourceInfo()));
   one_block->Add<BlockingAssignment>(SourceInfo(), thing_next, thing);

@@ -15,6 +15,7 @@
 #include "xls/codegen/module_builder.h"
 
 #include <algorithm>
+#include <memory>
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -32,6 +33,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
+#include "xls/passes/bdd_query_engine.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -189,7 +191,8 @@ ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
     : module_name_(SanitizeIdentifier(name)),
       file_(file),
       package_("__ModuleBuilder_type_generator"),
-      options_(std::move(options)) {
+      options_(std::move(options)),
+      query_engine_(std::nullopt) {
   module_ = file_->AddModule(module_name_, SourceInfo());
   functions_section_ = module_->Add<ModuleSection>(SourceInfo());
   constants_section_ = module_->Add<ModuleSection>(SourceInfo());
@@ -1484,9 +1487,10 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
 }
 
 // Defines and returns a function which implements the given UMul node.
-VerilogFunction* DefinePrioritySelectFunction(PrioritySelect* sel,
-                                              absl::string_view function_name,
-                                              ModuleSection* section) {
+VerilogFunction* DefinePrioritySelectFunction(
+    PrioritySelect* sel, absl::string_view function_name,
+    ModuleSection* section, const std::optional<BddQueryEngine>& query_engine,
+    bool use_system_verilog) {
   VerilogFile* file = section->file();
 
   VerilogFunction* func = section->Add<VerilogFunction>(
@@ -1504,14 +1508,35 @@ VerilogFunction* DefinePrioritySelectFunction(PrioritySelect* sel,
         absl::StrCat("case", i),
         file->BitVectorType(node->BitCountOrDie(), sel->loc()), sel->loc()));
   }
+
+  XLS_CHECK(sel->selector()->GetType()->IsBits());
+  bool one_hot = false;
+  bool never_zero = false;
+  if (query_engine.has_value()) {
+    one_hot = query_engine->AtMostOneBitTrue(sel->selector());
+    never_zero = query_engine->AtLeastOneBitTrue(sel->selector());
+  }
+
+  CaseType case_type(CaseKeyword::kCasez);
+  FourValueBit case_label_top_bits = FourValueBit::kHighZ;
+  if (one_hot) {
+    case_type.keyword = CaseKeyword::kCase;
+    case_label_top_bits = FourValueBit::kZero;
+  }
+  if ((one_hot || never_zero) && use_system_verilog) {
+    case_type.modifier = CaseModifier::kUnique;
+  }
+
   Case* case_statement =
-      func->AddStatement<Case>(sel->loc(), selector, CaseType::kCasez);
-  // make a ternary vector that looks like ???...?1000...0.
-  // each label will be a sliding window into this larger vector.
+      func->AddStatement<Case>(sel->loc(), selector, case_type);
+  // Make a ternary vector that looks like ???...?1000...0.
+  // Each label will be a sliding window into this larger vector.
+  // If the selector is known to be one hot, the window will look like
+  // 000...01000...0 instead and the "unique" keyword will be used instead.
   std::vector<FourValueBit> ternary_vector;
   ternary_vector.reserve(cases.size() * 2 - 1);
   std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
-              FourValueBit::kHighZ);
+              case_label_top_bits);
   ternary_vector.push_back(FourValueBit::kOne);
   std::fill_n(std::back_inserter(ternary_vector), cases.size() - 1,
               FourValueBit::kZero);
@@ -1529,10 +1554,12 @@ VerilogFunction* DefinePrioritySelectFunction(PrioritySelect* sel,
   }
 
   // Add default case that returns zero
-  Expression* zero =
-      file->Literal(0, sel->operand(1)->BitCountOrDie(), sel->loc());
-  case_statement->AddCaseArm(DefaultSentinel())
-      ->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(), zero);
+  if (!never_zero) {
+    Expression* zero =
+        file->Literal(0, sel->operand(1)->BitCountOrDie(), sel->loc());
+    case_statement->AddCaseArm(DefaultSentinel())
+        ->Add<BlockingAssignment>(sel->loc(), func->return_value_ref(), zero);
+  }
 
   return func;
 }
@@ -1561,8 +1588,14 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
                                           function_name, functions_section_);
       break;
     case Op::kPrioritySel:
-      func = DefinePrioritySelectFunction(node->As<PrioritySelect>(),
-                                          function_name, functions_section_);
+      if (!query_engine_.has_value() && options_.use_system_verilog()) {
+        query_engine_ = BddQueryEngine(BddFunction::kDefaultPathLimit);
+        XLS_RETURN_IF_ERROR(
+            query_engine_->Populate(node->function_base()).status());
+      }
+      func = DefinePrioritySelectFunction(
+          node->As<PrioritySelect>(), function_name, functions_section_,
+          query_engine_, options_.use_system_verilog());
       break;
     default:
       XLS_LOG(FATAL) << "Cannot define node as function: " << node->ToString();

@@ -456,16 +456,32 @@ class CaseArm : public VastNode {
   StatementBlock* statements_;
 };
 
-enum class CaseType {
+enum class CaseKeyword {
   kCase,
   kCasez,
+};
+
+enum class CaseModifier {
+  kUnique,
+};
+
+struct CaseType {
+  CaseKeyword keyword;
+  std::optional<CaseModifier> modifier;
+
+  explicit CaseType(CaseKeyword keyword, std::optional<CaseModifier> modifier)
+      : keyword(keyword), modifier(modifier) {}
+  explicit CaseType(CaseKeyword keyword)
+      : keyword(keyword), modifier(std::nullopt) {}
 };
 
 // Represents a case statement.
 class Case : public Statement {
  public:
   Case(Expression* subject, VerilogFile* file, const SourceInfo& loc)
-      : Statement(file, loc), subject_(subject), case_type_(CaseType::kCase) {}
+      : Statement(file, loc),
+        subject_(subject),
+        case_type_(CaseType(CaseKeyword::kCase)) {}
 
   Case(Expression* subject, CaseType case_type, VerilogFile* file,
        const SourceInfo& loc)

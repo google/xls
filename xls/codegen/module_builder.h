@@ -28,6 +28,7 @@
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/passes/bdd_query_engine.h"
 
 namespace xls {
 namespace verilog {
@@ -310,6 +311,10 @@ class ModuleBuilder {
   // exists which implements this node then the existing function is returned.
   absl::StatusOr<VerilogFunction*> DefineFunction(Node* node);
 
+  // Get a BddQueryEngine for a given node, constructing it if it hasn't already
+  // been constructed for another node with the same FunctionBase.
+  absl::StatusOr<BddQueryEngine* const> GetBddForNode(Node* const node);
+
   std::string module_name_;
   VerilogFile* file_;
 
@@ -338,6 +343,8 @@ class ModuleBuilder {
   // Verilog functions defined inside the module. Map is indexed by the function
   // name.
   absl::flat_hash_map<std::string, VerilogFunction*> node_functions_;
+
+  std::optional<BddQueryEngine> query_engine_;
 };
 
 }  // namespace verilog

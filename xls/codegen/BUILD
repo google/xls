@@ -385,6 +385,7 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:type",
         "//xls/ir:value",
+        "//xls/passes:bdd_query_engine",
         "@com_github_google_re2//:re2",
     ],
 )

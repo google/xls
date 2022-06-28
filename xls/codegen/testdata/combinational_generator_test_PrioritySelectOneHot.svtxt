@@ -1,0 +1,21 @@
+module main(
+  input wire p,
+  input wire [15:0] x,
+  input wire [15:0] y,
+  output wire [15:0] out
+);
+  function automatic [15:0] priority_sel_16b_2way (input reg [1:0] sel, input reg [15:0] case0, input reg [15:0] case1);
+    begin
+      unique case (sel)
+        2'b01: begin
+          priority_sel_16b_2way = case0;
+        end
+        2'b10: begin
+          priority_sel_16b_2way = case1;
+        end
+      endcase
+    end
+  endfunction
+
+  assign out = priority_sel_16b_2way({!p, p}, x, y);
+endmodule

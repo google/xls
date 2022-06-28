@@ -925,15 +925,32 @@ StatementBlock* Case::AddCaseArm(CaseLabel label) {
 }
 
 static std::string CaseTypeToString(CaseType case_type) {
-  switch (case_type) {
-    case CaseType::kCase:
-      return "case";
-    case CaseType::kCasez:
-      return "casez";
+  std::string keyword;
+  switch (case_type.keyword) {
+    case CaseKeyword::kCase:
+      keyword = "case";
+      break;
+    case CaseKeyword::kCasez:
+      keyword = "casez";
+      break;
     default:
-      XLS_LOG(FATAL) << "Unexpected CaseType with value "
-                     << static_cast<int>(case_type);
+      XLS_LOG(FATAL) << "Unexpected CaseKeyword with value "
+                     << static_cast<int>(case_type.keyword);
   }
+
+  if (case_type.modifier.has_value()) {
+    std::string modifier;
+    switch (*case_type.modifier) {
+      case CaseModifier::kUnique:
+        modifier = "unique";
+        break;
+      default:
+        XLS_LOG(FATAL) << "Unexpected CaseModifier with value "
+                       << static_cast<int>(*case_type.modifier);
+    }
+    return absl::StrCat(modifier, " ", keyword);
+  }
+  return keyword;
 }
 
 std::string Case::Emit(LineInfo* line_info) const {
