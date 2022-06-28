@@ -26,21 +26,17 @@
 
 #include "absl/status/status.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/substitute.h"
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/constexpr_evaluator.h"
-#include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/interp_value.h"
-#include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_conversion_utils.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/proc_config_ir_converter.h"
 #include "xls/dslx/symbolic_bindings.h"
-#include "xls/dslx/typecheck.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/channel_ops.h"
 #include "xls/ir/function.h"
@@ -289,12 +285,12 @@ class FunctionConverter {
   // Returns:
   //  The symbolic bindings for the given instantiation (function call or proc
   //  spawn).
-  absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
-      const Instantiation* instantiation) const {
+  absl::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
+      const Invocation* invocation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
-    return import_data_->GetRootTypeInfo(instantiation->owner())
+    return import_data_->GetRootTypeInfo(invocation->owner())
         .value()
-        ->GetInstantiationCalleeBindings(instantiation, key);
+        ->GetInvocationCalleeBindings(invocation, key);
   }
 
   // Helpers for HandleBinop().
@@ -1738,7 +1734,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   Expr* fn_node = node->args()[1];
   XLS_VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
   absl::optional<const SymbolicBindings*> node_sym_bindings =
-      GetInstantiationCalleeBindings(node);
+      GetInvocationCalleeBindings(node);
 
   std::string map_fn_name;
   Module* lookup_module = nullptr;
@@ -2663,7 +2659,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
   }
 
   absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
-      GetInstantiationCalleeBindings(node);
+      GetInvocationCalleeBindings(node);
   XLS_RET_CHECK(resolved_symbolic_bindings.has_value());
   XLS_VLOG(5) << absl::StreamFormat("Node `%s` (%s) @ %s symbolic bindings %s",
                                     node->ToString(), node->GetNodeTypeName(),

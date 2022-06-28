@@ -19,7 +19,7 @@
 
 namespace xls::dslx {
 
-std::string InstantiationData::ToString() const {
+std::string InvocationData::ToString() const {
   return absl::StrCat("[",
                       absl::StrJoin(symbolic_bindings_map, ", ",
                                     [](std::string* out, const auto& item) {
@@ -119,7 +119,7 @@ absl::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
   return absl::nullopt;
 }
 
-void TypeInfo::AddInstantiationCallBindings(const Instantiation* call,
+void TypeInfo::AddInvocationCallBindings(const Invocation* call,
                                             SymbolicBindings caller,
                                             SymbolicBindings callee) {
   XLS_CHECK_EQ(call->owner(), module_);
@@ -129,25 +129,17 @@ void TypeInfo::AddInstantiationCallBindings(const Instantiation* call,
               << call->ToString() << " @ " << call->span()
               << " caller: " << caller.ToString()
               << " callee: " << callee.ToString();
-  auto it = top->instantiations_.find(call);
-  if (it == top->instantiations_.end()) {
+  auto it = top->invocations_.find(call);
+  if (it == top->invocations_.end()) {
     absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbind_map;
     symbind_map.emplace(std::move(caller), std::move(callee));
-    top->instantiations_[call] =
-        InstantiationData{call, std::move(symbind_map)};
+    top->invocations_[call] =
+        InvocationData{call, std::move(symbind_map)};
     return;
   }
   XLS_VLOG(3) << "Adding to existing invocation data.";
-  InstantiationData& data = it->second;
+  InvocationData& data = it->second;
   data.symbolic_bindings_map.emplace(std::move(caller), std::move(callee));
-}
-
-bool TypeInfo::HasInstantiation(const Instantiation* instantiation,
-                                const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(instantiation->owner(), module_)
-      << instantiation->owner()->name() << " vs " << module_->name() << " @ "
-      << instantiation->span();
-  return GetInstantiationTypeInfo(instantiation, caller).has_value();
 }
 
 absl::optional<bool> TypeInfo::GetRequiresImplicitToken(
@@ -176,19 +168,19 @@ void TypeInfo::NoteRequiresImplicitToken(const Function* f, bool is_required) {
   root->requires_implicit_token_.emplace(f, is_required);
 }
 
-absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
-    const Instantiation* instantiation, const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(instantiation->owner(), module_)
-      << instantiation->owner()->name() << " vs " << module_->name();
+absl::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
+    const Invocation* invocation, const SymbolicBindings& caller) const {
+  XLS_CHECK_EQ(invocation->owner(), module_)
+      << invocation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
-  auto it = top->instantiations_.find(instantiation);
-  if (it == top->instantiations_.end()) {
+  auto it = top->invocations_.find(invocation);
+  if (it == top->invocations_.end()) {
     XLS_VLOG(5) << "Could not find instantiation for invocation: "
-                << instantiation->ToString();
+                << invocation->ToString();
     return absl::nullopt;
   }
-  const InstantiationData& data = it->second;
-  XLS_VLOG(5) << "Invocation " << instantiation->ToString()
+  const InvocationData& data = it->second;
+  XLS_VLOG(5) << "Invocation " << invocation->ToString()
               << " caller bindings: " << caller
               << " invocation data: " << data.ToString();
   auto it2 = data.instantiations.find(caller);
@@ -198,43 +190,43 @@ absl::optional<TypeInfo*> TypeInfo::GetInstantiationTypeInfo(
   return it2->second;
 }
 
-void TypeInfo::SetInstantiationTypeInfo(const Instantiation* instantiation,
-                                        SymbolicBindings caller,
-                                        TypeInfo* type_info) {
-  XLS_CHECK_EQ(instantiation->owner(), module_);
+void TypeInfo::SetInvocationTypeInfo(const Invocation* invocation,
+                                     SymbolicBindings caller,
+                                     TypeInfo* type_info) {
+  XLS_CHECK_EQ(invocation->owner(), module_);
   TypeInfo* top = GetRoot();
-  InstantiationData& data = top->instantiations_[instantiation];
+  InvocationData& data = top->invocations_[invocation];
   data.instantiations[caller] = type_info;
 }
 
 absl::optional<const SymbolicBindings*>
-TypeInfo::GetInstantiationCalleeBindings(const Instantiation* instantiation,
-                                         const SymbolicBindings& caller) const {
-  XLS_CHECK_EQ(instantiation->owner(), module_)
-      << instantiation->owner()->name() << " vs " << module_->name();
+TypeInfo::GetInvocationCalleeBindings(const Invocation* invocation,
+                                      const SymbolicBindings& caller) const {
+  XLS_CHECK_EQ(invocation->owner(), module_)
+      << invocation->owner()->name() << " vs " << module_->name();
   const TypeInfo* top = GetRoot();
   XLS_VLOG(3) << absl::StreamFormat(
       "TypeInfo %p getting instantiation symbolic bindings: %p %s @ %s %s", top,
-      instantiation, instantiation->ToString(),
-      instantiation->span().ToString(), caller.ToString());
-  auto it = top->instantiations().find(instantiation);
-  if (it == top->instantiations().end()) {
-    XLS_VLOG(3) << "Could not find instantiation " << instantiation
+      invocation, invocation->ToString(),
+      invocation->span().ToString(), caller.ToString());
+  auto it = top->invocations().find(invocation);
+  if (it == top->invocations().end()) {
+    XLS_VLOG(3) << "Could not find instantiation " << invocation
                 << " in top-level type info: " << top;
     return absl::nullopt;
   }
-  const InstantiationData& data = it->second;
+  const InvocationData& data = it->second;
   auto it2 = data.symbolic_bindings_map.find(caller);
   if (it2 == data.symbolic_bindings_map.end()) {
     XLS_VLOG(3)
         << "Could not find caller symbolic bindings in instantiation data: "
-        << caller.ToString() << " " << instantiation->ToString() << " @ "
-        << instantiation->span();
+        << caller.ToString() << " " << invocation->ToString() << " @ "
+        << invocation->span();
     return absl::nullopt;
   }
   const SymbolicBindings* result = &it2->second;
   XLS_VLOG(3) << "Resolved instantiation symbolic bindings for "
-              << instantiation->ToString() << ": " << result->ToString();
+              << invocation->ToString() << ": " << result->ToString();
   return result;
 }
 

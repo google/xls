@@ -389,7 +389,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
   if (f->IsParametric()) {
     XLS_RET_CHECK(caller_bindings.has_value());
     absl::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInstantiationTypeInfo(invocation,
+        type_info->GetInvocationTypeInfo(invocation,
                                             caller_bindings.value());
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(absl::StrCat(
@@ -1564,7 +1564,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
                   const SymbolicBindings& caller_bindings)
       -> absl::StatusOr<TypeInfo*> {
     absl::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInstantiationTypeInfo(invoc, caller_bindings);
+        type_info->GetInvocationTypeInfo(invoc, caller_bindings);
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(
           absl::StrCat("Could not find type info for invocation ",

@@ -16,7 +16,6 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
-#include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -772,7 +771,7 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
   XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
 
   absl::optional<const SymbolicBindings*> maybe_callee_bindings =
-      type_info_->GetInstantiationCalleeBindings(
+      type_info_->GetInvocationCalleeBindings(
           node, caller_bindings_.has_value() ? caller_bindings_.value()
                                              : SymbolicBindings());
   absl::optional<SymbolicBindings> final_bindings = absl::nullopt;
@@ -1023,7 +1022,7 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
   // The whole Proc is parameterized, not the individual invocations
   // (config/next), so we can use either invocation to get the bindings.
   absl::optional<const SymbolicBindings*> maybe_callee_bindings =
-      type_info_->GetInstantiationCalleeBindings(node->config(),
+      type_info_->GetInvocationCalleeBindings(node->config(),
                                                  caller_bindings_.has_value()
                                                      ? caller_bindings_.value()
                                                      : SymbolicBindings());

@@ -213,11 +213,11 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
 
   const SymbolicBindings& fn_symbolic_bindings =
       ctx->fn_stack().back().symbolic_bindings();
-  XLS_VLOG(5) << "TypeInfo::AddInstantiationCallBindings; type_info: "
+  XLS_VLOG(5) << "TypeInfo::AddInvocationCallBindings; type_info: "
               << ctx->type_info() << "; node: `" << invocation->ToString()
               << "`; caller: " << fn_symbolic_bindings
               << "; callee: " << tab.symbolic_bindings;
-  ctx->type_info()->AddInstantiationCallBindings(
+  ctx->type_info()->AddInvocationCallBindings(
       invocation, /*caller=*/fn_symbolic_bindings,
       /*callee=*/tab.symbolic_bindings);
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
@@ -678,7 +678,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   }
 
   if (callee_fn->IsParametric()) {
-    parent_ctx->type_info()->AddInstantiationCallBindings(
+    parent_ctx->type_info()->AddInvocationCallBindings(
         invocation, caller_symbolic_bindings, tab.symbolic_bindings);
   }
 
@@ -745,7 +745,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
                         callee_fn->identifier()));
   }
 
-  original_ti->SetInstantiationTypeInfo(invocation, tab.symbolic_bindings,
+  original_ti->SetInvocationTypeInfo(invocation, tab.symbolic_bindings,
                                         ctx->type_info());
 
   if (callee_fn->IsParametric()) {

@@ -21,7 +21,6 @@
 #include "absl/types/span.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
-#include "xls/common/symbolized_stacktrace.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/symbolic_bindings.h"
@@ -331,13 +330,13 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
     absl::optional<const SymbolicBindings*> callee_bindings =
-        type_info_->GetInstantiationCalleeBindings(node, bindings_);
+        type_info_->GetInvocationCalleeBindings(node, bindings_);
     if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
       XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
                   << " for node: " << node->ToString();
       absl::optional<TypeInfo*> instantiation_type_info =
-          type_info_->GetInstantiationTypeInfo(node, **callee_bindings);
+          type_info_->GetInvocationTypeInfo(node, **callee_bindings);
       XLS_RET_CHECK(instantiation_type_info.has_value())
           << "Could not find instantiation for `" << node->ToString() << "`"
           << " via bindings: " << **callee_bindings;

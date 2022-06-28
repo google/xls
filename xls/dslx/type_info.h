@@ -45,11 +45,10 @@ struct SliceData {
   absl::flat_hash_map<SymbolicBindings, StartAndWidth> bindings_to_start_width;
 };
 
-// Parametric instantiation information related to an invocation or spawn AST
-// node.
-struct InstantiationData {
+// Parametric instantiation information related to an invocation AST node.
+struct InvocationData {
   // Invocation/Spawn AST node.
-  const Instantiation* node;
+  const Invocation* node;
   // Map from symbolic bindings in the caller to the corresponding symbolic
   // bindings in the callee for this invocation.
   absl::flat_hash_map<SymbolicBindings, SymbolicBindings> symbolic_bindings_map;
@@ -100,10 +99,6 @@ class TypeInfo {
   // can't satisfy the information from their local mappings.
   TypeInfo* parent() const { return parent_; }
 
-  // Returns if there's type info at 'invocation' with given caller bindings.
-  bool HasInstantiation(const Instantiation* instantiation,
-                        const SymbolicBindings& caller) const;
-
   // Notes start/width for a slice operation found during type inference.
   void AddSliceStartAndWidth(Slice* node,
                              const SymbolicBindings& symbolic_bindings,
@@ -123,17 +118,15 @@ class TypeInfo {
   //     instantiation.
   //   caller: The caller's symbolic bindings at the point of invocation.
   //   callee: The callee's computed symbolic bindings for the invocation.
-  void AddInstantiationCallBindings(const Instantiation* call,
+  void AddInvocationCallBindings(const Invocation* call,
                                     SymbolicBindings caller,
                                     SymbolicBindings callee);
 
-  // Adds derived type info for an "instantiation".
+  // Adds derived type info for a parametric invocation.
   //
-  // An "instantiation" is an invocation of a parametric function from some
-  // caller context (given by the invocation / caller symbolic bindings). These
-  // have /derived/ type information, where the parametric expressions are
-  // concretized, and have concrete types corresponding to AST nodes in the
-  // instantiated parametric function.
+  // Parametric invocations have /derived/ type information, where the
+  // parametric expressions are concretized, and have concrete types
+  // corresponding to AST nodes in the instantiated parametric function.
   //
   // Args:
   //   invocation: The invocation the type information has been generated for.
@@ -144,14 +137,14 @@ class TypeInfo {
   //
   // Note that the type_info may be nullptr in special cases, like when mapping
   // a callee which is not parametric.
-  void SetInstantiationTypeInfo(const Instantiation* instantiation,
-                                SymbolicBindings caller, TypeInfo* type_info);
+  void SetInvocationTypeInfo(const Invocation* invocation,
+                             SymbolicBindings caller, TypeInfo* type_info);
 
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
-  absl::optional<TypeInfo*> GetInstantiationTypeInfo(
-      const Instantiation* instantiation, const SymbolicBindings& caller) const;
+  absl::optional<TypeInfo*> GetInvocationTypeInfo(
+      const Invocation* invocation, const SymbolicBindings& caller) const;
 
   // Sets the type associated with the given AST node.
   void SetItem(const AstNode* key, const ConcreteType& value) {
@@ -203,8 +196,8 @@ class TypeInfo {
   // with M=32.
   //
   // When calling a non-parametric callee, the record will be absent.
-  absl::optional<const SymbolicBindings*> GetInstantiationCalleeBindings(
-      const Instantiation* instantiation, const SymbolicBindings& caller) const;
+  absl::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
+      const Invocation* invocation, const SymbolicBindings& caller) const;
 
   Module* module() const { return module_; }
 
@@ -229,9 +222,9 @@ class TypeInfo {
   // which imported modules are present, suitable for debugging.
   std::string GetImportsDebugString() const;
 
-  const absl::flat_hash_map<const Instantiation*, InstantiationData>&
-  instantiations() const {
-    return instantiations_;
+  const absl::flat_hash_map<const Invocation*, InvocationData>&
+      invocations() const {
+    return invocations_;
   }
 
   // Returns a reference to the underlying mapping that associates an AST node
@@ -270,7 +263,7 @@ class TypeInfo {
   Module* module_;
   absl::flat_hash_map<const AstNode*, std::unique_ptr<ConcreteType>> dict_;
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
-  absl::flat_hash_map<const Instantiation*, InstantiationData> instantiations_;
+  absl::flat_hash_map<const Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const AstNode*, absl::optional<InterpValue>> const_exprs_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;

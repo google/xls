@@ -22,15 +22,12 @@
 #include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
-#include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
-#include "xls/dslx/scanner.h"
 #include "xls/dslx/type_and_bindings.h"
 
 namespace xls::dslx {
@@ -2337,8 +2334,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                           typecheck_fn, constexpr_env));
 
   absl::optional<TypeInfo*> maybe_config_ti =
-      ctx->type_info()->GetInstantiationTypeInfo(node->config(),
-                                                 tab.symbolic_bindings);
+      ctx->type_info()->GetInvocationTypeInfo(node->config(),
+                                              tab.symbolic_bindings);
   XLS_RET_CHECK(maybe_config_ti.has_value());
 
   // Now we need to get the [constexpr] Proc member values so we can set them
@@ -2400,13 +2397,13 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
                                                    /*constexpr_env=*/{}));
   const SymbolicBindings& caller_bindings =
       ctx->fn_stack().back().symbolic_bindings();
-  ctx->type_info()->AddInstantiationCallBindings(node, caller_bindings,
+  ctx->type_info()->AddInvocationCallBindings(node, caller_bindings,
                                                  tab.symbolic_bindings);
 
-  absl::optional<TypeInfo*> dti = ctx->type_info()->GetInstantiationTypeInfo(
+  absl::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
       element_invocation, tab.symbolic_bindings);
   if (dti.has_value()) {
-    ctx->type_info()->SetInstantiationTypeInfo(node, tab.symbolic_bindings,
+    ctx->type_info()->SetInvocationTypeInfo(node, tab.symbolic_bindings,
                                                dti.value());
   }
 
