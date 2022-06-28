@@ -470,6 +470,18 @@ TEST_F(TranslatorTest, GlobalEnum) {
   Run({{"a", 11}}, 11 + 3 + 3, content);
 }
 
+TEST_F(TranslatorTest, MaximumEnum) {
+  const std::string content = R"(
+       enum BlahE {
+         A=2,
+         B=0xFFFFFFFF
+       };
+       long long my_package(long long a) {
+         return a+B+B;
+       })";
+  Run({{"a", 11}}, 11L + 0xFFFFFFFFL + 0xFFFFFFFFL, content);
+}
+
 TEST_F(TranslatorTest, SetGlobal) {
   const std::string content = R"(
        int off = 60;
@@ -1777,8 +1789,6 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
                            ParsePackage(ir_src));
   XLS_ASSERT_OK(package->SetTopByName("my_package"));
 
-  // std::vector<xls::Value> st_elem;
-  // st_elem.push_back(xls::Value(xls::UBits(1, 1)));
   auto state =
       xls::Value(xls::Value::TupleOwned({xls::Value(xls::UBits(1, 1))}));
 
@@ -3029,7 +3039,8 @@ TEST_F(TranslatorTest, IOSubroutineDeclMissing) {
        })";
 
   ASSERT_THAT(SourceToIr(content, /*func=*/nullptr, /* clang_argv= */ {},
-                                      /* io_test_mode= */ true).status(),
+                         /* io_test_mode= */ true)
+                  .status(),
               xls::status_testing::StatusIs(
                   absl::StatusCode::kNotFound,
                   testing::HasSubstr("sub_recv used but has no body")));

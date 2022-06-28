@@ -1687,9 +1687,9 @@ absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
   if (enum_decl != nullptr) {
     const llvm::APSInt& aps = enum_decl->getInitVal();
 
-    std::shared_ptr<CType> type(std::make_shared<CIntType>(32, true));
+    std::shared_ptr<CType> type(std::make_shared<CIntType>(32, false));
     xls::BValue bval =
-        context().fb->Literal(xls::SBits(aps.getExtValue(), 32), global_loc);
+        context().fb->Literal(xls::UBits(aps.getExtValue(), 32), global_loc);
 
     value = CValue(bval, type);
   } else {
