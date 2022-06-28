@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/">
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.5">
+      <meta name="generator" content="mkdocs-1.3.0, mkdocs-material-8.3.8">
     
     
       
@@ -19,7 +19,7 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.4a0965b7.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.1d29e8d0.min.css">
       
         
         <link rel="stylesheet" href="assets/stylesheets/palette.cbb835fc.min.css">
@@ -1334,9 +1334,11 @@ It is fully Open Source: Apache 2 licensed and developed via GitHub.</p>
 <p>XLS is used inside of Google for generating feed-forward pipelines from
 "building block" routines / libraries that can be easily retargeted, reused, and
 composed in a latency-insensitive manner.</p>
-<p><em>Not yet available</em>, but active work in progress is the implementation of XLS
-<em>concurrent processes</em>, in Communicating Sequential Processes (CSP) style, that
-allow pipelines to communicate with each other and induct over time.</p>
+<p>XLS also supports
+<a href="https://google.github.io/xls/tutorials/intro_to_procs/"><em>concurrent processes</em></a>,
+in Communicating Sequential Processes (CSP) style, that allow pipelines to
+communicate with each other and induct over time. This feature is still under
+active development but today supports base use cases.</p>
 <p>XLS is still experimental, undergoing rapid development, and not an officially
 supported Google product. Expect bugs and sharp edges. Please help by trying it
 out, running through <a href="https://google.github.io/xls/tutorials/">some tutorials</a>,
@@ -1350,12 +1352,12 @@ we hope to enable them via continuous integration,
 <p>The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
 22.04 (Jammy Jellyfish) Linux distributions.</p>
 <p>We start by assuming
-<a href="https://docs.bazel.build/versions/master/install-ubuntu.html">Bazel has been installed</a>.</p>
+<a href="https://bazel.build/install/ubuntu">Bazel has been installed</a>.</p>
 <div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
 <span class="go">~$ cd xls</span>
 
 <span class="go">~/xls$ # Follow the bazel install instructions:</span>
-<span class="go">~/xls$ # https://docs.bazel.build/versions/master/install-ubuntu.html</span>
+<span class="go">~/xls$ # https://bazel.build/install/ubuntu</span>
 <span class="go">~/xls$ # Afterwards we observe:</span>
 <span class="go">~/xls$ bazel --version</span>
 <span class="go">bazel 5.2.0</span>
@@ -1398,7 +1400,7 @@ purpose, and correspond to the components in this XLS stack diagram:</p>
 <p><a href="https://github.com/google/xls/tree/main/xls"><code>xls</code></a>: Project-named
   subdirectory within the repository, in common Bazel-project style.</p>
 <ul>
-<li><a href="https://github.com/google/xls/tree/main/xls/build"><code>build</code></a>: Build macros
+<li><a href="https://github.com/google/xls/tree/main/xls/BUILD"><code>build</code></a>: Build macros
   that create XLS artifacts; e.g. convert DSL to IR, create test targets for
   DSL code, etc.</li>
 <li><a href="https://github.com/google/xls/tree/main/xls/codegen"><code>codegen</code></a>: Verilog
@@ -1480,7 +1482,7 @@ purpose, and correspond to the components in this XLS stack diagram:</p>
 <li><a href="https://github.com/google/xls/tree/main/xls/uncore_rtl"><code>uncore_rtl</code></a>:
   Helper RTL that interfaces XLS-generated blocks with device top-level for e.g.
   FPGA experiments.</li>
-<li><a href="https://github.com/google/xls/tree/main/xls/visualzation"><code>visualization</code></a>:
+<li><a href="https://github.com/google/xls/tree/main/xls/visualization"><code>visualization</code></a>:
   Visualization tools to inspect the XLS compiler/system interactively. See
   <a href="https://google.github.io/xls/ir_visualization/">IR visualization</a>.</li>
 </ul>
@@ -1585,10 +1587,10 @@ project, see our
     <div class="md-dialog" data-md-component="dialog">
       <div class="md-dialog__inner md-typeset"></div>
     </div>
-    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.85cb4492.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.b97dbffb.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.431f3d41.min.js"></script>
+      <script src="assets/javascripts/bundle.0238f547.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
