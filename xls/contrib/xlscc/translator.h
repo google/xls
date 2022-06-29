@@ -482,6 +482,7 @@ struct SideEffectingParameter {
 
 // Encapsulates values produced when generating IR for a function
 struct GeneratedFunction {
+  const clang::FunctionDecl* clang_decl = nullptr;
   xls::Function* xls_func = nullptr;
 
   int64_t declaration_count = 0;
@@ -621,9 +622,7 @@ struct TranslationContext {
   // Information being gathered about function currently being processed
   GeneratedFunction* sf = nullptr;
 
-  // Value for special "this" variable, used in translating class methods
-  CValue this_val;
-
+  // "this" uses the key of the clang::NamedDecl* of the method
   absl::flat_hash_map<const clang::NamedDecl*, CValue> variables;
 
   xls::BValue return_val;
@@ -1103,7 +1102,8 @@ class Translator {
                       const xls::SourceInfo& loc);
   absl::Status Assign(std::shared_ptr<LValue> lvalue, const CValue& rvalue,
                       const xls::SourceInfo& loc);
-  absl::Status AssignThis(const CValue& rvalue, const xls::SourceInfo& loc);
+  absl::StatusOr<const clang::NamedDecl*> GetThisDecl(
+      const xls::SourceInfo& loc, bool for_declaration = false);
   absl::StatusOr<CValue> PrepareRValueWithSelect(
       const CValue& lvalue, const CValue& rvalue,
       const xls::BValue& relative_condition, const xls::SourceInfo& loc);

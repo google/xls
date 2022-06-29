@@ -685,13 +685,6 @@ absl::Status Translator::PropagateVariables(const TranslationContext& from,
     }
   }
 
-  // Handle "this"
-  if (from.this_val.valid()) {
-    XLS_ASSIGN_OR_RETURN(to.this_val,
-                         PrepareRValueWithSelect(to.this_val, from.this_val,
-                                                 from.relative_condition, loc));
-  }
-
   return absl::OkStatus();
 }
 
@@ -749,18 +742,17 @@ absl::Status Translator::and_condition(xls::BValue and_condition,
   return absl::OkStatus();
 }
 
-absl::Status Translator::AssignThis(const CValue& rvalue,
-                                    const xls::SourceInfo& loc) {
-  XLS_CHECK(context().this_val.rvalue().valid());
-  if (*context().this_val.type() != *rvalue.type()) {
-    return absl::UnimplementedError(ErrorMessage(
-        loc, "Assignment to this with type %s which is not the class type %s",
-        string(*context().this_val.type()), string(*rvalue.type())));
+absl::StatusOr<const clang::NamedDecl*> Translator::GetThisDecl(
+    const xls::SourceInfo& loc, bool for_declaration) {
+  XLS_CHECK_NE(context().sf->clang_decl, nullptr);
+  if (!for_declaration &&
+      !context().variables.contains(context().sf->clang_decl)) {
+    return absl::UnimplementedError(absl::StrFormat(
+        "Tried to access 'this' in a context without any enclosing class "
+        "(top level methods are not supported) at %s",
+        LocString(loc)));
   }
-
-  context().this_val = rvalue;
-
-  return absl::OkStatus();
+  return context().sf->clang_decl;
 }
 
 absl::StatusOr<xls::BValue> Translator::StructUpdate(
@@ -1144,6 +1136,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   inst_functions_[signature] = std::make_unique<GeneratedFunction>();
   GeneratedFunction& sf = *inst_functions_[signature];
 
+  sf.clang_decl = funcdecl;
+
   // Functions need a clean context
   context() = TranslationContext();
   context().propagate_up = false;
@@ -1186,9 +1180,11 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
                            TranslateTypeToXLS(thisctype, body_loc));
 
-      // Don't use AssignThis(), since this is the "declaration"
-      context().this_val =
+      CValue this_val =
           CValue(context().fb->Param("this", xls_type, body_loc), thisctype);
+      XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
+                           GetThisDecl(body_loc, /*for_declaration=*/true));
+      XLS_RETURN_IF_ERROR(DeclareVariable(this_decl, this_val, body_loc));
     }
   }
 
@@ -1249,8 +1245,12 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     auto constructor =
         clang_down_cast<const clang::CXXConstructorDecl*>(funcdecl);
     XLS_CHECK(add_this_return);
+    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
+                         GetThisDecl(GetLoc(*constructor)));
+    XLS_ASSIGN_OR_RETURN(CValue this_val,
+                         GetIdentifier(this_decl, GetLoc(*constructor)));
     XLS_ASSIGN_OR_RETURN(auto resolved_type,
-                         ResolveTypeInstance(context().this_val.type()));
+                         ResolveTypeInstance(this_val.type()));
     auto struct_type = std::dynamic_pointer_cast<CStructType>(resolved_type);
     XLS_CHECK(struct_type);
 
@@ -1291,16 +1291,16 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       if (found != indices_to_update.end()) {
         bval = found->second;
       } else {
-        bval = GetStructFieldXLS(context().this_val.rvalue(), field->index(),
+        bval = GetStructFieldXLS(this_val.rvalue(), field->index(),
                                  *struct_type, GetLoc(*constructor));
       }
       bvals.push_back(bval);
     }
 
-    // Don't use AssignThis(), since this is the "declaration"
-    context().this_val =
+    CValue new_this_val =
         CValue(MakeStructXLS(bvals, *struct_type, GetLoc(*constructor)),
-               context().this_val.type());
+               this_val.type());
+    XLS_RETURN_IF_ERROR(Assign(this_decl, new_this_val, body_loc));
   }
 
   // Extra context layer to generate selects
@@ -1324,7 +1324,10 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   // Then this return
   if (add_this_return) {
-    return_bvals.push_back(context().this_val.rvalue());
+    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
+                         GetThisDecl(body_loc));
+    XLS_ASSIGN_OR_RETURN(CValue this_val, GetIdentifier(this_decl, body_loc));
+    return_bvals.push_back(this_val.rvalue());
   }
 
   // Then explicit return
@@ -2068,7 +2071,9 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       // We simply ignore this for "this", so *this just evaluates to the
       //  "this" BValue from the TranslationContext
       if (uop->getSubExpr()->getStmtClass() == clang::Stmt::CXXThisExprClass) {
-        return AssignThis(rvalue, loc);
+        XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
+                             GetThisDecl(loc));
+        return Assign(this_decl, rvalue, loc);
       }
 
       return absl::UnimplementedError(absl::StrFormat(
@@ -2077,7 +2082,8 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
           (int)uop->getSubExpr()->getStmtClass(), LocString(loc)));
     }
     case clang::Stmt::CXXThisExprClass: {
-      return AssignThis(rvalue, loc);
+      XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
+      return Assign(this_decl, rvalue, loc);
     }
     case clang::Stmt::ConditionalOperatorClass: {
       auto cond = clang_down_cast<const clang::ConditionalOperator*>(lvalue);
@@ -3274,13 +3280,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
       return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
     }
     case clang::Stmt::CXXThisExprClass: {
-      if (!context().this_val.valid()) {
-        return absl::UnimplementedError(absl::StrFormat(
-            "Tried to access 'this' in a context without any enclosing class "
-            "(top level methods are not yet supported) at %s",
-            LocString(loc)));
-      }
-      return context().this_val;
+      XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
+      XLS_ASSIGN_OR_RETURN(CValue this_val, GetIdentifier(this_decl, loc));
+      return this_val;
     }
     // ExprWithCleanups preserves some metadata from Clang's parsing process,
     //  which I think is meant to be used for IDE editing tools. It is
@@ -4469,11 +4471,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(CheckInitIntervalValidity(initiation_interval_arg, loc));
 
-  if (context().this_val.rvalue().valid()) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Pipelined loops in methods unsupported"));
-  }
-
   // Generate the loop counter declaration within a private context
   // By doing this here, it automatically gets rolled into proc state
   // This causes it to be automatically reset on break
@@ -4499,14 +4496,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   {
     std::vector<std::shared_ptr<CField>> fields;
     std::vector<xls::BValue> tuple_values;
-
-    if (context().this_val.rvalue().valid()) {
-      tuple_values.push_back(context().this_val.rvalue());
-      const uint64_t field_idx = fields.size();
-      auto field_ptr = std::make_shared<CField>(nullptr, field_idx,
-                                                context().this_val.type());
-      fields.push_back(field_ptr);
-    }
 
     // Create a deterministic field order
     for (const auto& [decl, _] : context().variables) {
@@ -4602,8 +4591,6 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   // Unpack context tuple
   xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
   {
-    XLS_CHECK(!context().this_val.rvalue().valid());
-
     // Don't assign to variables that aren't changed in the loop body,
     // as this creates extra state
     for (const clang::NamedDecl* decl : vars_changed_in_body) {
@@ -4635,6 +4622,9 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
 
   // Generate body function
   GeneratedFunction generated_func;
+  XLS_CHECK_NE(context().sf, nullptr);
+  XLS_CHECK_NE(context().sf->clang_decl, nullptr);
+  generated_func.clang_decl = context().sf->clang_decl;
   uint64_t extra_return_count = 0;
   {
     // Inherit explicit channels
@@ -4675,7 +4665,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     // Context in
     absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> prev_vars;
 
-    XLS_CHECK(!prev_context.this_val.rvalue().valid());
     for (const clang::NamedDecl* decl : variable_fields_order) {
       const uint64_t field_idx = variable_field_indices.at(decl);
       const CValue& outer_value = prev_context.variables.at(decl);
@@ -4734,7 +4723,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     }
 
     // Context out
-    XLS_CHECK(!prev_context.this_val.rvalue().valid());
     std::vector<xls::BValue> tuple_values;
     tuple_values.resize(total_context_values);
     for (const clang::NamedDecl* decl : variable_fields_order) {
@@ -4742,7 +4730,6 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       tuple_values[field_idx] = context().variables.at(decl).rvalue();
     }
 
-    XLS_CHECK(!prev_context.this_val.rvalue().valid());
     xls::BValue ret_ctx = MakeStructXLS(tuple_values, *context_ctype, loc);
     std::vector<xls::BValue> return_bvals = {ret_ctx, do_break};
 
@@ -5341,7 +5328,6 @@ absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
 
   // Generate function without FIFO channel parameters
   // Force top function in block to be static.
-  // TODO(seanhaskell): Handle block class members
   PreparedBlock prepared;
   XLS_ASSIGN_OR_RETURN(
       prepared.xls_func,

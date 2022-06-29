@@ -3770,6 +3770,62 @@ TEST_F(TranslatorTest, IOProcChainedConditionalRead) {
   }
 }
 
+TEST_F(TranslatorTest, IOProcStaticClassState) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    struct Test {
+      int st = 5;
+
+      int calc(const int r) {
+        int a = r;
+        a+=st;
+        ++st;
+        return a;
+      }
+    };
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      const int r = in.read();
+      static Test test;
+      out.write(test.calc(r));
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(33, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(85, 32)),
+                      xls::Value(xls::SBits(106, 32)),
+                      xls::Value(xls::SBits(40, 32))};
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 3);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 32);
+}
+
 TEST_F(TranslatorTest, IOShortCircuitAnd) {
   const std::string content = R"(
        #include "/xls_builtin.h"
@@ -4726,13 +4782,92 @@ TEST_F(TranslatorTest, ForPipelinedInMethod) {
     ch_out1->set_type(FIFO);
   }
 
-  XLS_ASSERT_OK(ScanFile(content));
-  package_.reset(new xls::Package("my_package"));
-  ASSERT_THAT(
-      translator_->GenerateIR_Block(package_.get(), block_spec).status(),
-      xls::status_testing::StatusIs(
-          absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("ipelined loops in methods unsupported")));
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(33, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(80 + 10, 32)),
+                      xls::Value(xls::SBits(100 + 10, 32)),
+                      xls::Value(xls::SBits(33 + 10, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+}
+
+TEST_F(TranslatorTest, ForPipelinedInMethodWithMember) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    struct Test {
+      int st = 5;
+
+      int calc(const int r) {
+        int a = r;
+        #pragma hls_pipeline_init_interval 1
+        for(long i=1;i<=4;++i) {
+          a += i + st;
+          ++st;
+        }
+        ++st;
+        return a;
+      }
+    };
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      const int r = in.read();
+      static Test test;
+      out.write(test.calc(r));
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["in"] = {xls::Value(xls::SBits(80, 32)),
+                  xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(33, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(116, 32)),
+                      xls::Value(xls::SBits(156, 32)),
+                      xls::Value(xls::SBits(109, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 8);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 32 + 32 + 64 + 32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 32);
 }
 
 TEST_F(TranslatorTest, ForPipelinedInFunctionInIf) {
@@ -6404,7 +6539,7 @@ TEST_F(TranslatorTest, TopMemberAccess) {
       translator_->GenerateIR_Block(package_.get(), block_spec).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("top level methods are not yet supported")));
+          testing::HasSubstr("top level methods are not supported")));
 }
 
 TEST_F(TranslatorTest, ParameterPack) {
