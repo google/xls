@@ -2887,6 +2887,22 @@ TEST_F(TranslatorTest, IO) {
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
+TEST_F(TranslatorTest, IOReadToParam) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       #pragma hls_top
+       void my_package(__xls_channel<int>& in,
+                       __xls_channel<int>& out) {
+         int v = 0;
+         in.read(v);
+         out.write(3*v);
+       })";
+
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", 5, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+}
+
 TEST_F(TranslatorTest, IOUnsequencedCheck) {
   const std::string content = R"(
        #include "/xls_builtin.h"

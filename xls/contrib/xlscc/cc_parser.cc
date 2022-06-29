@@ -439,6 +439,9 @@ class __xls_channel {
   T write(T val) {
     return val;
   }
+  void read(T& out) {
+    (void)out;
+  }
 };
 
 // Bypass no outputs error

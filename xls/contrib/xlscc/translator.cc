@@ -1066,8 +1066,15 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       ret.generate_expr = false;
 
       IOOp op;
+      const clang::Expr* assign_ret_value_to = nullptr;
 
       if (op_name == "read") {
+        if (call->getNumArgs() == 1) {
+          assign_ret_value_to = call->getArg(0);
+        } else if (call->getNumArgs() != 0) {
+          return absl::UnimplementedError(ErrorMessage(
+              loc, "IO read() should have one or zero argument(s)"));
+        }
         op.op = OpType::kRecv;
         op.ret_value = op_condition;
       } else if (op_name == "write") {
@@ -1092,6 +1099,9 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       (void)op_ptr;
 
       ret.value = op.input_value;
+      if (assign_ret_value_to != nullptr) {
+        XLS_RETURN_IF_ERROR(Assign(assign_ret_value_to, ret.value, loc));
+      }
 
       return ret;
     }
