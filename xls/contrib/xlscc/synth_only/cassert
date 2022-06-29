@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef __XLS_ASSERT_H__
-#define __XLS_ASSERT_H__
-#define assert(...)
-#endif  // __XLS_ASSERT_H__
+#ifndef __CASSERT__
+#define __CASSERT__
+#include <assert.h>
+#endif  // __CASSERT__
