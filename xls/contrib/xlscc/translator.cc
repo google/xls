@@ -3444,7 +3444,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     case clang::Stmt::StringLiteralClass: {
       auto* string_literal_expr =
           clang_down_cast<const clang::StringLiteral*>(expr);
-      if (!(string_literal_expr->isAscii() || string_literal_expr->isUTF8())) {
+      if (!(string_literal_expr->isOrdinary() ||
+            string_literal_expr->isUTF8())) {
         return absl::UnimplementedError(
             "Only 8 bit character strings supported");
       }
