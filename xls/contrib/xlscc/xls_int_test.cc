@@ -379,6 +379,36 @@ TEST_F(XlsIntTest, LeadingSign) {
              xabsl::SourceLocation::current());
 }
 
+TEST_F(XlsIntTest, LeadingSignAllSign) {
+  const std::string content = R"(
+    #include "xls_int.h"
+
+    bool my_package(int signed_mode, unsigned long long a) {
+      bool all_sign;
+      if(signed_mode) {
+        XlsInt<16, true> ax = a;
+        ax.leading_sign(all_sign);
+      } else {
+        XlsInt<16, false> ax = a;
+        ax.leading_sign(all_sign);
+      }
+      return all_sign;
+    })";
+  RunIntTest({{"signed_mode", 0}, {"a", 0b1000}}, static_cast<uint64_t>(false),
+             content, xabsl::SourceLocation::current());
+  RunIntTest({{"signed_mode", 0}, {"a", 0}}, static_cast<uint64_t>(true),
+             content, xabsl::SourceLocation::current());
+  RunIntTest({{"signed_mode", 0}, {"a", -1}}, static_cast<uint64_t>(false),
+             content, xabsl::SourceLocation::current());
+
+  RunIntTest({{"signed_mode", 1}, {"a", 0b1000}}, static_cast<uint64_t>(false),
+             content, xabsl::SourceLocation::current());
+  RunIntTest({{"signed_mode", 1}, {"a", 0}}, static_cast<uint64_t>(true),
+             content, xabsl::SourceLocation::current());
+  RunIntTest({{"signed_mode", 1}, {"a", -1}}, static_cast<uint64_t>(true),
+             content, xabsl::SourceLocation::current());
+}
+
 TEST_F(XlsIntTest, Not) {
   const std::string content = R"(
     #include "xls_int.h"

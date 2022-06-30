@@ -803,6 +803,12 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return clz();
   }
 
+  inline index_t leading_sign(bool &all_sign) const {
+    index_t ls = leading_sign();
+    all_sign = (ls == Width-Signed);
+    return ls;
+  }
+
   template <int ToW, bool ToSign>
   XlsInt set_slc(index_t offset, XlsInt<ToW, ToSign> slice_raw) {
     static_assert(index_t::width > 0, "Bug in Log2Ceil");
