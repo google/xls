@@ -1162,6 +1162,31 @@ fn test_bits_concat() {
 }
 ```
 
+### Block Expressions
+
+Block expressions enable subordinate scopes to be defined, e.g.:
+
+```
+let a = {
+  let b = u32:1;
+  b + u32:3
+};
+```
+
+The value of a block expression is that of its last contained expression, or (),
+if a final expression is omitted:
+
+```
+let a = { let b = u32:1; };
+```
+
+In the above case, `a` is equal to `()`.
+
+Since DSLX does not currently have the concept of lifetimes, and since names can
+be rebound (i.e., there's no concept of mutability, allowing `let a = u32:0; let
+a = u32:1;`), blocks are primarily for readability at this time, (side from
+their use as the "body" of functions and loops).
+
 ### Match Expression
 
 Match expressions permit "pattern matching" on data, like a souped-up switch

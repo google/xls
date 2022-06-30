@@ -315,6 +315,9 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
   if (peek->IsKeyword(Keyword::kSpawn)) {
     return ParseSpawn(bindings);
   }
+  if (peek->kind() == TokenKind::kOBrace) {
+    return ParseBlockExpression(bindings);
+  }
   return ParseTernaryExpression(bindings);
 }
 
@@ -1093,15 +1096,10 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
     XLS_ASSIGN_OR_RETURN(return_type, ParseTypeAnnotation(&bindings));
   }
 
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
-  XLS_ASSIGN_OR_RETURN(
-      Token end_brace,
-      PopTokenOrError(TokenKind::kCBrace, nullptr,
-                      "Expected '}' at end of function body."));
+  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&bindings));
   Function* f = module_->Make<Function>(
-      Span(start_pos, end_brace.span().limit()), name_def, parametric_bindings,
-      params, return_type, body, Function::Tag::kNormal, is_public);
+      Span(start_pos, GetPos()), name_def, parametric_bindings, params,
+      return_type, body, Function::Tag::kNormal, is_public);
   name_def->set_definer(f);
   return f;
 }
@@ -1696,6 +1694,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   };
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
+  Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
   XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&bindings));
 
@@ -1724,6 +1723,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
         "element for each Proc data member.");
   }
   XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
+  Block* block = module_->Make<Block>(Span(start_pos, GetPos()), body);
 
   Span span(oparen.span().start(), cbrace.span().limit());
   NameDef* name_def =
@@ -1736,7 +1736,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   TypeAnnotation* return_type =
       module_->Make<TupleTypeAnnotation>(span, return_elements);
   Function* config = module_->Make<Function>(
-      span, name_def, parametric_bindings, config_params, return_type, body,
+      span, name_def, parametric_bindings, config_params, return_type, block,
       Function::Tag::kProcConfig, is_public);
   name_def->set_definer(config);
 
@@ -1801,18 +1801,15 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
     return_elements.push_back(
         next_params_for_return_type[i]->type_annotation());
   }
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * expr, ParseExpression(&bindings));
-  XLS_ASSIGN_OR_RETURN(Token cbrace, PopTokenOrError(TokenKind::kCBrace));
-  Span span(oparen.span().start(), cbrace.span().limit());
+  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&bindings));
+  Span span(oparen.span().start(), GetPos());
   TypeAnnotation* return_type =
       module_->Make<TupleTypeAnnotation>(span, return_elements);
   NameDef* name_def =
       module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
-  Function* next = module_->Make<Function>(
-      Span(oparen.span().start(), cbrace.span().limit()), name_def,
-      parametric_bindings, next_params, return_type, expr,
-      Function::Tag::kProcNext, is_public);
+  Function* next = module_->Make<Function>(span, name_def, parametric_bindings,
+                                           next_params, return_type, body,
+                                           Function::Tag::kProcNext, is_public);
   name_def->set_definer(next);
 
   return next;
@@ -1980,7 +1977,15 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
   XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseExpression(bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kSemi));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&new_bindings));
+
+  Expr* body;
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (peek->kind() == TokenKind::kCBrace) {
+    Span span(GetPos(), GetPos());
+    body = module_->Make<XlsTuple>(span, std::vector<Expr*>());
+  } else {
+    XLS_ASSIGN_OR_RETURN(body, ParseExpression(&new_bindings));
+  }
   Span span(start_tok.span().start(), GetPos());
   Let* let = module_->Make<Let>(span, name_def_tree, annotated_type, rhs, body,
                                 const_);
@@ -2005,9 +2010,7 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
   }
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
   XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * body, ParseExpression(&for_bindings));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
+  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&for_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(
       TokenKind::kOParen, &for_,
       "Need an initial accumulator value to start the for loop."));
@@ -2183,11 +2186,13 @@ absl::StatusOr<NameDefTree*> Parser::ParseTuplePattern(const Pos& start_pos,
   return module_->Make<NameDefTree>(span, std::move(members));
 }
 
-absl::StatusOr<Expr*> Parser::ParseBlockExpression(Bindings* bindings) {
+absl::StatusOr<Block*> Parser::ParseBlockExpression(Bindings* bindings) {
+  Bindings block_bindings(bindings);
+  Pos start_pos = GetPos();
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrace));
-  XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(Expr * e, ParseExpression(&block_bindings));
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrace));
-  return e;
+  return module_->Make<Block>(Span(start_pos, GetPos()), e);
 }
 
 absl::StatusOr<Expr*> Parser::ParseParenthesizedExpr(Bindings* bindings) {

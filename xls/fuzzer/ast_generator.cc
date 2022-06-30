@@ -715,8 +715,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
   if (RandomBool()) {
     tree_type = MakeTupleType({ivar_type, e.type});
   }
+  Block* block = module_->Make<Block>(fake_span_, body);
   For* for_ = module_->Make<For>(fake_span_, name_def_tree, tree_type, iterable,
-                                 body, /*init=*/e.expr);
+                                 block, /*init=*/e.expr);
   return TypedExpr{for_, e.type};
 }
 
@@ -1408,11 +1409,12 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
   }
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
+  Block* block = module_->Make<Block>(fake_span_, retval.expr);
   Function* f = module_->Make<Function>(
       fake_span_, name_def,
       /*parametric_bindings=*/parametric_bindings,
       /*params=*/params,
-      /*return_type=*/retval.type, /*body=*/retval.expr, Function::Tag::kNormal,
+      /*return_type=*/retval.type, block, Function::Tag::kNormal,
       /*is_public=*/false);
   name_def->set_definer(f);
   return f;

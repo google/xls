@@ -17,8 +17,6 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
-#include "xls/dslx/create_import_data.h"
-#include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 
 namespace xls::dslx {
@@ -40,9 +38,9 @@ u32:3)";
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()->body()));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f->body(), clone));
+  XLS_ASSERT_OK(VerifyClone(f->body()->body(), clone));
 }
 
 TEST(AstClonerTest, NameRefs) {
@@ -59,9 +57,9 @@ a)";
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()->body()));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f->body(), clone));
+  XLS_ASSERT_OK(VerifyClone(f->body()->body(), clone));
 }
 
 TEST(AstClonerTest, XlsTuple) {
@@ -81,9 +79,9 @@ let b = u32:1;
                            ParseModule(kProgram, "fake_path.x", "the_module"));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
-  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()));
+  XLS_ASSERT_OK_AND_ASSIGN(AstNode * clone, CloneAst(f->body()->body()));
   EXPECT_EQ(kExpected, clone->ToString());
-  XLS_ASSERT_OK(VerifyClone(f->body(), clone));
+  XLS_ASSERT_OK(VerifyClone(f->body()->body(), clone));
 }
 
 TEST(AstClonerTest, BasicFunction) {

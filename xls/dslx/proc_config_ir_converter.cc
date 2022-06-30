@@ -70,8 +70,14 @@ absl::Status ProcConfigIrConverter::Finalize() {
   return absl::OkStatus();
 }
 
+absl::Status ProcConfigIrConverter::HandleBlock(const Block* node) {
+  XLS_VLOG(4) << "ProcConfigIrConverter::HandleBlock: " << node->ToString()
+              << " : " << node->span().ToString();
+  return node->body()->Accept(this);
+}
+
 absl::Status ProcConfigIrConverter::HandleChannelDecl(const ChannelDecl* node) {
-  XLS_VLOG(4) << "ProcConfigIrConverter::HandlesChannelDecl: "
+  XLS_VLOG(4) << "ProcConfigIrConverter::HandleChannelDecl: "
               << node->ToString() << " : " << node->span().ToString();
   std::string name = absl::StrCat(ProcStackToId(proc_id_.proc_stack),
                                   "_chandecl_", node->span().ToString());

@@ -16,7 +16,6 @@
 
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/strip.h"
 #include "xls/common/indent.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/visitor.h"
@@ -117,6 +116,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "tuple";
     case AstNodeKind::kFor:
       return "for";
+    case AstNodeKind::kBlock:
+      return "block";
     case AstNodeKind::kCast:
       return "cast";
     case AstNodeKind::kConstantDef:
@@ -516,11 +517,9 @@ std::string For::ToString() const {
   if (type_annotation_ != nullptr) {
     type_str = absl::StrCat(": ", type_annotation_->ToString());
   }
-  return absl::StrFormat(R"(for %s%s in %s {
-%s
-}(%s))",
-                         names_->ToString(), type_str, iterable_->ToString(),
-                         Indent(body_->ToString()), init_->ToString());
+  return absl::StrFormat(R"(for %s%s in %s %s(%s))", names_->ToString(),
+                         type_str, iterable_->ToString(), body_->ToString(),
+                         init_->ToString());
 }
 
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
@@ -985,7 +984,7 @@ std::vector<AstNode*> Match::GetChildren(bool want_types) const {
 std::string Match::ToString() const {
   std::string result = absl::StrFormat("match %s {\n", matched_->ToString());
   for (MatchArm* arm : arms_) {
-    absl::StrAppend(&result, "  ", arm->ToString(), ",\n");
+    absl::StrAppend(&result, Indent(absl::StrCat(arm->ToString(), ",\n")));
   }
   absl::StrAppend(&result, "}");
   return result;
@@ -1366,10 +1365,16 @@ std::string UnopKindToString(UnopKind k) {
   return absl::StrFormat("<invalid UnopKind(%d)>", static_cast<int>(k));
 }
 
+// -- class Block
+std::string Block::ToString() const {
+  return absl::StrFormat("{\n%s\n}",
+                         Indent(body_->ToString(), kDefaultIndentSpaces));
+}
+
 // -- class For
 
 For::For(Module* owner, Span span, NameDefTree* names,
-         TypeAnnotation* type_annotation, Expr* iterable, Expr* body,
+         TypeAnnotation* type_annotation, Expr* iterable, Block* body,
          Expr* init)
     : Expr(owner, std::move(span)),
       names_(names),
@@ -1392,7 +1397,7 @@ std::vector<AstNode*> For::GetChildren(bool want_types) const {
 Function::Function(Module* owner, Span span, NameDef* name_def,
                    std::vector<ParametricBinding*> parametric_bindings,
                    std::vector<Param*> params, TypeAnnotation* return_type,
-                   Expr* body, Tag tag, bool is_public)
+                   Block* body, Tag tag, bool is_public)
     : AstNode(owner),
       span_(span),
       name_def_(name_def),
@@ -1444,10 +1449,9 @@ std::string Function::ToString() const {
     return_type_str = " -> " + return_type_->ToString() + " ";
   }
   std::string pub_str = is_public() ? "pub " : "";
-  std::string body_str = Indent(body()->ToString());
-  return absl::StrFormat("%sfn %s%s(%s)%s{\n%s\n}", pub_str,
-                         name_def_->ToString(), parametric_str, params_str,
-                         return_type_str, body_str);
+  return absl::StrFormat("%sfn %s%s(%s)%s%s", pub_str, name_def_->ToString(),
+                         parametric_str, params_str, return_type_str,
+                         body_->ToString());
 }
 
 std::string Function::ToUndecoratedString(absl::string_view identifier) const {
@@ -1455,8 +1459,8 @@ std::string Function::ToUndecoratedString(absl::string_view identifier) const {
       absl::StrJoin(params(), ", ", [](std::string* out, Param* param) {
         absl::StrAppend(out, param->ToString());
       });
-  std::string body_str = Indent(body()->ToString());
-  return absl::StrFormat("%s(%s) {\n%s\n}", identifier, params_str, body_str);
+  return absl::StrFormat("%s(%s) %s", identifier, params_str,
+                         body_->ToString());
 }
 
 std::vector<std::string> Function::GetFreeParametricKeys() const {

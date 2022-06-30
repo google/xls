@@ -45,7 +45,7 @@ void DoRun(std::string_view program, absl::Span<const std::string> want,
                              ToHumanString(tip.nodes(i), *import_data));
     EXPECT_EQ(node_str, want[i]) << "at index: " << i;
   }
-  if (proto_out) {
+  if (proto_out != nullptr) {
     *proto_out = tip;
   }
 }
@@ -61,7 +61,8 @@ TEST(TypeInfoToProtoTest, IdentityFunction) {
       /*3=*/"0:6-0:12: PARAM :: `x: u32` :: uN[32]",
       /*4=*/"0:9-0:12: TYPE_ANNOTATION :: `u32` :: uN[32]",
       /*5=*/"0:17-0:20: TYPE_ANNOTATION :: `u32` :: uN[32]",
-      /*6=*/"0:23-0:24: NAME_REF :: `x` :: uN[32]",
+      /*6=*/"0:21-0:26: BLOCK :: `{\n  x\n}` :: uN[32]",
+      /*7=*/"0:23-0:24: NAME_REF :: `x` :: uN[32]",
   };
   DoRun(program, want);
 }
@@ -87,11 +88,12 @@ fn id(x: u32) -> u32 { pid<u32:32>(x) }
       /*10=*/"2:6-2:12: PARAM :: `x: u32` :: uN[32]",
       /*11=*/"2:9-2:12: TYPE_ANNOTATION :: `u32` :: uN[32]",
       /*12=*/"2:17-2:20: TYPE_ANNOTATION :: `u32` :: uN[32]",
-      /*13=*/"2:23-2:26: NAME_REF :: `pid` :: (uN[32]) -> uN[32]",
-      /*14=*/"2:26-2:37: INVOCATION :: `pid<u32:32>(x)` :: uN[32]",
-      /*15=*/"2:27-2:30: TYPE_ANNOTATION :: `u32` :: uN[32]",
-      /*16=*/"2:31-2:33: NUMBER :: `u32:32` :: uN[32]",
-      /*17=*/"2:35-2:36: NAME_REF :: `x` :: uN[32]",
+      /*13=*/"2:21-2:39: BLOCK :: `{\n  pid<u32:32>(x)\n}` :: uN[32]",
+      /*14=*/"2:23-2:26: NAME_REF :: `pid` :: (uN[32]) -> uN[32]",
+      /*15=*/"2:26-2:37: INVOCATION :: `pid<u32:32>(x)` :: uN[32]",
+      /*16=*/"2:27-2:30: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*17=*/"2:31-2:33: NUMBER :: `u32:32` :: uN[32]",
+      /*18=*/"2:35-2:36: NAME_REF :: `x` :: uN[32]",
   };
   DoRun(program, want);
 }
@@ -102,6 +104,7 @@ TEST(TypeInfoToProtoTest, UnitFunction) {
       "0:0-0:19: FUNCTION :: `fn f() -> () {\n  ()\n}` :: () -> ()",
       "0:3-0:4: NAME_DEF :: `f` :: () -> ()",
       "0:10-0:12: TYPE_ANNOTATION :: `()` :: ()",
+      "0:13-0:19: BLOCK :: `{\n  ()\n}` :: ()",
       "0:15-0:18: XLS_TUPLE :: `()` :: ()",
   };
   DoRun(program, want);
@@ -117,14 +120,15 @@ TEST(TypeInfoToProtoTest, ArrayFunction) {
       /*2=*/"0:10-0:12: TYPE_ANNOTATION :: `u8` :: uN[8]",
       /*3=*/"0:10-0:15: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]",
       /*4=*/"0:13-0:14: NUMBER :: `2` :: uN[32]",
-      /*5=*/"0:18-0:20: TYPE_ANNOTATION :: `u8` :: uN[8]",
-      /*6=*/"0:18-0:23: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]",
-      /*7=*/"0:21-0:22: NUMBER :: `2` :: uN[32]",
-      /*8=*/"0:24-0:36: ARRAY :: `u8[2]:[u8:1, u8:2]` :: uN[8][2]",
-      /*9=*/"0:25-0:27: TYPE_ANNOTATION :: `u8` :: uN[8]",
-      /*10=*/"0:28-0:29: NUMBER :: `u8:1` :: uN[8]",
-      /*11=*/"0:31-0:33: TYPE_ANNOTATION :: `u8` :: uN[8]",
-      /*12=*/"0:34-0:35: NUMBER :: `u8:2` :: uN[8]",
+      /*5=*/"0:16-0:38: BLOCK :: `{\n  u8[2]:[u8:1, u8:2]\n}` :: uN[8][2]",
+      /*6=*/"0:18-0:20: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*7=*/"0:18-0:23: TYPE_ANNOTATION :: `u8[2]` :: uN[8][2]",
+      /*8=*/"0:21-0:22: NUMBER :: `2` :: uN[32]",
+      /*9=*/"0:24-0:36: ARRAY :: `u8[2]:[u8:1, u8:2]` :: uN[8][2]",
+      /*10=*/"0:25-0:27: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*11=*/"0:28-0:29: NUMBER :: `u8:1` :: uN[8]",
+      /*12=*/"0:31-0:33: TYPE_ANNOTATION :: `u8` :: uN[8]",
+      /*13=*/"0:34-0:35: NUMBER :: `u8:2` :: uN[8]",
   };
   DoRun(program, want);
 }
@@ -140,7 +144,8 @@ TEST(TypeInfoToProtoTest, TokenFunction) {
       /*3=*/"0:5-0:13: PARAM :: `x: token` :: token",
       /*4=*/"0:8-0:13: TYPE_ANNOTATION :: `token` :: token",
       /*5=*/"0:18-0:23: TYPE_ANNOTATION :: `token` :: token",
-      /*6=*/"0:26-0:27: NAME_REF :: `x` :: token",
+      /*6=*/"0:24-0:29: BLOCK :: `{\n  x\n}` :: token",
+      /*7=*/"0:26-0:27: NAME_REF :: `x` :: token",
   };
   DoRun(program, want);
 }
@@ -161,10 +166,11 @@ fn f() -> S { S { x: u32:42 } }
       /*4=*/"2:3-2:4: NAME_DEF :: `f` :: () -> S { x: uN[32] }",
       /*5=*/"2:10-2:11: TYPE_REF :: `S` :: S { x: uN[32] }",
       /*6=*/"2:10-2:12: TYPE_ANNOTATION :: `S` :: S { x: uN[32] }",
-      /*7=*/
+      /*7=*/"2:12-2:31: BLOCK :: `{\n  S { x: u32:42 }\n}` :: S { x: uN[32] }",
+      /*8=*/
       "2:16-2:29: STRUCT_INSTANCE :: `S { x: u32:42 }` :: S { x: uN[32] }",
-      /*8=*/"2:21-2:24: TYPE_ANNOTATION :: `u32` :: uN[32]",
-      /*9=*/"2:25-2:27: NUMBER :: `u32:42` :: uN[32]",
+      /*9=*/"2:21-2:24: TYPE_ANNOTATION :: `u32` :: uN[32]",
+      /*10=*/"2:25-2:27: NUMBER :: `u32:42` :: uN[32]",
   };
   TypeInfoProto tip;
   DoRun(program, want, &tip);
@@ -189,8 +195,9 @@ fn f() -> E { E::A }
       /*6=*/"2:3-2:4: NAME_DEF :: `f` :: () -> E",
       /*7=*/"2:10-2:11: TYPE_REF :: `E` :: E",
       /*8=*/"2:10-2:12: TYPE_ANNOTATION :: `E` :: E",
-      /*9=*/"2:14-2:15: NAME_REF :: `E` :: E",
-      /*10=*/"2:15-2:18: COLON_REF :: `E::A` :: E",
+      /*9=*/"2:12-2:20: BLOCK :: `{\n  E::A\n}` :: E",
+      /*10=*/"2:14-2:15: NAME_REF :: `E` :: E",
+      /*11=*/"2:15-2:18: COLON_REF :: `E::A` :: E",
   };
   DoRun(program, want);
 }

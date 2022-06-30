@@ -96,6 +96,7 @@ class NameDefCollector : public AstNodeVisitor {
     return absl::OkStatus();
   }
   DEFAULT_HANDLER(Binop);
+  DEFAULT_HANDLER(Block);
   DEFAULT_HANDLER(BuiltinNameDef);
   DEFAULT_HANDLER(BuiltinTypeAnnotation);
   DEFAULT_HANDLER(Cast);
@@ -321,6 +322,10 @@ absl::Status BytecodeEmitter::HandleBinop(const Binop* node) {
                        BinopKindToString(node->binop_kind())));
   }
   return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleBlock(const Block* node) {
+  return node->body()->AcceptExpr(this);
 }
 
 absl::Status BytecodeEmitter::CastArrayToBits(Span span, ArrayType* from_array,

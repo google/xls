@@ -20,9 +20,6 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/create_import_data.h"
-#include "xls/dslx/deduce.h"
-#include "xls/dslx/deduce_ctx.h"
-#include "xls/dslx/default_dslx_stdlib_path.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/parser.h"
@@ -80,7 +77,7 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("Foo"));
 
-  Attr* attr = down_cast<Attr*>(f->body());
+  Attr* attr = down_cast<Attr*>(f->body()->body());
 
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, attr));
@@ -126,7 +123,7 @@ fn Foo() -> u64 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("Foo"));
 
-  Cast* cast = down_cast<Cast*>(f->body());
+  Cast* cast = down_cast<Cast*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, cast));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
@@ -148,7 +145,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
 
-  Ternary* ternary = down_cast<Ternary*>(f->body());
+  Ternary* ternary = down_cast<Ternary*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, ternary));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -176,7 +173,8 @@ fn Foo() -> MyStruct {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("Foo"));
 
-  StructInstance* struct_instance = down_cast<StructInstance*>(f->body());
+  StructInstance* struct_instance =
+      down_cast<StructInstance*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, struct_instance));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
@@ -212,7 +210,7 @@ fn main() -> MyStruct {
                            module->GetMemberOrError<Function>("main"));
 
   SplatStructInstance* struct_instance =
-      down_cast<SplatStructInstance*>(f->body());
+      down_cast<SplatStructInstance*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(type_info, struct_instance));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&test_data.import_data, type_info,
@@ -247,7 +245,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  ColonRef* colon_ref = down_cast<ColonRef*>(f->body());
+  ColonRef* colon_ref = down_cast<ColonRef*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -281,7 +279,7 @@ fn main() -> imported::MyEnum {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  ColonRef* colon_ref = down_cast<ColonRef*>(f->body());
+  ColonRef* colon_ref = down_cast<ColonRef*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, colon_ref));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -307,7 +305,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Index* index = down_cast<Index*>(f->body());
+  Index* index = down_cast<Index*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
@@ -333,7 +331,7 @@ fn main() -> u16 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Index* index = down_cast<Index*>(f->body());
+  Index* index = down_cast<Index*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
@@ -359,7 +357,7 @@ fn main() -> u16 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Index* index = down_cast<Index*>(f->body());
+  Index* index = down_cast<Index*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, index));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
@@ -383,7 +381,7 @@ fn main() -> (u32, u32, u32) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  XlsTuple* xls_tuple = down_cast<XlsTuple*>(f->body());
+  XlsTuple* xls_tuple = down_cast<XlsTuple*>(f->body()->body());
   std::vector<InterpValue> elements;
   elements.push_back(InterpValue::MakeU32(1));
   elements.push_back(InterpValue::MakeU32(2));
@@ -416,7 +414,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Match* match = down_cast<Match*>(f->body());
+  Match* match = down_cast<Match*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, match));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
@@ -442,7 +440,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  For* xls_for = down_cast<For*>(f->body());
+  For* xls_for = down_cast<For*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -469,7 +467,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
+  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body()->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -495,7 +493,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
+  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body()->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -526,7 +524,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body())->body());
+  For* xls_for = down_cast<For*>(down_cast<Let*>(f->body()->body())->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(
@@ -550,7 +548,7 @@ fn main() -> s32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Unop* unop = down_cast<Unop*>(f->body());
+  Unop* unop = down_cast<Unop*>(f->body()->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, unop));
   XLS_ASSERT_OK(ConstexprEvaluator::Evaluate(&import_data, tm.type_info,
@@ -578,7 +576,7 @@ fn main() -> u32 {
 
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            tm.module->GetMemberOrError<Function>("main"));
-  Let* let = down_cast<Let*>(f->body());
+  Let* let = down_cast<Let*>(f->body()->body());
   For* xls_for = down_cast<For*>(let->body());
   XLS_ASSERT_OK_AND_ASSIGN(ConcreteType * type,
                            GetConcreteType(tm.type_info, xls_for));

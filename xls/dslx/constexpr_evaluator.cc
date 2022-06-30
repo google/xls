@@ -43,6 +43,9 @@ class NameRefCollector : public ExprVisitor {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     return absl::OkStatus();
   }
+  absl::Status HandleBlock(const Block* expr) override {
+    return expr->body()->AcceptExpr(this);
+  }
   absl::Status HandleBinop(const Binop* expr) override {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
@@ -308,6 +311,15 @@ absl::Status ConstexprEvaluator::HandleBinop(const Binop* expr) {
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->rhs());
   return InterpretExpr(expr);
+}
+
+absl::Status ConstexprEvaluator::HandleBlock(const Block* expr) {
+  XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
+  if (type_info_->IsKnownConstExpr(expr->body())) {
+    type_info_->NoteConstExpr(expr,
+                              type_info_->GetConstExpr(expr->body()).value());
+  }
+  return absl::OkStatus();
 }
 
 absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {

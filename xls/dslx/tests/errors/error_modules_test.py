@@ -52,7 +52,7 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
   def test_imports_module_with_type_error(self):
     stderr = self._run('xls/dslx/tests/errors/imports_has_type_error.x')
-    self.assertIn('xls/dslx/tests/errors/has_type_error.x:16:3-16:4', stderr)
+    self.assertIn('xls/dslx/tests/errors/has_type_error.x:15:20-17:2', stderr)
     self.assertIn('did not match the annotated return type', stderr)
 
   def test_imports_and_causes_ref_error(self):
@@ -191,11 +191,6 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
         stderr)
     self.assertIn('Annotated array size 2 does not match inferred array size 1',
                   stderr)
-
-  def test_brace_scope(self):
-    stderr = self._run('xls/dslx/tests/errors/brace_scope.x')
-    self.assertIn('xls/dslx/tests/errors/brace_scope.x:16:3-16:4', stderr)
-    self.assertIn('Expected start of an expression; got: {', stderr)
 
   def test_double_define_parameter(self):
     stderr = self._run('xls/dslx/tests/errors/double_define_parameter.x')

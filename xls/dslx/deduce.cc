@@ -927,6 +927,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
   return result_type;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceBlock(const Block* node,
+                                                          DeduceCtx* ctx) {
+  return ctx->Deduce(node->body());
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
     const ConstantArray* node, DeduceCtx* ctx) {
   if (node->type_annotation() == nullptr) {
@@ -2346,7 +2351,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
   // when typechecking the `next` function. Those values are the elements in the
   // `config` function's terminating XlsTuple.
   // 1. Get the last statement in the `config` function.
-  Expr* current = proc->config()->body();
+  Expr* current = proc->config()->body()->body();
   while (true) {
     if (Let* let = dynamic_cast<Let*>(current); let != nullptr) {
       current = let->body();
@@ -2570,6 +2575,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Join)
   DEDUCE_DISPATCH(Array)
   DEDUCE_DISPATCH(Attr)
+  DEDUCE_DISPATCH(Block)
   DEDUCE_DISPATCH(ChannelDecl)
   DEDUCE_DISPATCH(ConstantArray)
   DEDUCE_DISPATCH(ColonRef)

@@ -72,6 +72,13 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleBlock(const Block* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<Block>(
+        n->span(), down_cast<Expr*>(old_to_new_.at(n->body())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleBuiltinNameDef(const BuiltinNameDef* n) override {
     if (!old_to_new_.contains(n)) {
       old_to_new_[n] = module_->Make<BuiltinNameDef>(n->identifier());
@@ -217,7 +224,7 @@ class AstCloner : public AstNodeVisitor {
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->names())),
         down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation())),
         down_cast<Expr*>(old_to_new_.at(n->iterable())),
-        down_cast<Expr*>(old_to_new_.at(n->body())),
+        down_cast<Block*>(old_to_new_.at(n->body())),
         down_cast<Expr*>(old_to_new_.at(n->init())));
     return absl::OkStatus();
   }
@@ -260,7 +267,7 @@ class AstCloner : public AstNodeVisitor {
     }
     old_to_new_[n] = module_->Make<Function>(
         n->span(), new_name_def, new_parametric_bindings, new_params,
-        new_return_type, down_cast<Expr*>(old_to_new_.at(n->body())), n->tag(),
+        new_return_type, down_cast<Block*>(old_to_new_.at(n->body())), n->tag(),
         n->is_public());
     new_name_def->set_definer(old_to_new_.at(n));
     return absl::OkStatus();

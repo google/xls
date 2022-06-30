@@ -54,6 +54,7 @@ bool IsOneOf(ObjT* obj) {
   X(Array)                         \
   X(Attr)                          \
   X(Binop)                         \
+  X(Block)                         \
   X(Cast)                          \
   X(ColonRef)                      \
   X(ConstantArray)                 \
@@ -245,6 +246,7 @@ enum class AstNodeKind {
   kQuickCheck,
   kXlsTuple,
   kFor,
+  kBlock,
   kCast,
   kConstantDef,
   kLet,
@@ -600,6 +602,7 @@ class ExprVisitor {
   virtual absl::Status HandleArray(const Array* expr) = 0;
   virtual absl::Status HandleAttr(const Attr* expr) = 0;
   virtual absl::Status HandleBinop(const Binop* expr) = 0;
+  virtual absl::Status HandleBlock(const Block* expr) = 0;
   virtual absl::Status HandleCast(const Cast* expr) = 0;
   virtual absl::Status HandleChannelDecl(const ChannelDecl* expr) = 0;
   virtual absl::Status HandleColonRef(const ColonRef* expr) = 0;
@@ -694,6 +697,33 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   Direction direction_;
   TypeAnnotation* payload_;
   absl::optional<std::vector<Expr*>> dims_;
+};
+
+// Represents a block expression, e.g.,
+// let i = {
+//   u32:5
+// };
+class Block : public Expr {
+ public:
+  Block(Module* owner, Span span, Expr* body)
+      : Expr(owner, std::move(span)), body_(body) {}
+  AstNodeKind kind() const override { return AstNodeKind::kBlock; }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleBlock(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleBlock(this);
+  }
+  absl::string_view GetNodeTypeName() const override { return "Block"; }
+  std::string ToString() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {body_};
+  }
+
+  Expr* body() const { return body_; }
+
+ private:
+  Expr* body_;
 };
 
 // Represents a reference to a name (identifier).
@@ -1320,7 +1350,7 @@ class Function : public AstNode {
 
   Function(Module* owner, Span span, NameDef* name_def,
            std::vector<ParametricBinding*> parametric_bindings,
-           std::vector<Param*> params, TypeAnnotation* return_type, Expr* body,
+           std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
            Tag tag, bool is_public);
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
   absl::optional<Span> GetSpan() const override { return span_; }
@@ -1341,7 +1371,7 @@ class Function : public AstNode {
     return parametric_bindings_;
   }
   const std::vector<Param*> params() const { return params_; }
-  Expr* body() const { return body_; }
+  Block* body() const { return body_; }
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }
   bool is_public() const { return is_public_; }
@@ -1363,7 +1393,7 @@ class Function : public AstNode {
   std::vector<ParametricBinding*> parametric_bindings_;
   std::vector<Param*> params_;
   TypeAnnotation* return_type_;  // May be null.
-  Expr* body_;
+  Block* body_;
   Tag tag_;
   absl::optional<Proc*> proc_;
 
@@ -2321,7 +2351,7 @@ class XlsTuple : public Expr {
 class For : public Expr {
  public:
   For(Module* owner, Span span, NameDefTree* names, TypeAnnotation* type,
-      Expr* iterable, Expr* body, Expr* init);
+      Expr* iterable, Block* body, Expr* init);
 
   AstNodeKind kind() const { return AstNodeKind::kFor; }
 
@@ -2347,7 +2377,7 @@ class For : public Expr {
   Expr* iterable() const { return iterable_; }
 
   // Expression for the loop body.
-  Expr* body() const { return body_; }
+  Block* body() const { return body_; }
 
   // Initial expression for the loop (start values expr).
   Expr* init() const { return init_; }
@@ -2356,7 +2386,7 @@ class For : public Expr {
   NameDefTree* names_;
   TypeAnnotation* type_annotation_;
   Expr* iterable_;
-  Expr* body_;
+  Block* body_;
   Expr* init_;
 };
 

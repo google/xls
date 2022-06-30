@@ -124,6 +124,8 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_PARAMETRIC_BINDING;
     case AstNodeKind::kTupleIndex:
       return AST_NODE_KIND_TUPLE_INDEX;
+    case AstNodeKind::kBlock:
+      return AST_NODE_KIND_BLOCK;
   }
   // Fatal since enum class values should not be out of range.
   XLS_LOG(FATAL) << "Out of range AstNodeKind: " << static_cast<int64_t>(kind);
@@ -587,6 +589,8 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kParametricBinding;
     case AST_NODE_KIND_TUPLE_INDEX:
       return AstNodeKind::kTupleIndex;
+    case AST_NODE_KIND_BLOCK:
+      return AstNodeKind::kBlock;
     case AST_NODE_KIND_INVALID:
       break;
   }

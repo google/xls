@@ -320,17 +320,18 @@ class FunctionConverter {
   absl::Status HandleXlsTuple(const XlsTuple* node);
 
   // AstNode handlers that recur "manually" internal to the handler.
-  absl::Status HandleJoin(const Join* node);
   absl::Status HandleArray(const Array* node);
   absl::Status HandleAttr(const Attr* node);
+  absl::Status HandleBlock(const Block* node);
   absl::Status HandleCast(const Cast* node);
   absl::Status HandleColonRef(const ColonRef* node);
   absl::Status HandleConstantArray(const ConstantArray* node);
   absl::Status HandleConstantDef(const ConstantDef* node);
   absl::Status HandleFor(const For* node);
+  absl::Status HandleFormatMacro(const FormatMacro* node);
   absl::Status HandleIndex(const Index* node);
   absl::Status HandleInvocation(const Invocation* node);
-  absl::Status HandleFormatMacro(const FormatMacro* node);
+  absl::Status HandleJoin(const Join* node);
   absl::Status HandleLet(const Let* node);
   absl::Status HandleMatch(const Match* node);
   absl::Status HandleRecv(const Recv* node);
@@ -689,6 +690,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   NO_TRAVERSE_DISPATCH_VISIT(Attr)
   NO_TRAVERSE_DISPATCH_VISIT(Array)
+  NO_TRAVERSE_DISPATCH_VISIT(Block)
   NO_TRAVERSE_DISPATCH_VISIT(ConstantArray)
   NO_TRAVERSE_DISPATCH_VISIT(Cast)
   NO_TRAVERSE_DISPATCH_VISIT(ColonRef)
@@ -2831,6 +2833,13 @@ absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   } else {
     ir.SetName(identifier);
   }
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBlock(const Block* node) {
+  XLS_RETURN_IF_ERROR(Visit(node->body()));
+  XLS_ASSIGN_OR_RETURN(BValue bvalue, Use(node->body()));
+  SetNodeToIr(node, bvalue);
   return absl::OkStatus();
 }
 

@@ -33,15 +33,16 @@ TEST(ProcConfigIrConverterTest, ResolveProcNameRef) {
       module.Make<BuiltinTypeAnnotation>(Span::Fake(), BuiltinType::kU32);
   Number* body =
       module.Make<Number>(Span::Fake(), "7", NumberKind::kOther, nullptr);
+  Block* block = module.Make<Block>(Span::Fake(), body);
   Function* config = module.Make<Function>(
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      /*params=*/std::vector<Param*>(), return_type, body,
+      /*params=*/std::vector<Param*>(), return_type, block,
       Function::Tag::kProcConfig, /*is_public=*/true);
   Function* next = module.Make<Function>(
       Span::Fake(), next_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      /*params=*/std::vector<Param*>(), return_type, body,
+      /*params=*/std::vector<Param*>(), return_type, block,
       Function::Tag::kProcNext, /*is_public=*/true);
   std::vector<Param*> members;
   std::vector<ParametricBinding*> bindings;
@@ -77,15 +78,16 @@ TEST(ProcConfigIrConverterTest, ResolveProcColonRef) {
                                                  BuiltinType::kU32);
   Number* body = import_module->Make<Number>(Span::Fake(), "7",
                                              NumberKind::kOther, nullptr);
+  Block* block = import_module->Make<Block>(Span::Fake(), body);
   Function* config = import_module->Make<Function>(
       Span::Fake(), config_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      /*params=*/std::vector<Param*>(), return_type, body,
+      /*params=*/std::vector<Param*>(), return_type, block,
       Function::Tag::kProcConfig, /*is_public=*/true);
   Function* next = import_module->Make<Function>(
       Span::Fake(), next_name_def,
       /*parametric_bindings=*/std::vector<ParametricBinding*>(),
-      /*params=*/std::vector<Param*>(), return_type, body,
+      /*params=*/std::vector<Param*>(), return_type, block,
       Function::Tag::kProcNext, /*is_public=*/true);
   std::vector<Param*> members;
   std::vector<ParametricBinding*> bindings;

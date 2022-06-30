@@ -176,7 +176,9 @@ TEST_F(ParserTest, ParseIdentityFunction) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  NameRef* body = dynamic_cast<NameRef*>(f->body());
+  Block* block = dynamic_cast<Block*>(f->body());
+  ASSERT_TRUE(block != nullptr);
+  NameRef* body = dynamic_cast<NameRef*>(block->body());
   ASSERT_TRUE(body != nullptr);
   EXPECT_EQ(body->identifier(), "x");
 }
@@ -447,7 +449,8 @@ fn f(p: Point) -> Point {
   XLS_ASSERT_OK_AND_ASSIGN(TypeDefinition c, m->GetTypeDefinition("Point"));
   ASSERT_TRUE(absl::holds_alternative<StructDef*>(c));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetMemberOrError<Function>("f"));
-  SplatStructInstance* ssi = dynamic_cast<SplatStructInstance*>(f->body());
+  Block* block = dynamic_cast<Block*>(f->body());
+  SplatStructInstance* ssi = dynamic_cast<SplatStructInstance*>(block->body());
   ASSERT_TRUE(ssi != nullptr) << f->body()->ToString();
   NameRef* splatted = dynamic_cast<NameRef*>(ssi->splatted());
   ASSERT_TRUE(splatted != nullptr) << ssi->splatted()->ToString();
@@ -466,7 +469,8 @@ TEST_F(ParserTest, ConcatFunction) {
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
   EXPECT_EQ(f->params().size(), 2);
-  Binop* body = dynamic_cast<Binop*>(f->body());
+  Block* block = dynamic_cast<Block*>(f->body());
+  Binop* body = dynamic_cast<Binop*>(block->body());
   ASSERT_TRUE(body != nullptr);
   EXPECT_EQ(body->binop_kind(), BinopKind::kConcat);
   NameRef* lhs = dynamic_cast<NameRef*>(body->lhs());
@@ -506,7 +510,8 @@ fn f(x: u32) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  auto* index = dynamic_cast<Index*>(f->body());
+  Block* block = dynamic_cast<Block*>(f->body());
+  auto* index = dynamic_cast<Index*>(block->body());
   ASSERT_NE(index, nullptr);
   IndexRhs rhs = index->rhs();
   ASSERT_TRUE(absl::holds_alternative<Slice*>(rhs));
@@ -527,7 +532,7 @@ TEST_F(ParserTest, LocalConstBinding) {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  auto* const_let = dynamic_cast<Let*>(f->body());
+  auto* const_let = dynamic_cast<Let*>(f->body()->body());
   ASSERT_NE(const_let, nullptr);
   ASSERT_TRUE(const_let->is_const());
   EXPECT_EQ("u8:42", const_let->rhs()->ToString());
@@ -973,7 +978,7 @@ fn f(x: u32) -> u8 {
   XLS_ASSERT_OK_AND_ASSIGN(
       Function * f,
       p.ParseFunction(/*is_public=*/false, /*bindings=*/&bindings));
-  auto* tuple_index = dynamic_cast<TupleIndex*>(f->body());
+  auto* tuple_index = dynamic_cast<TupleIndex*>(f->body()->body());
   ASSERT_NE(tuple_index, nullptr);
 
   Expr* lhs = tuple_index->lhs();
@@ -983,6 +988,28 @@ fn f(x: u32) -> u8 {
 
   RoundTripExpr("let foo = tuple.0;\nfoo", {"tuple"});
   RoundTripExpr("let foo = (u32:6, u32:7).1;\nfoo", {"tuple"});
+}
+
+TEST_F(ParserTest, BlockWithinBlock) {
+  const char* kInput = R"({
+  let a = u32:0;
+  let b = {
+    let c = u32:1;
+    c
+  };
+  let d = u32:2;
+})";
+  const char* kOutput = R"({
+  let a = u32:0;
+  let b = {
+    let c = u32:1;
+    c
+  };
+  let d = u32:2;
+  ()
+})";
+
+  RoundTripExpr(kInput, {}, kOutput);
 }
 
 // -- Parse-time errors
@@ -1033,7 +1060,7 @@ fn main() -> u32 {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f,
                            module->GetMemberOrError<Function>("main"));
   // Get the terminal expr.
-  Expr* current_expr = f->body();
+  Expr* current_expr = f->body()->body();
   while (dynamic_cast<Let*>(current_expr) != nullptr) {
     current_expr = dynamic_cast<Let*>(current_expr)->body();
   }
