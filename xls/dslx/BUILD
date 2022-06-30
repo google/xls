@@ -1303,3 +1303,30 @@ py_test(
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
+
+py_test(
+    name = "value_test",
+    srcs = ["value_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/dslx/python:interp_value",
+        "//xls/dslx/python:interpreter",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+py_test(
+    name = "interpreter_test",
+    srcs = ["interpreter_test.py"],
+    data = [
+        "//xls/dslx:interpreter_main",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/dslx/python:interpreter",
+    ],
+)
