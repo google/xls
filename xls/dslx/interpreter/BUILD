@@ -19,7 +19,6 @@
 load("@xls_pip_deps//:requirements.bzl", "requirement")
 
 package(
-    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
