@@ -550,43 +550,6 @@ proc main {
   EXPECT_EQ(order[17].proc_id().value().ToString(), "main->p2:0");
 }
 
-TEST(ExtractConversionOrderTest, FunctionProcMixed) {
-  constexpr absl::string_view kProgram = R"(
-fn f0() -> u32 {
-  u32:42
-}
-
-fn f1() -> u32 {
-  u32:24
-}
-
-proc main {
-  config() { () }
-
-  next(tok: token, x: u32) {
-    (f0(),)
-  }
-}
-)";
-  auto import_data = CreateImportDataForTest();
-  XLS_ASSERT_OK_AND_ASSIGN(
-      TypecheckedModule tm,
-      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
-                           GetOrder(tm.module, tm.type_info));
-  ASSERT_EQ(4, order.size());
-  ASSERT_FALSE(order[0].proc_id().has_value());
-  ASSERT_FALSE(order[1].proc_id().has_value());
-  ASSERT_TRUE(order[2].proc_id().has_value());
-  ASSERT_TRUE(order[3].proc_id().has_value());
-  EXPECT_EQ(order[0].f()->identifier(), "f0");
-  EXPECT_EQ(order[1].f()->identifier(), "f1");
-  EXPECT_EQ(order[2].f()->identifier(), "main.config");
-  EXPECT_EQ(order[2].proc_id().value().ToString(), "main:0");
-  EXPECT_EQ(order[3].f()->identifier(), "main.next");
-  EXPECT_EQ(order[3].proc_id().value().ToString(), "main:0");
-}
-
 TEST(ExtractConversionOrderTest, ProcNetworkWithTwoTopLevelProcs) {
   constexpr absl::string_view kProgram = R"(
 proc p2 {

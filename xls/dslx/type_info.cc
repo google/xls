@@ -85,11 +85,27 @@ absl::StatusOr<InterpValue> TypeInfo::GetConstExpr(
 }
 
 bool TypeInfo::IsKnownConstExpr(const AstNode* node) {
-  return const_exprs_.contains(node) && const_exprs_.at(node).has_value();
+  if (const_exprs_.contains(node)) {
+    return const_exprs_.at(node).has_value();
+  }
+
+  if (parent_ != nullptr) {
+    return parent_->IsKnownConstExpr(node);
+  }
+
+  return false;
 }
 
 bool TypeInfo::IsKnownNonConstExpr(const AstNode* node) {
-  return const_exprs_.contains(node) && !const_exprs_.at(node).has_value();
+  if (const_exprs_.contains(node)) {
+    return !const_exprs_.at(node).has_value();
+  }
+
+  if (parent_ != nullptr) {
+    return parent_->IsKnownNonConstExpr(node);
+  }
+
+  return false;
 }
 
 bool TypeInfo::Contains(AstNode* key) const {
@@ -197,6 +213,25 @@ void TypeInfo::SetInvocationTypeInfo(const Invocation* invocation,
   TypeInfo* top = GetRoot();
   InvocationData& data = top->invocations_[invocation];
   data.instantiations[caller] = type_info;
+}
+
+absl::Status TypeInfo::SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti) {
+  if (parent_ != nullptr) {
+    return absl::InvalidArgumentError(
+        "SetTopLevelTypeInfo may only be called on a module top-level type "
+        "info.");
+  }
+  XLS_RET_CHECK_EQ(p->owner(), module_);
+  top_level_proc_type_info_[p] = ti;
+  return absl::OkStatus();
+}
+
+absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
+  if (!top_level_proc_type_info_.contains(p)) {
+    return absl::NotFoundError(absl::StrCat(
+        "Top-level type info not found for proc \"", p->identifier(), "\"."));
+  }
+  return top_level_proc_type_info_.at(p);
 }
 
 absl::optional<const SymbolicBindings*>

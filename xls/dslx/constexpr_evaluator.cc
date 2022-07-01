@@ -15,6 +15,7 @@
 
 #include <variant>
 
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
@@ -329,7 +330,7 @@ absl::Status ConstexprEvaluator::HandleCast(const Cast* expr) {
 }
 
 // Creates an InterpValue for the described channel or array of channels.
-absl::StatusOr<InterpValue> CreateChannelValue(
+absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
     const ConcreteType* concrete_type) {
   if (auto* array_type = dynamic_cast<const ArrayType*>(concrete_type)) {
     XLS_ASSIGN_OR_RETURN(int dim_int, array_type->size().GetAsInt64());
@@ -374,10 +375,9 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
         expr->span(), tuple_type, "ChannelDecl type was a two-element tuple.");
   }
 
-  absl::StatusOr<InterpValue> channels =
-      CreateChannelValue(&tuple_type->GetMemberType(0));
-  type_info_->NoteConstExpr(
-      expr, InterpValue::MakeTuple({channels.value(), channels.value()}));
+  XLS_ASSIGN_OR_RETURN(InterpValue channel,
+                       CreateChannelValue(&tuple_type->GetMemberType(0)));
+  type_info_->NoteConstExpr(expr, InterpValue::MakeTuple({channel, channel}));
   return absl::OkStatus();
 }
 

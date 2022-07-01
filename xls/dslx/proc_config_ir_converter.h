@@ -54,17 +54,17 @@ class ProcConfigIrConverter : public AstNodeVisitorWithDefault {
                         const SymbolicBindings& bindings,
                         const ProcId& proc_id);
 
-  absl::Status HandleBlock(const Block* node);
-  absl::Status HandleChannelDecl(const ChannelDecl* node);
-  absl::Status HandleFunction(const Function* node);
-  absl::Status HandleInvocation(const Invocation* node);
-  absl::Status HandleLet(const Let* node);
-  absl::Status HandleNameRef(const NameRef* node);
-  absl::Status HandleNumber(const Number* node);
-  absl::Status HandleParam(const Param* node);
-  absl::Status HandleSpawn(const Spawn* node);
-  absl::Status HandleStructInstance(const StructInstance* node);
-  absl::Status HandleXlsTuple(const XlsTuple* node);
+  absl::Status HandleBlock(const Block* node) override;
+  absl::Status HandleChannelDecl(const ChannelDecl* node) override;
+  absl::Status HandleFunction(const Function* node) override;
+  absl::Status HandleInvocation(const Invocation* node) override;
+  absl::Status HandleLet(const Let* node) override;
+  absl::Status HandleNameRef(const NameRef* node) override;
+  absl::Status HandleNumber(const Number* node) override;
+  absl::Status HandleParam(const Param* node) override;
+  absl::Status HandleSpawn(const Spawn* node) override;
+  absl::Status HandleStructInstance(const StructInstance* node) override;
+  absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
   // Sets the mapping from the elements in the config-ending tuple to the
   // corresponding Proc members.

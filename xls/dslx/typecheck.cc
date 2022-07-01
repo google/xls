@@ -23,6 +23,7 @@
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/dslx_builtins.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/symbolic_bindings.h"
 #include "re2/re2.h"
 
 namespace xls::dslx {
@@ -320,12 +321,14 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     ScopedFnStackEntry scoped_entry(proc->next(), ctx, false);
     XLS_RETURN_IF_ERROR(CheckFunction(proc->next(), ctx));
     scoped_entry.Finish();
+    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                         ctx->type_info()->GetTopLevelProcTypeInfo(proc));
 
     // Verify that the initial 'next' args match the next fn's param types.
     const std::vector<Param*> next_params = proc->next()->params();
     for (int i = 0; i < test_proc->next_args().size(); i++) {
       absl::optional<ConcreteType*> param_type =
-          ctx->type_info()->GetItem(next_params[i + 1]);
+          type_info->GetItem(next_params[i + 1]);
       if (!param_type.has_value()) {
         return absl::InternalError(absl::StrCat(
             "Missing type for next param: ", next_params[i + 1]->ToString()));
@@ -337,7 +340,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
       // We need to eagerly evaluate next args: we can't wait to do so inside
       // the BytecodeInterpreter, as that'd create a circular dependency.
       XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-          ctx->import_data(), ctx->type_info(),
+          ctx->import_data(), type_info,
           ctx->fn_stack().back().symbolic_bindings(), test_proc->next_args()[i],
           nullptr));
       scoped.Finish();
@@ -353,6 +356,34 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
 
   XLS_VLOG(2) << "Finished typechecking test proc: " << proc->identifier();
   return absl::OkStatus();
+}
+
+bool CanTypecheckProc(Proc* p) {
+  // We can typecheck any top-level proc that has no next params: config
+  // functions may accept channel arguments.
+  // Other procs are typechecked as instantiated from some entry proc.
+  // `next` functions always have a token arg.
+  if (p->next()->params().size() > 1) {
+    XLS_VLOG(3) << "Can't typecheck " << p->identifier() << " at top-level: "
+                << "its `next` function has a non-token param.";
+    return false;
+  }
+
+  for (Param* param : p->config()->params()) {
+    if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) ==
+        nullptr) {
+      XLS_VLOG(3) << "Can't typecheck " << p->identifier() << " at top-level: "
+                  << "its `config` function has a non-channel param.";
+      return false;
+    }
+  }
+
+  // Skip test procs (they're typechecked via a different path).
+  if (p->parent() != nullptr) {
+    return false;
+  }
+
+  return true;
 }
 
 absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
@@ -375,15 +406,10 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
       return absl::OkStatus();
     }
 
-    // We can typecheck any proc that has no config params. In
-    // practice, this must be the entry proc; otherwise the proc would be
-    // effectively dead to the world (since it'd have no input/output channels).
-    // Other procs are typechecked as instantiated from some entry proc.
     auto maybe_proc = f->proc();
     if (maybe_proc.has_value()) {
       Proc* p = maybe_proc.value();
-      // `next` functions always have a token arg.
-      if (!p->config()->params().empty() || p->next()->params().size() > 1) {
+      if (!CanTypecheckProc(p)) {
         return absl::OkStatus();
       }
     }
@@ -547,6 +573,21 @@ absl::StatusOr<TypeAndBindings> InstantiateParametricFunction(
 absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   XLS_VLOG(2) << "Typechecking fn: " << f->identifier();
 
+  // Every top-level proc needs its own type info (that's shared between both
+  // proc functions). Otherwise, the implicit channels created during top-level
+  // Proc typechecking (see `DeduceParam()`) would conflict/override those
+  // declared in a TestProc and passed to it.
+  TypeInfo* original_ti = ctx->type_info();
+  if (f->proc().has_value()) {
+    absl::StatusOr<TypeInfo*> proc_ti =
+        ctx->type_info()->GetTopLevelProcTypeInfo(f->proc().value());
+    if (proc_ti.ok()) {
+      XLS_RETURN_IF_ERROR(ctx->PushTypeInfo(proc_ti.value()));
+    } else {
+      ctx->AddDerivedTypeInfo();
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> param_types,
                        CheckFunctionParams(f, ctx));
 
@@ -581,6 +622,13 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
         absl::StrFormat("Return type of function body for '%s' did not match "
                         "the annotated return type.",
                         f->identifier()));
+  }
+
+  if (f->tag() != Function::Tag::kNormal) {
+    // i.e., if this is a proc function.
+    XLS_RETURN_IF_ERROR(original_ti->SetTopLevelProcTypeInfo(f->proc().value(),
+                                                             ctx->type_info()));
+    XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
   }
 
   // Implementation note: though we could have all functions have
@@ -677,10 +725,14 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
     fn_stack.pop_back();
   }
 
-  if (callee_fn->IsParametric()) {
-    parent_ctx->type_info()->AddInvocationCallBindings(
-        invocation, caller_symbolic_bindings, tab.symbolic_bindings);
-  }
+  // We execute this function if we're parametric or a proc. In either case, we
+  // want to create a new TypeInfo. The reason for the former is obvious. The
+  // reason for the latter is that we need separate constexpr data for every
+  // instantiation of a proc. If we didn't create new bindings/a new TypeInfo
+  // here, then if we instantiated the same proc 2x from some parent proc, we'd
+  // end up with only a single set of constexpr values for proc members.
+  parent_ctx->type_info()->AddInvocationCallBindings(
+      invocation, caller_symbolic_bindings, tab.symbolic_bindings);
 
   FunctionType instantiated_ft{std::move(arg_types), tab.type->CloneToUnique()};
   parent_ctx->type_info()->SetItem(invocation->callee(), instantiated_ft);
@@ -691,9 +743,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   TypeInfo* original_ti = parent_ctx->type_info();
   ctx->AddFnStackEntry(
       FnStackEntry::Make(callee_fn, tab.symbolic_bindings, invocation));
-  if (callee_fn->IsParametric()) {
-    ctx->AddDerivedTypeInfo();
-  }
+  ctx->AddDerivedTypeInfo();
 
   if (callee_fn->proc().has_value()) {
     Proc* p = callee_fn->proc().value();
@@ -748,9 +798,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   original_ti->SetInvocationTypeInfo(invocation, tab.symbolic_bindings,
                                         ctx->type_info());
 
-  if (callee_fn->IsParametric()) {
-    XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
-  }
+  XLS_RETURN_IF_ERROR(ctx->PopDerivedTypeInfo());
   ctx->PopFnStackEntry();
 
   // Implementation note: though we could have all functions have

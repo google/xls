@@ -57,17 +57,18 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
   auto cache = std::make_unique<BytecodeCache>(import_data);
   import_data->SetBytecodeCache(std::move(cache));
 
+  XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
+                       type_info->GetTopLevelProcTypeInfo(tp->proc()));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, type_info, tp->proc()->config(),
+      BytecodeEmitter::Emit(import_data, ti, tp->proc()->config(),
                             absl::nullopt));
 
   std::vector<ProcInstance> proc_instances;
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue terminator,
-      type_info->GetConstExpr(tp->proc()->config()->params()[0]));
+  XLS_ASSIGN_OR_RETURN(InterpValue terminator,
+                       ti->GetConstExpr(tp->proc()->config()->params()[0]));
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::InitializeProcNetwork(
-      import_data, type_info, tp->proc(), terminator, tp->next_args(),
+      import_data, ti, tp->proc(), terminator, tp->next_args(),
       &proc_instances));
 
   std::shared_ptr<InterpValue::Channel> term_chan =

@@ -774,10 +774,13 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
   // Collect the top level procs.
   XLS_ASSIGN_OR_RETURN(std::vector<Proc*> top_level_procs,
                        GetTopLevelProcs(module, type_info));
-  // Get the Order for each top level proc.
+  // Get the order for each top level proc.
   for (Proc* proc : top_level_procs) {
+    XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,
+                         type_info->GetTopLevelProcTypeInfo(proc));
+
     XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
-                         GetOrderForProc(proc, type_info, /*is_top=*/false));
+                         GetOrderForProc(proc, proc_ti, /*is_top=*/false));
     ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
   }
 
@@ -789,8 +792,10 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                      {}));
     }
     for (TestProc* test : module->GetProcTests()) {
+      XLS_ASSIGN_OR_RETURN(TypeInfo * proc_ti,
+                           type_info->GetTopLevelProcTypeInfo(test->proc()));
       XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> proc_ready,
-                           GetOrderForProc(test, type_info, /*is_top=*/false));
+                           GetOrderForProc(test, proc_ti, /*is_top=*/false));
       ready.insert(ready.end(), proc_ready.begin(), proc_ready.end());
     }
   }
@@ -811,14 +816,21 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
   std::vector<ConversionRecord> ready;
   if (absl::holds_alternative<Function*>(entry)) {
     Function* f = absl::get<Function*>(entry);
+    if (f->proc().has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          type_info, type_info->GetTopLevelProcTypeInfo(f->proc().value()));
+    }
     XLS_RETURN_IF_ERROR(AddToReady(f,
                                    /*invocation=*/nullptr, f->owner(),
                                    type_info, SymbolicBindings(), &ready, {},
                                    /*is_top=*/true));
     return ready;
   }
+
   Proc* p = absl::get<Proc*>(entry);
-  return GetOrderForProc(p, type_info, /*is_top=*/true);
+  XLS_ASSIGN_OR_RETURN(TypeInfo * new_ti,
+                       type_info->GetTopLevelProcTypeInfo(p));
+  return GetOrderForProc(p, new_ti, /*is_top=*/true);
 }
 
 }  // namespace xls::dslx

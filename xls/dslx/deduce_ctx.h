@@ -133,6 +133,13 @@ class DeduceCtx {
     type_info_ = type_info_owner().New(module(), /*parent=*/type_info_).value();
   }
 
+  // Puts the given TypeInfo on top of the current stack.
+  absl::Status PushTypeInfo(TypeInfo* ti) {
+    XLS_RET_CHECK_EQ(ti->parent(), type_info_);
+    type_info_ = ti;
+    return absl::OkStatus();
+  }
+
   // Pops the current type_info_ and sets the type_info_ to be the popped
   // value's parent (conceptually an inverse of AddDerivedTypeInfo()).
   absl::Status PopDerivedTypeInfo() {

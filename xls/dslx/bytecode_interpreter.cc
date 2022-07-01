@@ -1561,10 +1561,11 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     std::vector<ProcInstance>* proc_instances) {
   auto get_parametric_type_info =
       [type_info](const Spawn* spawn, const Invocation* invoc,
-                  const SymbolicBindings& caller_bindings)
+                  const std::optional<SymbolicBindings>& caller_bindings)
       -> absl::StatusOr<TypeInfo*> {
-    absl::optional<TypeInfo*> maybe_type_info =
-        type_info->GetInvocationTypeInfo(invoc, caller_bindings);
+    std::optional<TypeInfo*> maybe_type_info = type_info->GetInvocationTypeInfo(
+        invoc, caller_bindings.has_value() ? caller_bindings.value()
+                                           : SymbolicBindings());
     if (!maybe_type_info.has_value()) {
       return absl::InternalError(
           absl::StrCat("Could not find type info for invocation ",
@@ -1573,15 +1574,17 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     return maybe_type_info.value();
   };
 
-  if (proc->IsParametric()) {
+  // We need to get a new TI if there's a spawn, i.e., this isn't a top-level
+  // proc instantiation, to avoid constexpr values from colliding between
+  // different proc instantiations.
+  if (maybe_spawn.has_value()) {
     // We're guaranteed that these have values if the proc is parametric (the
     // root proc can't be parametric).
-    XLS_RET_CHECK(caller_bindings.has_value());
     XLS_RET_CHECK(maybe_spawn.has_value());
     XLS_ASSIGN_OR_RETURN(type_info,
                          get_parametric_type_info(maybe_spawn.value(),
                                                   maybe_spawn.value()->config(),
-                                                  caller_bindings.value()));
+                                                  caller_bindings));
   }
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> config_bf,
@@ -1611,11 +1614,11 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     member_defs.push_back(param->name_def());
   }
 
-  if (proc->IsParametric()) {
-    XLS_ASSIGN_OR_RETURN(type_info,
-                         get_parametric_type_info(maybe_spawn.value(),
-                                                  maybe_spawn.value()->next(),
-                                                  caller_bindings.value()));
+  if (maybe_spawn.has_value()) {
+    XLS_ASSIGN_OR_RETURN(
+        type_info,
+        get_parametric_type_info(maybe_spawn.value(),
+                                 maybe_spawn.value()->next(), caller_bindings));
   }
 
   XLS_ASSIGN_OR_RETURN(

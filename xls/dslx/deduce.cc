@@ -130,7 +130,33 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnop(const Unop* node,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceParam(const Param* node,
                                                           DeduceCtx* ctx) {
-  return ctx->Deduce(node->type_annotation());
+  XLS_ASSIGN_OR_RETURN(auto concrete_type,
+                       ctx->Deduce(node->type_annotation()));
+  Function* f = dynamic_cast<Function*>(node->parent());
+  if (f == nullptr) {
+    return concrete_type;
+  }
+
+  // When deducing a proc at top level, we won't have constexpr values for its
+  // config params, which will cause Spawn deduction to fail, so we need to
+  // create dummy InterpValues for its parameter channels.
+  // Other types of params aren't allowed, example: a proc member could be
+  // assigned a constexpr value based on the sum of dummy values.
+  // Stack depth 2: Module "<top>" + the config function being looked at.
+  bool is_root_proc =
+      f->tag() == Function::Tag::kProcConfig && ctx->fn_stack().size() == 2;
+  bool is_channel_param =
+      dynamic_cast<ChannelType*>(concrete_type.get()) != nullptr;
+  bool is_param_constexpr = ctx->type_info()->IsKnownConstExpr(node);
+  if (is_root_proc && is_channel_param && !is_param_constexpr) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::CreateChannelValue(concrete_type.get()));
+    ctx->type_info()->NoteConstExpr(node, value);
+    ctx->type_info()->NoteConstExpr(node->name_def(), value);
+  }
+
+  return concrete_type;
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(

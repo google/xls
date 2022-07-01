@@ -97,6 +97,9 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleUnop(const Unop* expr) override;
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
+  static absl::StatusOr<InterpValue> CreateChannelValue(
+      const ConcreteType* concrete_type);
+
  private:
   ConstexprEvaluator(ImportData* import_data, TypeInfo* type_info,
                      SymbolicBindings bindings,

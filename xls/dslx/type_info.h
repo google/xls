@@ -146,6 +146,14 @@ class TypeInfo {
   absl::optional<TypeInfo*> GetInvocationTypeInfo(
       const Invocation* invocation, const SymbolicBindings& caller) const;
 
+  // Sets the type info for the given proc when typechecked at top-level (i.e.,
+  // not via an instantiation). Can only be called on the module root TypeInfo.
+  absl::Status SetTopLevelProcTypeInfo(const Proc* p, TypeInfo* ti);
+
+  // Gets the TypeInfo for the given function or proc. Can only [successfully]
+  // called on the module root TypeInfo.
+  absl::StatusOr<TypeInfo*> GetTopLevelProcTypeInfo(const Proc* p);
+
   // Sets the type associated with the given AST node.
   void SetItem(const AstNode* key, const ConcreteType& value) {
     XLS_CHECK_EQ(key->owner(), module_);
@@ -267,6 +275,9 @@ class TypeInfo {
   absl::flat_hash_map<Slice*, SliceData> slices_;
   absl::flat_hash_map<const AstNode*, absl::optional<InterpValue>> const_exprs_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
+
+  // Maps a Proc to the TypeInfo used for its top-level typechecking.
+  absl::flat_hash_map<const Proc*, TypeInfo*> top_level_proc_type_info_;
   TypeInfo* parent_;  // Note: may be nullptr.
 };
 

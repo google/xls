@@ -22,6 +22,7 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/symbolic_bindings.h"
 
 namespace xls::dslx {
 namespace {
@@ -1206,10 +1207,11 @@ proc Foo {
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * p, tm.module->GetMemberOrError<Proc>("Foo"));
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * ti,
+                           tm.type_info->GetTopLevelProcTypeInfo(p));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, p->config(),
-                            SymbolicBindings()));
+      BytecodeEmitter::Emit(&import_data, ti, p->config(), SymbolicBindings()));
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 7);
   const std::vector<std::string> kConfigExpected = {
@@ -1261,11 +1263,20 @@ proc Parent {
   XLS_ASSERT_OK_AND_ASSIGN(
       TypecheckedModule tm,
       ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
-  XLS_ASSERT_OK_AND_ASSIGN(Proc * p,
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * parent,
+                           tm.module->GetMemberOrError<Proc>("Parent"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * child,
                            tm.module->GetMemberOrError<Proc>("Child"));
+  Spawn* spawn = down_cast<Spawn*>(
+      down_cast<Let*>(parent->config()->body()->body())->body());
+  XLS_ASSERT_OK_AND_ASSIGN(TypeInfo * parent_ti,
+                           tm.type_info->GetTopLevelProcTypeInfo(parent));
+  TypeInfo* child_ti =
+      parent_ti->GetInvocationTypeInfo(spawn->config(), SymbolicBindings())
+          .value();
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(&import_data, tm.type_info, p->config(),
+      BytecodeEmitter::Emit(&import_data, child_ti, child->config(),
                             SymbolicBindings()));
   const std::vector<Bytecode>& config_bytecodes = bf->bytecodes();
   ASSERT_EQ(config_bytecodes.size(), 8);
@@ -1279,11 +1290,13 @@ proc Parent {
   }
 
   std::vector<NameDef*> members;
-  for (const Param* member : p->members()) {
+  for (const Param* member : child->members()) {
     members.push_back(member->name_def());
   }
+  child_ti = parent_ti->GetInvocationTypeInfo(spawn->next(), SymbolicBindings())
+                 .value();
   XLS_ASSERT_OK_AND_ASSIGN(
-      bf, BytecodeEmitter::EmitProcNext(&import_data, tm.type_info, p->next(),
+      bf, BytecodeEmitter::EmitProcNext(&import_data, child_ti, child->next(),
                                         SymbolicBindings(), members));
   const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
   ASSERT_EQ(next_bytecodes.size(), 16);

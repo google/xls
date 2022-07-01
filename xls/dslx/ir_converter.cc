@@ -3161,7 +3161,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
   XLS_RET_CHECK(current_type_info_ != nullptr);
   absl::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
-    XLS_LOG(INFO) << "NODE: " << node << " : TI: " << current_type_info_;
     return ConversionErrorStatus(
         node->GetSpan(),
         absl::StrFormat(
