@@ -1451,30 +1451,40 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
           signature->base()->getNameAsString()));
     }
 
-    for (auto base : cxx_record->bases()) {
-      const clang::RecordDecl* base_struct = base.getType()->getAsRecordDecl();
-      XLS_ASSIGN_OR_RETURN(
-          auto field_type,
-          TranslateTypeFromClang(
-              base_struct->getTypeForDecl()->getCanonicalTypeInternal(),
-              GetLoc(*base_struct)));
+    // Interpret forward declarations as empty structs
+    if (cxx_record->hasDefinition()) {
+      for (auto base : cxx_record->bases()) {
+        const clang::RecordDecl* base_struct =
+            base.getType()->getAsRecordDecl();
+        XLS_ASSIGN_OR_RETURN(
+            auto field_type,
+            TranslateTypeFromClang(
+                base_struct->getTypeForDecl()->getCanonicalTypeInternal(),
+                GetLoc(*base_struct)));
 
-      fields.push_back(std::shared_ptr<CField>(
-          new CField(absl::implicit_cast<const clang::NamedDecl*>(base_struct),
-                     fields.size(), field_type)));
-    }
+        fields.push_back(std::shared_ptr<CField>(new CField(
+            absl::implicit_cast<const clang::NamedDecl*>(base_struct),
+            fields.size(), field_type)));
+      }
 
-    for (const clang::FieldDecl* it : sd->fields()) {
-      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> field_type,
-                           TranslateTypeFromClang(
-                               it->getType(), GetLoc(*it->getCanonicalDecl())));
+      for (const clang::FieldDecl* it : sd->fields()) {
+        XLS_ASSIGN_OR_RETURN(
+            std::shared_ptr<CType> field_type,
+            TranslateTypeFromClang(it->getType(),
+                                   GetLoc(*it->getCanonicalDecl())));
 
-      // Up cast FieldDecl to NamedDecl because NamedDecl pointers are used to
-      //  track identifiers by XLS[cc], no matter the type of object being
-      //  identified
-      fields.push_back(std::shared_ptr<CField>(
-          new CField(absl::implicit_cast<const clang::NamedDecl*>(it),
-                     fields.size(), field_type)));
+        // Up cast FieldDecl to NamedDecl because NamedDecl pointers are used to
+        //  track identifiers by XLS[cc], no matter the type of object being
+        //  identified
+        fields.push_back(std::shared_ptr<CField>(
+            new CField(absl::implicit_cast<const clang::NamedDecl*>(it),
+                       fields.size(), field_type)));
+      }
+    } else {
+      XLS_LOG(WARNING) << ErrorMessage(
+          GetLoc(*cxx_record),
+          "Warning: interpreting definition-less struct '%s' as empty",
+          signature->base()->getNameAsString());
     }
 
     XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));

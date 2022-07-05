@@ -6661,6 +6661,27 @@ TEST_F(TranslatorTest, BinaryOpComma) {
   Run({{"a", 1}}, 6, content);
 }
 
+TEST_F(TranslatorTest, ForwardDeclaredStructPtr) {
+  const std::string content = R"(
+      struct DebugWriter;
+
+      struct dec_ref_store_dataImpl {
+        struct DebugWriter* writer_ = nullptr;  // Lazily initialized writer.
+      };
+
+      #pragma hls_top
+      int test(int a) {
+          dec_ref_store_dataImpl aw;
+          (void)aw;
+          return a+5;
+      })";
+
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr("Unsupported CType subclass")));
+}
+
 }  // namespace
 
 }  // namespace xlscc
