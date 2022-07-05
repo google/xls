@@ -99,6 +99,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
 
   auto translator = std::make_unique<xlscc::Translator>(
       /*error_on_init_interval=*/false,
+      /*warn_unroll_iters=*/100,
       /*max_unroll_iters=*/100,
       /*existing_parser=*/std::move(parser));
 
@@ -231,6 +232,7 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   std::unique_ptr<xlscc::Translator> translator(
       new xlscc::Translator(/*error_on_init_interval=*/false,
                             /*max_unroll_iters=*/100,
+                            /*warn_unroll_iters=*/100,
                             /*existing_parser=*/std::move(parser)));
 
   xls::Package package("my_package");

@@ -575,8 +575,10 @@ absl::Status CPointerType::GetMetadataValue(
 }
 
 Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
+                       int64_t warn_unroll_iters,
                        std::unique_ptr<CCParser> existing_parser)
     : max_unroll_iters_(max_unroll_iters),
+      warn_unroll_iters_(warn_unroll_iters),
       error_on_init_interval_(error_on_init_interval) {
   context_stack_.push_front(TranslationContext());
   if (existing_parser != nullptr) {
@@ -4367,6 +4369,10 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
       return absl::ResourceExhaustedError(
           ErrorMessage(loc, "Loop unrolling broke at maximum %i iterations",
                        max_unroll_iters_));
+    }
+    if (nIters == warn_unroll_iters_) {
+      XLS_LOG(WARNING) << ErrorMessage(
+          loc, "Loop unrolling has reached %i iterations", warn_unroll_iters_);
     }
 
     // Generate condition.

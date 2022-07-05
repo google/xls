@@ -692,8 +692,10 @@ class Translator {
   void debug_prints(const TranslationContext& context);
 
  public:
+  // Make unrolling configurable from main
   explicit Translator(
       bool error_on_init_interval = false, int64_t max_unroll_iters = 1000,
+      int64_t warn_unroll_iters = 100,
       std::unique_ptr<CCParser> existing_parser = std::unique_ptr<CCParser>());
   ~Translator();
 
@@ -833,6 +835,8 @@ class Translator {
 
   // The maximum number of iterations before loop unrolling fails.
   const int64_t max_unroll_iters_;
+  // The maximum number of iterations before loop unrolling prints a warning.
+  const int64_t warn_unroll_iters_;
 
   // Generate an error when an init interval > supported is requested?
   const bool error_on_init_interval_;

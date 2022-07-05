@@ -82,13 +82,21 @@ ABSL_FLAG(bool, error_on_init_interval, false,
 ABSL_FLAG(int, top_level_init_interval, 1,
           "Initiation interval of block top level (Run/main function)");
 
+ABSL_FLAG(int, max_unroll_iters, 1000,
+          "Maximum number of iterations to allow loops to be unrolled");
+
+ABSL_FLAG(int, warn_unroll_iters, 100,
+          "Maximum number of iterations to allow loops to be unrolled");
+
 namespace xlscc {
 
 absl::Status Run(absl::string_view cpp_path) {
   // Warnings should print by default
   absl::SetFlag(&FLAGS_logtostderr, true);
 
-  xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval));
+  xlscc::Translator translator(absl::GetFlag(FLAGS_error_on_init_interval),
+                               absl::GetFlag(FLAGS_max_unroll_iters),
+                               absl::GetFlag(FLAGS_warn_unroll_iters));
 
   const std::string block_pb_name = absl::GetFlag(FLAGS_block_pb);
 

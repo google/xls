@@ -136,8 +136,8 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
   // Since there are several unit tests to check the failing case, the maximum
   // loop iterations is set lower than in the main tool interface to make
   // the test run in a reasonable time.
-  translator_.reset(
-      new xlscc::Translator(error_on_init_interval, 100, std::move(parser)));
+  translator_.reset(new xlscc::Translator(error_on_init_interval, 100, 100,
+                                          std::move(parser)));
   if (io_test_mode) {
     translator_->SetIOTestMode();
   }
