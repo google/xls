@@ -3672,14 +3672,19 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     const xls::SourceInfo& loc) {
   if (t->Is<CArrayType>()) {
     auto array_t = t->As<CArrayType>();
-    if (array_t->GetSize() != init_list->getNumInits()) {
+    if (array_t->GetSize() != init_list->getNumInits() &&
+        init_list->getNumInits() != 1) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Wrong number of initializers"));
     }
-
     std::vector<xls::BValue> element_vals;
     for (int i = 0; i < array_t->GetSize(); ++i) {
-      const clang::Expr* this_init = init_list->getInit(i);
+      const clang::Expr* this_init;
+      if (init_list->getNumInits() == 1) {
+        this_init = init_list->getInit(0);
+      } else {
+        this_init = init_list->getInit(i);
+      }
       xls::BValue this_val;
       if (this_init->getStmtClass() == clang::Stmt::InitListExprClass) {
         XLS_ASSIGN_OR_RETURN(
@@ -3694,6 +3699,12 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
               loc, "Wrong initializer type %s", string(*expr_val.type())));
         }
         this_val = expr_val.rvalue();
+      }
+      if (init_list->getNumInits() == 1 &&
+          array_t->GetSize() != init_list->getNumInits() &&
+          !EvaluateBVal(this_val, loc)->IsAllZeros()) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "Non-zero initializers must have exact element count"));
       }
       element_vals.push_back(this_val);
     }

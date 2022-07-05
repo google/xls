@@ -389,6 +389,54 @@ TEST_F(TranslatorTest, ArrayInitListWrongSize) {
   ASSERT_FALSE(SourceToIr(content).ok());
 }
 
+TEST_F(TranslatorTest, ArrayInitListMismatchedSizeZeros) {
+  const std::string content = R"(
+       long long my_package() {
+         long long arr[4] = {};
+         return arr[3];
+       })";
+    ASSERT_FALSE(SourceToIr(content).ok());
+}
+
+TEST_F(TranslatorTest, ArrayInitListMismatchedSizeMultipleZeros) {
+  const std::string content = R"(
+       long long my_package() {
+         long long arr[4] = {0, 0};
+         return arr[3];
+       })";
+  ASSERT_FALSE(SourceToIr(content).ok());
+}
+
+TEST_F(TranslatorTest, ArrayInitListMismatchedSizeOneNonZeros) {
+  const std::string content = R"(
+       long long my_package() {
+         long long arr[4] = {9};
+         return arr[3];
+       })";
+  ASSERT_FALSE(SourceToIr(content).ok());
+}
+
+TEST_F(TranslatorTest, ArrayInitListMismatchedSizeOneWithZeros) {
+  const std::string content = R"(
+       long long my_package() {
+         long long arr[4] = {0};
+         return arr[3];
+       })";
+  Run({}, 0, content);
+}
+
+TEST_F(TranslatorTest, ArrayInitListMismatchedSizeOneWithDefaultStruct) {
+  const std::string content = R"(
+       struct x {
+         int a;
+       };
+       long long my_package() {
+         x arr[4] = {{}};
+         return arr[3].a;
+       })";
+  Run({}, 0, content);
+}
+
 TEST_F(TranslatorTest, ConstInitListExpr) {
   const std::string content = R"(
     int my_package(int a) {
