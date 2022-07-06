@@ -4117,16 +4117,25 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
     }
     case clang::Stmt::ForStmtClass: {
       auto forst = clang_down_cast<const clang::ForStmt*>(stmt);
-      XLS_RETURN_IF_ERROR(GenerateIR_Loop(forst->getInit(), forst->getCond(),
-                                          forst->getInc(), forst->getBody(),
-                                          GetPresumedLoc(*forst), loc, ctx));
+      XLS_RETURN_IF_ERROR(GenerateIR_Loop(
+          /*always_first_iter=*/false, forst->getInit(), forst->getCond(),
+          forst->getInc(), forst->getBody(), GetPresumedLoc(*forst), loc, ctx));
       break;
     }
     case clang::Stmt::WhileStmtClass: {
       auto forst = clang_down_cast<const clang::WhileStmt*>(stmt);
-      XLS_RETURN_IF_ERROR(GenerateIR_Loop(
-          /*init=*/nullptr, forst->getCond(), /*inc=*/nullptr, forst->getBody(),
-          GetPresumedLoc(*forst), loc, ctx));
+      XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/false,
+                                          /*init=*/nullptr, forst->getCond(),
+                                          /*inc=*/nullptr, forst->getBody(),
+                                          GetPresumedLoc(*forst), loc, ctx));
+      break;
+    }
+    case clang::Stmt::DoStmtClass: {
+      auto dost = clang_down_cast<const clang::DoStmt*>(stmt);
+      XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/true,
+                                          /*init=*/nullptr, dost->getCond(),
+                                          /*inc=*/nullptr, dost->getBody(),
+                                          GetPresumedLoc(*dost), loc, ctx));
       break;
     }
     case clang::Stmt::SwitchStmtClass: {
@@ -4190,13 +4199,11 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
-                                         const clang::Expr* cond_expr,
-                                         const clang::Stmt* inc,
-                                         const clang::Stmt* body,
-                                         const clang::PresumedLoc& presumed_loc,
-                                         const xls::SourceInfo& loc,
-                                         clang::ASTContext& ctx) {
+absl::Status Translator::GenerateIR_Loop(
+    bool always_first_iter, const clang::Stmt* init,
+    const clang::Expr* cond_expr, const clang::Stmt* inc,
+    const clang::Stmt* body, const clang::PresumedLoc& presumed_loc,
+    const xls::SourceInfo& loc, clang::ASTContext& ctx) {
   if (cond_expr != nullptr && cond_expr->isIntegerConstantExpr(ctx)) {
     // special case for "for (;0;) {}" (essentially no op)
     XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*cond_expr, ctx, loc));
@@ -4206,7 +4213,8 @@ absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
   }
   XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(presumed_loc));
   if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
-    return GenerateIR_UnrolledLoop(init, cond_expr, inc, body, ctx, loc);
+    return GenerateIR_UnrolledLoop(always_first_iter, init, cond_expr, inc,
+                                   body, ctx, loc);
   }
   // Pipelined loops can inherit their initiation interval from enclosing
   // loops, so they can be allowed not to have a #pragma.
@@ -4222,8 +4230,9 @@ absl::Status Translator::GenerateIR_Loop(const clang::Stmt* init,
         ErrorMessage(loc, "For loop missing #pragma"));
   }
 
-  return GenerateIR_PipelinedLoop(init, cond_expr, inc, body, init_interval,
-                                  ctx, loc);
+  // Pipelined do-while
+  return GenerateIR_PipelinedLoop(always_first_iter, init, cond_expr, inc, body,
+                                  init_interval, ctx, loc);
 }
 
 int Debug_CountNodes(const xls::Node* node,
@@ -4340,7 +4349,8 @@ absl::StatusOr<Z3_lbool> Translator::IsBitSatisfiable(
   return seh.status();
 }
 
-absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
+absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
+                                                 const clang::Stmt* init,
                                                  const clang::Expr* cond_expr,
                                                  const clang::Stmt* inc,
                                                  const clang::Stmt* body,
@@ -4384,6 +4394,9 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
   double slowest_iter = 0;
 
   for (int64_t nIters = 0;; ++nIters) {
+    const bool first_iter = nIters == 0;
+    const bool always_this_iter = always_first_iter && first_iter;
+
     const double iter_start = doubletime();
 
     check_unique_ids_ = saved_check_ids;
@@ -4404,7 +4417,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
     // Also, if this is inside the body context guard then the break condition
     // feeds back on itself in an explosion of complexity
     // via assignments to any variables used in the condition.
-    if (cond_expr != nullptr) {
+    if (!always_this_iter && cond_expr != nullptr) {
       XLS_ASSIGN_OR_RETURN(CValue cond_expr_cval,
                            GenerateIR_Expr(cond_expr, loc));
       XLS_CHECK(cond_expr_cval.type()->Is<CBoolType>());
@@ -4421,7 +4434,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(const clang::Stmt* init,
       context().propagate_continue_up = false;
 
       // Check condition first
-      if (context().relative_break_condition.valid()) {
+      if (context().relative_break_condition.valid() && !always_this_iter) {
         // Simplify break logic in easy ways;
         // Z3 fails to solve some cases without this.
         XLS_RETURN_IF_ERROR(
@@ -4505,10 +4518,10 @@ absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
 }
 
 absl::Status Translator::GenerateIR_PipelinedLoop(
-    const clang::Stmt* init, const clang::Expr* cond_expr,
-    const clang::Stmt* inc, const clang::Stmt* body,
-    int64_t initiation_interval_arg, clang::ASTContext& ctx,
-    const xls::SourceInfo& loc) {
+    bool always_first_iter, const clang::Stmt* init,
+    const clang::Expr* cond_expr, const clang::Stmt* inc,
+    const clang::Stmt* body, int64_t initiation_interval_arg,
+    clang::ASTContext& ctx, const xls::SourceInfo& loc) {
   XLS_RETURN_IF_ERROR(CheckInitIntervalValidity(initiation_interval_arg, loc));
 
   // Generate the loop counter declaration within a private context
@@ -4521,7 +4534,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
   }
 
   // Condition must be checked at the start
-  if (cond_expr != nullptr) {
+  if (!always_first_iter && cond_expr != nullptr) {
     XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
     XLS_CHECK(cond_cval.type()->Is<CBoolType>());
 

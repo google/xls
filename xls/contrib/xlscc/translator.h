@@ -1035,7 +1035,7 @@ class Translator {
                                          const xls::SourceInfo& loc);
 
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_Loop(const clang::Stmt* init,
+  absl::Status GenerateIR_Loop(bool always_first_iter, const clang::Stmt* init,
                                const clang::Expr* cond_expr,
                                const clang::Stmt* inc, const clang::Stmt* body,
                                const clang::PresumedLoc& presumed_loc,
@@ -1043,20 +1043,19 @@ class Translator {
                                clang::ASTContext& ctx);
 
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_UnrolledLoop(const clang::Stmt* init,
+  absl::Status GenerateIR_UnrolledLoop(bool always_first_iter,
+                                       const clang::Stmt* init,
                                        const clang::Expr* cond_expr,
                                        const clang::Stmt* inc,
                                        const clang::Stmt* body,
                                        clang::ASTContext& ctx,
                                        const xls::SourceInfo& loc);
   // init, cond, and inc can be nullptr
-  absl::Status GenerateIR_PipelinedLoop(const clang::Stmt* init,
-                                        const clang::Expr* cond_expr,
-                                        const clang::Stmt* inc,
-                                        const clang::Stmt* body,
-                                        int64_t initiation_interval_arg,
-                                        clang::ASTContext& ctx,
-                                        const xls::SourceInfo& loc);
+  absl::Status GenerateIR_PipelinedLoop(
+      bool always_first_iter, const clang::Stmt* init,
+      const clang::Expr* cond_expr, const clang::Stmt* inc,
+      const clang::Stmt* body, int64_t initiation_interval_arg,
+      clang::ASTContext& ctx, const xls::SourceInfo& loc);
   absl::Status GenerateIR_PipelinedLoopBody(
       const clang::Expr* cond_expr, const clang::Stmt* inc,
       const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,

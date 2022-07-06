@@ -395,7 +395,7 @@ TEST_F(TranslatorTest, ArrayInitListMismatchedSizeZeros) {
          long long arr[4] = {};
          return arr[3];
        })";
-    ASSERT_FALSE(SourceToIr(content).ok());
+  ASSERT_FALSE(SourceToIr(content).ok());
 }
 
 TEST_F(TranslatorTest, ArrayInitListMismatchedSizeMultipleZeros) {
@@ -1044,6 +1044,22 @@ TEST_F(TranslatorTest, WhileUnroll) {
         return a;
       })";
   Run({{"a", 11}, {"b", 20}}, 611, content);
+}
+
+TEST_F(TranslatorTest, DoWhileUnroll) {
+  const std::string content = R"(
+      long long my_package(long long a, long long b) {
+        int i=1;
+        #pragma hls_unroll yes
+        do {
+          a += b;
+          ++i;
+        } while(i<=10 && a<10);
+        return a;
+      })";
+  Run({{"a", 100}, {"b", 20}}, 120, content);
+  Run({{"a", 3}, {"b", 2}}, 11, content);
+  Run({{"a", 3}, {"b", 0}}, 3, content);
 }
 
 TEST_F(TranslatorTest, WhileUnrollShortCircuit) {
@@ -4204,6 +4220,72 @@ TEST_F(TranslatorTest, WhilePipelined) {
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
                            GetStateBitsForProcNameContains("for"));
   EXPECT_EQ(body_proc_state_bits, 1 + 32 + 64);
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
+                           GetStateBitsForProcNameContains("foo"));
+  EXPECT_EQ(top_proc_state_bits, 0);
+}
+
+TEST_F(TranslatorTest, DoWhilePipelined) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& ac,
+             __xls_channel<int>& bc,
+             __xls_channel<int>& out) {
+      int a = ac.read();
+      int b = bc.read();
+
+      long i=1;
+
+      #pragma hls_pipeline_init_interval 1
+      do {
+        a += b;
+        ++i;
+      } while(i<=10 && a<10);
+
+      out.write(a);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ac_in = block_spec.add_channels();
+    ac_in->set_name("ac");
+    ac_in->set_is_input(true);
+    ac_in->set_type(FIFO);
+
+    HLSChannel* bc_in = block_spec.add_channels();
+    bc_in->set_name("bc");
+    bc_in->set_is_input(true);
+    bc_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+
+  absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+  inputs["ac"] = {xls::Value(xls::SBits(100, 32)),
+                  xls::Value(xls::SBits(3, 32)), xls::Value(xls::SBits(3, 32))};
+  inputs["bc"] = {xls::Value(xls::SBits(20, 32)), xls::Value(xls::SBits(2, 32)),
+                  xls::Value(xls::SBits(0, 32))};
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(120, 32)),
+                      xls::Value(xls::SBits(11, 32)),
+                      xls::Value(xls::SBits(3, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs, /* min_ticks = */ 3);
+  }
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t body_proc_state_bits,
+                           GetStateBitsForProcNameContains("for"));
+  EXPECT_EQ(body_proc_state_bits, 1 + 64 + 32 + 32);
 
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t top_proc_state_bits,
                            GetStateBitsForProcNameContains("foo"));
