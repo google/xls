@@ -210,7 +210,7 @@ class FunctionConverter {
 
   // Returns the BValue previously noted as corresponding to "node" (via a
   // Def/DefAlias).
-  absl::StatusOr<BValue> Use(AstNode* node) const;
+  absl::StatusOr<BValue> Use(const AstNode* node) const;
 
   void SetNodeToIr(const AstNode* node, IrValue value);
   absl::optional<IrValue> GetNodeToIr(const AstNode* node) const;
@@ -431,7 +431,7 @@ class FunctionConverter {
       NameRef* name_ref,
       const std::function<absl::StatusOr<T>(TypeDefinition)>& f) {
     AnyNameDef any_name_def = name_ref->name_def();
-    auto* name_def = absl::get<NameDef*>(any_name_def);
+    const auto* name_def = std::get<const NameDef*>(any_name_def);
     AstNode* definer = name_def->definer();
     XLS_ASSIGN_OR_RETURN(TypeDefinition td, ToTypeDefinition(definer));
     return f(td);
@@ -599,7 +599,7 @@ static absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
     if (absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
       continue;
     }
-    auto* name_def = absl::get<NameDef*>(any_name_def);
+    const auto* name_def = std::get<const NameDef*>(any_name_def);
     AstNode* definer = name_def->definer();
     if (auto* constant_def = dynamic_cast<ConstantDef*>(definer)) {
       XLS_ASSIGN_OR_RETURN(auto sub_deps, GetConstantDepFreevars(constant_def));
@@ -749,6 +749,10 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   INVALID(Spawn)
   INVALID(StructDef)
 
+  // This should have been unrolled into a sequence of statements and is
+  // unconvertible.
+  INVALID(UnrollForMacro)
+
  private:
   // Called when we visit a node we don't expect to observe in the traversal.
   absl::Status Invalid(const AstNode* node) {
@@ -867,7 +871,7 @@ FunctionConverter::CValue FunctionConverter::DefConst(const AstNode* node,
   return c_value;
 }
 
-absl::StatusOr<BValue> FunctionConverter::Use(AstNode* node) const {
+absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
   auto it = node_to_ir_.find(node);
   if (it == node_to_ir_.end()) {
     return absl::NotFoundError(
@@ -1547,9 +1551,9 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   FreeVariables freevars =
       node->body()->GetFreeVariables(&node->span().start());
   freevars = freevars.DropBuiltinDefs();
-  std::vector<NameDef*> relevant_name_defs;
+  std::vector<const NameDef*> relevant_name_defs;
   for (const auto& any_name_def : freevars.GetNameDefs()) {
-    auto* name_def = absl::get<NameDef*>(any_name_def);
+    const auto* name_def = std::get<const NameDef*>(any_name_def);
     absl::optional<const ConcreteType*> type =
         current_type_info_->GetItem(name_def);
     if (!type.has_value()) {
@@ -1623,7 +1627,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_VLOG(5) << "Converted body function: " << body_function->name();
 
   std::vector<BValue> invariant_args;
-  for (NameDef* name_def : relevant_name_defs) {
+  for (const NameDef* name_def : relevant_name_defs) {
     XLS_ASSIGN_OR_RETURN(BValue value, Use(name_def));
     invariant_args.push_back(value);
   }
@@ -1674,8 +1678,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
     }
     if (absl::holds_alternative<NameRef*>(leaf)) {
       // Comparing for equivalence to a (referenced) name.
-      auto* name_ref = absl::get<NameRef*>(leaf);
-      auto* name_def = absl::get<NameDef*>(name_ref->name_def());
+      auto* name_ref = std::get<NameRef*>(leaf);
+      const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(name_def));
       BValue result = Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);

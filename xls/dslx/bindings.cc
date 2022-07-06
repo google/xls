@@ -57,8 +57,8 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
   if (absl::holds_alternative<ConstantDef*>(bn)) {
     return absl::get<ConstantDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<NameDef*>(bn)) {
-    return absl::get<NameDef*>(bn);
+  if (absl::holds_alternative<const NameDef*>(bn)) {
+    return absl::get<const NameDef*>(bn);
   }
   if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
     return absl::get<BuiltinNameDef*>(bn);
@@ -87,8 +87,8 @@ Span BoundNodeGetSpan(BoundNode bn) {
   if (absl::holds_alternative<EnumDef*>(bn)) {
     return absl::get<EnumDef*>(bn)->span();
   }
-  if (absl::holds_alternative<NameDef*>(bn)) {
-    return absl::get<NameDef*>(bn)->span();
+  if (absl::holds_alternative<const NameDef*>(bn)) {
+    return absl::get<const NameDef*>(bn)->span();
   }
   if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
     Pos p("<builtin>", 0, 0);
@@ -104,7 +104,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
   if (absl::holds_alternative<TypeDef*>(bn)) { return "TypeDef"; }
   if (absl::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
   if (absl::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
-  if (absl::holds_alternative<NameDef*>(bn)) { return "NameDef"; }
+  if (absl::holds_alternative<const NameDef*>(bn)) { return "NameDef"; }
   if (absl::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
   if (absl::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on

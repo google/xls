@@ -131,8 +131,8 @@ class NameDefCollector : public AstNodeVisitor {
   }
   DEFAULT_HANDLER(NameDefTree);
   absl::Status HandleNameRef(const NameRef* n) override {
-    if (absl::holds_alternative<NameDef*>(n->name_def())) {
-      return absl::get<NameDef*>(n->name_def())->Accept(this);
+    if (std::holds_alternative<const NameDef*>(n->name_def())) {
+      return std::get<const NameDef*>(n->name_def())->Accept(this);
     }
     return absl::OkStatus();
   }
@@ -175,6 +175,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(TypeRef);
   DEFAULT_HANDLER(TypeRefTypeAnnotation);
   DEFAULT_HANDLER(Unop);
+  DEFAULT_HANDLER(UnrollForMacro);
   DEFAULT_HANDLER(WidthSlice);
   DEFAULT_HANDLER(WildcardPattern);
   DEFAULT_HANDLER(XlsTuple);
@@ -893,7 +894,7 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
 
   // Emit function and constant refs directly so that they can be stack elements
   // without having to load slots with them.
-  NameDef* name_def = absl::get<NameDef*>(node->name_def());
+  const NameDef* name_def = absl::get<const NameDef*>(node->name_def());
   if (auto* f = dynamic_cast<Function*>(name_def->definer()); f != nullptr) {
     return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
   }
@@ -1173,6 +1174,12 @@ absl::Status BytecodeEmitter::HandleTernary(const Ternary* node) {
   bytecode_.at(jump_if_index).PatchJumpTarget(consequent_index - jump_if_index);
   bytecode_.at(jump_index).PatchJumpTarget(jumpdest_index - jump_index);
   return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleUnrollForMacro(const UnrollForMacro* node) {
+  return absl::UnimplementedError(
+      "UnrollForMacro nodes aren't interpretable/emittable. "
+      "Such nodes should have been unrolled into flat statements.");
 }
 
 absl::Status BytecodeEmitter::HandleMatch(const Match* node) {

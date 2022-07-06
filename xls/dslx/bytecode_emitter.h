@@ -93,6 +93,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleTernary(const Ternary* node) override;
   absl::Status HandleTupleIndex(const TupleIndex* node) override;
   absl::Status HandleUnop(const Unop* node) override;
+  absl::Status HandleUnrollForMacro(const UnrollForMacro* node) override;
   absl::Status HandleXlsTuple(const XlsTuple* node) override;
 
   absl::Status CastArrayToBits(Span span, ArrayType* from_array,

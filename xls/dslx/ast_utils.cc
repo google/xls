@@ -132,7 +132,7 @@ absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
   if (absl::holds_alternative<NameRef*>(colon_ref->subject())) {
     // Inside a ColonRef, the LHS can't be a BuiltinNameDef.
     NameRef* name_ref = absl::get<NameRef*>(colon_ref->subject());
-    NameDef* name_def = absl::get<NameDef*>(name_ref->name_def());
+    const NameDef* name_def = absl::get<const NameDef*>(name_ref->name_def());
     if (Import* import = dynamic_cast<Import*>(name_def->definer());
         import != nullptr) {
       absl::optional<const ImportedInfo*> imported =

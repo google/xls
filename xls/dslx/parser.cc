@@ -19,7 +19,6 @@
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/numbers.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -30,6 +29,47 @@
 #include "xls/dslx/scanner.h"
 
 namespace xls::dslx {
+namespace {
+
+// Collects all names declared through a Let/Spawn/UnrollFor chain.
+// Note that this behaves differently than the NameDefCollector inside
+// bytecode_emitter.cc: that one walks NameRefs and ConstantRefs, whereas this
+// only extracts names from Let decls.
+class NameDefCollector : public AstNodeVisitorWithDefault {
+ public:
+  absl::Status HandleBlock(const Block* n) { return n->body()->Accept(this); }
+
+  absl::Status HandleLet(const Let* n) {
+    XLS_RETURN_IF_ERROR(n->name_def_tree()->Accept(this));
+    return n->body()->Accept(this);
+  }
+
+  absl::Status HandleNameDefTree(const NameDefTree* n) {
+    for (const auto& child : n->GetChildren(/*want_types=*/false)) {
+      XLS_RETURN_IF_ERROR(child->Accept(this));
+    }
+
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleNameDef(const NameDef* n) {
+    name_defs_.push_back(n);
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleSpawn(const Spawn* n) { return n->body()->Accept(this); }
+
+  absl::Status HandleUnrollForMacro(const UnrollForMacro* n) {
+    return n->tail()->Accept(this);
+  }
+
+  const std::vector<const NameDef*>& name_defs() { return name_defs_; }
+
+ private:
+  std::vector<const NameDef*> name_defs_;
+};
+
+}  // namespace
 
 template <int N, typename... Ts>
 struct GetNth {
@@ -309,6 +349,9 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
   if (peek->IsKeyword(Keyword::kFor)) {
     return ParseFor(bindings);
   }
+  if (peek->IsKeyword(Keyword::kUnrollFor)) {
+    return ParseUnrollForMacro(bindings);
+  }
   if (peek->IsKeyword(Keyword::kChannel)) {
     return ParseChannelDecl(bindings);
   }
@@ -581,9 +624,9 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
     return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
   }
 
-  if (std::holds_alternative<NameDef*>(bn)) {
+  if (std::holds_alternative<const NameDef*>(bn)) {
     // As opposed to the AnyNameDef above.
-    AstNode* node = std::get<NameDef*>(bn);
+    const AstNode* node = std::get<const NameDef*>(bn);
     while (node->parent() != nullptr &&
            node->parent()->kind() == AstNodeKind::kNameDefTree) {
       node = node->parent();
@@ -592,8 +635,8 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
     // Since Let construction is deferred, we can't look up the definer of this
     // NameDef[Tree]; it doesn't exist yet. Instead, we just note that a given
     // NDT is const (or not, by omission in the set).
-    if (dynamic_cast<NameDefTree*>(node) != nullptr &&
-        const_ndts_.contains(dynamic_cast<NameDefTree*>(node))) {
+    if (dynamic_cast<const NameDefTree*>(node) != nullptr &&
+        const_ndts_.contains(dynamic_cast<const NameDefTree*>(node))) {
       return module_->Make<ConstRef>(tok->span(), *tok->GetValue(), name_def);
     }
   }
@@ -1533,7 +1576,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(
         AnyNameDef config_def,
         bindings->ResolveNameOrError(config_name, spawnee->span()));
-    if (!absl::holds_alternative<NameDef*>(config_def)) {
+    if (!absl::holds_alternative<const NameDef*>(config_def)) {
       return absl::InternalError("Proc config should be named \".config\"");
     }
     config_ref =
@@ -1541,7 +1584,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
 
     XLS_ASSIGN_OR_RETURN(AnyNameDef next_def, bindings->ResolveNameOrError(
                                                   next_name, spawnee->span()));
-    if (!absl::holds_alternative<NameDef*>(next_def)) {
+    if (!absl::holds_alternative<const NameDef*>(next_def)) {
       return absl::InternalError("Proc next should be named \".next\"");
     }
     next_ref = module_->Make<NameRef>(name_ref->span(), next_name, next_def);
@@ -1581,7 +1624,13 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(bool peek_is_semi, PeekTokenIs(TokenKind::kSemi));
   if (peek_is_semi) {
     DropTokenOrDie();
-    XLS_ASSIGN_OR_RETURN(body, ParseExpression(bindings));
+    XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+    if (peek->kind() == TokenKind::kCBrace) {
+      Span span(GetPos(), GetPos());
+      body = module_->Make<XlsTuple>(span, std::vector<Expr*>());
+    } else {
+      XLS_ASSIGN_OR_RETURN(body, ParseExpression(bindings));
+    }
   }
 
   auto* config_invoc = module_->Make<Invocation>(
@@ -1986,6 +2035,7 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
   } else {
     XLS_ASSIGN_OR_RETURN(body, ParseExpression(&new_bindings));
   }
+
   Span span(start_tok.span().start(), GetPos());
   Let* let = module_->Make<Let>(span, name_def_tree, annotated_type, rhs, body,
                                 const_);
@@ -1997,6 +2047,9 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
 
 absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token for_, PopKeywordOrError(Keyword::kFor));
+
+  for_state_.push_back(ForState::kInNormalFor);
+  auto cleanup = absl::Cleanup([this]() { for_state_.pop_back(); });
 
   Bindings for_bindings(bindings);
   XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(&for_bindings));
@@ -2022,6 +2075,50 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
   return module_->Make<For>(Span(for_.span().limit(), GetPos()), names, type,
                             iterable, body, init);
+}
+
+absl::StatusOr<UnrollForMacro*> Parser::ParseUnrollForMacro(
+    Bindings* bindings) {
+  XLS_ASSIGN_OR_RETURN(Token unroll_for,
+                       PopKeywordOrError(Keyword::kUnrollFor));
+  for_state_.push_back(ForState::kInUnrollFor);
+  auto cleanup = absl::Cleanup([this]() { for_state_.pop_back(); });
+
+  Bindings for_bindings(bindings);
+  XLS_ASSIGN_OR_RETURN(NameDef * iterable_name, ParseNameDef(&for_bindings));
+  XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
+  TypeAnnotation* iterable_type = nullptr;
+  if (peek_is_colon) {
+    XLS_RETURN_IF_ERROR(
+        DropTokenOrError(TokenKind::kColon, nullptr,
+                         "Expect type annotation on for-loop values."));
+    XLS_ASSIGN_OR_RETURN(iterable_type, ParseTypeAnnotation(&for_bindings));
+  }
+
+  XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
+  XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
+  // we don't want new bindings; how to
+  XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&for_bindings));
+
+  // The expressions in `tail` are allowed to refer to names declared in the
+  // body of the loop-to-unroll, which means we need to collect all names
+  // declared therein. Adding bindings tracking across all the parsing fns would
+  // be pretty hacky, so instead we use a custom Visitor to extract all NameDefs
+  // inside a Let/Spawn/UnrollForMacro chain.
+  NameDefCollector collector;
+  XLS_RETURN_IF_ERROR(body->Accept(&collector));
+  for (const NameDef* name_def : collector.name_defs()) {
+    for_bindings.Add(name_def->identifier(), name_def);
+  }
+
+  // We use `for_bindings` here instead of `bindings` because, unlike For
+  // parsing above, the values defined here will remain in scope after this
+  // construct.
+  XLS_ASSIGN_OR_RETURN(Expr * tail, ParseExpression(&for_bindings));
+
+  return module_->Make<UnrollForMacro>(
+      Span(unroll_for.span().limit(), GetPos()), iterable_name, iterable_type,
+      iterable, body, tail);
 }
 
 absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,

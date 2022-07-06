@@ -539,7 +539,7 @@ TEST_F(ParserTest, LocalConstBinding) {
 
   auto* const_ref = dynamic_cast<ConstRef*>(const_let->body());
   ASSERT_NE(const_ref, nullptr);
-  NameDef* name_def = const_ref->name_def();
+  const NameDef* name_def = const_ref->name_def();
   EXPECT_EQ(name_def->ToString(), "FOO");
   AstNode* definer = name_def->definer();
   EXPECT_EQ(definer, const_let);
@@ -1010,6 +1010,18 @@ TEST_F(ParserTest, BlockWithinBlock) {
 })";
 
   RoundTripExpr(kInput, {}, kOutput);
+}
+
+TEST_F(ParserTest, UnrollForMacro) {
+  RoundTripExpr(
+      R"(let bar = u32:0;
+unroll_for! i in range(u32:0, u32:4) {
+  let foo = (i) + (1);
+  ()
+}
+let baz = u32:0;
+foo)",
+      /*predefine=*/{"range"});
 }
 
 // -- Parse-time errors

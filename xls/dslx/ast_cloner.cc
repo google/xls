@@ -338,10 +338,12 @@ class AstCloner : public AstNodeVisitor {
           down_cast<TypeAnnotation*>(old_to_new_.at(n->type_annotation()));
     }
 
+    Expr* new_body = down_cast<Expr*>(old_to_new_.at(n->body()));
+
     old_to_new_[n] = module_->Make<Let>(
         n->span(), down_cast<NameDefTree*>(old_to_new_.at(n->name_def_tree())),
-        new_type, down_cast<Expr*>(old_to_new_.at(n->rhs())),
-        down_cast<Expr*>(old_to_new_.at(n->body())), n->is_const());
+        new_type, down_cast<Expr*>(old_to_new_.at(n->rhs())), new_body,
+        n->is_const());
     return absl::OkStatus();
   }
 
@@ -434,8 +436,8 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleNameRef(const NameRef* n) override {
     AnyNameDef any_name_def;
-    if (std::holds_alternative<NameDef*>(n->name_def())) {
-      auto* name_def = std::get<NameDef*>(n->name_def());
+    if (std::holds_alternative<const NameDef*>(n->name_def())) {
+      auto* name_def = std::get<const NameDef*>(n->name_def());
       XLS_RETURN_IF_ERROR(name_def->Accept(this));
       any_name_def = down_cast<NameDef*>(old_to_new_.at(name_def));
     } else {
@@ -576,11 +578,12 @@ class AstCloner : public AstNodeVisitor {
       new_parametrics.push_back(down_cast<Expr*>(old_to_new_.at(parametric)));
     }
 
+    Expr* new_body = down_cast<Expr*>(old_to_new_.at(n->body()));
     old_to_new_[n] = module_->Make<Spawn>(
         n->span(), down_cast<Expr*>(old_to_new_.at(n->callee())),
         down_cast<Invocation*>(old_to_new_.at(n->config())),
         down_cast<Invocation*>(old_to_new_.at(n->next())), new_parametrics,
-        down_cast<Expr*>(old_to_new_.at(n->body())));
+        new_body);
     return absl::OkStatus();
   }
 
@@ -797,6 +800,11 @@ class AstCloner : public AstNodeVisitor {
     old_to_new_[n] =
         module_->Make<Unop>(n->span(), n->unop_kind(),
                             down_cast<Expr*>(old_to_new_.at(n->operand())));
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUnrollForMacro(const UnrollForMacro* n) override {
+    // TODO(rspringer): 2022-06-09: Implement.
     return absl::OkStatus();
   }
 

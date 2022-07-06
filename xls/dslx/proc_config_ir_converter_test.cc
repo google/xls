@@ -21,7 +21,6 @@
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/dslx/pos.h"
 #include "xls/ir/package.h"
 
 namespace xls::dslx {

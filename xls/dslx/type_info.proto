@@ -84,6 +84,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_TEST_PROC = 50;
   AST_NODE_KIND_TUPLE_INDEX = 51;
   AST_NODE_KIND_BLOCK = 52;
+  AST_NODE_KIND_UNROLL_FOR_MACRO = 53;
 }
 
 message BitsValueProto {

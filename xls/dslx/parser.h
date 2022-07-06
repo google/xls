@@ -422,6 +422,13 @@ class Parser : public TokenParser {
   // ultimately the loop terminates and the final accum value is returned.
   absl::StatusOr<For*> ParseFor(Bindings* bindings);
 
+  // Parses an "unroll for" macro-like construct, e.g.
+  //
+  // unroll_for! i in range(u32:, u32:4) {
+  //   spawn my_proc(...)(...);
+  // }
+  absl::StatusOr<UnrollForMacro*> ParseUnrollForMacro(Bindings* bindings);
+
   // Parses an enum definition; e.g.
   //
   //  enum Foo : u2 {
@@ -523,6 +530,17 @@ class Parser : public TokenParser {
   // we can emit either a ConstRef or NameRef. This set holds those NDTs known
   // to be constant for that purpose.
   absl::flat_hash_set<NameDefTree*> const_ndts_;
+
+  // An UnrollForMacro is special in that its terminating expression must be a
+  // Let with no "body" element. We need to check to make sure we're in an
+  // UnrollForMacro to know if we're seeing the end of a loop or if we have a
+  // parse error.
+  enum ForState {
+    kNotInFor,
+    kInNormalFor,
+    kInUnrollFor,
+  };
+  std::vector<ForState> for_state_ = {kNotInFor};
 };
 
 const Span& GetSpan(const absl::variant<NameDef*, WildcardPattern*>& v);

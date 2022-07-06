@@ -150,7 +150,7 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
 
 absl::Status ProcConfigIrConverter::HandleNameRef(const NameRef* node) {
   XLS_VLOG(4) << "ProcConfigIrConverter::HandleNameRef : " << node->ToString();
-  NameDef* name_def = absl::get<NameDef*>(node->name_def());
+  const NameDef* name_def = std::get<const NameDef*>(node->name_def());
   auto rhs = node_to_ir_.at(name_def);
   node_to_ir_[node] = rhs;
   return absl::OkStatus();
@@ -209,9 +209,7 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   }
   proc_data_->id_to_initial_values[new_id] = initial_values;
 
-  if (node->body() != nullptr) {
-    return node->body()->Accept(this);
-  }
+  return node->body()->Accept(this);
 
   return absl::OkStatus();
 }

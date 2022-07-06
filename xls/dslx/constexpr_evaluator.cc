@@ -167,6 +167,10 @@ class NameRefCollector : public ExprVisitor {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     return absl::OkStatus();
   }
+  absl::Status HandleUnrollForMacro(const UnrollForMacro* expr) override {
+    XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
   absl::Status HandleXlsTuple(const XlsTuple* expr) override {
     for (const Expr* member : expr->members()) {
       XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
@@ -181,7 +185,8 @@ class NameRefCollector : public ExprVisitor {
         continue;
       }
 
-      if (!name_defs_.contains(std::get<NameDef*>(name_ref->name_def())) &&
+      if (!name_defs_.contains(
+              std::get<const NameDef*>(name_ref->name_def())) &&
           !IsNameParametricBuiltin(name_ref->identifier())) {
         result.push_back(name_ref);
       }
@@ -455,7 +460,8 @@ absl::Status ConstexprEvaluator::HandleFor(const For* expr) {
     // We can't bind to a BuiltinNameDef, so this std::get is safe.
     XLS_RETURN_IF_ERROR(name_ref->AcceptExpr(this));
     if (!type_info_->IsKnownConstExpr(name_ref) &&
-        !bound_def_set.contains(std::get<NameDef*>(name_ref->name_def()))) {
+        !bound_def_set.contains(
+            std::get<const NameDef*>(name_ref->name_def()))) {
       return absl::OkStatus();
     }
   }
@@ -663,6 +669,11 @@ absl::Status ConstexprEvaluator::HandleTupleIndex(const TupleIndex* expr) {
   return absl::OkStatus();
 }
 
+absl::Status ConstexprEvaluator::HandleUnrollForMacro(
+    const UnrollForMacro* expr) {
+  return absl::OkStatus();
+}
+
 absl::Status ConstexprEvaluator::HandleXlsTuple(const XlsTuple* expr) {
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
@@ -718,7 +729,8 @@ absl::StatusOr<absl::flat_hash_map<std::string, InterpValue>> MakeConstexprEnv(
   for (const auto& [name, name_refs] : freevars.values()) {
     const NameRef* target_ref = nullptr;
     for (const NameRef* name_ref : name_refs) {
-      if (!bypass_env.contains(absl::get<NameDef*>(name_ref->name_def()))) {
+      if (!bypass_env.contains(
+              std::get<const NameDef*>(name_ref->name_def()))) {
         target_ref = name_ref;
         break;
       }

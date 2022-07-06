@@ -130,6 +130,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "parametric binding";
     case AstNodeKind::kTupleIndex:
       return "tuple index";
+    case AstNodeKind::kUnrollForMacro:
+      return "unroll-for";
   }
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
 }
@@ -330,7 +332,7 @@ FreeVariables AstNode::GetFreeVariables(const Pos* start_pos) const {
       if (start_pos == nullptr) {
         freevars.Add(name_ref->identifier(), name_ref);
       } else {
-        absl::optional<Pos> name_def_start = name_ref->GetNameDefStart();
+        std::optional<Pos> name_def_start = name_ref->GetNameDefStart();
         if (!name_def_start.has_value() || *name_def_start < *start_pos) {
           freevars.Add(name_ref->identifier(), name_ref);
         }
@@ -522,6 +524,36 @@ std::string For::ToString() const {
                          init_->ToString());
 }
 
+UnrollForMacro::UnrollForMacro(Module* owner, Span span, NameDef* iterable_name,
+                               TypeAnnotation* iterable_type, Expr* iterable,
+                               Block* body, Expr* tail)
+    : Expr(owner, span),
+      iterable_name_(iterable_name),
+      iterable_type_(iterable_type),
+      iterable_(iterable),
+      body_(body),
+      tail_(tail) {}
+
+std::string UnrollForMacro::ToString() const {
+  std::string type_str;
+  if (iterable_type_ != nullptr) {
+    type_str = absl::StrCat(": ", iterable_type_->ToString());
+  }
+  return absl::StrFormat(
+      R"(unroll_for! %s%s in %s %s
+%s)",
+      iterable_name_->ToString(), type_str, iterable_->ToString(),
+      body_->ToString(), tail_->ToString());
+}
+
+std::vector<AstNode*> UnrollForMacro::GetChildren(bool want_types) const {
+  std::vector<AstNode*> children{iterable_name_, iterable_, body_};
+  if (want_types && iterable_type_ != nullptr) {
+    children.push_back(iterable_type_);
+  }
+  return children;
+}
+
 ConstantDef::ConstantDef(Module* owner, Span span, NameDef* name_def,
                          Expr* value, bool is_public)
     : AstNode(owner),
@@ -566,7 +598,7 @@ TypeRef::TypeRef(Module* owner, Span span, std::string text,
       type_definition_(type_definition) {}
 
 Import::Import(Module* owner, Span span, std::vector<std::string> subject,
-               NameDef* name_def, absl::optional<std::string> alias)
+               NameDef* name_def, std::optional<std::string> alias)
     : AstNode(owner),
       span_(std::move(span)),
       subject_(std::move(subject)),
@@ -589,16 +621,16 @@ std::string Import::ToString() const {
 ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr)
     : Expr(owner, std::move(span)), subject_(subject), attr_(std::move(attr)) {}
 
-absl::optional<Import*> ColonRef::ResolveImportSubject() const {
+std::optional<Import*> ColonRef::ResolveImportSubject() const {
   if (!absl::holds_alternative<NameRef*>(subject_)) {
     return absl::nullopt;
   }
   auto* name_ref = absl::get<NameRef*>(subject_);
   AnyNameDef any_name_def = name_ref->name_def();
-  if (!absl::holds_alternative<NameDef*>(any_name_def)) {
+  if (!absl::holds_alternative<const NameDef*>(any_name_def)) {
     return absl::nullopt;
   }
-  auto* name_def = absl::get<NameDef*>(any_name_def);
+  const auto* name_def = absl::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
   Import* import = dynamic_cast<Import*>(definer);
   if (import == nullptr) {
@@ -630,7 +662,7 @@ std::string ChannelDecl::ToString() const {
 
 // -- class Module
 
-absl::optional<Function*> Module::GetFunction(absl::string_view target_name) {
+std::optional<Function*> Module::GetFunction(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (absl::holds_alternative<Function*>(member)) {
       Function* f = absl::get<Function*>(member);
@@ -642,7 +674,7 @@ absl::optional<Function*> Module::GetFunction(absl::string_view target_name) {
   return absl::nullopt;
 }
 
-absl::optional<Proc*> Module::GetProc(absl::string_view target_name) {
+std::optional<Proc*> Module::GetProc(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (absl::holds_alternative<Proc*>(member)) {
       Proc* p = absl::get<Proc*>(member);
@@ -712,7 +744,7 @@ const EnumDef* Module::FindEnumDef(const Span& span) const {
   return down_cast<const EnumDef*>(FindNode(AstNodeKind::kEnumDef, span));
 }
 
-absl::optional<ModuleMember*> Module::FindMemberWithName(
+std::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {
     if (absl::holds_alternative<Function*>(member)) {
@@ -764,7 +796,7 @@ absl::optional<ModuleMember*> Module::FindMemberWithName(
 }
 
 absl::StatusOr<ConstantDef*> Module::GetConstantDef(absl::string_view target) {
-  absl::optional<ModuleMember*> member = FindMemberWithName(target);
+  std::optional<ModuleMember*> member = FindMemberWithName(target);
   if (!member.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("Could not find member named '%s' in module.", target));
@@ -1136,11 +1168,7 @@ Spawn::Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
       body_(body) {}
 
 std::vector<AstNode*> Spawn::GetChildren(bool want_types) const {
-  std::vector<AstNode*> results = {config_, next_};
-  if (body_ != nullptr) {
-    results.push_back(body_);
-  }
-  return results;
+  return {config_, next_, body_};
 }
 
 std::string Spawn::ToString() const {
@@ -1157,10 +1185,7 @@ std::string Spawn::ToString() const {
       next_->args(), ", ",
       [](std::string* out, Expr* e) { absl::StrAppend(out, e->ToString()); });
 
-  std::string body_str;
-  if (body_ != nullptr) {
-    body_str = absl::StrCat(";\n", body_->ToString());
-  }
+  std::string body_str = absl::StrCat(";\n", body_->ToString());
   return absl::StrFormat("spawn %s%s(%s)(%s)%s", callee()->ToString(),
                          param_str, config_args, next_args, body_str);
 }
@@ -1259,8 +1284,7 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   return names;
 }
 
-absl::optional<int64_t> StructDef::GetMemberIndex(
-    absl::string_view name) const {
+std::optional<int64_t> StructDef::GetMemberIndex(absl::string_view name) const {
   for (int64_t i = 0; i < members_.size(); ++i) {
     if (members_[i].first->identifier() == name) {
       return i;
@@ -1672,7 +1696,7 @@ bool BuiltinTypeAnnotation::GetSignedness() const {
 
 ChannelTypeAnnotation::ChannelTypeAnnotation(
     Module* owner, Span span, Direction direction, TypeAnnotation* payload,
-    absl::optional<std::vector<Expr*>> dims)
+    std::optional<std::vector<Expr*>> dims)
     : TypeAnnotation(owner, std::move(span)),
       direction_(direction),
       payload_(payload),
@@ -1705,7 +1729,7 @@ std::string TupleTypeAnnotation::ToString() const {
 // -- class QuickCheck
 
 QuickCheck::QuickCheck(Module* owner, Span span, Function* f,
-                       absl::optional<int64_t> test_count)
+                       std::optional<int64_t> test_count)
     : AstNode(owner), span_(span), f_(f), test_count_(std::move(test_count)) {}
 
 std::string QuickCheck::ToString() const {
@@ -1844,11 +1868,13 @@ std::vector<AstNode*> Let::GetChildren(bool want_types) const {
 }
 
 std::string Let::ToString() const {
+  std::string body_str = absl::StrCat("\n", body_->ToString());
+
   return absl::StrFormat(
-      "%s %s%s = %s;\n%s", is_const_ ? "const" : "let",
+      "%s %s%s = %s;%s", is_const_ ? "const" : "let",
       name_def_tree_->ToString(),
       type_annotation_ == nullptr ? "" : ": " + type_annotation_->ToString(),
-      rhs_->ToString(), body_->ToString());
+      rhs_->ToString(), body_str);
 }
 
 // -- class Number

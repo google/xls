@@ -776,6 +776,17 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
   return init_type;
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnrollForMacro(
+    const UnrollForMacro* node, DeduceCtx* ctx) {
+  // The only thing we need to do here is to deduce the type of the iterable so
+  // that we can constexpr evaluate it in macro expansion.
+  XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable()).status());
+  XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable_type()).status());
+  XLS_RETURN_IF_ERROR(ctx->Deduce(node->body()).status());
+  // The macro itself has/returns no value.
+  return ConcreteType::MakeUnit();
+}
+
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
 // should not cause a type error to occur).
 static bool IsAcceptableCast(const ConcreteType& from, const ConcreteType& to) {
@@ -983,12 +994,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
         number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
       XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, element_type));
-
-      // Since we set the member type here, ConstexprEvaluation in Deduce()
-      // won't occur, so we do it, also, here.
-      XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
-          ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
-          member, &element_type));
     }
   }
 
@@ -1097,7 +1102,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
           absl::StrFormat("Builtin '%s' has no attributes.",
                           builtin_name_def->identifier()));
     }
-    NameDef* name_def = absl::get<NameDef*>(name_ref->name_def());
+    const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
     Import* import = dynamic_cast<Import*>(name_def->definer());
     if (import != nullptr) {
       return DeduceColonRefImport(node, import, ctx);
@@ -1607,8 +1612,8 @@ static absl::StatusOr<StructDef*> DerefToStruct(
       XLS_RET_CHECK(absl::holds_alternative<NameRef*>(subject));
       auto* name_ref = absl::get<NameRef*>(subject);
       AnyNameDef any_name_def = name_ref->name_def();
-      XLS_RET_CHECK(absl::holds_alternative<NameDef*>(any_name_def));
-      NameDef* name_def = absl::get<NameDef*>(any_name_def);
+      XLS_RET_CHECK(std::holds_alternative<const NameDef*>(any_name_def));
+      const NameDef* name_def = std::get<const NameDef*>(any_name_def);
       AstNode* definer = name_def->definer();
       auto* import = dynamic_cast<Import*>(definer);
       if (import == nullptr) {
@@ -2085,7 +2090,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceChannelDecl(
 absl::StatusOr<ChannelTypeAnnotation*> ResolveChannelType(Span span,
                                                           Expr* channel) {
   if (auto* name_ref = dynamic_cast<NameRef*>(channel); name_ref != nullptr) {
-    NameDef* name_def = absl::get<NameDef*>(name_ref->name_def());
+    const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
     Param* param = dynamic_cast<Param*>(name_def->definer());
     if (param == nullptr) {
       return TypeInferenceErrorStatus(
@@ -2115,7 +2120,7 @@ absl::StatusOr<ChannelTypeAnnotation*> ResolveChannelType(Span span,
   // an item declared in a ChannelDef or as a Param.
   NameRef* ref = dynamic_cast<NameRef*>(index->lhs());
   XLS_RET_CHECK_NE(ref, nullptr);
-  NameDef* def = absl::get<NameDef*>(ref->name_def());
+  const NameDef* def = std::get<const NameDef*>(ref->name_def());
   XLS_RET_CHECK_NE(def, nullptr);
   XLS_RET_CHECK_NE(def->definer(), nullptr);
 
@@ -2408,9 +2413,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                                           constexpr_env)
                           .status());
 
-  if (node->body() != nullptr) {
-    return ctx->Deduce(node->body());
-  }
+  return ctx->Deduce(node->body());
+  XLS_RETURN_IF_ERROR(ctx->Deduce(node->body()).status());
+  // XLS_LOG(INFO) << "DeduceSpawn: body type: " <<
 
   // TODO(rspringer): 2021-09-02 : #504 : How to handle fail! in procs?
   return ConcreteType::MakeUnit();
@@ -2615,6 +2620,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(SplatStructInstance)
   DEDUCE_DISPATCH(StructInstance)
   DEDUCE_DISPATCH(TupleIndex)
+  DEDUCE_DISPATCH(UnrollForMacro)
   DEDUCE_DISPATCH(BuiltinTypeAnnotation)
   DEDUCE_DISPATCH(ChannelTypeAnnotation)
   DEDUCE_DISPATCH(ArrayTypeAnnotation)

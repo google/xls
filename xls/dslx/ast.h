@@ -79,6 +79,7 @@ bool IsOneOf(ObjT* obj) {
   X(Ternary)                       \
   X(TupleIndex)                    \
   X(Unop)                          \
+  X(UnrollForMacro)                \
   X(XlsTuple)
 
 // Higher-order macro for all the AST node leaf types (non-abstract).
@@ -151,7 +152,7 @@ class AstNodeVisitorWithDefault : public AstNodeVisitor {
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
-using AnyNameDef = absl::variant<NameDef*, BuiltinNameDef*>;
+using AnyNameDef = absl::variant<const NameDef*, BuiltinNameDef*>;
 
 // Holds a mapping {identifier: NameRefs} -- this is used for accumulating free
 // variable references (the NameRefs) in the source program; see
@@ -253,6 +254,7 @@ enum class AstNodeKind {
   kChannelDecl,
   kParametricBinding,
   kTupleIndex,
+  kUnrollForMacro,
 };
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
@@ -272,7 +274,7 @@ class AstNode {
   virtual absl::string_view GetNodeTypeName() const = 0;
   virtual std::string ToString() const = 0;
 
-  virtual absl::optional<Span> GetSpan() const = 0;
+  virtual std::optional<Span> GetSpan() const = 0;
 
   AstNode* parent() const { return parent_; }
 
@@ -350,7 +352,7 @@ class TypeAnnotation : public AstNode {
 
   AstNodeKind kind() const override { return AstNodeKind::kTypeAnnotation; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -512,7 +514,7 @@ class BuiltinNameDef : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleBuiltinNameDef(this);
   }
-  absl::optional<Span> GetSpan() const override { return absl::nullopt; }
+  std::optional<Span> GetSpan() const override { return absl::nullopt; }
 
   absl::string_view GetNodeTypeName() const override {
     return "BuiltinNameDef";
@@ -551,7 +553,7 @@ class WildcardPattern : public AstNode {
   }
 
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -570,7 +572,7 @@ class NameDef : public AstNode {
 
   absl::string_view GetNodeTypeName() const override { return "NameDef"; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
   const std::string& identifier() const { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -628,6 +630,7 @@ class ExprVisitor {
   virtual absl::Status HandleTernary(const Ternary* expr) = 0;
   virtual absl::Status HandleTupleIndex(const TupleIndex* expr) = 0;
   virtual absl::Status HandleUnop(const Unop* expr) = 0;
+  virtual absl::Status HandleUnrollForMacro(const UnrollForMacro* expr) = 0;
   virtual absl::Status HandleXlsTuple(const XlsTuple* expr) = 0;
 };
 
@@ -640,7 +643,7 @@ class Expr : public AstNode {
 
   const Span& span() const { return span_; }
   void set_span(const Span& span) { span_ = span; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
   virtual absl::Status AcceptExpr(ExprVisitor* v) const = 0;
 
@@ -660,7 +663,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   // If this is a scalar channel, then `dims` will be nullopt.
   ChannelTypeAnnotation(Module* owner, Span span, Direction direction,
                         TypeAnnotation* payload,
-                        absl::optional<std::vector<Expr*>> dims);
+                        std::optional<std::vector<Expr*>> dims);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleChannelTypeAnnotation(this);
@@ -691,12 +694,12 @@ class ChannelTypeAnnotation : public TypeAnnotation {
   // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
   // channels, each of which transmits a u32, whereas the latter declares a
   // single channel that transmits a 32-element array of u32s.
-  absl::optional<std::vector<Expr*>> dims() const { return dims_; }
+  std::optional<std::vector<Expr*>> dims() const { return dims_; }
 
  private:
   Direction direction_;
   TypeAnnotation* payload_;
-  absl::optional<std::vector<Expr*>> dims_;
+  std::optional<std::vector<Expr*>> dims_;
 };
 
 // Represents a block expression, e.g.,
@@ -757,18 +760,18 @@ class NameRef : public Expr {
     if (absl::holds_alternative<BuiltinNameDef*>(name_def_)) {
       return false;
     }
-    auto* name_def = absl::get<NameDef*>(name_def_);
+    auto* name_def = absl::get<const NameDef*>(name_def_);
     return dynamic_cast<T*>(name_def->definer()) != nullptr;
   }
 
-  absl::optional<Pos> GetNameDefStart() const {
-    if (absl::holds_alternative<NameDef*>(name_def_)) {
-      return absl::get<NameDef*>(name_def_)->span().start();
+  std::optional<Pos> GetNameDefStart() const {
+    if (absl::holds_alternative<const NameDef*>(name_def_)) {
+      return absl::get<const NameDef*>(name_def_)->span().start();
     }
     return absl::nullopt;
   }
 
-  absl::variant<NameDef*, BuiltinNameDef*> name_def() const {
+  absl::variant<const NameDef*, BuiltinNameDef*> name_def() const {
     return name_def_;
   }
 
@@ -900,7 +903,7 @@ class TypeDef : public AstNode {
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   bool is_public() const { return is_public_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -992,7 +995,7 @@ class TypeRef : public AstNode {
   const std::string& text() const { return text_; }
   const TypeDefinition& type_definition() const { return type_definition_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -1005,7 +1008,7 @@ class TypeRef : public AstNode {
 class Import : public AstNode {
  public:
   Import(Module* owner, Span span, std::vector<std::string> subject,
-         NameDef* name_def, absl::optional<std::string> alias);
+         NameDef* name_def, std::optional<std::string> alias);
 
   AstNodeKind kind() const override { return AstNodeKind::kImport; }
 
@@ -1024,8 +1027,8 @@ class Import : public AstNode {
   const std::vector<std::string>& subject() const { return subject_; }
   NameDef* name_def() const { return name_def_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
-  absl::optional<std::string> alias() const { return alias_; }
+  std::optional<Span> GetSpan() const override { return span_; }
+  std::optional<std::string> alias() const { return alias_; }
 
  private:
   // Span of the import in the text.
@@ -1036,7 +1039,7 @@ class Import : public AstNode {
   // The name definition we bind the import to.
   NameDef* name_def_;
   // The identifier text we bind the import to.
-  absl::optional<std::string> alias_;
+  std::optional<std::string> alias_;
 };
 
 // Represents a module-value or enum-value style reference when the LHS
@@ -1077,7 +1080,7 @@ class ColonRef : public Expr {
   //
   // Note: if the value is not nullopt, it will be a valid pointer (not
   // nullptr).
-  absl::optional<Import*> ResolveImportSubject() const;
+  std::optional<Import*> ResolveImportSubject() const;
 
  private:
   Subject subject_;
@@ -1111,7 +1114,7 @@ class Param : public AstNode {
   NameDef* name_def() const { return name_def_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
   const std::string& identifier() const { return name_def_->identifier(); }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   NameDef* name_def_;
@@ -1310,7 +1313,7 @@ class ParametricBinding : public AstNode {
   // TODO(leary): 2020-08-21 Fix this, the span is more than just the name def's
   // span, it must include the type/expr.
   const Span& span() const { return name_def_->span(); }
-  absl::optional<Span> GetSpan() const override { return span(); }
+  std::optional<Span> GetSpan() const override { return span(); }
 
   absl::string_view GetNodeTypeName() const override {
     return "ParametricBinding";
@@ -1353,7 +1356,7 @@ class Function : public AstNode {
            std::vector<Param*> params, TypeAnnotation* return_type, Block* body,
            Tag tag, bool is_public);
   AstNodeKind kind() const override { return AstNodeKind::kFunction; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
   Span span() const { return span_; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleFunction(this);
@@ -1384,7 +1387,7 @@ class Function : public AstNode {
   TypeAnnotation* return_type() const { return return_type_; }
 
   Tag tag() const { return tag_; }
-  absl::optional<Proc*> proc() const { return proc_; }
+  std::optional<Proc*> proc() const { return proc_; }
   void set_proc(Proc* proc) { proc_ = proc; }
 
  private:
@@ -1395,7 +1398,7 @@ class Function : public AstNode {
   TypeAnnotation* return_type_;  // May be null.
   Block* body_;
   Tag tag_;
-  absl::optional<Proc*> proc_;
+  std::optional<Proc*> proc_;
 
   bool is_public_;
 };
@@ -1421,7 +1424,7 @@ class Proc : public AstNode {
   NameDef* config_name_def() const { return config_name_def_; }
   NameDef* next_name_def() const { return next_name_def_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
   const std::string& identifier() const { return name_def_->identifier(); }
   const std::vector<ParametricBinding*>& parametric_bindings() const {
@@ -1477,7 +1480,7 @@ class MatchArm : public AstNode {
   const std::vector<NameDefTree*>& patterns() const { return patterns_; }
   Expr* expr() const { return expr_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
   // Returns the span from the start of the (first) pattern to the limit of the
   // (last) pattern.
@@ -1622,6 +1625,7 @@ class Invocation : public Instantiation {
 // Spawns need to still be Instantiation subclasses.
 class Spawn : public Instantiation {
  public:
+  // A Spawn's body can be nullopt if it's the last expr in an unroll_for body.
   Spawn(Module* owner, Span span, Expr* callee, Invocation* config,
         Invocation* next, std::vector<Expr*> explicit_parametrics, Expr* body);
 
@@ -1701,7 +1705,7 @@ class Slice : public AstNode {
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override;
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
   Expr* start() const { return start_; }
   Expr* limit() const { return limit_; }
@@ -1768,7 +1772,7 @@ class EnumDef : public AstNode {
   const std::string& identifier() const { return name_def_->identifier(); }
 
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
   NameDef* name_def() const { return name_def_; }
   const std::vector<EnumMember>& values() const { return values_; }
   TypeAnnotation* type_annotation() const { return type_annotation_; }
@@ -1794,7 +1798,7 @@ class EnumDef : public AstNode {
   //
   // TODO(leary): 2021-09-29 We should keep this in a supplemental data
   // structure instead of mutating AST nodes.
-  absl::optional<bool> is_signed_;
+  std::optional<bool> is_signed_;
 
   // Whether or not this enum definition was marked as public.
   bool is_public_;
@@ -1832,7 +1836,7 @@ class StructDef : public AstNode {
   }
   bool is_public() const { return public_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
   const std::string& GetMemberName(int64_t i) const {
     return members_[i].first->identifier();
@@ -1840,7 +1844,7 @@ class StructDef : public AstNode {
   std::vector<std::string> GetMemberNames() const;
 
   // Returns the index at which the member name is "name".
-  absl::optional<int64_t> GetMemberIndex(absl::string_view name) const;
+  std::optional<int64_t> GetMemberIndex(absl::string_view name) const;
 
   int64_t size() const { return members_.size(); }
 
@@ -1976,7 +1980,7 @@ class WidthSlice : public AstNode {
 
   Expr* start() const { return start_; }
   TypeAnnotation* width() const { return width_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -2213,7 +2217,7 @@ class TestFunction : public AstNode {
   }
 
   Function* fn() const { return fn_; }
-  absl::optional<Span> GetSpan() const override { return fn_->span(); }
+  std::optional<Span> GetSpan() const override { return fn_->span(); }
 
   NameDef* name_def() const { return name_def_; }
   const std::string& identifier() const { return name_def_->identifier(); }
@@ -2252,7 +2256,7 @@ class TestProc : public AstNode {
   std::string ToString() const override;
 
   Proc* proc() const { return proc_; }
-  absl::optional<Span> GetSpan() const override { return proc_->span(); }
+  std::optional<Span> GetSpan() const override { return proc_->span(); }
 
   const std::vector<Expr*>& next_args() const { return next_args_; }
 
@@ -2269,7 +2273,7 @@ class QuickCheck : public AstNode {
   static constexpr int64_t kDefaultTestCount = 1000;
 
   QuickCheck(Module* owner, Span span, Function* f,
-             absl::optional<int64_t> test_count = absl::nullopt);
+             std::optional<int64_t> test_count = absl::nullopt);
 
   AstNodeKind kind() const { return AstNodeKind::kQuickCheck; }
 
@@ -2290,12 +2294,12 @@ class QuickCheck : public AstNode {
   int64_t test_count() const {
     return test_count_ ? *test_count_ : kDefaultTestCount;
   }
-  absl::optional<Span> GetSpan() const override { return f_->span(); }
+  std::optional<Span> GetSpan() const override { return f_->span(); }
 
  private:
   Span span_;
   Function* f_;
-  absl::optional<int64_t> test_count_;
+  std::optional<int64_t> test_count_;
 };
 
 // Represents an index into a tuple, e.g., "(u32:7, u32:8).1".
@@ -2390,6 +2394,39 @@ class For : public Expr {
   Expr* init_;
 };
 
+// Represents a hand-coded unroll-for "macro".
+// TODO(rspringer): 2022-06-14: "body" is overloaded. Settle on a common term
+// for UnrollForMacro, Spawn, and Let.
+class UnrollForMacro : public Expr {
+ public:
+  UnrollForMacro(Module* owner, Span span, NameDef* iterable_name,
+                 TypeAnnotation* iterable_type, Expr* iterable, Block* body,
+                 Expr* tail);
+  AstNodeKind kind() const { return AstNodeKind::kUnrollForMacro; }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleUnrollForMacro(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleUnrollForMacro(this);
+  }
+  absl::string_view GetNodeTypeName() const override { return "unroll-for"; }
+  std::string ToString() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
+
+  NameDef* iterable_name() const { return iterable_name_; }
+  TypeAnnotation* iterable_type() const { return iterable_type_; }
+  Expr* iterable() const { return iterable_; }
+  Block* body() const { return body_; }
+  Expr* tail() const { return tail_; }
+
+ private:
+  NameDef* iterable_name_;
+  TypeAnnotation* iterable_type_;
+  Expr* iterable_;
+  Block* body_;
+  Expr* tail_;
+};
+
 // Represents a cast expression; converting a new value to a target type.
 //
 // For example:
@@ -2461,7 +2498,7 @@ class ConstantDef : public AstNode {
   NameDef* name_def() const { return name_def_; }
   Expr* value() const { return value_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
   bool is_public() const { return is_public_; }
 
  private:
@@ -2569,7 +2606,7 @@ class NameDefTree : public AstNode {
 
   const absl::variant<Nodes, Leaf>& tree() const { return tree_; }
   const Span& span() const { return span_; }
-  absl::optional<Span> GetSpan() const override { return span_; }
+  std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
@@ -2579,6 +2616,7 @@ class NameDefTree : public AstNode {
 // Represents a let-binding expression.
 class Let : public Expr {
  public:
+  // A Let's body can be nullopt if it's the last expr in an unroll_for body.
   Let(Module* owner, Span span, NameDefTree* name_def_tree,
       TypeAnnotation* type, Expr* rhs, Expr* body, bool is_const);
 
@@ -2643,7 +2681,9 @@ class ConstRef : public NameRef {
 
   // When holding a ConstRef we know that the corresponding NameDef cannot be
   // builtin (since consts are user constructs).
-  NameDef* name_def() const { return absl::get<NameDef*>(NameRef::name_def()); }
+  const NameDef* name_def() const {
+    return absl::get<const NameDef*>(NameRef::name_def());
+  }
 
   // Returns the constant definition that this ConstRef is referring to.
   ConstantDef* GetConstantDef() const {
@@ -2671,7 +2711,7 @@ class ConstRef : public NameRef {
 class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,
-              absl::optional<std::vector<Expr*>> dims)
+              std::optional<std::vector<Expr*>> dims)
       : Expr(owner, span), type_(type), dims_(dims) {}
 
   AstNodeKind kind() const { return AstNodeKind::kChannelDecl; }
@@ -2691,11 +2731,11 @@ class ChannelDecl : public Expr {
   }
 
   TypeAnnotation* type() const { return type_; }
-  absl::optional<std::vector<Expr*>> dims() const { return dims_; }
+  std::optional<std::vector<Expr*>> dims() const { return dims_; }
 
  private:
   TypeAnnotation* type_;
-  absl::optional<std::vector<Expr*>> dims_;
+  std::optional<std::vector<Expr*>> dims_;
 };
 
 using ModuleMember =
@@ -2729,7 +2769,7 @@ class Module : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleModule(this);
   }
-  absl::optional<Span> GetSpan() const override { return absl::nullopt; }
+  std::optional<Span> GetSpan() const override { return absl::nullopt; }
 
   absl::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -2785,8 +2825,8 @@ class Module : public AstNode {
                         name_, target_name));
   }
 
-  absl::optional<Function*> GetFunction(absl::string_view target_name);
-  absl::optional<Proc*> GetProc(absl::string_view target_name);
+  std::optional<Function*> GetFunction(absl::string_view target_name);
+  std::optional<Proc*> GetProc(absl::string_view target_name);
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
@@ -2797,7 +2837,7 @@ class Module : public AstNode {
 
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.
-  absl::optional<ModuleMember*> FindMemberWithName(absl::string_view target);
+  std::optional<ModuleMember*> FindMemberWithName(absl::string_view target);
 
   const StructDef* FindStructDef(const Span& span) const;
 

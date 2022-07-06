@@ -223,7 +223,7 @@ absl::StatusOr<TypeAndBindings> CheckParametricBuiltinInvocation(
       /*callee=*/tab.symbolic_bindings);
   ctx->type_info()->SetItem(invocation->callee(), *fn_type);
   // We don't want to store a type on a BuiltinNameDef.
-  if (absl::holds_alternative<NameDef*>(callee_nameref->name_def())) {
+  if (std::holds_alternative<const NameDef*>(callee_nameref->name_def())) {
     ctx->type_info()->SetItem(ToAstNode(callee_nameref->name_def()), *fn_type);
   }
 
@@ -244,7 +244,7 @@ absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
   XLS_RET_CHECK(absl::holds_alternative<NameRef*>(subject));
   NameRef* subject_nameref = absl::get<NameRef*>(subject);
   AstNode* definer =
-      absl::get<NameDef*>(subject_nameref->name_def())->definer();
+      std::get<const NameDef*>(subject_nameref->name_def())->definer();
   Import* import = dynamic_cast<Import*>(definer);
 
   absl::optional<const ImportedInfo*> imported =
