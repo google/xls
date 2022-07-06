@@ -1279,6 +1279,7 @@ class Translator {
   std::unique_ptr<CCParser> parser_;
 
   // Convenience calls to CCParser
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc);
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
   std::string LocString(const xls::SourceInfo& loc);
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);

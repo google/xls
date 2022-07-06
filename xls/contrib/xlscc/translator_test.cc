@@ -6764,6 +6764,63 @@ TEST_F(TranslatorTest, ForwardDeclaredStructPtr) {
                   testing::HasSubstr("Unsupported CType subclass")));
 }
 
+// Check that hls_array_allow_default_pad pragma fills with 0's
+TEST_F(TranslatorTest, ArrayZeroExtendFillsZeros) {
+  const std::string content = R"(
+        #pragma hls_top
+        int my_package(int a) {
+         #pragma hls_array_allow_default_pad
+         int x[4] = {1,2};
+         return x[2];
+       })";
+  Run({{"a", 5}}, 0, content);
+}
+
+// Check that hls_array_allow_default_pad pragma maintains supplied values
+TEST_F(TranslatorTest, ArrayZeroExtendMaintainsValues) {
+  const std::string content = R"(
+        #pragma hls_top
+        int my_package(int a) {
+         #pragma hls_array_allow_default_pad
+         int x[4] = {1,2};
+         return x[1];
+       })";
+  Run({{"a", 5}}, 2, content);
+}
+
+// Check that hls_array_allow_default_pad pragma maintains supplied values
+TEST_F(TranslatorTest, ArrayZeroExtendStruct) {
+  const std::string content = R"(
+        struct y {
+          int z;
+        };
+        #pragma hls_top
+        int my_package(int a) {
+         #pragma hls_array_allow_default_pad
+         y x[4] = {{1},{2}};
+         return x[1].z;
+       })";
+  Run({{"a", 5}}, 2, content);
+}
+
+// Check that hls_array_allow_default_pad pragma
+// works on structs with constructors
+TEST_F(TranslatorTest, ArrayZeroExtendStructWithConstructor) {
+  const std::string content = R"(
+        struct y {
+          int z;
+          y() : z(7) {}
+          y(int val) : z(val) {}
+        };
+        #pragma hls_top
+        int my_package(int a) {
+         #pragma hls_array_allow_default_pad
+         y x[4] = {{1},{2}};
+         return x[2].z;
+       })";
+  Run({{"a", 5}}, 7, content);
+}
+
 }  // namespace
 
 }  // namespace xlscc

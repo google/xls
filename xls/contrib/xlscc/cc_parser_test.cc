@@ -337,4 +337,30 @@ TEST_F(CCParserTest, DoubleTopPragma) {
                                     testing::HasSubstr("Two top functions")));
 }
 
+TEST_F(CCParserTest, PragmaZeroExtend) {
+  xlscc::CCParser parser;
+
+  const std::string cpp_src = R"(
+    #pragma hls_top
+    int foo(int a, int b) {
+      #pragma hls_array_allow_default_pad
+      int x[4] = {5};
+      return x[3];
+    }
+  )";
+  XLS_ASSERT_OK(ScanTempFileWithContent(cpp_src, {}, &parser));
+  XLS_ASSERT_OK_AND_ASSIGN(const auto* top_ptr, parser.GetTopFunction());
+  ASSERT_NE(top_ptr, nullptr);
+
+  clang::PresumedLoc func_loc = parser.GetPresumedLoc(*top_ptr);
+  clang::PresumedLoc loop_loc(func_loc.getFilename(), func_loc.getFileID(),
+                              func_loc.getLine() + 2, func_loc.getColumn(),
+                              func_loc.getIncludeLoc());
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc::Pragma pragma,
+                           parser.FindPragmaForLoc(loop_loc));
+
+  ASSERT_EQ(pragma.type(), xlscc::Pragma_ArrayAllowDefaultPad);
+}
+
 }  // namespace

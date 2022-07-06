@@ -3684,7 +3684,14 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     const xls::SourceInfo& loc) {
   if (t->Is<CArrayType>()) {
     auto array_t = t->As<CArrayType>();
-    if (array_t->GetSize() != init_list->getNumInits() &&
+    if (array_t->GetSize() < init_list->getNumInits()) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Wrong number of initializers"));
+    }
+    XLS_ASSIGN_OR_RETURN(Pragma pragma,
+                         FindPragmaForLoc(init_list->getBeginLoc()));
+    if (pragma.type() != Pragma_ArrayAllowDefaultPad &&
+        array_t->GetSize() != init_list->getNumInits() &&
         init_list->getNumInits() != 1) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Wrong number of initializers"));
@@ -3692,10 +3699,10 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
     std::vector<xls::BValue> element_vals;
     for (int i = 0; i < array_t->GetSize(); ++i) {
       const clang::Expr* this_init;
-      if (init_list->getNumInits() == 1) {
-        this_init = init_list->getInit(0);
-      } else {
+      if (i < init_list->getNumInits()) {
         this_init = init_list->getInit(i);
+      } else {
+        this_init = init_list->getArrayFiller();
       }
       xls::BValue this_val;
       if (this_init->getStmtClass() == clang::Stmt::InitListExprClass) {
@@ -3705,7 +3712,8 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
                 array_t->GetElementType(),
                 clang_down_cast<const clang::InitListExpr*>(this_init), loc));
       } else {
-        XLS_ASSIGN_OR_RETURN(CValue expr_val, GenerateIR_Expr(this_init, loc));
+        XLS_ASSIGN_OR_RETURN(CValue expr_val,
+                              GenerateIR_Expr(this_init, loc));
         if (*expr_val.type() != *array_t->GetElementType()) {
           return absl::UnimplementedError(ErrorMessage(
               loc, "Wrong initializer type %s", string(*expr_val.type())));
@@ -5938,6 +5946,12 @@ clang::PresumedLoc Translator::GetPresumedLoc(const clang::Stmt& stmt) {
 clang::PresumedLoc Translator::GetPresumedLoc(const clang::Decl& decl) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->GetPresumedLoc(decl);
+}
+
+absl::StatusOr<Pragma> Translator::FindPragmaForLoc(
+    const clang::SourceLocation& loc) {
+  XLS_CHECK_NE(parser_.get(), nullptr);
+  return parser_->FindPragmaForLoc(loc);
 }
 
 absl::StatusOr<Pragma> Translator::FindPragmaForLoc(

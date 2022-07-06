@@ -207,6 +207,11 @@ xls::SourceInfo CCParser::GetLoc(const clang::PresumedLoc& loc) {
 }
 
 absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
+    const clang::SourceLocation& loc) {
+      return FindPragmaForLoc(sm_->getPresumedLoc(loc));
+}
+
+absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
     const clang::PresumedLoc& ploc) {
   if (!files_scanned_for_pragmas_.contains(ploc.getFilename())) {
     XLS_RETURN_IF_ERROR(ScanFileForPragmas(ploc.getFilename()));
@@ -262,6 +267,9 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
       } else if ((at = match_pragma(line, "#pragma hls_unroll yes")) !=
                  std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_Unroll);
+      } else if ((at = match_pragma(line,
+                 "#pragma hls_array_allow_default_pad")) != std::string::npos) {
+        hls_pragmas_[location] = Pragma(Pragma_ArrayAllowDefaultPad);
       } else if ((at = match_pragma(line, "#pragma hls_top")) !=
                      std::string::npos ||
                  (at = match_pragma(line, "#pragma hls_design top")) !=

@@ -41,6 +41,7 @@ enum PragmaType {
   Pragma_Top,
   Pragma_InitInterval,
   Pragma_Label,
+  Pragma_ArrayAllowDefaultPad,
 };
 
 class Pragma {
@@ -127,6 +128,7 @@ class CCParser {
 
   void AddSourceInfoToMetadata(xlscc_metadata::MetadataOutput& output);
   void AddSourceInfoToPackage(xls::Package& package);
+  absl::StatusOr<Pragma> FindPragmaForLoc(const clang::SourceLocation& loc);
   absl::StatusOr<Pragma> FindPragmaForLoc(const clang::PresumedLoc& ploc);
 
   xls::SourceInfo GetLoc(const clang::Stmt& stmt);
