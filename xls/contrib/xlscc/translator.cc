@@ -925,6 +925,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
   XLS_CHECK_EQ(op.channel, nullptr);
   op.channel_op_index = channel->total_ops++;
   op.channel = channel;
+  op.op_location = loc;
 
   // Operation type is added late, as it's only known from the read()/write()
   // call(s)
@@ -1088,7 +1089,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         XLS_ASSIGN_OR_RETURN(CValue out_val,
                              GenerateIR_Expr(call->getArg(0), loc));
         std::vector<xls::BValue> sp = {out_val.rvalue(), op_condition};
-        op.ret_value = context().fb->Tuple(sp);
+        op.ret_value = context().fb->Tuple(sp, loc);
         op.op = OpType::kSend;
 
       } else {
@@ -2963,8 +2964,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     caller_op.op = callee_op.op;
     caller_op.sub_op = &callee_op;
 
-    XLS_ASSIGN_OR_RETURN(IOOp * caller_op_ptr,
-                         AddOpToChannel(caller_op, caller_channel, loc));
+    XLS_ASSIGN_OR_RETURN(
+        IOOp * caller_op_ptr,
+        AddOpToChannel(caller_op, caller_channel, callee_op.op_location));
     caller_ops_by_callee_op.insert(
         std::pair<IOOp*, IOOp*>(&callee_op, caller_op_ptr));
 
@@ -3165,7 +3167,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
     case clang::Stmt::CallExprClass: {
       auto call = clang_down_cast<const clang::CallExpr*>(expr);
 
-      XLS_ASSIGN_OR_RETURN(IOOpReturn ret, InterceptIOOp(call, loc));
+      XLS_ASSIGN_OR_RETURN(IOOpReturn ret, InterceptIOOp(call, GetLoc(*call)));
 
       // If this call is an IO op, then return the IO value, rather than
       //  generating the call.
@@ -4605,7 +4607,7 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     op.op = OpType::kSend;
     std::vector<xls::BValue> sp = {context_tuple_out.rvalue(),
                                    context().full_condition_bval(loc)};
-    op.ret_value = context().fb->Tuple(sp);
+    op.ret_value = context().fb->Tuple(sp, loc);
     XLS_RETURN_IF_ERROR(AddOpToChannel(op, context_out_channel, loc).status());
   }
 
@@ -5436,17 +5438,19 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
         prepared.xls_channel_by_function_channel.at(op.channel);
     const int return_index = prepared.return_index_for_op.at(&op);
 
+    xls::SourceInfo op_loc = op.op_location;
+
     if (op.op == OpType::kRecv) {
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
 
       xls::BValue condition = GetFlexTupleField(
           last_ret_val, return_index, prepared.xls_func->return_value_count,
-          body_loc, absl::StrFormat("%s_pred", xls_channel->name()));
+          op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
 
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       xls::BValue receive =
-          pb.ReceiveIf(xls_channel, prepared.token, condition, body_loc);
+          pb.ReceiveIf(xls_channel, prepared.token, condition, op_loc);
       const xls::BValue new_token = pb.TupleIndex(receive, 0);
       fan_out_tokens.push_back(new_token);
 
@@ -5458,18 +5462,17 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       //  for each read() Op. The final invocation will produce all complete
       //  outputs.
       last_ret_val =
-          pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
+          pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
     } else if (op.op == OpType::kSend) {
       xls::BValue send_tup =
           GetFlexTupleField(last_ret_val, return_index,
-                            prepared.xls_func->return_value_count, body_loc);
-      xls::BValue val = pb.TupleIndex(send_tup, 0, body_loc);
-      xls::BValue condition =
-          pb.TupleIndex(send_tup, 1, body_loc,
-                        absl::StrFormat("%s_pred", xls_channel->name()));
+                            prepared.xls_func->return_value_count, op_loc);
+      xls::BValue val = pb.TupleIndex(send_tup, 0, op_loc);
+      xls::BValue condition = pb.TupleIndex(
+          send_tup, 1, op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
 
       const xls::BValue new_token =
-          pb.SendIf(xls_channel, prepared.token, condition, {val}, body_loc);
+          pb.SendIf(xls_channel, prepared.token, condition, {val}, op_loc);
 
       fan_out_tokens.push_back(new_token);
     }

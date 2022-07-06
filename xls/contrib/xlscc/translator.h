@@ -468,6 +468,9 @@ struct IOOp {
 
   // For reads: input value from function parameter for Recv op
   CValue input_value;
+
+  // Source location for messages
+  xls::SourceInfo op_location;
 };
 
 enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };
