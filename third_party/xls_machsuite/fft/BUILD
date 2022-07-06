@@ -4,10 +4,7 @@ load(
     "xls_dslx_test",
 )
 
-package(
-    default_visibility = ["//xls:xls_internal"],
-    licenses = ["notice"],
-)
+package(licenses = ["notice"])
 
 cc_binary(
     name = "fft_reference",
