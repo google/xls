@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,10 +13,11 @@
 // limitations under the License.
 
 #include "gtest/gtest.h"
-#include "xls/common/init_xls.h"
 
-int main(int argc, char* argv[]) {
-  testing::InitGoogleTest(&argc, argv);
-  xls::InitXls(argv[0], argc, argv);
-  return RUN_ALL_TESTS();
+namespace {
+
+TEST(XlsGunitSampleTest, SomeTestName) {
+  // Success!
 }
+
+}  // namespace

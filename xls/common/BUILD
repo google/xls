@@ -72,6 +72,25 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "xls_gunit_sample",
+    srcs = ["xls_gunit_sample.cc"],
+    deps = [
+        ":xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+py_test(
+    name = "xls_gunit_sample_test",
+    srcs = ["xls_gunit_sample_test.py"],
+    data = [":xls_gunit_sample"],
+    deps = [
+        ":runfiles",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
 cc_library(
     name = "indent",
     srcs = ["indent.cc"],
