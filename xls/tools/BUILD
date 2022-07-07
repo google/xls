@@ -678,6 +678,7 @@ cc_library(
         "@com_google_absl//absl/strings",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/passes",
         "//xls/passes:standard_pipeline",

@@ -17,6 +17,7 @@
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/verifier.h"
 #include "xls/passes/passes.h"
 #include "xls/passes/standard_pipeline.h"
 
@@ -54,6 +55,9 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
   PassResults results;
   XLS_RETURN_IF_ERROR(
       pipeline->Run(package.get(), pass_options, &results).status());
+  // If opt returns something that obviously can't be codegenned, that's a bug
+  // in opt, not codegen.
+  XLS_RETURN_IF_ERROR(xls::VerifyPackage(package.get(), /*codegen=*/true));
   return package->DumpIr();
 }
 
