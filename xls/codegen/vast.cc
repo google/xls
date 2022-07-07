@@ -865,15 +865,24 @@ std::string LocalParam::Emit(LineInfo* line_info) const {
 
 std::string BinaryInfix::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
+  auto is_unary_reduction = [](Expression* e) {
+    return e->IsUnary() && e->AsUnaryOrDie()->IsReduction();
+  };
+
   // Equal precedence operators are evaluated left-to-right so LHS only needs to
-  // be wrapped if its precedence is strictly less than this operators. The
-  // RHS, however, must be wrapped if its less than or equal precedence.
-  std::string lhs_string = lhs_->precedence() < precedence()
-                               ? ParenWrap(lhs_->Emit(line_info))
-                               : lhs_->Emit(line_info);
-  std::string rhs_string = rhs_->precedence() <= precedence()
-                               ? ParenWrap(rhs_->Emit(line_info))
-                               : rhs_->Emit(line_info);
+  // be wrapped if its precedence is strictly less than this operators. The RHS,
+  // however, must be wrapped if its less than or equal precedence. Unary
+  // reduction operations should be wrapped in parenthesis unconditionally
+  // because some consumers of verilog emit warnings/errors for this
+  // error-prone construct (e.g., `|x || |y`)
+  std::string lhs_string =
+      (lhs_->precedence() < precedence() || is_unary_reduction(lhs_))
+          ? ParenWrap(lhs_->Emit(line_info))
+          : lhs_->Emit(line_info);
+  std::string rhs_string =
+      (rhs_->precedence() <= precedence() || is_unary_reduction(rhs_))
+          ? ParenWrap(rhs_->Emit(line_info))
+          : rhs_->Emit(line_info);
   LineInfoEnd(line_info, this);
   return absl::StrFormat("%s %s %s", lhs_string, op_, rhs_string);
 }
@@ -1055,15 +1064,14 @@ std::string DelayStatement::Emit(LineInfo* line_info) const {
   std::string delay_str = delay_->precedence() < Expression::kMaxPrecedence
                               ? ParenWrap(delay_->Emit(line_info))
                               : delay_->Emit(line_info);
-  if (delayed_statement_) {
+  if (delayed_statement_ != nullptr) {
     std::string result = absl::StrFormat("#%s %s", delay_str,
                                          delayed_statement_->Emit(line_info));
     LineInfoEnd(line_info, this);
     return result;
-  } else {
-    LineInfoEnd(line_info, this);
-    return absl::StrFormat("#%s;", delay_str);
   }
+  LineInfoEnd(line_info, this);
+  return absl::StrFormat("#%s;", delay_str);
 }
 
 std::string WaitStatement::Emit(LineInfo* line_info) const {

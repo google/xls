@@ -849,6 +849,12 @@ class Unary : public Operator {
 
   bool IsUnary() const override { return true; }
 
+  // Returns true if this is reduction operation (OR, NOR, AND, NAND, XOR or
+  // XNOR).
+  bool IsReduction() const {
+    return op_ == "|" || op_ == "~|" || op_ == "&" || op_ == "~&" ||
+           op_ == "^" || op_ == "~^";
+  }
   std::string Emit(LineInfo* line_info) const override;
 
  private:

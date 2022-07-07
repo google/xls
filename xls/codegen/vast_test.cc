@@ -442,6 +442,25 @@ TEST_P(VastTest, Precedence) {
                 ->Emit(nullptr));
 }
 
+TEST_P(VastTest, UnaryReductionOperations) {
+  VerilogFile f(UseSystemVerilog());
+  Module* m = f.AddModule("precedence", SourceInfo());
+  auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  auto c = m->AddReg("c", f.BitVectorType(8, SourceInfo()), SourceInfo());
+  // Verify reduction operations are parentheses-wrapped when inside of binary
+  // infix expressions.
+  EXPECT_EQ("|a", f.OrReduce(a, SourceInfo())->Emit(nullptr));
+  EXPECT_EQ("&a", f.AndReduce(a, SourceInfo())->Emit(nullptr));
+  EXPECT_EQ("b && (^c)",
+            f.LogicalAnd(b, f.XorReduce(c, SourceInfo()), SourceInfo())
+                ->Emit(nullptr));
+  EXPECT_EQ("(^a) + b + (|c)",
+            f.Add(f.Add(f.XorReduce(a, SourceInfo()), b, SourceInfo()),
+                  f.OrReduce(c, SourceInfo()), SourceInfo())
+                ->Emit(nullptr));
+}
+
 TEST_P(VastTest, NestedUnaryOps) {
   VerilogFile f(UseSystemVerilog());
   Module* m = f.AddModule("NestedUnaryOps", SourceInfo());
