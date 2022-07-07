@@ -79,7 +79,7 @@ class LibToolThread {
  private:
   void Run();
 
-  absl::optional<xls::Thread> thread_;
+  std::optional<xls::Thread> thread_;
   absl::string_view source_filename_;
   absl::Span<absl::string_view> command_line_args_;
   CCParser& parser_;

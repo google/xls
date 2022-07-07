@@ -41,7 +41,7 @@ class ArbitraryBaseNumber {
   //   returns 1.
   //
   // If start_index is out of bounds, returns nullopt.
-  absl::optional<int64_t> GetValue(int64_t start_index = 0) const;
+  std::optional<int64_t> GetValue(int64_t start_index = 0) const;
 
   // Sets all digits of the number to zero.
   void Reset();

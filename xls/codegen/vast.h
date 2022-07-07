@@ -890,7 +890,7 @@ class AlwaysFlop : public VastNode {
 
  private:
   LogicRef* clk_;
-  absl::optional<Reset> rst_;
+  std::optional<Reset> rst_;
   // The top-level block inside the always statement.
   StatementBlock* top_block_;
 
@@ -1288,7 +1288,7 @@ class SystemTaskCall : public Statement {
 
  private:
   std::string name_;
-  absl::optional<std::vector<Expression*>> args_;
+  std::optional<std::vector<Expression*>> args_;
 };
 
 // Represents statement function call expression such as $time.
@@ -1310,7 +1310,7 @@ class SystemFunctionCall : public Expression {
 
  private:
   std::string name_;
-  absl::optional<std::vector<Expression*>> args_;
+  std::optional<std::vector<Expression*>> args_;
 };
 
 // Represents a $display function call.

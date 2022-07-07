@@ -182,7 +182,7 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     const int64_t latency = signature_.proto().pipeline().latency();
     int64_t cycle = 0;
     int64_t captured_outputs = 0;
-    absl::optional<PipelineControl> pipeline_control;
+    std::optional<PipelineControl> pipeline_control;
     if (signature_.proto().pipeline().has_pipeline_control()) {
       pipeline_control = signature_.proto().pipeline().pipeline_control();
     }

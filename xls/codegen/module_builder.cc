@@ -186,8 +186,8 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
 
 ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
                              CodegenOptions options,
-                             absl::optional<absl::string_view> clk_name,
-                             absl::optional<ResetProto> rst_proto)
+                             std::optional<absl::string_view> clk_name,
+                             std::optional<ResetProto> rst_proto)
     : module_name_(SanitizeIdentifier(name)),
       file_(file),
       package_("__ModuleBuilder_type_generator"),
@@ -353,7 +353,7 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
 }
 
 bool ModuleBuilder::CanEmitAsInlineExpression(
-    Node* node, absl::optional<absl::Span<Node* const>> users_of_expression) {
+    Node* node, std::optional<absl::Span<Node* const>> users_of_expression) {
   if (node->GetType()->IsArray()) {
     // TODO(meheff): With system verilog we can do array assignment.
     return false;
@@ -890,7 +890,7 @@ static absl::StatusOr<std::string> GenerateFormatString(
 
 absl::Status ModuleBuilder::EmitAssert(
     xls::Assert* asrt, Expression* condition,
-    absl::optional<absl::string_view> fmt_string) {
+    std::optional<absl::string_view> fmt_string) {
   if (fmt_string.has_value()) {
     absl::flat_hash_map<std::string, std::string> supported_placeholders;
     absl::flat_hash_map<std::string, std::string> unsupported_placeholders;
@@ -998,7 +998,7 @@ absl::Status ModuleBuilder::EmitTrace(
 
 absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
     xls::Gate* gate, Expression* condition, Expression* data,
-    absl::optional<absl::string_view> fmt_string) {
+    std::optional<absl::string_view> fmt_string) {
   // Only bits-typed or tuple-typed data supported.
   // TODO(https://github.com/google/xls/issues/463) 2021/07/20 Add support for
   // array types.

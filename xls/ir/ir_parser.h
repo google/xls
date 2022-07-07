@@ -51,13 +51,13 @@ class Parser {
   // Parses the given input string as a package.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
       absl::string_view input_string,
-      absl::optional<absl::string_view> filename = absl::nullopt);
+      std::optional<absl::string_view> filename = absl::nullopt);
 
   // As above, but sets the entry function to be the given name in the returned
   // package.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageWithEntry(
       absl::string_view input_string, absl::string_view entry,
-      absl::optional<absl::string_view> filename = absl::nullopt);
+      std::optional<absl::string_view> filename = absl::nullopt);
 
   // Parse the input_string as a function into the given package.
   // If verify_function_only is true, then only this new function is verified,
@@ -91,16 +91,16 @@ class Parser {
   // should only be used in tests when malformed IR is desired.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
       absl::string_view input_string,
-      absl::optional<absl::string_view> filename = absl::nullopt,
-      absl::optional<absl::string_view> entry = absl::nullopt);
+      std::optional<absl::string_view> filename = absl::nullopt,
+      std::optional<absl::string_view> entry = absl::nullopt);
 
   // As above but creates a package of type PackageT where PackageT must be
   // type derived from Package.
   template <typename PackageT>
   static absl::StatusOr<std::unique_ptr<PackageT>> ParseDerivedPackageNoVerify(
       absl::string_view input_string,
-      absl::optional<absl::string_view> filename = absl::nullopt,
-      absl::optional<absl::string_view> entry = absl::nullopt);
+      std::optional<absl::string_view> filename = absl::nullopt,
+      std::optional<absl::string_view> entry = absl::nullopt);
 
   // Parses a literal value that should be of type "expected_type" and returns
   // it.
@@ -158,7 +158,7 @@ class Parser {
   // by Value::ToString. For example: "(bits[32]:0x23, bits[0]:0x1)". If
   // expected_type is given, the string should NOT have embedded bits types as
   // produced by Value::ToHumanString. For example: "(0x23, 0x1)".
-  absl::StatusOr<Value> ParseValueInternal(absl::optional<Type*> expected_type);
+  absl::StatusOr<Value> ParseValueInternal(std::optional<Type*> expected_type);
 
   // Parses a comma-separated sequence of values of the given type. Must have at
   // least one element in the sequence.
@@ -296,9 +296,9 @@ class Parser {
 /* static */
 template <typename PackageT>
 absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
-    absl::string_view input_string, absl::optional<absl::string_view> filename,
-    absl::optional<absl::string_view> entry) {
-  absl::optional<Token> previous_top_token;
+    absl::string_view input_string, std::optional<absl::string_view> filename,
+    std::optional<absl::string_view> entry) {
+  std::optional<Token> previous_top_token;
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser parser(std::move(scanner));
 

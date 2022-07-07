@@ -195,13 +195,13 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
 absl::StatusOr<std::string> IrToJson(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule,
-    absl::optional<absl::string_view> entry_name) {
+    std::optional<absl::string_view> entry_name) {
   viz::Package proto;
 
   absl::flat_hash_map<FunctionBase*, std::string> function_ids =
       GetFunctionIds(package);
 
-  absl::optional<FunctionBase*> entry_function_base;
+  std::optional<FunctionBase*> entry_function_base;
   for (FunctionBase* fb : package->GetFunctionBases()) {
     XLS_ASSIGN_OR_RETURN(
         *proto.add_function_bases(),
@@ -220,7 +220,7 @@ absl::StatusOr<std::string> IrToJson(
   if (entry_function_base.has_value()) {
     proto.set_entry_id(function_ids.at(entry_function_base.value()));
   } else {
-    absl::optional<FunctionBase*> top = package->GetTop();
+    std::optional<FunctionBase*> top = package->GetTop();
     if (top.has_value()) {
       proto.set_entry_id(function_ids.at(top.value()));
     }
@@ -242,7 +242,7 @@ absl::StatusOr<std::string> IrToJson(
 // Wraps the given text in a span with the given id, classes, and data. The
 // string `str` is modified in place.
 static absl::Status WrapTextInSpan(
-    absl::string_view text, absl::optional<std::string> dom_id,
+    absl::string_view text, std::optional<std::string> dom_id,
     absl::Span<const std::string> classes,
     absl::Span<const std::pair<std::string, std::string>> data,
     std::string* str) {
@@ -324,7 +324,7 @@ static absl::Status WrapNextNodeInSpan(
 // identifier span.
 static absl::Status WrapFunctionNameInSpan(absl::string_view function_name,
                                            absl::string_view function_id,
-                                           absl::optional<std::string> dom_id,
+                                           std::optional<std::string> dom_id,
                                            std::string* str) {
   return WrapTextInSpan(function_name,
                         /*dom_id=*/dom_id,

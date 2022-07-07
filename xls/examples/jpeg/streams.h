@@ -70,7 +70,7 @@ class SpanPopper {
   // Pops the next byte in the underlying span; when the limit is reached,
   // returns nullopt. Does not return a Status, but StatusOr is the return type
   // to conform to the popper interface used by ByteStream below.
-  absl::StatusOr<absl::optional<uint8_t>> operator()();
+  absl::StatusOr<std::optional<uint8_t>> operator()();
 
  private:
   absl::Span<const uint8_t> bytes_;
@@ -80,7 +80,7 @@ class SpanPopper {
 class ByteStream {
  public:
   explicit ByteStream(
-      std::function<absl::StatusOr<absl::optional<uint8_t>>()> pop);
+      std::function<absl::StatusOr<std::optional<uint8_t>>()> pop);
 
   // Drops the target "want" value from the head of the underlying byte stream,
   // or returns a MalformedInputError status that includes "message".
@@ -119,7 +119,7 @@ class ByteStream {
 
   // Performs a peek operation at a position that may be the end of file --
   // returns an optional value to indicate whether end of file was reached.
-  absl::StatusOr<absl::optional<uint8_t>> PeekEof();
+  absl::StatusOr<std::optional<uint8_t>> PeekEof();
 
   // Peek at a byte in the stream.
   absl::StatusOr<uint8_t> Peek();
@@ -138,9 +138,9 @@ class ByteStream {
   absl::Status Drop();
 
   // Lambda that pops an underlying byte stream.
-  std::function<absl::StatusOr<absl::optional<uint8_t>>()> pop_;
+  std::function<absl::StatusOr<std::optional<uint8_t>>()> pop_;
 
-  absl::optional<uint8_t> lookahead_;
+  std::optional<uint8_t> lookahead_;
   int32_t popped_index_ = 0;  // i.e. index of lookahead, if it is present.
   bool saw_end_ = false;
 };

@@ -78,10 +78,10 @@ static Invocation* CreateElementInvocation(Module* module, const Span& span,
 
 // Resolves "ref" to an AST function.
 absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
-  absl::optional<Import*> import = ref->ResolveImportSubject();
+  std::optional<Import*> import = ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << ref->ToString();
-  absl::optional<const ImportedInfo*> imported_info =
+  std::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(*import);
   return imported_info.value()->module->GetMemberOrError<Function>(ref->attr());
 }
@@ -89,10 +89,10 @@ absl::StatusOr<Function*> ResolveColonRefToFn(ColonRef* ref, DeduceCtx* ctx) {
 // Resolves "ref" to an AST proc.
 absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
                                             DeduceCtx* ctx) {
-  absl::optional<Import*> import = ref->ResolveImportSubject();
+  std::optional<Import*> import = ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << ref->ToString();
-  absl::optional<const ImportedInfo*> imported_info =
+  std::optional<const ImportedInfo*> imported_info =
       ctx->type_info()->GetImported(*import);
   return imported_info.value()->module->GetMemberOrError<Proc>(ref->attr());
 }
@@ -165,7 +165,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantDef(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> result,
                        ctx->Deduce(node->value()));
   const FnStackEntry& peek_entry = ctx->fn_stack().back();
-  absl::optional<FnCtx> fn_ctx;
+  std::optional<FnCtx> fn_ctx;
   if (peek_entry.f() != nullptr) {
     fn_ctx.emplace(FnCtx{peek_entry.module()->name(), peek_entry.name(),
                          peek_entry.symbolic_bindings()});
@@ -367,7 +367,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceShift(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs,
                        DeduceAndResolve(node->lhs(), ctx));
 
-  absl::optional<uint64_t> number_value;
+  std::optional<uint64_t> number_value;
   if (auto* number = dynamic_cast<Number*>(node->rhs());
       number != nullptr && number->type_annotation() == nullptr) {
     // Infer RHS node as bit type and retrieve bit width.
@@ -636,7 +636,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceEnumDef(const EnumDef* node,
 // Will put a correspondence of {a: u8, b: u4, c: u2} into the mapping in ctx.
 static absl::Status BindNames(const NameDefTree* name_def_tree,
                               const ConcreteType& type, DeduceCtx* ctx,
-                              absl::optional<InterpValue> constexpr_value) {
+                              std::optional<InterpValue> constexpr_value) {
   if (name_def_tree->is_leaf()) {
     AstNode* name_def = ToAstNode(name_def_tree->leaf());
     ctx->type_info()->SetItem(name_def, type);
@@ -669,7 +669,7 @@ static absl::Status BindNames(const NameDefTree* name_def_tree,
     const ConcreteType& subtype = tuple_type->GetMemberType(i);
     ctx->type_info()->SetItem(subtree, subtype);
 
-    absl::optional<InterpValue> sub_value;
+    std::optional<InterpValue> sub_value;
     if (constexpr_value.has_value()) {
       sub_value = constexpr_value.value().GetValuesOrDie()[i];
     }
@@ -695,7 +695,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceLet(const Let* node,
     }
   }
 
-  absl::optional<InterpValue> maybe_constexpr_value;
+  std::optional<InterpValue> maybe_constexpr_value;
   XLS_RETURN_IF_ERROR(ConstexprEvaluator::Evaluate(
       ctx->import_data(), ctx->type_info(), GetCurrentSymbolicBindings(ctx),
       node->rhs(), rhs.get()));
@@ -956,7 +956,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceAttr(const Attr* node,
                         struct_type->nominal_type().identifier(), attr_name));
   }
 
-  absl::optional<const ConcreteType*> result =
+  std::optional<const ConcreteType*> result =
       struct_type->GetMemberTypeByName(attr_name);
   XLS_RET_CHECK(result.has_value());  // We checked above we had named member.
 
@@ -1040,13 +1040,13 @@ static bool IsPublic(const ModuleMember& member) {
 static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
     const ColonRef* node, Import* import, DeduceCtx* ctx) {
   // Referring to something within an (imported) module.
-  absl::optional<const ImportedInfo*> imported =
+  std::optional<const ImportedInfo*> imported =
       ctx->type_info()->GetImported(import);
   XLS_RET_CHECK(imported.has_value());
 
   // Find the member being referred to within the imported module.
   Module* imported_module = (*imported)->module;
-  absl::optional<ModuleMember*> elem =
+  std::optional<ModuleMember*> elem =
       imported_module->FindMemberWithName(node->attr());
   if (!elem.has_value()) {
     return TypeInferenceErrorStatus(
@@ -1084,7 +1084,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
   }
 
   AstNode* member_node = ToAstNode(*elem.value());
-  absl::optional<ConcreteType*> type = imported_type_info->GetItem(member_node);
+  std::optional<ConcreteType*> type = imported_type_info->GetItem(member_node);
   XLS_RET_CHECK(type.has_value()) << member_node->ToString();
   return type.value()->CloneToUnique();
 }
@@ -1130,8 +1130,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.
 static absl::StatusOr<StartAndWidth> ResolveBitSliceIndices(
-    int64_t bit_count, absl::optional<int64_t> start_opt,
-    absl::optional<int64_t> limit_opt) {
+    int64_t bit_count, std::optional<int64_t> start_opt,
+    std::optional<int64_t> limit_opt) {
   XLS_RET_CHECK_GE(bit_count, 0);
   int64_t start = 0;
   int64_t limit = bit_count;
@@ -1252,7 +1252,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
 
 // Attempts to resolve one of the bounds (start or limit) of slice into a
 // DSLX-compile-time constant.
-static absl::StatusOr<absl::optional<int64_t>> TryResolveBound(
+static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
     Slice* slice, Expr* bound, absl::string_view bound_name, ConcreteType* s32,
     const absl::flat_hash_map<std::string, InterpValue>& env, DeduceCtx* ctx) {
   if (bound == nullptr) {
@@ -1341,7 +1341,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     }
   }
   XLS_ASSIGN_OR_RETURN(
-      absl::optional<int64_t> start,
+      std::optional<int64_t> start,
       TryResolveBound(slice, slice->start(), "start", s32.get(), env, ctx));
 
   if (slice->limit() != nullptr) {
@@ -1353,7 +1353,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
     }
   }
   XLS_ASSIGN_OR_RETURN(
-      absl::optional<int64_t> limit,
+      std::optional<int64_t> limit,
       TryResolveBound(slice, slice->limit(), "limit", s32.get(), env, ctx));
 
   const SymbolicBindings& fn_symbolic_bindings =
@@ -1554,7 +1554,7 @@ static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> expr_type,
                          DeduceAndResolve(expr, ctx));
     result.args.push_back(InstantiateArg{std::move(expr_type), expr->span()});
-    absl::optional<const ConcreteType*> maybe_type =
+    std::optional<const ConcreteType*> maybe_type =
         struct_type.GetMemberTypeByName(name);
     if (maybe_type.has_value()) {
       result.member_types.push_back(maybe_type.value()->CloneToUnique());
@@ -1623,7 +1623,7 @@ static absl::StatusOr<StructDef*> DerefToStruct(
                             original_ref_text, name_ref->ToString(),
                             name_ref->span().ToString()));
       }
-      absl::optional<const ImportedInfo*> imported =
+      std::optional<const ImportedInfo*> imported =
           type_info->GetImported(import);
       XLS_RET_CHECK(imported.has_value());
       Module* module = imported.value()->module;
@@ -2373,7 +2373,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
       DeduceInstantiation(ctx, node->config(), config_args, resolve_config,
                           typecheck_fn, constexpr_env));
 
-  absl::optional<TypeInfo*> maybe_config_ti =
+  std::optional<TypeInfo*> maybe_config_ti =
       ctx->type_info()->GetInvocationTypeInfo(node->config(),
                                               tab.symbolic_bindings);
   XLS_RET_CHECK(maybe_config_ti.has_value());
@@ -2440,7 +2440,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(
   ctx->type_info()->AddInvocationCallBindings(node, caller_bindings,
                                                  tab.symbolic_bindings);
 
-  absl::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
+  std::optional<TypeInfo*> dti = ctx->type_info()->GetInvocationTypeInfo(
       element_invocation, tab.symbolic_bindings);
   if (dti.has_value()) {
     ctx->type_info()->SetInvocationTypeInfo(node, tab.symbolic_bindings,
@@ -2518,7 +2518,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceInvocation(
 
     // If the callee function needs an implicit token type (e.g. because it has
     // a fail!() or cover!() operation transitively) then so do we.
-    if (absl::optional<bool> callee_opt = ctx->import_data()
+    if (std::optional<bool> callee_opt = ctx->import_data()
                                               ->GetRootTypeInfoForNode(fn)
                                               .value()
                                               ->GetRequiresImplicitToken(fn);
@@ -2563,7 +2563,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFormatMacro(
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNameRef(const NameRef* node,
                                                             DeduceCtx* ctx) {
   AstNode* name_def = ToAstNode(node->name_def());
-  absl::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
+  std::optional<ConcreteType*> item = ctx->type_info()->GetItem(name_def);
   if (item.has_value()) {
     auto concrete_type = (*item)->CloneToUnique();
     return concrete_type;
@@ -2705,7 +2705,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node,
                                                      DeduceCtx* ctx) {
-  if (absl::optional<ConcreteType*> type = ctx->type_info()->GetItem(node)) {
+  if (std::optional<ConcreteType*> type = ctx->type_info()->GetItem(node)) {
     return (*type)->CloneToUnique();
   }
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type,

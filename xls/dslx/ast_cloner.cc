@@ -104,7 +104,7 @@ class AstCloner : public AstNodeVisitor {
   absl::Status HandleChannelDecl(const ChannelDecl* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    absl::optional<std::vector<Expr*>> new_dims;
+    std::optional<std::vector<Expr*>> new_dims;
     if (n->dims().has_value()) {
       std::vector<Expr*> old_dims_vector = n->dims().value();
       std::vector<Expr*> new_dims_vector;
@@ -125,7 +125,7 @@ class AstCloner : public AstNodeVisitor {
       const ChannelTypeAnnotation* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
 
-    absl::optional<std::vector<Expr*>> new_dims;
+    std::optional<std::vector<Expr*>> new_dims;
     if (n->dims().has_value()) {
       std::vector<Expr*> old_dims_vector = n->dims().value();
       std::vector<Expr*> new_dims_vector;
@@ -934,7 +934,7 @@ absl::Status VerifyClone(const AstNode* old_root, const AstNode* new_root) {
   absl::flat_hash_set<const AstNode*> new_nodes = FlattenToSet(new_root);
   for (const AstNode* new_node : new_nodes) {
     if (old_nodes.contains(new_node)) {
-      absl::optional<Span> span = new_node->GetSpan();
+      std::optional<Span> span = new_node->GetSpan();
       return absl::InvalidArgumentError(absl::StrFormat(
           "Node \"%s\" (%s; %s) was found in both the old set and "
           "new translation!",

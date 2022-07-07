@@ -130,7 +130,7 @@ struct Command {
 
 // Parse a command, given a string like `":type identifier"`.
 // Returns `absl::nullopt` only if the command could not be parsed.
-absl::optional<Command> ParseCommand(absl::string_view str) {
+std::optional<Command> ParseCommand(absl::string_view str) {
   absl::string_view stripped_str = absl::StripAsciiWhitespace(str);
   auto munch_prefix = [&str](std::string s) {
     return absl::ConsumePrefix(&str, s);
@@ -199,7 +199,7 @@ static Globals* GetSingletonGlobals() {
 void CompletionCallback(const char* buf, linenoiseCompletions* lc) {
   Globals* globals = GetSingletonGlobals();
   absl::string_view so_far(buf);
-  absl::optional<Command> maybe_command = ParseCommand(buf);
+  std::optional<Command> maybe_command = ParseCommand(buf);
   if (maybe_command) {
     Command command = maybe_command.value();
     switch (command.command) {
@@ -382,7 +382,7 @@ absl::StatusOr<Function*> FindFunction(absl::string_view function_name,
 
 // Function implementing the `:verilog` command, which generates and dumps the
 // compiled Verilog for the module.
-absl::Status CommandVerilog(absl::optional<std::string> function_name) {
+absl::Status CommandVerilog(std::optional<std::string> function_name) {
   XLS_VLOG(1) << "Running verilog command with function name: "
               << (function_name ? *function_name : "<none>");
   XLS_RETURN_IF_ERROR(UpdateIr());
@@ -396,7 +396,7 @@ absl::Status CommandVerilog(absl::optional<std::string> function_name) {
       return absl::OkStatus();
     }
   } else {
-    absl::optional<FunctionBase*> top = package->GetTop();
+    std::optional<FunctionBase*> top = package->GetTop();
     if (!top.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "Top entity not set for package: %s.", package->name()));
@@ -439,7 +439,7 @@ absl::Status CommandType(absl::string_view ident) {
       return absl::OkStatus();
     }
     dslx::Import* import = import_map[import_name];
-    absl::optional<const dslx::ImportedInfo*> maybe_imported_info =
+    std::optional<const dslx::ImportedInfo*> maybe_imported_info =
         globals->dslx->type_info->GetImported(import);
     if (!maybe_imported_info) {
       std::cout << "Something is wrong with TypeInfo::GetImported\n";
@@ -457,7 +457,7 @@ absl::Status CommandType(absl::string_view ident) {
     std::cout << "Could not find identifier: " << ident << "\n";
     return absl::OkStatus();
   }
-  absl::optional<dslx::ConcreteType*> type_or =
+  std::optional<dslx::ConcreteType*> type_or =
       type_info->GetItem(function_map[ident]);
   if (!type_or.has_value()) {
     std::cout << "Could not find type for identifier: " << ident << "\n";
@@ -503,7 +503,7 @@ absl::Status RealMain(absl::string_view dslx_path,
     linenoiseHistoryAdd(line.c_str());
     linenoiseHistorySave(history_path.c_str());
 
-    absl::optional<Command> command = ParseCommand(line);
+    std::optional<Command> command = ParseCommand(line);
     if (!command) {
       continue;
     }
@@ -529,7 +529,7 @@ absl::Status RealMain(absl::string_view dslx_path,
         break;
       }
       case CommandName::kVerilog: {
-        absl::optional<std::string> function_name;
+        std::optional<std::string> function_name;
         if (!command->arguments.empty()) {
           function_name = command->arguments[0];
         }

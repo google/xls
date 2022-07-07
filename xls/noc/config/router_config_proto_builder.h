@@ -40,11 +40,11 @@ class RouterConfigProtoBuilder {
 
   // Sets default Virtual Channels for input ports.
   RouterConfigProtoBuilder& SetDefaultVirtualChannelsForInputPort(
-      absl::optional<std::vector<std::string>> virtual_channels);
+      std::optional<std::vector<std::string>> virtual_channels);
 
   // Sets default Virtual Channels for output ports.
   RouterConfigProtoBuilder& SetDefaultVirtualChannelsForOutputPort(
-      absl::optional<std::vector<std::string>> virtual_channels);
+      std::optional<std::vector<std::string>> virtual_channels);
 
   // Returns the routing scheme configuration builder of this builder.
   RoutingSchemeConfigProtoBuilder GetRoutingSchemeConfigProtoBuilder();
@@ -56,8 +56,8 @@ class RouterConfigProtoBuilder {
   RouterConfigProto* proto_;
   // The members below are used to preserve the default state for the builder.
   // See corresponding methods above for details.
-  absl::optional<std::vector<std::string>> virtual_channels_for_input_;
-  absl::optional<std::vector<std::string>> virtual_channels_for_output_;
+  std::optional<std::vector<std::string>> virtual_channels_for_input_;
+  std::optional<std::vector<std::string>> virtual_channels_for_output_;
 };
 
 }  // namespace xls::noc

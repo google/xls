@@ -142,7 +142,7 @@ absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
   }
 
   // Default to the top entity if nothing is specified.
-  absl::optional<FunctionBase*> top = p->GetTop();
+  std::optional<FunctionBase*> top = p->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Top entity not set for package: %s.", p->name()));
@@ -175,7 +175,7 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
     options = verilog::BuildPipelineOptions();
 
     if (!absl::GetFlag(FLAGS_input_valid_signal).empty()) {
-      absl::optional<std::string> output_signal;
+      std::optional<std::string> output_signal;
       if (!absl::GetFlag(FLAGS_output_valid_signal).empty()) {
         output_signal = absl::GetFlag(FLAGS_output_valid_signal);
       }

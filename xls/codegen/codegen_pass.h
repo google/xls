@@ -35,7 +35,7 @@ struct CodegenPassOptions : public PassOptions {
 
   // Optional schedule. If given, a feedforward pipeline is generated based on
   // the schedule.
-  absl::optional<PipelineSchedule> schedule;
+  std::optional<PipelineSchedule> schedule;
 };
 
 // Data structure operated on by codegen passes. Contains the IR and associated
@@ -55,7 +55,7 @@ struct CodegenPassUnit {
   // a "block" contruct which corresponds to a verilog module. This block could
   // hold its own signature. This would help prevent the signature from getting
   // out-of-sync with the IR.
-  absl::optional<ModuleSignature> signature;
+  std::optional<ModuleSignature> signature;
 
   // These methods are required by CompoundPassBase.
   std::string DumpIr() const;

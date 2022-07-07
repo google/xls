@@ -57,7 +57,7 @@ class TokenParser {
   //
   // If the token at the head of the stream is not an identifier, returns
   // nullopt.
-  absl::StatusOr<absl::optional<Token>> TryPopIdentifierToken(
+  absl::StatusOr<std::optional<Token>> TryPopIdentifierToken(
       absl::string_view target) {
     XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
     if (tok->IsIdentifier(target)) {
@@ -66,7 +66,7 @@ class TokenParser {
     return absl::nullopt;
   }
 
-  absl::StatusOr<absl::optional<Token>> TryPopToken(TokenKind target) {
+  absl::StatusOr<std::optional<Token>> TryPopToken(TokenKind target) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == target) {
       return PopTokenOrDie();
@@ -74,7 +74,7 @@ class TokenParser {
     return absl::nullopt;
   }
 
-  absl::StatusOr<absl::optional<Token>> TryPopKeyword(Keyword target,
+  absl::StatusOr<std::optional<Token>> TryPopKeyword(Keyword target,
                                                       Pos* pos = nullptr) {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->IsKeyword(target)) {
@@ -99,7 +99,7 @@ class TokenParser {
   }
 
   absl::StatusOr<bool> TryDropIdentifierToken(absl::string_view target) {
-    XLS_ASSIGN_OR_RETURN(absl::optional<Token> maybe_tok,
+    XLS_ASSIGN_OR_RETURN(std::optional<Token> maybe_tok,
                          TryPopIdentifierToken(target));
     return maybe_tok != absl::nullopt;
   }

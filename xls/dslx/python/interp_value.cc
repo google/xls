@@ -32,17 +32,17 @@ struct InterpValuePickler {
   // nice auto-conversion that pybind11 provides and we'd have to register the
   // type explicitly. Since this should go away once everything is ported to
   // C++, we leave it for now.
-  using State = std::tuple<int64_t, absl::optional<Bits>,
-                           absl::optional<std::vector<InterpValue>>>;
+  using State = std::tuple<int64_t, std::optional<Bits>,
+                           std::optional<std::vector<InterpValue>>>;
 
   static State Pickle(const InterpValue& self) {
     InterpValueTag tag = self.tag();
     int64_t tag_value = static_cast<int64_t>(tag);
-    absl::optional<Bits> bits;
+    std::optional<Bits> bits;
     if (self.HasBits()) {
       bits = self.GetBitsOrDie();
     }
-    absl::optional<std::vector<InterpValue>> values;
+    std::optional<std::vector<InterpValue>> values;
     if (self.HasValues()) {
       values = self.GetValuesOrDie();
     }
@@ -50,7 +50,7 @@ struct InterpValuePickler {
   }
   static InterpValue Unpickle(const State& state) {
     InterpValue::Payload payload;
-    const absl::optional<Bits>& bits = std::get<1>(state);
+    const std::optional<Bits>& bits = std::get<1>(state);
     if (bits.has_value()) {
       payload = bits.value();
     } else {

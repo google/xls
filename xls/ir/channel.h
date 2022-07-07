@@ -96,7 +96,7 @@ class Channel {
   void SetBlockName(absl::string_view name) {
     metadata_.mutable_block_ports()->set_block_name(std::string(name));
   }
-  absl::optional<std::string> GetBlockName() const {
+  std::optional<std::string> GetBlockName() const {
     if (metadata_.block_ports().has_block_name()) {
       return metadata_.block_ports().block_name();
     }
@@ -107,7 +107,7 @@ class Channel {
   void SetDataPortName(absl::string_view name) {
     metadata_.mutable_block_ports()->set_data_port_name(std::string(name));
   }
-  absl::optional<std::string> GetDataPortName() const {
+  std::optional<std::string> GetDataPortName() const {
     if (metadata_.block_ports().has_data_port_name()) {
       return metadata_.block_ports().data_port_name();
     }
@@ -118,7 +118,7 @@ class Channel {
   void SetValidPortName(absl::string_view name) {
     metadata_.mutable_block_ports()->set_valid_port_name(std::string(name));
   }
-  absl::optional<std::string> GetValidPortName() const {
+  std::optional<std::string> GetValidPortName() const {
     if (metadata_.block_ports().has_valid_port_name()) {
       return metadata_.block_ports().valid_port_name();
     }
@@ -129,7 +129,7 @@ class Channel {
   void SetReadyPortName(absl::string_view name) {
     metadata_.mutable_block_ports()->set_ready_port_name(std::string(name));
   }
-  absl::optional<std::string> GetReadyPortName() const {
+  std::optional<std::string> GetReadyPortName() const {
     if (metadata_.block_ports().has_valid_port_name()) {
       return metadata_.block_ports().ready_port_name();
     }
@@ -174,7 +174,7 @@ class StreamingChannel : public Channel {
  public:
   StreamingChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
-                   absl::optional<int64_t> fifo_depth, FlowControl flow_control,
+                   std::optional<int64_t> fifo_depth, FlowControl flow_control,
                    const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kStreaming, type,
                 initial_values, metadata),
@@ -190,14 +190,14 @@ class StreamingChannel : public Channel {
     return GetBlockName().has_value() && GetDataPortName().has_value();
   }
 
-  absl::optional<int64_t> GetFifoDepth() const { return fifo_depth_; }
-  void SetFifoDepth(absl::optional<int64_t> value) { fifo_depth_ = value; }
+  std::optional<int64_t> GetFifoDepth() const { return fifo_depth_; }
+  void SetFifoDepth(std::optional<int64_t> value) { fifo_depth_ = value; }
 
   FlowControl GetFlowControl() const { return flow_control_; }
   void SetFlowControl(FlowControl value) { flow_control_ = value; }
 
  public:
-  absl::optional<int64_t> fifo_depth_;
+  std::optional<int64_t> fifo_depth_;
   FlowControl flow_control_;
 };
 

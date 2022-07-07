@@ -51,8 +51,8 @@ std::string GetTimeoutMessage() {
 
 ModuleTestbench::ModuleTestbench(Module* module,
                                  const VerilogSimulator* simulator,
-                                 absl::optional<absl::string_view> clk_name,
-                                 absl::optional<ResetProto> reset)
+                                 std::optional<absl::string_view> clk_name,
+                                 std::optional<ResetProto> reset)
     // Emit the entire file because the module may instantiate other modules.
     : verilog_text_(module->file()->Emit()),
       module_name_(module->name()),

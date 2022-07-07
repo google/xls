@@ -171,7 +171,7 @@ class ConditionMap {
   const ConditionSet& GetEdgeConditionSet(Node* node, Node* user) {
     // Find the unique (if there is one) operand number of user which
     // corresponds to node.
-    absl::optional<int64_t> operand_index;
+    std::optional<int64_t> operand_index;
     for (int64_t i = 0; i < user->operand_count(); ++i) {
       if (user->operand(i) == node) {
         if (operand_index.has_value()) {
@@ -212,7 +212,7 @@ class ConditionMap {
 // Returns the value for node logically implied by the given conditions if a
 // value can be implied. Returns abls::nullopt otherwise. `query_engine` can be
 // null in which case BDD's are not used in the implication analysis.
-absl::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
+std::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
                                       Node* node,
                                       const QueryEngine* query_engine) {
   for (const Condition& condition : condition_set.conditions()) {
@@ -234,7 +234,7 @@ absl::optional<Bits> ImpliedNodeValue(const ConditionSet& condition_set,
       predicates.push_back({TreeBitLocation{condition.node, i}, bit_value});
     }
   }
-  absl::optional<Bits> implied_value =
+  std::optional<Bits> implied_value =
       query_engine->ImpliedNodeValue(predicates, node);
 
   if (implied_value.has_value()) {
@@ -330,7 +330,7 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
 
       // First check to see if the condition set directly implies a value for
       // the operand. If so replace with the implied value.
-      if (absl::optional<Bits> implied_value =
+      if (std::optional<Bits> implied_value =
               ImpliedNodeValue(edge_set, operand, query_engine.get());
           implied_value.has_value()) {
         XLS_VLOG(3) << absl::StreamFormat("Replacing operand %d of %s with %s",
@@ -364,14 +364,14 @@ absl::StatusOr<bool> ConditionalSpecializationPass::RunOnFunctionBaseInternal(
       // graph as far as possible. For example, in the diagram above `b` may
       // also be a select with a selector whose value is implied by `s`.
       if (operand->Is<Select>()) {
-        absl::optional<Node*> replacement;
+        std::optional<Node*> replacement;
         Node* src = operand;
         while (src->Is<Select>()) {
           Select* select = src->As<Select>();
           if (select->selector()->Is<Literal>()) {
             break;
           }
-          absl::optional<Bits> implied_selector = ImpliedNodeValue(
+          std::optional<Bits> implied_selector = ImpliedNodeValue(
               edge_set, select->selector(), query_engine.get());
           if (!implied_selector.has_value()) {
             break;

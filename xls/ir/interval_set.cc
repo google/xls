@@ -92,11 +92,11 @@ void IntervalSet::Normalize() {
   is_normalized_ = true;
 }
 
-absl::optional<Interval> IntervalSet::ConvexHull() const {
+std::optional<Interval> IntervalSet::ConvexHull() const {
   // TODO(taktoa): optimize case where is_normalized_ is true
   XLS_CHECK_GE(bit_count_, 0);
-  absl::optional<Bits> lower;
-  absl::optional<Bits> upper;
+  std::optional<Bits> lower;
+  std::optional<Bits> upper;
   for (const Interval& interval : intervals_) {
     if (lower.has_value()) {
       if (bits_ops::ULessThan(interval.LowerBound(), lower.value())) {
@@ -171,7 +171,7 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
   // at this point, since we CHECK that they are normalized.
   while ((left != lhs_intervals.end()) && (right != rhs_intervals.end())) {
     if (bits_ops::ULessThan(left->UpperBound(), right->UpperBound())) {
-      if (absl::optional<Interval> intersection =
+      if (std::optional<Interval> intersection =
               Interval::Intersect(*left, *right)) {
         result.AddInterval(*intersection);
         // The difference should only ever contain 0 or 1 interval.
@@ -185,7 +185,7 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
       continue;
     }
     if (bits_ops::ULessThan(right->UpperBound(), left->UpperBound())) {
-      if (absl::optional<Interval> intersection =
+      if (std::optional<Interval> intersection =
               Interval::Intersect(*left, *right)) {
         result.AddInterval(*intersection);
         // The difference should only ever contain 0 or 1 interval.
@@ -199,7 +199,7 @@ IntervalSet IntervalSet::Intersect(const IntervalSet& lhs,
       continue;
     }
     if (bits_ops::UEqual(left->UpperBound(), right->UpperBound())) {
-      if (absl::optional<Interval> intersection =
+      if (std::optional<Interval> intersection =
               Interval::Intersect(*left, *right)) {
         result.AddInterval(*intersection);
       }
@@ -227,7 +227,7 @@ IntervalSet IntervalSet::Complement(const IntervalSet& set) {
   return result;
 }
 
-absl::optional<int64_t> IntervalSet::Size() const {
+std::optional<int64_t> IntervalSet::Size() const {
   XLS_CHECK(is_normalized_);
   int64_t total_size = 0;
   for (const Interval& interval : intervals_) {
@@ -240,7 +240,7 @@ absl::optional<int64_t> IntervalSet::Size() const {
   return total_size;
 }
 
-absl::optional<Bits> IntervalSet::Index(const Bits& index) const {
+std::optional<Bits> IntervalSet::Index(const Bits& index) const {
   XLS_CHECK(is_normalized_);
   XLS_CHECK_EQ(index.bit_count(), BitCount());
   Bits so_far = bits_ops::ZeroExtend(index, BitCount() + 1);
@@ -275,7 +275,7 @@ bool IntervalSet::Covers(const Bits& bits) const {
 
 bool IntervalSet::IsPrecise() const {
   XLS_CHECK_GE(bit_count_, 0);
-  absl::optional<Interval> precisely;
+  std::optional<Interval> precisely;
   for (const Interval& interval : intervals_) {
     if (precisely.has_value() && !(precisely.value() == interval)) {
       return false;
@@ -288,7 +288,7 @@ bool IntervalSet::IsPrecise() const {
   return true;
 }
 
-absl::optional<Bits> IntervalSet::GetPreciseValue() const {
+std::optional<Bits> IntervalSet::GetPreciseValue() const {
   XLS_CHECK(is_normalized_);
   if (!IsPrecise()) {
     return absl::nullopt;

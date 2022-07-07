@@ -98,7 +98,7 @@ class AbstractCell {
       absl::string_view name,
       const absl::flat_hash_map<std::string, AbstractNetRef<EvalT>>&
           named_parameter_assignments,
-      absl::optional<AbstractNetRef<EvalT>> clock,
+      std::optional<AbstractNetRef<EvalT>> clock,
       AbstractNetRef<EvalT> dummy_net);
 
   const AbstractCellLibraryEntry<EvalT>* cell_library_entry() const {
@@ -110,7 +110,7 @@ class AbstractCell {
   absl::Span<const Pin> inputs() const { return inputs_; }
   absl::Span<const OutputPin> outputs() const { return outputs_; }
   absl::Span<const Pin> internal_pins() const { return internal_pins_; }
-  const absl::optional<AbstractNetRef<EvalT>>& clock() const { return clock_; }
+  const std::optional<AbstractNetRef<EvalT>>& clock() const { return clock_; }
 
   absl::Status SetOutputEvalFn(absl::string_view output_pin_name,
                                CellOutputEvalFn<EvalT> fn) {
@@ -136,7 +136,7 @@ class AbstractCell {
                absl::string_view name, const std::vector<Pin>& inputs,
                const std::vector<OutputPin>& outputs,
                const std::vector<Pin>& internal_pins,
-               absl::optional<AbstractNetRef<EvalT>> clock)
+               std::optional<AbstractNetRef<EvalT>> clock)
       : cell_library_entry_(cell_library_entry),
         name_(name),
         inputs_(std::move(inputs)),
@@ -149,7 +149,7 @@ class AbstractCell {
   std::vector<Pin> inputs_;
   std::vector<OutputPin> outputs_;
   std::vector<Pin> internal_pins_;
-  absl::optional<AbstractNetRef<EvalT>> clock_;
+  std::optional<AbstractNetRef<EvalT>> clock_;
 };
 
 using Cell = AbstractCell<>;
@@ -329,10 +329,10 @@ class AbstractModule {
   //
   // An error status is returned if, for a given "input" or "output"
   // declaration, there no match in the parameter list.
-  absl::Status DeclarePort(absl::string_view name, absl::optional<Range> range,
+  absl::Status DeclarePort(absl::string_view name, std::optional<Range> range,
                            bool is_output);
   // Returns the width of a port.
-  absl::optional<absl::optional<Range>> GetPortRange(absl::string_view name,
+  std::optional<std::optional<Range>> GetPortRange(absl::string_view name,
                                                      bool is_assignable);
 
   // Declares an individual wire with its range.  For example, when encountering
@@ -346,7 +346,7 @@ class AbstractModule {
   // example above, AddNetDecl() would be invoked 8 times for "x" and once for
   // "y".  By contrast, DeclareWire does not add a net declaration--it simply
   // records the declaration with its relevant attributes (i.e., the range).
-  absl::Status DeclareWire(absl::string_view name, absl::optional<Range> range);
+  absl::Status DeclareWire(absl::string_view name, std::optional<Range> range);
 
   // Returns the range  of a wire.  For example, given these declarations:
   //
@@ -357,7 +357,7 @@ class AbstractModule {
   // "y".  Note that the wire name needs to be given without a subscript (e.g.,
   // "y[0]" or "x[1]" are not valid inputs.  If the wire-name lookup fails, the
   // method returns (the enclosing) absl::nullopt.
-  absl::optional<absl::optional<Range>> GetWireRange(absl::string_view name);
+  std::optional<std::optional<Range>> GetWireRange(absl::string_view name);
 
   // Returns the bit offset of a given input net in the parameter list.  For
   // example, if a module declaration starts with:
@@ -447,10 +447,10 @@ class AbstractModule {
 
  private:
   struct Wire {
-    explicit Wire(std::string name, absl::optional<Range> range)
+    explicit Wire(std::string name, std::optional<Range> range)
         : name_(name), range_(range) {}
     std::string name_;
-    absl::optional<Range> range_;
+    std::optional<Range> range_;
     size_t GetWidth() const {
       size_t width = 1;
       if (range_.has_value()) {
@@ -483,7 +483,7 @@ class AbstractModule {
   AbstractNetRef<EvalT> one_;
   AbstractNetRef<EvalT> dummy_;
 
-  mutable absl::optional<AbstractCellLibraryEntry<EvalT>> cell_library_entry_;
+  mutable std::optional<AbstractCellLibraryEntry<EvalT>> cell_library_entry_;
 };
 
 using Module = AbstractModule<>;
@@ -500,7 +500,7 @@ class AbstractNetlist {
   // Faster version of GetModule--returns nullopt when module is not present.
   // Useful when looking for a module expects to get false results most of the
   // time.
-  absl::optional<const AbstractModule<EvalT>*> MaybeGetModule(
+  std::optional<const AbstractModule<EvalT>*> MaybeGetModule(
       const std::string& module_name) const;
   const absl::Span<const std::unique_ptr<AbstractModule<EvalT>>> modules() {
     return modules_;
@@ -656,13 +656,13 @@ absl::Status AbstractModule<EvalT>::AddAssignDecl(absl::string_view lhs_name,
 
 template <typename EvalT>
 absl::Status AbstractModule<EvalT>::DeclareWire(absl::string_view name,
-                                                absl::optional<Range> range) {
+                                                std::optional<Range> range) {
   wires_.emplace_back(std::make_unique<Wire>(std::string(name), range));
   return absl::OkStatus();
 }
 
 template <typename EvalT>
-absl::optional<absl::optional<Range>> AbstractModule<EvalT>::GetWireRange(
+std::optional<std::optional<Range>> AbstractModule<EvalT>::GetWireRange(
     absl::string_view name) {
   for (auto& wire : wires_) {
     if (wire->name_ == name) {
@@ -674,7 +674,7 @@ absl::optional<absl::optional<Range>> AbstractModule<EvalT>::GetWireRange(
 
 template <typename EvalT>
 absl::Status AbstractModule<EvalT>::DeclarePort(absl::string_view name,
-                                                absl::optional<Range> range,
+                                                std::optional<Range> range,
                                                 bool is_output) {
   for (auto& port : ports_) {
     if (port->name_ == name) {
@@ -694,7 +694,7 @@ absl::Status AbstractModule<EvalT>::DeclarePort(absl::string_view name,
 }
 
 template <typename EvalT>
-absl::optional<absl::optional<Range>> AbstractModule<EvalT>::GetPortRange(
+std::optional<std::optional<Range>> AbstractModule<EvalT>::GetPortRange(
     absl::string_view name, bool is_assignable) {
   for (auto& port : ports_) {
     if (port->name_ == name && (!is_assignable || port->is_output_)) {
@@ -762,7 +762,7 @@ template <typename EvalT>
     absl::string_view name,
     const absl::flat_hash_map<std::string, AbstractNetRef<EvalT>>&
         named_parameter_assignments,
-    absl::optional<AbstractNetRef<EvalT>> clock,
+    std::optional<AbstractNetRef<EvalT>> clock,
     const AbstractNetRef<EvalT> dummy_net) {
   auto sorted_key_str = [named_parameter_assignments]() -> std::string {
     std::vector<std::string> keys;
@@ -833,7 +833,7 @@ void AbstractNetlist<EvalT>::AddModule(
 }
 
 template <typename EvalT>
-absl::optional<const AbstractModule<EvalT>*>
+std::optional<const AbstractModule<EvalT>*>
 AbstractNetlist<EvalT>::MaybeGetModule(const std::string& module_name) const {
   for (const auto& module : modules_) {
     if (module->name() == module_name) {

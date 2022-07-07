@@ -59,7 +59,7 @@ void Node::AddOperands(absl::Span<Node* const> operands) {
   }
 }
 
-void Node::AddOptionalOperand(absl::optional<Node*> operand) {
+void Node::AddOptionalOperand(std::optional<Node*> operand) {
   if (operand.has_value()) {
     AddOperand(*operand);
   }

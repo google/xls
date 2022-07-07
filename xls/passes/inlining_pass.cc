@@ -31,7 +31,7 @@ namespace {
 // generated using the respective operand name of 'invoke' substituted for the
 // parameter name. If no meaningful name could be determined then nullopt is
 // returned.
-absl::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
+std::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
   if (!node->HasAssignedName()) {
     return absl::nullopt;
   }
@@ -129,7 +129,7 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
       invoked_node_to_replacement.at(node)->ClearName();
       continue;
     }
-    absl::optional<std::string> new_name = GetInlinedNodeName(node, invoke);
+    std::optional<std::string> new_name = GetInlinedNodeName(node, invoke);
     if (new_name.has_value()) {
       invoked_node_to_replacement.at(node)->SetName(new_name.value());
     }

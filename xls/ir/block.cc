@@ -335,7 +335,7 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(absl::string_view name,
 }
 
 absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
-                                             absl::optional<Reset> reset) {
+                                             std::optional<Reset> reset) {
   if (registers_.contains(name)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Register already exists with name %s", name));
@@ -684,11 +684,11 @@ absl::StatusOr<Block*> Block::Clone(absl::string_view new_name) const {
           cloned_block->MakeNodeWithName<RegisterWrite>(
               src->loc(), cloned_operands[0],
               src->load_enable().has_value()
-                  ? absl::optional<Node*>(
+                  ? std::optional<Node*>(
                         original_to_clone.at(*src->load_enable()))
                   : absl::nullopt,
               src->reset().has_value()
-                  ? absl::optional<Node*>(original_to_clone.at(*src->reset()))
+                  ? std::optional<Node*>(original_to_clone.at(*src->reset()))
                   : absl::nullopt,
               register_map.at(src->GetRegister()), src->GetName()));
     } else if (node->Is<InstantiationInput>()) {

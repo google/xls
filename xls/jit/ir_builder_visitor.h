@@ -62,7 +62,7 @@ class NodeIrContext {
   // result. If `exit_builder` is specified then it is used to build the return
   // statement. Otherwise `entry_builder()` is used.
   void Finalize(llvm::Value* result,
-                absl::optional<llvm::IRBuilder<>*> exit_builder);
+                std::optional<llvm::IRBuilder<>*> exit_builder);
 
   Node* node() const { return node_; }
 
@@ -102,7 +102,7 @@ class NodeIrContext {
   std::unique_ptr<llvm::IRBuilder<>> builder_;
   LlvmTypeConverter* type_converter_;
   std::vector<llvm::Value*> operands_;
-  absl::optional<Environment> environment_;
+  std::optional<Environment> environment_;
 };
 
 // Visitor to construct LLVM IR for each encountered XLS IR node. Based on

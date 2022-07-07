@@ -42,7 +42,7 @@ class BddQueryEngine : public QueryEngine {
   // which the BDD evaluates (returning false means the node will node be
   // evaluated). See BddFunction for details.
   explicit BddQueryEngine(int64_t path_limit = 0,
-                          absl::optional<std::function<bool(const Node*)>>
+                          std::optional<std::function<bool(const Node*)>>
                               node_filter = absl::nullopt)
       : path_limit_(path_limit), node_filter_(node_filter) {}
 
@@ -65,7 +65,7 @@ class BddQueryEngine : public QueryEngine {
   bool AtLeastOneTrue(absl::Span<TreeBitLocation const> bits) const override;
   bool Implies(const TreeBitLocation& a,
                const TreeBitLocation& b) const override;
-  absl::optional<Bits> ImpliedNodeValue(
+  std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override;
   bool KnownEquals(const TreeBitLocation& a,
@@ -105,7 +105,7 @@ class BddQueryEngine : public QueryEngine {
   // The maximum number of paths in expression in the BDD before truncating.
   int64_t path_limit_;
 
-  absl::optional<std::function<bool(const Node*)>> node_filter_;
+  std::optional<std::function<bool(const Node*)>> node_filter_;
 
   // Indicates the bits at the output of each node which have known values.
   absl::flat_hash_map<Node*, Bits> known_bits_;

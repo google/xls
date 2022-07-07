@@ -60,7 +60,7 @@ class Coordinate {
   // coordinates [0, 2, 0] and [1, 2, 0], returns [true, false, false]. If the
   // number of dimension differ between the instance and the other coordinate,
   // nullopt is returned.
-  absl::optional<InlineBitmap> GetDifferentDimensionLocationsWith(
+  std::optional<InlineBitmap> GetDifferentDimensionLocationsWith(
       const Coordinate& coordinate) const;
 
   // Returns the sum of dimension indices that differ between the instance and
@@ -69,7 +69,7 @@ class Coordinate {
   // other coordinate differ along a dimension. For example, coordinates [0, 2,
   // 0] and [1, 2, 0], returns 1. If the number of dimension differ between the
   // instance and the other coordinate, nullopt is returned.
-  absl::optional<int64_t> GetNumDifferentDimensionLocationsWith(
+  std::optional<int64_t> GetNumDifferentDimensionLocationsWith(
       const Coordinate& coordinate) const;
 
   // Returns the index of the dimension that differs between the instance and
@@ -77,7 +77,7 @@ class Coordinate {
   // instance and the other coordinate. If one dimension index does not differ
   // between the instance and the other coordinate or if the dimension count
   // differs between the instance and the other coordinate, nullopt is returned.
-  absl::optional<int64_t> GetUniqueDifferentDimensionIndex(
+  std::optional<int64_t> GetUniqueDifferentDimensionIndex(
       const Coordinate& coordinate) const;
 
   // Returns true if the coordinates are equal. Otherwise, returns false.

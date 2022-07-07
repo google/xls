@@ -52,7 +52,7 @@ class SampleOptions {
   json11::Json ToJson() const;
 
   bool input_is_dslx() const { return input_is_dslx_; }
-  const absl::optional<std::vector<std::string>>& ir_converter_args() const {
+  const std::optional<std::vector<std::string>>& ir_converter_args() const {
     return ir_converter_args_;
   }
   bool convert_to_ir() const { return convert_to_ir_; }
@@ -60,12 +60,12 @@ class SampleOptions {
   bool use_jit() const { return use_jit_; }
   bool codegen() const { return codegen_; }
   bool simulate() const { return simulate_; }
-  const absl::optional<std::string>& simulator() const { return simulator_; }
-  const absl::optional<std::vector<std::string>>& codegen_args() const {
+  const std::optional<std::string>& simulator() const { return simulator_; }
+  const std::optional<std::vector<std::string>>& codegen_args() const {
     return codegen_args_;
   }
   bool use_system_verilog() const { return use_system_verilog_; }
-  absl::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
+  std::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
   void set_ir_converter_args(const std::vector<std::string>& value) {
@@ -90,7 +90,7 @@ class SampleOptions {
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
   bool input_is_dslx_ = true;
   // Arguments to pass to ir_converter_main. Requires input_is_dslx_ to be true.
-  absl::optional<std::vector<std::string>> ir_converter_args_;
+  std::optional<std::vector<std::string>> ir_converter_args_;
   // Convert the input code sample to XLS IR. Only meaningful if input_is_dslx
   // is true.
   bool convert_to_ir_ = true;
@@ -105,18 +105,18 @@ class SampleOptions {
   // Generate Verilog from the optimized IR. Requires optimize_ir to be true.
   bool codegen_ = false;
   // Arguments to pass to codegen_main. Requires codegen to be true.
-  absl::optional<std::vector<std::string>> codegen_args_;
+  std::optional<std::vector<std::string>> codegen_args_;
   // Run the Verilog simulator on the generated Verilog. Requires codegen to be
   // true.
   bool simulate_ = false;
   // Verilog simulator to use; e.g. "iverilog".
-  absl::optional<std::string> simulator_;
+  std::optional<std::string> simulator_;
   // Whether to use SystemVerilog or Verilog in codegen.
   bool use_system_verilog_ = true;
   // The timeout value in seconds when executing a subcommand (e.g.,
   // opt_main). This is a per-subcommand invocation timeout *NOT* a timeout
   // value for the entire sample run.
-  absl::optional<int64_t> timeout_seconds_;
+  std::optional<int64_t> timeout_seconds_;
 };
 
 // Abstraction describing a fuzzer code sample and how to run it.

@@ -751,7 +751,7 @@ bool InterpValue::operator<(const InterpValue& rhs) const {
   return false;
 }
 
-absl::optional<Module*> GetFunctionValueOwner(
+std::optional<Module*> GetFunctionValueOwner(
     const InterpValue& function_value) {
   if (function_value.IsBuiltinFunction()) {
     return absl::nullopt;

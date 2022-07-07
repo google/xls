@@ -51,8 +51,8 @@ DEFINE_STRONG_INT_TYPE(PathEdgeId, int32_t);
 template <typename T>
 struct PartialDifferenceMonoid {
   std::function<T()> zero;
-  std::function<absl::optional<T>(const T&, const T&)> sum;
-  std::function<absl::optional<T>(const T&, const T&)> difference;
+  std::function<std::optional<T>(const T&, const T&)> sum;
+  std::function<std::optional<T>(const T&, const T&)> difference;
 };
 
 // This is a function table representing types equipped with a total order, to
@@ -154,7 +154,7 @@ class PathGraph {
   }
 
   // Returns the edge after the given node, if there is one.
-  absl::optional<PathEdgeId> NodeSuccessorEdge(PathNodeId node) const {
+  std::optional<PathEdgeId> NodeSuccessorEdge(PathNodeId node) const {
     XLS_CHECK_GE(static_cast<int32_t>(node), 0);
     XLS_CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
     if (static_cast<int32_t>(node) == node_weights_.size() - 1) {
@@ -164,7 +164,7 @@ class PathGraph {
   }
 
   // Returns the edge previous to the given node, if there is one.
-  absl::optional<PathEdgeId> NodePredecessorEdge(PathNodeId node) const {
+  std::optional<PathEdgeId> NodePredecessorEdge(PathNodeId node) const {
     XLS_CHECK_GE(static_cast<int32_t>(node), 0);
     XLS_CHECK_LT(static_cast<int32_t>(node), node_weights_.size());
     if (static_cast<int32_t>(node) <= 0) {
@@ -182,7 +182,7 @@ class PathGraph {
   // given by `maximum_weight`.
   //
   // The algorithm is based on https://cs.stackexchange.com/a/138417
-  absl::optional<PathCut> ComputePathCut(NW maximum_weight) {
+  std::optional<PathCut> ComputePathCut(NW maximum_weight) {
     // Set up a cache for prefix sums of the node weight list.
     absl::flat_hash_map<PathNodeId, NW> prefix_sums = ComputePrefixSums();
 
@@ -222,13 +222,13 @@ class PathGraph {
     cache[absl::nullopt] = {edge_weight_pdm_.zero(), {}};
 
     for (PathNodeId k(0); static_cast<int32_t>(k) < NumNodes(); k++) {
-      absl::optional<CacheItem> best;
+      std::optional<CacheItem> best;
 
       {
         // The body of the dynamic programming inner loop; corresponds to the
         // min{A[t] | …} in the recurrence above.
         auto loop_body = [&](CacheKey t) {
-          absl::optional<NW> prefix_sum_diff_maybe =
+          std::optional<NW> prefix_sum_diff_maybe =
               t.has_value()
                   ? node_weight_pdm_.difference(prefix_sums[k], prefix_sums[*t])
                   : prefix_sums[k];
@@ -257,7 +257,7 @@ class PathGraph {
       }
 
       // Corresponds to the … + wₑ(k, k + 1) part of the recurrence.
-      if (absl::optional<PathEdgeId> e = NodeSuccessorEdge(k)) {
+      if (std::optional<PathEdgeId> e = NodeSuccessorEdge(k)) {
         best->cost += WeightOfEdge(*e);
         best->cut_edges.push_back(*e);
       }
@@ -303,7 +303,7 @@ class PathGraph {
   TotalOrder<NW> node_weight_total_order_;
   TotalOrder<EW> edge_weight_total_order_;
 
-  using CacheKey = absl::optional<PathNodeId>;
+  using CacheKey = std::optional<PathNodeId>;
 
   struct CacheItem {
     EW cost;

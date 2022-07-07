@@ -93,7 +93,7 @@ class RangeQueryVisitor : public DfsVisitor {
   //
   // CHECK fails if `op->operands().size()` is not equal to `tonicities.size()`.
   absl::Status HandleVariadicOp(
-      std::function<absl::optional<Bits>(absl::Span<const Bits>)> impl,
+      std::function<std::optional<Bits>(absl::Span<const Bits>)> impl,
       absl::Span<const Tonicity> tonicities, Node* op);
 
   // Handles an operation that is monotone, unary (and whose argument is given
@@ -106,7 +106,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // An operation is monotone iff `bits_ops::ULessThanOrEqual(x, y)`
   // implies `bits_ops::ULessThanOrEqual(impl(x), impl(y))`.
   absl::Status HandleMonotoneUnaryOp(
-      std::function<absl::optional<Bits>(const Bits&)> impl, Node* op);
+      std::function<std::optional<Bits>(const Bits&)> impl, Node* op);
 
   // Handles an operation that is antitone, unary (and whose argument is given
   // by `op->operand(0)`), and has an implementation given by the given
@@ -118,7 +118,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // An operation is antitone iff `bits_ops::ULessThanOrEqual(x, y)`
   // implies `bits_ops::ULessThanOrEqual(impl(y), impl(x))`.
   absl::Status HandleAntitoneUnaryOp(
-      std::function<absl::optional<Bits>(const Bits&)> impl, Node* op);
+      std::function<std::optional<Bits>(const Bits&)> impl, Node* op);
 
   // Handles an operation that is binary (and whose arguments are given by
   // `op->operand(0)` and `op->operand(1)`), monotone in both arguments, and
@@ -132,7 +132,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // implies `bits_ops::ULessThanOrEqual(impl(x, k), impl(y, k))`
   // and `bits_ops::ULessThanOrEqual(impl(k, x), impl(k, y))`.
   absl::Status HandleMonotoneMonotoneBinOp(
-      std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
+      std::function<std::optional<Bits>(const Bits&, const Bits&)> impl,
       Node* op);
 
   // Handles an operation that is binary (and whose arguments are given by
@@ -148,7 +148,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // implies `bits_ops::ULessThanOrEqual(impl(x, k), impl(y, k))`
   // and `bits_ops::ULessThanOrEqual(impl(k, y), impl(k, x))`.
   absl::Status HandleMonotoneAntitoneBinOp(
-      std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
+      std::function<std::optional<Bits>(const Bits&, const Bits&)> impl,
       Node* op);
 
   // Analyze whether elements of the two given interval sets must be equal, must
@@ -157,7 +157,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // If the given interval sets are precise and identical, returns `true`.
   // If the given interval sets are disjoint, returns `false`.
   // In all other cases, returns `absl::nullopt`.
-  static absl::optional<bool> AnalyzeEq(const IntervalSet& lhs,
+  static std::optional<bool> AnalyzeEq(const IntervalSet& lhs,
                                         const IntervalSet& rhs);
 
   // Analyze whether elements of the two given interval sets must be less than,
@@ -168,7 +168,7 @@ class RangeQueryVisitor : public DfsVisitor {
   // If `lhs` is disjoint from `rhs` and `rhs.ConvexHull() < lhs.ConvexHull()`,
   // returns `false`.
   // In all other cases, returns `absl::nullopt`.
-  static absl::optional<bool> AnalyzeLt(const IntervalSet& lhs,
+  static std::optional<bool> AnalyzeLt(const IntervalSet& lhs,
                                         const IntervalSet& rhs);
 
   // An interval set covering exactly the binary representation of `false`.
@@ -421,7 +421,7 @@ void RangeQueryEngine::InitializeNode(Node* node) {
 }
 
 absl::Status RangeQueryVisitor::HandleVariadicOp(
-    std::function<absl::optional<Bits>(absl::Span<const Bits>)> impl,
+    std::function<std::optional<Bits>(absl::Span<const Bits>)> impl,
     absl::Span<const Tonicity> tonicities, Node* op) {
   XLS_CHECK_EQ(op->operands().size(), tonicities.size());
 
@@ -492,8 +492,8 @@ absl::Status RangeQueryVisitor::HandleVariadicOp(
             }
           }
         }
-        absl::optional<Bits> lower = impl(lower_bounds);
-        absl::optional<Bits> upper = impl(upper_bounds);
+        std::optional<Bits> lower = impl(lower_bounds);
+        std::optional<Bits> upper = impl(upper_bounds);
         if (!lower.has_value() || !upper.has_value()) {
           return true;
         }
@@ -515,9 +515,9 @@ absl::Status RangeQueryVisitor::HandleVariadicOp(
 }
 
 absl::Status RangeQueryVisitor::HandleMonotoneUnaryOp(
-    std::function<absl::optional<Bits>(const Bits&)> impl, Node* op) {
+    std::function<std::optional<Bits>(const Bits&)> impl, Node* op) {
   return HandleVariadicOp(
-      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+      [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
         XLS_CHECK_EQ(bits.size(), 1);
         return impl(bits[0]);
       },
@@ -525,9 +525,9 @@ absl::Status RangeQueryVisitor::HandleMonotoneUnaryOp(
 }
 
 absl::Status RangeQueryVisitor::HandleAntitoneUnaryOp(
-    std::function<absl::optional<Bits>(const Bits&)> impl, Node* op) {
+    std::function<std::optional<Bits>(const Bits&)> impl, Node* op) {
   return HandleVariadicOp(
-      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+      [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
         XLS_CHECK_EQ(bits.size(), 1);
         return impl(bits[0]);
       },
@@ -535,10 +535,10 @@ absl::Status RangeQueryVisitor::HandleAntitoneUnaryOp(
 }
 
 absl::Status RangeQueryVisitor::HandleMonotoneMonotoneBinOp(
-    std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
+    std::function<std::optional<Bits>(const Bits&, const Bits&)> impl,
     Node* op) {
   return HandleVariadicOp(
-      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+      [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
         XLS_CHECK_EQ(bits.size(), 2);
         return impl(bits[0], bits[1]);
       },
@@ -546,17 +546,17 @@ absl::Status RangeQueryVisitor::HandleMonotoneMonotoneBinOp(
 }
 
 absl::Status RangeQueryVisitor::HandleMonotoneAntitoneBinOp(
-    std::function<absl::optional<Bits>(const Bits&, const Bits&)> impl,
+    std::function<std::optional<Bits>(const Bits&, const Bits&)> impl,
     Node* op) {
   return HandleVariadicOp(
-      [impl](absl::Span<const Bits> bits) -> absl::optional<Bits> {
+      [impl](absl::Span<const Bits> bits) -> std::optional<Bits> {
         XLS_CHECK_EQ(bits.size(), 2);
         return impl(bits[0], bits[1]);
       },
       {Tonicity::Monotone, Tonicity::Antitone}, op);
 }
 
-absl::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
+std::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
                                                   const IntervalSet& rhs) {
   XLS_CHECK(lhs.IsNormalized());
   XLS_CHECK(rhs.IsNormalized());
@@ -581,10 +581,10 @@ absl::optional<bool> RangeQueryVisitor::AnalyzeEq(const IntervalSet& lhs,
   return absl::nullopt;
 }
 
-absl::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
+std::optional<bool> RangeQueryVisitor::AnalyzeLt(const IntervalSet& lhs,
                                                   const IntervalSet& rhs) {
-  if (absl::optional<Interval> lhs_hull = lhs.ConvexHull()) {
-    if (absl::optional<Interval> rhs_hull = rhs.ConvexHull()) {
+  if (std::optional<Interval> lhs_hull = lhs.ConvexHull()) {
+    if (std::optional<Interval> rhs_hull = rhs.ConvexHull()) {
       if (Interval::Disjoint(*lhs_hull, *rhs_hull)) {
         if (*lhs_hull < *rhs_hull) {
           return true;
@@ -624,7 +624,7 @@ IntervalSetTree RangeQueryVisitor::EmptyIntervalSetTree(Type* type) {
 absl::Status RangeQueryVisitor::HandleAdd(BinOp* add) {
   engine_->InitializeNode(add);
   return HandleMonotoneMonotoneBinOp(
-      [](const Bits& lhs, const Bits& rhs) -> absl::optional<Bits> {
+      [](const Bits& lhs, const Bits& rhs) -> std::optional<Bits> {
         int64_t padded_size = std::max(lhs.bit_count(), rhs.bit_count()) + 1;
         Bits padded_lhs = bits_ops::ZeroExtend(lhs, padded_size);
         Bits padded_rhs = bits_ops::ZeroExtend(rhs, padded_size);
@@ -659,7 +659,7 @@ absl::Status RangeQueryVisitor::HandleAndReduce(
   }
 
   // If the intervals are known to only cover max, then the result must be 1.
-  if (absl::optional<Interval> hull = intervals.ConvexHull()) {
+  if (std::optional<Interval> hull = intervals.ConvexHull()) {
     Bits max = Bits::AllOnes(intervals.BitCount());
     if (hull.value() == Interval(max, max)) {
       result.Set({}, TrueIntervalSet());
@@ -762,12 +762,12 @@ absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {
   IntervalSet lhs_intervals = GetIntervalSetTree(eq->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(eq->operand(1)).Get({});
 
-  absl::optional<bool> analysis = AnalyzeEq(lhs_intervals, rhs_intervals);
+  std::optional<bool> analysis = AnalyzeEq(lhs_intervals, rhs_intervals);
   if (analysis.has_value()) {
     LeafTypeTree<IntervalSet> result(eq->GetType());
-    if (analysis == absl::optional<bool>(true)) {
+    if (analysis == std::optional<bool>(true)) {
       result.Set({}, TrueIntervalSet());
-    } else if (analysis == absl::optional<bool>(false)) {
+    } else if (analysis == std::optional<bool>(false)) {
       result.Set({}, FalseIntervalSet());
     }
     SetIntervalSetTree(eq, result);
@@ -950,12 +950,12 @@ absl::Status RangeQueryVisitor::HandleNe(CompareOp* ne) {
   IntervalSet lhs_intervals = GetIntervalSetTree(ne->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(ne->operand(1)).Get({});
 
-  absl::optional<bool> analysis = AnalyzeEq(lhs_intervals, rhs_intervals);
+  std::optional<bool> analysis = AnalyzeEq(lhs_intervals, rhs_intervals);
   if (analysis.has_value()) {
     LeafTypeTree<IntervalSet> result(ne->GetType());
-    if (analysis == absl::optional<bool>(false)) {
+    if (analysis == std::optional<bool>(false)) {
       result.Set({}, TrueIntervalSet());
-    } else if (analysis == absl::optional<bool>(true)) {
+    } else if (analysis == std::optional<bool>(true)) {
       result.Set({}, FalseIntervalSet());
     }
     SetIntervalSetTree(ne, result);
@@ -1034,7 +1034,7 @@ absl::Status RangeQueryVisitor::HandleOrReduce(BitwiseReductionOp* or_reduce) {
   }
 
   // If the intervals are known to only cover 0, then the result must be 0.
-  if (absl::optional<Interval> hull = intervals.ConvexHull()) {
+  if (std::optional<Interval> hull = intervals.ConvexHull()) {
     Bits zero = Bits(1);
     if (hull.value() == Interval(zero, zero)) {
       result.Set({}, FalseIntervalSet());
@@ -1195,7 +1195,7 @@ absl::Status RangeQueryVisitor::HandleSignExtend(ExtendOp* sign_ext) {
 absl::Status RangeQueryVisitor::HandleSub(BinOp* sub) {
   engine_->InitializeNode(sub);
   return HandleMonotoneAntitoneBinOp(
-      [](const Bits& lhs, const Bits& rhs) -> absl::optional<Bits> {
+      [](const Bits& lhs, const Bits& rhs) -> std::optional<Bits> {
         if (bits_ops::ULessThanOrEqual(rhs, lhs)) {
           return bits_ops::Sub(lhs, rhs);
         }
@@ -1233,7 +1233,7 @@ absl::Status RangeQueryVisitor::HandleUDiv(BinOp* div) {
   // I (taktoa) verified on 8 bit unsigned integers that UDiv is antitone in
   // its second argument.
   return HandleMonotoneAntitoneBinOp(
-      [](const Bits& lhs, const Bits& rhs) -> absl::optional<Bits> {
+      [](const Bits& lhs, const Bits& rhs) -> std::optional<Bits> {
         return bits_ops::UDiv(lhs, rhs);
       },
       div);
@@ -1244,15 +1244,15 @@ absl::Status RangeQueryVisitor::HandleUGe(CompareOp* ge) {
   IntervalSet lhs_intervals = GetIntervalSetTree(ge->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(ge->operand(1)).Get({});
 
-  absl::optional<bool> analysis = AnalyzeLt(rhs_intervals, lhs_intervals);
-  if (AnalyzeEq(lhs_intervals, rhs_intervals) == absl::optional<bool>(true)) {
+  std::optional<bool> analysis = AnalyzeLt(rhs_intervals, lhs_intervals);
+  if (AnalyzeEq(lhs_intervals, rhs_intervals) == std::optional<bool>(true)) {
     analysis = true;
   }
   if (analysis.has_value()) {
     LeafTypeTree<IntervalSet> result(ge->GetType());
-    if (analysis == absl::optional<bool>(true)) {
+    if (analysis == std::optional<bool>(true)) {
       result.Set({}, TrueIntervalSet());
-    } else if (analysis == absl::optional<bool>(false)) {
+    } else if (analysis == std::optional<bool>(false)) {
       result.Set({}, FalseIntervalSet());
     }
     SetIntervalSetTree(ge, result);
@@ -1265,12 +1265,12 @@ absl::Status RangeQueryVisitor::HandleUGt(CompareOp* gt) {
   IntervalSet lhs_intervals = GetIntervalSetTree(gt->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(gt->operand(1)).Get({});
 
-  absl::optional<bool> analysis = AnalyzeLt(rhs_intervals, lhs_intervals);
+  std::optional<bool> analysis = AnalyzeLt(rhs_intervals, lhs_intervals);
   if (analysis.has_value()) {
     LeafTypeTree<IntervalSet> result(gt->GetType());
-    if (analysis == absl::optional<bool>(true)) {
+    if (analysis == std::optional<bool>(true)) {
       result.Set({}, TrueIntervalSet());
-    } else if (analysis == absl::optional<bool>(false)) {
+    } else if (analysis == std::optional<bool>(false)) {
       result.Set({}, FalseIntervalSet());
     }
     SetIntervalSetTree(gt, result);
@@ -1283,15 +1283,15 @@ absl::Status RangeQueryVisitor::HandleULe(CompareOp* le) {
   IntervalSet lhs_intervals = GetIntervalSetTree(le->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(le->operand(1)).Get({});
 
-  absl::optional<bool> analysis = AnalyzeLt(lhs_intervals, rhs_intervals);
-  if (AnalyzeEq(lhs_intervals, rhs_intervals) == absl::optional<bool>(true)) {
+  std::optional<bool> analysis = AnalyzeLt(lhs_intervals, rhs_intervals);
+  if (AnalyzeEq(lhs_intervals, rhs_intervals) == std::optional<bool>(true)) {
     analysis = true;
   }
   if (analysis.has_value()) {
     LeafTypeTree<IntervalSet> result(le->GetType());
-    if (analysis == absl::optional<bool>(true)) {
+    if (analysis == std::optional<bool>(true)) {
       result.Set({}, TrueIntervalSet());
-    } else if (analysis == absl::optional<bool>(false)) {
+    } else if (analysis == std::optional<bool>(false)) {
       result.Set({}, FalseIntervalSet());
     }
     SetIntervalSetTree(le, result);
@@ -1304,12 +1304,12 @@ absl::Status RangeQueryVisitor::HandleULt(CompareOp* lt) {
   IntervalSet lhs_intervals = GetIntervalSetTree(lt->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(lt->operand(1)).Get({});
 
-  absl::optional<bool> analysis = AnalyzeLt(lhs_intervals, rhs_intervals);
+  std::optional<bool> analysis = AnalyzeLt(lhs_intervals, rhs_intervals);
   if (analysis.has_value()) {
     LeafTypeTree<IntervalSet> result(lt->GetType());
-    if (analysis == absl::optional<bool>(true)) {
+    if (analysis == std::optional<bool>(true)) {
       result.Set({}, TrueIntervalSet());
-    } else if (analysis == absl::optional<bool>(false)) {
+    } else if (analysis == std::optional<bool>(false)) {
       result.Set({}, FalseIntervalSet());
     }
     SetIntervalSetTree(lt, result);
@@ -1331,7 +1331,7 @@ absl::Status RangeQueryVisitor::HandleUMul(ArithOp* mul) {
       (mul->operand(0)->GetType()->GetFlatBitCount() +
        mul->operand(1)->GetType()->GetFlatBitCount())) {
     return HandleMonotoneMonotoneBinOp(
-        [mul](const Bits& x, const Bits& y) -> absl::optional<Bits> {
+        [mul](const Bits& x, const Bits& y) -> std::optional<Bits> {
           return bits_ops::ZeroExtend(bits_ops::UMul(x, y),
                                       mul->GetType()->GetFlatBitCount());
         },
@@ -1352,7 +1352,7 @@ absl::Status RangeQueryVisitor::HandleXorReduce(
   // they are all the same, or unknown otherwise.
   IntervalSet input_intervals =
       GetIntervalSetTree(xor_reduce->operand(0)).Get({});
-  absl::optional<Bits> output;
+  std::optional<Bits> output;
   for (const Interval& interval : input_intervals.Intervals()) {
     if (!interval.IsPrecise()) {
       return absl::OkStatus();

@@ -39,8 +39,8 @@ class ModuleTestbench {
   // Constructor for testing a VAST-defined module with the given clock and
   // reset signal.
   ModuleTestbench(Module* module, const VerilogSimulator* simulator,
-                  absl::optional<absl::string_view> clk_name = absl::nullopt,
-                  absl::optional<ResetProto> reset = absl::nullopt);
+                  std::optional<absl::string_view> clk_name = absl::nullopt,
+                  std::optional<ResetProto> reset = absl::nullopt);
 
   // Constructor for testing a module defined in Verilog text with an interface
   // described with a ModuleSignature.
@@ -122,7 +122,7 @@ class ModuleTestbench {
   std::string verilog_text_;
   std::string module_name_;
   const VerilogSimulator* simulator_;
-  absl::optional<std::string> clk_name_;
+  std::optional<std::string> clk_name_;
 
   // Map of each input/output port name to its width.
   absl::flat_hash_map<std::string, int64_t> input_port_widths_;

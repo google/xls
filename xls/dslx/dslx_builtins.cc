@@ -22,7 +22,7 @@ namespace xls::dslx {
 namespace {
 
 using ArgTypes = const std::vector<const ConcreteType*>&;
-using ParametricBindings = absl::optional<std::vector<ParametricBinding*>>;
+using ParametricBindings = std::optional<std::vector<ParametricBinding*>>;
 using ConstexprEvalFn = std::function<absl::Status(int64_t argno)>;
 
 // Fluent API for checking argument type properties (and raising errors).
@@ -488,7 +488,7 @@ static void PopulateSignatureToLambdaMap(
     mapped_fn_args.push_back(
         InstantiateArg{t.CloneToUnique(), data.arg_spans[0]});
 
-    absl::optional<absl::Span<const ParametricConstraint>>
+    std::optional<absl::Span<const ParametricConstraint>>
         mapped_parametric_bindings;
     if (data.parametric_bindings.has_value()) {
       mapped_parametric_bindings.emplace(data.parametric_bindings.value());

@@ -29,7 +29,7 @@ namespace xls::verilog {
 // be called only after conversion of a function/proc into a block.
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, FunctionBase* func_base,
-    absl::optional<PipelineSchedule> schedule = absl::nullopt);
+    std::optional<PipelineSchedule> schedule = absl::nullopt);
 
 }  // namespace xls::verilog
 

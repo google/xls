@@ -95,7 +95,7 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  absl::optional<FunctionBase*> main = package->GetTop();
+  std::optional<FunctionBase*> main = package->GetTop();
   ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
@@ -150,7 +150,7 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  absl::optional<FunctionBase*> main = package->GetTop();
+  std::optional<FunctionBase*> main = package->GetTop();
   ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
@@ -205,7 +205,7 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  absl::optional<FunctionBase*> main = package->GetTop();
+  std::optional<FunctionBase*> main = package->GetTop();
   ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
@@ -262,7 +262,7 @@ top fn __ModuleSignatureTestInvariants__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  absl::optional<FunctionBase*> main = package->GetTop();
+  std::optional<FunctionBase*> main = package->GetTop();
   ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
@@ -318,7 +318,7 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  absl::optional<FunctionBase*> main = package->GetTop();
+  std::optional<FunctionBase*> main = package->GetTop();
   ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
@@ -379,7 +379,7 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
-  absl::optional<FunctionBase*> main = package->GetTop();
+  std::optional<FunctionBase*> main = package->GetTop();
   ASSERT_TRUE(main.has_value());
 
   // Grab loop node.
@@ -1609,7 +1609,7 @@ top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    absl::optional<FunctionBase*> main = package->GetTop();
+    std::optional<FunctionBase*> main = package->GetTop();
     ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
@@ -1659,7 +1659,7 @@ top fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], 
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    absl::optional<FunctionBase*> main = package->GetTop();
+    std::optional<FunctionBase*> main = package->GetTop();
     ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
@@ -1709,7 +1709,7 @@ top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    absl::optional<FunctionBase*> main = package->GetTop();
+    std::optional<FunctionBase*> main = package->GetTop();
     ASSERT_TRUE(main.has_value());
 
     // Grab loop node.
@@ -1822,7 +1822,7 @@ top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
   for (int64_t latency = 0; latency < 3; ++latency) {
     XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                              Parser::ParsePackage(text));
-    absl::optional<FunctionBase*> main = package->GetTop();
+    std::optional<FunctionBase*> main = package->GetTop();
     ASSERT_TRUE(main.has_value());
 
     // Grab loop node.

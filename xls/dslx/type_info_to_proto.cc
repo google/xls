@@ -307,7 +307,7 @@ absl::StatusOr<AstNodeTypeInfoProto> ToProto(
     const AstNode& node, const ConcreteType& concrete_type) {
   AstNodeTypeInfoProto proto;
   proto.set_kind(ToProto(node.kind()));
-  if (absl::optional<Span> maybe_span = node.GetSpan()) {
+  if (std::optional<Span> maybe_span = node.GetSpan()) {
     *proto.mutable_span() = ToProto(maybe_span.value());
   }
   XLS_ASSIGN_OR_RETURN(*proto.mutable_type(), ToProto(concrete_type));

@@ -105,7 +105,7 @@ class TypeInfo {
                              StartAndWidth start_width);
 
   // Retrieves the start/width pair for a given slice, see comment on SliceData.
-  absl::optional<StartAndWidth> GetSliceStartAndWidth(
+  std::optional<StartAndWidth> GetSliceStartAndWidth(
       Slice* node, const SymbolicBindings& symbolic_bindings) const;
 
   // Notes caller/callee relation of symbolic bindings at an invocation.
@@ -143,7 +143,7 @@ class TypeInfo {
   // Attempts to retrieve "instantiation" type information -- that is, when
   // there's an invocation with parametrics in a caller, it may map to
   // particular type-information for the callee.
-  absl::optional<TypeInfo*> GetInvocationTypeInfo(
+  std::optional<TypeInfo*> GetInvocationTypeInfo(
       const Invocation* invocation, const SymbolicBindings& caller) const;
 
   // Sets the type info for the given proc when typechecked at top-level (i.e.,
@@ -161,7 +161,7 @@ class TypeInfo {
   }
 
   // Attempts to resolve AST node 'key' in the node-to-type dictionary.
-  absl::optional<ConcreteType*> GetItem(const AstNode* key) const;
+  std::optional<ConcreteType*> GetItem(const AstNode* key) const;
 
   // Attempts to resolve AST node 'key' to a type with subtype T; e.g:
   //
@@ -180,18 +180,18 @@ class TypeInfo {
   // Note that added type information and such will generally be owned by the
   // import cache.
   void AddImport(Import* import, Module* module, TypeInfo* type_info);
-  absl::optional<const ImportedInfo*> GetImported(Import* import) const;
+  std::optional<const ImportedInfo*> GetImported(Import* import) const;
   const absl::flat_hash_map<Import*, ImportedInfo>& imports() const {
     return imports_;
   }
 
   // Returns the type information for m, if it is available either as this
   // module or an import of this module.
-  absl::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
+  std::optional<TypeInfo*> GetImportedTypeInfo(Module* m);
 
   // Returns whether function "f" requires an implicit token parameter; i.e. it
   // contains a `fail!()` or `cover!()` as determined during type inferencing.
-  absl::optional<bool> GetRequiresImplicitToken(const Function* f) const;
+  std::optional<bool> GetRequiresImplicitToken(const Function* f) const;
   void NoteRequiresImplicitToken(const Function* f, bool is_required);
 
   // Attempts to retrieve the callee's parametric values in an "instantiation".
@@ -204,7 +204,7 @@ class TypeInfo {
   // with M=32.
   //
   // When calling a non-parametric callee, the record will be absent.
-  absl::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
+  std::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
       const Invocation* invocation, const SymbolicBindings& caller) const;
 
   Module* module() const { return module_; }
@@ -273,7 +273,7 @@ class TypeInfo {
   absl::flat_hash_map<Import*, ImportedInfo> imports_;
   absl::flat_hash_map<const Invocation*, InvocationData> invocations_;
   absl::flat_hash_map<Slice*, SliceData> slices_;
-  absl::flat_hash_map<const AstNode*, absl::optional<InterpValue>> const_exprs_;
+  absl::flat_hash_map<const AstNode*, std::optional<InterpValue>> const_exprs_;
   absl::flat_hash_map<const Function*, bool> requires_implicit_token_;
 
   // Maps a Proc to the TypeInfo used for its top-level typechecking.
@@ -285,7 +285,7 @@ class TypeInfo {
 
 template <typename T>
 inline absl::StatusOr<T*> TypeInfo::GetItemAs(const AstNode* key) const {
-  absl::optional<ConcreteType*> t = GetItem(key);
+  std::optional<ConcreteType*> t = GetItem(key);
   if (!t.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("No type found for AST node: %s @ %s", key->ToString(),

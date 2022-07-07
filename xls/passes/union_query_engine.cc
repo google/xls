@@ -130,7 +130,7 @@ bool UnionQueryEngine::Implies(const TreeBitLocation& a,
   return false;
 }
 
-absl::optional<Bits> UnionQueryEngine::ImpliedNodeValue(
+std::optional<Bits> UnionQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   for (const auto& engine : engines_) {

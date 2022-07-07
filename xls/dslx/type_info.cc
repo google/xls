@@ -121,7 +121,7 @@ std::string TypeInfo::GetImportsDebugString() const {
       }));
 }
 
-absl::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
+std::optional<ConcreteType*> TypeInfo::GetItem(const AstNode* key) const {
   XLS_CHECK_EQ(key->owner(), module_)
       << key->owner()->name() << " vs " << module_->name()
       << " key: " << key->ToString();
@@ -158,7 +158,7 @@ void TypeInfo::AddInvocationCallBindings(const Invocation* call,
   data.symbolic_bindings_map.emplace(std::move(caller), std::move(callee));
 }
 
-absl::optional<bool> TypeInfo::GetRequiresImplicitToken(
+std::optional<bool> TypeInfo::GetRequiresImplicitToken(
     const Function* f) const {
   XLS_CHECK_EQ(f->owner(), module_) << "function owner: " << f->owner()->name()
                                     << " module: " << module_->name();
@@ -184,7 +184,7 @@ void TypeInfo::NoteRequiresImplicitToken(const Function* f, bool is_required) {
   root->requires_implicit_token_.emplace(f, is_required);
 }
 
-absl::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
+std::optional<TypeInfo*> TypeInfo::GetInvocationTypeInfo(
     const Invocation* invocation, const SymbolicBindings& caller) const {
   XLS_CHECK_EQ(invocation->owner(), module_)
       << invocation->owner()->name() << " vs " << module_->name();
@@ -234,7 +234,7 @@ absl::StatusOr<TypeInfo*> TypeInfo::GetTopLevelProcTypeInfo(const Proc* p) {
   return top_level_proc_type_info_.at(p);
 }
 
-absl::optional<const SymbolicBindings*>
+std::optional<const SymbolicBindings*>
 TypeInfo::GetInvocationCalleeBindings(const Invocation* invocation,
                                       const SymbolicBindings& caller) const {
   XLS_CHECK_EQ(invocation->owner(), module_)
@@ -280,7 +280,7 @@ void TypeInfo::AddSliceStartAndWidth(Slice* node,
   }
 }
 
-absl::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
+std::optional<StartAndWidth> TypeInfo::GetSliceStartAndWidth(
     Slice* node, const SymbolicBindings& symbolic_bindings) const {
   XLS_CHECK_EQ(node->owner(), module_);
   const TypeInfo* top = GetRoot();
@@ -301,7 +301,7 @@ void TypeInfo::AddImport(Import* import, Module* module, TypeInfo* type_info) {
   GetRoot()->imports_[import] = ImportedInfo{module, type_info};
 }
 
-absl::optional<const ImportedInfo*> TypeInfo::GetImported(
+std::optional<const ImportedInfo*> TypeInfo::GetImported(
     Import* import) const {
   XLS_CHECK_EQ(import->owner(), module_)
       << "Import node from: " << import->owner()->name() << " vs TypeInfo for "
@@ -314,7 +314,7 @@ absl::optional<const ImportedInfo*> TypeInfo::GetImported(
   return &it->second;
 }
 
-absl::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
+std::optional<TypeInfo*> TypeInfo::GetImportedTypeInfo(Module* m) {
   TypeInfo* root = GetRoot();
   if (root != this) {
     return root->GetImportedTypeInfo(m);

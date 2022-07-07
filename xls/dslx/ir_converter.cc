@@ -54,7 +54,7 @@ struct PackageData {
 };
 
 // Returns a status that indicates an error in the IR conversion process.
-absl::Status ConversionErrorStatus(const absl::optional<Span>& span,
+absl::Status ConversionErrorStatus(const std::optional<Span>& span,
                                    absl::string_view message) {
   return absl::InternalError(
       absl::StrFormat("ConversionError: %s %s",
@@ -92,7 +92,7 @@ static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
   if (!options.emit_fail_as_assert) {
     return false;
   }
-  absl::optional<bool> requires_opt = import_data->GetRootTypeInfo(f->owner())
+  std::optional<bool> requires_opt = import_data->GetRootTypeInfo(f->owner())
                                           .value()
                                           ->GetRequiresImplicitToken(f);
   XLS_CHECK(requires_opt.has_value());
@@ -213,7 +213,7 @@ class FunctionConverter {
   absl::StatusOr<BValue> Use(const AstNode* node) const;
 
   void SetNodeToIr(const AstNode* node, IrValue value);
-  absl::optional<IrValue> GetNodeToIr(const AstNode* node) const;
+  std::optional<IrValue> GetNodeToIr(const AstNode* node) const;
 
   // Returns the constant value corresponding to the IrValue of "node", or
   // returns an error if it is not present (or not constant).
@@ -250,7 +250,7 @@ class FunctionConverter {
 
   // TODO(leary): 2020-12-22 Clean all this up to expose a minimal surface area
   // once everything is ported over to C++.
-  absl::optional<InterpValue> get_symbolic_binding(
+  std::optional<InterpValue> get_symbolic_binding(
       absl::string_view identifier) const {
     auto it = symbolic_binding_map_.find(identifier);
     if (it == symbolic_binding_map_.end()) {
@@ -285,7 +285,7 @@ class FunctionConverter {
   // Returns:
   //  The symbolic bindings for the given instantiation (function call or proc
   //  spawn).
-  absl::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
+  std::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
       const Invocation* invocation) const {
     SymbolicBindings key = GetSymbolicBindingsTuple();
     return import_data_->GetRootTypeInfo(invocation->owner())
@@ -442,7 +442,7 @@ class FunctionConverter {
   using DerefVariant = absl::variant<StructDef*, EnumDef*>;
   absl::StatusOr<DerefVariant> DerefStructOrEnum(TypeDefinition node);
 
-  SourceInfo ToSourceInfo(const absl::optional<Span>& span) {
+  SourceInfo ToSourceInfo(const std::optional<Span>& span) {
     if (!options_.emit_positions || !span.has_value()) {
       return SourceInfo();
     }
@@ -513,7 +513,7 @@ class FunctionConverter {
 
   // When we have a fail!() operation we implicitly need to thread a token /
   // activation boolean -- the data for this is kept here if necessary.
-  absl::optional<ImplicitTokenData> implicit_token_data_;
+  std::optional<ImplicitTokenData> implicit_token_data_;
 
   // Mapping of symbolic bindings active in this translation (e.g. what integral
   // values parametrics are taking on).
@@ -894,7 +894,7 @@ void FunctionConverter::SetNodeToIr(const AstNode* node, IrValue value) {
   node_to_ir_[node] = value;
 }
 
-absl::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
+std::optional<FunctionConverter::IrValue> FunctionConverter::GetNodeToIr(
     const AstNode* node) const {
   auto it = node_to_ir_.find(node);
   if (it == node_to_ir_.end()) {
@@ -1554,7 +1554,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   std::vector<const NameDef*> relevant_name_defs;
   for (const auto& any_name_def : freevars.GetNameDefs()) {
     const auto* name_def = std::get<const NameDef*>(any_name_def);
-    absl::optional<const ConcreteType*> type =
+    std::optional<const ConcreteType*> type =
         current_type_info_->GetItem(name_def);
     if (!type.has_value()) {
       continue;
@@ -1569,7 +1569,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     }
     XLS_VLOG(5) << "Converting freevar name: " << name_def->ToString();
 
-    absl::optional<IrValue> ir_value = GetNodeToIr(name_def);
+    std::optional<IrValue> ir_value = GetNodeToIr(name_def);
     if (!ir_value.has_value()) {
       return absl::InternalError(
           absl::StrFormat("AST node had no associated IR value: %s @ %s",
@@ -1754,7 +1754,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
   Expr* fn_node = node->args()[1];
   XLS_VLOG(5) << "Function being mapped AST: " << fn_node->ToString();
-  absl::optional<const SymbolicBindings*> node_sym_bindings =
+  std::optional<const SymbolicBindings*> node_sym_bindings =
       GetInvocationCalleeBindings(node);
 
   std::string map_fn_name;
@@ -1770,7 +1770,7 @@ absl::StatusOr<BValue> FunctionConverter::HandleMap(const Invocation* node) {
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(fn_node)) {
     map_fn_name = colon_ref->attr();
     Import* import_node = colon_ref->ResolveImportSubject().value();
-    absl::optional<const ImportedInfo*> info =
+    std::optional<const ImportedInfo*> info =
         current_type_info_->GetImported(import_node);
     lookup_module = (*info)->module;
   } else {
@@ -1799,7 +1799,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->lhs()));
 
-  absl::optional<const ConcreteType*> lhs_type =
+  std::optional<const ConcreteType*> lhs_type =
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   if (dynamic_cast<const TupleType*>(lhs_type.value()) != nullptr) {
@@ -1826,7 +1826,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
       });
     } else {
       auto* slice = absl::get<Slice*>(rhs);
-      absl::optional<StartAndWidth> saw =
+      std::optional<StartAndWidth> saw =
           current_type_info_->GetSliceStartAndWidth(slice,
                                                     GetSymbolicBindingsTuple());
       XLS_RET_CHECK(saw.has_value());
@@ -2379,7 +2379,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
-    absl::optional<InterpValue> sb_value =
+    std::optional<InterpValue> sb_value =
         get_symbolic_binding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
@@ -2510,7 +2510,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
     XLS_VLOG(5) << "Resolving parametric binding: "
                 << parametric_binding->ToString();
 
-    absl::optional<InterpValue> sb_value =
+    std::optional<InterpValue> sb_value =
         get_symbolic_binding(parametric_binding->identifier());
     XLS_RET_CHECK(sb_value.has_value());
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_type,
@@ -2551,8 +2551,8 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
-  if (absl::optional<Import*> import = node->ResolveImportSubject()) {
-    absl::optional<const ImportedInfo*> imported =
+  if (std::optional<Import*> import = node->ResolveImportSubject()) {
+    std::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
     XLS_RET_CHECK(imported.has_value());
     Module* imported_mod = (*imported)->module;
@@ -2654,16 +2654,16 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     m = module_;
   } else if (auto* colon_ref = dynamic_cast<ColonRef*>(callee)) {
     callee_name = colon_ref->attr();
-    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    std::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
-    absl::optional<const ImportedInfo*> info =
+    std::optional<const ImportedInfo*> info =
         current_type_info_->GetImported(*import);
     m = (*info)->module;
   } else {
     return absl::InternalError("Invalid callee: " + callee->ToString());
   }
 
-  absl::optional<Function*> maybe_f = m->GetFunction(callee_name);
+  std::optional<Function*> maybe_f = m->GetFunction(callee_name);
   if (!maybe_f.has_value()) {
     // For e.g. builtins that are not in the module we just provide the name
     // directly.
@@ -2679,7 +2679,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
     return MangleDslxName(m->name(), f->identifier(), convention, free_keys);
   }
 
-  absl::optional<const SymbolicBindings*> resolved_symbolic_bindings =
+  std::optional<const SymbolicBindings*> resolved_symbolic_bindings =
       GetInvocationCalleeBindings(node);
   XLS_RET_CHECK(resolved_symbolic_bindings.has_value());
   XLS_VLOG(5) << absl::StreamFormat("Node `%s` (%s) @ %s symbolic bindings %s",
@@ -2693,7 +2693,7 @@ absl::StatusOr<std::string> FunctionConverter::GetCalleeIdentifier(
 
 absl::Status FunctionConverter::HandleBinop(const Binop* node) {
   XLS_VLOG(5) << "HandleBinop: " << node->ToString();
-  absl::optional<const ConcreteType*> lhs_type =
+  std::optional<const ConcreteType*> lhs_type =
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* bits_type = dynamic_cast<const BitsType*>(lhs_type.value());
@@ -2821,7 +2821,7 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
 
 absl::Status FunctionConverter::HandleAttr(const Attr* node) {
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
-  absl::optional<const ConcreteType*> lhs_type =
+  std::optional<const ConcreteType*> lhs_type =
       current_type_info_->GetItem(node->lhs());
   XLS_RET_CHECK(lhs_type.has_value());
   auto* struct_type = dynamic_cast<const StructType*>(lhs_type.value());
@@ -3136,9 +3136,9 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
 
   XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(node));
   auto* colon_ref = absl::get<ColonRef*>(node);
-  absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+  std::optional<Import*> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value());
-  absl::optional<const ImportedInfo*> info =
+  std::optional<const ImportedInfo*> info =
       current_type_info_->GetImported(*import);
   Module* imported_mod = (*info)->module;
   ScopedTypeInfoSwap stis(this, (*info)->type_info);
@@ -3163,7 +3163,7 @@ absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
 absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
     const AstNode* node) {
   XLS_RET_CHECK(current_type_info_ != nullptr);
-  absl::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
+  std::optional<const ConcreteType*> t = current_type_info_->GetItem(node);
   if (!t.has_value()) {
     return ConversionErrorStatus(
         node->GetSpan(),
@@ -3179,7 +3179,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
 
 absl::StatusOr<Value> FunctionConverter::GetConstValue(
     const AstNode* node) const {
-  absl::optional<IrValue> ir_value = GetNodeToIr(node);
+  std::optional<IrValue> ir_value = GetNodeToIr(node);
   if (!ir_value.has_value()) {
     return absl::InternalError(
         absl::StrFormat("AST node had no associated IR value: %s @ %s",
@@ -3300,7 +3300,7 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
 static absl::Status ConvertCallGraph(
     absl::Span<const ConversionRecord> order, ImportData* import_data,
     const ConvertOptions& options, PackageData& package_data,
-    absl::optional<absl::string_view> entry_function_name = absl::nullopt) {
+    std::optional<absl::string_view> entry_function_name = absl::nullopt) {
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, "\n\t",
@@ -3404,7 +3404,7 @@ absl::Status ConvertOneFunctionIntoPackage(
     Module* module, absl::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package) {
-  absl::optional<Function*> fn_or = module->GetFunction(entry_function_name);
+  std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
   if (fn_or.has_value()) {
     return ConvertOneFunctionIntoPackageInternal(module, fn_or.value(),
                                                  import_data, symbolic_bindings,

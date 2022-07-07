@@ -77,7 +77,7 @@ class Block : public FunctionBase {
   // object is added to the list of ports as a place-holder for the clock which
   // records the port name and position.
   absl::Status AddClockPort(absl::string_view name);
-  absl::optional<ClockPort> GetClockPort() const { return clock_port_; }
+  std::optional<ClockPort> GetClockPort() const { return clock_port_; }
 
   absl::Status RemoveNode(Node* n) override;
 
@@ -96,7 +96,7 @@ class Block : public FunctionBase {
   // Adds a register to the block.
   absl::StatusOr<Register*> AddRegister(
       absl::string_view name, Type* type,
-      absl::optional<Reset> reset = absl::nullopt);
+      std::optional<Reset> reset = absl::nullopt);
 
   // Removes the given register from the block. If the register is not owned by
   // the block then an error is returned.
@@ -220,7 +220,7 @@ class Block : public FunctionBase {
       instantiation_outputs_;
   std::vector<Instantiation*> instantiation_vec_;
 
-  absl::optional<ClockPort> clock_port_;
+  std::optional<ClockPort> clock_port_;
 };
 
 }  // namespace xls

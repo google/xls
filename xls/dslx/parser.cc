@@ -147,7 +147,7 @@ absl::StatusOr<Function*> Parser::ParseFunction(
 
 absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
     Bindings* bindings) {
-  absl::optional<Bindings> stack_bindings;
+  std::optional<Bindings> stack_bindings;
   if (bindings == nullptr) {
     stack_bindings.emplace();
     bindings = &*stack_bindings;
@@ -365,7 +365,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
 }
 
 absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(absl::optional<Token> if_, TryPopKeyword(Keyword::kIf));
+  XLS_ASSIGN_OR_RETURN(std::optional<Token> if_, TryPopKeyword(Keyword::kIf));
   if (if_.has_value()) {  // Ternary
     XLS_ASSIGN_OR_RETURN(Expr * test, ParseExpression(bindings));
     XLS_VLOG(5) << "test: " << test->ToString();
@@ -508,7 +508,7 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
       XLS_RETURN_IF_ERROR(DropToken());
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrack,
                            PeekTokenIs(TokenKind::kOBrack));
-      absl::optional<std::vector<Expr*>> dims;
+      std::optional<std::vector<Expr*>> dims;
       if (peek_is_obrack) {
         XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
       }
@@ -608,7 +608,7 @@ absl::StatusOr<NameRef*> Parser::ParseNameRef(Bindings* bindings,
   Transaction txn(this, bindings);
   auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
 
-  absl::optional<Token> popped;
+  std::optional<Token> popped;
   if (tok == nullptr) {
     XLS_ASSIGN_OR_RETURN(popped, PopTokenOrError(TokenKind::kIdentifier));
     tok = &popped.value();
@@ -980,7 +980,7 @@ absl::StatusOr<Expr*> Parser::ParseComparisonExpression(Bindings* bindings) {
 }
 
 absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(absl::optional<Token> oparen,
+  XLS_ASSIGN_OR_RETURN(std::optional<Token> oparen,
                        TryPopToken(TokenKind::kOParen));
   if (oparen) {
     return ParseTuplePattern(oparen->span().start(), bindings);
@@ -1002,7 +1002,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings* bindings) {
       return module_->Make<NameDefTree>(tok.span(), colon_ref);
     }
 
-    absl::optional<BoundNode> resolved = bindings->ResolveNode(*tok.GetValue());
+    std::optional<BoundNode> resolved = bindings->ResolveNode(*tok.GetValue());
     NameRef* ref;
     if (resolved) {
       AnyNameDef name_def =
@@ -1101,7 +1101,7 @@ absl::StatusOr<Import*> Parser::ParseImport(Bindings* bindings) {
 
   XLS_ASSIGN_OR_RETURN(bool dropped_as, TryDropKeyword(Keyword::kAs));
   NameDef* name_def;
-  absl::optional<std::string> alias;
+  std::optional<std::string> alias;
   if (dropped_as) {
     XLS_ASSIGN_OR_RETURN(name_def, ParseNameDef(bindings));
     alias = name_def->identifier();
@@ -1150,7 +1150,7 @@ absl::StatusOr<Function*> Parser::ParseFunctionInternal(
 absl::StatusOr<QuickCheck*> Parser::ParseQuickCheck(
     absl::flat_hash_map<std::string, Function*>* name_to_fn, Bindings* bindings,
     const Span& directive_span) {
-  absl::optional<int64_t> test_count;
+  std::optional<int64_t> test_count;
   XLS_ASSIGN_OR_RETURN(bool peek_is_paren, PeekTokenIs(TokenKind::kOParen));
   if (peek_is_paren) {  // Config is specified.
     DropTokenOrDie();
@@ -1921,7 +1921,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
 absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChannel));
 
-  absl::optional<std::vector<Expr*>> dims = absl::nullopt;
+  std::optional<std::vector<Expr*>> dims = absl::nullopt;
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
   if (peek_is_obrack) {
     Pos limit_pos;
@@ -2184,7 +2184,7 @@ absl::StatusOr<Expr*> Parser::ParseCastOrStructInstance(Bindings* bindings) {
 
 absl::StatusOr<absl::variant<NameDef*, WildcardPattern*>>
 Parser::ParseNameDefOrWildcard(Bindings* bindings) {
-  XLS_ASSIGN_OR_RETURN(absl::optional<Token> tok, TryPopIdentifierToken("_"));
+  XLS_ASSIGN_OR_RETURN(std::optional<Token> tok, TryPopIdentifierToken("_"));
   if (tok) {
     return module_->Make<WildcardPattern>(tok->span());
   }
@@ -2371,7 +2371,7 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
     Bindings* bindings, const Span& directive_span) {
   XLS_ASSIGN_OR_RETURN(Function * f,
                        ParseFunctionInternal(/*is_public=*/false, bindings));
-  if (absl::optional<ModuleMember*> member =
+  if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(f->identifier())) {
     return ParseErrorStatus(
         directive_span,
@@ -2385,7 +2385,7 @@ absl::StatusOr<TestFunction*> Parser::ParseTestFunction(
 absl::StatusOr<TestProc*> Parser::ParseTestProc(
     Bindings* bindings, const std::vector<Expr*>& initial_values) {
   XLS_ASSIGN_OR_RETURN(Proc * p, ParseProc(/*is_public=*/false, bindings));
-  if (absl::optional<ModuleMember*> member =
+  if (std::optional<ModuleMember*> member =
           module_->FindMemberWithName(p->identifier())) {
     return ParseErrorStatus(
         p->span(),

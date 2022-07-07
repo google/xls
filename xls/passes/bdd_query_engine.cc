@@ -124,7 +124,7 @@ bool BddQueryEngine::Implies(const TreeBitLocation& a,
   return Implies(GetBddNode(a), GetBddNode(b));
 }
 
-absl::optional<Bits> BddQueryEngine::ImpliedNodeValue(
+std::optional<Bits> BddQueryEngine::ImpliedNodeValue(
     absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
     Node* node) const {
   if (!IsTracked(node) || !node->GetType()->IsBits()) {

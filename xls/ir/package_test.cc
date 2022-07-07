@@ -398,7 +398,7 @@ block my_block(a: bits[32], b: bits[32], out: bits[32]) {
 }
 
 )";
-  absl::optional<FunctionBase*> top;
+  std::optional<FunctionBase*> top;
   XLS_ASSERT_OK_AND_ASSIGN(auto pkg, ParsePackage(text));
   Package dummy_package("dummy_package");
   Block dummy_block("dummy_block", &dummy_package);

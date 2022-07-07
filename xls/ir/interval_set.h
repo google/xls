@@ -104,7 +104,7 @@ class IntervalSet {
 
   // Return the smallest single proper interval that contains all points in this
   // interval set. If the set of points is empty, returns `absl::nullopt`.
-  absl::optional<Interval> ConvexHull() const;
+  std::optional<Interval> ConvexHull() const;
 
   // Returns an `IntervalSet` the bounds of which have been zero-extended to the
   // given bit width.
@@ -135,7 +135,7 @@ class IntervalSet {
   // Returns the number of points covered by the intervals in this interval set,
   // if that is expressible as an `int64_t`. Otherwise, returns `absl::nullopt`.
   // CHECK fails if the interval set is not normalized.
-  absl::optional<int64_t> Size() const;
+  std::optional<int64_t> Size() const;
 
   // If all the intervals in this interval set were put next to each other and
   // treated as a map from `[0, Size() - 1]` to `Bits`, apply this mapping to
@@ -148,7 +148,7 @@ class IntervalSet {
   //
   // For example, if the interval set was `{[2, 3], [5, 7]}`, then this method
   // would be like indexing the array `[2, 3, 5, 6, 7]`.
-  absl::optional<Bits> Index(const Bits& index) const;
+  std::optional<Bits> Index(const Bits& index) const;
 
   // Do any of the intervals cover the given point?
   bool Covers(const Bits& bits) const;
@@ -168,7 +168,7 @@ class IntervalSet {
   // Returns the unique member of the interval set if the interval set is
   // precise. If the interval is not precise, returns absl::nullopt.
   // CHECK fails if the interval set is not normalized.
-  absl::optional<Bits> GetPreciseValue() const;
+  std::optional<Bits> GetPreciseValue() const;
 
   // Do the intervals cover every point?
   // `Normalize()` must be called prior to calling this method.

@@ -63,7 +63,7 @@ struct QuantizationTable {
 
 // Overall context of metadata gathered for JPEG decoding of a given image.
 struct DecodeCtx {
-  absl::optional<Sof0Data> sof0_data;
+  std::optional<Sof0Data> sof0_data;
   std::vector<SosComponentData> component_data;
   std::vector<HuffmanTable> huffman_tables;
   std::vector<QuantizationTable> quantization_tables;

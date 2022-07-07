@@ -251,7 +251,7 @@ top fn main(x: bits[123]) -> bits[123] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -278,7 +278,7 @@ top fn main(x: bits[32], y: bits[32]) -> bits[44] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -307,7 +307,7 @@ top fn main(x: bits[3]) -> bits[4] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -346,7 +346,7 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -379,7 +379,7 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -415,7 +415,7 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -449,7 +449,7 @@ top fn main(p: bits[1], x: bits[16], y: bits[16]) -> bits[16] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -491,7 +491,7 @@ top fn main(a: bits[32],
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -647,7 +647,7 @@ top fn main(idx: bits[2]) -> bits[32][3] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -689,7 +689,7 @@ top fn main(idx: bits[2]) -> bits[32][2][3] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -749,7 +749,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
@@ -809,7 +809,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(text));
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   XLS_ASSERT_OK_AND_ASSIGN(
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));

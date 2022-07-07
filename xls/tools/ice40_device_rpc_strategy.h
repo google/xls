@@ -30,7 +30,7 @@ class Ice40DeviceRpcStrategy : public DeviceRpcStrategy {
                                     absl::Span<const Value> arguments) override;
 
  private:
-  absl::optional<int> tty_fd_;
+  std::optional<int> tty_fd_;
 };
 
 }  // namespace xls

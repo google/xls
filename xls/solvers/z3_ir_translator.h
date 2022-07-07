@@ -176,7 +176,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   IrTranslator(Z3_config config, FunctionBase* source);
 
   IrTranslator(Z3_context ctx, FunctionBase* source,
-               absl::optional<absl::Span<const Z3_ast>> imported_params);
+               std::optional<absl::Span<const Z3_ast>> imported_params);
 
   // Returns the index with the proper bitwidth for the given array_type.
   Z3_ast GetAsFormattedArrayIndex(Z3_ast index, ArrayType* array_type);
@@ -268,7 +268,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Params specified in the context-borrowing CreateAndTranslate() builder.
   // Parameters already translated in a separate function traversal that should
   // be used as this translation's parameter set.
-  absl::optional<absl::Span<const Z3_ast>> imported_params_;
+  std::optional<absl::Span<const Z3_ast>> imported_params_;
   FunctionBase* xls_function_;
 };
 
@@ -298,7 +298,7 @@ class Predicate {
   Predicate(PredicateKind kind, Node* node) : kind_(kind), node_(node) {}
 
   PredicateKind kind_;
-  absl::optional<Node*> node_;
+  std::optional<Node*> node_;
 };
 
 // Attempts to prove node "subject" in function "f" satisfies the given

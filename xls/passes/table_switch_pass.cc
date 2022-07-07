@@ -39,7 +39,7 @@ struct Uint64Comparison {
   uint64_t key;
   Op comparison_op;
 };
-absl::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
+std::optional<Uint64Comparison> MatchCompareEqAgainstUint64(Node* node) {
   if (node->op() != Op::kEq && node->op() != Op::kNe) {
     return absl::nullopt;
   }
@@ -87,14 +87,14 @@ struct Link {
 //
 // If a match is found, the respective Link fields are filled in (as named
 // above). Otherwise absl::nullopt is returned.
-absl::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
+std::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
   if (!IsBinarySelect(node)) {
     return absl::nullopt;
   }
   Select* select = node->As<Select>();
 
   // The selector must be a comparison to a literal which fits in a uint64_t.
-  absl::optional<Uint64Comparison> match =
+  std::optional<Uint64Comparison> match =
       MatchCompareEqAgainstUint64(select->selector());
   if (!match.has_value()) {
     return absl::nullopt;
@@ -145,7 +145,7 @@ absl::optional<Link> MatchLink(Node* node, Node* index = nullptr) {
 //
 // Returns absl::nullopt if the chain cannot be represented as an index into a
 // literal array.
-absl::StatusOr<absl::optional<Value>> LinksToTable(
+absl::StatusOr<std::optional<Value>> LinksToTable(
     absl::Span<const Link> links) {
   if (links.empty()) {
     XLS_VLOG(3) << "Empty chain.";
@@ -158,7 +158,7 @@ absl::StatusOr<absl::optional<Value>> LinksToTable(
   // consider the index space size to be infinitely large for the purposes of
   // this transformation.
   int64_t index_width = links.front().index->GetType()->GetFlatBitCount();
-  absl::optional<uint64_t> index_space_size = absl::nullopt;
+  std::optional<uint64_t> index_space_size = absl::nullopt;
   if (index_width < 63) {
     index_space_size = uint64_t{1} << index_width;
   }
@@ -269,7 +269,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     }
     // Check if this node is the start of a chain of selects. This also
     // identifies the common index.
-    absl::optional<Link> start = MatchLink(node);
+    std::optional<Link> start = MatchLink(node);
     if (!start.has_value()) {
       XLS_VLOG(3) << absl::StreamFormat("%s is not the start of a chain.",
                                         node->GetName());
@@ -299,7 +299,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
     Node* next = start->next;
     Node* index = start->index;
     std::vector<Link> links = {start.value()};
-    while (absl::optional<Link> link = MatchLink(next, index)) {
+    while (std::optional<Link> link = MatchLink(next, index)) {
       next = link->next;
       links.push_back(link.value());
     }
@@ -321,7 +321,7 @@ absl::StatusOr<bool> TableSwitchPass::RunOnFunctionBaseInternal(
 
     // Try to convert the chain into a table representing the lookup being
     // performed.
-    XLS_ASSIGN_OR_RETURN(absl::optional<Value> table, LinksToTable(links));
+    XLS_ASSIGN_OR_RETURN(std::optional<Value> table, LinksToTable(links));
     if (!table.has_value()) {
       continue;
     }

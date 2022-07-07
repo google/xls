@@ -183,7 +183,7 @@ absl::Status RunComparator::RunComparison(
 }
 
 static bool TestMatchesFilter(absl::string_view test_name,
-                              absl::optional<absl::string_view> test_filter) {
+                              std::optional<absl::string_view> test_filter) {
   if (!test_filter.has_value()) {
     return true;
   }
@@ -274,7 +274,7 @@ using HandleError = const std::function<void(
 
 static absl::Status RunQuickChecksIfJitEnabled(
     Module* entry_module, TypeInfo* type_info, RunComparator* run_comparator,
-    Package* ir_package, absl::optional<int64_t> seed,
+    Package* ir_package, std::optional<int64_t> seed,
     const HandleError& handle_error) {
   if (run_comparator == nullptr) {
     std::cerr << "[ SKIPPING QUICKCHECKS  ] (JIT is disabled)" << std::endl;
@@ -378,7 +378,7 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
                             absl::Span<const InterpValue> args,
                             const SymbolicBindings* symbolic_bindings,
                             const InterpValue& got) -> absl::Status {
-      absl::optional<bool> requires_implicit_token =
+      std::optional<bool> requires_implicit_token =
           import_data.GetRootTypeInfoForNode(f)
               .value()
               ->GetRequiresImplicitToken(f);

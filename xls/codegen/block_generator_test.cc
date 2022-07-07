@@ -40,7 +40,7 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 class BlockGeneratorTest : public VerilogTestBase {
  protected:
   CodegenOptions codegen_options(
-      absl::optional<std::string> clock_name = absl::nullopt) {
+      std::optional<std::string> clock_name = absl::nullopt) {
     CodegenOptions options;
     options.use_system_verilog(UseSystemVerilog());
     if (clock_name.has_value()) {

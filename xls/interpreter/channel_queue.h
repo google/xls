@@ -171,7 +171,7 @@ class SingleValueChannelQueue : public ChannelQueue {
   }
 
  protected:
-  absl::optional<Value> value_ ABSL_GUARDED_BY(mutex_);
+  std::optional<Value> value_ ABSL_GUARDED_BY(mutex_);
 
   mutable absl::Mutex mutex_;
 };

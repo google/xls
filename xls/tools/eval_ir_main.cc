@@ -151,7 +151,7 @@ constexpr absl::string_view kPackageName = "validator";
 // the expected result.
 struct ArgSet {
   std::vector<Value> args;
-  absl::optional<Value> expected;
+  std::optional<Value> expected;
 };
 
 // Returns the given arguments as a semicolon-separated string.

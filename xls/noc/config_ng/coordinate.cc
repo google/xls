@@ -76,7 +76,7 @@ bool Coordinate::IsInDimensionalSpace(
   return false;
 }
 
-absl::optional<InlineBitmap> Coordinate::GetDifferentDimensionLocationsWith(
+std::optional<InlineBitmap> Coordinate::GetDifferentDimensionLocationsWith(
     const Coordinate& coordinate) const {
   if (IsDimensionCountEqual(coordinate)) {
     InlineBitmap rtn(GetDimensionCount());
@@ -90,9 +90,9 @@ absl::optional<InlineBitmap> Coordinate::GetDifferentDimensionLocationsWith(
   return absl::nullopt;
 }
 
-absl::optional<int64_t> Coordinate::GetNumDifferentDimensionLocationsWith(
+std::optional<int64_t> Coordinate::GetNumDifferentDimensionLocationsWith(
     const Coordinate& coordinate) const {
-  absl::optional<InlineBitmap> result =
+  std::optional<InlineBitmap> result =
       GetDifferentDimensionLocationsWith(coordinate);
   if (result.has_value()) {
     InlineBitmap& dimensions = result.value();
@@ -105,10 +105,10 @@ absl::optional<int64_t> Coordinate::GetNumDifferentDimensionLocationsWith(
   return absl::nullopt;
 }
 
-absl::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
+std::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
     const Coordinate& coordinate) const {
   int64_t dimension_index = -1;
-  absl::optional<InlineBitmap> result =
+  std::optional<InlineBitmap> result =
       GetDifferentDimensionLocationsWith(coordinate);
   if (result.has_value()) {
     InlineBitmap& dimensions = result.value();
@@ -122,7 +122,7 @@ absl::optional<int64_t> Coordinate::GetUniqueDifferentDimensionIndex(
     }
   }
   return dimension_index == -1 ? absl::nullopt
-                               : absl::optional(dimension_index);
+                               : std::optional(dimension_index);
 }
 
 bool Coordinate::operator==(const Coordinate& rhs) const {

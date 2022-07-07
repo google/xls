@@ -66,7 +66,7 @@ struct PositionalErrorData {
 // ParseErrorStatus() above.
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     const absl::Status& status,
-    absl::optional<absl::string_view> target_type = absl::nullopt);
+    std::optional<absl::string_view> target_type = absl::nullopt);
 
 // Maps identifiers to the AST node that bound that identifier (also known as
 // the lexical environment).
@@ -106,7 +106,7 @@ class Bindings {
   }
 
   // Returns the AST node bound to 'name'.
-  absl::optional<BoundNode> ResolveNode(absl::string_view name) const {
+  std::optional<BoundNode> ResolveNode(absl::string_view name) const {
     auto it = local_bindings_.find(name);
     if (it == local_bindings_.end()) {
       if (parent_ != nullptr) {
@@ -119,7 +119,7 @@ class Bindings {
   }
 
   bool ResolveNodeIsTypeDefinition(absl::string_view name) const {
-    absl::optional<BoundNode> bn = ResolveNode(name);
+    std::optional<BoundNode> bn = ResolveNode(name);
     if (!bn) {
       return false;
     }
@@ -132,7 +132,7 @@ class Bindings {
   // attributing the source of the binding resolution as span.
   absl::StatusOr<BoundNode> ResolveNodeOrError(absl::string_view name,
                                                const Span& span) const {
-    absl::optional<BoundNode> result = ResolveNode(name);
+    std::optional<BoundNode> result = ResolveNode(name);
     if (result.has_value()) {
       return *std::move(result);
     }
@@ -143,7 +143,7 @@ class Bindings {
   // Resolves "name" as an AST binding and returns the associated NameDefNode.
   //
   // Returns nullopt if no AST node binding is found associated with "name".
-  absl::optional<AnyNameDef> ResolveNameOrNullopt(absl::string_view name) const;
+  std::optional<AnyNameDef> ResolveNameOrNullopt(absl::string_view name) const;
 
   // As above, but returns a ParseError status.
   absl::StatusOr<AnyNameDef> ResolveNameOrError(absl::string_view name,

@@ -25,7 +25,7 @@ namespace xls::verilog {
 
 absl::StatusOr<ModuleSignature> GenerateSignature(
     const CodegenOptions& options, FunctionBase* func_base,
-    absl::optional<PipelineSchedule> schedule) {
+    std::optional<PipelineSchedule> schedule) {
   std::string module_name = options.module_name().has_value()
                                 ? std::string{options.module_name().value()}
                                 : func_base->name();
@@ -141,7 +141,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     // Block has no registers. The block is combinational.
     b.WithCombinationalInterface();
   } else {
-    absl::optional<PipelineControl> pipeline_control;
+    std::optional<PipelineControl> pipeline_control;
     if (options.valid_control().has_value()) {
       pipeline_control = PipelineControl();
       *(pipeline_control->mutable_valid()) = options.valid_control().value();

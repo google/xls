@@ -46,7 +46,7 @@ class ParametricExpression {
   using EnvValue = absl::variant<const ParametricExpression*, InterpValue>;
   using Env = absl::flat_hash_map<std::string, EnvValue>;
 
-  ParametricExpression(absl::optional<InterpValue> const_value = absl::nullopt)
+  ParametricExpression(std::optional<InterpValue> const_value = absl::nullopt)
       : const_value_(const_value) {}
   virtual ~ParametricExpression() = default;
 
@@ -61,7 +61,7 @@ class ParametricExpression {
 
   virtual std::unique_ptr<ParametricExpression> Clone() const = 0;
 
-  absl::optional<InterpValue> const_value() const { return const_value_; }
+  std::optional<InterpValue> const_value() const { return const_value_; }
 
   // Adds together two parametric expression environment values.
   static std::unique_ptr<ParametricExpression> Add(const EnvValue& lhs,
@@ -88,7 +88,7 @@ class ParametricExpression {
   static Evaluated TryUnwrapConstant(std::unique_ptr<ParametricExpression> e);
 
  private:
-  absl::optional<InterpValue> const_value_;
+  std::optional<InterpValue> const_value_;
 };
 
 // Represents a constant value in a parametric dimension expression.
@@ -140,7 +140,7 @@ class ParametricAdd : public ParametricExpression {
  public:
   ParametricAdd(std::unique_ptr<ParametricExpression> lhs,
                 std::unique_ptr<ParametricExpression> rhs,
-                absl::optional<InterpValue> const_value = absl::nullopt)
+                std::optional<InterpValue> const_value = absl::nullopt)
       : ParametricExpression(const_value),
         lhs_(std::move(lhs)),
         rhs_(std::move(rhs)) {}
@@ -190,7 +190,7 @@ class ParametricMul : public ParametricExpression {
  public:
   ParametricMul(std::unique_ptr<ParametricExpression> lhs,
                 std::unique_ptr<ParametricExpression> rhs,
-                absl::optional<InterpValue> const_value = absl::nullopt)
+                std::optional<InterpValue> const_value = absl::nullopt)
       : ParametricExpression(const_value),
         lhs_(std::move(lhs)),
         rhs_(std::move(rhs)) {}
@@ -245,7 +245,7 @@ class ParametricMul : public ParametricExpression {
 class ParametricSymbol : public ParametricExpression {
  public:
   ParametricSymbol(std::string identifier, Span span,
-                   absl::optional<InterpValue> const_value = absl::nullopt)
+                   std::optional<InterpValue> const_value = absl::nullopt)
       : ParametricExpression(const_value),
         identifier_(std::move(identifier)),
         span_(std::move(span)) {}

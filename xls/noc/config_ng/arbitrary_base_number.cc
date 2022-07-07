@@ -25,7 +25,7 @@ ArbitraryBaseNumber::ArbitraryBaseNumber(const int64_t digit_count,
   XLS_CHECK_LE(numerical_base, 128);
 }
 
-absl::optional<int64_t> ArbitraryBaseNumber::GetValue(
+std::optional<int64_t> ArbitraryBaseNumber::GetValue(
     const int64_t index) const {
   if (index < 0 || index >= digits_.size()) {
     return absl::nullopt;

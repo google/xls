@@ -33,7 +33,7 @@ namespace xls::dslx {
 
 BytecodeEmitter::BytecodeEmitter(
     ImportData* import_data, const TypeInfo* type_info,
-    const absl::optional<SymbolicBindings>& caller_bindings)
+    const std::optional<SymbolicBindings>& caller_bindings)
     : import_data_(import_data),
       type_info_(type_info),
       caller_bindings_(caller_bindings) {}
@@ -51,7 +51,7 @@ absl::Status BytecodeEmitter::Init(const Function* f) {
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
                       const Function* f,
-                      const absl::optional<SymbolicBindings>& caller_bindings) {
+                      const std::optional<SymbolicBindings>& caller_bindings) {
   return EmitProcNext(import_data, type_info, f, caller_bindings,
                       /*proc_members=*/{});
 }
@@ -59,7 +59,7 @@ BytecodeEmitter::Emit(ImportData* import_data, const TypeInfo* type_info,
 /* static */ absl::StatusOr<std::unique_ptr<BytecodeFunction>>
 BytecodeEmitter::EmitProcNext(
     ImportData* import_data, const TypeInfo* type_info, const Function* f,
-    const absl::optional<SymbolicBindings>& caller_bindings,
+    const std::optional<SymbolicBindings>& caller_bindings,
     const std::vector<NameDef*>& proc_members) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
   for (const NameDef* name_def : proc_members) {
@@ -188,7 +188,7 @@ class NameDefCollector : public AstNodeVisitor {
 BytecodeEmitter::EmitExpression(
     ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
     const absl::flat_hash_map<std::string, InterpValue>& env,
-    const absl::optional<SymbolicBindings>& caller_bindings) {
+    const std::optional<SymbolicBindings>& caller_bindings) {
   BytecodeEmitter emitter(import_data, type_info, caller_bindings);
 
   NameDefCollector collector;
@@ -384,7 +384,7 @@ absl::Status BytecodeEmitter::CastBitsToArray(Span span, BitsType* from_bits,
 absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   XLS_RETURN_IF_ERROR(node->expr()->AcceptExpr(this));
 
-  absl::optional<ConcreteType*> maybe_from = type_info_->GetItem(node->expr());
+  std::optional<ConcreteType*> maybe_from = type_info_->GetItem(node->expr());
   if (!maybe_from.has_value()) {
     return absl::InternalError(
         absl::StrCat("Could not find type for cast \"from\" arg: ",
@@ -392,7 +392,7 @@ absl::Status BytecodeEmitter::HandleCast(const Cast* node) {
   }
   ConcreteType* from = maybe_from.value();
 
-  absl::optional<ConcreteType*> maybe_to =
+  std::optional<ConcreteType*> maybe_to =
       type_info_->GetItem(node->type_annotation());
   if (!maybe_to.has_value()) {
     return absl::InternalError(absl::StrCat(
@@ -477,7 +477,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data_->GetRootTypeInfo(module));
 
-  absl::optional<ModuleMember*> member =
+  std::optional<ModuleMember*> member =
       module->FindMemberWithName(colon_ref->attr());
   if (!member.has_value()) {
     return absl::InternalError(
@@ -537,7 +537,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   //  - end:
 
   // First, get the size of the iterable array.
-  absl::optional<ConcreteType*> maybe_iterable_type =
+  std::optional<ConcreteType*> maybe_iterable_type =
       type_info_->GetItem(node->iterable());
   if (!maybe_iterable_type.has_value()) {
     return absl::InternalError(
@@ -657,7 +657,7 @@ absl::Status BytecodeEmitter::HandleFormatMacro(const FormatMacro* node) {
 }
 
 absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
-  absl::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
+  std::optional<ConcreteType*> maybe_type = type_info->GetItem(expr);
   if (!maybe_type.has_value()) {
     return absl::InternalError(
         "Could not find concrete type for slice component.");
@@ -688,7 +688,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
     }
 
     if (slice->limit() == nullptr) {
-      absl::optional<ConcreteType*> maybe_type =
+      std::optional<ConcreteType*> maybe_type =
           type_info_->GetItem(node->lhs());
       if (!maybe_type.has_value()) {
         return absl::InternalError("Could not find concrete type for slice.");
@@ -722,7 +722,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
     WidthSlice* width_slice = absl::get<WidthSlice*>(node->rhs());
     XLS_RETURN_IF_ERROR(width_slice->start()->AcceptExpr(this));
 
-    absl::optional<ConcreteType*> maybe_type =
+    std::optional<ConcreteType*> maybe_type =
         type_info_->GetItem(width_slice->width());
     if (!maybe_type.has_value()) {
       return absl::InternalError(absl::StrCat(
@@ -776,11 +776,11 @@ absl::Status BytecodeEmitter::HandleInvocation(const Invocation* node) {
 
   XLS_RETURN_IF_ERROR(node->callee()->AcceptExpr(this));
 
-  absl::optional<const SymbolicBindings*> maybe_callee_bindings =
+  std::optional<const SymbolicBindings*> maybe_callee_bindings =
       type_info_->GetInvocationCalleeBindings(
           node, caller_bindings_.has_value() ? caller_bindings_.value()
                                              : SymbolicBindings());
-  absl::optional<SymbolicBindings> final_bindings = absl::nullopt;
+  std::optional<SymbolicBindings> final_bindings = absl::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }
@@ -930,7 +930,7 @@ absl::Status BytecodeEmitter::HandleNumber(const Number* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
     const Number* node) {
-  absl::optional<ConcreteType*> type_or = type_info_->GetItem(node);
+  std::optional<ConcreteType*> type_or = type_info_->GetItem(node);
   if (!type_or.has_value()) {
     return absl::InternalError(
         absl::StrCat("Could not find type for number: ", node->ToString()));
@@ -1027,12 +1027,12 @@ absl::Status BytecodeEmitter::HandleSpawn(const Spawn* node) {
 
   // The whole Proc is parameterized, not the individual invocations
   // (config/next), so we can use either invocation to get the bindings.
-  absl::optional<const SymbolicBindings*> maybe_callee_bindings =
+  std::optional<const SymbolicBindings*> maybe_callee_bindings =
       type_info_->GetInvocationCalleeBindings(node->config(),
                                                  caller_bindings_.has_value()
                                                      ? caller_bindings_.value()
                                                      : SymbolicBindings());
-  absl::optional<SymbolicBindings> final_bindings = absl::nullopt;
+  std::optional<SymbolicBindings> final_bindings = absl::nullopt;
   if (maybe_callee_bindings.has_value()) {
     final_bindings = *maybe_callee_bindings.value();
   }

@@ -84,11 +84,11 @@ class RunComparator {
 struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
-  absl::optional<absl::string_view> test_filter = absl::nullopt;
+  std::optional<absl::string_view> test_filter = absl::nullopt;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
   RunComparator* run_comparator = nullptr;
   bool execute = true;
-  absl::optional<int64_t> seed = absl::nullopt;
+  std::optional<int64_t> seed = absl::nullopt;
   ConvertOptions convert_options;
 };
 

@@ -121,7 +121,7 @@ void MarkReachedFunctions(FunctionBase* func, const ChannelProcMap& channel_map,
 absl::StatusOr<bool> DeadFunctionEliminationPass::RunInternal(
     Package* p, const PassOptions& options, PassResults* results) const {
   absl::flat_hash_set<FunctionBase*> reached;
-  absl::optional<FunctionBase*> top = p->GetTop();
+  std::optional<FunctionBase*> top = p->GetTop();
   if (!top.has_value()) {
     return false;
   }

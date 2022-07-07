@@ -67,10 +67,10 @@ absl::Status SetDelayFields(Block* block, const DelayEstimator& delay_estimator,
   absl::flat_hash_map<Node*, int64_t> reg_delay_map;
 
   // Delay metrics to set on the proto.
-  absl::optional<int64_t> max_reg_to_reg_delay;
-  absl::optional<int64_t> max_input_to_reg_delay;
-  absl::optional<int64_t> max_reg_to_output_delay;
-  absl::optional<int64_t> max_feedthrough_path_delay;
+  std::optional<int64_t> max_reg_to_reg_delay;
+  std::optional<int64_t> max_input_to_reg_delay;
+  std::optional<int64_t> max_reg_to_output_delay;
+  std::optional<int64_t> max_feedthrough_path_delay;
 
   for (Node* node : TopoSort(block)) {
     if (node->Is<InputPort>()) {
@@ -78,7 +78,7 @@ absl::Status SetDelayFields(Block* block, const DelayEstimator& delay_estimator,
       continue;
     }
 
-    auto optional_max = [](int64_t value, absl::optional<int64_t> opt_value) {
+    auto optional_max = [](int64_t value, std::optional<int64_t> opt_value) {
       if (opt_value.has_value()) {
         return std::max(value, opt_value.value());
       }
@@ -88,8 +88,8 @@ absl::Status SetDelayFields(Block* block, const DelayEstimator& delay_estimator,
         delay_estimator.GetOperationDelayInPs(node);
     int64_t node_delay = node_delay_or.ok() ? node_delay_or.value() : 0;
 
-    absl::optional<int64_t> input_delay;
-    absl::optional<int64_t> reg_delay;
+    std::optional<int64_t> input_delay;
+    std::optional<int64_t> reg_delay;
     for (Node* operand : node->operands()) {
       if (operand->GetType()->GetFlatBitCount() > 0) {
         if (input_delay_map.contains(operand)) {

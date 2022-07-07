@@ -100,7 +100,7 @@ class RangeQueryEngine : public QueryEngine {
     return false;
   }
 
-  absl::optional<Bits> ImpliedNodeValue(
+  std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
     return absl::nullopt;

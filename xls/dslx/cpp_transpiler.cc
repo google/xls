@@ -162,7 +162,7 @@ absl::StatusOr<std::string> BuiltinTypeAnnotationToString(
 
 absl::StatusOr<std::string> ArrayTypeAnnotationToString(
     const TranspileData& xpile_data, const ArrayTypeAnnotation* annot) {
-  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, annot));
   if (as_builtin_type.has_value()) {
@@ -287,7 +287,7 @@ absl::StatusOr<std::string> GenerateArrayFromValue(
 
   TypeAnnotation* element_type = array_type->element_type();
   std::string setter;
-  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, element_type));
   if (as_builtin_type.has_value()) {
@@ -311,7 +311,7 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
     const TranspileData& xpile_data, absl::string_view object_name,
     absl::string_view field_name, int element_index, TypeAnnotation* type,
     int indent_level) {
-  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, type));
   if (as_builtin_type.has_value()) {
@@ -401,7 +401,7 @@ $2xls::Value $0_value = xls::Value::ArrayOrDie($0_elements);)";
   TypeAnnotation* element_type = array_type->element_type();
 
   std::string setter;
-  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, element_type));
   if (as_builtin_type.has_value()) {
@@ -434,7 +434,7 @@ absl::StatusOr<std::string> StructMemberToValue(const TranspileData& xpile_data,
 $0elements.push_back($2_value);)";
 
   std::string setter;
-  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, type));
   if (as_builtin_type.has_value()) {
@@ -458,7 +458,7 @@ $0elements.push_back($2_value);)";
     if (absl::holds_alternative<EnumDef*>(type_definition)) {
       EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
       XLS_ASSIGN_OR_RETURN(
-          absl::optional<BuiltinType> enum_as_builtin_type,
+          std::optional<BuiltinType> enum_as_builtin_type,
           GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                            xpile_data.import_data,
                            enum_def->type_annotation()));
@@ -510,9 +510,9 @@ $1
                           absl::StrJoin(members, "\n"));
 }
 
-absl::StatusOr<absl::optional<int64_t>> GetFieldWidth(
+absl::StatusOr<std::optional<int64_t>> GetFieldWidth(
     const TranspileData& xpile_data, const TypeAnnotation* type) {
-  XLS_ASSIGN_OR_RETURN(absl::optional<BuiltinType> as_builtin_type,
+  XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
                                         xpile_data.import_data, type));
   if (as_builtin_type.has_value()) {
@@ -568,7 +568,7 @@ $1$2
     member_decls.push_back(
         absl::StrFormat("  %s %s;", CheckedCamelize(type_str), member_name));
 
-    XLS_ASSIGN_OR_RETURN(absl::optional<int64_t> width,
+    XLS_ASSIGN_OR_RETURN(std::optional<int64_t> width,
                          GetFieldWidth(xpile_data, type));
     if (width.has_value()) {
       scalar_widths.push_back(

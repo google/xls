@@ -357,10 +357,10 @@ class VirtualChannel {
   Node* GetDataOut() const { return data_out_; }
   Node* GetValidOut() const { return valid_out_; }
 
-  const absl::optional<StateElement>& ChannelDataState() const {
+  const std::optional<StateElement>& ChannelDataState() const {
     return saved_data_;
   }
-  const absl::optional<StateElement>& ChannelValidState() const {
+  const std::optional<StateElement>& ChannelValidState() const {
     return saved_data_valid_;
   }
 
@@ -378,8 +378,8 @@ class VirtualChannel {
 
   // For FIFO depth 1 channels, these state elements holds the channel data and
   // whether it is valid.
-  absl::optional<StateElement> saved_data_;
-  absl::optional<StateElement> saved_data_valid_;
+  std::optional<StateElement> saved_data_;
+  std::optional<StateElement> saved_data_valid_;
 };
 
 // Abstraction representing a node in the activation network of a proc
@@ -391,7 +391,7 @@ struct ActivationNode {
   // The side-effecting node in the inlined proc for which this activation node
   // is generated. May be nullopt for the dummy sink node of the activation
   // network.
-  absl::optional<Node*> original_node;
+  std::optional<Node*> original_node;
 
   // The activation bit(s) passed from the predecessor nodes(s) in the
   // activation network on the proc thread.
@@ -407,7 +407,7 @@ struct ActivationNode {
 
   // If `original_node` is present, this is the inlined value (in the container
   // proc) corresponding to `original_node`.
-  absl::optional<Node*> data_out;
+  std::optional<Node*> data_out;
 };
 
 // Verifies that any data-dependency from a receive node to any other
@@ -769,7 +769,7 @@ class ProcThread {
   // inlined proc for which this activation node was created.
   absl::StatusOr<ActivationNode*> AllocateActivationNode(
       absl::string_view name, absl::Span<Node* const> activations_in,
-      absl::optional<Node*> original_node);
+      std::optional<Node*> original_node);
 
   // Sets the next state of the proc thread to the given value. This value is
   // commited to the corresponding element of container proc when the proc
@@ -1140,7 +1140,7 @@ absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
 
 absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
     absl::string_view name, absl::Span<Node* const> activations_in,
-    absl::optional<Node*> original_node) {
+    std::optional<Node*> original_node) {
   XLS_VLOG(3) << absl::StreamFormat(
       "AllocateActivationNode: %s, inputs (%s)", name,
       absl::StrJoin(activations_in, ", ", NodeFormatter));

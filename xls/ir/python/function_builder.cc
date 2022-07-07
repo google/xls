@@ -89,7 +89,7 @@ PYBIND11_MODULE(function_builder, m) {
                                      absl::string_view) =
       &FunctionBuilder::Select;
   BValue (FunctionBuilder::*add_sel_multi)(
-      BValue, absl::Span<const BValue>, absl::optional<BValue>,
+      BValue, absl::Span<const BValue>, std::optional<BValue>,
       const SourceInfo&, absl::string_view) = &FunctionBuilder::Select;
   BValue (FunctionBuilder::*add_smul)(BValue, BValue, const SourceInfo&,
                                       absl::string_view) =

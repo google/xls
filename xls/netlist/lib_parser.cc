@@ -190,7 +190,7 @@ std::string Block::ToString() const {
 }
 
 std::vector<const Block*> Block::GetSubBlocks(
-    absl::optional<absl::string_view> target_kind) const {
+    std::optional<absl::string_view> target_kind) const {
   std::vector<const Block*> results;
   for (const BlockEntry& item : entries) {
     if (const auto* block = absl::get_if<std::unique_ptr<Block>>(&item)) {

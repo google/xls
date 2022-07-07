@@ -183,7 +183,7 @@ FsmRegister* FsmBuilder::AddRegister(absl::string_view name,
 }
 
 FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64_t width,
-                                     absl::optional<int64_t> reset_value) {
+                                     std::optional<int64_t> reset_value) {
   Expression* reset_expr =
       reset_value.has_value()
           ? file_->Literal(UBits(reset_value.value(), width), SourceInfo())

@@ -261,7 +261,7 @@ class StructType : public ConcreteType {
   // this TupleType does not have named members.
   absl::StatusOr<int64_t> GetMemberIndex(absl::string_view name) const;
 
-  absl::optional<const ConcreteType*> GetMemberTypeByName(
+  std::optional<const ConcreteType*> GetMemberTypeByName(
       absl::string_view target) const;
 
   const StructDef& nominal_type() const { return struct_def_; }

@@ -360,7 +360,7 @@ absl::StatusOr<InterpValue> ConstexprEvaluator::CreateChannelValue(
 absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleChannelDecl : " << expr->ToString();
   // Keep in mind that channels come in tuples, so peel out the first element.
-  absl::optional<ConcreteType*> maybe_decl_type = type_info_->GetItem(expr);
+  std::optional<ConcreteType*> maybe_decl_type = type_info_->GetItem(expr);
   if (!maybe_decl_type.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Could not find type for expr \"%s\" @ %s",
@@ -411,7 +411,7 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   // Ok! The subject is a module. The only case we care about here is if the
   // attr is a constant.
   Module* module = absl::get<Module*>(subject);
-  absl::optional<ModuleMember*> maybe_member =
+  std::optional<ModuleMember*> maybe_member =
       module->FindMemberWithName(expr->attr());
   if (!maybe_member.has_value()) {
     return absl::InternalError(

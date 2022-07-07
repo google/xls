@@ -178,7 +178,7 @@ class GraphContraction {
 
   // Returns the representative of the equivalence class of identified vertices
   // to which the given vertex belongs.
-  absl::optional<V> RepresentativeOf(const V& vertex) {
+  std::optional<V> RepresentativeOf(const V& vertex) {
     if (auto pair = vertex_weights_.Find(vertex)) {
       return pair->first;
     }
@@ -202,7 +202,7 @@ class GraphContraction {
   }
 
   // Returns the weight of the given vertex.
-  absl::optional<VW> WeightOf(const V& vertex) {
+  std::optional<VW> WeightOf(const V& vertex) {
     if (auto v = vertex_weights_.Find(vertex)) {
       return v.value().second;
     }
@@ -210,7 +210,7 @@ class GraphContraction {
   }
 
   // Returns the weight of the given edge.
-  absl::optional<EW> WeightOf(const V& source, const V& target) {
+  std::optional<EW> WeightOf(const V& source, const V& target) {
     absl::flat_hash_map<V, EW> edges = EdgesOutOf(source);
     if (edges.contains(target)) {
       return edges.at(target);
@@ -220,7 +220,7 @@ class GraphContraction {
 
   // Returns a topological sort of the nodes in the graph if the graph is
   // acyclic, otherwise returns absl::nullopt.
-  absl::optional<std::vector<V>> TopologicalSort() {
+  std::optional<std::vector<V>> TopologicalSort() {
     std::vector<V> result;
 
     // Kahn's algorithm
@@ -260,7 +260,7 @@ class GraphContraction {
   // sink of the path. Those keys only exist if a path exists from that source
   // to that sink.
   // Returns absl::nullopt if the graph contains a cycle.
-  absl::optional<absl::flat_hash_map<V, absl::flat_hash_map<V, VW>>>
+  std::optional<absl::flat_hash_map<V, absl::flat_hash_map<V, VW>>>
   LongestNodePaths() {
     absl::flat_hash_map<V, absl::flat_hash_map<V, VW>> result;
 
@@ -270,7 +270,7 @@ class GraphContraction {
       result[vertex] = {{vertex, WeightOf(vertex).value()}};
     }
 
-    if (absl::optional<std::vector<V>> topo = TopologicalSort()) {
+    if (std::optional<std::vector<V>> topo = TopologicalSort()) {
       for (const V& vertex : *topo) {
         for (auto& [source, targets] : result) {
           for (const auto& [pred, edge_weight] : EdgesInto(vertex)) {

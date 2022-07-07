@@ -55,10 +55,10 @@ class Package {
 
   virtual ~Package();
 
-  absl::optional<FunctionBase*> GetTop() const;
+  std::optional<FunctionBase*> GetTop() const;
   bool HasTop() { return top_.has_value(); }
   // Sets the top entity of the package.
-  absl::Status SetTop(absl::optional<FunctionBase*> top);
+  absl::Status SetTop(std::optional<FunctionBase*> top);
   // Sets the top to a FunctionBase with its name equivalent to the 'top_name'
   // parameter. The function calls xls::Package::SetTop function. Prerequisite:
   // a single function base with the with its name equivalent to the 'top_name'
@@ -214,15 +214,15 @@ class Package {
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
       absl::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
-      absl::optional<int64_t> fifo_depth = absl::nullopt,
+      std::optional<int64_t> fifo_depth = absl::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64_t> id = absl::nullopt);
+      std::optional<int64_t> id = absl::nullopt);
 
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
       absl::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
-      absl::optional<int64_t> id = absl::nullopt);
+      std::optional<int64_t> id = absl::nullopt);
 
   // Returns a span of the channels owned by the package. Sorted by channel ID.
   absl::Span<Channel* const> channels() const { return channel_vec_; }
@@ -247,7 +247,7 @@ class Package {
 
   friend class FunctionBuilder;
 
-  absl::optional<FunctionBase*> top_;
+  std::optional<FunctionBase*> top_;
 
   // Helper that returns a map from the names of functions inside this package
   // to the functions themselves.

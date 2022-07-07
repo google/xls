@@ -77,7 +77,7 @@ class Callee {
   static absl::StatusOr<Callee> Make(Function* f, const Invocation* invocation,
                                      Module* m, TypeInfo* type_info,
                                      SymbolicBindings sym_bindings,
-                                     absl::optional<ProcId> proc_id);
+                                     std::optional<ProcId> proc_id);
 
   bool IsFunction() const;
   Function* f() const { return f_; }
@@ -86,20 +86,20 @@ class Callee {
   TypeInfo* type_info() const { return type_info_; }
   const SymbolicBindings& sym_bindings() const { return sym_bindings_; }
   // If nullopt is returned, that means that this isn't a proc function.
-  const absl::optional<ProcId>& proc_id() const { return proc_id_; }
+  const std::optional<ProcId>& proc_id() const { return proc_id_; }
   std::string ToString() const;
 
  private:
   Callee(Function* f, const Invocation* invocation, Module* m,
          TypeInfo* type_info, SymbolicBindings sym_bindings,
-         absl::optional<ProcId> proc_id);
+         std::optional<ProcId> proc_id);
 
   Function* f_;
   const Invocation* invocation_;
   Module* m_;
   TypeInfo* type_info_;
   SymbolicBindings sym_bindings_;
-  absl::optional<ProcId> proc_id_;
+  std::optional<ProcId> proc_id_;
 };
 
 // Record used in sequence, noting order functions should be converted in.
@@ -122,7 +122,7 @@ class ConversionRecord {
   static absl::StatusOr<ConversionRecord> Make(
       Function* f, const Invocation* invocation, Module* module,
       TypeInfo* type_info, SymbolicBindings symbolic_bindings,
-      std::vector<Callee> callees, absl::optional<ProcId> proc_id, bool is_top);
+      std::vector<Callee> callees, std::optional<ProcId> proc_id, bool is_top);
 
   // Integrity-checks that the symbolic_bindings provided are sufficient to
   // instantiate f (i.e. if it is parametric). Returns an internal error status
@@ -138,7 +138,7 @@ class ConversionRecord {
     return symbolic_bindings_;
   }
   const std::vector<Callee>& callees() const { return callees_; }
-  absl::optional<ProcId> proc_id() const { return proc_id_; }
+  std::optional<ProcId> proc_id() const { return proc_id_; }
   bool HasProcId() const { return proc_id_.has_value(); }
   bool IsTop() const { return is_top_; }
 
@@ -147,7 +147,7 @@ class ConversionRecord {
  private:
   ConversionRecord(Function* f, const Invocation* invocation, Module* module,
                    TypeInfo* type_info, SymbolicBindings symbolic_bindings,
-                   std::vector<Callee> callees, absl::optional<ProcId> proc_id,
+                   std::vector<Callee> callees, std::optional<ProcId> proc_id,
                    bool is_top)
       : f_(f),
         invocation_(invocation),
@@ -164,7 +164,7 @@ class ConversionRecord {
   TypeInfo* type_info_;
   SymbolicBindings symbolic_bindings_;
   std::vector<Callee> callees_;
-  absl::optional<ProcId> proc_id_;
+  std::optional<ProcId> proc_id_;
   bool is_top_;
 };
 

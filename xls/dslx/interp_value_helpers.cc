@@ -131,7 +131,7 @@ absl::Status FlattenTuple(const InterpValue& value,
   return absl::OkStatus();
 }
 
-absl::StatusOr<absl::optional<int64_t>> FindFirstDifferingIndex(
+absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
     absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs) {
   if (lhs.size() != rhs.size()) {
     return absl::InvalidArgumentError(

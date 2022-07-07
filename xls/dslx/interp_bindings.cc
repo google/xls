@@ -68,7 +68,7 @@ void InterpBindings::AddValueTree(NameDefTree* name_def_tree,
 
 absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
     absl::string_view identifier, const Span* ref_span) const {
-  absl::optional<Entry> entry = ResolveEntry(identifier);
+  std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     std::string span_str;
     if (ref_span != nullptr) {
@@ -90,7 +90,7 @@ absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
 
 absl::StatusOr<Module*> InterpBindings::ResolveModule(
     absl::string_view identifier) const {
-  absl::optional<Entry> entry = ResolveEntry(identifier);
+  std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("No binding for identifier \"%s\"", identifier));
@@ -105,7 +105,7 @@ absl::StatusOr<Module*> InterpBindings::ResolveModule(
 
 absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
     absl::string_view identifier) const {
-  absl::optional<Entry> entry = ResolveEntry(identifier);
+  std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     return absl::NotFoundError(
         absl::StrFormat("No binding for identifier \"%s\"", identifier));
@@ -123,7 +123,7 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
 
 absl::StatusOr<absl::variant<TypeAnnotation*, EnumDef*, StructDef*>>
 InterpBindings::ResolveTypeDefinition(absl::string_view identifier) const {
-  absl::optional<Entry> entry = ResolveEntry(identifier);
+  std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     return absl::NotFoundError(absl::StrFormat(
         "Could not resolve type definition for identifier: \"%s\"",
@@ -156,7 +156,7 @@ absl::flat_hash_set<std::string> InterpBindings::GetKeys() const {
   return result;
 }
 
-absl::optional<InterpBindings::Entry> InterpBindings::ResolveEntry(
+std::optional<InterpBindings::Entry> InterpBindings::ResolveEntry(
     absl::string_view identifier) const {
   auto it = map_.find(identifier);
   if (it != map_.end()) {

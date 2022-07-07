@@ -71,7 +71,7 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 absl::StatusOr<std::string> ConvertModuleForTest(
     absl::string_view program, const ConvertOptions& options = ConvertOptions{},
     ImportData* import_data = nullptr) {
-  absl::optional<ImportData> import_data_value;
+  std::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
     import_data_value.emplace(CreateImportDataForTest());
     import_data = &*import_data_value;

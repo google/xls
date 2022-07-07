@@ -114,12 +114,12 @@ class TestbenchBuilder {
   int64_t max_failures_ = 1;
   ComputeFnT compute_expected_;
   ComputeFnT compute_actual_;
-  absl::optional<CompareResultsFnT> compare_results_;
+  std::optional<CompareResultsFnT> compare_results_;
   CreateShardDataFnT create_shard_data_;
-  absl::optional<IndexToInputFnT> index_to_input_;
-  absl::optional<PrintInputFnT> print_input_;
-  absl::optional<PrintResultFnT> print_result_;
-  absl::optional<LogErrorsFnT> log_errors_;
+  std::optional<IndexToInputFnT> index_to_input_;
+  std::optional<PrintInputFnT> print_input_;
+  std::optional<PrintResultFnT> print_result_;
+  std::optional<LogErrorsFnT> log_errors_;
 };
 
 // Builder for Testbenches without ShardData.
@@ -186,11 +186,11 @@ class TestbenchBuilder<
   int64_t max_failures_ = 1;
   ComputeFnT compute_expected_;
   ComputeFnT compute_actual_;
-  absl::optional<CompareResultsFnT> compare_results_;
-  absl::optional<IndexToInputFnT> index_to_input_;
-  absl::optional<PrintInputFnT> print_input_;
-  absl::optional<PrintResultFnT> print_result_;
-  absl::optional<LogErrorsFnT> log_errors_;
+  std::optional<CompareResultsFnT> compare_results_;
+  std::optional<IndexToInputFnT> index_to_input_;
+  std::optional<PrintInputFnT> print_input_;
+  std::optional<PrintResultFnT> print_result_;
+  std::optional<LogErrorsFnT> log_errors_;
 };
 
 // Shard-data-containing Build() implementation.

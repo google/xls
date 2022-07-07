@@ -90,7 +90,7 @@ class Interval {
   // Given two `Interval`s, return an `Interval` representing their
   // intersection, if one exists. Otherwise, returns `absl::nullopt`.
   // Does not accept improper intervals.
-  static absl::optional<Interval> Intersect(const Interval& lhs,
+  static std::optional<Interval> Intersect(const Interval& lhs,
                                             const Interval& rhs);
 
   // Given two `Interval`s, return a set of `Interval`s representing their
@@ -128,7 +128,7 @@ class Interval {
   // Returns the number of points contained within the interval, assuming that
   // number fits within a `uint64_t`. If it doesn't, `absl::nullopt` is
   // returned.
-  absl::optional<int64_t> Size() const;
+  std::optional<int64_t> Size() const;
 
   // Returns `true` if this is an improper interval, `false` otherwise.
   // An improper interval is one where the upper bound is strictly less than
@@ -143,7 +143,7 @@ class Interval {
 
   // Returns the unique member of the interval if the interval is precise. If
   // the interval is not precise, returns absl::nullopt.
-  absl::optional<Bits> GetPreciseValue() const;
+  std::optional<Bits> GetPreciseValue() const;
 
   // Returns `true` if this is a maximal interval, `false` otherwise.
   // A maximal interval is one that covers every point of a given bitwidth.

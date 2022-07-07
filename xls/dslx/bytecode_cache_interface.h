@@ -33,7 +33,7 @@ class BytecodeCacheInterface {
   // parametric function will have different TypeInfos associated with them.
   virtual absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
       const Function* f, const TypeInfo* type_info,
-      const absl::optional<SymbolicBindings>& caller_bindings) = 0;
+      const std::optional<SymbolicBindings>& caller_bindings) = 0;
 };
 
 }  // namespace xls::dslx

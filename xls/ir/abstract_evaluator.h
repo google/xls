@@ -202,7 +202,7 @@ class AbstractEvaluator {
   }
 
   Vector Select(const Vector& selector, absl::Span<const Vector> cases,
-                absl::optional<const Vector> default_value = absl::nullopt) {
+                std::optional<const Vector> default_value = absl::nullopt) {
     // Turn the binary selector into a one-hot selector.
     Vector one_hot_selector;
     for (int64_t i = 0; i < cases.size(); ++i) {

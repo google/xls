@@ -25,7 +25,7 @@
 namespace xls {
 
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
-    FunctionBase* f, absl::optional<int64_t> clock_period_ps,
+    FunctionBase* f, std::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator) {
   struct NodeEntry {
     Node* node;
@@ -38,7 +38,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
     int64_t critical_path_delay;
 
     // The predecessor on the critical path through this node.
-    absl::optional<Node*> critical_path_predecessor;
+    std::optional<Node*> critical_path_predecessor;
 
     // Whether this node was delayed by a cycle boundary.
     bool delayed_by_cycle_boundary;
@@ -48,7 +48,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
   absl::flat_hash_map<Node*, NodeEntry> node_entries;
 
   // The node with the greatest critical path delay.
-  absl::optional<NodeEntry> latest_entry;
+  std::optional<NodeEntry> latest_entry;
 
   for (Node* node : TopoSort(f)) {
     NodeEntry& entry = node_entries[node];
@@ -108,7 +108,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
 
 std::string CriticalPathToString(
     absl::Span<const CriticalPathEntry> critical_path,
-    absl::optional<std::function<std::string(Node*)>> extra_info) {
+    std::optional<std::function<std::string(Node*)>> extra_info) {
   std::string result;
   absl::flat_hash_map<Op, std::pair<int64_t, int64_t>> op_to_sum;
   for (const CriticalPathEntry& entry : critical_path) {

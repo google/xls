@@ -96,7 +96,7 @@ enum class Keyword { XLS_DSLX_KEYWORDS(XLS_FIRST_COMMA) };
 
 std::string KeywordToString(Keyword keyword);
 
-absl::optional<Keyword> KeywordFromString(absl::string_view s);
+std::optional<Keyword> KeywordFromString(absl::string_view s);
 
 // Returns a singleton set of type keywords.
 const absl::flat_hash_set<Keyword>& GetTypeKeywords();
@@ -105,7 +105,7 @@ const absl::flat_hash_set<Keyword>& GetTypeKeywords();
 class Token {
  public:
   Token(TokenKind kind, Span span,
-        absl::optional<std::string> value = absl::nullopt)
+        std::optional<std::string> value = absl::nullopt)
       : kind_(kind), span_(span), payload_(value) {}
   Token(Span span, Keyword keyword)
       : kind_(TokenKind::kKeyword), span_(span), payload_(keyword) {}
@@ -113,21 +113,21 @@ class Token {
   TokenKind kind() const { return kind_; }
   const Span& span() const { return span_; }
 
-  absl::optional<std::string> GetValue() const {
+  std::optional<std::string> GetValue() const {
     if (absl::holds_alternative<Keyword>(payload_)) {
       return KeywordToString(GetKeyword());
     }
-    return absl::get<absl::optional<std::string>>(payload_);
+    return absl::get<std::optional<std::string>>(payload_);
   }
 
   // Note: assumes that the payload is not a keyword.
   const std::string& GetStringValue() const {
-    return *absl::get<absl::optional<std::string>>(payload_);
+    return *absl::get<std::optional<std::string>>(payload_);
   }
 
   absl::StatusOr<int64_t> GetValueAsInt64() const;
 
-  const absl::variant<absl::optional<std::string>, Keyword>& GetPayload()
+  const absl::variant<std::optional<std::string>, Keyword>& GetPayload()
       const {
     return payload_;
   }
@@ -181,7 +181,7 @@ class Token {
  private:
   TokenKind kind_;
   Span span_;
-  absl::variant<absl::optional<std::string>, Keyword> payload_;
+  absl::variant<std::optional<std::string>, Keyword> payload_;
 };
 
 // Converts the conceptual character stream in a string of text into a stream of
@@ -249,7 +249,7 @@ class Scanner {
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will
   // assume s is an identifier.
-  static absl::optional<Keyword> GetKeyword(absl::string_view s);
+  static std::optional<Keyword> GetKeyword(absl::string_view s);
 
   // Scans a number token out of the character stream. Note the number may have
   // a base determined by a radix-noting prefix; e.g. "0x" or "0b".
@@ -362,7 +362,7 @@ class Scanner {
   // extinguished, returns an EOF token.
   //
   // If none of whitespace, comment, or EOF is observed, returns nullopt.
-  absl::StatusOr<absl::optional<Token>> TryPopWhitespaceOrComment();
+  absl::StatusOr<std::optional<Token>> TryPopWhitespaceOrComment();
 
   // Reads in the next "character" (or escape sequence) in the stream. A
   // string is returned instead of a char, since multi-byte Unicode characters

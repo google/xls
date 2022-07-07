@@ -198,7 +198,7 @@ IrTestBase::UInt64ArgsToValues(
   for (const auto& pair : args) {
     const std::string& param_name = pair.first;
     const uint64_t arg_value = pair.second;
-    absl::optional<FunctionBase*> top = package->GetTop();
+    std::optional<FunctionBase*> top = package->GetTop();
     if (!top.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "Top entity not set for package: %s.", package->name()));
@@ -223,7 +223,7 @@ IrTestBase::UInt64ArgsToValues(
 
 absl::StatusOr<Value> IrTestBase::UInt64ResultToValue(uint64_t value,
                                                       Package* package) {
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
@@ -278,7 +278,7 @@ void IrTestBase::RunAndExpectEq(
   // Emit Verilog with combinational generator and run with ModuleSimulator.
   if (simulate) {
     ASSERT_EQ(package->functions().size(), 1);
-    absl::optional<FunctionBase*> top = package->GetTop();
+    std::optional<FunctionBase*> top = package->GetTop();
     EXPECT_TRUE(top.has_value());
     EXPECT_TRUE(top.value()->IsFunction());
 

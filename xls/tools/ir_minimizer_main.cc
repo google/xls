@@ -142,7 +142,7 @@ float Random0To1(std::mt19937* rng) {
 // Checks whether we still fail when attempting to run function "f". Optional
 // 'inputs' is required if --test_llvm_jit is used.
 absl::StatusOr<bool> StillFailsHelper(
-    absl::string_view ir_text, absl::optional<std::vector<Value>> inputs) {
+    absl::string_view ir_text, std::optional<std::vector<Value>> inputs) {
   if (!absl::GetFlag(FLAGS_test_executable).empty()) {
     // Verify script exists and is executable.
     absl::Status exists_status =
@@ -210,7 +210,7 @@ absl::StatusOr<bool> StillFailsHelper(
 // Wrapper around StillFails which memoizes the result. Optional test_cache is
 // used to memoize the results of testing the given IR.
 absl::StatusOr<bool> StillFails(
-    absl::string_view ir_text, absl::optional<std::vector<Value>> inputs,
+    absl::string_view ir_text, std::optional<std::vector<Value>> inputs,
     absl::flat_hash_map<std::string, bool>* test_cache) {
   XLS_VLOG(1) << "=== Verifying contents still fails";
   XLS_VLOG_LINES(2, ir_text);
@@ -235,7 +235,7 @@ absl::StatusOr<bool> StillFails(
 // returns 'true' if the test (still) fails on that IR text.  Optional test
 // cache is used to memoize the results of testing the given IR.
 absl::Status VerifyStillFails(
-    absl::string_view ir_text, absl::optional<std::vector<Value>> inputs,
+    absl::string_view ir_text, std::optional<std::vector<Value>> inputs,
     absl::string_view description,
     absl::flat_hash_map<std::string, bool>* test_cache) {
   XLS_ASSIGN_OR_RETURN(bool still_fails,
@@ -383,7 +383,7 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
 }
 
 absl::StatusOr<SimplificationResult> Simplify(
-    Function* f, absl::optional<std::vector<Value>> inputs, std::mt19937* rng,
+    Function* f, std::optional<std::vector<Value>> inputs, std::mt19937* rng,
     std::string* which_transform) {
   if (absl::GetFlag(FLAGS_use_optimization_passes) && Random0To1(rng) < 0.3) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
@@ -525,7 +525,7 @@ absl::Status RealMain(absl::string_view path,
   absl::flat_hash_map<std::string, bool> test_cache;
 
   // Parse inputs, if specified.
-  absl::optional<std::vector<xls::Value>> inputs;
+  std::optional<std::vector<xls::Value>> inputs;
   if (!absl::GetFlag(FLAGS_input).empty()) {
     inputs = std::vector<xls::Value>();
     XLS_QCHECK(absl::GetFlag(FLAGS_test_llvm_jit))

@@ -31,16 +31,16 @@ namespace xls::dslx {
 PYBIND11_MODULE(cpp_sample, m) {
   py::class_<SampleOptions>(m, "SampleOptions")
       .def(py::init(
-               [](absl::optional<bool> input_is_dslx,
-                  absl::optional<std::vector<std::string>> ir_converter_args,
-                  absl::optional<bool> convert_to_ir,
-                  absl::optional<bool> optimize_ir,
-                  absl::optional<bool> use_jit, absl::optional<bool> codegen,
-                  absl::optional<std::vector<std::string>> codegen_args,
-                  absl::optional<bool> simulate,
-                  absl::optional<std::string> simulator,
-                  absl::optional<bool> use_system_verilog,
-                  absl::optional<int64_t> timeout_seconds) {
+               [](std::optional<bool> input_is_dslx,
+                  std::optional<std::vector<std::string>> ir_converter_args,
+                  std::optional<bool> convert_to_ir,
+                  std::optional<bool> optimize_ir,
+                  std::optional<bool> use_jit, std::optional<bool> codegen,
+                  std::optional<std::vector<std::string>> codegen_args,
+                  std::optional<bool> simulate,
+                  std::optional<std::string> simulator,
+                  std::optional<bool> use_system_verilog,
+                  std::optional<int64_t> timeout_seconds) {
                  std::map<std::string, json11::Json> json;
                  if (input_is_dslx) {
                    json["input_is_dslx"] = *input_is_dslx;
@@ -108,8 +108,8 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_property_readonly("timeout_seconds", &SampleOptions::timeout_seconds)
       .def(
           "replace",
-          [](const SampleOptions& self, absl::optional<bool> input_is_dslx,
-             absl::optional<std::vector<std::string>> codegen_args) {
+          [](const SampleOptions& self, std::optional<bool> input_is_dslx,
+             std::optional<std::vector<std::string>> codegen_args) {
             SampleOptions updated = self;
             if (input_is_dslx) {
               updated.set_input_is_dslx(*input_is_dslx);
@@ -125,7 +125,7 @@ PYBIND11_MODULE(cpp_sample, m) {
   py::class_<Sample>(m, "Sample")
       .def(py::init(
                [](std::string input_text, SampleOptions options,
-                  absl::optional<std::vector<std::vector<dslx::InterpValue>>>
+                  std::optional<std::vector<std::vector<dslx::InterpValue>>>
                       args_batch) {
                  std::vector<std::vector<dslx::InterpValue>> args_batch_vec;
                  if (args_batch.has_value()) {

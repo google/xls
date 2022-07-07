@@ -290,7 +290,7 @@ TEST(IrMatchersTest, TupleIndex) {
   auto elem1 = fb.TupleIndex(x, 1);
   XLS_ASSERT_OK(fb.Build().status());
   EXPECT_THAT(elem0.node(), m::TupleIndex());
-  EXPECT_THAT(elem0.node(), m::TupleIndex(absl::optional<int64_t>(0)));
+  EXPECT_THAT(elem0.node(), m::TupleIndex(std::optional<int64_t>(0)));
   EXPECT_THAT(elem0.node(), m::TupleIndex(m::Param(), 0));
 
   EXPECT_THAT(elem1.node(), m::TupleIndex());

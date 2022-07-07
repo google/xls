@@ -168,7 +168,7 @@ class Bytecode {
     const Invocation* invocation;
     // Can't store a pointer, since the underlying storage isn't guaranteed to
     // be stable.
-    absl::optional<SymbolicBindings> bindings;
+    std::optional<SymbolicBindings> bindings;
   };
 
   // Encapsulates an element in a MatchArm's NameDefTree. For literals, a
@@ -206,7 +206,7 @@ class Bytecode {
         absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);
 
     Kind kind_;
-    absl::optional<
+    std::optional<
         absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>>>
         data_;
   };
@@ -232,7 +232,7 @@ class Bytecode {
 
     // Can't store a pointer, since the underlying storage isn't guaranteed to
     // be stable.
-    absl::optional<SymbolicBindings> caller_bindings;
+    std::optional<SymbolicBindings> caller_bindings;
   };
 
   using TraceData = std::vector<FormatStep>;
@@ -266,12 +266,12 @@ class Bytecode {
       : source_span_(source_span), op_(op), data_(absl::nullopt) {}
 
   // Creates an operation with associated string or InterpValue data.
-  Bytecode(Span source_span, Op op, absl::optional<Data> data)
+  Bytecode(Span source_span, Op op, std::optional<Data> data)
       : source_span_(source_span), op_(op), data_(std::move(data)) {}
 
   Span source_span() const { return source_span_; }
   Op op() const { return op_; }
-  const absl::optional<Data>& data() const { return data_; }
+  const std::optional<Data>& data() const { return data_; }
 
   bool has_data() const { return data_.has_value(); }
 
@@ -306,7 +306,7 @@ class Bytecode {
  private:
   Span source_span_;
   Op op_;
-  absl::optional<Data> data_;
+  std::optional<Data> data_;
 };
 
 std::string OpToString(Bytecode::Op op);

@@ -161,7 +161,7 @@ class Tokenizer {
   // (e.g., """). Returns the contents of the quoted string or nullopt if no
   // quoted string was matched. allow_multine indicates whether a newline
   // character is allowed in the quoted string.
-  absl::StatusOr<absl::optional<absl::string_view>> MatchQuotedString(
+  absl::StatusOr<std::optional<absl::string_view>> MatchQuotedString(
       absl::string_view quote, bool allow_multiline) {
     if (!MatchSubstring(quote)) {
       return absl::nullopt;
@@ -268,7 +268,7 @@ class Tokenizer {
       // Match quoted strings. Double-quoted strings (e.g., "foo") and
       // triple-double-quoted strings (e.g., """foo""") are allowed. Only
       // triple-double-quoted strings can contain new lines.
-      absl::optional<absl::string_view> content;
+      std::optional<absl::string_view> content;
       XLS_ASSIGN_OR_RETURN(
           content, MatchQuotedString("\"\"\"", /*allow_multiline=*/true));
       if (content.has_value()) {
@@ -350,7 +350,7 @@ class Tokenizer {
 
   // Returns the character at the current index + 1, or nullopt if current index
   // + 1 is beyond the end of the string.
-  absl::optional<char> next() const {
+  std::optional<char> next() const {
     if (index_ + 1 < str_.size()) {
       return str_[index_ + 1];
     }

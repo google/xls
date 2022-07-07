@@ -26,7 +26,7 @@ using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
-using Popper = std::function<absl::StatusOr<absl::optional<uint8_t>>()>;
+using Popper = std::function<absl::StatusOr<std::optional<uint8_t>>()>;
 
 Popper EmptyPopper() {
   return []() { return absl::nullopt; };

@@ -43,8 +43,8 @@ class ModuleBuilder {
  public:
   ModuleBuilder(absl::string_view name, VerilogFile* file,
                 CodegenOptions options,
-                absl::optional<std::string_view> clk_name = absl::nullopt,
-                absl::optional<ResetProto> rst = absl::nullopt);
+                std::optional<std::string_view> clk_name = absl::nullopt,
+                std::optional<ResetProto> rst = absl::nullopt);
 
   // Returns the underlying module being constructed.
   Module* module() { return module_; }
@@ -77,7 +77,7 @@ class ModuleBuilder {
   // whether node can be emitted inline. If not specified all users of node are
   // considered.
   bool CanEmitAsInlineExpression(Node* node,
-                                 absl::optional<absl::Span<Node* const>>
+                                 std::optional<absl::Span<Node* const>>
                                      users_of_expression = absl::nullopt);
 
   // Returns the given node as a Verilog expression. 'inputs' contains the
@@ -99,7 +99,7 @@ class ModuleBuilder {
   // put the codegen-related documentation in a common place.
   absl::Status EmitAssert(
       xls::Assert* asrt, Expression* condition,
-      absl::optional<absl::string_view> fmt_string = absl::nullopt);
+      std::optional<absl::string_view> fmt_string = absl::nullopt);
 
   // Emit an IR trace operation as a Verilog $display statement.
   absl::Status EmitTrace(xls::Trace* trace, Expression* condition,
@@ -115,7 +115,7 @@ class ModuleBuilder {
   // codegen_options.h.
   absl::StatusOr<IndexableExpression*> EmitGate(
       xls::Gate* gate, Expression* condition, Expression* data,
-      absl::optional<absl::string_view> fmt_string = absl::nullopt);
+      std::optional<absl::string_view> fmt_string = absl::nullopt);
 
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
@@ -232,7 +232,7 @@ class ModuleBuilder {
   LogicRef* clock() const { return clk_; }
 
   // Returns reset signal and reset metadata.
-  const absl::optional<Reset>& reset() const { return rst_; }
+  const std::optional<Reset>& reset() const { return rst_; }
 
   VerilogFile* file() const { return file_; }
 
@@ -324,7 +324,7 @@ class ModuleBuilder {
   CodegenOptions options_;
 
   LogicRef* clk_ = nullptr;
-  absl::optional<Reset> rst_;
+  std::optional<Reset> rst_;
 
   Module* module_;
   ModuleSection* functions_section_;

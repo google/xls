@@ -46,7 +46,7 @@ struct SignatureData {
   const Span& span;
   // Any "higher order" parametric bindings e.g. for the callee in the case of
   // map.
-  absl::optional<std::vector<ParametricConstraint>> parametric_bindings;
+  std::optional<std::vector<ParametricConstraint>> parametric_bindings;
   // Callback that can be used to perform constexpr evaluation on one of the
   // function arguments; which is requested is given by argno.
   const std::function<absl::StatusOr<InterpValue>(int64_t argno)>&

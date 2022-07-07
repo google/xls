@@ -24,7 +24,7 @@ absl::Status PrintPositionalError(
     const Span& error_span, absl::string_view error_message, std::ostream& os,
     std::function<absl::StatusOr<std::string>(absl::string_view)>
         get_file_contents,
-    absl::optional<bool> color, int64_t error_context_line_count) {
+    std::optional<bool> color, int64_t error_context_line_count) {
   XLS_RET_CHECK_EQ(error_context_line_count % 2, 1);
 
   if (get_file_contents == nullptr) {

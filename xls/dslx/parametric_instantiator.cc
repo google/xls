@@ -50,7 +50,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
 
 ParametricInstantiator::ParametricInstantiator(
     Span span, absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::optional<absl::Span<const ParametricConstraint>>
+    std::optional<absl::Span<const ParametricConstraint>>
         parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints)
     : span_(std::move(span)), args_(args), ctx_(ctx) {
@@ -339,7 +339,7 @@ absl::Status ParametricInstantiator::SymbolicBind(
 /* static */ absl::StatusOr<FunctionInstantiator> FunctionInstantiator::Make(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::optional<absl::Span<const ParametricConstraint>>
+    std::optional<absl::Span<const ParametricConstraint>>
         parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5)
@@ -392,7 +392,7 @@ absl::StatusOr<TypeAndBindings> FunctionInstantiator::Instantiate() {
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    absl::optional<absl::Span<const ParametricConstraint>>
+    std::optional<absl::Span<const ParametricConstraint>>
         parametric_bindings) {
   XLS_RET_CHECK_EQ(args.size(), member_types.size());
   return StructInstantiator(std::move(span), struct_type, args, member_types,
@@ -470,7 +470,7 @@ static std::string ToString(
 }
 
 static std::string ToString(
-    const absl::optional<absl::Span<const ParametricConstraint>>&
+    const std::optional<absl::Span<const ParametricConstraint>>&
         parametric_constraints) {
   if (parametric_constraints.has_value()) {
     return "none";
@@ -487,7 +487,7 @@ static std::string ToString(
 absl::StatusOr<TypeAndBindings> InstantiateFunction(
     Span span, const FunctionType& function_type,
     absl::Span<const InstantiateArg> args, DeduceCtx* ctx,
-    absl::optional<absl::Span<const ParametricConstraint>>
+    std::optional<absl::Span<const ParametricConstraint>>
         parametric_constraints,
     const absl::flat_hash_map<std::string, InterpValue>* explicit_constraints) {
   XLS_VLOG(5) << "Function instantiation @ " << span
@@ -508,7 +508,7 @@ absl::StatusOr<TypeAndBindings> InstantiateStruct(
     absl::Span<const InstantiateArg> args,
     absl::Span<std::unique_ptr<ConcreteType> const> member_types,
     DeduceCtx* ctx,
-    absl::optional<absl::Span<const ParametricConstraint>>
+    std::optional<absl::Span<const ParametricConstraint>>
         parametric_bindings) {
   XLS_VLOG(5) << "Struct instantiation @ " << span
               << " type: " << struct_type.ToString();

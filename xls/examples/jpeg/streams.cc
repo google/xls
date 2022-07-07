@@ -31,7 +31,7 @@ absl::Status MalformedInputError(std::string s) {
 
 // -- SpanPopper
 
-absl::StatusOr<absl::optional<uint8_t>> SpanPopper::operator()() {
+absl::StatusOr<std::optional<uint8_t>> SpanPopper::operator()() {
   if (i_ >= bytes_.size()) {
     return absl::nullopt;
   }
@@ -41,7 +41,7 @@ absl::StatusOr<absl::optional<uint8_t>> SpanPopper::operator()() {
 // -- ByteStream
 
 ByteStream::ByteStream(
-    std::function<absl::StatusOr<absl::optional<uint8_t>>()> pop)
+    std::function<absl::StatusOr<std::optional<uint8_t>>()> pop)
     : pop_(std::move(pop)) {}
 
 absl::Status ByteStream::DropExpectedMulti(absl::Span<const uint8_t> want,
@@ -59,12 +59,12 @@ absl::StatusOr<uint16_t> ByteStream::PopHiLo() {
 }
 
 absl::StatusOr<bool> ByteStream::AtEof() {
-  XLS_ASSIGN_OR_RETURN(absl::optional<uint8_t> peek_eof, PeekEof());
+  XLS_ASSIGN_OR_RETURN(std::optional<uint8_t> peek_eof, PeekEof());
   return !peek_eof.has_value();
 }
 
 absl::StatusOr<uint8_t> ByteStream::Peek() {
-  XLS_ASSIGN_OR_RETURN(absl::optional<uint8_t> peek_eof, PeekEof());
+  XLS_ASSIGN_OR_RETURN(std::optional<uint8_t> peek_eof, PeekEof());
   if (peek_eof.has_value()) {
     return peek_eof.value();
   }
@@ -103,11 +103,11 @@ absl::StatusOr<uint8_t> ByteStream::Pop() {
   return b;
 }
 
-absl::StatusOr<absl::optional<uint8_t>> ByteStream::PeekEof() {
+absl::StatusOr<std::optional<uint8_t>> ByteStream::PeekEof() {
   if (lookahead_.has_value()) {
     return lookahead_;
   }
-  XLS_ASSIGN_OR_RETURN(absl::optional<uint8_t> b, pop_());
+  XLS_ASSIGN_OR_RETURN(std::optional<uint8_t> b, pop_());
   if (b.has_value()) {
     // Should never "see the end" then "not the end".
     XLS_RET_CHECK(!saw_end_);

@@ -59,7 +59,7 @@ TEST(BindingsTest, PositionalErrorNotTargetType) {
 
 TEST(BindingsTest, ResolveNameOrNulloptMissingCase) {
   Bindings bindings;
-  absl::optional<AnyNameDef> result =
+  std::optional<AnyNameDef> result =
       bindings.ResolveNameOrNullopt("not_present");
   EXPECT_FALSE(result.has_value());
 }

@@ -189,8 +189,8 @@ class AbstractCellLibraryEntry {
       CellKind kind, absl::string_view name,
       const InputNamesContainer& input_names,
       const OutputPinToFunction& output_pin_to_function,
-      const absl::optional<AbstractStateTable<EvalT>> state_table,
-      absl::optional<std::string> clock_name = absl::nullopt)
+      const std::optional<AbstractStateTable<EvalT>> state_table,
+      std::optional<std::string> clock_name = absl::nullopt)
       : kind_(kind),
         name_(name),
         input_names_(input_names.begin(), input_names.end()),
@@ -204,10 +204,10 @@ class AbstractCellLibraryEntry {
   const OutputPinToFunction& output_pin_to_function() const {
     return output_pin_to_function_;
   }
-  const absl::optional<AbstractStateTable<EvalT>>& state_table() const {
+  const std::optional<AbstractStateTable<EvalT>>& state_table() const {
     return state_table_;
   }
-  absl::optional<std::string> clock_name() const { return clock_name_; }
+  std::optional<std::string> clock_name() const { return clock_name_; }
 
   absl::StatusOr<CellLibraryEntryProto> ToProto() const;
 
@@ -216,8 +216,8 @@ class AbstractCellLibraryEntry {
   std::string name_;
   std::vector<std::string> input_names_;
   OutputPinToFunction output_pin_to_function_;
-  absl::optional<AbstractStateTable<EvalT>> state_table_;
-  absl::optional<std::string> clock_name_;
+  std::optional<AbstractStateTable<EvalT>> state_table_;
+  std::optional<std::string> clock_name_;
 };
 
 using CellLibraryEntry = AbstractCellLibraryEntry<>;
@@ -501,7 +501,7 @@ AbstractCellLibraryEntry<EvalT>::FromProto(const CellLibraryEntryProto& proto,
     pins[proto.name()] = proto.function();
   }
 
-  absl::optional<AbstractStateTable<EvalT>> state_table;
+  std::optional<AbstractStateTable<EvalT>> state_table;
   if (proto.has_state_table()) {
     XLS_ASSIGN_OR_RETURN(state_table, AbstractStateTable<EvalT>::FromProto(
                                           proto.state_table(), zero, one));

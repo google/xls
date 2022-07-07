@@ -23,7 +23,7 @@
 namespace xls::dslx {
 
 absl::StatusOr<int64_t> Token::GetValueAsInt64() const {
-  absl::optional<std::string> value = GetValue();
+  std::optional<std::string> value = GetValue();
   if (!value) {
     return absl::InvalidArgumentError(
         "Token does not have a (string) value; cannot convert to int64_t.");
@@ -252,7 +252,7 @@ absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
       "Consumed all input without finding a closing double quote.");
 }
 
-/* static */ absl::optional<Keyword> Scanner::GetKeyword(absl::string_view s) {
+/* static */ std::optional<Keyword> Scanner::GetKeyword(absl::string_view s) {
   static const auto* mapping = new absl::flat_hash_map<std::string, Keyword>{
 #define MAKE_ITEM(__enum, unused, __str, ...) {__str, Keyword::__enum},
       XLS_DSLX_KEYWORDS(MAKE_ITEM)
@@ -274,13 +274,13 @@ absl::StatusOr<Token> Scanner::ScanIdentifierOrKeyword(char startc,
   };
   std::string s = ScanWhile(startc, is_trailing_identifier_char);
   Span span(start_pos, GetPos());
-  if (absl::optional<Keyword> keyword = GetKeyword(s)) {
+  if (std::optional<Keyword> keyword = GetKeyword(s)) {
     return Token(span, *keyword);
   }
   return Token(TokenKind::kIdentifier, span, std::move(s));
 }
 
-absl::StatusOr<absl::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
+absl::StatusOr<std::optional<Token>> Scanner::TryPopWhitespaceOrComment() {
   const Pos start_pos = GetPos();
   if (AtCharEof()) {
     return Token(TokenKind::kEof, Span(start_pos, start_pos));
@@ -352,7 +352,7 @@ std::string KeywordToString(Keyword keyword) {
   return absl::StrFormat("<invalid Keyword(%d)>", static_cast<int>(keyword));
 }
 
-absl::optional<Keyword> KeywordFromString(absl::string_view s) {
+std::optional<Keyword> KeywordFromString(absl::string_view s) {
 #define MAKE_CASE(__enum, unused, __str, ...) \
   if (s == __str) {                           \
     return Keyword::__enum;                   \
@@ -434,7 +434,7 @@ absl::StatusOr<Token> Scanner::ScanChar(const Pos& start_pos) {
 
 absl::StatusOr<Token> Scanner::Pop() {
   if (include_whitespace_and_comments_) {
-    XLS_ASSIGN_OR_RETURN(absl::optional<Token> tok,
+    XLS_ASSIGN_OR_RETURN(std::optional<Token> tok,
                          TryPopWhitespaceOrComment());
     if (tok) {
       return *tok;
@@ -454,7 +454,7 @@ absl::StatusOr<Token> Scanner::Pop() {
 
   // Peek at one character for prefix scanning.
   const char startc = PeekChar();
-  absl::optional<Token> result;
+  std::optional<Token> result;
   switch (startc) {
     case '\'': {
       XLS_ASSIGN_OR_RETURN(result, ScanChar(start_pos));

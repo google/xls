@@ -53,14 +53,14 @@ class SequentialOptions {
     module_name_ = name;
     return *this;
   }
-  const absl::optional<std::string> module_name() const { return module_name_; }
+  const std::optional<std::string> module_name() const { return module_name_; }
 
   // Reset logic to use.
   SequentialOptions& reset(const ResetProto& reset_proto) {
     reset_proto_ = reset_proto;
     return *this;
   }
-  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+  const std::optional<ResetProto>& reset() const { return reset_proto_; }
 
   // Scheduling options for the loop body pipeline.
   SequentialOptions& pipeline_scheduling_options(
@@ -85,8 +85,8 @@ class SequentialOptions {
 
  private:
   const DelayEstimator* delay_estimator_ = &GetStandardDelayEstimator();
-  absl::optional<std::string> module_name_;
-  absl::optional<ResetProto> reset_proto_;
+  std::optional<std::string> module_name_;
+  std::optional<ResetProto> reset_proto_;
   SchedulingOptions pipeline_scheduling_options_;
   bool use_system_verilog_ = true;
   // TODO(jbaileyhandle): Interface options.
@@ -105,11 +105,11 @@ class SequentialModuleBuilder {
     LogicRef* clk;
     std::vector<LogicRef*> data_in;
     std::vector<LogicRef*> data_out;
-    absl::optional<LogicRef*> reset;
-    absl::optional<LogicRef*> ready_in;
-    absl::optional<LogicRef*> valid_in;
-    absl::optional<LogicRef*> ready_out;
-    absl::optional<LogicRef*> valid_out;
+    std::optional<LogicRef*> reset;
+    std::optional<LogicRef*> ready_in;
+    std::optional<LogicRef*> valid_in;
+    std::optional<LogicRef*> ready_out;
+    std::optional<LogicRef*> valid_out;
   };
 
   // Container for logical references to strided counter I/O.

@@ -332,7 +332,7 @@ class FsmBuilder {
  public:
   FsmBuilder(absl::string_view name, Module* module, LogicRef* clk,
              bool use_system_verilog,
-             absl::optional<Reset> reset = absl::nullopt)
+             std::optional<Reset> reset = absl::nullopt)
       : name_(name),
         module_(module),
         file_(module->file()),
@@ -364,7 +364,7 @@ class FsmBuilder {
   // 'name_next' are added to the module.  The state of the register is affected
   // by calling SetRegisterNext.
   FsmRegister* AddRegister(absl::string_view name, int64_t width,
-                           absl::optional<int64_t> reset_value = absl::nullopt);
+                           std::optional<int64_t> reset_value = absl::nullopt);
   FsmRegister* AddRegister(absl::string_view name, DataType* data_type,
                            Expression* reset_value = nullptr);
 
@@ -408,7 +408,7 @@ class FsmBuilder {
   VerilogFile* file_;
   LogicRef* clk_;
   bool use_system_verilog_;
-  absl::optional<Reset> reset_;
+  std::optional<Reset> reset_;
 
   // Output and registers defined by the FSM prior to called Build (such as
   // AddOutput and AddRegister). These are added to the module when Build is

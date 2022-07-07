@@ -51,7 +51,7 @@ absl::Status SequentialModuleBuilder::AddFsm(
     int64_t pipeline_latency, LogicRef* index_holds_max_inclusive_value,
     LogicRef* last_pipeline_cycle_wire) {
   // Configure reset options.
-  const absl::optional<ResetProto>* reset_options =
+  const std::optional<ResetProto>* reset_options =
       &sequential_options_.reset();
   if (!reset_options->has_value()) {
     return absl::InvalidArgumentError(
@@ -425,7 +425,7 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
       signature.proto().module_name(), &file_, codegen_options,
       /*clk_name=*/"clk",
       signature.proto().has_reset()
-          ? absl::optional<ResetProto>(signature.proto().reset())
+          ? std::optional<ResetProto>(signature.proto().reset())
           : absl::nullopt);
 
   auto add_input_port = [&](absl::string_view name, int64_t num_bits) {

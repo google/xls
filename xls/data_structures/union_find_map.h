@@ -67,7 +67,7 @@ class UnionFindMap {
   // Given a key, returns the representative element in that key's equivalence
   // class, along with the associated value. Returns `absl::nullopt` if the
   // given key has never been inserted.
-  absl::optional<std::pair<K, V&>> Find(const K& key) {
+  std::optional<std::pair<K, V&>> Find(const K& key) {
     if (auto index = GetIndex(key)) {
       uint32_t found = FindRoot(index.value());
       return {{keys_.at(found), values_.at(found)}};
@@ -88,11 +88,11 @@ class UnionFindMap {
   // concern.
   template <typename F>
   bool Union(const K& x, const K& y, F merge) {
-    absl::optional<uint32_t> x_index = GetIndex(x);
+    std::optional<uint32_t> x_index = GetIndex(x);
     if (!x_index.has_value()) {
       return false;
     }
-    absl::optional<uint32_t> y_index = GetIndex(y);
+    std::optional<uint32_t> y_index = GetIndex(y);
     if (!y_index.has_value()) {
       return false;
     }
@@ -138,7 +138,7 @@ class UnionFindMap {
     uint32_t size;
   };
 
-  absl::optional<uint32_t> GetIndex(const K& key) const {
+  std::optional<uint32_t> GetIndex(const K& key) const {
     if (!key_to_index_.contains(key)) {
       return absl::nullopt;
     }

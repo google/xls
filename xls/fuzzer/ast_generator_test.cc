@@ -92,7 +92,7 @@ static void TestRepeatable(int64_t seed) {
   AstGeneratorOptions options;
   options.short_samples = true;
   // Capture first output at a given seed for comparison.
-  absl::optional<std::string> first;
+  std::optional<std::string> first;
   // Try 32 generations at a given seed.
   for (int64_t i = 0; i < 32; ++i) {
     std::mt19937 rng(seed);

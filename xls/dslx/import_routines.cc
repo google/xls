@@ -31,7 +31,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     const Span& import_span) {
   absl::Span<std::string const> pieces = subject.pieces();
   std::string subject_path;
-  absl::optional<std::string> subject_parent_path;
+  std::optional<std::string> subject_parent_path;
   const absl::flat_hash_set<std::string> builtins = {
       "std", "apfloat", "float32", "float64", "bfloat16"};
 
@@ -49,7 +49,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   auto try_path =
       [&attempted](
           const std::filesystem::path& base,
-          absl::string_view path) -> absl::optional<std::filesystem::path> {
+          absl::string_view path) -> std::optional<std::filesystem::path> {
     auto full_path = std::filesystem::path(base) / path;
     XLS_VLOG(3) << "Trying path: " << full_path;
     attempted.push_back(std::string(full_path));
@@ -62,7 +62,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   // Helper that tries to see if the path/parent_path are present
   auto try_paths = [&try_path, subject_path,
                     subject_parent_path](const std::filesystem::path& base)
-      -> absl::optional<std::filesystem::path> {
+      -> std::optional<std::filesystem::path> {
     if (auto result = try_path(base, subject_path)) {
       return *result;
     }
@@ -75,7 +75,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   };
 
   XLS_VLOG(3) << "Attempting CWD-relative import path.";
-  if (absl::optional<std::filesystem::path> cwd_relative_path =
+  if (std::optional<std::filesystem::path> cwd_relative_path =
           try_path("", subject_path)) {
     return *cwd_relative_path;
   }
@@ -92,7 +92,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
     // part of the path under the depot root is stripped off for some reason.
     XLS_VLOG(3) << "Attempting CWD-based parent import path via "
                 << *subject_parent_path;
-    if (absl::optional<std::filesystem::path> cwd_relative_path =
+    if (std::optional<std::filesystem::path> cwd_relative_path =
             try_path("", *subject_parent_path)) {
       return *cwd_relative_path;
     }

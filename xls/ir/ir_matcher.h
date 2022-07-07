@@ -201,7 +201,7 @@ NODE_MATCHER(Map);
 //   EXPECT_THAT(x, m::Param("x"));
 class ParamMatcher : public NodeMatcher {
  public:
-  explicit ParamMatcher(absl::optional<std::string> name)
+  explicit ParamMatcher(std::optional<std::string> name)
       : NodeMatcher(Op::kParam, /*operands=*/{}), name_(name) {}
 
   bool MatchAndExplain(const Node* node,
@@ -209,11 +209,11 @@ class ParamMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  absl::optional<std::string> name_;
+  std::optional<std::string> name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Param(
-    absl::optional<std::string> name) {
+    std::optional<std::string> name) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ParamMatcher(name));
 }
 
@@ -232,17 +232,17 @@ inline ::testing::Matcher<const ::xls::Node*> Param() {
 class BitSliceMatcher : public NodeMatcher {
  public:
   BitSliceMatcher(::testing::Matcher<const Node*> operand,
-                  absl::optional<int64_t> start, absl::optional<int64_t> width)
+                  std::optional<int64_t> start, std::optional<int64_t> width)
       : NodeMatcher(Op::kBitSlice, {operand}), start_(start), width_(width) {}
-  BitSliceMatcher(absl::optional<int64_t> start, absl::optional<int64_t> width)
+  BitSliceMatcher(std::optional<int64_t> start, std::optional<int64_t> width)
       : NodeMatcher(Op::kBitSlice, {}), start_(start), width_(width) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  absl::optional<int64_t> start_;
-  absl::optional<int64_t> width_;
+  std::optional<int64_t> start_;
+  std::optional<int64_t> width_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> BitSlice() {
@@ -278,7 +278,7 @@ class DynamicBitSliceMatcher : public NodeMatcher {
  public:
   DynamicBitSliceMatcher(::testing::Matcher<const Node*> operand,
                          ::testing::Matcher<const Node*> start,
-                         absl::optional<int64_t> width)
+                         std::optional<int64_t> width)
       : NodeMatcher(Op::kDynamicBitSlice, {operand, start}), width_(width) {}
   DynamicBitSliceMatcher() : NodeMatcher(Op::kDynamicBitSlice, {}) {}
 
@@ -286,7 +286,7 @@ class DynamicBitSliceMatcher : public NodeMatcher {
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  absl::optional<int64_t> width_;
+  std::optional<int64_t> width_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> DynamicBitSlice() {
@@ -364,10 +364,10 @@ class LiteralMatcher : public NodeMatcher {
  public:
   explicit LiteralMatcher(FormatPreference format = FormatPreference::kDefault)
       : NodeMatcher(Op::kLiteral, {}), format_(format) {}
-  explicit LiteralMatcher(absl::optional<Value> value,
+  explicit LiteralMatcher(std::optional<Value> value,
                           FormatPreference format = FormatPreference::kDefault)
       : NodeMatcher(Op::kLiteral, {}), value_(value), format_(format) {}
-  explicit LiteralMatcher(absl::optional<int64_t> value,
+  explicit LiteralMatcher(std::optional<int64_t> value,
                           FormatPreference format = FormatPreference::kDefault)
       : NodeMatcher(Op::kLiteral, {}), uint64_value_(value), format_(format) {}
 
@@ -376,8 +376,8 @@ class LiteralMatcher : public NodeMatcher {
 
  private:
   // At most one of the optional data members has a value.
-  absl::optional<Value> value_;
-  absl::optional<uint64_t> uint64_value_;
+  std::optional<Value> value_;
+  std::optional<uint64_t> uint64_value_;
   FormatPreference format_;
 };
 
@@ -419,27 +419,27 @@ inline ::testing::Matcher<const ::xls::Node*> Literal(
 class OneHotMatcher : public NodeMatcher {
  public:
   explicit OneHotMatcher(::testing::Matcher<const Node*> operand,
-                         absl::optional<LsbOrMsb> priority = absl::nullopt)
+                         std::optional<LsbOrMsb> priority = absl::nullopt)
       : NodeMatcher(Op::kOneHot, {operand}), priority_(priority) {}
-  explicit OneHotMatcher(absl::optional<LsbOrMsb> priority = absl::nullopt)
+  explicit OneHotMatcher(std::optional<LsbOrMsb> priority = absl::nullopt)
       : NodeMatcher(Op::kOneHot, {}), priority_(priority) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  absl::optional<LsbOrMsb> priority_;
+  std::optional<LsbOrMsb> priority_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> OneHot(
-    absl::optional<LsbOrMsb> priority = absl::nullopt) {
+    std::optional<LsbOrMsb> priority = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::OneHotMatcher(priority));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OneHot(
     ::testing::Matcher<const ::xls::Node*> operand,
-    absl::optional<LsbOrMsb> priority = absl::nullopt) {
+    std::optional<LsbOrMsb> priority = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::OneHotMatcher(operand, priority));
 }
@@ -455,7 +455,7 @@ class SelectMatcher : public NodeMatcher {
  public:
   SelectMatcher(::testing::Matcher<const Node*> selector,
                 std::vector<::testing::Matcher<const Node*>> cases,
-                absl::optional<::testing::Matcher<const Node*>> default_value)
+                std::optional<::testing::Matcher<const Node*>> default_value)
       : NodeMatcher(Op::kSel,
                     [&]() {
                       std::vector<::testing::Matcher<const Node*>> operands;
@@ -473,13 +473,13 @@ class SelectMatcher : public NodeMatcher {
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  absl::optional<::testing::Matcher<const Node*>> default_value_;
+  std::optional<::testing::Matcher<const Node*>> default_value_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Select(
     ::testing::Matcher<const Node*> selector,
     std::vector<::testing::Matcher<const Node*>> cases,
-    absl::optional<::testing::Matcher<const Node*>> default_value =
+    std::optional<::testing::Matcher<const Node*>> default_value =
         absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::SelectMatcher(selector, cases, default_value));
@@ -538,27 +538,27 @@ inline ::testing::Matcher<const ::xls::Node*> PrioritySelect() {
 class TupleIndexMatcher : public NodeMatcher {
  public:
   explicit TupleIndexMatcher(::testing::Matcher<const Node*> operand,
-                             absl::optional<int64_t> index = absl::nullopt)
+                             std::optional<int64_t> index = absl::nullopt)
       : NodeMatcher(Op::kTupleIndex, {operand}), index_(index) {}
-  explicit TupleIndexMatcher(absl::optional<int64_t> index = absl::nullopt)
+  explicit TupleIndexMatcher(std::optional<int64_t> index = absl::nullopt)
       : NodeMatcher(Op::kTupleIndex, {}), index_(index) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
 
  private:
-  absl::optional<int64_t> index_;
+  std::optional<int64_t> index_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
-    absl::optional<int64_t> index = absl::nullopt) {
+    std::optional<int64_t> index = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::TupleIndexMatcher(index));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
     ::testing::Matcher<const ::xls::Node*> operand,
-    absl::optional<int64_t> index = absl::nullopt) {
+    std::optional<int64_t> index = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::TupleIndexMatcher(operand, index));
 }
@@ -573,8 +573,8 @@ inline ::testing::Matcher<const ::xls::Node*> TupleIndex(
 class ChannelMatcher
     : public ::testing::MatcherInterface<const ::xls::Channel*> {
  public:
-  ChannelMatcher(absl::optional<int64_t> id, absl::optional<std::string> name,
-                 absl::optional<ChannelKind> kind)
+  ChannelMatcher(std::optional<int64_t> id, std::optional<std::string> name,
+                 std::optional<ChannelKind> kind)
       : id_(id), name_(name), kind_(kind) {}
 
   bool MatchAndExplain(const ::xls::Channel* channel,
@@ -583,9 +583,9 @@ class ChannelMatcher
   void DescribeTo(::std::ostream* os) const override;
 
  protected:
-  absl::optional<int64_t> id_;
-  absl::optional<std::string> name_;
-  absl::optional<ChannelKind> kind_;
+  std::optional<int64_t> id_;
+  std::optional<std::string> name_;
+  std::optional<ChannelKind> kind_;
 };
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel() {
@@ -594,8 +594,8 @@ inline ::testing::Matcher<const ::xls::Channel*> Channel() {
 }
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    absl::optional<int64_t> id, absl::optional<std::string> name,
-    absl::optional<ChannelKind> kind) {
+    std::optional<int64_t> id, std::optional<std::string> name,
+    std::optional<ChannelKind> kind) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::ChannelMatcher(id, name, kind));
 }
@@ -621,7 +621,7 @@ class ChannelNodeMatcher : public NodeMatcher {
  public:
   ChannelNodeMatcher(
       Op op, absl::Span<const ::testing::Matcher<const Node*>> operands,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : NodeMatcher(op, operands), channel_matcher_(channel_matcher) {}
 
   bool MatchAndExplain(const Node* node,
@@ -629,7 +629,7 @@ class ChannelNodeMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher_;
+  std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher_;
 };
 
 // Send matcher. Supported forms:
@@ -644,24 +644,24 @@ class ChannelNodeMatcher : public NodeMatcher {
 class SendMatcher : public ChannelNodeMatcher {
  public:
   explicit SendMatcher(
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kSend, {}, channel_matcher) {}
   explicit SendMatcher(
       ::testing::Matcher<const Node*> token,
       ::testing::Matcher<const Node*> data,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kSend, {token, data}, channel_matcher) {}
   explicit SendMatcher(
       ::testing::Matcher<const Node*> token,
       ::testing::Matcher<const Node*> data,
       ::testing::Matcher<const Node*> predicate,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kSend, {token, data, predicate},
                            channel_matcher) {}
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Send(
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::SendMatcher(channel_matcher));
@@ -670,7 +670,7 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
 inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const ::xls::Node*> token,
     ::testing::Matcher<const Node*> data,
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::SendMatcher(token, data, channel_matcher));
@@ -680,7 +680,7 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
     ::testing::Matcher<const ::xls::Node*> token,
     ::testing::Matcher<const Node*> data,
     ::testing::Matcher<const Node*> predicate,
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         absl::nullopt) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::SendMatcher(
       token, data, predicate, channel_matcher));
@@ -696,21 +696,21 @@ inline ::testing::Matcher<const ::xls::Node*> Send(
 class ReceiveMatcher : public ChannelNodeMatcher {
  public:
   explicit ReceiveMatcher(
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive, {}, channel_matcher) {}
   explicit ReceiveMatcher(
       ::testing::Matcher<const Node*> token,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive, {token}, channel_matcher) {}
   explicit ReceiveMatcher(
       ::testing::Matcher<const Node*> token,
       ::testing::Matcher<const Node*> predicate,
-      absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
+      std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher)
       : ChannelNodeMatcher(Op::kReceive, {token, predicate}, channel_matcher) {}
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
-    absl::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
         absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::ReceiveMatcher(channel_matcher));
@@ -799,7 +799,7 @@ inline ::testing::Matcher<const ::xls::Node*> ArrayUpdate() {
 //
 class InputPortMatcher : public NodeMatcher {
  public:
-  explicit InputPortMatcher(absl::optional<std::string> name)
+  explicit InputPortMatcher(std::optional<std::string> name)
       : NodeMatcher(Op::kInputPort, /*operands=*/{}), name_(name) {}
 
   bool MatchAndExplain(const Node* node,
@@ -807,11 +807,11 @@ class InputPortMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  absl::optional<std::string> name_;
+  std::optional<std::string> name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> InputPort(
-    absl::optional<std::string> name = absl::nullopt) {
+    std::optional<std::string> name = absl::nullopt) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::InputPortMatcher(name));
 }
 
@@ -824,11 +824,11 @@ inline ::testing::Matcher<const ::xls::Node*> InputPort(
 //
 class OutputPortMatcher : public NodeMatcher {
  public:
-  explicit OutputPortMatcher(absl::optional<std::string> name)
+  explicit OutputPortMatcher(std::optional<std::string> name)
       : NodeMatcher(Op::kOutputPort, /*operands=*/{}), name_(name) {}
 
   OutputPortMatcher(::testing::Matcher<const ::xls::Node*> data,
-                    absl::optional<std::string> name)
+                    std::optional<std::string> name)
       : NodeMatcher(Op::kOutputPort, /*operands=*/{data}), name_(name) {}
 
   bool MatchAndExplain(const Node* node,
@@ -836,11 +836,11 @@ class OutputPortMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  absl::optional<std::string> name_;
+  std::optional<std::string> name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> OutputPort(
-    absl::optional<std::string> name = absl::nullopt) {
+    std::optional<std::string> name = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::OutputPortMatcher(name));
 }
@@ -852,7 +852,7 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
 }
 
 inline ::testing::Matcher<const ::xls::Node*> OutputPort(
-    absl::optional<std::string> name,
+    std::optional<std::string> name,
     ::testing::Matcher<const ::xls::Node*> data) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::OutputPortMatcher(data, name));
@@ -865,7 +865,7 @@ inline ::testing::Matcher<const ::xls::Node*> OutputPort(
 //
 class RegisterReadMatcher : public NodeMatcher {
  public:
-  explicit RegisterReadMatcher(absl::optional<std::string> register_name)
+  explicit RegisterReadMatcher(std::optional<std::string> register_name)
       : NodeMatcher(Op::kRegisterRead, /*operands=*/{}),
         register_name_(register_name) {}
 
@@ -874,11 +874,11 @@ class RegisterReadMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  absl::optional<std::string> register_name_;
+  std::optional<std::string> register_name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterRead(
-    absl::optional<std::string> register_name) {
+    std::optional<std::string> register_name) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::RegisterReadMatcher(register_name));
 }
@@ -897,12 +897,12 @@ inline ::testing::Matcher<const ::xls::Node*> RegisterRead() {
 //
 class RegisterWriteMatcher : public NodeMatcher {
  public:
-  explicit RegisterWriteMatcher(absl::optional<std::string> register_name)
+  explicit RegisterWriteMatcher(std::optional<std::string> register_name)
       : NodeMatcher(Op::kRegisterWrite, /*operands=*/{}),
         register_name_(register_name) {}
 
   explicit RegisterWriteMatcher(::testing::Matcher<const ::xls::Node*> data,
-                                absl::optional<std::string> register_name)
+                                std::optional<std::string> register_name)
       : NodeMatcher(Op::kRegisterWrite, /*operands=*/{data}),
         register_name_(register_name) {}
 
@@ -911,17 +911,17 @@ class RegisterWriteMatcher : public NodeMatcher {
   void DescribeTo(::std::ostream* os) const override;
 
  private:
-  absl::optional<std::string> register_name_;
+  std::optional<std::string> register_name_;
 };
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
-    absl::optional<std::string> register_name = absl::nullopt) {
+    std::optional<std::string> register_name = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::RegisterWriteMatcher(register_name));
 }
 
 inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
-    absl::optional<std::string> register_name, const Node* node) {
+    std::optional<std::string> register_name, const Node* node) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::RegisterWriteMatcher(node, register_name));
 }
@@ -935,10 +935,10 @@ inline ::testing::Matcher<const ::xls::Node*> RegisterWrite(
 //
 class RegisterMatcher : public ::testing::MatcherInterface<const Node*> {
  public:
-  explicit RegisterMatcher(absl::optional<std::string> register_name)
+  explicit RegisterMatcher(std::optional<std::string> register_name)
       : d_matcher_(register_name) {}
   RegisterMatcher(::testing::Matcher<const Node*> input,
-                  absl::optional<std::string> register_name)
+                  std::optional<std::string> register_name)
       : q_matcher_(RegisterWriteMatcher(input, register_name)),
         d_matcher_(register_name) {}
 
@@ -948,7 +948,7 @@ class RegisterMatcher : public ::testing::MatcherInterface<const Node*> {
 
  private:
   // Optional matcher for the send side of the register (the Q input port).
-  absl::optional<RegisterWriteMatcher> q_matcher_;
+  std::optional<RegisterWriteMatcher> q_matcher_;
 
   // Matcher for the receive side of the register (the D output port). This
   // matches a tuple index of a receive operation.
@@ -956,7 +956,7 @@ class RegisterMatcher : public ::testing::MatcherInterface<const Node*> {
 };
 
 inline ::testing::Matcher<const ::xls::Node*> Register(
-    absl::optional<std::string> register_name = absl::nullopt) {
+    std::optional<std::string> register_name = absl::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::RegisterMatcher(register_name));
 }
@@ -968,7 +968,7 @@ inline ::testing::Matcher<const ::xls::Node*> Register(
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Register(
-    absl::optional<std::string> register_name,
+    std::optional<std::string> register_name,
     ::testing::Matcher<const Node*> input) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::RegisterMatcher(input, register_name));

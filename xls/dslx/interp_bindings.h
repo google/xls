@@ -120,7 +120,7 @@ class InterpBindings {
 
   // Resolves an entry for "identifier" via local mapping and transitive binding
   // parents. Returns nullopt if it is not found.
-  absl::optional<Entry> ResolveEntry(absl::string_view identifier) const;
+  std::optional<Entry> ResolveEntry(absl::string_view identifier) const;
 
   // Returns all the keys in this bindings object and all transitive parents as
   // a set.
@@ -130,8 +130,8 @@ class InterpBindings {
     return map_.contains(key) || (parent_ != nullptr && parent_->Contains(key));
   }
 
-  void set_fn_ctx(absl::optional<FnCtx> value) { fn_ctx_ = std::move(value); }
-  const absl::optional<FnCtx>& fn_ctx() const { return fn_ctx_; }
+  void set_fn_ctx(std::optional<FnCtx> value) { fn_ctx_ = std::move(value); }
+  const std::optional<FnCtx>& fn_ctx() const { return fn_ctx_; }
 
  private:
   // Bindings from the outer scope, may be nullptr.
@@ -142,7 +142,7 @@ class InterpBindings {
 
   // The current (module name, function name, symbolic bindings) that these
   // Bindings are being used with.
-  absl::optional<FnCtx> fn_ctx_;
+  std::optional<FnCtx> fn_ctx_;
 };
 
 }  // namespace xls::dslx

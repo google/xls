@@ -351,14 +351,14 @@ struct WrappedFunctionParameterTraits<absl::Span<const T>,
   }
 };
 
-// WrappedFunctionParameterTraits for absl::optionals of types that have wrapper
+// WrappedFunctionParameterTraits for std::optionals of types that have wrapper
 // types.
 template <typename T>
-struct WrappedFunctionParameterTraits<absl::optional<T>,
+struct WrappedFunctionParameterTraits<std::optional<T>,
                                       std::enable_if_t<HasPyHolderType<T>>> {
-  using WrappedType = absl::optional<PyHolderType<T>>;
+  using WrappedType = std::optional<PyHolderType<T>>;
 
-  static absl::optional<T> Unwrap(const WrappedType& t) {
+  static std::optional<T> Unwrap(const WrappedType& t) {
     if (t) {
       return t->deref();
     } else {

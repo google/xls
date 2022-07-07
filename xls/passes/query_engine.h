@@ -128,7 +128,7 @@ class QueryEngine {
   // If a particular value of 'node' (true or false for all bits)
   // is implied when the bits in 'predicate_bit_values' have the given values,
   // the implied value of 'node' is returned.
-  virtual absl::optional<Bits> ImpliedNodeValue(
+  virtual std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const = 0;
 

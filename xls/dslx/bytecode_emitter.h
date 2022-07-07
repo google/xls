@@ -37,24 +37,24 @@ class BytecodeEmitter : public ExprVisitor {
   // `f` itself. It will be nullopt for non-parametric functions.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> Emit(
       ImportData* import_data, const TypeInfo* type_info, const Function* f,
-      const absl::optional<SymbolicBindings>& caller_bindings);
+      const std::optional<SymbolicBindings>& caller_bindings);
 
   // TODO(rspringer): 2022-03-16: I think we can delete `caller_bindings`.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitExpression(
       ImportData* import_data, const TypeInfo* type_info, const Expr* expr,
       const absl::flat_hash_map<std::string, InterpValue>& env,
-      const absl::optional<SymbolicBindings>& caller_bindings);
+      const std::optional<SymbolicBindings>& caller_bindings);
 
   // Emits a function, just as the above, but reserves the first N slots for
   // the given proc members.
   static absl::StatusOr<std::unique_ptr<BytecodeFunction>> EmitProcNext(
       ImportData* import_data, const TypeInfo* type_info, const Function* f,
-      const absl::optional<SymbolicBindings>& caller_bindings,
+      const std::optional<SymbolicBindings>& caller_bindings,
       const std::vector<NameDef*>& proc_members);
 
  private:
   BytecodeEmitter(ImportData* import_data, const TypeInfo* type_info,
-                  const absl::optional<SymbolicBindings>& caller_bindings);
+                  const std::optional<SymbolicBindings>& caller_bindings);
   ~BytecodeEmitter();
   absl::Status Init(const Function* f);
 
@@ -118,7 +118,7 @@ class BytecodeEmitter : public ExprVisitor {
 
   ImportData* import_data_;
   const TypeInfo* type_info_;
-  const absl::optional<SymbolicBindings>& caller_bindings_;
+  const std::optional<SymbolicBindings>& caller_bindings_;
 
   std::vector<Bytecode> bytecode_;
   absl::flat_hash_map<const NameDef*, int64_t> namedef_to_slot_;

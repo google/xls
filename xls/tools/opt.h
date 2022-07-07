@@ -35,8 +35,8 @@ struct OptOptions {
   int64_t opt_level = xls::kMaxOptLevel;
   absl::string_view entry;
   std::string ir_dump_path = "";
-  absl::optional<std::string> ir_path = absl::nullopt;
-  absl::optional<std::vector<std::string>> run_only_passes = absl::nullopt;
+  std::optional<std::string> ir_path = absl::nullopt;
+  std::optional<std::vector<std::string>> run_only_passes = absl::nullopt;
   std::vector<std::string> skip_passes;
   std::optional<int64_t> convert_array_index_to_select = std::nullopt;
   bool inline_procs;

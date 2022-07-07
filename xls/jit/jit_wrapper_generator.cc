@@ -188,7 +188,7 @@ std::string ConvertDouble(absl::string_view name) {
 // returns it.
 // Does not currently match > 1 specialization; i.e., if there were two types
 // that could be specializations of a param.
-absl::optional<std::string> MatchTypeSpecialization(const Type& type) {
+std::optional<std::string> MatchTypeSpecialization(const Type& type) {
   // No need at present for anything fancy. Cascading if/else works.
   std::string type_string;
   if (MatchUint(type, &type_string)) {
@@ -207,7 +207,7 @@ absl::optional<std::string> MatchTypeSpecialization(const Type& type) {
 // Simple matching "driver" for emitting logic to convert a simple type into an
 // XLS view.
 // Pretty bare-bones at present, but will be expanded depending on need.
-absl::optional<std::string> CreateConversion(absl::string_view name,
+std::optional<std::string> CreateConversion(absl::string_view name,
                                              const Type& type) {
   std::string type_string;
   if (MatchUint(type, &type_string)) {
@@ -296,7 +296,7 @@ std::string CreateImplSpecialization(const Function& function,
 
   for (const Param* param : params) {
     // As with decls, we know conversions for all elements are possible, so we
-    // can get values directly from the result absl::optionals.
+    // can get values directly from the result std::optionals.
     std::string conversion =
         CreateConversion(param->name(), *param->GetType()).value();
     param_conversions.push_back(absl::StrCat("  ", conversion));

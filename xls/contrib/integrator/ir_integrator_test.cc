@@ -288,21 +288,21 @@ TEST_F(IntegratorTest, ParamterPacking) {
     for (Node* node : integration->function()->nodes()) {
       if (node->op() == Op::kTupleIndex) {
         if (node->GetType() == p->GetBitsType(num_bits)) {
-          return absl::optional<Node*>(node);
+          return std::optional<Node*>(node);
         }
       }
     }
-    return absl::optional<Node*>(std::nullopt);
+    return std::optional<Node*>(std::nullopt);
   };
   auto GetParamWithNumBits = [&p](Function* function, int64_t num_bits) {
     for (Node* node : function->nodes()) {
       if (node->op() == Op::kParam) {
         if (node->GetType() == p->GetBitsType(num_bits)) {
-          return absl::optional<Node*>(node);
+          return std::optional<Node*>(node);
         }
       }
     }
-    return absl::optional<Node*>(std::nullopt);
+    return std::optional<Node*>(std::nullopt);
   };
 
   auto a1_index = GetTupleIndexWithNumBits(2);
@@ -383,21 +383,21 @@ TEST_F(IntegratorTest, ParamterPackingUniversalMuxSelect) {
     for (Node* node : integration->function()->nodes()) {
       if (node->op() == Op::kTupleIndex) {
         if (node->GetType() == p->GetBitsType(num_bits)) {
-          return absl::optional<Node*>(node);
+          return std::optional<Node*>(node);
         }
       }
     }
-    return absl::optional<Node*>(std::nullopt);
+    return std::optional<Node*>(std::nullopt);
   };
   auto GetParamWithNumBits = [&p](Function* function, int64_t num_bits) {
     for (Node* node : function->nodes()) {
       if (node->op() == Op::kParam) {
         if (node->GetType() == p->GetBitsType(num_bits)) {
-          return absl::optional<Node*>(node);
+          return std::optional<Node*>(node);
         }
       }
     }
-    return absl::optional<Node*>(std::nullopt);
+    return std::optional<Node*>(std::nullopt);
   };
 
   auto a1_index = GetTupleIndexWithNumBits(2);

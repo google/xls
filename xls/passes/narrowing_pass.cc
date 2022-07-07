@@ -711,7 +711,7 @@ void RangeAnalysisLog(FunctionBase* f,
             ternary_query_engine.GetTernary(node).Get({});
         TernaryVector range_result =
             range_query_engine.GetTernary(node).Get({});
-        absl::optional<TernaryVector> difference =
+        std::optional<TernaryVector> difference =
             ternary_ops::Difference(range_result, ternary_result);
         XLS_CHECK(difference.has_value())
             << "Inconsistency detected in node: " << node->GetName();

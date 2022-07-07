@@ -23,7 +23,7 @@
 namespace xls::dslx {
 
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
-    const absl::Status& status, absl::optional<absl::string_view> target_type) {
+    const absl::Status& status, std::optional<absl::string_view> target_type) {
   auto error = [&] {
     return absl::InvalidArgumentError(
         "Provided status is not in recognized error form: " +
@@ -118,9 +118,9 @@ absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
   return BoundNodeToAnyNameDef(bn);
 }
 
-absl::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
+std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
     absl::string_view name) const {
-  absl::optional<BoundNode> bn = ResolveNode(name);
+  std::optional<BoundNode> bn = ResolveNode(name);
   if (!bn) {
     return absl::nullopt;
   }

@@ -29,7 +29,7 @@ static const char kFilename[] = "test.x";
 class ParserTest : public ::testing::Test {
  public:
   void RoundTrip(std::string program,
-                 absl::optional<absl::string_view> target = absl::nullopt) {
+                 std::optional<absl::string_view> target = absl::nullopt) {
     scanner_.emplace(kFilename, program);
     parser_.emplace("test", &*scanner_);
     XLS_ASSERT_OK_AND_ASSIGN(auto module, parser_->ParseModule());
@@ -56,7 +56,7 @@ class ParserTest : public ::testing::Test {
 
   void RoundTripExpr(std::string expr_text,
                      absl::Span<const std::string> predefine = {},
-                     absl::optional<std::string> target = absl::nullopt,
+                     std::optional<std::string> target = absl::nullopt,
                      Expr** parsed = nullptr) {
     XLS_ASSERT_OK_AND_ASSIGN(Expr * e, ParseExpr(expr_text, predefine));
     if (target.has_value()) {
@@ -77,8 +77,8 @@ class ParserTest : public ::testing::Test {
     return p.ParseTypeAnnotation(bindings);
   }
 
-  absl::optional<Scanner> scanner_;
-  absl::optional<Parser> parser_;
+  std::optional<Scanner> scanner_;
+  std::optional<Parser> parser_;
 };
 
 TEST(BindingsTest, BindingsStack) {

@@ -432,7 +432,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
       for (int64_t i = 0; i < node->GetType()->AsTupleOrDie()->size(); ++i) {
         XLS_ASSIGN_OR_RETURN(std::vector<Node*> case_elements,
                              elements_at_tuple_index(sel->cases(), i));
-        absl::optional<Node*> default_element = absl::nullopt;
+        std::optional<Node*> default_element = absl::nullopt;
         if (sel->default_value().has_value()) {
           XLS_ASSIGN_OR_RETURN(default_element,
                                node->function_base()->MakeNode<TupleIndex>(
@@ -738,7 +738,7 @@ absl::StatusOr<bool> SimplifyNode(Node* node, const QueryEngine& query_engine,
           make_select =
               [](Select* original,
                  std::vector<Node*> new_cases) -> absl::StatusOr<Select*> {
-        absl::optional<Node*> new_default;
+        std::optional<Node*> new_default;
         if (original->default_value().has_value()) {
           new_default = new_cases.back();
           new_cases.pop_back();

@@ -90,7 +90,7 @@ int32_t PathCutCost(const PathGraph<int32_t, int32_t>& path,
                     const PathCut& cut) {
   int32_t result(0);
   for (int i = 0; i < cut.size(); i++) {
-    if (absl::optional<PathEdgeId> edge =
+    if (std::optional<PathEdgeId> edge =
             path.NodeSuccessorEdge(cut[i].back())) {
       result += path.WeightOfEdge(*edge);
     }
@@ -100,10 +100,10 @@ int32_t PathCutCost(const PathGraph<int32_t, int32_t>& path,
 
 // A brute force solution for the path cut problem, to compare against the
 // smarter dynamic programming solution in `path_cut.cc`.
-absl::optional<PathCut> BruteForcePathCut(
+std::optional<PathCut> BruteForcePathCut(
     const PathGraph<int32_t, int32_t>& path, int32_t maximum_weight) {
-  absl::optional<PathCut> best;
-  absl::optional<int32_t> best_cost;
+  std::optional<PathCut> best;
+  std::optional<int32_t> best_cost;
   EnumerateAllCuts(path, [&](const PathCut& cut) {
     if (!PathCutIsValid(path, cut, maximum_weight)) {
       return;
@@ -122,8 +122,8 @@ using PG = PathGraph<int32_t, int32_t>;
 template <typename T>
 PartialDifferenceMonoid<T> AddSubPDM() {
   return {[]() { return 0; },
-          [](T x, T y) -> absl::optional<T> { return x + y; },
-          [](T x, T y) -> absl::optional<T> { return x - y; }};
+          [](T x, T y) -> std::optional<T> { return x + y; },
+          [](T x, T y) -> std::optional<T> { return x - y; }};
 }
 
 template <typename T>
@@ -163,8 +163,8 @@ TEST(PathCutTest, ComplexTest) {
   for (int32_t i = 0; i < 300; i += 1) {
     XLS_VLOG(3) << "i = " << i << "\n";
     int32_t max_weight(i);
-    absl::optional<PathCut> smart = path.ComputePathCut(max_weight);
-    absl::optional<PathCut> brute = BruteForcePathCut(path, max_weight);
+    std::optional<PathCut> smart = path.ComputePathCut(max_weight);
+    std::optional<PathCut> brute = BruteForcePathCut(path, max_weight);
     EXPECT_EQ(smart.has_value(), brute.has_value());
     if (smart.has_value()) {
       XLS_VLOG(3) << "brute = " << PathCutToString(*brute) << "\n";
@@ -177,7 +177,7 @@ TEST(PathCutTest, ComplexTest) {
 }
 
 struct ColoredNodeWeight {
-  absl::optional<std::pair<PathNodeId, PathNodeId>> interval;
+  std::optional<std::pair<PathNodeId, PathNodeId>> interval;
   int32_t weight;
 };
 
@@ -186,7 +186,7 @@ PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
             return {absl::nullopt, 0};
           },
           [](const ColoredNodeWeight& x,
-             const ColoredNodeWeight& y) -> absl::optional<ColoredNodeWeight> {
+             const ColoredNodeWeight& y) -> std::optional<ColoredNodeWeight> {
             if (!x.interval) {
               XLS_CHECK_EQ(x.weight, 0);
               return {{y.interval, y.weight}};
@@ -203,7 +203,7 @@ PartialDifferenceMonoid<ColoredNodeWeight> ColoredNodeWeightPDM() {
                      x.weight + y.weight}};
           },
           [](const ColoredNodeWeight& x,
-             const ColoredNodeWeight& y) -> absl::optional<ColoredNodeWeight> {
+             const ColoredNodeWeight& y) -> std::optional<ColoredNodeWeight> {
             if (!x.interval) {
               return absl::nullopt;
             }

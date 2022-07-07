@@ -100,7 +100,7 @@ Interval Interval::ConvexHull(const Interval& lhs, const Interval& rhs) {
   return result;
 }
 
-absl::optional<Interval> Interval::Intersect(const Interval& lhs,
+std::optional<Interval> Interval::Intersect(const Interval& lhs,
                                              const Interval& rhs) {
   XLS_CHECK_EQ(lhs.BitCount(), rhs.BitCount());
   XLS_CHECK(!lhs.IsImproper());
@@ -213,7 +213,7 @@ Bits Interval::SizeBits() const {
                        bits_ops::ZeroExtend(difference, padded_size));
 }
 
-absl::optional<int64_t> Interval::Size() const {
+std::optional<int64_t> Interval::Size() const {
   absl::StatusOr<uint64_t> size_status = SizeBits().ToUint64();
   if (size_status.ok()) {
     uint64_t size = *size_status;
@@ -241,7 +241,7 @@ bool Interval::IsPrecise() const {
   return lower_bound_ == upper_bound_;
 }
 
-absl::optional<Bits> Interval::GetPreciseValue() const {
+std::optional<Bits> Interval::GetPreciseValue() const {
   if (!IsPrecise()) {
     return absl::nullopt;
   }

@@ -51,7 +51,7 @@ struct PassOptions {
   std::filesystem::path ir_dump_path;
 
   // If present, only passes whose short names are in this list will be run.
-  absl::optional<std::vector<std::string>> run_only_passes;
+  std::optional<std::vector<std::string>> run_only_passes;
 
   // If present, passes whose short names are in this list will be skipped. If
   // both run_only_passes and skip_passes are present, then only passes which

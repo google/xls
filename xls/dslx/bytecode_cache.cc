@@ -22,7 +22,7 @@ BytecodeCache::BytecodeCache(ImportData* import_data)
 
 absl::StatusOr<BytecodeFunction*> BytecodeCache::GetOrCreateBytecodeFunction(
     const Function* f, const TypeInfo* type_info,
-    const absl::optional<SymbolicBindings>& caller_bindings) {
+    const std::optional<SymbolicBindings>& caller_bindings) {
   Key key = std::make_tuple(f, type_info, caller_bindings);
   if (!cache_.contains(key)) {
     XLS_ASSIGN_OR_RETURN(

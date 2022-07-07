@@ -122,7 +122,7 @@ class Scanner {
   int64_t index_ = 0;
   int64_t lineno_ = 0;
   int64_t colno_ = 0;
-  absl::optional<Token> lookahead_;
+  std::optional<Token> lookahead_;
 };
 
 template <typename EvalT = bool>
@@ -223,7 +223,7 @@ class AbstractParser {
   //   "a" --> no range
   //   "a[1] --> [1:1] (strict == false)
   //   "a[1:0] --> [1:0]
-  absl::StatusOr<absl::optional<Range>> ParseOptionalRange(bool strict = true);
+  absl::StatusOr<std::optional<Range>> ParseOptionalRange(bool strict = true);
 
   // Parses a module-level statement (e.g. wire decl or cell instantiation).
   absl::Status ParseModuleStatement(AbstractModule<EvalT>* module,
@@ -495,7 +495,7 @@ absl::Status AbstractParser<EvalT>::ParseInstance(
       break;
     }
   }
-  absl::optional<AbstractNetRef<EvalT>> clock;
+  std::optional<AbstractNetRef<EvalT>> clock;
   if (cle->clock_name().has_value()) {
     auto it = named_parameter_assignments.find(cle->clock_name().value());
     if (it == named_parameter_assignments.end()) {
@@ -552,9 +552,9 @@ bool AbstractParser<EvalT>::TryDropKeyword(absl::string_view target) {
 }
 
 template <typename EvalT>
-absl::StatusOr<absl::optional<Range>> AbstractParser<EvalT>::ParseOptionalRange(
+absl::StatusOr<std::optional<Range>> AbstractParser<EvalT>::ParseOptionalRange(
     bool strict) {
-  absl::optional<Range> range;
+  std::optional<Range> range;
   if (TryDropToken(TokenKind::kOpenBracket)) {
     XLS_ASSIGN_OR_RETURN(int64_t high, PopNumberOrError());
     int64_t low = high;
@@ -626,7 +626,7 @@ absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
   using TokenT = absl::variant<std::string, int64_t>;
   XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError(number_bit_width));
   std::string name;
-  absl::optional<Range> range = absl::nullopt;
+  std::optional<Range> range = absl::nullopt;
   if (absl::holds_alternative<std::string>(token)) {
     name = absl::get<std::string>(token);
     XLS_ASSIGN_OR_RETURN(range, ParseOptionalRange(false));

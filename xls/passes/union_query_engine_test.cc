@@ -81,7 +81,7 @@ class FakeQueryEngine : public QueryEngine {
     return implications_.contains({a, b});
   }
 
-  absl::optional<Bits> ImpliedNodeValue(
+  std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override {
     std::vector<std::pair<TreeBitLocation, bool>> vec(

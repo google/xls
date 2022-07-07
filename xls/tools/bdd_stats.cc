@@ -95,7 +95,7 @@ absl::Status RealMain(absl::string_view input_path) {
       // the BDD.
       std::cout << "================== " << name << std::endl;
     }
-    absl::optional<FunctionBase*> top = package->GetTop();
+    std::optional<FunctionBase*> top = package->GetTop();
     if (!top.has_value()) {
       return absl::InternalError(absl::StrFormat(
           "Top entity not set for package: %s.", package->name()));

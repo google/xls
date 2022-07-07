@@ -87,7 +87,7 @@ class Lec {
  private:
   Lec(Package* ir_package, Function* ir_function,
       netlist::rtl::Netlist* netlist, const std::string& netlist_module_name,
-      absl::optional<PipelineSchedule> schedule, int stage);
+      std::optional<PipelineSchedule> schedule, int stage);
   absl::Status Init();
   absl::Status CreateIrTranslator();
   absl::Status CreateNetlistTranslator();
@@ -124,7 +124,7 @@ class Lec {
       const Node* node);
 
   // Returns the name of the netlist wire corresponding to the input node.
-  std::string NodeToNetlistName(const Node* node, absl::optional<int> bit_index,
+  std::string NodeToNetlistName(const Node* node, std::optional<int> bit_index,
                                 bool is_cell = true);
 
   // Gets strings comparing the IR to netlist values of the given node under the
@@ -152,17 +152,17 @@ class Lec {
   std::vector<Z3_ast> ir_outputs_;
   std::vector<Z3_ast> netlist_outputs_;
 
-  absl::optional<PipelineSchedule> schedule_;
+  std::optional<PipelineSchedule> schedule_;
   int stage_;
 
   // Z3 elements are, under the hood, void pointers, but let's respect the
-  // interface and use absl::optional to determine live-ness.
-  absl::optional<Z3_solver> solver_;
+  // interface and use std::optional to determine live-ness.
+  std::optional<Z3_solver> solver_;
 
   // Satisfiable is equivalent to "model_.has_value()", but having an explicit
   // value is more understandable.
   bool satisfiable_;
-  absl::optional<Z3_model> model_;
+  std::optional<Z3_model> model_;
 };
 
 }  // namespace z3

@@ -316,7 +316,7 @@ class InterpValue {
     Bits value;
   };
 
-  absl::optional<EnumData> GetEnumData() const {
+  std::optional<EnumData> GetEnumData() const {
     if (IsEnum()) {
       return absl::get<EnumData>(payload_);
     }
@@ -390,7 +390,7 @@ class InterpValue {
 // defined.
 //
 // Check-fails if function_value is not a function-typed value.
-absl::optional<Module*> GetFunctionValueOwner(
+std::optional<Module*> GetFunctionValueOwner(
     const InterpValue& function_value);
 
 template <typename H>

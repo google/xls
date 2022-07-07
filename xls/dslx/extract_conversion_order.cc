@@ -52,7 +52,7 @@ static std::string ConversionRecordsToString(
 /* static */ absl::StatusOr<Callee> Callee::Make(
     Function* f, const Invocation* invocation, Module* module,
     TypeInfo* type_info, SymbolicBindings sym_bindings,
-    absl::optional<ProcId> proc_id) {
+    std::optional<ProcId> proc_id) {
   XLS_RETURN_IF_ERROR(ConversionRecord::ValidateParametrics(f, sym_bindings));
   return Callee(f, invocation, module, type_info, std::move(sym_bindings),
                 proc_id);
@@ -60,7 +60,7 @@ static std::string ConversionRecordsToString(
 
 Callee::Callee(Function* f, const Invocation* invocation, Module* m,
                TypeInfo* type_info, SymbolicBindings sym_bindings,
-               absl::optional<ProcId> proc_id)
+               std::optional<ProcId> proc_id)
     : f_(f),
       invocation_(invocation),
       m_(m),
@@ -118,7 +118,7 @@ std::string Callee::ToString() const {
 /* static */ absl::StatusOr<ConversionRecord> ConversionRecord::Make(
     Function* f, const Invocation* invocation, Module* module,
     TypeInfo* type_info, SymbolicBindings symbolic_bindings,
-    std::vector<Callee> callees, absl::optional<ProcId> proc_id, bool is_top) {
+    std::vector<Callee> callees, std::optional<ProcId> proc_id, bool is_top) {
   XLS_RETURN_IF_ERROR(
       ConversionRecord::ValidateParametrics(f, symbolic_bindings));
 
@@ -149,7 +149,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
     XLS_CHECK_EQ(type_info_->module(), module_);
   }
   absl::Status HandleInvocation(const Invocation* node) override {
-    absl::optional<CalleeInfo> callee_info;
+    std::optional<CalleeInfo> callee_info;
     if (auto* colon_ref = dynamic_cast<const ColonRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
     } else if (auto* name_ref = dynamic_cast<const NameRef*>(node->callee())) {
@@ -192,9 +192,9 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
   // Helper for invocations of ColonRef callees.
   absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
       const ColonRef* colon_ref) {
-    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    std::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
-    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    std::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
     XLS_RET_CHECK(info.has_value());
     Module* module = (*info)->module;
     XLS_ASSIGN_OR_RETURN(Function * f,
@@ -203,7 +203,7 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
   }
 
   // Helper for invocations of NameRef callees.
-  absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefInvocation(
+  absl::StatusOr<std::optional<CalleeInfo>> HandleNameRefInvocation(
       const NameRef* name_ref, const Invocation* invocation) {
     Module* this_m = module_;
     // TODO(leary): 2020-01-16 change to detect builtinnamedef map, identifier
@@ -218,10 +218,10 @@ class CalleeCollectorVisitor : public AstNodeVisitorWithDefault {
         XLS_VLOG(5) << "map() invoking ColonRef: "
                     << mapped_colon_ref->ToString();
         identifier = mapped_colon_ref->attr();
-        absl::optional<Import*> import =
+        std::optional<Import*> import =
             mapped_colon_ref->ResolveImportSubject();
         XLS_RET_CHECK(import.has_value());
-        absl::optional<const ImportedInfo*> info =
+        std::optional<const ImportedInfo*> info =
             type_info_->GetImported(*import);
         XLS_RET_CHECK(info.has_value());
         this_m = (*info)->module;
@@ -268,7 +268,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
  public:
   InvocationVisitor(Module* module, TypeInfo* type_info,
                     const SymbolicBindings& bindings,
-                    absl::optional<ProcId> proc_id)
+                    std::optional<ProcId> proc_id)
       : module_(module),
         type_info_(type_info),
         bindings_(bindings),
@@ -287,7 +287,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   };
 
   absl::Status HandleInvocation(const Invocation* node) override {
-    absl::optional<CalleeInfo> callee_info;
+    std::optional<CalleeInfo> callee_info;
     if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
     } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
@@ -308,7 +308,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
 
     // We only add to proc_stack if this is a new _Proc_, not a Function, since
     // Functions can't spawn Procs.
-    absl::optional<ProcId> proc_id;
+    std::optional<ProcId> proc_id;
     auto maybe_proc = callee_info->callee->proc();
     if (maybe_proc.has_value()) {
       XLS_RET_CHECK(proc_id_.has_value()) << "Functions cannot spawn procs.";
@@ -329,13 +329,13 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     XLS_VLOG(5) << "Getting callee bindings for invocation: "
                 << node->ToString() << " @ " << node->span()
                 << " caller bindings: " << bindings_.ToString();
-    absl::optional<const SymbolicBindings*> callee_bindings =
+    std::optional<const SymbolicBindings*> callee_bindings =
         type_info_->GetInvocationCalleeBindings(node, bindings_);
     if (callee_bindings.has_value()) {
       XLS_RET_CHECK(*callee_bindings != nullptr);
       XLS_VLOG(5) << "Found callee bindings: " << **callee_bindings
                   << " for node: " << node->ToString();
-      absl::optional<TypeInfo*> instantiation_type_info =
+      std::optional<TypeInfo*> instantiation_type_info =
           type_info_->GetInvocationTypeInfo(node, **callee_bindings);
       XLS_RET_CHECK(instantiation_type_info.has_value())
           << "Could not find instantiation for `" << node->ToString() << "`"
@@ -364,12 +364,12 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     // contain invocations, e.g.,
     // pub const MY_EXPORTED_CONSTANT = foo(u32:5);
     // so we need to traverse them.
-    absl::optional<Import*> import = node->ResolveImportSubject();
+    std::optional<Import*> import = node->ResolveImportSubject();
     if (!import.has_value()) {
       return absl::OkStatus();
     }
 
-    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    std::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
     XLS_RET_CHECK(info.has_value());
     Module* import_mod = (*info)->module;
     TypeInfo* import_type_info = (*info)->type_info;
@@ -453,9 +453,9 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   // Helper for invocations of ColonRef callees.
   absl::StatusOr<CalleeInfo> HandleColonRefInvocation(
       const ColonRef* colon_ref) {
-    absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+    std::optional<Import*> import = colon_ref->ResolveImportSubject();
     XLS_RET_CHECK(import.has_value());
-    absl::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
+    std::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
     XLS_RET_CHECK(info.has_value());
     Module* module = (*info)->module;
     XLS_ASSIGN_OR_RETURN(Function * f,
@@ -464,7 +464,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   }
 
   // Helper for invocations of NameRef callees.
-  absl::StatusOr<absl::optional<CalleeInfo>> HandleNameRefInvocation(
+  absl::StatusOr<std::optional<CalleeInfo>> HandleNameRefInvocation(
       const NameRef* name_ref, const Invocation* invocation) {
     Module* this_m = module_;
     TypeInfo* callee_type_info = type_info_;
@@ -481,10 +481,10 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
         XLS_VLOG(5) << "map() invoking ColonRef: "
                     << mapped_colon_ref->ToString();
         identifier = mapped_colon_ref->attr();
-        absl::optional<Import*> import =
+        std::optional<Import*> import =
             mapped_colon_ref->ResolveImportSubject();
         XLS_RET_CHECK(import.has_value());
-        absl::optional<const ImportedInfo*> info =
+        std::optional<const ImportedInfo*> info =
             type_info_->GetImported(*import);
         XLS_RET_CHECK(info.has_value());
         this_m = (*info)->module;
@@ -517,7 +517,7 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
   Module* module_;
   TypeInfo* type_info_;
   const SymbolicBindings& bindings_;
-  absl::optional<ProcId> proc_id_;
+  std::optional<ProcId> proc_id_;
   absl::flat_hash_map<std::vector<Proc*>, int> proc_instances_;
 
   // Built up list of callee records discovered during traversal.
@@ -591,7 +591,7 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
 //   each of those invocations.
 static absl::StatusOr<std::vector<Callee>> GetCallees(
     AstNode* node, Module* m, TypeInfo* type_info,
-    const SymbolicBindings& bindings, absl::optional<ProcId> proc_id) {
+    const SymbolicBindings& bindings, std::optional<ProcId> proc_id) {
   XLS_VLOG(5) << "Getting callees of " << node->ToString();
   XLS_CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings, proc_id);
@@ -628,7 +628,7 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready,
-                               absl::optional<ProcId> proc_id,
+                               std::optional<ProcId> proc_id,
                                bool is_top = false);
 
 static absl::Status ProcessCallees(absl::Span<const Callee> orig_callees,
@@ -660,7 +660,7 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
                                TypeInfo* type_info,
                                const SymbolicBindings& bindings,
                                std::vector<ConversionRecord>* ready,
-                               const absl::optional<ProcId> proc_id,
+                               const std::optional<ProcId> proc_id,
                                bool is_top) {
   XLS_CHECK_EQ(type_info->module(), m);
   if (IsReady(f, m, bindings, ready)) {

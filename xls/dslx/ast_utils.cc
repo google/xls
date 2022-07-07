@@ -101,10 +101,10 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
 
   auto* colon_ref = dynamic_cast<ColonRef*>(callee);
   XLS_RET_CHECK_NE(colon_ref, nullptr);
-  absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+  std::optional<Import*> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  absl::optional<const ImportedInfo*> imported_info =
+  std::optional<const ImportedInfo*> imported_info =
       type_info->GetImported(*import);
   return imported_info.value()->module->GetMemberOrError<Function>(
       colon_ref->attr());
@@ -117,10 +117,10 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
 
   auto* colon_ref = dynamic_cast<ColonRef*>(callee);
   XLS_RET_CHECK_NE(colon_ref, nullptr);
-  absl::optional<Import*> import = colon_ref->ResolveImportSubject();
+  std::optional<Import*> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value())
       << "ColonRef did not refer to an import: " << colon_ref->ToString();
-  absl::optional<const ImportedInfo*> imported_info =
+  std::optional<const ImportedInfo*> imported_info =
       type_info->GetImported(*import);
   return imported_info.value()->module->GetMemberOrError<Proc>(
       colon_ref->attr());
@@ -135,7 +135,7 @@ absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
     const NameDef* name_def = absl::get<const NameDef*>(name_ref->name_def());
     if (Import* import = dynamic_cast<Import*>(name_def->definer());
         import != nullptr) {
-      absl::optional<const ImportedInfo*> imported =
+      std::optional<const ImportedInfo*> imported =
           type_info->GetImported(import);
       if (!imported.has_value()) {
         return absl::InternalError(absl::StrCat(

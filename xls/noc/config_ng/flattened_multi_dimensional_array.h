@@ -75,7 +75,7 @@ class FlattenedMultiDimensionalArray {
       XLS_CHECK(coordinate.HasZeroDimensions());
       elements_[0] = element;
     }
-    absl::optional<int64_t> index = GetIndexOfCoordinate(coordinate);
+    std::optional<int64_t> index = GetIndexOfCoordinate(coordinate);
     XLS_CHECK(index.has_value())
         << "The coordinate did not resolve to an index";
     elements_[index.value()] = element;
@@ -90,7 +90,7 @@ class FlattenedMultiDimensionalArray {
 
   // Gets the coordinate from an index in the flattened array. If the index is
   // not valid, returns an nullopt.
-  absl::optional<Coordinate> GetCoordinateOfIndex(int64_t index) const {
+  std::optional<Coordinate> GetCoordinateOfIndex(int64_t index) const {
     if (!IsIndexValid(index)) {
       return absl::nullopt;
     }
@@ -148,7 +148,7 @@ class FlattenedMultiDimensionalArray {
     // number of dimensions. For a zero dimension, the dimension index is
     // nullopt. The result for a zero dimension is 0 when the instance is at the
     // dimensional bounds, otherwise the result is 1.
-    int64_t DistanceFromEnd(absl::optional<int64_t> dimension_index) const {
+    int64_t DistanceFromEnd(std::optional<int64_t> dimension_index) const {
       if (coordinate_.HasZeroDimensions()) {
         XLS_CHECK(dimension_index == absl::nullopt)
             << "For a zero-dimension, the dimension index must be nullopt.";
@@ -171,7 +171,7 @@ class FlattenedMultiDimensionalArray {
 
     // Returns the coordinate value of the iterator. If the iterator is outside
     // of the dimensional space, absl::nullopt is returned.
-    absl::optional<Coordinate> GetCoordinate() const {
+    std::optional<Coordinate> GetCoordinate() const {
       if (IsAtBounds()) {
         return absl::nullopt;
       }
@@ -295,7 +295,7 @@ class FlattenedMultiDimensionalArray {
       XLS_CHECK(coordinate.HasZeroDimensions());
       return elements_[0];
     }
-    absl::optional<int64_t> index = GetIndexOfCoordinate(coordinate);
+    std::optional<int64_t> index = GetIndexOfCoordinate(coordinate);
     XLS_CHECK(index.has_value());
     return elements_[index.value()];
   }
@@ -322,7 +322,7 @@ class FlattenedMultiDimensionalArray {
 
   // Gets the index of the coordinate in the flattened array. If the coordinate
   // is not valid, returns an nullopt.
-  absl::optional<int64_t> GetIndexOfCoordinate(
+  std::optional<int64_t> GetIndexOfCoordinate(
       const Coordinate& coordinate) const {
     if (!IsCoordinateValid(coordinate)) {
       return absl::nullopt;

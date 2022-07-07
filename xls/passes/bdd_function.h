@@ -57,7 +57,7 @@ class BddFunction {
   // evaluated for various reasons including computation expense.
   static absl::StatusOr<std::unique_ptr<BddFunction>> Run(
       FunctionBase* f, int64_t path_limit = 0,
-      absl::optional<std::function<bool(const Node*)>> node_filter =
+      std::optional<std::function<bool(const Node*)>> node_filter =
           absl::nullopt);
 
   // Returns the underlying BDD.

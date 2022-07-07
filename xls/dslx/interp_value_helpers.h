@@ -39,7 +39,7 @@ absl::Status FlattenTuple(const InterpValue& value,
 
 // Finds the first index in the LHS and RHS sequences at which values differ or
 // nullopt if the two are equal.
-absl::StatusOr<absl::optional<int64_t>> FindFirstDifferingIndex(
+absl::StatusOr<std::optional<int64_t>> FindFirstDifferingIndex(
     absl::Span<const InterpValue> lhs, absl::Span<const InterpValue> rhs);
 
 // Converts the values to matched the signedness of the concrete type.

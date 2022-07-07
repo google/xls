@@ -57,13 +57,13 @@ Parses, typechecks, and executes all tests inside of a DSLX module.
 
 absl::Status RealMain(absl::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
-                      absl::optional<std::string> test_filter,
+                      std::optional<std::string> test_filter,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
-                      absl::optional<int64_t> seed, bool* printed_error) {
+                      std::optional<int64_t> seed, bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
-  absl::optional<RunComparator> run_comparator;
+  std::optional<RunComparator> run_comparator;
   switch (compare_flag) {
     case CompareFlag::kNone:
       break;
@@ -124,14 +124,14 @@ int main(int argc, char* argv[]) {
   }
 
   // Optional seed value.
-  absl::optional<int64_t> seed;
+  std::optional<int64_t> seed;
   if (int64_t seed_flag_value = absl::GetFlag(FLAGS_seed);
       seed_flag_value != 0) {
     seed = seed_flag_value;
   }
 
   // Optional test filter.
-  absl::optional<std::string> test_filter;
+  std::optional<std::string> test_filter;
   if (std::string flag = absl::GetFlag(FLAGS_test_filter); !flag.empty()) {
     test_filter = std::move(flag);
   }

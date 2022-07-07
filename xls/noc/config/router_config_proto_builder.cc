@@ -54,14 +54,14 @@ PortConfigProtoBuilder RouterConfigProtoBuilder::WithOutputPort(
 
 RouterConfigProtoBuilder&
 RouterConfigProtoBuilder::SetDefaultVirtualChannelsForInputPort(
-    absl::optional<std::vector<std::string>> virtual_channels) {
+    std::optional<std::vector<std::string>> virtual_channels) {
   virtual_channels_for_input_ = virtual_channels;
   return *this;
 }
 
 RouterConfigProtoBuilder&
 RouterConfigProtoBuilder::SetDefaultVirtualChannelsForOutputPort(
-    absl::optional<std::vector<std::string>> virtual_channels) {
+    std::optional<std::vector<std::string>> virtual_channels) {
   virtual_channels_for_output_ = virtual_channels;
   return *this;
 }

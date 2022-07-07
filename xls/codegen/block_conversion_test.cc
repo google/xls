@@ -222,7 +222,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       absl::Span<const SignalSpec> table_spec, int64_t column_width,
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
       absl::Span<const absl::flat_hash_map<std::string, uint64_t>> outputs,
-      absl::optional<
+      std::optional<
           absl::Span<const absl::flat_hash_map<std::string, uint64_t>>>
           expected_outputs = absl::nullopt) const {
     XLS_CHECK_EQ(inputs.size(), outputs.size());

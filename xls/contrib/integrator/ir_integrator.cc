@@ -320,7 +320,7 @@ absl::StatusOr<Node*> IntegrationFunction::ReplaceMuxCases(
                            /*default_value=*/
                            IsPowerOfTwo(new_cases.size())
                                ? std::nullopt
-                               : absl::optional<Node*>(mux->default_value())));
+                               : std::optional<Node*>(mux->default_value())));
   XLS_RETURN_IF_ERROR(function()->RemoveNode(mux));
 
   return new_mux;
@@ -378,7 +378,7 @@ IntegrationFunction::UnifyIntegrationNodesWithGlobalMuxSelectNoMuxArg(
                                   /*default_value=*/
                                   IsPowerOfTwo(cases.size())
                                       ? std::nullopt
-                                      : absl::optional<Node*>(node_a)));
+                                      : std::optional<Node*>(node_a)));
   // Track assigned cases.
   XLS_ASSIGN_OR_RETURN(std::set<int64_t> a_source_indexes,
                        GetSourceFunctionIndexesOfNodesMappedToNode(node_a));

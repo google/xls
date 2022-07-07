@@ -62,7 +62,7 @@ class UnionQueryEngine : public QueryEngine {
   bool Implies(const TreeBitLocation& a,
                const TreeBitLocation& b) const override;
 
-  absl::optional<Bits> ImpliedNodeValue(
+  std::optional<Bits> ImpliedNodeValue(
       absl::Span<const std::pair<TreeBitLocation, bool>> predicate_bit_values,
       Node* node) const override;
 

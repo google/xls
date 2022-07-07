@@ -93,8 +93,8 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
 // Return a ResetProto representing the reset signal of the block. Requires that
 // any register with a reset value have identical reset behavior
 // (asynchronous/synchronous, and active high/low).
-absl::StatusOr<absl::optional<ResetProto>> GetBlockResetProto(Block* block) {
-  absl::optional<ResetProto> reset_proto;
+absl::StatusOr<std::optional<ResetProto>> GetBlockResetProto(Block* block) {
+  std::optional<ResetProto> reset_proto;
   for (Node* node : block->nodes()) {
     if (node->Is<RegisterWrite>()) {
       RegisterWrite* reg_write = node->As<RegisterWrite>();
@@ -284,9 +284,9 @@ class BlockGenerator {
   // using the given options.
   static absl::Status Generate(Block* block, VerilogFile* file,
                                const CodegenOptions& options) {
-    XLS_ASSIGN_OR_RETURN(absl::optional<ResetProto> reset_proto,
+    XLS_ASSIGN_OR_RETURN(std::optional<ResetProto> reset_proto,
                          GetBlockResetProto(block));
-    absl::optional<std::string> clock_name;
+    std::optional<std::string> clock_name;
     if (block->GetClockPort().has_value()) {
       clock_name = block->GetClockPort()->name;
     } else if (!block->GetRegisters().empty()) {
@@ -300,8 +300,8 @@ class BlockGenerator {
 
  private:
   BlockGenerator(Block* block, const CodegenOptions& options,
-                 absl::optional<std::string> clock_name,
-                 absl::optional<ResetProto> reset_proto, VerilogFile* file)
+                 std::optional<std::string> clock_name,
+                 std::optional<ResetProto> reset_proto, VerilogFile* file)
       : block_(block),
         options_(options),
         reset_proto_(reset_proto),
@@ -384,7 +384,7 @@ class BlockGenerator {
   // Emits the logic for the given nodes. This includes declaring and wires/regs
   // defined by the nodes.
   absl::Status EmitLogic(absl::Span<Node* const> nodes,
-                         absl::optional<int64_t> stage = absl::nullopt) {
+                         std::optional<int64_t> stage = absl::nullopt) {
     for (Node* node : nodes) {
       XLS_VLOG(3) << "Emitting logic for: " << node->GetName();
 
@@ -512,7 +512,7 @@ class BlockGenerator {
 
   // Declares the given registers using `reg` declarations.
   absl::Status DeclareRegisters(absl::Span<Register* const> registers) {
-    const absl::optional<verilog::Reset>& reset = mb_.reset();
+    const std::optional<verilog::Reset>& reset = mb_.reset();
     for (Register* reg : registers) {
       XLS_VLOG(3) << "Declaring register " << reg->name();
       Expression* reset_expr = nullptr;
@@ -672,7 +672,7 @@ class BlockGenerator {
 
   Block* block_;
   const CodegenOptions& options_;
-  absl::optional<ResetProto> reset_proto_;
+  std::optional<ResetProto> reset_proto_;
 
   VerilogFile* file_;
   ModuleBuilder mb_;

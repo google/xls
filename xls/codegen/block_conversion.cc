@@ -47,8 +47,8 @@ static const char kOutputPortName[] = "out";
 
 // Contains information about the block's reset -- its input port and behavior.
 struct ResetInfo {
-  absl::optional<InputPort*> input_port;
-  absl::optional<xls::Reset> behavior;
+  std::optional<InputPort*> input_port;
+  std::optional<xls::Reset> behavior;
   bool reset_data_path = false;
 };
 
@@ -170,7 +170,7 @@ static absl::StatusOr<std::vector<Node*>> MakePipelineStagesForValid(
 //   - Active low reset signals are inverted.
 //
 // See also MakeOrWithResetNode()
-static absl::StatusOr<absl::optional<Node*>> MaybeGetOrMakeResetNode(
+static absl::StatusOr<std::optional<Node*>> MaybeGetOrMakeResetNode(
     const ResetInfo& reset_info, Block* block) {
   if (!reset_info.input_port.has_value()) {
     return absl::nullopt;
@@ -276,7 +276,7 @@ static absl::StatusOr<Node*> MakeOrWithResetNode(Node* src_node,
                                                  Block* block) {
   Node* result = src_node;
 
-  XLS_ASSIGN_OR_RETURN(absl::optional<Node*> maybe_reset_node,
+  XLS_ASSIGN_OR_RETURN(std::optional<Node*> maybe_reset_node,
                        MaybeGetOrMakeResetNode(reset_info, block));
 
   if (maybe_reset_node.has_value()) {
@@ -303,7 +303,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
     Node* initial_output_ready_node, const ResetInfo& reset_info,
     absl::Span<Node*> pipeline_valid_nodes,
     absl::Span<PipelineStageRegisters> pipeline_data_registers,
-    absl::Span<absl::optional<StateRegister>> state_registers, Block* block) {
+    absl::Span<std::optional<StateRegister>> state_registers, Block* block) {
   // Create enable signals for each pipeline stage.
   //   - the last enable signal is the initial_output_ready_node.
   //     enable_signals[N] = initial_output_ready_node
@@ -430,7 +430,7 @@ static absl::StatusOr<Node*> UpdatePipelineWithBubbleFlowControl(
 //
 static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
     Node* all_active_outputs_ready, Node* all_active_inputs_valid,
-    absl::Span<absl::optional<StateRegister>> state_registers, Block* block) {
+    absl::Span<std::optional<StateRegister>> state_registers, Block* block) {
   std::vector<Node*> operands = {all_active_outputs_ready,
                                  all_active_inputs_valid};
   XLS_ASSIGN_OR_RETURN(
@@ -545,7 +545,7 @@ struct StreamingInput {
   InputPort* port_valid;
   OutputPort* port_ready;
   Channel* channel;
-  absl::optional<Node*> predicate;
+  std::optional<Node*> predicate;
 };
 
 struct StreamingOutput {
@@ -553,7 +553,7 @@ struct StreamingOutput {
   OutputPort* port_valid;
   InputPort* port_ready;
   Channel* channel;
-  absl::optional<Node*> predicate;
+  std::optional<Node*> predicate;
 };
 
 // Data structures holding the port representing single value inputs/outputs
@@ -576,13 +576,13 @@ struct StreamingIoPipeline {
   std::vector<PipelineStageRegisters> pipeline_registers;
   // `state_registers` includes an element for each state element in the
   // proc. The vector element is nullopt if the state element is an empty tuple.
-  std::vector<absl::optional<StateRegister>> state_registers;
-  absl::optional<OutputPort*> idle_port;
+  std::vector<std::optional<StateRegister>> state_registers;
+  std::optional<OutputPort*> idle_port;
 
   // Node in block that represents when all output channels (that
   // are predicated true) are ready.
   // See MakeOutputReadyPortsForOutputChannels().
-  absl::optional<Node*> all_active_outputs_ready;
+  std::optional<Node*> all_active_outputs_ready;
 };
 
 // Update io channel metadata with latest information from block conversion.
@@ -829,7 +829,7 @@ static absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg,
 // Returns the new register added.
 static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
     absl::string_view name_prefix, const ResetInfo& reset_info,
-    absl::optional<Node*> load_enable, Node* node, Block* block) {
+    std::optional<Node*> load_enable, Node* node, Block* block) {
   Type* node_type = node->GetType();
 
   xls::Reset reset_behavior = reset_info.behavior.value();
@@ -2284,7 +2284,7 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
 
   XLS_ASSIGN_OR_RETURN(ResetInfo reset_info, MaybeAddResetPort(block, options));
 
-  absl::optional<ValidPorts> valid_ports;
+  std::optional<ValidPorts> valid_ports;
   if (options.valid_control().has_value()) {
     XLS_ASSIGN_OR_RETURN(
         valid_ports,

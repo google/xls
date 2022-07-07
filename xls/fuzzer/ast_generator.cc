@@ -295,7 +295,7 @@ int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
 }
 
 ConstRef* AstGenerator::GetOrCreateConstRef(
-    int64_t value, absl::optional<int64_t> want_width) {
+    int64_t value, std::optional<int64_t> want_width) {
   // We use a canonical naming scheme so we can detect duplicate requests for
   // the same value.
   int64_t width;
@@ -410,7 +410,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
            GetTypeBitCount(t) <= kMaxBitCount;
   };
 
-  absl::optional<TypedExpr> lhs =
+  std::optional<TypedExpr> lhs =
       ChooseEnvValueOptional(env, /*take=*/choose_value);
   if (!lhs.has_value()) {
     // If there's no natural environment value to use as the LHS, make up a
@@ -618,7 +618,7 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
   return module_->Make<BuiltinTypeAnnotation>(fake_span_, type);
 }
 
-TypedExpr AstGenerator::GenerateNumber(absl::optional<BitsAndSignedness> bas) {
+TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
   TypeAnnotation* type;
   if (bas.has_value()) {
     type = MakeTypeAnnotation(bas->signedness, bas->bits);
@@ -826,7 +826,7 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
   return GenerateBitsType();
 }
 
-absl::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
+std::optional<TypedExpr> AstGenerator::ChooseEnvValueOptional(
     Env* env, std::function<bool(const TypedExpr&)> take) {
   if (take == nullptr) {
     // Fast path if there's no take function, we don't need to inspect/copy
@@ -873,7 +873,7 @@ std::vector<TypedExpr> AstGenerator::GatherAllValues(
 
 absl::StatusOr<std::pair<TypedExpr, TypedExpr>>
 AstGenerator::ChooseEnvValueBitsPair(Env* env,
-                                     absl::optional<int64_t> bit_count) {
+                                     std::optional<int64_t> bit_count) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env, bit_count));
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValueBits(env, bit_count));
   if (lhs.type == rhs.type) {
@@ -897,8 +897,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateUnop(Env* env) {
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.
 static std::pair<int64_t, int64_t> ResolveBitSliceIndices(
-    int64_t bit_count, absl::optional<int64_t> start,
-    absl::optional<int64_t> limit) {
+    int64_t bit_count, std::optional<int64_t> start,
+    std::optional<int64_t> limit) {
   if (!start.has_value()) {
     start = 0;
   }
@@ -933,8 +933,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
   };
   SliceType which = RandomChoice<SliceType>(
       {SliceType::kBitSlice, SliceType::kWidthSlice, SliceType::kDynamicSlice});
-  absl::optional<int64_t> start;
-  absl::optional<int64_t> limit;
+  std::optional<int64_t> start;
+  std::optional<int64_t> limit;
   int64_t width = -1;
   while (true) {
     int64_t start_low = (which == SliceType::kWidthSlice) ? 0 : -bit_count - 1;
@@ -1359,7 +1359,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
 
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
     std::string name, int64_t call_depth,
-    absl::optional<absl::Span<TypeAnnotation* const>> param_types) {
+    std::optional<absl::Span<TypeAnnotation* const>> param_types) {
   Env env;
 
   std::vector<ParametricBinding*> parametric_bindings;

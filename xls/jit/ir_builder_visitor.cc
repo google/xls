@@ -550,7 +550,7 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
 }
 
 void NodeIrContext::Finalize(llvm::Value* result,
-                             absl::optional<llvm::IRBuilder<>*> exit_builder) {
+                             std::optional<llvm::IRBuilder<>*> exit_builder) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &builder();
   result = type_converter()->ClearPaddingBits(result, node()->GetType(), *b);

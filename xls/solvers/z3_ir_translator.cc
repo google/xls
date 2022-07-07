@@ -195,7 +195,7 @@ absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
 absl::StatusOr<std::unique_ptr<IrTranslator>> IrTranslator::CreateAndTranslate(
     Z3_context ctx, Node* source, bool allow_unsupported) {
   auto translator = absl::WrapUnique(new IrTranslator(
-      ctx, nullptr, absl::optional<absl::Span<const Z3_ast>>()));
+      ctx, nullptr, std::optional<absl::Span<const Z3_ast>>()));
   translator->allow_unsupported_ = allow_unsupported;
   if (source != nullptr) {
     XLS_RETURN_IF_ERROR(source->Accept(translator.get()));
@@ -229,7 +229,7 @@ IrTranslator::IrTranslator(Z3_config config, FunctionBase* source)
 
 IrTranslator::IrTranslator(
     Z3_context ctx, FunctionBase* source,
-    absl::optional<absl::Span<const Z3_ast>> imported_params)
+    std::optional<absl::Span<const Z3_ast>> imported_params)
     : ctx_(ctx),
       borrowed_context_(true),
       imported_params_(imported_params),
@@ -1142,7 +1142,7 @@ absl::Status IrTranslator::HandleSel(Select* sel) {
                                const std::vector<Z3_ast>& selector,
                                const std::vector<std::vector<Z3_ast>>& cases) {
     // Calculate the Z3-ified default value, if any.
-    absl::optional<std::vector<Z3_ast>> default_value = absl::nullopt;
+    std::optional<std::vector<Z3_ast>> default_value = absl::nullopt;
     if (sel->default_value()) {
       default_value = FlattenValue(sel->default_value().value()->GetType(),
                                    GetValue(sel->default_value().value()));

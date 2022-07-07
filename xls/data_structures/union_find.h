@@ -48,7 +48,7 @@ class UnionFind {
   // Returns the representative element in the given element's equivalence
   // class.
   T Find(const T& element) {
-    absl::optional<std::pair<T, std::monostate&>> result =
+    std::optional<std::pair<T, std::monostate&>> result =
         union_find_map_.Find(element);
     XLS_CHECK(result.has_value())
         << "Element passed Find has not been inserted.";

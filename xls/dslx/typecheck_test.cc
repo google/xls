@@ -1036,7 +1036,7 @@ struct Foo {
   // The classic for-switch pattern. :)
   for (int i = 0; i < struct_def->members().size(); i++) {
     XLS_ASSERT_OK_AND_ASSIGN(
-        absl::optional<BuiltinType> as_builtin,
+        std::optional<BuiltinType> as_builtin,
         GetAsBuiltinType(module.module, module.type_info, &import_data,
                          struct_def->members()[i].second));
 

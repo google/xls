@@ -30,7 +30,7 @@ class TruthTable {
   // == 0b100 indicates 'x' is present, 0b011 indicates 'y' and 'z' are present,
   // etc.
   TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
-             absl::optional<Op> logical_op);
+             std::optional<Op> logical_op);
 
   // Computes the result vector for this operation, as specified in the
   // constructor.
@@ -57,7 +57,7 @@ class TruthTable {
  private:
   Bits xyz_present_;
   Bits xyz_negated_;
-  absl::optional<Op> logical_op_;
+  std::optional<Op> logical_op_;
 };
 
 }  // namespace internal

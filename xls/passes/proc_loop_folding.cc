@@ -48,7 +48,7 @@ enum {
 };
 
 RollIntoProcPass::RollIntoProcPass(
-    absl::optional<int64_t> unroll_factor) :
+    std::optional<int64_t> unroll_factor) :
   ProcPass("roll_into_proc", "Re-roll an iterative set of nodes into a proc"),
   unroll_factor_(unroll_factor) {}
 

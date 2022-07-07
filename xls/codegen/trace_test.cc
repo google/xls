@@ -56,7 +56,7 @@ top fn main(tkn: token, cond: bits[1]) -> token {
 TEST_P(TraceTest, CombinationalSimpleTrace) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(kSimpleTraceText));
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   FunctionBase* entry = top.value();
   CodegenOptions options;
@@ -105,7 +105,7 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
 TEST_P(TraceTest, ClockedSimpleTraceTest) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            Parser::ParsePackage(kSimpleTraceText));
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   ASSERT_TRUE(top.has_value());
   FunctionBase* entry = top.value();
 

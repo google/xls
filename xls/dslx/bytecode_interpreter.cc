@@ -28,7 +28,7 @@ namespace xls::dslx {
 
 Frame::Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
              const TypeInfo* type_info,
-             const absl::optional<SymbolicBindings>& bindings,
+             const std::optional<SymbolicBindings>& bindings,
              std::vector<InterpValue> initial_args,
              std::unique_ptr<BytecodeFunction> bf_holder)
     : pc_(0),
@@ -116,7 +116,7 @@ absl::Status BytecodeInterpreter::Run(PostFnEvalHook post_fn_eval_hook) {
     // actually have a hook.
     const Function* source_fn = frame->bf()->source_fn();
     if (source_fn != nullptr) {
-      absl::optional<ConcreteType*> fn_return =
+      std::optional<ConcreteType*> fn_return =
           frame->type_info()->GetItem(source_fn);
       if (fn_return.has_value()) {
         bool fn_returns_value = *fn_return.value() != *ConcreteType::MakeUnit();
@@ -377,7 +377,7 @@ absl::Status BytecodeInterpreter::EvalAnd(const Bytecode& bytecode) {
 
 absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
     Function* f, const Invocation* invocation,
-    const absl::optional<SymbolicBindings>& caller_bindings) {
+    const std::optional<SymbolicBindings>& caller_bindings) {
   const Frame& frame = frames_.back();
   const TypeInfo* type_info = frame.type_info();
 
@@ -388,7 +388,7 @@ absl::StatusOr<BytecodeFunction*> BytecodeInterpreter::GetBytecodeFn(
 
   if (f->IsParametric()) {
     XLS_RET_CHECK(caller_bindings.has_value());
-    absl::optional<TypeInfo*> maybe_type_info =
+    std::optional<TypeInfo*> maybe_type_info =
         type_info->GetInvocationTypeInfo(invocation,
                                             caller_bindings.value());
     if (!maybe_type_info.has_value()) {
@@ -1132,7 +1132,7 @@ absl::Status BytecodeInterpreter::RunBuiltinAssertEq(const Bytecode& bytecode) {
                         lhs.ToHumanString(), rhs.ToHumanString());
     if (lhs.IsArray() && rhs.IsArray()) {
       XLS_ASSIGN_OR_RETURN(
-          absl::optional<int64_t> i,
+          std::optional<int64_t> i,
           FindFirstDifferingIndex(lhs.GetValuesOrDie(), rhs.GetValuesOrDie()));
       XLS_RET_CHECK(i.has_value());
       const auto& lhs_values = lhs.GetValuesOrDie();
@@ -1554,8 +1554,8 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
 /* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawnInternal(
     ImportData* import_data, const TypeInfo* type_info,
-    const absl::optional<SymbolicBindings>& caller_bindings,
-    absl::optional<const Spawn*> maybe_spawn, Proc* proc,
+    const std::optional<SymbolicBindings>& caller_bindings,
+    std::optional<const Spawn*> maybe_spawn, Proc* proc,
     const std::vector<InterpValue>& config_args,
     const std::vector<InterpValue>& next_args,
     std::vector<ProcInstance>* proc_instances) {

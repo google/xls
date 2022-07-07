@@ -42,14 +42,14 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
            &RngState::RandRangeBiasedTowardsZero);
 
   py::class_<AstGeneratorOptions>(m, "AstGeneratorOptions")
-      .def(py::init([](absl::optional<bool> disallow_divide,
-                       absl::optional<bool> emit_loops,
-                       absl::optional<bool> short_samples,
-                       absl::optional<int64_t> max_width_bits_types,
-                       absl::optional<int64_t> max_width_aggregate_types,
-                       absl::optional<std::vector<BinopKind>> binop_allowlist,
-                       absl::optional<bool> generate_empty_tuples,
-                       absl::optional<bool> emit_gate) {
+      .def(py::init([](std::optional<bool> disallow_divide,
+                       std::optional<bool> emit_loops,
+                       std::optional<bool> short_samples,
+                       std::optional<int64_t> max_width_bits_types,
+                       std::optional<int64_t> max_width_aggregate_types,
+                       std::optional<std::vector<BinopKind>> binop_allowlist,
+                       std::optional<bool> generate_empty_tuples,
+                       std::optional<bool> emit_gate) {
              AstGeneratorOptions options;
              if (disallow_divide.has_value()) {
                options.disallow_divide = disallow_divide.value();

@@ -82,7 +82,7 @@ Bits ToKnownBitsValues(const TernaryVector& ternary_vector);
 // Returns a vector with known positions for each bit known in `lhs` that isn't
 // known in `rhs`. If `lhs` and `rhs` conflict, returns `absl::nullopt`.
 // CHECK fails if `lhs` and `rhs` have different lengths.
-inline absl::optional<TernaryVector> Difference(const TernaryVector& lhs,
+inline std::optional<TernaryVector> Difference(const TernaryVector& lhs,
                                                 const TernaryVector& rhs) {
   XLS_CHECK_EQ(lhs.size(), rhs.size());
   int64_t size = lhs.size();

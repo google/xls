@@ -47,7 +47,7 @@ CodegenOptions& CodegenOptions::manual_control(absl::string_view input_name) {
   return *this;
 }
 
-absl::optional<ManualPipelineControl> CodegenOptions::manual_control() const {
+std::optional<ManualPipelineControl> CodegenOptions::manual_control() const {
   if (!pipeline_control_.has_value() || !pipeline_control_->has_manual()) {
     return absl::nullopt;
   }
@@ -56,7 +56,7 @@ absl::optional<ManualPipelineControl> CodegenOptions::manual_control() const {
 
 CodegenOptions& CodegenOptions::valid_control(
     absl::string_view input_name,
-    absl::optional<absl::string_view> output_name) {
+    std::optional<absl::string_view> output_name) {
   if (!pipeline_control_.has_value()) {
     pipeline_control_ = PipelineControl();
   }
@@ -68,7 +68,7 @@ CodegenOptions& CodegenOptions::valid_control(
   return *this;
 }
 
-absl::optional<ValidProto> CodegenOptions::valid_control() const {
+std::optional<ValidProto> CodegenOptions::valid_control() const {
   if (!pipeline_control_.has_value() || !pipeline_control_->has_valid()) {
     return absl::nullopt;
   }

@@ -36,7 +36,7 @@ namespace {
 // the package, returns an arbitrary entity. If the package does not contain
 // any entities, returns an error.
 absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   if (top.has_value()) {
     return top.value();
   }
@@ -52,8 +52,8 @@ absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
 // IR to JSON conversion function which takes strings rather than objects.
 absl::StatusOr<std::string> IrToJsonWrapper(
     absl::string_view ir_text, absl::string_view delay_model_name,
-    absl::optional<int64_t> pipeline_stages,
-    absl::optional<absl::string_view> entry_name) {
+    std::optional<int64_t> pipeline_stages,
+    std::optional<absl::string_view> entry_name) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
   FunctionBase* func_base;

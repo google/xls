@@ -47,7 +47,7 @@ namespace {
 absl::Status ScheduleAndPrintStats(Package* package,
                                    const DelayEstimator& delay_estimator,
                                    const SchedulingOptions& options) {
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
@@ -98,7 +98,7 @@ absl::Status RealMain(absl::string_view opt_ir_path,
   XLS_ASSIGN_OR_RETURN(std::string verilog_contents,
                        GetFileContents(verilog_path));
 
-  absl::optional<DelayEstimator*> delay_estimator;
+  std::optional<DelayEstimator*> delay_estimator;
 
   if (absl::GetFlag(FLAGS_schedule)) {
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,

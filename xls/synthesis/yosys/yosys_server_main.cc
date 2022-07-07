@@ -167,7 +167,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     }
 
     // Invoke nextpnr for place and route.
-    absl::optional<std::filesystem::path> pnr_path;
+    std::optional<std::filesystem::path> pnr_path;
     std::vector<std::string> nextpnr_args = {nextpnr_path_, "--json",
                                              netlist_path.string()};
 

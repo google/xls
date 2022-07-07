@@ -39,9 +39,9 @@ Package::Package(absl::string_view name) : name_(name) {
 
 Package::~Package() {}
 
-absl::optional<FunctionBase*> Package::GetTop() const { return top_; }
+std::optional<FunctionBase*> Package::GetTop() const { return top_; }
 
-absl::Status Package::SetTop(absl::optional<FunctionBase*> top) {
+absl::Status Package::SetTop(std::optional<FunctionBase*> top) {
   if (top.has_value() && top.value()->package() != this) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Cannot set the top entity of the package: the top entity %s does not "
@@ -79,7 +79,7 @@ absl::Status Package::SetTopByName(absl::string_view top_name) {
 }
 
 absl::StatusOr<Function*> Package::GetTopAsFunction() const {
-  absl::optional<FunctionBase*> top = GetTop();
+  std::optional<FunctionBase*> top = GetTop();
   if (!top.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Top entity not set for package: %s.", name_));
@@ -92,7 +92,7 @@ absl::StatusOr<Function*> Package::GetTopAsFunction() const {
 }
 
 absl::StatusOr<Proc*> Package::GetTopAsProc() const {
-  absl::optional<FunctionBase*> top = GetTop();
+  std::optional<FunctionBase*> top = GetTop();
   if (!top.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Top entity not set for package: %s.", name_));
@@ -105,7 +105,7 @@ absl::StatusOr<Proc*> Package::GetTopAsProc() const {
 }
 
 absl::StatusOr<Block*> Package::GetTopAsBlock() const {
-  absl::optional<FunctionBase*> top = GetTop();
+  std::optional<FunctionBase*> top = GetTop();
   if (!top.has_value()) {
     return absl::InternalError(
         absl::StrFormat("Top entity not set for package: %s.", name_));
@@ -522,7 +522,7 @@ std::string Package::DumpIr() const {
     absl::StrAppend(&out, "\n");
   }
   std::vector<std::string> function_dumps;
-  absl::optional<FunctionBase*> top = GetTop();
+  std::optional<FunctionBase*> top = GetTop();
   for (auto& function : functions()) {
     std::string prefix = "";
     if (top.has_value() && top.value() == function.get()) {
@@ -596,9 +596,9 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
-    absl::Span<const Value> initial_values, absl::optional<int64_t> fifo_depth,
+    absl::Span<const Value> initial_values, std::optional<int64_t> fifo_depth,
     FlowControl flow_control, const ChannelMetadataProto& metadata,
-    absl::optional<int64_t> id) {
+    std::optional<int64_t> id) {
   XLS_RETURN_IF_ERROR(VerifyValuesAreType(initial_values, type));
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<StreamingChannel>(
@@ -611,7 +611,7 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
 
 absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
     absl::string_view name, ChannelOps supported_ops, Type* type,
-    const ChannelMetadataProto& metadata, absl::optional<int64_t> id) {
+    const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<SingleValueChannel>(
       name, actual_id, supported_ops, type, metadata);

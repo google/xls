@@ -36,7 +36,7 @@ ABSL_FLAG(int, stage, -1, "Pipeline stage to extract.");
 namespace xls {
 
 absl::Status RealMain(const std::string& ir_path,
-                      absl::optional<std::string> function_name,
+                      std::optional<std::string> function_name,
                       const std::string& schedule_path, int stage,
                       const std::string& output_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
@@ -68,7 +68,7 @@ int main(int argc, char* argv[]) {
   std::string ir_path = absl::GetFlag(FLAGS_ir_path);
   XLS_QCHECK(!ir_path.empty()) << "--ir_path can't be empty!";
 
-  absl::optional<std::string> function_name;
+  std::optional<std::string> function_name;
   if (!absl::GetFlag(FLAGS_function).empty()) {
     function_name = absl::GetFlag(FLAGS_function);
   }

@@ -233,7 +233,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                            cloned_proc->MakeNodeWithName<Receive>(
                                src->loc(), cloned_operands[0],
                                cloned_operands.size() == 2
-                                   ? absl::optional<Node*>(cloned_operands[1])
+                                   ? std::optional<Node*>(cloned_operands[1])
                                    : absl::nullopt,
                                channel_id, src->GetName()));
     } else if (node->Is<Send>()) {
@@ -246,7 +246,7 @@ absl::StatusOr<Proc*> Proc::Clone(
           cloned_proc->MakeNodeWithName<Send>(
               src->loc(), cloned_operands[0], cloned_operands[1],
               cloned_operands.size() == 3
-                  ? absl::optional<Node*>(cloned_operands[2])
+                  ? std::optional<Node*>(cloned_operands[2])
                   : absl::nullopt,
               channel_id, src->GetName()));
     } else {

@@ -263,7 +263,7 @@ class BuilderBase {
   // the selector value. If the number of cases is less than 2**selector_width
   // then a default value must be specified.
   BValue Select(BValue selector, absl::Span<const BValue> cases,
-                absl::optional<BValue> default_value = absl::nullopt,
+                std::optional<BValue> default_value = absl::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 absl::string_view name = "");
 
@@ -491,7 +491,7 @@ class BuilderBase {
   // Binary decodes the n-bit input to a one-hot output. 'width' can be at most
   // 2**n where n is the bit width of the operand. If 'width' is not specified
   // the output is 2**n bits wide.
-  BValue Decode(BValue arg, absl::optional<int64_t> width = absl::nullopt,
+  BValue Decode(BValue arg, std::optional<int64_t> width = absl::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 absl::string_view name = "");
 
@@ -514,7 +514,7 @@ class BuilderBase {
   // If result width is not given the result width set to the width of the
   // arguments lhs and rhs which must have the same width.
   BValue AddArithOp(Op op, BValue lhs, BValue rhs,
-                    absl::optional<int64_t> result_width,
+                    std::optional<int64_t> result_width,
                     const SourceInfo& loc = SourceInfo(),
                     absl::string_view name = "");
   BValue AddBitwiseReductionOp(Op op, BValue arg,
@@ -524,7 +524,7 @@ class BuilderBase {
   // Adds an assert op to the function. Assert raises an error containing the
   // given message if the given condition evaluates to false.
   BValue Assert(BValue token, BValue condition, absl::string_view message,
-                absl::optional<std::string> label = absl::nullopt,
+                std::optional<std::string> label = absl::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 absl::string_view name = "");
 
@@ -747,7 +747,7 @@ class TokenlessProcBuilder : public ProcBuilder {
   // Add an assert operation. Returns the token-typed assert operation.
   using BuilderBase::Assert;
   BValue Assert(BValue condition, absl::string_view message,
-                absl::optional<std::string> label = absl::nullopt,
+                std::optional<std::string> label = absl::nullopt,
                 const SourceInfo& loc = SourceInfo(),
                 absl::string_view name = "");
 
@@ -790,8 +790,8 @@ class BlockBuilder : public BuilderBase {
   // Block::AddRegister. If the register being writen has a reset value then
   // `reset` must be specified.
   BValue RegisterWrite(Register* reg, BValue data,
-                       absl::optional<BValue> load_enable = absl::nullopt,
-                       absl::optional<BValue> reset = absl::nullopt,
+                       std::optional<BValue> load_enable = absl::nullopt,
+                       std::optional<BValue> reset = absl::nullopt,
                        const SourceInfo& loc = SourceInfo(),
                        absl::string_view name = "");
 
@@ -801,13 +801,13 @@ class BlockBuilder : public BuilderBase {
   // and adding a RegisterRead operation. Returned BValue is the RegisterRead
   // operation.
   BValue InsertRegister(absl::string_view name, BValue data,
-                        absl::optional<BValue> load_enable = absl::nullopt,
+                        std::optional<BValue> load_enable = absl::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
   // As InsertRegister above but with a reset value.
   BValue InsertRegister(absl::string_view name, BValue data,
                         BValue reset_signal, Reset reset,
-                        absl::optional<BValue> load_enable = absl::nullopt,
+                        std::optional<BValue> load_enable = absl::nullopt,
                         const SourceInfo& loc = SourceInfo());
 
   // Add an instantiation input/output to the block.

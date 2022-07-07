@@ -131,7 +131,7 @@ BValue BuilderBase::Not(BValue x, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
-                           absl::optional<BValue> default_value,
+                           std::optional<BValue> default_value,
                            const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -141,7 +141,7 @@ BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
     XLS_CHECK_EQ(selector.builder(), bvalue.builder());
     cases_nodes.push_back(bvalue.node());
   }
-  absl::optional<Node*> default_node = absl::nullopt;
+  std::optional<Node*> default_node = absl::nullopt;
   if (default_value.has_value()) {
     default_node = default_value->node();
   }
@@ -617,7 +617,7 @@ BValue BuilderBase::Encode(BValue arg, const SourceInfo& loc,
   return AddNode<xls::Encode>(loc, arg.node(), name);
 }
 
-BValue BuilderBase::Decode(BValue arg, absl::optional<int64_t> width,
+BValue BuilderBase::Decode(BValue arg, std::optional<int64_t> width,
                            const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1016,7 +1016,7 @@ BuilderBase::~BuilderBase() = default;
 Package* BuilderBase::package() const { return function_->package(); }
 
 BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
-                               absl::optional<int64_t> result_width,
+                               std::optional<int64_t> result_width,
                                const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1119,7 +1119,7 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
 
 BValue BuilderBase::Assert(BValue token, BValue condition,
                            absl::string_view message,
-                           absl::optional<std::string> label,
+                           std::optional<std::string> label,
                            const SourceInfo& loc, absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
@@ -1355,7 +1355,7 @@ BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
 }
 
 BValue TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
-                                    absl::optional<std::string> label,
+                                    std::optional<std::string> label,
                                     const SourceInfo& loc,
                                     absl::string_view name) {
   BValue asrt = BuilderBase::Assert(GetTokenParam(), condition, message, label,
@@ -1422,8 +1422,8 @@ BValue BlockBuilder::RegisterRead(Register* reg, const SourceInfo& loc,
 }
 
 BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
-                                   absl::optional<BValue> load_enable,
-                                   absl::optional<BValue> reset,
+                                   std::optional<BValue> load_enable,
+                                   std::optional<BValue> reset,
                                    const SourceInfo& loc,
                                    absl::string_view name) {
   if (ErrorPending()) {
@@ -1434,14 +1434,14 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
   }
   return AddNode<xls::RegisterWrite>(
       loc, data.node(),
-      load_enable.has_value() ? absl::optional<Node*>(load_enable->node())
+      load_enable.has_value() ? std::optional<Node*>(load_enable->node())
                               : absl::nullopt,
-      reset.has_value() ? absl::optional<Node*>(reset->node()) : absl::nullopt,
+      reset.has_value() ? std::optional<Node*>(reset->node()) : absl::nullopt,
       reg, name);
 }
 
 BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
-                                    absl::optional<BValue> load_enable,
+                                    std::optional<BValue> load_enable,
                                     const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
@@ -1461,7 +1461,7 @@ BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
 
 BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
                                     BValue reset_signal, Reset reset,
-                                    absl::optional<BValue> load_enable,
+                                    std::optional<BValue> load_enable,
                                     const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();

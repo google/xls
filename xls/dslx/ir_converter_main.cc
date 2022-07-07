@@ -83,7 +83,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(absl::string_view text,
 // Adds IR-converted symbols from the module specified by "path" to the given
 // "package".
 static absl::Status AddPathToPackage(
-    absl::string_view path, absl::optional<absl::string_view> entry,
+    absl::string_view path, std::optional<absl::string_view> entry,
     const ConvertOptions& convert_options, std::string stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, Package* package,
     bool* printed_error) {
@@ -123,13 +123,13 @@ static absl::Status AddPathToPackage(
 }
 
 absl::Status RealMain(absl::Span<const absl::string_view> paths,
-                      absl::optional<absl::string_view> top,
-                      absl::optional<absl::string_view> package_name,
+                      std::optional<absl::string_view> top,
+                      std::optional<absl::string_view> package_name,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool emit_fail_as_assert, bool verify_ir,
                       bool* printed_error) {
-  absl::optional<xls::Package> package;
+  std::optional<xls::Package> package;
   if (package_name.has_value()) {
     package.emplace(package_name.value());
   } else {
@@ -184,12 +184,12 @@ int main(int argc, char* argv[]) {
     dslx_paths.push_back(std::filesystem::path(path));
   }
 
-  absl::optional<std::string> top;
+  std::optional<std::string> top;
   if (!absl::GetFlag(FLAGS_top).empty()) {
     top = absl::GetFlag(FLAGS_top);
   }
 
-  absl::optional<std::string> package_name;
+  std::optional<std::string> package_name;
   if (!absl::GetFlag(FLAGS_package_name).empty()) {
     package_name = absl::GetFlag(FLAGS_package_name);
   }

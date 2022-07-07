@@ -210,9 +210,9 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
           sel->default_value().has_value()
               ? operands.subspan(1, operands.size() - 2)
               : operands.subspan(1);
-      absl::optional<const Vector> default_value =
+      std::optional<const Vector> default_value =
           sel->default_value().has_value()
-              ? absl::optional<const Vector>(operands.back())
+              ? std::optional<const Vector>(operands.back())
               : absl::nullopt;
       return evaluator->Select(operands[0], cases, default_value);
     }

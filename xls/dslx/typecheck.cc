@@ -247,7 +247,7 @@ absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
       std::get<const NameDef*>(subject_nameref->name_def())->definer();
   Import* import = dynamic_cast<Import*>(definer);
 
-  absl::optional<const ImportedInfo*> imported =
+  std::optional<const ImportedInfo*> imported =
       ctx->type_info()->GetImported(import);
   XLS_RET_CHECK(imported.has_value());
 
@@ -327,7 +327,7 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
     // Verify that the initial 'next' args match the next fn's param types.
     const std::vector<Param*> next_params = proc->next()->params();
     for (int i = 0; i < test_proc->next_args().size(); i++) {
-      absl::optional<ConcreteType*> param_type =
+      std::optional<ConcreteType*> param_type =
           type_info->GetItem(next_params[i + 1]);
       if (!param_type.has_value()) {
         return absl::InternalError(absl::StrCat(
@@ -440,7 +440,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_RETURN_IF_ERROR(CheckFunction(f, ctx));
     scoped.Finish();
 
-    absl::optional<const ConcreteType*> quickcheck_f_body_type =
+    std::optional<const ConcreteType*> quickcheck_f_body_type =
         ctx->type_info()->GetItem(f->body());
     XLS_RET_CHECK(quickcheck_f_body_type.has_value());
     auto u1 = BitsType::MakeU1();
@@ -635,7 +635,7 @@ absl::Status CheckFunction(Function* f, DeduceCtx* ctx) {
   // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
   // guarantee we did consider and make a note for every function -- the code
   // is generally complex enough it's nice to have this soundness check.
-  if (absl::optional<bool> requires_token =
+  if (std::optional<bool> requires_token =
           ctx->type_info()->GetRequiresImplicitToken(f);
       !requires_token.has_value()) {
     ctx->type_info()->NoteRequiresImplicitToken(f, false);
@@ -805,7 +805,7 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   // NoteRequiresImplicitToken() be false unless otherwise noted, this helps
   // guarantee we did consider and make a note for every function -- the code
   // is generally complex enough it's nice to have this soundness check.
-  if (absl::optional<bool> requires_token =
+  if (std::optional<bool> requires_token =
           ctx->type_info()->GetRequiresImplicitToken(callee_fn);
       !requires_token.has_value()) {
     ctx->type_info()->NoteRequiresImplicitToken(callee_fn, false);
@@ -837,7 +837,7 @@ absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
   return type_info;
 }
 
-absl::StatusOr<absl::optional<BuiltinType>> GetAsBuiltinType(
+absl::StatusOr<std::optional<BuiltinType>> GetAsBuiltinType(
     Module* module, TypeInfo* type_info, ImportData* import_data,
     const TypeAnnotation* type) {
   if (auto* builtin_type = dynamic_cast<const BuiltinTypeAnnotation*>(type)) {

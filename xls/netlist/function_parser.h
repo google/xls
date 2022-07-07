@@ -54,7 +54,7 @@ class Token {
   static Token Simple(Kind kind, int64_t pos);
 
   Token(Kind kind, int64_t pos,
-        absl::optional<std::string> payload = absl::nullopt)
+        std::optional<std::string> payload = absl::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
   Kind kind() { return kind_; }
@@ -64,7 +64,7 @@ class Token {
  private:
   Kind kind_;
   int64_t pos_;
-  absl::optional<std::string> payload_;
+  std::optional<std::string> payload_;
 };
 
 // Scans a function attribute and returns the component tokens.
@@ -94,7 +94,7 @@ class Scanner {
 
   std::string function_;
   // Set if we've peeked @ a token. Calling Pop() will clear it.
-  absl::optional<Token> peeked_;
+  std::optional<Token> peeked_;
   int64_t current_pos_;
 };
 

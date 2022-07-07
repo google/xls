@@ -54,14 +54,14 @@ class FnStackEntry {
   const SymbolicBindings& symbolic_bindings() const {
     return symbolic_bindings_;
   }
-  absl::optional<const Invocation*> invocation() { return invocation_; }
+  std::optional<const Invocation*> invocation() { return invocation_; }
 
   bool operator!=(nullptr_t) const { return f_ != nullptr; }
 
  private:
   FnStackEntry(Function* f, std::string name, Module* module,
                SymbolicBindings symbolic_bindings,
-               absl::optional<const Invocation*> invocation)
+               std::optional<const Invocation*> invocation)
       : f_(f),
         name_(name),
         module_(module),
@@ -76,7 +76,7 @@ class FnStackEntry {
   std::string name_;
   const Module* module_;
   SymbolicBindings symbolic_bindings_;
-  absl::optional<const Invocation*> invocation_;
+  std::optional<const Invocation*> invocation_;
 };
 
 class DeduceCtx;  // Forward decl.
@@ -155,7 +155,7 @@ class DeduceCtx {
 
   // Pops an entry from the stack of functions currently being deduced and
   // returns it, conceptually the inverse of AddFnStackEntry().
-  absl::optional<FnStackEntry> PopFnStackEntry() {
+  std::optional<FnStackEntry> PopFnStackEntry() {
     if (fn_stack_.empty()) {
       return absl::nullopt;
     }

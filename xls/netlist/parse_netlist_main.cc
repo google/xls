@@ -28,7 +28,7 @@ namespace xls {
 namespace {
 
 absl::Status RealMain(absl::string_view netlist_path,
-                      absl::optional<absl::string_view> cell_library_path) {
+                      std::optional<absl::string_view> cell_library_path) {
   netlist::CellLibrary cell_library;
   if (cell_library_path) {
     XLS_ASSIGN_OR_RETURN(
@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
-  absl::optional<std::string_view> cell_library_path;
+  std::optional<std::string_view> cell_library_path;
   if (positional_arguments.size() == 2) {
     cell_library_path = positional_arguments[1];
   }

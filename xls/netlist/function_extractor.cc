@@ -168,7 +168,7 @@ absl::Status ExtractFromPin(const cell_lib::Block& pin,
   // I've yet to see an example where this isn't the case.
   std::string name = pin.args[0];
 
-  absl::optional<bool> is_output;
+  std::optional<bool> is_output;
   std::string function;
   for (const cell_lib::BlockEntry& entry : pin.entries) {
     const auto* kv_entry = absl::get_if<cell_lib::KVEntry>(&entry);

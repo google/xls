@@ -30,11 +30,11 @@ class BytecodeCache : public BytecodeCacheInterface {
   BytecodeCache(ImportData* import_data);
   absl::StatusOr<BytecodeFunction*> GetOrCreateBytecodeFunction(
       const Function* f, const TypeInfo* type_info,
-      const absl::optional<SymbolicBindings>& caller_bindings) override;
+      const std::optional<SymbolicBindings>& caller_bindings) override;
 
  private:
   using Key = std::tuple<const Function*, const TypeInfo*,
-                         absl::optional<SymbolicBindings>>;
+                         std::optional<SymbolicBindings>>;
 
   ImportData* import_data_;
   absl::flat_hash_map<Key, std::unique_ptr<BytecodeFunction>> cache_;

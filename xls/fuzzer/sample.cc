@@ -156,7 +156,7 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
 
 /* static */ absl::StatusOr<Sample> Sample::Deserialize(absl::string_view s) {
   s = absl::StripAsciiWhitespace(s);
-  absl::optional<SampleOptions> options;
+  std::optional<SampleOptions> options;
   std::vector<std::vector<InterpValue>> args_batch;
   std::vector<absl::string_view> input_lines;
   for (absl::string_view line : absl::StrSplit(s, '\n')) {

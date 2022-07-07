@@ -207,7 +207,7 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
     return absl::get<InterpValue>(value_).GetBitValueInt64();
   }
 
-  absl::optional<InterpValue> maybe_value = parametric().const_value();
+  std::optional<InterpValue> maybe_value = parametric().const_value();
   if (maybe_value.has_value()) {
     InterpValue value = maybe_value.value();
     if (value.IsBits()) {
@@ -338,7 +338,7 @@ absl::StatusOr<int64_t> StructType::GetMemberIndex(
   return std::distance(names.begin(), it);
 }
 
-absl::optional<const ConcreteType*> StructType::GetMemberTypeByName(
+std::optional<const ConcreteType*> StructType::GetMemberTypeByName(
     absl::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
@@ -636,7 +636,7 @@ absl::StatusOr<bool> IsSigned(const ConcreteType& c) {
     return bits->is_signed();
   }
   if (auto* enum_type = dynamic_cast<const EnumType*>(&c)) {
-    absl::optional<bool> signedness = enum_type->signedness();
+    std::optional<bool> signedness = enum_type->signedness();
     if (!signedness.has_value()) {
       return absl::InvalidArgumentError(
           "Signedness not present for EnumType: " + c.ToString());

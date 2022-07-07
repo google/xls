@@ -61,12 +61,12 @@ class CodegenOptions {
   // TODO(meheff): 2021/04/21 As this is required, perhaps this should be made a
   // constructor argument.
   CodegenOptions& entry(absl::string_view name);
-  absl::optional<absl::string_view> entry() const { return entry_; }
+  std::optional<absl::string_view> entry() const { return entry_; }
 
   // Name to use for the generated module. If not given, the name of the XLS
   // function/proc is used.
   CodegenOptions& module_name(absl::string_view name);
-  const absl::optional<std::string_view> module_name() const {
+  const std::optional<std::string_view> module_name() const {
     return module_name_;
   }
 
@@ -74,25 +74,25 @@ class CodegenOptions {
   // proc contains any registers with initial values.
   CodegenOptions& reset(absl::string_view name, bool asynchronous,
                         bool active_low, bool reset_data_path);
-  const absl::optional<ResetProto>& reset() const { return reset_proto_; }
+  const std::optional<ResetProto>& reset() const { return reset_proto_; }
 
   // Specifies manual pipeline register load-enable control.
   CodegenOptions& manual_control(absl::string_view input_name);
-  absl::optional<ManualPipelineControl> manual_control() const;
+  std::optional<ManualPipelineControl> manual_control() const;
 
   // Specifies pipeline register load-enable controlled by a valid signal.
   CodegenOptions& valid_control(absl::string_view input_name,
-                                absl::optional<absl::string_view> output_name);
-  absl::optional<ValidProto> valid_control() const;
+                                std::optional<absl::string_view> output_name);
+  std::optional<ValidProto> valid_control() const;
 
   // Returns the proto describing the pipeline control scheme.
-  const absl::optional<PipelineControl>& control() const {
+  const std::optional<PipelineControl>& control() const {
     return pipeline_control_;
   }
 
   // Name of the clock signal. Required if the block has any registers.
   CodegenOptions& clock_name(absl::string_view clock_name);
-  absl::optional<absl::string_view> clock_name() const { return clock_name_; }
+  std::optional<absl::string_view> clock_name() const { return clock_name_; }
 
   // Whether to use SystemVerilog in the generated code otherwise Verilog is
   // used. The default is to use SystemVerilog.
@@ -168,7 +168,7 @@ class CodegenOptions {
   //
   //    my_label: `MY_ASSERT(foo < 8'h42, "Oh noes!");
   CodegenOptions& assert_format(absl::string_view value);
-  absl::optional<absl::string_view> assert_format() const {
+  std::optional<absl::string_view> assert_format() const {
     return assert_format_;
   }
 
@@ -205,7 +205,7 @@ class CodegenOptions {
   //   wire the_result [31:0];
   //   assign the_result = {32{the_cond}} & the_data;
   CodegenOptions& gate_format(absl::string_view value);
-  absl::optional<absl::string_view> gate_format() const { return gate_format_; }
+  std::optional<absl::string_view> gate_format() const { return gate_format_; }
 
   // Emit the signal declarations and logic in the Verilog as a sequence of
   // pipeline stages separated by per-stage comment headers. The option does not
@@ -253,11 +253,11 @@ class CodegenOptions {
   }
 
  private:
-  absl::optional<std::string> entry_;
-  absl::optional<std::string> module_name_;
-  absl::optional<ResetProto> reset_proto_;
-  absl::optional<PipelineControl> pipeline_control_;
-  absl::optional<std::string> clock_name_;
+  std::optional<std::string> entry_;
+  std::optional<std::string> module_name_;
+  std::optional<ResetProto> reset_proto_;
+  std::optional<PipelineControl> pipeline_control_;
+  std::optional<std::string> clock_name_;
   bool use_system_verilog_ = true;
   bool separate_lines_ = false;
   bool flop_inputs_ = false;
@@ -267,8 +267,8 @@ class CodegenOptions {
   bool split_outputs_ = false;
   bool add_idle_output_ = false;
   bool flop_single_value_channels_ = false;
-  absl::optional<std::string> assert_format_;
-  absl::optional<std::string> gate_format_;
+  std::optional<std::string> assert_format_;
+  std::optional<std::string> gate_format_;
   bool emit_as_pipeline_ = false;
   std::string streaming_channel_data_suffix_ = "";
   std::string streaming_channel_ready_suffix_ = "_rdy";

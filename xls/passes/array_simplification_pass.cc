@@ -555,7 +555,7 @@ absl::StatusOr<bool> SimplifyArrayUpdate(ArrayUpdate* array_update,
 // kArray op which gathers the elements written into the array. Returns a vector
 // of the optimized away update operations or nullopt is no optimization was
 // performed.
-absl::StatusOr<absl::optional<std::vector<ArrayUpdate*>>>
+absl::StatusOr<std::optional<std::vector<ArrayUpdate*>>>
 FlattenArrayUpdateChain(ArrayUpdate* array_update,
                         const QueryEngine& query_engine) {
   // Identify cases where an array is constructed via a sequence of array update
@@ -576,7 +576,7 @@ FlattenArrayUpdateChain(ArrayUpdate* array_update,
   // Walk up the chain of array updates.
   ArrayUpdate* current = array_update;
   Node* source_array = nullptr;
-  absl::optional<absl::Span<Node* const>> common_index_prefix;
+  std::optional<absl::Span<Node* const>> common_index_prefix;
   std::vector<ArrayUpdate*> update_chain;
   while (true) {
     if (!current->indices().back()->Is<Literal>()) {
@@ -680,7 +680,7 @@ absl::StatusOr<bool> FlattenSequentialUpdates(FunctionBase* func) {
       continue;
     }
     XLS_ASSIGN_OR_RETURN(
-        absl::optional<std::vector<ArrayUpdate*>> flattened_vec,
+        std::optional<std::vector<ArrayUpdate*>> flattened_vec,
         FlattenArrayUpdateChain(array_update, query_engine));
     if (flattened_vec.has_value()) {
       changed = true;
@@ -707,7 +707,7 @@ absl::StatusOr<bool> SimplifyArray(Array* array,
   //   ArrayIndex(A, {i, j})
   //
   Node* origin_array = nullptr;
-  absl::optional<std::vector<Node*>> common_index_prefix;
+  std::optional<std::vector<Node*>> common_index_prefix;
   for (int64_t i = 0; i < array->operand_count(); ++i) {
     if (!array->operand(i)->Is<ArrayIndex>()) {
       return false;

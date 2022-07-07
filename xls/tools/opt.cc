@@ -37,7 +37,7 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
   if (!options.entry.empty()) {
     XLS_RETURN_IF_ERROR(package->SetTopByName(options.entry));
   }
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));

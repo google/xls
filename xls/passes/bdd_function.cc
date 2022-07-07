@@ -256,7 +256,7 @@ bool ShouldEvaluate(Node* node) {
 
 /* static */ absl::StatusOr<std::unique_ptr<BddFunction>> BddFunction::Run(
     FunctionBase* f, int64_t path_limit,
-    absl::optional<std::function<bool(const Node*)>> node_filter) {
+    std::optional<std::function<bool(const Node*)>> node_filter) {
   XLS_VLOG(1) << absl::StreamFormat("BddFunction::Run(%s):", f->name());
   XLS_VLOG_LINES(5, f->DumpIr());
 

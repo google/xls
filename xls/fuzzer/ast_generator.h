@@ -57,7 +57,7 @@ struct AstGeneratorOptions {
 
   // The set of binary ops (arithmetic and bitwise ops excepting shifts) to
   // generate. For example: add, and, mul, etc.
-  absl::optional<absl::btree_set<BinopKind>> binop_allowlist = absl::nullopt;
+  std::optional<absl::btree_set<BinopKind>> binop_allowlist = absl::nullopt;
 
   // If true, then generated samples that have fewer operations.
   bool short_samples = false;
@@ -154,12 +154,12 @@ class AstGenerator {
   // parameters.
   absl::StatusOr<Function*> GenerateFunction(
       std::string name, int64_t call_depth = 0,
-      absl::optional<absl::Span<TypeAnnotation* const>> param_types =
+      std::optional<absl::Span<TypeAnnotation* const>> param_types =
           absl::nullopt);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
-  absl::optional<TypedExpr> ChooseEnvValueOptional(
+  std::optional<TypedExpr> ChooseEnvValueOptional(
       Env* env, std::function<bool(const TypedExpr&)> take = nullptr);
 
   absl::StatusOr<TypedExpr> ChooseEnvValue(
@@ -178,7 +178,7 @@ class AstGenerator {
 
   // Returns a random bits-types value from the environment.
   absl::StatusOr<TypedExpr> ChooseEnvValueBits(
-      Env* env, absl::optional<int64_t> bit_count = absl::nullopt) {
+      Env* env, std::optional<int64_t> bit_count = absl::nullopt) {
     auto is_bits = [&](const TypedExpr& e) -> bool {
       return IsBits(e.type) &&
              !(bit_count.has_value() || GetTypeBitCount(e.type) == bit_count);
@@ -190,7 +190,7 @@ class AstGenerator {
   // returned values will have the same type potentially by coercing a value to
   // match the type of the other by truncation or zero-extension.
   absl::StatusOr<std::pair<TypedExpr, TypedExpr>> ChooseEnvValueBitsPair(
-      Env* env, absl::optional<int64_t> bit_count = absl::nullopt);
+      Env* env, std::optional<int64_t> bit_count = absl::nullopt);
 
   absl::StatusOr<TypedExpr> ChooseEnvValueUBits(Env* env) {
     auto is_ubits = [&](const TypedExpr& e) -> bool { return IsUBits(e.type); };
@@ -318,7 +318,7 @@ class AstGenerator {
 
   // Generates a number AST node with its associated type.
   TypedExpr GenerateNumber(
-      absl::optional<BitsAndSignedness> bas = absl::nullopt);
+      std::optional<BitsAndSignedness> bas = absl::nullopt);
 
   // Generates an invocation of the map builtin.
   absl::StatusOr<TypedExpr> GenerateMap(int64_t call_depth, Env* env);
@@ -451,7 +451,7 @@ class AstGenerator {
   // Gets-or-creates a top level constant with the given value, using the
   // minimum number of bits required to make that constant.
   ConstRef* GetOrCreateConstRef(
-      int64_t value, absl::optional<int64_t> want_width = absl::nullopt);
+      int64_t value, std::optional<int64_t> want_width = absl::nullopt);
 
   template <typename T>
   T RandomSetChoice(const absl::btree_set<T>& choices) {

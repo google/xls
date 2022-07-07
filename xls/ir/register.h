@@ -34,12 +34,12 @@ class RegisterWrite;
 // contained in and owned by Blocks and lower to registers in Verilog.
 class Register {
  public:
-  Register(absl::string_view name, Type* type, absl::optional<Reset> reset)
+  Register(absl::string_view name, Type* type, std::optional<Reset> reset)
       : name_(name), type_(type), reset_(std::move(reset)) {}
 
   const std::string& name() const { return name_; }
   Type* type() const { return type_; }
-  const absl::optional<Reset>& reset() const { return reset_; }
+  const std::optional<Reset>& reset() const { return reset_; }
 
   std::string ToString() const;
 
@@ -51,7 +51,7 @@ class Register {
 
   std::string name_;
   Type* type_;
-  absl::optional<Reset> reset_;
+  std::optional<Reset> reset_;
 };
 
 }  // namespace xls

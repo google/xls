@@ -178,7 +178,7 @@ absl::Status RunOptimizationAndPrintStats(Package* package) {
 absl::Status PrintCriticalPath(
     FunctionBase* f, const QueryEngine& query_engine,
     const DelayEstimator& delay_estimator,
-    absl::optional<int64_t> effective_clock_period_ps) {
+    std::optional<int64_t> effective_clock_period_ps) {
   XLS_ASSIGN_OR_RETURN(
       std::vector<CriticalPathEntry> critical_path,
       AnalyzeCriticalPath(f, effective_clock_period_ps, delay_estimator));
@@ -267,9 +267,9 @@ absl::StatusOr<std::vector<int64_t>> GetDelayPerStageInPs(
 
 absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     Package* package, const DelayEstimator& delay_estimator,
-    absl::optional<int64_t> clock_period_ps,
-    absl::optional<int64_t> pipeline_stages,
-    absl::optional<int64_t> clock_margin_percent) {
+    std::optional<int64_t> clock_period_ps,
+    std::optional<int64_t> pipeline_stages,
+    std::optional<int64_t> clock_margin_percent) {
   SchedulingOptions options;
   if (clock_period_ps.has_value()) {
     options.clock_period_ps(*clock_period_ps);
@@ -281,7 +281,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
     options.clock_margin_percent(*clock_margin_percent);
   }
 
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
@@ -300,7 +300,7 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
 absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
                               const BddQueryEngine& bdd_query_engine,
                               const DelayEstimator& delay_estimator,
-                              absl::optional<int64_t> clock_period_ps) {
+                              std::optional<int64_t> clock_period_ps) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult codegen_result,
                        verilog::ToPipelineModuleText(
@@ -450,9 +450,9 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
 }
 
 absl::Status RealMain(absl::string_view path,
-                      absl::optional<int64_t> clock_period_ps,
-                      absl::optional<int64_t> pipeline_stages,
-                      absl::optional<int64_t> clock_margin_percent) {
+                      std::optional<int64_t> clock_period_ps,
+                      std::optional<int64_t> pipeline_stages,
+                      std::optional<int64_t> clock_margin_percent) {
   XLS_VLOG(1) << "Reading contents at path: " << path;
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -462,7 +462,7 @@ absl::Status RealMain(absl::string_view path,
   }
 
   XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
-  absl::optional<FunctionBase*> top = package->GetTop();
+  std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
@@ -472,7 +472,7 @@ absl::Status RealMain(absl::string_view path,
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);
 
-  absl::optional<int64_t> effective_clock_period_ps;
+  std::optional<int64_t> effective_clock_period_ps;
   if (clock_period_ps.has_value()) {
     effective_clock_period_ps = *clock_period_ps;
     if (clock_margin_percent.has_value()) {
@@ -518,15 +518,15 @@ int main(int argc, char** argv) {
                     << " <ir_path>";
   }
 
-  absl::optional<int64_t> clock_period_ps;
+  std::optional<int64_t> clock_period_ps;
   if (absl::GetFlag(FLAGS_clock_period_ps) > 0) {
     clock_period_ps = absl::GetFlag(FLAGS_clock_period_ps);
   }
-  absl::optional<int64_t> pipeline_stages;
+  std::optional<int64_t> pipeline_stages;
   if (absl::GetFlag(FLAGS_pipeline_stages) > 0) {
     pipeline_stages = absl::GetFlag(FLAGS_pipeline_stages);
   }
-  absl::optional<int64_t> clock_margin_percent;
+  std::optional<int64_t> clock_margin_percent;
   if (absl::GetFlag(FLAGS_clock_margin_percent) > 0) {
     clock_margin_percent = absl::GetFlag(FLAGS_clock_margin_percent);
   }

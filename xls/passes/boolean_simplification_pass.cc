@@ -37,7 +37,7 @@ constexpr int64_t kMaxFrontierNodes = 3;
 namespace internal {
 
 TruthTable::TruthTable(const Bits& xyz_present, const Bits& xyz_negated,
-                       absl::optional<Op> logical_op)
+                       std::optional<Op> logical_op)
     : xyz_present_(xyz_present),
       xyz_negated_(xyz_negated),
       logical_op_(logical_op) {

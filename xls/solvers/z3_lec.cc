@@ -40,7 +40,7 @@ using netlist::rtl::NetRef;
 namespace {
 
 // Returns true if we're checking a single pipeline stage.
-bool CheckingSingleStage(absl::optional<PipelineSchedule> schedule,
+bool CheckingSingleStage(std::optional<PipelineSchedule> schedule,
                          int32_t stage) {
   return schedule && stage != -1;
 }
@@ -68,7 +68,7 @@ absl::StatusOr<std::unique_ptr<Lec>> Lec::CreateForStage(
 
 Lec::Lec(Package* ir_package, Function* ir_function, Netlist* netlist,
          const std::string& netlist_module_name,
-         absl::optional<PipelineSchedule> schedule, int stage)
+         std::optional<PipelineSchedule> schedule, int stage)
     : ir_package_(ir_package),
       ir_function_(ir_function),
       netlist_(netlist),
@@ -203,7 +203,7 @@ absl::StatusOr<std::vector<NetRef>> Lec::GetIrNetrefs(const Node* node) {
   // UnflattenNetlistOutputs() (WRT FlattenNetlistInputs()).
   for (int i = node->GetType()->GetFlatBitCount() - 1; i >= 0; i--) {
     // "bit_index" identifies individual wires part of a multi-bit IR value.
-    absl::optional<int> bit_index;
+    std::optional<int> bit_index;
     if (node->GetType()->GetFlatBitCount() > 1) {
       bit_index = i;
     }
@@ -472,7 +472,7 @@ void Lec::MarkDontCareBits(const std::vector<Z3_ast>& nl_bits,
 
 // Bit 1 of the 3-bit IR node foo.123 in stage 3 is present as p3_foo_123_1_.
 std::string Lec::NodeToNetlistName(const Node* node,
-                                   absl::optional<int> bit_index,
+                                   std::optional<int> bit_index,
                                    bool is_cell) {
   std::string name = verilog::SanitizeIdentifier(node->GetName());
   for (char& c : name) {

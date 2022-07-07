@@ -111,15 +111,15 @@ struct type_caster<absl::string_view> : string_caster<absl::string_view, true> {
 };
 #endif
 
-// Convert between absl::optional and python.
+// Convert between std::optional and python.
 //
-// pybind11 supports std::optional, and absl::optional is meant to be a
+// pybind11 supports std::optional, and std::optional is meant to be a
 // drop-in replacement for std::optional, so we can just use the built in
 // implementation.
 #ifndef ABSL_USES_STD_OPTIONAL
 template <typename T>
-struct type_caster<absl::optional<T>>
-    : public optional_caster<absl::optional<T>> {};
+struct type_caster<std::optional<T>>
+    : public optional_caster<std::optional<T>> {};
 template <>
 struct type_caster<absl::nullopt_t> : public void_caster<absl::nullopt_t> {};
 #endif

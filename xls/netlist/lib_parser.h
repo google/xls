@@ -142,7 +142,7 @@ class CharStream {
   // We have both ifstream mode and text mode data, we store both inline.
 
   // ifstream mode
-  absl::optional<std::ifstream> if_;
+  std::optional<std::ifstream> if_;
 
   // text mode
   std::string text_;
@@ -180,7 +180,7 @@ class Token {
   static Token Simple(Pos pos, TokenKind kind) { return Token(kind, pos); }
 
   Token(TokenKind kind, Pos pos,
-        absl::optional<std::string> payload = absl::nullopt)
+        std::optional<std::string> payload = absl::nullopt)
       : kind_(kind), pos_(pos), payload_(payload) {}
 
   std::string ToString() const {
@@ -197,7 +197,7 @@ class Token {
  private:
   TokenKind kind_;
   Pos pos_;
-  absl::optional<std::string> payload_;
+  std::optional<std::string> payload_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Token& token) {
@@ -281,7 +281,7 @@ class Scanner {
   // Peeks at a token and populates it as lookahead_.
   absl::Status PeekInternal();
 
-  absl::optional<Token> lookahead_;
+  std::optional<Token> lookahead_;
   CharStream* cs_;
 };
 
@@ -340,7 +340,7 @@ struct Block {
   // If target_kind is provided it is used as a filter (the only blocks returned
   // have subblock->kind == target_kind).
   std::vector<const Block*> GetSubBlocks(
-      absl::optional<absl::string_view> target_kind = absl::nullopt) const;
+      std::optional<absl::string_view> target_kind = absl::nullopt) const;
 
   // Retrieves the first key/value pair in this block that corresponds to
   // target_key.
@@ -361,7 +361,7 @@ class Parser {
  public:
   // See comment on kind_allowlist_ member below for details.
   explicit Parser(Scanner* scanner,
-                  absl::optional<absl::flat_hash_set<std::string>>
+                  std::optional<absl::flat_hash_set<std::string>>
                       kind_allowlist = absl::nullopt)
       : scanner_(scanner), kind_allowlist_(std::move(kind_allowlist)) {}
 
@@ -408,7 +408,7 @@ class Parser {
   //
   // This is very useful for minimizing memory usage when we're interested in
   // just a subset of particular fields, e.g. as part of a query.
-  absl::optional<absl::flat_hash_set<std::string>> kind_allowlist_;
+  std::optional<absl::flat_hash_set<std::string>> kind_allowlist_;
 };
 
 }  // namespace cell_lib

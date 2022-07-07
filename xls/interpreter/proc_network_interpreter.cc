@@ -66,7 +66,7 @@ absl::Status ProcNetworkInterpreter::Tick() {
 
 absl::StatusOr<int64_t> ProcNetworkInterpreter::TickUntilOutput(
     absl::flat_hash_map<Channel*, int64_t> output_counts,
-    absl::optional<int64_t> max_ticks) {
+    std::optional<int64_t> max_ticks) {
   XLS_VLOG(3) << absl::StreamFormat("TickUntilOutput on package %s",
                                     package_->name());
   // Create a deterministically sorted vector of the output channels for
@@ -122,7 +122,7 @@ absl::StatusOr<int64_t> ProcNetworkInterpreter::TickUntilOutput(
 }
 
 absl::StatusOr<int64_t> ProcNetworkInterpreter::TickUntilBlocked(
-    absl::optional<int64_t> max_ticks) {
+    std::optional<int64_t> max_ticks) {
   XLS_VLOG(3) << absl::StreamFormat("TickUntilBlocked on package %s",
                                     package_->name());
   int64_t ticks = 0;

@@ -163,7 +163,7 @@ absl::StatusOr<bool> SparsifySelectPass::RunOnFunctionBaseInternal(
       Node* selector = select->selector();
       IntervalSetTree selector_ist = engine.GetIntervalSetTree(selector);
       IntervalSet selector_intervals = selector_ist.Get({});
-      if (absl::optional<int64_t> size = selector_intervals.Size()) {
+      if (std::optional<int64_t> size = selector_intervals.Size()) {
         if (size >= select->cases().size()) {
           continue;
         }

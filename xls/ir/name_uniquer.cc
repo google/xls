@@ -61,7 +61,7 @@ std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
   // avoids the possibility of a given prefix (e.g., prefix is "foo__42")
   // colliding with a uniquified name (e.g., GetSanitizedUniqueName("foo")
   // returns "foo__42")
-  absl::optional<int64_t> numeric_suffix;
+  std::optional<int64_t> numeric_suffix;
   size_t separator_index = root.rfind(separator_);
   if (separator_index != std::string::npos) {
     std::string suffix = root.substr(separator_index + separator_.size());

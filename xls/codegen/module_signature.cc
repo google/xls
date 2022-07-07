@@ -83,7 +83,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithUnknownInterface() {
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithPipelineInterface(
     int64_t latency, int64_t initiation_interval,
-    absl::optional<PipelineControl> pipeline_control) {
+    std::optional<PipelineControl> pipeline_control) {
   XLS_CHECK_EQ(proto_.interface_oneof_case(),
                ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   PipelineInterface* interface = proto_.mutable_pipeline();
@@ -144,8 +144,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
     absl::string_view name, ChannelOps supported_ops, FlowControl flow_control,
     std::optional<int64_t> fifo_depth, absl::string_view port_name,
-    absl::optional<absl::string_view> valid_port_name,
-    absl::optional<absl::string_view> ready_port_name) {
+    std::optional<absl::string_view> valid_port_name,
+    std::optional<absl::string_view> ready_port_name) {
   ChannelProto* channel = proto_.add_data_channels();
   channel->set_name(ToProtoString(name));
   channel->set_kind(CHANNEL_KIND_STREAMING);

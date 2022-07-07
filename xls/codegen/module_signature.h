@@ -63,7 +63,7 @@ class ModuleSignatureBuilder {
   // initiation interval.
   ModuleSignatureBuilder& WithPipelineInterface(
       int64_t latency, int64_t initiation_interval,
-      absl::optional<PipelineControl> pipeline_control = absl::nullopt);
+      std::optional<PipelineControl> pipeline_control = absl::nullopt);
 
   // Defines the module interface as purely combinational.
   ModuleSignatureBuilder& WithCombinationalInterface();
@@ -94,10 +94,10 @@ class ModuleSignatureBuilder {
       absl::string_view name, ChannelOps supported_ops,
       FlowControl flow_control, std::optional<int64_t> fifo_depth,
       absl::string_view port_name,
-      absl::optional<absl::string_view> valid_port_name =
-          absl::optional<absl::string_view>(),
-      absl::optional<absl::string_view> ready_port_name =
-          absl::optional<absl::string_view>());
+      std::optional<absl::string_view> valid_port_name =
+          std::optional<absl::string_view>(),
+      std::optional<absl::string_view> ready_port_name =
+          std::optional<absl::string_view>());
 
   absl::StatusOr<ModuleSignature> Build();
 

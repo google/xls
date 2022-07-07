@@ -35,7 +35,7 @@ PYBIND11_MODULE(ir_parser, m) {
       .def_static(
           "parse_package",
           [](absl::string_view input_string,
-             absl::optional<absl::string_view> filename)
+             std::optional<absl::string_view> filename)
               -> absl::StatusOr<PackageHolder> {
             XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                                  Parser::ParsePackage(input_string, filename));

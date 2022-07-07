@@ -64,7 +64,7 @@ absl::Status RealMain(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(Node * subject, f->GetNode(subject_node_name));
   absl::Duration timeout = absl::Milliseconds(timeout_ms);
 
-  absl::optional<Predicate> predicate;
+  std::optional<Predicate> predicate;
   if (predicate_kind == "eq_zero") {
     predicate = Predicate::EqualToZero();
   } else if (predicate_kind == "ne_zero") {

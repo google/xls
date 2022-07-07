@@ -40,7 +40,7 @@ class Frame {
   // For other cases, the BytecodeCache will own BytecodeFunction storage.
   Frame(BytecodeFunction* bf, std::vector<InterpValue> args,
         const TypeInfo* type_info,
-        const absl::optional<SymbolicBindings>& bindings,
+        const std::optional<SymbolicBindings>& bindings,
         std::vector<InterpValue> initial_args,
         std::unique_ptr<BytecodeFunction> bf_holder = nullptr);
 
@@ -50,7 +50,7 @@ class Frame {
   std::vector<InterpValue>& slots() { return slots_; }
   BytecodeFunction* bf() const { return bf_; }
   const TypeInfo* type_info() const { return type_info_; }
-  const absl::optional<SymbolicBindings>& bindings() const { return bindings_; }
+  const std::optional<SymbolicBindings>& bindings() const { return bindings_; }
   const std::vector<InterpValue>& initial_args() { return initial_args_; }
 
   void StoreSlot(Bytecode::SlotIndex slot_index, InterpValue value);
@@ -60,7 +60,7 @@ class Frame {
   std::vector<InterpValue> slots_;
   BytecodeFunction* bf_;
   const TypeInfo* type_info_;
-  absl::optional<SymbolicBindings> bindings_;
+  std::optional<SymbolicBindings> bindings_;
   std::vector<InterpValue> initial_args_;
 
   std::unique_ptr<BytecodeFunction> bf_holder_;
@@ -167,7 +167,7 @@ class BytecodeInterpreter {
           const InterpValue& lhs, const InterpValue& rhs)>& op);
   absl::StatusOr<BytecodeFunction*> GetBytecodeFn(
       Function* function, const Invocation* invocation,
-      const absl::optional<SymbolicBindings>& caller_bindings);
+      const std::optional<SymbolicBindings>& caller_bindings);
   absl::StatusOr<std::optional<int64_t>> EvalJumpRelIf(
       int64_t pc, const Bytecode& bytecode);
 
@@ -247,8 +247,8 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
   // obligatory Token; they're added to the arg list internally.
   static absl::Status EvalSpawnInternal(
       ImportData* import_data, const TypeInfo* type_info,
-      const absl::optional<SymbolicBindings>& bindings,
-      absl::optional<const Spawn*> maybe_spawn, Proc* proc,
+      const std::optional<SymbolicBindings>& bindings,
+      std::optional<const Spawn*> maybe_spawn, Proc* proc,
       const std::vector<InterpValue>& config_args,
       const std::vector<InterpValue>& next_args,
       std::vector<ProcInstance>* proc_instances);

@@ -111,14 +111,14 @@ class SchedulingOptions {
     clock_period_ps_ = value;
     return *this;
   }
-  absl::optional<int64_t> clock_period_ps() const { return clock_period_ps_; }
+  std::optional<int64_t> clock_period_ps() const { return clock_period_ps_; }
 
   // Sets/gets the target number of stages in the pipeline.
   SchedulingOptions& pipeline_stages(int64_t value) {
     pipeline_stages_ = value;
     return *this;
   }
-  absl::optional<int64_t> pipeline_stages() const { return pipeline_stages_; }
+  std::optional<int64_t> pipeline_stages() const { return pipeline_stages_; }
 
   // Sets/gets the percentage of clock period to set aside as a margin to ensure
   // timing is met. Effectively, this lowers the clock period by this percentage
@@ -127,7 +127,7 @@ class SchedulingOptions {
     clock_margin_percent_ = value;
     return *this;
   }
-  absl::optional<int64_t> clock_margin_percent() const {
+  std::optional<int64_t> clock_margin_percent() const {
     return clock_margin_percent_;
   }
 
@@ -138,7 +138,7 @@ class SchedulingOptions {
     period_relaxation_percent_ = value;
     return *this;
   }
-  absl::optional<int64_t> period_relaxation_percent() const {
+  std::optional<int64_t> period_relaxation_percent() const {
     return period_relaxation_percent_;
   }
 
@@ -150,7 +150,7 @@ class SchedulingOptions {
     additional_input_delay_ps_ = value;
     return *this;
   }
-  absl::optional<int64_t> additional_input_delay_ps() const {
+  std::optional<int64_t> additional_input_delay_ps() const {
     return additional_input_delay_ps_;
   }
 
@@ -168,17 +168,17 @@ class SchedulingOptions {
     seed_ = value;
     return *this;
   }
-  absl::optional<int32_t> seed() const { return seed_; }
+  std::optional<int32_t> seed() const { return seed_; }
 
  private:
   SchedulingStrategy strategy_;
-  absl::optional<int64_t> clock_period_ps_;
-  absl::optional<int64_t> pipeline_stages_;
-  absl::optional<int64_t> clock_margin_percent_;
-  absl::optional<int64_t> period_relaxation_percent_;
-  absl::optional<int64_t> additional_input_delay_ps_;
+  std::optional<int64_t> clock_period_ps_;
+  std::optional<int64_t> pipeline_stages_;
+  std::optional<int64_t> clock_margin_percent_;
+  std::optional<int64_t> period_relaxation_percent_;
+  std::optional<int64_t> additional_input_delay_ps_;
   std::vector<SchedulingConstraint> constraints_;
-  absl::optional<int32_t> seed_;
+  std::optional<int32_t> seed_;
 };
 
 // A map from node to cycle as a bare-bones representation of a schedule.
@@ -201,7 +201,7 @@ class PipelineSchedule {
   // length is not given, then the length equal to the largest cycle in cycle
   // map minus one.
   PipelineSchedule(FunctionBase* function_base, ScheduleCycleMap cycle_map,
-                   absl::optional<int64_t> length = absl::nullopt);
+                   std::optional<int64_t> length = absl::nullopt);
 
   FunctionBase* function_base() const { return function_base_; }
 

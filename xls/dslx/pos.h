@@ -128,7 +128,7 @@ inline std::ostream& operator<<(std::ostream& os, const Span& span) {
 }
 
 // Helper that allows conversion of optional Spans to strings.
-inline std::string SpanToString(const absl::optional<Span>& span) {
+inline std::string SpanToString(const std::optional<Span>& span) {
   if (!span.has_value()) {
     return "<no span>";
   }

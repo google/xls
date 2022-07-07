@@ -54,7 +54,7 @@ struct CriticalPathEntry {
 // The return value for the function (or recurrent state value of a proc) is at
 // the front of the returned vector.
 absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
-    FunctionBase* f, absl::optional<int64_t> clock_period_ps,
+    FunctionBase* f, std::optional<int64_t> clock_period_ps,
     const DelayEstimator& delay_estimator);
 
 // Returns a string representation of the critical-path. Includes delay
@@ -73,7 +73,7 @@ absl::StatusOr<std::vector<CriticalPathEntry>> AnalyzeCriticalPath(
 // printed on the line immediately after the critical path entry for that node.
 std::string CriticalPathToString(
     absl::Span<const CriticalPathEntry> critical_path,
-    absl::optional<std::function<std::string(Node*)>> extra_info =
+    std::optional<std::function<std::string(Node*)>> extra_info =
         absl::nullopt);
 
 }  // namespace xls

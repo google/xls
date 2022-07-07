@@ -37,7 +37,7 @@ struct RangeEquivalence {
 // function. If the equivalence `node` fields are not all the same, return
 // nullopt. If `complement` is true then the range is complemented before
 // returning.
-absl::optional<RangeEquivalence> ReduceEquivalence(
+std::optional<RangeEquivalence> ReduceEquivalence(
     Node* node, absl::Span<const RangeEquivalence> equivalences,
     std::function<IntervalSet(const IntervalSet&, const IntervalSet&)> reduce,
     bool complement) {
@@ -91,7 +91,7 @@ IntervalSet MakeUGtRange(const Bits& limit) {
 
 // Returns a range equivalence for node `node` or absl::nullopt if one cannot be
 // determined.
-absl::optional<RangeEquivalence> ComputeRangeEquivalence(
+std::optional<RangeEquivalence> ComputeRangeEquivalence(
     Node* node,
     const absl::flat_hash_map<Node*, RangeEquivalence>& equivalences) {
   if (!node->GetType()->IsBits() || node->BitCountOrDie() != 1) {
@@ -181,7 +181,7 @@ absl::optional<RangeEquivalence> ComputeRangeEquivalence(
 
 // If the given range corresponds to values over which ULt(x, C) holds then
 // return the constant `C`.
-absl::optional<Bits> GetULtInterval(const IntervalSet& range) {
+std::optional<Bits> GetULtInterval(const IntervalSet& range) {
   if (range.NumberOfIntervals() != 1) {
     return absl::nullopt;
   }
@@ -195,7 +195,7 @@ absl::optional<Bits> GetULtInterval(const IntervalSet& range) {
 
 // If the given range corresponds to values over which UGt(x, C) holds then
 // return the constant `C`.
-absl::optional<Bits> GetUGtInterval(const IntervalSet& range) {
+std::optional<Bits> GetUGtInterval(const IntervalSet& range) {
   if (range.NumberOfIntervals() != 1) {
     return absl::nullopt;
   }
@@ -225,7 +225,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
   XLS_VLOG(3) << absl::StreamFormat("Range equivalences for function `%s`:",
                                     f->name());
   for (Node* node : TopoSort(f)) {
-    absl::optional<RangeEquivalence> equivalence =
+    std::optional<RangeEquivalence> equivalence =
         ComputeRangeEquivalence(node, equivalences);
     if (!equivalence.has_value()) {
       XLS_VLOG(3) << absl::StreamFormat("  %s : <none>", node->GetName());
@@ -258,7 +258,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
       XLS_RETURN_IF_ERROR(
           node->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
       changed = true;
-    } else if (absl::optional<Bits> precise_value = range.GetPreciseValue();
+    } else if (std::optional<Bits> precise_value = range.GetPreciseValue();
                precise_value.has_value()) {
       // The range is a single value C. Replace `node` with Eq(x, C).
       if (node->op() == Op::kEq || node->op() == Op::kNe) {
@@ -272,7 +272,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                   equivalences.at(node).node, literal, Op::kEq)
                               .status());
       changed = true;
-    } else if (absl::optional<Bits> precise_value =
+    } else if (std::optional<Bits> precise_value =
                    IntervalSet::Complement(range).GetPreciseValue();
                precise_value.has_value()) {
       // The range is all values except a single value C. Replace `node` with
@@ -288,7 +288,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                   equivalences.at(node).node, literal, Op::kNe)
                               .status());
       changed = true;
-    } else if (absl::optional<Bits> limit = GetULtInterval(range);
+    } else if (std::optional<Bits> limit = GetULtInterval(range);
                limit.has_value()) {
       // The range is [0, C]. Replace `node` with ULt(x, C+1).
       if (node->Is<CompareOp>()) {
@@ -302,7 +302,7 @@ absl::StatusOr<bool> ComparisonSimplificationPass::RunOnFunctionBaseInternal(
                                   equivalences.at(node).node, literal, Op::kULt)
                               .status());
       changed = true;
-    } else if (absl::optional<Bits> limit = GetUGtInterval(range);
+    } else if (std::optional<Bits> limit = GetUGtInterval(range);
                limit.has_value()) {
       // The range is [C, MAX]. Replace `node` with UGt(x, C-1).
       if (node->Is<CompareOp>()) {

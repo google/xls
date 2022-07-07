@@ -266,7 +266,7 @@ class Node {
 
   // Adds an optional operand to the set of operands 'operands'. Updating user
   // links as with AddOperand.
-  void AddOptionalOperand(absl::optional<Node*> operand);
+  void AddOptionalOperand(std::optional<Node*> operand);
 
   // Adds the given node to this node's function and replaces this node's uses
   // with the node.

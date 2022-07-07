@@ -392,7 +392,7 @@ AbstractInterpreter<EvalT>::InterpretCell(
     const rtl::AbstractCell<EvalT>* cell,
     const AbstractNetRef2Value<EvalT>& inputs) {
   const AbstractCellLibraryEntry<EvalT>* entry = cell->cell_library_entry();
-  absl::optional<const rtl::AbstractModule<EvalT>*> opt_module =
+  std::optional<const rtl::AbstractModule<EvalT>*> opt_module =
       netlist_->MaybeGetModule(entry->name());
 
   AbstractNetRef2Value<EvalT> results;

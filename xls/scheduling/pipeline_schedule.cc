@@ -115,7 +115,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
   // Try a number of different orderings of cycle boundary at which the min-cut
   // is performed and keep the best one.
   int64_t best_register_count = std::numeric_limits<int64_t>::max();
-  absl::optional<sched::ScheduleBounds> best_bounds;
+  std::optional<sched::ScheduleBounds> best_bounds;
   for (const std::vector<int64_t>& cut_order :
        GetMinCutCycleOrders(pipeline_stages - 1)) {
     XLS_VLOG(3) << absl::StreamFormat("Trying cycle order: {%s}",
@@ -423,7 +423,7 @@ std::vector<Node*> FinalStageNodes(FunctionBase* f) {
 // maximum lower bound.
 absl::StatusOr<sched::ScheduleBounds> ConstructBounds(
     FunctionBase* f, int64_t clock_period_ps, std::vector<Node*> topo_sort,
-    absl::optional<int64_t> schedule_length,
+    std::optional<int64_t> schedule_length,
     const DelayEstimator& delay_estimator) {
   sched::ScheduleBounds bounds(f, std::move(topo_sort), clock_period_ps,
                                delay_estimator);
@@ -596,7 +596,7 @@ std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length) {
 
 PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
                                    ScheduleCycleMap cycle_map,
-                                   absl::optional<int64_t> length)
+                                   std::optional<int64_t> length)
     : function_base_(function_base), cycle_map_(std::move(cycle_map)) {
   // Build the mapping from cycle to the vector of nodes in that cycle.
   int64_t max_cycle = MaximumCycle(cycle_map_);

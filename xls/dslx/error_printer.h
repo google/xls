@@ -37,7 +37,7 @@ absl::Status PrintPositionalError(
     const Span& error_span, absl::string_view error_message, std::ostream& os,
     std::function<absl::StatusOr<std::string>(absl::string_view)>
         get_file_contents = nullptr,
-    absl::optional<bool> color = absl::nullopt,
+    std::optional<bool> color = absl::nullopt,
     int64_t error_context_line_count = 5);
 
 }  // namespace xls::dslx
