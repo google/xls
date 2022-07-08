@@ -1145,7 +1145,8 @@ class Translator {
       const clang::RecordDecl* sd);
 
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
-      const clang::QualType& t, const xls::SourceInfo& loc);
+      const clang::QualType& t, const xls::SourceInfo& loc,
+      bool allow_references = false);
   absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
                                                 const xls::SourceInfo& loc);
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstance(

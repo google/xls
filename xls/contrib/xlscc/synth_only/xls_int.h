@@ -597,7 +597,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return ret;                                                             \
   }                                                                         \
   template <int ToW, bool ToSign>                                           \
-  inline XlsInt &operator __OP##=(const XlsInt<ToW, ToSign> &o) {           \
+  inline XlsInt operator __OP##=(const XlsInt<ToW, ToSign> &o) {           \
     (*this) = (*this)__OP o;                                                \
     return (*this);                                                         \
   }
@@ -618,7 +618,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
     return ret;                                                                \
   }                                                                            \
   template <int ToW, bool ToSign>                                              \
-  inline XlsInt &operator __OP##=(const XlsInt<ToW, ToSign> &o) {              \
+  inline XlsInt operator __OP##=(const XlsInt<ToW, ToSign> &o) {              \
     (*this) = (*this)__OP o;                                                   \
     return (*this);                                                            \
   }

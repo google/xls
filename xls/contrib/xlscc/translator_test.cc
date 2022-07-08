@@ -2876,13 +2876,32 @@ TEST_F(TranslatorTest, ReferenceParameter) {
   Run({{"a", 3}}, 3 + 5 + 10, content);
 }
 
-TEST_F(TranslatorTest, ConstReferenceParameter) {
+TEST_F(TranslatorTest, ConstRefDecl) {
   const std::string content = R"(
-      int my_package(const int &a) {
-        return a + 10;
+      int my_package(int a) {
+        const int&x = a;
+        return x + 10;
       })";
 
-  Run({{"a", 3}}, 3 + 10, content);
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("References not supported in this context")));
+}
+
+TEST_F(TranslatorTest, LValueDecl) {
+  const std::string content = R"(
+      int my_package(int a) {
+        int&x = a;
+        return x + 10;
+      })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("References not supported in this context")));
 }
 
 TEST_F(TranslatorTest, Namespace) {
@@ -3297,7 +3316,7 @@ TEST_F(TranslatorTest, IOSaveChannel) {
       SourceToIr(content).status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Channel parameter reference unsupported")));
+          testing::HasSubstr("References not supported in this context")));
 }
 
 TEST_F(TranslatorTest, IOMixedOps) {
@@ -3350,7 +3369,7 @@ TEST_F(TranslatorTest, IOSaveChannelStruct) {
           .status(),
       xls::status_testing::StatusIs(
           absl::StatusCode::kUnimplemented,
-          testing::HasSubstr("Channel parameter reference unsupported")));
+          testing::HasSubstr("References not supported in this context")));
 }
 
 TEST_F(TranslatorTest, IOUnrolled) {

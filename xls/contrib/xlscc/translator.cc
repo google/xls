@@ -1161,10 +1161,10 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   // Unroll for loops in default function bodies without pragma
   context().for_loops_default_unroll = funcdecl->isDefaulted();
   context().outer_pipelined_loop_init_interval = default_init_interval_;
-
   XLS_ASSIGN_OR_RETURN(
       context().return_type,
-      TranslateTypeFromClang(funcdecl->getReturnType(), GetLoc(*funcdecl)));
+      TranslateTypeFromClang(funcdecl->getReturnType(), GetLoc(*funcdecl),
+                             /*allow_references=*/funcdecl->isDefaulted()));
 
   // If add_this_return is true, then a return value is added for the
   //  "this" object, pointed to be the "this" pointer in methods
@@ -1189,7 +1189,10 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
       const clang::QualType& q = thisQual->getPointeeOrArrayElementType()
                                      ->getCanonicalTypeUnqualified();
 
-      XLS_ASSIGN_OR_RETURN(auto thisctype, TranslateTypeFromClang(q, body_loc));
+      XLS_ASSIGN_OR_RETURN(
+          auto thisctype,
+          TranslateTypeFromClang(q, body_loc,
+                                 /*allow_references=*/funcdecl->isDefaulted()));
       XLS_ASSIGN_OR_RETURN(xls::Type * xls_type,
                            TranslateTypeToXLS(thisctype, body_loc));
 
@@ -1209,8 +1212,10 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
 
-    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> obj_type,
-                         TranslateTypeFromClang(stripped.base, GetLoc(*p)));
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<CType> obj_type,
+        TranslateTypeFromClang(stripped.base, GetLoc(*p),
+                               /*allow_references=*/funcdecl->isDefaulted()));
 
     xls::Type* xls_type = nullptr;
 
@@ -3061,7 +3066,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     retval = CValue(xls::BValue(), shared_ptr<CType>(new CVoidType()));
   } else {
     XLS_ASSIGN_OR_RETURN(
-        auto ctype, TranslateTypeFromClang(funcdecl->getReturnType(), loc));
+        auto ctype,
+        TranslateTypeFromClang(funcdecl->getReturnType(), loc,
+                               /*allow_references=*/funcdecl->isDefaulted()));
     XLS_CHECK(!unpacked_returns.empty());
     retval = CValue(unpacked_returns.front(), ctype);
     unpacked_returns.pop_front();
@@ -3078,8 +3085,10 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
-    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
-                         TranslateTypeFromClang(stripped.base, GetLoc(*p)));
+    XLS_ASSIGN_OR_RETURN(
+        shared_ptr<CType> ctype,
+        TranslateTypeFromClang(stripped.base, GetLoc(*p),
+                               /*allow_references=*/funcdecl->isDefaulted()));
 
     // Const references don't need a return
     if (stripped.is_ref && (!stripped.base.isConstQualified())) {
@@ -3712,8 +3721,7 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
                 array_t->GetElementType(),
                 clang_down_cast<const clang::InitListExpr*>(this_init), loc));
       } else {
-        XLS_ASSIGN_OR_RETURN(CValue expr_val,
-                              GenerateIR_Expr(this_init, loc));
+        XLS_ASSIGN_OR_RETURN(CValue expr_val, GenerateIR_Expr(this_init, loc));
         if (*expr_val.type() != *array_t->GetElementType()) {
           return absl::UnimplementedError(ErrorMessage(
               loc, "Wrong initializer type %s", string(*expr_val.type())));
@@ -5106,7 +5114,8 @@ absl::StatusOr<bool> Translator::EvaluateBool(
 }
 
 absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
-    const clang::QualType& t, const xls::SourceInfo& loc) {
+    const clang::QualType& t, const xls::SourceInfo& loc,
+    bool allow_references) {
   const clang::Type* type = t.getTypePtr();
 
   if (type->getTypeClass() == clang::Type::TypeClass::Builtin) {
@@ -5204,6 +5213,10 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
     auto dec = clang_down_cast<const clang::DecayedType*>(type);
     return TranslateTypeFromClang(dec->getOriginalType(), loc);
   } else if (type->getTypeClass() == clang::Type::TypeClass::LValueReference) {
+    if (!allow_references && !t.isConstQualified()) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "References not supported in this context"));
+    }
     // No pointer support
     auto lval = clang_down_cast<const clang::LValueReferenceType*>(type);
     return TranslateTypeFromClang(lval->getPointeeType(), loc);
@@ -5842,7 +5855,8 @@ absl::Status Translator::GenerateMetadataCPPName(
 absl::Status Translator::GenerateMetadataType(const clang::QualType& type_in,
                                               xlscc_metadata::Type* type_out) {
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       TranslateTypeFromClang(type_in, xls::SourceInfo()));
+                       TranslateTypeFromClang(type_in, xls::SourceInfo(),
+                                              /*allow_references=*/true));
   return ctype->GetMetadata(*this, type_out);
 }
 
