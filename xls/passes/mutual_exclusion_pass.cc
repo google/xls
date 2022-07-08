@@ -684,6 +684,8 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
   for (Node* node : to_merge) {
     args.push_back(node->As<Send>()->data());
   }
+  // OneHotSelect takes the cases in reverse order, confusingly
+  std::reverse(args.begin(), args.end());
 
   XLS_ASSIGN_OR_RETURN(Node * data,
                        f->MakeNode<OneHotSelect>(SourceInfo(), selector, args));

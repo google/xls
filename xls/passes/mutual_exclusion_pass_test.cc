@@ -20,6 +20,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
+#include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/passes/cse_pass.h"
 #include "xls/passes/dce_pass.h"
@@ -29,6 +30,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOkAndHolds;
+namespace m = ::xls::op_matchers;
 
 class SimplificationPass : public CompoundPass {
  public:
@@ -57,6 +59,20 @@ class MutualExclusionPassTest : public IrTestBase {
     return changed;
   }
 };
+
+absl::StatusOr<Node*> FindOp(FunctionBase* f, Op op) {
+  Node* result = nullptr;
+  for (Node* node : f->nodes()) {
+    if (node->op() == op) {
+      result = node;
+      break;
+    }
+  }
+  if (result == nullptr) {
+    return absl::InternalError("Could not find op");
+  }
+  return result;
+}
 
 int64_t NumberOfOp(FunctionBase* f, Op op) {
   int64_t result = 0;
@@ -90,6 +106,47 @@ TEST_F(MutualExclusionPassTest, TwoParallelSends) {
   EXPECT_THAT(Run(proc), IsOkAndHolds(true));
   EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
   XLS_EXPECT_OK(VerifyProc(proc, true));
+}
+
+TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p, ParsePackage(R"(
+     package test_module
+
+     chan test_channel(
+       bits[32], id=0, kind=streaming, ops=send_receive,
+       flow_control=ready_valid, metadata="""""")
+
+     top proc main(__token: token, __state: bits[2], init={0}) {
+       literal.1: bits[2] = literal(value=1)
+       add.2: bits[2] = add(literal.1, __state)
+       zero_ext.3: bits[32] = zero_ext(add.2, new_bit_count=32)
+       literal.4: bits[32] = literal(value=50)
+       literal.5: bits[32] = literal(value=60)
+       literal.6: bits[32] = literal(value=70)
+       eq.7: bits[1] = eq(zero_ext.3, literal.4)
+       eq.8: bits[1] = eq(zero_ext.3, literal.5)
+       eq.9: bits[1] = eq(zero_ext.3, literal.6)
+       send.10: token = send(__token, literal.4, predicate=eq.7, channel_id=0)
+       send.11: token = send(__token, literal.5, predicate=eq.8, channel_id=0)
+       send.12: token = send(__token, literal.6, predicate=eq.9, channel_id=0)
+       after_all.13: token = after_all(send.10, send.11, send.12)
+       next (after_all.13, add.2)
+     }
+  )"));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, p->GetTopAsProc());
+  EXPECT_THAT(Run(proc), IsOkAndHolds(true));
+  EXPECT_EQ(NumberOfOp(proc, Op::kSend), 1);
+  XLS_EXPECT_OK(VerifyProc(proc, true));
+  XLS_ASSERT_OK_AND_ASSIGN(Node * one_hot_select, FindOp(proc, Op::kOneHotSel));
+  EXPECT_THAT(
+      one_hot_select,
+      m::OneHotSelect(m::Concat(*proc->GetNode("eq.7"), *proc->GetNode("eq.8"),
+                                *proc->GetNode("eq.9")),
+                      {// Note the reversed order, because concat is
+                       // in diagrammatic order but one_hot_sel uses
+                       // little endian.
+                       *proc->GetNode("literal.6"), *proc->GetNode("literal.5"),
+                       *proc->GetNode("literal.4")}));
 }
 
 TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
