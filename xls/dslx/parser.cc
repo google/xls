@@ -59,10 +59,6 @@ class NameDefCollector : public AstNodeVisitorWithDefault {
 
   absl::Status HandleSpawn(const Spawn* n) { return n->body()->Accept(this); }
 
-  absl::Status HandleUnrollForMacro(const UnrollForMacro* n) {
-    return n->tail()->Accept(this);
-  }
-
   const std::vector<const NameDef*>& name_defs() { return name_defs_; }
 
  private:
@@ -350,7 +346,7 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
     return ParseFor(bindings);
   }
   if (peek->IsKeyword(Keyword::kUnrollFor)) {
-    return ParseUnrollForMacro(bindings);
+    return ParseUnrollFor(bindings);
   }
   if (peek->IsKeyword(Keyword::kChannel)) {
     return ParseChannelDecl(bindings);
@@ -2060,9 +2056,6 @@ absl::StatusOr<Let*> Parser::ParseLet(Bindings* bindings) {
 absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token for_, PopKeywordOrError(Keyword::kFor));
 
-  for_state_.push_back(ForState::kInNormalFor);
-  auto cleanup = absl::Cleanup([this]() { for_state_.pop_back(); });
-
   Bindings for_bindings(bindings);
   XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(&for_bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
@@ -2089,48 +2082,30 @@ absl::StatusOr<For*> Parser::ParseFor(Bindings* bindings) {
                             iterable, body, init);
 }
 
-absl::StatusOr<UnrollForMacro*> Parser::ParseUnrollForMacro(
-    Bindings* bindings) {
+absl::StatusOr<UnrollFor*> Parser::ParseUnrollFor(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token unroll_for,
                        PopKeywordOrError(Keyword::kUnrollFor));
-  for_state_.push_back(ForState::kInUnrollFor);
-  auto cleanup = absl::Cleanup([this]() { for_state_.pop_back(); });
 
   Bindings for_bindings(bindings);
-  XLS_ASSIGN_OR_RETURN(NameDef * iterable_name, ParseNameDef(&for_bindings));
+  XLS_ASSIGN_OR_RETURN(NameDefTree * names, ParseNameDefTree(&for_bindings));
   XLS_ASSIGN_OR_RETURN(bool peek_is_colon, PeekTokenIs(TokenKind::kColon));
-  TypeAnnotation* iterable_type = nullptr;
+  TypeAnnotation* types = nullptr;
   if (peek_is_colon) {
     XLS_RETURN_IF_ERROR(
         DropTokenOrError(TokenKind::kColon, nullptr,
                          "Expect type annotation on for-loop values."));
-    XLS_ASSIGN_OR_RETURN(iterable_type, ParseTypeAnnotation(&for_bindings));
+    XLS_ASSIGN_OR_RETURN(types, ParseTypeAnnotation(&for_bindings));
   }
 
   XLS_RETURN_IF_ERROR(DropKeywordOrError(Keyword::kIn));
   XLS_ASSIGN_OR_RETURN(Expr * iterable, ParseExpression(bindings));
-  // we don't want new bindings; how to
   XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&for_bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
+  XLS_ASSIGN_OR_RETURN(Expr * init, ParseExpression(bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
 
-  // The expressions in `tail` are allowed to refer to names declared in the
-  // body of the loop-to-unroll, which means we need to collect all names
-  // declared therein. Adding bindings tracking across all the parsing fns would
-  // be pretty hacky, so instead we use a custom Visitor to extract all NameDefs
-  // inside a Let/Spawn/UnrollForMacro chain.
-  NameDefCollector collector;
-  XLS_RETURN_IF_ERROR(body->Accept(&collector));
-  for (const NameDef* name_def : collector.name_defs()) {
-    for_bindings.Add(name_def->identifier(), name_def);
-  }
-
-  // We use `for_bindings` here instead of `bindings` because, unlike For
-  // parsing above, the values defined here will remain in scope after this
-  // construct.
-  XLS_ASSIGN_OR_RETURN(Expr * tail, ParseExpression(&for_bindings));
-
-  return module_->Make<UnrollForMacro>(
-      Span(unroll_for.span().limit(), GetPos()), iterable_name, iterable_type,
-      iterable, body, tail);
+  return module_->Make<UnrollFor>(Span(unroll_for.span().limit(), GetPos()),
+                                  names, types, iterable, body, init);
 }
 
 absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,

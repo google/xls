@@ -132,7 +132,7 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "parametric binding";
     case AstNodeKind::kTupleIndex:
       return "tuple index";
-    case AstNodeKind::kUnrollForMacro:
+    case AstNodeKind::kUnrollFor:
       return "unroll-for";
   }
   XLS_LOG(FATAL) << "Out-of-range AstNodeKind: " << static_cast<int>(kind);
@@ -526,32 +526,30 @@ std::string For::ToString() const {
                          init_->ToString());
 }
 
-UnrollForMacro::UnrollForMacro(Module* owner, Span span, NameDef* iterable_name,
-                               TypeAnnotation* iterable_type, Expr* iterable,
-                               Block* body, Expr* tail)
+UnrollFor::UnrollFor(Module* owner, Span span, NameDefTree* names,
+                     TypeAnnotation* types, Expr* iterable, Block* body,
+                     Expr* init)
     : Expr(owner, span),
-      iterable_name_(iterable_name),
-      iterable_type_(iterable_type),
+      names_(names),
+      types_(types),
       iterable_(iterable),
       body_(body),
-      tail_(tail) {}
+      init_(init) {}
 
-std::string UnrollForMacro::ToString() const {
+std::string UnrollFor::ToString() const {
   std::string type_str;
-  if (iterable_type_ != nullptr) {
-    type_str = absl::StrCat(": ", iterable_type_->ToString());
+  if (types_ != nullptr) {
+    type_str = absl::StrCat(": ", types_->ToString());
   }
-  return absl::StrFormat(
-      R"(unroll_for! %s%s in %s %s
-%s)",
-      iterable_name_->ToString(), type_str, iterable_->ToString(),
-      body_->ToString(), tail_->ToString());
+  return absl::StrFormat("unroll_for! %s%s in %s %s(%s)", names_->ToString(),
+                         type_str, iterable_->ToString(), body_->ToString(),
+                         init_->ToString());
 }
 
-std::vector<AstNode*> UnrollForMacro::GetChildren(bool want_types) const {
-  std::vector<AstNode*> children{iterable_name_, iterable_, body_};
-  if (want_types && iterable_type_ != nullptr) {
-    children.push_back(iterable_type_);
+std::vector<AstNode*> UnrollFor::GetChildren(bool want_types) const {
+  std::vector<AstNode*> children{names_, iterable_, body_, init_};
+  if (want_types && types_ != nullptr) {
+    children.push_back(types_);
   }
   return children;
 }

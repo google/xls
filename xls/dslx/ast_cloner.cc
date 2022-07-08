@@ -811,7 +811,7 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleUnrollForMacro(const UnrollForMacro* n) override {
+  absl::Status HandleUnrollFor(const UnrollFor* n) override {
     // TODO(rspringer): 2022-06-09: Implement.
     return absl::OkStatus();
   }

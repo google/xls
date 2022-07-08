@@ -1012,15 +1012,15 @@ TEST_F(ParserTest, BlockWithinBlock) {
   RoundTripExpr(kInput, {}, kOutput);
 }
 
-TEST_F(ParserTest, UnrollForMacro) {
+TEST_F(ParserTest, UnrollFor) {
   RoundTripExpr(
       R"(let bar = u32:0;
-unroll_for! i in range(u32:0, u32:4) {
+let res = unroll_for! (i, acc) in range(u32:0, u32:4) {
   let foo = (i) + (1);
   ()
-}
+}(u32:0);
 let baz = u32:0;
-foo)",
+res)",
       /*predefine=*/{"range"});
 }
 

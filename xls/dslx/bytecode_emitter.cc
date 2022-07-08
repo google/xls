@@ -176,7 +176,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(TypeRef);
   DEFAULT_HANDLER(TypeRefTypeAnnotation);
   DEFAULT_HANDLER(Unop);
-  DEFAULT_HANDLER(UnrollForMacro);
+  DEFAULT_HANDLER(UnrollFor);
   DEFAULT_HANDLER(WidthSlice);
   DEFAULT_HANDLER(WildcardPattern);
   DEFAULT_HANDLER(XlsTuple);
@@ -1180,9 +1180,9 @@ absl::Status BytecodeEmitter::HandleTernary(const Ternary* node) {
   return absl::OkStatus();
 }
 
-absl::Status BytecodeEmitter::HandleUnrollForMacro(const UnrollForMacro* node) {
+absl::Status BytecodeEmitter::HandleUnrollFor(const UnrollFor* node) {
   return absl::UnimplementedError(
-      "UnrollForMacro nodes aren't interpretable/emittable. "
+      "UnrollFor nodes aren't interpretable/emittable. "
       "Such nodes should have been unrolled into flat statements.");
 }
 

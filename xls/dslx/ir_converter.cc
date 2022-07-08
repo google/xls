@@ -755,7 +755,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
 
   // This should have been unrolled into a sequence of statements and is
   // unconvertible.
-  INVALID(UnrollForMacro)
+  INVALID(UnrollFor)
 
  private:
   // Called when we visit a node we don't expect to observe in the traversal.

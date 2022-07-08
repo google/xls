@@ -80,7 +80,7 @@ bool IsOneOf(ObjT* obj) {
   X(Ternary)                       \
   X(TupleIndex)                    \
   X(Unop)                          \
-  X(UnrollForMacro)                \
+  X(UnrollFor)                     \
   X(XlsTuple)
 
 // Higher-order macro for all the AST node leaf types (non-abstract).
@@ -256,7 +256,7 @@ enum class AstNodeKind {
   kChannelDecl,
   kParametricBinding,
   kTupleIndex,
-  kUnrollForMacro,
+  kUnrollFor,
 };
 
 std::string_view AstNodeKindToString(AstNodeKind kind);
@@ -633,7 +633,7 @@ class ExprVisitor {
   virtual absl::Status HandleTernary(const Ternary* expr) = 0;
   virtual absl::Status HandleTupleIndex(const TupleIndex* expr) = 0;
   virtual absl::Status HandleUnop(const Unop* expr) = 0;
-  virtual absl::Status HandleUnrollForMacro(const UnrollForMacro* expr) = 0;
+  virtual absl::Status HandleUnrollFor(const UnrollFor* expr) = 0;
   virtual absl::Status HandleXlsTuple(const XlsTuple* expr) = 0;
 };
 
@@ -2425,37 +2425,35 @@ class For : public Expr {
   Expr* init_;
 };
 
-// Represents a hand-coded unroll-for "macro".
-// TODO(rspringer): 2022-06-14: "body" is overloaded. Settle on a common term
-// for UnrollForMacro, Spawn, and Let.
-class UnrollForMacro : public Expr {
+// Represents an operation to "unroll" the given for-like expression by the
+// number of elements in the given iterable.
+class UnrollFor : public Expr {
  public:
-  UnrollForMacro(Module* owner, Span span, NameDef* iterable_name,
-                 TypeAnnotation* iterable_type, Expr* iterable, Block* body,
-                 Expr* tail);
-  AstNodeKind kind() const { return AstNodeKind::kUnrollForMacro; }
+  UnrollFor(Module* owner, Span span, NameDefTree* names, TypeAnnotation* types,
+            Expr* iterable, Block* body, Expr* init);
+  AstNodeKind kind() const { return AstNodeKind::kUnrollFor; }
   absl::Status Accept(AstNodeVisitor* v) const override {
-    return v->HandleUnrollForMacro(this);
+    return v->HandleUnrollFor(this);
   }
   absl::Status AcceptExpr(ExprVisitor* v) const override {
-    return v->HandleUnrollForMacro(this);
+    return v->HandleUnrollFor(this);
   }
   absl::string_view GetNodeTypeName() const override { return "unroll-for"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  NameDef* iterable_name() const { return iterable_name_; }
-  TypeAnnotation* iterable_type() const { return iterable_type_; }
+  NameDefTree* names() const { return names_; }
+  TypeAnnotation* types() const { return types_; }
   Expr* iterable() const { return iterable_; }
   Block* body() const { return body_; }
-  Expr* tail() const { return tail_; }
+  Expr* init() const { return init_; }
 
  private:
-  NameDef* iterable_name_;
-  TypeAnnotation* iterable_type_;
+  NameDefTree* names_;
+  TypeAnnotation* types_;
   Expr* iterable_;
   Block* body_;
-  Expr* tail_;
+  Expr* init_;
 };
 
 // Represents a cast expression; converting a new value to a target type.

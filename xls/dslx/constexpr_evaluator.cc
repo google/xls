@@ -172,7 +172,7 @@ class NameRefCollector : public ExprVisitor {
     XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
     return absl::OkStatus();
   }
-  absl::Status HandleUnrollForMacro(const UnrollForMacro* expr) override {
+  absl::Status HandleUnrollFor(const UnrollFor* expr) override {
     XLS_RETURN_IF_ERROR(expr->body()->AcceptExpr(this));
     return absl::OkStatus();
   }
@@ -680,8 +680,7 @@ absl::Status ConstexprEvaluator::HandleTupleIndex(const TupleIndex* expr) {
   return absl::OkStatus();
 }
 
-absl::Status ConstexprEvaluator::HandleUnrollForMacro(
-    const UnrollForMacro* expr) {
+absl::Status ConstexprEvaluator::HandleUnrollFor(const UnrollFor* expr) {
   return absl::OkStatus();
 }
 

@@ -776,15 +776,11 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceFor(const For* node,
   return init_type;
 }
 
-absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnrollForMacro(
-    const UnrollForMacro* node, DeduceCtx* ctx) {
-  // The only thing we need to do here is to deduce the type of the iterable so
-  // that we can constexpr evaluate it in macro expansion.
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceUnrollFor(
+    const UnrollFor* node, DeduceCtx* ctx) {
   XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable()).status());
-  XLS_RETURN_IF_ERROR(ctx->Deduce(node->iterable_type()).status());
-  XLS_RETURN_IF_ERROR(ctx->Deduce(node->body()).status());
-  // The macro itself has/returns no value.
-  return ConcreteType::MakeUnit();
+  XLS_RETURN_IF_ERROR(ctx->Deduce(node->types()).status());
+  return ctx->Deduce(node->body());
 }
 
 // Returns true if the cast-conversion from "from" to "to" is acceptable (i.e.
@@ -2667,7 +2663,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(SplatStructInstance)
   DEDUCE_DISPATCH(StructInstance)
   DEDUCE_DISPATCH(TupleIndex)
-  DEDUCE_DISPATCH(UnrollForMacro)
+  DEDUCE_DISPATCH(UnrollFor)
   DEDUCE_DISPATCH(BuiltinTypeAnnotation)
   DEDUCE_DISPATCH(ChannelTypeAnnotation)
   DEDUCE_DISPATCH(ArrayTypeAnnotation)
