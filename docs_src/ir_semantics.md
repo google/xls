@@ -35,8 +35,8 @@ is prefixed before the literal: `bits[N]:$literal`. Example: `bits[8]:0xab`.
 ### Array
 
 A one-dimensional array of elements of the same type with a fixed number of
-elements. An array can contain bits, arrays, or tuples as elements. May be empty
-(in which case the type of the array element cannot be automatically deduced).
+elements. An array can contain bits, arrays, or tuples as elements. Empty
+(zero-element) arrays are not supported.
 
 **Type syntax:**
 

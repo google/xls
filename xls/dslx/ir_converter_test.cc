@@ -22,12 +22,8 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "absl/flags/flag.h"
-#include "xls/common/file/filesystem.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/golden_files.h"
 #include "xls/common/init_xls.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -1368,6 +1364,30 @@ TEST(IrConverterTest, ConvertGateOp) {
   const std::string kProgram = R"(
 fn main(p: bool, x: u32) -> u32 {
   gate!(p, x)
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ConvertRangeOpUnsigned) {
+  const std::string kProgram = R"(
+fn main() -> u32[5] {
+  u32:2..u32:7
+}
+)";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
+                           ConvertModuleForTest(kProgram, kFailNoPos));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ConvertRangeOpSigned) {
+  const std::string kProgram = R"(
+fn main() -> s32[4] {
+  s32:-2..s32:2
 }
 )";
 

@@ -68,6 +68,8 @@ class Bytecode {
     kExpandTuple,
     // Compares TOS1 to TOS0, storing true if TOS1 == TOS0.
     kEq,
+    // Duplicates the value at TOS0 to be the new TOS0.
+    kDup,
     // Terminates the current program with a failure status. Consumes as many
     // values from the stack as are specified in the `TraceData` data member.
     kFail,
@@ -79,14 +81,14 @@ class Bytecode {
     kIndex,
     // Inverts the bits of TOS0.
     kInvert,
+    // Indicates a jump destination PC for control flow integrity checking.
+    // (Note that there's no actual execution logic for this opcode.)
+    kJumpDest,
     // Unconditional jump (relative).
     kJumpRel,
     // Pops the entry at the top of the stack and jumps (relative) if it is
     // true, otherwise PC proceeds as normal (i.e. PC = PC + 1).
     kJumpRelIf,
-    // Indicates a jump destination PC for control flow integrity checking.
-    // (Note that there's no actual execution logic for this opcode.)
-    kJumpDest,
     // Compares TOS1 to TOS0, storing true if TOS1 <= TOS0.
     kLe,
     // Pushes the literal in the data argument onto the stack.
@@ -112,6 +114,10 @@ class Bytecode {
     kNegate,
     // Performs a bitwise OR of the top two values on the stack.
     kOr,
+    // Pops the value at TOS0.
+    kPop,
+    // Creates an array of values [TOS1, TOS0).
+    kRange,
     // Pulls a value off of the channel at TOS0, or "blocks" if empty:
     // terminates execution at the opcode's PC. The interpreter can be
     // resumed/retried if/when a value becomes available.
@@ -144,10 +150,6 @@ class Bytecode {
     kWidthSlice,
     // Performs a bitwise XOR of the top two values on the stack.
     kXor,
-    // Duplicates the value at TOS0 to be the new TOS0.
-    kDup,
-    // Pops the value at TOS0.
-    kPop,
   };
 
   // Indicates the amount by which the PC should be adjusted.
@@ -253,6 +255,7 @@ class Bytecode {
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
   static Bytecode MakeRecv(Span span);
+  static Bytecode MakeRange(Span span);
   static Bytecode MakeStore(Span span, SlotIndex slot_index);
   static Bytecode MakeSpawn(Span span, SpawnData spawn_data);
   static Bytecode MakeSwap(Span span);

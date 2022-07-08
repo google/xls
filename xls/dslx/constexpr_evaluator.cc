@@ -117,6 +117,11 @@ class NameRefCollector : public ExprVisitor {
   absl::Status HandleNumber(const Number* expr) override {
     return absl::OkStatus();
   }
+  absl::Status HandleRange(const Range* expr) override {
+    XLS_RETURN_IF_ERROR(expr->start()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->end()->AcceptExpr(this));
+    return absl::OkStatus();
+  }
   absl::Status HandleRecv(const Recv* expr) override {
     return absl::OkStatus();
   }
@@ -605,6 +610,12 @@ absl::Status ConstexprEvaluator::HandleNumber(const Number* expr) {
   type_info_->NoteConstExpr(expr, value);
 
   return absl::OkStatus();
+}
+
+absl::Status ConstexprEvaluator::HandleRange(const Range* expr) {
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->start());
+  EVAL_AS_CONSTEXPR_OR_RETURN(expr->end());
+  return InterpretExpr(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleSplatStructInstance(

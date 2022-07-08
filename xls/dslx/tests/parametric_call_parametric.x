@@ -26,11 +26,12 @@ fn local_clog2<N: u32>(x: bits[N]) -> bits[N] {
 fn dot_product_local<BITCOUNT: u32, LENGTH: u32,
     IDX_BITS: u32 = local_clog2<u32:32>(LENGTH) + u32:1>
   (a: bits[BITCOUNT][LENGTH], b: bits[BITCOUNT][LENGTH]) -> bits[BITCOUNT]{
+  let _ = trace!(BITCOUNT);
+  let _ = trace!(LENGTH);
   let _ = trace!(IDX_BITS);
 
-  for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT])
-    in range (bits[IDX_BITS]:0, LENGTH as bits[IDX_BITS]) {
-
+  for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT]) in bits[IDX_BITS]:0..LENGTH as bits[IDX_BITS] {
+    let _ = trace!(idx);
     let partial_product = a[idx] * b[idx];
     acc + partial_product
   } (u32:0)
@@ -55,7 +56,7 @@ fn dot_product_modref<BITCOUNT: u32, LENGTH: u32,
   let _ = trace!(IDX_BITS);
 
   for(idx, acc): (bits[IDX_BITS], bits[BITCOUNT])
-    in range (bits[IDX_BITS]:0, LENGTH as bits[IDX_BITS]) {
+    in bits[IDX_BITS]:0..LENGTH as bits[IDX_BITS] {
 
     let partial_product = a[idx] * b[idx];
     acc + partial_product

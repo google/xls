@@ -68,6 +68,7 @@ bool IsOneOf(ObjT* obj) {
   X(Match)                         \
   X(NameRef)                       \
   X(Number)                        \
+  X(Range)                         \
   X(Recv)                          \
   X(RecvIf)                        \
   X(Send)                          \
@@ -225,6 +226,7 @@ enum class AstNodeKind {
   kSplatStructInstance,
   kNameDefTree,
   kIndex,
+  kRange,
   kRecv,
   kRecvIf,
   kSend,
@@ -618,6 +620,7 @@ class ExprVisitor {
   virtual absl::Status HandleMatch(const Match* expr) = 0;
   virtual absl::Status HandleNameRef(const NameRef* expr) = 0;
   virtual absl::Status HandleNumber(const Number* expr) = 0;
+  virtual absl::Status HandleRange(const Range* expr) = 0;
   virtual absl::Status HandleRecv(const Recv* expr) = 0;
   virtual absl::Status HandleRecvIf(const RecvIf* expr) = 0;
   virtual absl::Status HandleSend(const Send* expr) = 0;
@@ -2032,13 +2035,41 @@ class Index : public Expr {
   IndexRhs rhs_;
 };
 
+// Represents a range expression, e.g., a..b, which expands to the integral
+// values [a, b). Currently, only the Rust RangeExpr form is supported
+// (https://doc.rust-lang.org/reference/expressions/range-expr.html), i.e.,
+// RangeFrom and other variants are not implemented.
+class Range : public Expr {
+ public:
+  Range(Module* owner, Span span, Expr* start, Expr* end);
+  AstNodeKind kind() const override { return AstNodeKind::kRange; }
+  absl::string_view GetNodeTypeName() const override { return "Range"; }
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleRange(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleRange(this);
+  }
+  std::string ToString() const override;
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {start_, end_};
+  }
+
+  Expr* start() const { return start_; }
+  Expr* end() const { return end_; }
+
+ private:
+  Expr* start_;
+  Expr* end_;
+};
+
 // Represents a recv node: the mechanism by which a proc gets info from another
 // proc.
 class Recv : public Expr {
  public:
   Recv(Module* owner, Span span, NameRef* token, Expr* channel);
 
-  AstNodeKind kind() const { return AstNodeKind::kRecv; }
+  AstNodeKind kind() const override { return AstNodeKind::kRecv; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleRecv(this);
@@ -2069,7 +2100,7 @@ class RecvIf : public Expr {
   RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
          Expr* condition);
 
-  AstNodeKind kind() const { return AstNodeKind::kRecvIf; }
+  AstNodeKind kind() const override { return AstNodeKind::kRecvIf; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleRecvIf(this);
@@ -2103,7 +2134,7 @@ class Send : public Expr {
  public:
   Send(Module* owner, Span span, NameRef* token, Expr* channel, Expr* payload);
 
-  AstNodeKind kind() const { return AstNodeKind::kSend; }
+  AstNodeKind kind() const override { return AstNodeKind::kSend; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSend(this);
@@ -2136,7 +2167,7 @@ class SendIf : public Expr {
   SendIf(Module* owner, Span span, NameRef* token, Expr* channel,
          Expr* condition, Expr* payload);
 
-  AstNodeKind kind() const { return AstNodeKind::kSendIf; }
+  AstNodeKind kind() const override { return AstNodeKind::kSendIf; }
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleSendIf(this);

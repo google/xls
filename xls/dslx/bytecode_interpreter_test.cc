@@ -1258,5 +1258,24 @@ fn main(p: bool, x: u32) -> u32 {
   EXPECT_EQ(int_value, 0x0);
 }
 
+TEST(BytecodeInterpreterTest, RangeExpr) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u32[8] {
+  u32:8..u32:16
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  XLS_ASSERT_OK_AND_ASSIGN(const std::vector<InterpValue>* elements,
+                           value.GetValues());
+  EXPECT_EQ(elements->size(), 8);
+  for (int i = 0; i < elements->size(); i++) {
+    XLS_ASSERT_OK_AND_ASSIGN(int64_t int_value,
+                             elements->at(i).GetBitValueUint64());
+    EXPECT_EQ(int_value, i + 8);
+  }
+}
+
 }  // namespace
 }  // namespace xls::dslx

@@ -18,7 +18,7 @@
 import xls.dslx.tests.mod_simple_const
 
 fn main(x: u32) -> u32 {
-  for (i, accum): (u32, u32) in range(u32:0, mod_simple_const::FOUR) {
+  for (i, accum): (u32, u32) in u32:0..mod_simple_const::FOUR {
     accum+i
   }(u32:0)
 }

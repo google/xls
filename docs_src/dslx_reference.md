@@ -651,7 +651,7 @@ arrays of u8 elements. String constants can be used just as traditional arrays:
 
 ```dslx
 fn add_one<N: u32>(input: u8[N]) -> u8[N] {
-  for (i, result) : (u32, u8[N]) in range(u32:0, N) {
+  for (i, result) : (u32, u8[N]) in u32:0..N {
     update(result, i, result[i] + u8:1)
   }(input)
 }
@@ -1330,13 +1330,14 @@ let result_exponent = if wide_exponent < u9:255 { wide_exponent as u8 } else { u
 Iterable expressions are used in counted for loops. DSLX currently supports two
 types of iterable expressions, `range` and `enumerate`.
 
-The range expression `range(m, n)` produces values from m to n-1 (similar to how
-typical loops are constructed in C/C++). This example will run from 0 to 4
-(exclusive):
+The range expression `m..n` represents a range of values from m to n-1.
+This example will run from 0 to 4 (exclusive):
 
 ```
-for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+for (i, accum): (u32, u32) in u32:0..u32:4 {
 ```
+
+There also exists a `range()` builtin function that performs the same operation.
 
 `enumerate` iterates over the elements of an array type and produces pairs of
 `(index, value)`, similar to enumeration constructs in languages like Python or
@@ -1380,7 +1381,7 @@ produces a value. As a result, you grab the output of a for loop just like any
 other expression:
 
 ```dslx-snippet
-let final_accum = for (i, accum) in range(u32:0, u32:8) {
+let final_accum = for (i, accum) in u32:0..u32:8 {
   let new_accum = f(accum);
   new_accum
 }(init_accum);
@@ -1395,7 +1396,7 @@ Add up all values from 0 to 4 (exclusive). Note that we pass the accumulator's
 initial value in as a parameter to this expression.
 
 ```dslx-snippet
-for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+for (i, accum): (u32, u32) in u32:0..u32:4 {
   accum + i
 }(u32:0)
 ```
@@ -1404,7 +1405,7 @@ To add up values from 7 to 11 (exclusive), one would write:
 
 ```dslx-snippet
 let base = u32:7;
-for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+for (i, accum): (u32, u32) in u32:0..u32:4 {
   accum + base + i
 }(u32:0)
 ```
@@ -1414,7 +1415,7 @@ in the loop body, for example, note the use of `outer_thing` below:
 
 ```dslx-snippet
 let outer_thing: u32 = u32:42;
-for (i, accum): (u32, u32) in range(u32:0, u32:4) {
+for (i, accum): (u32, u32) in u32:0..u32:4 {
     accum + i + outer_thing
 }(u32:0)
 ```
@@ -1424,7 +1425,7 @@ accumulator can be a tuple type, which is useful for evolving a bunch of values.
 For example, this for loop "evolves" two arrays:
 
 ```dslx-snippet
-for (i, (xs, ys)): (u32, (u16[3], u8[3])) in range(u32:0, u32:4) {
+for (i, (xs, ys)): (u32, (u16[3], u8[3])) in u32:0..u32:4 {
   ...
 }((init_xs, init_ys))
 ```
@@ -1433,7 +1434,7 @@ Note in the above example arrays are dataflow values just like anything else. To
 conditionally update an array every other iteration:
 
 ```dslx-snippet
-let result: u4[8] = for (i, array) in range(u32:0, u32:8) {
+let result: u4[8] = for (i, array) in u32:0..u32:8 {
   // Update every other cell with the square of the index.
   if i % 2 == 0 { update(array, i, i*i) } else { array }
 }(u4[8]:[0, ...]);

@@ -146,6 +146,7 @@ class NameDefCollector : public AstNodeVisitor {
             n->identifier(), n->span().ToString()));
   }
   DEFAULT_HANDLER(QuickCheck);
+  DEFAULT_HANDLER(Range);
   DEFAULT_HANDLER(Recv);
   DEFAULT_HANDLER(RecvIf);
   DEFAULT_HANDLER(Send);
@@ -552,11 +553,7 @@ absl::Status BytecodeEmitter::HandleFor(const For* node) {
   }
 
   ConcreteTypeDim iterable_size_dim = array_type->size();
-  absl::StatusOr<int64_t> iterable_size_or = iterable_size_dim.GetAsInt64();
-  if (!iterable_size_or.ok()) {
-    return iterable_size_or.status();
-  }
-  int64_t iterable_size = iterable_size_or.value();
+  XLS_ASSIGN_OR_RETURN(int64_t iterable_size, iterable_size_dim.GetAsInt64());
 
   // A `for` loop defines a new scope, meaning that any names defined in that
   // scope (i.e., NameDefs) aren't valid outside the loop (i.e., they shouldn't
@@ -955,6 +952,13 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleNumberInternal(
   XLS_ASSIGN_OR_RETURN(int64_t dim_val, dim->GetAsInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(dim_val));
   return InterpValue::MakeBits(is_signed, bits);
+}
+
+absl::Status BytecodeEmitter::HandleRange(const Range* node) {
+  XLS_RETURN_IF_ERROR(node->start()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->end()->AcceptExpr(this));
+  Add(Bytecode::MakeRange(node->span()));
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleRecv(const Recv* node) {

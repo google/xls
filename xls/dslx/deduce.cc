@@ -2187,6 +2187,52 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSendIf(const SendIf* node,
   return std::make_unique<TokenType>();
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
+                                                          DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> start_type,
+                       ctx->Deduce(node->start()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> end_type,
+                       ctx->Deduce(node->end()));
+  if (*start_type != *end_type) {
+    return XlsTypeErrorStatus(node->span(), *start_type, *end_type,
+                              "Range start and end types didn't match.");
+  }
+
+  if (dynamic_cast<BitsType*>(start_type.get()) == nullptr) {
+    return TypeInferenceErrorStatus(
+        node->span(), start_type.get(),
+        "Range start and end types must resolve to bits types.");
+  }
+
+  // Range implicitly defines a sized type, so it has to be constexpr
+  // evaluatable.
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue start_value,
+      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
+                                          GetCurrentSymbolicBindings(ctx),
+                                          node->start(), start_type.get()));
+  XLS_ASSIGN_OR_RETURN(
+      InterpValue end_value,
+      ConstexprEvaluator::EvaluateToValue(ctx->import_data(), ctx->type_info(),
+                                          GetCurrentSymbolicBindings(ctx),
+                                          node->end(), end_type.get()));
+
+  InterpValue array_size = InterpValue::MakeUnit();
+  XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start_value.Ge(end_value));
+  if (start_ge_end.IsTrue()) {
+#if 0
+    return absl::InvalidArgumentError(
+        absl::StrCat(node->span().ToString(),
+                     ": Range start must be less than the end."));
+#endif
+    array_size = InterpValue::MakeU32(0);
+  } else {
+    XLS_ASSIGN_OR_RETURN(array_size, end_value.Sub(start_value));
+  }
+  return std::make_unique<ArrayType>(std::move(start_type),
+                                     ConcreteTypeDim(array_size));
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(const Recv* node,
                                                          DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(ChannelTypeAnnotation * channel_annot,
@@ -2612,6 +2658,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(ColonRef)
   DEDUCE_DISPATCH(Index)
   DEDUCE_DISPATCH(Match)
+  DEDUCE_DISPATCH(Range)
   DEDUCE_DISPATCH(Recv)
   DEDUCE_DISPATCH(RecvIf)
   DEDUCE_DISPATCH(Send)

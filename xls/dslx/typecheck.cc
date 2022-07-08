@@ -461,8 +461,7 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
   } else if (absl::holds_alternative<TestFunction*>(member)) {
     TestFunction* tf = absl::get<TestFunction*>(member);
     ScopedFnStackEntry scoped_entry(tf->fn(), ctx, /*expect_popped=*/false);
-    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> body_type,
-                         ctx->Deduce(tf->body()));
+    XLS_RETURN_IF_ERROR(CheckFunction(tf->fn(), ctx));
     scoped_entry.Finish();
   } else if (absl::holds_alternative<TestProc*>(member)) {
     XLS_RETURN_IF_ERROR(
@@ -766,11 +765,9 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   for (ParametricBinding* parametric : callee_fn->parametric_bindings()) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> parametric_binding_type,
                          ctx->Deduce(parametric->type_annotation()));
-    if (parametric->expr() == nullptr) {
-      if (bindings_map.contains(parametric->identifier())) {
-        ctx->type_info()->NoteConstExpr(
-            parametric->name_def(), bindings_map.at(parametric->identifier()));
-      }
+    if (bindings_map.contains(parametric->identifier())) {
+      ctx->type_info()->NoteConstExpr(
+          parametric->name_def(), bindings_map.at(parametric->identifier()));
     }
   }
 

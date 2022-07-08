@@ -38,7 +38,7 @@ fn blob_eq(x: TestBlob, y:TestBlob) -> bool {
 // 1. Relying on built-in support for tuple equality.
 // 2. Manually expanding the TestBlob and checking the leaf values directly.
 fn eq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
-  for (i, eq):(u32, bool) in range (u32:0, u32:3) {
+  for (i, eq):(u32, bool) in u32:0..u32:3 {
     eq && x[i] == y[i] && blob_eq(y[i], x[i])
   }(true)
 }
@@ -61,7 +61,7 @@ fn blob_neq(x: TestBlob, y:TestBlob) -> bool {
 // 1. Relying on built-in support for tuple inequality.
 // 2. Manually expanding the TestBlob and checking the leaf values directly.
 fn neq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
-  for (i, neq):(u32, bool) in range (u32:0, u32:3) {
+  for (i, neq):(u32, bool) in u32:0..u32:3 {
     neq || x[i] != y[i] || blob_neq(y[i], x[i])
   }(false)
 }

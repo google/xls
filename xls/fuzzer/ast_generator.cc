@@ -338,11 +338,8 @@ ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
       fake_span_, MakeTypeRefTypeAnnotation(element_type), dim);
 }
 
-Invocation* AstGenerator::MakeRange(Expr* zero, Expr* arg) {
-  std::vector<Expr*> args = {zero, arg};
-  return module_->Make<Invocation>(fake_span_,
-                                   /*callee=*/MakeBuiltinNameRef("range"),
-                                   /*args=*/args);
+Range* AstGenerator::MakeRange(Expr* zero, Expr* arg) {
+  return module_->Make<Range>(fake_span_, zero, arg);
 }
 
 Bits AstGenerator::ChooseBitPattern(int64_t bit_count) {
@@ -700,7 +697,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
   // TODO(meheff): Generate more interesting loop bodies.
   TypeAnnotation* ivar_type = MakeTypeAnnotation(false, 4);
   Number* zero = MakeNumber(0, ivar_type);
-  Number* trips = MakeNumber(RandRange(8), ivar_type);
+  Number* trips = MakeNumber(RandRange(8) + 1, ivar_type);
   Expr* iterable = MakeRange(zero, trips);
   NameDef* x_def = MakeNameDef("x");
   NameDefTree* i_ndt = module_->Make<NameDefTree>(fake_span_, MakeNameDef("i"));

@@ -371,6 +371,8 @@ class Parser : public TokenParser {
         BindFront(&Parser::ParseLogicalAndExpression, bindings), kinds);
   }
 
+  absl::StatusOr<Expr*> ParseRangeExpression(Bindings* bindings);
+
   // Parses a ternary expression or expression of higher precedence.
   //
   // Example:

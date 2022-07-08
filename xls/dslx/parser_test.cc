@@ -1024,6 +1024,11 @@ foo)",
       /*predefine=*/{"range"});
 }
 
+TEST_F(ParserTest, Range) {
+  RoundTripExpr("let foo = u32:8..u32:16;\nfoo");
+  RoundTripExpr("let foo = a..b;\nfoo", {"a", "b"});
+}
+
 // -- Parse-time errors
 
 TEST_F(ParserTest, BadEnumRef) {

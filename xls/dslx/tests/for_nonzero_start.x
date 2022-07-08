@@ -15,7 +15,7 @@
 const LOOP_START = u32:5;
 
 fn main() -> u32 {
-  for (i, j): (u32, u32) in range(LOOP_START, u32:10) {
+  for (i, j): (u32, u32) in LOOP_START..u32:10 {
     j + i
   }(u32:0)
 }

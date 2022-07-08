@@ -334,6 +334,7 @@ class FunctionConverter {
   absl::Status HandleJoin(const Join* node);
   absl::Status HandleLet(const Let* node);
   absl::Status HandleMatch(const Match* node);
+  absl::Status HandleRange(const Range* node);
   absl::Status HandleRecv(const Recv* node);
   absl::Status HandleRecvIf(const RecvIf* node);
   absl::Status HandleSend(const Send* node);
@@ -419,12 +420,14 @@ class FunctionConverter {
   // with parametric values mangled in appropriately.
   absl::StatusOr<std::string> GetCalleeIdentifier(const Invocation* node);
 
-  // Determines whether the for loop node is of the general form:
-  //
-  //  `for ... in range(0, N)`
-  //
-  // Returns the value of N if so, or a conversion error if it is not.
-  absl::StatusOr<int64_t> QueryConstRangeCall(const For* node);
+  // Contains/returns the pertinent information about a range expression (either
+  // a Range node or the range() builtin).
+  struct RangeData {
+    int64_t start_value;
+    int64_t trip_count;
+    int64_t bit_width;
+  };
+  absl::StatusOr<RangeData> GetRangeData(const Expr* iterable);
 
   template <typename T>
   absl::StatusOr<T> DerefStructOrEnumFromNameRef(
@@ -702,6 +705,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Join)
   NO_TRAVERSE_DISPATCH_VISIT(Let)
   NO_TRAVERSE_DISPATCH_VISIT(Match)
+  NO_TRAVERSE_DISPATCH_VISIT(Range)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
   NO_TRAVERSE_DISPATCH_VISIT(RecvIf)
   NO_TRAVERSE_DISPATCH_VISIT(Send)
@@ -1377,59 +1381,83 @@ absl::Status FunctionConverter::HandleMatch(const Match* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<int64_t> FunctionConverter::QueryConstRangeCall(
-    const For* node) {
+absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
+    const Expr* iterable) {
   auto error = [&] {
     return absl::InvalidArgumentError(
-        absl::StrFormat("ConversionError: %s For-loop iterable (%s) "
+        absl::StrFormat("ConversionError: %s iterable (%s) "
                         "must be bits-typed, constexpr, and its start must be "
                         "less than or equal to its limit.",
-                        node->span().ToString(), node->iterable()->ToString()));
+                        iterable->span().ToString(), iterable->ToString()));
   };
-  auto* iterable_call = dynamic_cast<Invocation*>(node->iterable());
-  if (iterable_call == nullptr) {
-    return error();
-  }
-  auto* callee_name_ref = dynamic_cast<NameRef*>(iterable_call->callee());
-  if (callee_name_ref == nullptr) {
-    return error();
-  }
-  if (!absl::holds_alternative<BuiltinNameDef*>(callee_name_ref->name_def())) {
-    return error();
-  }
-  auto* builtin_name_def =
-      absl::get<BuiltinNameDef*>(callee_name_ref->name_def());
-  if (builtin_name_def->identifier() != "range") {
-    return error();
-  }
 
-  XLS_RET_CHECK_EQ(iterable_call->args().size(), 2);
-  Expr* start = iterable_call->args()[0];
-  Expr* limit = iterable_call->args()[1];
-
+  // Easy case first: using the `..` range operator.
+  InterpValue start_value(InterpValue::MakeToken());
+  InterpValue limit_value(InterpValue::MakeToken());
   SymbolicBindings bindings(symbolic_binding_map_);
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue start_value,
-      ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+
+  const auto* range_op = dynamic_cast<const Range*>(iterable);
+  if (range_op != nullptr) {
+    XLS_ASSIGN_OR_RETURN(start_value,
+                         ConstexprEvaluator::EvaluateToValue(
+                             import_data_, current_type_info_, bindings,
+                             range_op->start(), nullptr));
+    XLS_ASSIGN_OR_RETURN(limit_value, ConstexprEvaluator::EvaluateToValue(
+                                          import_data_, current_type_info_,
+                                          bindings, range_op->end(), nullptr));
+  } else {
+    const auto* iterable_call = dynamic_cast<const Invocation*>(iterable);
+    if (iterable_call == nullptr) {
+      return error();
+    }
+    auto* callee_name_ref = dynamic_cast<NameRef*>(iterable_call->callee());
+    if (callee_name_ref == nullptr) {
+      return error();
+    }
+    if (!absl::holds_alternative<BuiltinNameDef*>(
+            callee_name_ref->name_def())) {
+      return error();
+    }
+    auto* builtin_name_def =
+        absl::get<BuiltinNameDef*>(callee_name_ref->name_def());
+    if (builtin_name_def->identifier() != "range") {
+      return error();
+    }
+
+    XLS_RET_CHECK_EQ(iterable_call->args().size(), 2);
+    Expr* start = iterable_call->args()[0];
+    Expr* limit = iterable_call->args()[1];
+
+    XLS_ASSIGN_OR_RETURN(start_value, ConstexprEvaluator::EvaluateToValue(
+                                          import_data_, current_type_info_,
                                           bindings, start, nullptr));
-  XLS_ASSIGN_OR_RETURN(
-      InterpValue limit_value,
-      ConstexprEvaluator::EvaluateToValue(import_data_, current_type_info_,
+    XLS_ASSIGN_OR_RETURN(limit_value, ConstexprEvaluator::EvaluateToValue(
+                                          import_data_, current_type_info_,
                                           bindings, limit, nullptr));
+  }
 
   if (!start_value.IsBits() || !limit_value.IsBits()) {
     return error();
   }
 
+  XLS_ASSIGN_OR_RETURN(int64_t start_int, start_value.GetBitValueInt64());
+  XLS_ASSIGN_OR_RETURN(int64_t bit_width, start_value.GetBitCount());
+
+  XLS_ASSIGN_OR_RETURN(InterpValue start_ge_limit, start_value.Ge(limit_value));
+  if (start_ge_limit.IsTrue()) {
+    return RangeData{start_int, 0, bit_width};
+  }
+
   XLS_ASSIGN_OR_RETURN(InterpValue trip_count, limit_value.Sub(start_value));
   XLS_RET_CHECK(trip_count.IsBits());
+  int64_t trip_count_int;
   if (trip_count.IsSigned()) {
-    XLS_ASSIGN_OR_RETURN(int64_t trip_count, trip_count.GetBitValueInt64());
-    if (trip_count < 0) {
-      return error();
-    }
+    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueInt64());
+  } else {
+    XLS_ASSIGN_OR_RETURN(trip_count_int, trip_count.GetBitValueUint64());
   }
-  return trip_count.GetBitValueUint64();
+
+  return RangeData{start_int, trip_count_int, bit_width};
 }
 
 // Convert a NameDefTree node variant to an AstNode pointer (either the leaf
@@ -1445,7 +1473,7 @@ static AstNode* ToAstNode(
 absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_RETURN_IF_ERROR(Visit(node->init()));
 
-  XLS_ASSIGN_OR_RETURN(int64_t trip_count, QueryConstRangeCall(node));
+  XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node->iterable()));
 
   XLS_VLOG(5) << "Converting for-loop @ " << node->span();
   FunctionConverter body_converter(package_data_, module_, import_data_,
@@ -1486,16 +1514,14 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   XLS_ASSIGN_OR_RETURN(xls::Type * ivar_type, ResolveTypeToIr(name_def));
   BValue loop_index = body_converter.function_builder_->Param(
       name_def->identifier(), ivar_type);
+
   // IR `counted_for` ops only support a trip count, not a set of iterables, so
   // we need to add an offset to that trip count/index to support nonzero loop
   // start indices.
   // Pulling values out of the iterable invocation is safe, as it was all
   // checked in QueryConstRangeCall.
-  auto* iterable_call = dynamic_cast<Invocation*>(node->iterable());
-  Expr* iterable_start = iterable_call->args()[0];
-  XLS_ASSIGN_OR_RETURN(InterpValue start_value,
-                       current_type_info_->GetConstExpr(iterable_start));
-  XLS_ASSIGN_OR_RETURN(Value index_offset, InterpValueToValue(start_value));
+  Value index_offset =
+      Value(UBits(range_data.start_value, range_data.bit_width));
   BValue offset_literal =
       body_converter.function_builder_->Literal(index_offset);
   BValue offset_sum =
@@ -1634,15 +1660,17 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
 
   XLS_ASSIGN_OR_RETURN(BValue init, Use(node->init()));
   if (implicit_token_data_.has_value()) {
-    BValue activated = trip_count == 0 ? function_builder_->Literal(UBits(0, 1))
-                                       : implicit_token_data_->activated;
+    BValue activated = range_data.trip_count == 0
+                           ? function_builder_->Literal(UBits(0, 1))
+                           : implicit_token_data_->activated;
     init = function_builder_->Tuple(
         {implicit_token_data_->entry_token, activated, init});
   }
 
   Def(node, [&](const SourceInfo& loc) {
-    BValue result = function_builder_->CountedFor(
-        init, trip_count, /*stride=*/1, body_function, invariant_args);
+    BValue result =
+        function_builder_->CountedFor(init, range_data.trip_count, /*stride=*/1,
+                                      body_function, invariant_args);
     // If a token was threaded through, we grab it and note it's an assertion
     // token.
     if (implicit_token_data_.has_value()) {
@@ -2129,6 +2157,38 @@ absl::Status FunctionConverter::HandleSendIf(const SendIf* node) {
                                       predicate, data);
   node_to_ir_[node] = result;
   tokens_.push_back(result);
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleRange(const Range* node) {
+  // Range must be constexpr, since it implicitly defines a structural type
+  // (array of N elements).
+  auto maybe_type = current_type_info_->GetItem(node);
+  XLS_RET_CHECK(maybe_type.has_value());
+  auto* array_type = dynamic_cast<ArrayType*>(maybe_type.value());
+  if (array_type == nullptr) {
+    return absl::InvalidArgumentError(
+        "Range expressions must resolve to array-of-bits type.");
+  }
+  auto* element_type =
+      dynamic_cast<const BitsType*>(&array_type->element_type());
+  if (element_type == nullptr) {
+    return absl::InvalidArgumentError(
+        "Range expressions must resolve to array-of-bits type.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(RangeData range_data, GetRangeData(node));
+  std::vector<Value> elements;
+  for (int i = 0; i < range_data.trip_count; i++) {
+    Value value =
+        element_type->is_signed()
+            ? Value(SBits(i + range_data.start_value, range_data.bit_width))
+            : Value(UBits(i + range_data.start_value, range_data.bit_width));
+    elements.push_back(value);
+  }
+
+  XLS_ASSIGN_OR_RETURN(Value array, Value::Array(elements));
+  DefConst(node, array);
   return absl::OkStatus();
 }
 

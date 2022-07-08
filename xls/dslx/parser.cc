@@ -364,6 +364,18 @@ absl::StatusOr<Expr*> Parser::ParseExpression(Bindings* bindings) {
   return ParseTernaryExpression(bindings);
 }
 
+absl::StatusOr<Expr*> Parser::ParseRangeExpression(Bindings* bindings) {
+  XLS_ASSIGN_OR_RETURN(Expr * result, ParseLogicalOrExpression(bindings));
+  XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
+  if (peek->kind() == TokenKind::kDoubleDot) {
+    DropTokenOrDie();
+    XLS_ASSIGN_OR_RETURN(Expr * rhs, ParseLogicalOrExpression(bindings));
+    result = module_->Make<Range>(
+        Span(result->span().start(), rhs->span().limit()), result, rhs);
+  }
+  return result;
+}
+
 absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(std::optional<Token> if_, TryPopKeyword(Keyword::kIf));
   if (if_.has_value()) {  // Ternary
@@ -381,7 +393,7 @@ absl::StatusOr<Expr*> Parser::ParseTernaryExpression(Bindings* bindings) {
     return module_->Make<Ternary>(Span(if_->span().start(), GetPos()), test,
                                   consequent, alternate);
   }
-  return ParseLogicalOrExpression(bindings);
+  return ParseRangeExpression(bindings);
 }
 
 absl::StatusOr<TypeDef*> Parser::ParseTypeDefinition(bool is_public,

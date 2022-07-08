@@ -29,17 +29,29 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "add") {
     return Bytecode::Op::kAdd;
   }
+  if (s == "and") {
+    return Bytecode::Op::kAnd;
+  }
   if (s == "call") {
     return Bytecode::Op::kCall;
-  }
-  if (s == "create_array") {
-    return Bytecode::Op::kCreateArray;
   }
   if (s == "cast") {
     return Bytecode::Op::kCast;
   }
+  if (s == "concat") {
+    return Bytecode::Op::kConcat;
+  }
+  if (s == "create_array") {
+    return Bytecode::Op::kCreateArray;
+  }
   if (s == "create_tuple") {
     return Bytecode::Op::kCreateTuple;
+  }
+  if (s == "div") {
+    return Bytecode::Op::kDiv;
+  }
+  if (s == "dup") {
+    return Bytecode::Op::kDup;
   }
   if (s == "expand_tuple") {
     return Bytecode::Op::kExpandTuple;
@@ -50,35 +62,20 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "fail") {
     return Bytecode::Op::kFail;
   }
+  if (s == "ge") {
+    return Bytecode::Op::kGe;
+  }
+  if (s == "gt") {
+    return Bytecode::Op::kGt;
+  }
   if (s == "index") {
     return Bytecode::Op::kIndex;
   }
   if (s == "invert") {
     return Bytecode::Op::kInvert;
   }
-  if (s == "load") {
-    return Bytecode::Op::kLoad;
-  }
-  if (s == "literal") {
-    return Bytecode::Op::kLiteral;
-  }
-  if (s == "match_arm") {
-    return Bytecode::Op::kMatchArm;
-  }
-  if (s == "negate") {
-    return Bytecode::Op::kNegate;
-  }
-  if (s == "recv") {
-    return Bytecode::Op::kRecv;
-  }
-  if (s == "send") {
-    return Bytecode::Op::kSend;
-  }
-  if (s == "spawn") {
-    return Bytecode::Op::kSpawn;
-  }
-  if (s == "store") {
-    return Bytecode::Op::kStore;
+  if (s == "jump_dest") {
+    return Bytecode::Op::kJumpDest;
   }
   if (s == "jump_rel") {
     return Bytecode::Op::kJumpRel;
@@ -86,11 +83,65 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "jump_rel_if") {
     return Bytecode::Op::kJumpRelIf;
   }
-  if (s == "jump_dest") {
-    return Bytecode::Op::kJumpDest;
+  if (s == "le") {
+    return Bytecode::Op::kLe;
+  }
+  if (s == "load") {
+    return Bytecode::Op::kLoad;
+  }
+  if (s == "literal") {
+    return Bytecode::Op::kLiteral;
+  }
+  if (s == "logical_and") {
+    return Bytecode::Op::kLogicalAnd;
+  }
+  if (s == "logical_or") {
+    return Bytecode::Op::kLogicalOr;
+  }
+  if (s == "lt") {
+    return Bytecode::Op::kLt;
+  }
+  if (s == "match_arm") {
+    return Bytecode::Op::kMatchArm;
+  }
+  if (s == "mul") {
+    return Bytecode::Op::kMul;
+  }
+  if (s == "ne") {
+    return Bytecode::Op::kNe;
+  }
+  if (s == "negate") {
+    return Bytecode::Op::kNegate;
+  }
+  if (s == "or") {
+    return Bytecode::Op::kOr;
+  }
+  if (s == "pop") {
+    return Bytecode::Op::kPop;
+  }
+  if (s == "range") {
+    return Bytecode::Op::kRange;
+  }
+  if (s == "recv") {
+    return Bytecode::Op::kRecv;
+  }
+  if (s == "send") {
+    return Bytecode::Op::kSend;
+  }
+  if (s == "shl") {
+    return Bytecode::Op::kShl;
+  }
+  if (s == "shr") {
+    return Bytecode::Op::kShr;
   }
   if (s == "slice") {
     return Bytecode::Op::kSlice;
+  }
+  if (s == "spawn") {
+    return Bytecode::Op::kSpawn;
+  }
+  if (s == "store") {
+    return Bytecode::Op::kStore;
   }
   if (s == "sub") {
     return Bytecode::Op::kSub;
@@ -103,6 +154,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   }
   if (s == "width_slice") {
     return Bytecode::Op::kWidthSlice;
+  }
+  if (s == "xor") {
+    return Bytecode::Op::kXor;
   }
   return absl::InvalidArgumentError(
       absl::StrCat("String was not a bytecode op: `", s, "`"));
@@ -174,6 +228,8 @@ std::string OpToString(Bytecode::Op op) {
       return "or";
     case Bytecode::Op::kPop:
       return "pop";
+    case Bytecode::Op::kRange:
+      return "range";
     case Bytecode::Op::kRecv:
       return "recv";
     case Bytecode::Op::kSend:
@@ -319,9 +375,12 @@ DEF_UNARY_BUILDER(Invert);
 DEF_UNARY_BUILDER(JumpDest);
 DEF_UNARY_BUILDER(LogicalOr);
 DEF_UNARY_BUILDER(Pop);
+DEF_UNARY_BUILDER(Range);
 DEF_UNARY_BUILDER(Recv);
 DEF_UNARY_BUILDER(Send);
 DEF_UNARY_BUILDER(Swap);
+
+#undef DEF_UNARY_BUILDER
 
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
   return Bytecode(span, Op::kJumpRelIf, target);

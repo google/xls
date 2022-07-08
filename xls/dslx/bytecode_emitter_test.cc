@@ -1119,6 +1119,23 @@ fn main() -> u32 {
   }
 }
 
+TEST(BytecodeEmitterTest, Range) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn main() -> u32[8] {
+  let x = u32:8;
+  let y = u32:16;
+  x..y
+})";
+  ImportData import_data(CreateImportDataForTest());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<BytecodeFunction> bf,
+                           EmitBytecodes(&import_data, kProgram, "main"));
+
+  const std::vector<Bytecode>& bytecodes = bf->bytecodes();
+  ASSERT_EQ(bytecodes.size(), 7);
+  const Bytecode* bc = &bytecodes[6];
+  ASSERT_EQ(bc->op(), Bytecode::Op::kRange);
+}
+
 TEST(BytecodeEmitterTest, ShlAndShr) {
   constexpr absl::string_view kProgram = R"(#![test]
 fn main() -> u32 {

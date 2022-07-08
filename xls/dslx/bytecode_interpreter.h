@@ -139,6 +139,7 @@ class BytecodeInterpreter {
   absl::Status EvalNegate(const Bytecode& bytecode);
   absl::Status EvalOr(const Bytecode& bytecode);
   absl::Status EvalPop(const Bytecode& bytecode);
+  absl::Status EvalRange(const Bytecode& bytecode);
   absl::Status EvalRecv(const Bytecode& bytecode);
   absl::Status EvalSend(const Bytecode& bytecode);
   absl::Status EvalShl(const Bytecode& bytecode);
@@ -202,6 +203,9 @@ class BytecodeInterpreter {
   absl::Status RunBuiltinSlice(const Bytecode& bytecode);
   absl::Status RunBuiltinUpdate(const Bytecode& bytecode);
   absl::Status RunBuiltinXorReduce(const Bytecode& bytecode);
+
+  // Common handler for the range bytecode and builtin range() fn.
+  absl::Status RangeInternal();
 
   absl::StatusOr<bool> MatchArmEqualsInterpValue(
       Frame* frame, const Bytecode::MatchArmItem& item,

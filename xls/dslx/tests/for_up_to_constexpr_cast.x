@@ -18,7 +18,7 @@ const FOO = u2:3;
 const CASTED = FOO as u4;
 
 fn f() -> u32 {
-  for (i, accum): (u4, u32) in range(u4:0, CASTED) {
+  for (i, accum): (u4, u32) in u4:0..CASTED {
     accum + (i as u32)
   }(u32:0)
 }
@@ -26,13 +26,13 @@ fn f() -> u32 {
 // As above, but puts the constexpr inline instead of binding to a module-level
 // const.
 fn g() -> u32 {
-  for (i, accum): (u4, u32) in range(u4:0, FOO as u4) {
+  for (i, accum): (u4, u32) in u4:0..FOO as u4 {
     accum + (i as u32)
   }(u32:0)
 }
 
 fn p<N: u2>() -> u32 {
-  for (i, accum): (u4, u32) in range(u4:0, N as u4) {
+  for (i, accum): (u4, u32) in u4:0..N as u4 {
     accum + (i as u32)
   }(u32:0)
 }

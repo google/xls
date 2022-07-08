@@ -16,12 +16,9 @@
 
 #include <cstdint>
 
-#include "absl/memory/memory.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/strip.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "re2/re2.h"
 
@@ -204,14 +201,26 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
 
 absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
   if (absl::holds_alternative<InterpValue>(value_)) {
-    return absl::get<InterpValue>(value_).GetBitValueInt64();
+    InterpValue value = std::get<InterpValue>(value_);
+    if (!value.IsBits()) {
+      return absl::InvalidArgumentError(
+          "Cannot convert non-bits type to int64_t.");
+    }
+
+    if (value.IsSigned()) {
+      return value.GetBitValueInt64();
+    }
+    return value.GetBitValueUint64();
   }
 
   std::optional<InterpValue> maybe_value = parametric().const_value();
   if (maybe_value.has_value()) {
     InterpValue value = maybe_value.value();
     if (value.IsBits()) {
-      return value.GetBitValueInt64();
+      if (value.IsSigned()) {
+        return value.GetBitValueInt64();
+      }
+      return value.GetBitValueUint64();
     }
   }
 

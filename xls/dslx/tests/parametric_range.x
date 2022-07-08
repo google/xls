@@ -1,4 +1,4 @@
-// Copyright 2020 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,30 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-enum MyEnum : u2 {
-  A = 0,
-  B = 1,
-  C = 2,
-  D = 3,
-}
-
-fn main(x: u2) -> MyEnum {
-  for (i, res): (u4, MyEnum) in u4:0..u4:4 {
-    match x {
-      u2:0 => MyEnum::A,
-      u2:1 => MyEnum::B,
-      u2:2 => MyEnum::C,
-      u2:3 => MyEnum::D,
-      _ => MyEnum::A,
-    }
-  }(MyEnum::A)
+fn range_doer<N: u32, M:u32, SIZE:u32 = M - N>() -> u32[SIZE] {
+ N..M
 }
 
 #![test]
-fn test_main() {
-  let _ = assert_eq(MyEnum::A, main(u2:0));
-  let _ = assert_eq(MyEnum::B, main(u2:1));
-  let _ = assert_eq(MyEnum::C, main(u2:2));
-  let _ = assert_eq(MyEnum::D, main(u2:3));
-  ()
+fn main() {
+  assert_eq(range_doer<u32:0, u32:4>(), u32[4]:[u32:0, u32:1, u32:2, u32:3])
 }

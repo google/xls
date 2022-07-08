@@ -72,6 +72,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "name definition tree";
     case AstNodeKind::kIndex:
       return "index";
+    case AstNodeKind::kRange:
+      return "range";
     case AstNodeKind::kRecv:
       return "receive";
     case AstNodeKind::kRecvIf:
@@ -1590,6 +1592,14 @@ Span MatchArm::GetPatternSpan() const {
 Match::Match(Module* owner, Span span, Expr* matched,
              std::vector<MatchArm*> arms)
     : Expr(owner, std::move(span)), matched_(matched), arms_(std::move(arms)) {}
+
+// -- class Range
+Range::Range(Module* owner, Span span, Expr* start, Expr* end)
+    : Expr(owner, std::move(span)), start_(start), end_(end) {}
+
+std::string Range::ToString() const {
+  return absl::StrFormat("%s..%s", start_->ToString(), end_->ToString());
+}
 
 // -- class Recv
 

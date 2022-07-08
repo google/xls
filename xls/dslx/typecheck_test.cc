@@ -1234,6 +1234,18 @@ fn main() -> u18 {
 )"));
 }
 
+TEST(TypecheckTest, BasicRange) {
+  constexpr absl::string_view kProgram = R"(#![test]
+fn main() {
+  let a = u32:0..u32:4;
+  let b = u32[4]:[0, 1, 2, 3];
+  assert_eq(a, b)
+}
+)";
+
+  XLS_EXPECT_OK(Typecheck(kProgram));
+}
+
 // Helper for struct instance based tests.
 absl::Status TypecheckStructInstance(std::string program) {
   program = R"(

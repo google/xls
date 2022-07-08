@@ -279,6 +279,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
       XLS_RETURN_IF_ERROR(EvalPop(bytecode));
       break;
     }
+    case Bytecode::Op::kRange: {
+      XLS_RETURN_IF_ERROR(EvalRange(bytecode));
+      break;
+    }
     case Bytecode::Op::kRecv: {
       XLS_RETURN_IF_ERROR(EvalRecv(bytecode));
       break;
@@ -824,6 +828,10 @@ absl::Status BytecodeInterpreter::EvalOr(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
   return Pop().status();
+}
+
+absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
+  return RangeInternal();
 }
 
 absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
@@ -1411,31 +1419,7 @@ absl::Status BytecodeInterpreter::RunBuiltinOrReduce(const Bytecode& bytecode) {
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinRange(const Bytecode& bytecode) {
-  return RunBinaryBuiltin(
-      [](const InterpValue& start,
-         const InterpValue& end) -> absl::StatusOr<InterpValue> {
-        XLS_RET_CHECK(start.IsBits());
-        XLS_RET_CHECK(end.IsBits());
-        XLS_ASSIGN_OR_RETURN(InterpValue start_gt_end, start.Gt(end));
-        if (start_gt_end.IsTrue()) {
-          return absl::InvalidArgumentError(absl::StrFormat(
-              "range() start must be less than or equal to end: %s vs %s.",
-              start.ToString(), end.ToString()));
-        }
-
-        std::vector<InterpValue> elements;
-        InterpValue cur = start;
-        XLS_ASSIGN_OR_RETURN(InterpValue done, cur.Ge(end));
-        XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
-        InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
-                                       : InterpValue::MakeUBits(cur_bits, 1));
-        while (done.IsFalse()) {
-          elements.push_back(cur);
-          XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
-          XLS_ASSIGN_OR_RETURN(done, cur.Ge(end));
-        }
-        return InterpValue::MakeArray(elements);
-      });
+  return RangeInternal();
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinRev(const Bytecode& bytecode) {
@@ -1519,6 +1503,32 @@ absl::Status BytecodeInterpreter::RunTernaryBuiltin(
   XLS_ASSIGN_OR_RETURN(InterpValue result, fn(a, b, c));
   stack_.push_back(result);
   return absl::OkStatus();
+}
+
+absl::Status BytecodeInterpreter::RangeInternal() {
+  return RunBinaryBuiltin(
+      [](const InterpValue& start,
+         const InterpValue& end) -> absl::StatusOr<InterpValue> {
+        XLS_RET_CHECK(start.IsBits());
+        XLS_RET_CHECK(end.IsBits());
+        XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start.Ge(end));
+        if (start_ge_end.IsTrue()) {
+          return InterpValue::MakeArray({});
+        }
+
+        std::vector<InterpValue> elements;
+        InterpValue cur = start;
+        XLS_ASSIGN_OR_RETURN(InterpValue done, cur.Ge(end));
+        XLS_ASSIGN_OR_RETURN(int64_t cur_bits, cur.GetBitCount());
+        InterpValue one(cur.IsSigned() ? InterpValue::MakeSBits(cur_bits, 1)
+                                       : InterpValue::MakeUBits(cur_bits, 1));
+        while (done.IsFalse()) {
+          elements.push_back(cur);
+          XLS_ASSIGN_OR_RETURN(cur, cur.Add(one));
+          XLS_ASSIGN_OR_RETURN(done, cur.Ge(end));
+        }
+        return InterpValue::MakeArray(elements);
+      });
 }
 
 ProcConfigBytecodeInterpreter::ProcConfigBytecodeInterpreter(

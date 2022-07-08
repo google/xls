@@ -405,8 +405,8 @@ class AstGenerator {
     return false;
   }
 
-  // Makes an invocation of the range builtin.
-  Invocation* MakeRange(Expr* zero, Expr* arg);
+  // Creates a `Range` AST node.
+  Range* MakeRange(Expr* zero, Expr* arg);
 
   // Various convenience wrappers that use fake spans.
   NameRef* MakeNameRef(NameDef* name_def) {
