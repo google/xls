@@ -142,17 +142,17 @@ absl::Status RunIrInterpreter(
     uint64_t processed_count = 0;
     for (const Value& value : values) {
       if (out_queue->empty()) {
-        XLS_LOG(WARNING) << "Warning: Didn't consume "
+        XLS_LOG(WARNING) << "Warning: Channel " << channel_name
+                         << " didn't consume "
                          << values.size() - processed_count
                          << " expected values" << std::endl;
         break;
       }
       XLS_ASSIGN_OR_RETURN(Value out_val, out_queue->Dequeue());
       if (value != out_val) {
-        std::cerr << "Mismatched after " << processed_count << " outputs"
-                  << std::endl;
-        XLS_RET_CHECK_EQ(value, out_val) << absl::StreamFormat(
-            "Mismatched after %d outputs", processed_count);
+        XLS_RET_CHECK_EQ(value, out_val)
+            << absl::StreamFormat("Mismatched (channel=%s) after %d outputs",
+                                  channel_name, processed_count);
       }
       checked_any_output = true;
       ++processed_count;
