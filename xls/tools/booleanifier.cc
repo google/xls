@@ -133,18 +133,27 @@ Booleanifier::Vector Booleanifier::HandleArrayIndex(
   Type* element_type = array_type->element_type();
   int64_t element_size = element_type->GetFlatBitCount();
 
+  // If the indices array is empty, just return the original array from the
+  // start_offset through the end of the array.
+  if (indices.empty()) {
+    return evaluator_->BitSlice(array, start_offset,
+                                array.size() - start_offset);
+  }
+
+  // Optimization for a common case where an array is indexed via a literal.  In
+  // this case we can emit the code directly without issuing a comparison check
+  // on the index, at that level of the array.
+  // Note that indices.size() == 1 is a check in a potentially recursive
+  // invocation on this method--this would happen if this is the last index in a
+  // sequence that indexes a multi-dimensional array.
   if (indices.size() == 1 && indices[0]->Is<Literal>()) {
-    // Literal index; directly slice out the relevant bits.
-    // TODO(rspringer): We can statically determine the exact set of
-    // bits to carve out for an array of literal indices (or subarrays of
-    // literals), but it's not of paramount importance at present.
     return HandleLiteralArrayIndex(
         array_type, array, indices[0]->As<Literal>()->value(), start_offset);
   }
 
   std::vector<Vector> cases;
   for (int i = 0; i < array_type->size(); i++) {
-    if (element_type->IsArray()) {
+    if (element_type->IsArray() && indices.size() > 1) {
       cases.push_back(HandleArrayIndex(element_type->AsArrayOrDie(), array,
                                        indices.subspan(1),
                                        start_offset + i * element_size));
@@ -153,26 +162,94 @@ Booleanifier::Vector Booleanifier::HandleArrayIndex(
           array, start_offset + i * element_size, element_size));
     }
   }
-
   return evaluator_->Select(node_map_.at(indices[0]), cases, cases.back());
 }
 
 Booleanifier::Vector Booleanifier::HandleArrayUpdate(
     const ArrayType* array_type, const Vector& array,
-    const Vector& update_index, const Vector& update_value) {
-  Vector result;
-  const int64_t index_width = update_index.size();
-  for (int i = 0; i < array_type->size(); i++) {
-    const Value loop_index(UBits(i, index_width));
-
-    const Element equals_index =
-        evaluator_->Equals(FlattenValue(loop_index), update_index);
-    const Vector old_value =
-        HandleLiteralArrayIndex(array_type, array, loop_index, 0);
-    const Vector new_value =
-        evaluator_->Select(Vector({equals_index}), {old_value, update_value});
-    result.insert(result.end(), new_value.begin(), new_value.end());
+    absl::Span<Node* const> indices, const Vector& update_value,
+    int64_t start_offset) {
+  // If the indices array is empty, then the update value is a new value for the
+  // whole array.
+  if (indices.empty()) {
+    return update_value;
   }
+
+  Vector result;
+
+  const Type* element_type = array_type->element_type();
+  const int64_t element_size = element_type->GetFlatBitCount();
+
+  // If the outermost index is literal, then we can directly construct the
+  // resulting array without emitting nodes to perform checks against the index,
+  // at least for the part of the array before and after the update index.  If
+  // the outermost index is not literal, then we must emit gates to perform the
+  // checks.  Further, if the array is multidimensional and we have more than
+  // one index in the array of indices, we call this function recurisively on
+  // the subarray corresponding to the element at which we wish to perform the
+  // update.
+  if (indices[0]->Is<Literal>()) {
+    const int64_t concrete_update_index =
+        indices[0]->As<Literal>()->value().bits().ToUint64().value();
+    // Out-of-bounds indices results in the original array being returned.
+    if (concrete_update_index < 0 ||
+        concrete_update_index >= array_type->size()) {
+      return array;
+    }
+    // Splice in the elements before the updated value, if any.
+    if (concrete_update_index > 0) {
+      Vector before = evaluator_->BitSlice(
+          array, start_offset, concrete_update_index * element_size);
+      result.insert(result.end(), before.begin(), before.end());
+    }
+    // Splice in the updated value.
+    if (element_type->IsArray()) {
+      Vector updated_subarray = HandleArrayUpdate(
+          element_type->AsArrayOrDie(), array, indices.subspan(1), update_value,
+          start_offset + concrete_update_index * element_size);
+      result.insert(result.end(), updated_subarray.begin(),
+                    updated_subarray.end());
+    } else {
+      // If it's not a multi-dimensional array, then there must not be any
+      // leftover indices in the array of indices.
+      XLS_CHECK(indices.size() == 1);
+      result.insert(result.end(), update_value.begin(), update_value.end());
+    }
+
+    // Splice in the elements after the updated value, if any
+    if (concrete_update_index < array_type->size() - 1) {
+      start_offset += (concrete_update_index + 1) * element_size;
+      Vector after = evaluator_->BitSlice(array, start_offset,
+                                          array.size() - start_offset);
+      result.insert(result.end(), after.begin(), after.end());
+    }
+  } else {
+    const Vector& update_index = node_map_.at(indices[0]);
+    const int64_t index_width = update_index.size();
+    for (int i = 0; i < array_type->size(); i++) {
+      const Value loop_index(UBits(i, index_width));
+      const Element equals_index =
+          evaluator_->Equals(FlattenValue(loop_index), update_index);
+      Vector old_value =
+          HandleLiteralArrayIndex(array_type, array, loop_index, start_offset);
+      const uint64_t concrete_update_index =
+          loop_index.bits().ToUint64().value();
+      Vector updated_subarray = update_value;
+      if (element_type->IsArray()) {
+        updated_subarray = HandleArrayUpdate(
+            element_type->AsArrayOrDie(), array, indices.subspan(1),
+            update_value, start_offset + concrete_update_index * element_size);
+      } else {
+        // If it's not a milti-dimensional array, then there must not be any
+        // leftover indices in the array of indices.
+        XLS_CHECK(indices.size() == 1);
+      }
+      const Vector new_value = evaluator_->Select(
+          Vector({equals_index}), {old_value, updated_subarray});
+      result.insert(result.end(), new_value.begin(), new_value.end());
+    }
+  }
+
   return result;
 }
 
@@ -202,13 +279,11 @@ Booleanifier::Vector Booleanifier::HandleSpecialOps(Node* node) {
     case Op::kArrayUpdate: {
       // Use the old value for each element, except for the updated element.
       ArrayUpdate* array_update = node->As<ArrayUpdate>();
-      XLS_CHECK(array_update->indices().size() == 1)
-          << "Booleanification is only supported for 1d arrays; got "
-          << array_update->indices().size() << ".";
       return HandleArrayUpdate(array_update->GetType()->AsArrayOrDie(),
                                node_map_.at(array_update->array_to_update()),
-                               node_map_.at(array_update->indices()[0]),
-                               node_map_.at(array_update->update_value()));
+                               array_update->indices(),
+                               node_map_.at(array_update->update_value()),
+                               /*start_offset=*/0);
     }
     case Op::kLiteral: {
       Vector result;

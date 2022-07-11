@@ -64,8 +64,8 @@ class Booleanifier {
                           int64_t start_offset);
 
   Vector HandleArrayUpdate(const ArrayType* array_type, const Vector& array,
-                           const Vector& update_index,
-                           const Vector& update_value);
+                           absl::Span<Node* const> indices,
+                           const Vector& update_value, int64_t start_offset);
 
   // Converts a structured input param into a flat bit array.
   Vector UnpackParam(Type* type, BValue bv_node);
