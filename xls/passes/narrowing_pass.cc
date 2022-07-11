@@ -19,6 +19,7 @@
 #include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits_ops.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/ir/op.h"
@@ -407,10 +408,40 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(bool use_range_analysis,
   for (int64_t i = 0; i < array_index->indices().size(); ++i) {
     Node* index = array_index->indices()[i];
 
-    // TODO(b/148457283): Unconditionally narrow the width of the index to the
-    // minimum number of bits require to index the entire array.
+    // Determine the array type that this index element is indexing into.
+    ArrayType* array_type = array_index->array()->GetType()->AsArrayOrDie();
+    for (int64_t j = 0; j < i; ++j) {
+      array_type = array_type->element_type()->AsArrayOrDie();
+    }
+
+    // Compute the minimum number of bits required to index the entire array.
+    int64_t array_size = array_type->AsArrayOrDie()->size();
+    int64_t min_index_width =
+        std::max(int64_t{1}, Bits::MinBitCountUnsigned(array_size - 1));
+
     if (index->Is<Literal>()) {
-      new_indices.push_back(index);
+      const Bits& bits_index = index->As<Literal>()->value().bits();
+      Bits new_bits_index = bits_index;
+      if (bits_ops::UGreaterThanOrEqual(bits_index, array_size)) {
+        // Index is out-of-bounds. Replace with a (potentially narrower) index
+        // equal to the first out-of-bounds element.
+        new_bits_index =
+            UBits(array_size, Bits::MinBitCountUnsigned(array_size));
+      } else if (bits_index.bit_count() > min_index_width) {
+        // Index is in-bounds and is wider than necessary to index the entire
+        // array. Replace with a literal which is perfectly sized (width) to
+        // index the whole array.
+        XLS_ASSIGN_OR_RETURN(int64_t int_index, bits_index.ToUint64());
+        new_bits_index = UBits(int_index, min_index_width);
+      }
+      Node* new_index = index;
+      if (bits_index != new_bits_index) {
+        XLS_ASSIGN_OR_RETURN(new_index,
+                             array_index->function_base()->MakeNode<Literal>(
+                                 array_index->loc(), Value(new_bits_index)));
+        changed = true;
+      }
+      new_indices.push_back(new_index);
       continue;
     }
 
@@ -418,8 +449,9 @@ absl::StatusOr<bool> MaybeNarrowArrayIndex(bool use_range_analysis,
     int64_t leading_zeros = CountLeadingKnownZeros(index, query_engine);
     if (leading_zeros == index_width) {
       XLS_ASSIGN_OR_RETURN(
-          Node * zero, array_index->function_base()->MakeNode<Literal>(
-                           array_index->loc(), Value(UBits(0, index_width))));
+          Node * zero,
+          array_index->function_base()->MakeNode<Literal>(
+              array_index->loc(), Value(UBits(0, min_index_width))));
       new_indices.push_back(zero);
       changed = true;
       continue;

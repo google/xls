@@ -93,10 +93,19 @@ void IntervalSet::Normalize() {
 }
 
 std::optional<Interval> IntervalSet::ConvexHull() const {
+  XLS_CHECK_GE(bit_count_, 0);
+  std::optional<Bits> lower = LowerBound();
+  std::optional<Bits> upper = UpperBound();
+  if (!lower.has_value() || !upper.has_value()) {
+    return absl::nullopt;
+  }
+  return Interval(lower.value(), upper.value());
+}
+
+std::optional<Bits> IntervalSet::LowerBound() const {
   // TODO(taktoa): optimize case where is_normalized_ is true
   XLS_CHECK_GE(bit_count_, 0);
   std::optional<Bits> lower;
-  std::optional<Bits> upper;
   for (const Interval& interval : intervals_) {
     if (lower.has_value()) {
       if (bits_ops::ULessThan(interval.LowerBound(), lower.value())) {
@@ -105,6 +114,15 @@ std::optional<Interval> IntervalSet::ConvexHull() const {
     } else {
       lower = interval.LowerBound();
     }
+  }
+  return lower;
+}
+
+std::optional<Bits> IntervalSet::UpperBound() const {
+  // TODO(taktoa): optimize case where is_normalized_ is true
+  XLS_CHECK_GE(bit_count_, 0);
+  std::optional<Bits> upper;
+  for (const Interval& interval : intervals_) {
     if (upper.has_value()) {
       if (bits_ops::UGreaterThan(interval.UpperBound(), upper.value())) {
         upper = interval.UpperBound();
@@ -113,10 +131,7 @@ std::optional<Interval> IntervalSet::ConvexHull() const {
       upper = interval.UpperBound();
     }
   }
-  if (!lower.has_value() || !upper.has_value()) {
-    return absl::nullopt;
-  }
-  return Interval(lower.value(), upper.value());
+  return upper;
 }
 
 IntervalSet IntervalSet::ZeroExtend(int64_t bit_width) const {

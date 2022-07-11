@@ -302,6 +302,28 @@ TEST(IntervalTest, IsEmpty) {
   EXPECT_FALSE(set1.IsEmpty());
 }
 
+TEST(IntervalTest, Bounds) {
+  IntervalSet empty(32);
+  EXPECT_FALSE(empty.LowerBound().has_value());
+  EXPECT_FALSE(empty.UpperBound().has_value());
+
+  IntervalSet precise(10);
+  precise.AddInterval(MakeInterval(5, 5, 10));
+  EXPECT_THAT(precise.LowerBound(), Optional(UBits(5, 10)));
+  EXPECT_THAT(precise.UpperBound(), Optional(UBits(5, 10)));
+
+  IntervalSet a(64);
+  a.AddInterval(MakeInterval(10, 123, 64));
+  EXPECT_THAT(a.LowerBound(), Optional(UBits(10, 64)));
+  EXPECT_THAT(a.UpperBound(), Optional(UBits(123, 64)));
+
+  IntervalSet b(64);
+  b.AddInterval(MakeInterval(0, 42, 64));
+  b.AddInterval(MakeInterval(100, 200, 64));
+  EXPECT_THAT(b.LowerBound(), Optional(UBits(0, 64)));
+  EXPECT_THAT(b.UpperBound(), Optional(UBits(200, 64)));
+}
+
 TEST(IntervalTest, Index) {
   IntervalSet set(32);
   set.AddInterval(MakeInterval(100, 150, 32));

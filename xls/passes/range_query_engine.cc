@@ -401,7 +401,7 @@ void RangeQueryEngine::SetIntervalSetTree(
   if (node->GetType()->IsBits()) {
     IntervalSet interval_set = new_ist.Get({});
     XLS_CHECK(interval_set.IsNormalized());
-    XLS_CHECK(!interval_set.Intervals().empty());
+    XLS_CHECK(!interval_set.Intervals().empty()) << node->ToString();
     Bits lcs = bits_ops::LongestCommonPrefixMSB(
         {interval_set.Intervals().front().LowerBound(),
          interval_set.Intervals().back().UpperBound()});
@@ -887,15 +887,32 @@ absl::Status RangeQueryVisitor::HandleArrayIndex(ArrayIndex* array_index) {
                  return IntervalSet(type->GetFlatBitCount());
                });
 
+  // Returns true if the given interval set covers the given index value for an
+  // array of dimension `dim`. Includes handling of OOB conditions.
+  auto intervals_cover_index = [&](const IntervalSet& intervals, int64_t index,
+                                   int64_t dim) {
+    if (Bits::MinBitCountUnsigned(index) > intervals.BitCount()) {
+      // The concrete index value `index` doesn't even fit in the width of the
+      // interval set.
+      return false;
+    }
+    if (intervals.Covers(UBits(index, intervals.BitCount()))) {
+      return true;
+    }
+
+    // An out-of-bound array index operation returns the maximal index element
+    // so the maximal array index is considered covered if the interval set
+    // covers *any* out-of-bounds index.
+    bool index_is_maximal = index == dim - 1;
+    std::optional<Bits> ub = intervals.UpperBound();
+    return index_is_maximal && ub.has_value() &&
+           bits_ops::UGreaterThanOrEqual(ub.value(), dim);
+  };
+
   MixedRadixIterate(dimension, [&](const std::vector<int64_t>& indexes) {
     for (int64_t i = 0; i < indexes.size(); ++i) {
-      IntervalSet intervals = index_intervals[i];
-      absl::StatusOr<Bits> index_bits =
-          UBitsWithStatus(indexes[i], intervals.BitCount());
-      if (!index_bits.ok()) {
-        return false;
-      }
-      if (!intervals.Covers(*index_bits)) {
+      if (!intervals_cover_index(index_intervals[i], indexes[i],
+                                 dimension[i])) {
         return false;
       }
     }

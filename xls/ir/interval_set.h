@@ -180,6 +180,10 @@ class IntervalSet {
   // Returns true iff this set of intervals is empty.
   bool IsEmpty() const;
 
+  // Returns the inclusive lower/upper bound of the interval set.
+  std::optional<Bits> LowerBound() const;
+  std::optional<Bits> UpperBound() const;
+
   // Print this set of intervals as a string.
   std::string ToString() const;
 

@@ -220,6 +220,7 @@ TEST_F(RangeQueryEngineTest, ArrayIndex1D) {
   BValue index0 = fb.ArrayIndex(array, {fb.Literal(UBits(0, 2))});
   BValue index1 = fb.ArrayIndex(array, {fb.Literal(UBits(1, 2))});
   BValue index2 = fb.ArrayIndex(array, {fb.Literal(UBits(2, 2))});
+  BValue oob_index = fb.ArrayIndex(array, {fb.Literal(UBits(3, 2))});
   BValue i = fb.Param("i", p->GetBitsType(2));
   BValue index12 = fb.ArrayIndex(array, {i});
 
@@ -244,6 +245,8 @@ TEST_F(RangeQueryEngineTest, ArrayIndex1D) {
   EXPECT_EQ(x_ist.Get({}), engine.GetIntervalSetTree(index0.node()).Get({}));
   EXPECT_EQ(y_ist.Get({}), engine.GetIntervalSetTree(index1.node()).Get({}));
   EXPECT_EQ(z_ist.Get({}), engine.GetIntervalSetTree(index2.node()).Get({}));
+  // An out-of-bounds index returns the highest-index element.
+  EXPECT_EQ(z_ist.Get({}), engine.GetIntervalSetTree(oob_index.node()).Get({}));
   EXPECT_EQ(IntervalSet::Combine(y_ist.Get({}), z_ist.Get({})),
             engine.GetIntervalSetTree(index12.node()).Get({}));
 }
