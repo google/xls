@@ -1162,12 +1162,14 @@ class Translator {
   absl::StatusOr<bool> EvaluateBool(const clang::Expr& expr,
                                     const class clang::ASTContext& ctx,
                                     const xls::SourceInfo& loc);
-  absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node);
+  absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node,
+                                          const xls::SourceInfo& loc);
 
   absl::Status ShortCircuitNode(xls::Node* node, xls::BValue& top_bval,
                                 xls::Node* parent,
-                                absl::flat_hash_set<xls::Node*>& visited);
-  absl::Status ShortCircuitBVal(xls::BValue& bval);
+                                absl::flat_hash_set<xls::Node*>& visited,
+                                const xls::SourceInfo& loc);
+  absl::Status ShortCircuitBVal(xls::BValue& bval, const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
                                           const xls::SourceInfo& loc);
   absl::StatusOr<Z3_lbool> IsBitSatisfiable(

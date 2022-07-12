@@ -1048,7 +1048,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       XLS_CHECK(op_condition.valid());
 
       // Short circuit the op condition if possible
-      XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition));
+      XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition, loc));
 
       // Ignore IO ops that are definitely condition = 0
       // XLS opt also does this down-stream, but we try to do it here
@@ -3761,21 +3761,30 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
   }
 }
 
-absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node) {
+absl::StatusOr<xls::Value> Translator::EvaluateNode(
+    xls::Node* node, const xls::SourceInfo& loc) {
   xls::IrInterpreter visitor({});
-  XLS_RETURN_IF_ERROR(node->Accept(&visitor));
+  absl::Status status = node->Accept(&visitor);
+  if (!status.ok()) {
+    return absl::UnavailableError(
+        ErrorMessage(loc,
+                     "Couldn't evaluate node as a constant. Error from IR "
+                     "interpreter was: %s",
+                     status.message()));
+  }
   xls::Value result = visitor.ResolveAsValue(node);
   return result;
 }
 
-absl::Status Translator::ShortCircuitBVal(xls::BValue& bval) {
+absl::Status Translator::ShortCircuitBVal(xls::BValue& bval,
+                                          const xls::SourceInfo& loc) {
   absl::flat_hash_set<xls::Node*> visited;
-  return ShortCircuitNode(bval.node(), bval, nullptr, visited);
+  return ShortCircuitNode(bval.node(), bval, nullptr, visited, loc);
 }
 
 absl::Status Translator::ShortCircuitNode(
     xls::Node* node, xls::BValue& top_bval, xls::Node* parent,
-    absl::flat_hash_set<xls::Node*>& visited) {
+    absl::flat_hash_set<xls::Node*>& visited, const xls::SourceInfo& loc) {
   if (visited.contains(node)) {
     return absl::OkStatus();
   }
@@ -3786,7 +3795,7 @@ absl::Status Translator::ShortCircuitNode(
   // Index based to avoid modify while iterating
   for (int oi = 0; oi < node->operand_count(); ++oi) {
     xls::Node* op = node->operand(oi);
-    XLS_RETURN_IF_ERROR(ShortCircuitNode(op, top_bval, node, visited));
+    XLS_RETURN_IF_ERROR(ShortCircuitNode(op, top_bval, node, visited, loc));
   }
 
   // Don't duplicate literals
@@ -3794,7 +3803,7 @@ absl::Status Translator::ShortCircuitNode(
     return absl::OkStatus();
   }
 
-  absl::StatusOr<xls::Value> const_result = EvaluateNode(node);
+  absl::StatusOr<xls::Value> const_result = EvaluateNode(node, loc);
 
   // Try to replace the node with a literal
   if (const_result.ok()) {
@@ -3845,7 +3854,7 @@ absl::Status Translator::ShortCircuitNode(
 
 absl::StatusOr<xls::Value> Translator::EvaluateBVal(
     xls::BValue bval, const xls::SourceInfo& loc) {
-  return EvaluateNode(bval.node());
+  return EvaluateNode(bval.node(), loc);
 }
 
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
@@ -4454,7 +4463,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
         // Simplify break logic in easy ways;
         // Z3 fails to solve some cases without this.
         XLS_RETURN_IF_ERROR(
-            ShortCircuitBVal(context().relative_break_condition));
+            ShortCircuitBVal(context().relative_break_condition, loc));
 
         // Use Z3 to check if another loop iteration is possible.
         xls::BValue not_break =
