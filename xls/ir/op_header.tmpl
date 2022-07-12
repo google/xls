@@ -67,9 +67,11 @@ class {{ op_class.name }};
 {% endfor %}
 
 // Returns whether the given Op has the OpT node subclass.
+class Node;
+
 template<typename OpT>
 bool IsOpClass(Op op) {
-  static_assert(!std::is_same<OpT, OpT>::value, "OpT is not a Node subclass");
+  static_assert(std::is_base_of<Node, OpT>::value, "OpT is not a Node subclass");
   return false;
 }
 
