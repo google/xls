@@ -14,7 +14,7 @@
 
 """Provides a rule that creates a C++ library from an .so file."""
 
-load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain")
+load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cpp_toolchain")
 
 def _impl(ctx):
     cc_toolchain = find_cc_toolchain(ctx)
@@ -44,5 +44,5 @@ cc_so_library = rule(
         "_cc_toolchain": attr.label(default = "@bazel_tools//tools/cpp:current_cc_toolchain"),
     },
     incompatible_use_toolchain_transition = True,
-    toolchains = ["@bazel_tools//tools/cpp:toolchain_type"],
+    toolchains = use_cpp_toolchain(),
 )
