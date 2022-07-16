@@ -14,10 +14,10 @@
 
 """Provides a rule that creates a C++ library from an .so file."""
 
-load("@rules_cc//cc:find_cc_toolchain.bzl", "find_cc_toolchain", "use_cpp_toolchain")
+load("@bazel_tools//tools/cpp:toolchain_utils.bzl", "find_cpp_toolchain", "use_cpp_toolchain")
 
 def _impl(ctx):
-    cc_toolchain = find_cc_toolchain(ctx)
+    cc_toolchain = find_cpp_toolchain(ctx)
     feature_configuration = cc_common.configure_features(ctx = ctx, cc_toolchain = cc_toolchain)
     linker_inputs = [cc_common.create_linker_input(
         owner = ctx.label,
