@@ -52,6 +52,22 @@ proc neg_proc(my_token: token, my_state: (), init={()}) {
 }
 """
 
+ASSERT_IR = """package assert_example
+
+fn invert_with_assert(x: bits[1]) -> bits[1] {
+  after_all.1: token = after_all()
+  assert.2: token = assert(after_all.1, x, message="assert message", id=2)
+  ret not.3: bits[1] = not(x)
+}
+"""
+
+GATE_IR = """package gate_example
+
+fn gate_example(x: bits[32], y: bits[1]) -> bits[32] {
+  ret gate.1: bits[32] = gate(y, x)
+}
+"""
+
 
 class CodeGenMainTest(parameterized.TestCase):
 
@@ -219,6 +235,31 @@ endmodule
     self.assertIn('wire [31:0] out_d', verilog)
     self.assertIn('wire out_v', verilog)
     self.assertIn('wire out_r', verilog)
+
+  def test_assert_format(self):
+    ir_file = self.create_tempfile(content=ASSERT_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        '--top=invert_with_assert',
+        "--assert_format='`MY_ASSERT({condition}, \"{message}\")'",
+        ir_file.full_path
+    ]).decode('utf-8')
+
+    self.assertIn('module invert_with_assert', verilog)
+    self.assertIn('MY_ASSERT', verilog)
+
+  def test_gate_format(self):
+    ir_file = self.create_tempfile(content=GATE_IR)
+    verilog = subprocess.check_output([
+        CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
+        '--top=gate_example',
+        "--gate_format='assign {output} = `MY_GATE({input}, {condition})'",
+        ir_file.full_path
+    ]).decode('utf-8')
+
+    self.assertIn('module gate_example', verilog)
+    self.assertIn('MY_GATE', verilog)
+
 
 if __name__ == '__main__':
   absltest.main()

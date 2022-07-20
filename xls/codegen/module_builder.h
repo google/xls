@@ -91,31 +91,29 @@ class ModuleBuilder {
   absl::StatusOr<LogicRef*> EmitAsAssignment(
       absl::string_view name, Node* node, absl::Span<Expression* const> inputs);
 
+  // Get the always_comb block in the assertions section.
+  // It is lazily created.
+  AlwaysComb* AssertAlwaysComb(const SourceInfo& loc);
+
   // Emit an XLS assert operation as a SystemVerilog assert statement. If
-  // SystemVerilog is not enabled then this is a nop. 'fmt_string' is the
-  // format string used to generate the assert. Format string details
-  // described in codegen_options.h.
-  // TODO(meheff): 2021/2/27 When format string is available at the user level,
-  // put the codegen-related documentation in a common place.
-  absl::Status EmitAssert(
-      xls::Assert* asrt, Expression* condition,
-      std::optional<absl::string_view> fmt_string = absl::nullopt);
+  // SystemVerilog is not enabled then this is a nop.
+  absl::StatusOr<NodeRepresentation> EmitAssert(xls::Assert* asrt,
+                                                Expression* condition);
 
   // Emit an IR trace operation as a Verilog $display statement.
-  absl::Status EmitTrace(xls::Trace* trace, Expression* condition,
-                         absl::Span<Expression* const> trace_args);
+  absl::StatusOr<Display*> EmitTrace(xls::Trace* trace, Expression* condition,
+                                     absl::Span<Expression* const> trace_args);
 
   // Emit an XLS cover statement as a SystemVerilog `cover property` statement.
   // If SystemVerilog is not enabled, then this is a nop. Note that the emitted
   // statement will have no effect unless a clock is present in the module.
-  absl::Status EmitCover(xls::Cover* cover, Expression* condition);
+  absl::StatusOr<NodeRepresentation> EmitCover(xls::Cover* cover,
+                                               Expression* condition);
 
-  // Emit a gate operation. 'fmt_string' is the optional format string used to
-  // generate the Verilog text. Format string details described in
-  // codegen_options.h.
-  absl::StatusOr<IndexableExpression*> EmitGate(
-      xls::Gate* gate, Expression* condition, Expression* data,
-      std::optional<absl::string_view> fmt_string = absl::nullopt);
+  // Emit a gate operation.
+  absl::StatusOr<IndexableExpression*> EmitGate(xls::Gate* gate,
+                                                Expression* condition,
+                                                Expression* data);
 
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.

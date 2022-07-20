@@ -48,7 +48,6 @@ cc_library(
         ":node_expressions",
         ":signature_generator",
         ":vast",
-        ":verilog_line_map_cc_proto",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -372,6 +371,7 @@ cc_library(
         ":flattening",
         ":lint_annotate",
         ":node_expressions",
+        ":node_representation",
         ":vast",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -440,10 +440,16 @@ cc_library(
     hdrs = ["codegen_options.h"],
     deps = [
         ":module_signature_cc_proto",
+        ":op_override",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:optional",
         "//xls/common:proto_adaptor_utils",
-        "//xls/scheduling:pipeline_schedule",
+        "//xls/common/logging",
+        "//xls/ir",
+        "//xls/ir:op",
+        "@com_github_google_re2//:re2",
     ],
 )
 
@@ -529,14 +535,15 @@ cc_library(
         ":flattening",
         ":module_builder",
         ":node_expressions",
+        ":node_representation",
         ":vast",
         ":verilog_line_map_cc_proto",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
+        "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:node_util",
     ],
 )
 
@@ -771,6 +778,7 @@ cc_test(
     ]),
     deps = [
         ":block_generator",
+        ":op_override_impls",
         ":signature_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
@@ -842,8 +850,6 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
-        "//xls/ir:node_util",
-        "//xls/scheduling:pipeline_schedule",
     ],
 )
 
@@ -862,7 +868,6 @@ cc_test(
         "//xls/ir:function_builder",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
-        "//xls/ir:value",
         "//xls/scheduling:pipeline_schedule",
         "@com_google_googletest//:gtest",
     ],
@@ -873,20 +878,23 @@ cc_library(
     srcs = ["bdd_io_analysis.cc"],
     hdrs = ["bdd_io_analysis.h"],
     deps = [
-        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings:str_format",
         "//xls/common:casts",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/ir",
-        "//xls/ir:channel",
         "//xls/ir:node_util",
         "//xls/passes",
         "//xls/passes:bdd_query_engine",
-        "//xls/passes:pass_base",
         "//xls/passes:query_engine",
     ],
+)
+
+cc_library(
+    name = "lint_annotate_cc",
+    srcs = ["lint_annotate.cc"],
+    hdrs = ["lint_annotate.h"],
+    deps = [":vast"],
 )
 
 cc_test(
@@ -906,5 +914,43 @@ cc_test(
         "//xls/passes:bdd_cse_pass",
         "//xls/passes:dce_pass",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "op_override",
+    srcs = [],
+    hdrs = ["op_override.h"],
+    deps = [
+        ":node_representation",
+        ":vast",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+        "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "op_override_impls",
+    srcs = ["op_override_impls.cc"],
+    hdrs = ["op_override_impls.h"],
+    deps = [
+        ":module_builder",
+        ":op_override",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "@com_github_google_re2//:re2",
+    ],
+)
+
+cc_library(
+    name = "node_representation",
+    srcs = [],
+    hdrs = ["node_representation.h"],
+    deps = [
+        ":vast",
     ],
 )

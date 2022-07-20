@@ -18,32 +18,22 @@
 
 #include "absl/status/status.h"
 #include "xls/codegen/block_conversion.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/module_builder.h"
 #include "xls/codegen/node_expressions.h"
+#include "xls/codegen/node_representation.h"
 #include "xls/codegen/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/instantiation.h"
 #include "xls/ir/node_iterator.h"
-#include "xls/ir/node_util.h"
 
 namespace xls {
 namespace verilog {
 namespace {
-
-// Not all nodes have direct representations in the Verilog. To handle these
-// cases, use an absl::variant type which holds one of the two possible
-// representations for a Node:
-//
-//  1) Expression* : node is represented directly by a Verilog expression. This
-//     is the common case.
-//
-//  2) UnrepresentedSentinel : node has no representation in the Verilog. For
-//     example, the node emits a token type.
-struct UnrepresentedSentinel {};
-using NodeRepresentation = absl::variant<UnrepresentedSentinel, Expression*>;
 
 // Returns true if the given type is representable in the Verilog.
 bool IsRepresentable(Type* type) {
@@ -56,11 +46,7 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
     const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs,
     absl::string_view name, bool emit_as_assignment) {
-  if (node->Is<xls::Assert>() || node->Is<xls::Cover>()) {
-    // Asserts are statements, not expressions, and are emitted after all other
-    // operations.
-    return UnrepresentedSentinel();
-  } else if (node->Is<Tuple>()) {
+  if (node->Is<Tuple>()) {
     // A tuple may have unrepresentable inputs such as empty tuples.  Walk
     // through and gather non-zero-width inputs and flatten them.
     std::vector<Expression*> nonempty_elements;
@@ -350,12 +336,8 @@ class BlockGenerator {
       XLS_RETURN_IF_ERROR(AssignRegisters(block_->GetRegisters()));
     }
 
-    // Emit instantiations, asserts, coverpoints and traces separately at the
-    // end of the Verilog module.
+    // Emit instantiations separately at the end of the Verilog module.
     XLS_RETURN_IF_ERROR(EmitInstantiations());
-    XLS_RETURN_IF_ERROR(EmitAsserts());
-    XLS_RETURN_IF_ERROR(EmitCovers());
-    XLS_RETURN_IF_ERROR(EmitTraces());
 
     XLS_RETURN_IF_ERROR(EmitOutputPorts());
 
@@ -381,6 +363,34 @@ class BlockGenerator {
     return absl::OkStatus();
   }
 
+  // If the node has an assigned name then don't emit as an inline expression.
+  // This ensures the name appears in the generated Verilog.
+  bool EmitAsAssignment(Node* const n) {
+    if (n->HasAssignedName() ||
+        (n->users().size() > 1 && !ShouldInlineExpressionIntoMultipleUses(n)) ||
+        n->function_base()->HasImplicitUse(n) ||
+        !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
+      return true;
+    }
+    // Emit operands of RegisterWrite's as assignments rather than inline
+    // to avoid having logic in the always_ff blocks.
+    for (Node* user : n->users()) {
+      if (user->Is<RegisterWrite>()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Name of the node if it gets emitted as a separate assignment.
+  std::string NodeAssignmentName(Node* const node,
+                                 std::optional<int64_t> stage) {
+    return stage.has_value() ? absl::StrCat(PipelineSignalName(node->GetName(),
+                                                               stage.value()),
+                                            "_comb")
+                             : node->GetName();
+  }
+
   // Emits the logic for the given nodes. This includes declaring and wires/regs
   // defined by the nodes.
   absl::Status EmitLogic(absl::Span<Node* const> nodes,
@@ -388,70 +398,148 @@ class BlockGenerator {
     for (Node* node : nodes) {
       XLS_VLOG(3) << "Emitting logic for: " << node->GetName();
 
-      // Ports are handled elsewhere for proper ordering of ports.
-      if (node->Is<InputPort>() || node->Is<OutputPort>()) {
-        continue;
-      }
+      // TODO(google/xls#653): support per-node overrides?
+      std::optional<OpOverride*> op_override =
+          options_.GetOpOverride(node->op());
 
-      // Instantiation outputs are declared as expressions elsewhere.
-      if (node->Is<InstantiationOutput>()) {
-        continue;
-      }
-
-      // RegisterWrite and RegisterRead don't directly generate any VAST ast,
-      // but some bookkeeping is necessary for associating an expression with
-      // each register and setting the next and (optional) load-enable
-      // expressions.
-      if (node->Is<RegisterWrite>()) {
-        RegisterWrite* reg_write = node->As<RegisterWrite>();
-        mb_registers_.at(reg_write->GetRegister()).next =
-            absl::get<Expression*>(node_exprs_.at(reg_write->data()));
-        if (reg_write->load_enable().has_value()) {
-          mb_registers_.at(reg_write->GetRegister()).load_enable =
-              absl::get<Expression*>(
-                  node_exprs_.at(reg_write->load_enable().value()));
+      if (op_override.has_value()) {
+        std::vector<NodeRepresentation> inputs;
+        for (const Node* operand : node->operands()) {
+          inputs.push_back(node_exprs_.at(operand));
         }
-        node_exprs_[node] = UnrepresentedSentinel();
+
+        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
+                             (*op_override)->Emit(node, inputs, mb_));
         continue;
       }
-      if (node->Is<RegisterRead>()) {
-        RegisterRead* reg_read = node->As<RegisterRead>();
-        node_exprs_[node] = mb_registers_.at(reg_read->GetRegister()).ref;
-        continue;
+
+      switch (node->op()) {
+        // Ports are handled elsewhere for proper ordering of ports.
+        case Op::kInputPort:
+        case Op::kOutputPort:
+        // Instantiation outputs are declared as expressions elsewhere.
+        case Op::kInstantiationOutput:
+          continue;
+
+        // RegisterWrite and RegisterRead don't directly generate any VAST
+        // ast, but some bookkeeping is necessary for associating an
+        // expression with each register and setting the next and (optional)
+        // load-enable expressions.
+        case Op::kRegisterWrite: {
+          RegisterWrite* reg_write = node->As<RegisterWrite>();
+          mb_registers_.at(reg_write->GetRegister()).next =
+              absl::get<Expression*>(node_exprs_.at(reg_write->data()));
+          if (reg_write->load_enable().has_value()) {
+            mb_registers_.at(reg_write->GetRegister()).load_enable =
+                absl::get<Expression*>(
+                    node_exprs_.at(reg_write->load_enable().value()));
+          }
+          node_exprs_[node] = UnrepresentedSentinel();
+          continue;
+        }
+        case Op::kRegisterRead: {
+          RegisterRead* reg_read = node->As<RegisterRead>();
+          node_exprs_[node] = mb_registers_.at(reg_read->GetRegister()).ref;
+          continue;
+        }
+        case Op::kAssert: {
+          xls::Assert* asrt = node->As<xls::Assert>();
+          NodeRepresentation condition = node_exprs_.at(asrt->condition());
+          if (!std::holds_alternative<Expression*>(condition)) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Unable to generate code for assert %s, has "
+                                "condition that is not an expression",
+                                asrt->GetName()));
+          }
+          XLS_ASSIGN_OR_RETURN(
+              node_exprs_[node],
+              mb_.EmitAssert(asrt, absl::get<Expression*>(condition)));
+          continue;
+        }
+        case Op::kCover: {
+          xls::Cover* cover = node->As<xls::Cover>();
+          NodeRepresentation condition = node_exprs_.at(cover->condition());
+          if (!std::holds_alternative<Expression*>(condition)) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Unable to generate code for cover %s, has "
+                                "condition that is not an expression",
+                                cover->GetName()));
+          }
+          XLS_ASSIGN_OR_RETURN(
+              node_exprs_[node],
+              mb_.EmitCover(cover, absl::get<Expression*>(condition)));
+          continue;
+        }
+        case Op::kTrace: {
+          xls::Trace* trace = node->As<xls::Trace>();
+          NodeRepresentation condition = node_exprs_.at(trace->condition());
+          if (!std::holds_alternative<Expression*>(condition)) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Unable to generate code for trace %s, has "
+                                "condition that is not an expression",
+                                trace->GetName()));
+          }
+          std::vector<Expression*> trace_args;
+          for (Node* const arg : trace->args()) {
+            const NodeRepresentation& arg_repr = node_exprs_.at(arg);
+            if (!std::holds_alternative<Expression*>(arg_repr)) {
+              return absl::InvalidArgumentError(
+                  absl::StrFormat("Unable to generate code for trace %s, has "
+                                  "arg that is not an expression",
+                                  trace->GetName()));
+            }
+            trace_args.push_back(std::get<Expression*>(arg_repr));
+          }
+          XLS_ASSIGN_OR_RETURN(
+              node_exprs_[node],
+              mb_.EmitTrace(trace, absl::get<Expression*>(condition),
+                            trace_args));
+          continue;
+        }
+        case Op::kLiteral: {
+          if (!node->GetType()->IsBits() && IsRepresentable(node->GetType())) {
+            XLS_CHECK_EQ(node->operands().size(), 0);
+            XLS_ASSIGN_OR_RETURN(
+                node_exprs_[node],
+                mb_.DeclareModuleConstant(node->GetName(),
+                                          node->As<xls::Literal>()->value()));
+            continue;
+          }
+          break;
+        }
+        case Op::kGate: {
+          XLS_CHECK_EQ(node->operands().size(), 2);
+          const NodeRepresentation& data =
+              node_exprs_.at(node->operands().at(0));
+          const NodeRepresentation& condition =
+              node_exprs_.at(node->operands().at(1));
+          if (!std::holds_alternative<Expression*>(data)) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Unable to generate code for gate node %s, has "
+                                "unrepresentable data",
+                                node->GetName()));
+          }
+          if (!std::holds_alternative<Expression*>(condition)) {
+            return absl::InvalidArgumentError(
+                absl::StrFormat("Unable to generate code for gate node %s, has "
+                                "unrepresentable data",
+                                node->GetName()));
+          }
+          XLS_ASSIGN_OR_RETURN(
+              node_exprs_[node],
+              mb_.EmitGate(node->As<Gate>(), std::get<Expression*>(data),
+                           std::get<Expression*>(condition)));
+
+          continue;
+        }
+        default:
+          break;
       }
 
       if (!IsRepresentable(node->GetType())) {
         node_exprs_[node] = UnrepresentedSentinel();
         continue;
       }
-
-      // If the node has an assigned name then don't emit as an inline
-      // expression. This ensures the name appears in the generated Verilog.
-      auto emit_as_assignment = [this](Node* n) {
-        if (n->HasAssignedName() ||
-            (n->users().size() > 1 &&
-             !ShouldInlineExpressionIntoMultipleUses(n)) ||
-            n->function_base()->HasImplicitUse(n) ||
-            !mb_.CanEmitAsInlineExpression(n) || options_.separate_lines()) {
-          return true;
-        }
-        // Emit operands of RegisterWrite's as assignments rather than inline
-        // to avoid having logic in the always_ff blocks.
-        for (Node* user : n->users()) {
-          if (user->Is<RegisterWrite>()) {
-            return true;
-          }
-        }
-        return false;
-      };
-
-      // Name of the node if it gets emitted as a separate assignment.
-      std::string name =
-          stage.has_value()
-              ? absl::StrCat(PipelineSignalName(node->GetName(), stage.value()),
-                             "_comb")
-              : node->GetName();
-
       // If any of the operands do not have an Expression* representation then
       // handle the node specially.
       if (std::any_of(
@@ -460,8 +548,9 @@ class BlockGenerator {
               })) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
-            CodegenNodeWithUnrepresentedOperands(node, &mb_, node_exprs_, name,
-                                                 emit_as_assignment(node)));
+            CodegenNodeWithUnrepresentedOperands(
+                node, &mb_, node_exprs_, NodeAssignmentName(node, stage),
+                EmitAsAssignment(node)));
         continue;
       }
 
@@ -484,24 +573,16 @@ class BlockGenerator {
             "Unable to generate code for node %s, has unrepresentable operand",
             node->GetName()));
       }
-
       std::vector<Expression*> inputs;
-      for (Node* operand : node->operands()) {
-        inputs.push_back(absl::get<Expression*>(node_exprs_.at(operand)));
+      for (const Node* operand : node->operands()) {
+        inputs.push_back(std::get<Expression*>(node_exprs_.at(operand)));
       }
 
-      // Gate operations are emitted specially as they may have a custom
-      // user-specified format string.
-      if (node->Is<Gate>()) {
-        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
-                             mb_.EmitGate(node->As<Gate>(), inputs[0],
-                                          inputs[1], options_.gate_format()));
-        continue;
-      }
-
-      if (emit_as_assignment(node)) {
-        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
-                             mb_.EmitAsAssignment(name, node, inputs));
+      if (EmitAsAssignment(node)) {
+        XLS_ASSIGN_OR_RETURN(
+            node_exprs_[node],
+            mb_.EmitAsAssignment(NodeAssignmentName(node, stage), node,
+                                 inputs));
       } else {
         XLS_ASSIGN_OR_RETURN(node_exprs_[node],
                              mb_.EmitAsInlineExpression(node, inputs));
@@ -623,48 +704,6 @@ class BlockGenerator {
             SourceInfo(), block_instantiation->instantiated_block()->name(),
             block_instantiation->name(),
             /*parameters=*/std::vector<Connection>(), connections);
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status EmitAsserts() {
-    for (Node* node : block_->nodes()) {
-      if (node->Is<xls::Assert>()) {
-        xls::Assert* asrt = node->As<xls::Assert>();
-        Expression* condition =
-            absl::get<Expression*>(node_exprs_.at(asrt->condition()));
-        XLS_RETURN_IF_ERROR(
-            mb_.EmitAssert(asrt, condition, options_.assert_format()));
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status EmitCovers() {
-    for (Node* node : block_->nodes()) {
-      if (node->Is<xls::Cover>()) {
-        xls::Cover* cover = node->As<xls::Cover>();
-        Expression* condition =
-            absl::get<Expression*>(node_exprs_.at(cover->condition()));
-        XLS_RETURN_IF_ERROR(mb_.EmitCover(cover, condition));
-      }
-    }
-    return absl::OkStatus();
-  }
-
-  absl::Status EmitTraces() {
-    for (Node* node : block_->nodes()) {
-      if (node->Is<xls::Trace>()) {
-        xls::Trace* trace = node->As<xls::Trace>();
-        Expression* condition =
-            absl::get<Expression*>(node_exprs_.at(trace->condition()));
-
-        std::vector<Expression*> trace_args;
-        for (Node* arg : trace->args()) {
-          trace_args.push_back(absl::get<Expression*>(node_exprs_.at(arg)));
-        }
-        XLS_RETURN_IF_ERROR(mb_.EmitTrace(trace, condition, trace_args));
       }
     }
     return absl::OkStatus();

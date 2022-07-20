@@ -26,6 +26,7 @@
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/lint_annotate.h"
 #include "xls/codegen/node_expressions.h"
+#include "xls/codegen/node_representation.h"
 #include "xls/codegen/vast.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
@@ -888,55 +889,22 @@ static absl::StatusOr<std::string> GenerateFormatString(
   return str;
 }
 
-absl::Status ModuleBuilder::EmitAssert(
-    xls::Assert* asrt, Expression* condition,
-    std::optional<absl::string_view> fmt_string) {
-  if (fmt_string.has_value()) {
-    absl::flat_hash_map<std::string, std::string> supported_placeholders;
-    absl::flat_hash_map<std::string, std::string> unsupported_placeholders;
-    supported_placeholders["message"] = asrt->message();
-    supported_placeholders["condition"] = condition->Emit(nullptr);
-    if (asrt->label().has_value()) {
-      supported_placeholders["label"] = asrt->label().value();
-    } else {
-      unsupported_placeholders["label"] =
-          "Assert format string has {label} placeholder, but assert operation "
-          "has no label.";
-    }
-    if (clk_ != nullptr) {
-      supported_placeholders["clk"] = clk_->GetName();
-    } else {
-      unsupported_placeholders["clk"] =
-          "Assert format string has {clk} placeholder, but block has no clock "
-          "signal.";
-    }
-    if (rst_.has_value()) {
-      supported_placeholders["rst"] = rst_->signal->GetName();
-    } else {
-      unsupported_placeholders["rst"] =
-          "Assert format string has {rst} placeholder, but block has no reset "
-          "signal.";
-    }
-    XLS_ASSIGN_OR_RETURN(
-        std::string assert_str,
-        GenerateFormatString(fmt_string.value(), supported_placeholders,
-                             unsupported_placeholders));
-    assert_section_->Add<InlineVerilogStatement>(asrt->loc(), assert_str + ";");
-    return absl::OkStatus();
+AlwaysComb* ModuleBuilder::AssertAlwaysComb(const SourceInfo& loc) {
+  if (assert_always_comb_ == nullptr) {
+    assert_always_comb_ = assert_section_->Add<AlwaysComb>(loc);
   }
+  return assert_always_comb_;
+}
 
+absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitAssert(
+    xls::Assert* asrt, Expression* condition) {
   if (!options_.use_system_verilog()) {
     // Asserts are a SystemVerilog only feature.
     // TODO(meheff): 2021/02/27 We should raise an error here or possibly emit a
     // construct like: if (!condition) $display("Assert failed ...");
     XLS_LOG(WARNING) << "Asserts are only supported in SystemVerilog.";
-    return absl::OkStatus();
+    return UnrepresentedSentinel();
   }
-  if (assert_always_comb_ == nullptr) {
-    // Lazily create the always_comb block.
-    assert_always_comb_ = assert_section_->Add<AlwaysComb>(asrt->loc());
-  }
-
   // Guard the assert with $isunknown to avoid triggering the assert condition
   // prior to inputs being driven in the testbench. For example:
   //
@@ -946,17 +914,17 @@ absl::Status ModuleBuilder::EmitAssert(
   // adjusting our testbench architecture to drive inputs immediately for
   // combinational blocks and asserting only on rising clock edge for
   // non-combinational blocks.
-  assert_always_comb_->statements()->Add<Assert>(
-      asrt->loc(),
-      file_->LogicalOr(
-          file_->Make<SystemFunctionCall>(
-              asrt->loc(), "isunknown", std::vector<Expression*>({condition})),
-          condition, asrt->loc()),
-      asrt->message());
-  return absl::OkStatus();
+  return AssertAlwaysComb(asrt->loc())
+      ->statements()
+      ->Add<Assert>(asrt->loc(),
+                    file_->LogicalOr(file_->Make<SystemFunctionCall>(
+                                         asrt->loc(), "isunknown",
+                                         std::vector<Expression*>({condition})),
+                                     condition, asrt->loc()),
+                    asrt->message());
 }
 
-absl::Status ModuleBuilder::EmitTrace(
+absl::StatusOr<Display*> ModuleBuilder::EmitTrace(
     xls::Trace* trace, Expression* condition,
     absl::Span<Expression* const> trace_args) {
   StructuredProcedure* trace_always;
@@ -991,14 +959,11 @@ absl::Status ModuleBuilder::EmitTrace(
     display_args.push_back(arg);
   }
 
-  trace_if->consequent()->Add<Display>(trace->loc(), display_args);
-
-  return absl::OkStatus();
+  return trace_if->consequent()->Add<Display>(trace->loc(), display_args);
 }
 
 absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
-    xls::Gate* gate, Expression* condition, Expression* data,
-    std::optional<absl::string_view> fmt_string) {
+    xls::Gate* gate, Expression* condition, Expression* data) {
   // Only bits-typed or tuple-typed data supported.
   // TODO(https://github.com/google/xls/issues/463) 2021/07/20 Add support for
   // array types.
@@ -1009,22 +974,6 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
   }
 
   LogicRef* ref = DeclareVariable(gate->GetName(), gate->GetType());
-
-  if (fmt_string.has_value()) {
-    absl::flat_hash_map<std::string, std::string> placeholders;
-    placeholders["condition"] = condition->Emit(nullptr);
-    placeholders["input"] = data->Emit(nullptr);
-    placeholders["output"] = ref->GetName();
-    placeholders["width"] = absl::StrCat(gate->GetType()->GetFlatBitCount());
-    XLS_ASSIGN_OR_RETURN(std::string gate_str,
-                         GenerateFormatString(fmt_string.value(), placeholders,
-                                              /*unsupported_placeholders=*/{}));
-    InlineVerilogStatement* raw_statement =
-        assignment_section()->Add<InlineVerilogStatement>(gate->loc(),
-                                                          gate_str + ";");
-    return file_->Make<InlineVerilogRef>(gate->loc(), ref->GetName(),
-                                         raw_statement);
-  }
 
   // Emit the gate as an AND of the (potentially replicated) condition and the
   // data. For example:
@@ -1048,19 +997,19 @@ absl::StatusOr<IndexableExpression*> ModuleBuilder::EmitGate(
   return ref;
 }
 
-absl::Status ModuleBuilder::EmitCover(xls::Cover* cover,
-                                      Expression* condition) {
+absl::StatusOr<NodeRepresentation> ModuleBuilder::EmitCover(
+    xls::Cover* cover, Expression* condition) {
   if (!options_.use_system_verilog()) {
     // Coverpoints are a SystemVerilog only feature.
     XLS_LOG(WARNING) << "Coverpoints are only supported in SystemVerilog.";
-    return absl::OkStatus();
+    return UnrepresentedSentinel();
   }
   if (clk_ == nullptr) {
     return absl::InvalidArgumentError(
         "Coverpoints require a clock to be present in the module.");
   }
-  cover_section()->Add<Cover>(cover->loc(), clk_, condition, cover->label());
-  return absl::OkStatus();
+  return cover_section()->Add<Cover>(cover->loc(), clk_, condition,
+                                     cover->label());
 }
 
 absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {

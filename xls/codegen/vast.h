@@ -1210,11 +1210,11 @@ class Assert : public Statement {
 //
 // Such a statement will cause the simulator to count the number of times that
 // the given condition is true, and associate that value with <name>.
-class Cover : public VastNode {
+class Cover : public Statement {
  public:
   Cover(LogicRef* clk, Expression* condition, absl::string_view label,
         VerilogFile* file, const SourceInfo& loc)
-      : VastNode(file, loc), clk_(clk), condition_(condition), label_(label) {}
+      : Statement(file, loc), clk_(clk), condition_(condition), label_(label) {}
 
   std::string Emit(LineInfo* line_info) const override;
 

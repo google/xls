@@ -14,6 +14,7 @@
 
 #include "xls/codegen/block_generator.h"
 
+#include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/signature_generator.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/block.h"
@@ -334,8 +335,10 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
         std::string verilog,
         GenerateVerilog(
             block,
-            codegen_options().assert_format(
-                R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))")));
+            codegen_options().SetOpOverride(
+                Op::kAssert,
+                std::make_unique<OpOverrideAssertion>(
+                    R"(`MY_ASSERT({condition}, "{message}", {clk}, {rst}))"))));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
           verilog,
@@ -349,15 +352,19 @@ TEST_P(BlockGeneratorTest, BlockWithAssertNoLabel) {
   // Format string with label but assert doesn't have label.
   EXPECT_THAT(
       GenerateVerilog(block,
-                      codegen_options().assert_format(R"({label} foobar)")),
+                      codegen_options().SetOpOverride(
+                          Op::kAssert, std::make_unique<OpOverrideAssertion>(
+                                           R"({label} foobar)"))),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Assert format string has {label} placeholder, "
                          "but assert operation has no label")));
 
   // Format string with invalid placeholder.
   EXPECT_THAT(
-      GenerateVerilog(
-          block, codegen_options().assert_format(R"({foobar} blargfoobar)")),
+      GenerateVerilog(block,
+                      codegen_options().SetOpOverride(
+                          Op::kAssert, std::make_unique<OpOverrideAssertion>(
+                                           R"({foobar} blargfoobar)"))),
       StatusIs(absl::StatusCode::kInvalidArgument,
                HasSubstr("Invalid placeholder {foobar} in format string. "
                          "Valid placeholders: {clk}, {condition}, {label}, "
@@ -392,8 +399,10 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
         std::string verilog,
         GenerateVerilog(
             block,
-            codegen_options().assert_format(
-                R"({label}: `MY_ASSERT({condition}, "{message}") // {label})")));
+            codegen_options().SetOpOverride(
+                Op::kAssert,
+                std::make_unique<OpOverrideAssertion>(
+                    R"({label}: `MY_ASSERT({condition}, "{message}") // {label})"))));
     if (UseSystemVerilog()) {
       EXPECT_THAT(
           verilog,
@@ -406,17 +415,38 @@ TEST_P(BlockGeneratorTest, BlockWithAssertWithLabel) {
 
   // Format string with reset but block doesn't have reset.
   EXPECT_THAT(GenerateVerilog(
-                  block, codegen_options().assert_format(R"({rst} foobar)")),
+                  block, codegen_options().SetOpOverride(
+                             Op::kAssert, std::make_unique<OpOverrideAssertion>(
+                                              R"({rst} foobar)"))),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Assert format string has {rst} placeholder, "
                                  "but block has no reset signal")));
 
   // Format string with clock but block doesn't have clock.
   EXPECT_THAT(GenerateVerilog(
-                  block, codegen_options().assert_format(R"({clk} foobar)")),
+                  block, codegen_options().SetOpOverride(
+                             Op::kAssert, std::make_unique<OpOverrideAssertion>(
+                                              R"({clk} foobar)"))),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Assert format string has {clk} placeholder, "
                                  "but block has no clock signal")));
+}
+
+TEST_P(BlockGeneratorTest, BlockWithTrace) {
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  BValue a = b.InputPort("a", package.GetBitsType(32));
+  b.Trace(b.AfterAll({}), b.ULt(a, b.Literal(UBits(42, 32))), {a},
+          "a ({}) is not greater than 42");
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  {
+    // No format string.
+    XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                             GenerateVerilog(block, codegen_options()));
+    EXPECT_THAT(verilog,
+                HasSubstr(R"($display("a (%d) is not greater than 42", a)"));
+  }
 }
 
 TEST_P(BlockGeneratorTest, PortOrderTest) {
@@ -533,8 +563,10 @@ TEST_P(BlockGeneratorTest, GatedBitsType) {
         std::string verilog,
         GenerateVerilog(
             block,
-            codegen_options().gate_format(
-                R"(my_and {output} [{width}-1:0] = my_and({condition}, {input}))")));
+            codegen_options().SetOpOverride(
+                Op::kGate,
+                std::make_unique<OpOverrideGateAssignment>(
+                    R"(my_and {output} [{width}-1:0] = my_and({condition}, {input}))"))));
     EXPECT_THAT(verilog, Not(HasSubstr(R"(wire gated_x [31:0];)")));
     EXPECT_THAT(verilog,
                 HasSubstr(R"(my_and gated_x [32-1:0] = my_and(cond, x);)"));

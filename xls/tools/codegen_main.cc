@@ -16,8 +16,10 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/combinational_generator.h"
 #include "xls/codegen/module_signature.pb.h"
+#include "xls/codegen/op_override_impls.h"
 #include "xls/codegen/pipeline_generator.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
@@ -218,11 +220,15 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
   options.separate_lines(absl::GetFlag(FLAGS_separate_lines));
 
   if (!absl::GetFlag(FLAGS_gate_format).empty()) {
-    options.gate_format(absl::GetFlag(FLAGS_gate_format));
+    options.SetOpOverride(Op::kGate,
+                          std::make_unique<verilog::OpOverrideGateAssignment>(
+                              absl::GetFlag(FLAGS_gate_format)));
   }
 
   if (!absl::GetFlag(FLAGS_assert_format).empty()) {
-    options.assert_format(absl::GetFlag(FLAGS_assert_format));
+    options.SetOpOverride(Op::kAssert,
+                          std::make_unique<verilog::OpOverrideAssertion>(
+                              absl::GetFlag(FLAGS_assert_format)));
   }
 
   options.streaming_channel_data_suffix(

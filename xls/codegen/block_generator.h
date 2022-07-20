@@ -17,7 +17,6 @@
 
 #include "absl/status/statusor.h"
 #include "xls/codegen/codegen_options.h"
-#include "xls/codegen/vast.h"
 #include "xls/codegen/verilog_line_map.pb.h"
 #include "xls/ir/block.h"
 

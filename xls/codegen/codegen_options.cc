@@ -18,6 +18,57 @@
 
 namespace xls::verilog {
 
+CodegenOptions::CodegenOptions(const CodegenOptions& options)
+    : entry_(options.entry_),
+      module_name_(options.module_name_),
+      reset_proto_(options.reset_proto_),
+      pipeline_control_(options.pipeline_control_),
+      clock_name_(options.clock_name_),
+      use_system_verilog_(options.use_system_verilog_),
+      separate_lines_(options.separate_lines_),
+      flop_inputs_(options.flop_inputs_),
+      flop_outputs_(options.flop_outputs_),
+      flop_inputs_kind_(options.flop_inputs_kind_),
+      flop_outputs_kind_(options.flop_outputs_kind_),
+      split_outputs_(options.split_outputs_),
+      add_idle_output_(options.add_idle_output_),
+      flop_single_value_channels_(options.flop_single_value_channels_),
+      emit_as_pipeline_(options.emit_as_pipeline_),
+      streaming_channel_data_suffix_(options.streaming_channel_data_suffix_),
+      streaming_channel_ready_suffix_(options.streaming_channel_ready_suffix_),
+      streaming_channel_valid_suffix_(options.streaming_channel_valid_suffix_),
+      array_index_bounds_checking_(options.array_index_bounds_checking_) {
+  for (auto& [op, op_override] : options.op_overrides_) {
+    op_overrides_.insert_or_assign(op, op_override->Clone());
+  }
+}
+
+CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
+  entry_ = options.entry_;
+  module_name_ = options.module_name_;
+  reset_proto_ = options.reset_proto_;
+  pipeline_control_ = options.pipeline_control_;
+  clock_name_ = options.clock_name_;
+  use_system_verilog_ = options.use_system_verilog_;
+  separate_lines_ = options.separate_lines_;
+  flop_inputs_ = options.flop_inputs_;
+  flop_outputs_ = options.flop_outputs_;
+  flop_inputs_kind_ = options.flop_inputs_kind_;
+  flop_outputs_kind_ = options.flop_outputs_kind_;
+  split_outputs_ = options.split_outputs_;
+  add_idle_output_ = options.add_idle_output_;
+  flop_single_value_channels_ = options.flop_single_value_channels_;
+  emit_as_pipeline_ = options.emit_as_pipeline_;
+  streaming_channel_data_suffix_ = options.streaming_channel_data_suffix_;
+  streaming_channel_ready_suffix_ = options.streaming_channel_ready_suffix_;
+  streaming_channel_valid_suffix_ = options.streaming_channel_valid_suffix_;
+  array_index_bounds_checking_ = options.array_index_bounds_checking_;
+  for (auto& [op, op_override] : options.op_overrides_) {
+    op_overrides_.insert_or_assign(op, op_override->Clone());
+  }
+  return *this;
+}
+
 CodegenOptions& CodegenOptions::entry(absl::string_view name) {
   entry_ = name;
   return *this;
@@ -125,13 +176,9 @@ CodegenOptions& CodegenOptions::add_idle_output(bool value) {
   return *this;
 }
 
-CodegenOptions& CodegenOptions::assert_format(absl::string_view value) {
-  assert_format_ = std::string{value};
-  return *this;
-}
-
-CodegenOptions& CodegenOptions::gate_format(absl::string_view value) {
-  gate_format_ = std::string{value};
+CodegenOptions& CodegenOptions::SetOpOverride(
+    Op kind, std::unique_ptr<OpOverride> configuration) {
+  op_overrides_.insert_or_assign(kind, std::move(configuration));
   return *this;
 }
 
