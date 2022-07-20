@@ -32,6 +32,7 @@ namespace {
 // Visitor to collect all NameRefs defined externally to a given expression,
 // notably a "for" expression. Only those nodes capable of containing an outside
 // NameRef are populated, e.g., `Number` isn't populated.
+// This collection is a bit specialized, so we don't use TraitVisitor here.
 class NameRefCollector : public ExprVisitor {
  public:
   absl::Status HandleArray(const Array* expr) override {
@@ -61,6 +62,9 @@ class NameRefCollector : public ExprVisitor {
   }
   absl::Status HandleColonRef(const ColonRef* expr) override {
     return absl::OkStatus();
+  }
+  absl::Status HandleConstantArray(const ConstantArray* expr) override {
+    return HandleArray(expr);
   }
   absl::Status HandleConstRef(const ConstRef* expr) override {
     XLS_RETURN_IF_ERROR(expr->GetValue()->AcceptExpr(this));
@@ -440,6 +444,11 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   type_info_->NoteConstExpr(
       expr, type_info->GetConstExpr(constant_def->value()).value());
   return absl::OkStatus();
+}
+
+absl::Status ConstexprEvaluator::HandleConstantArray(
+    const ConstantArray* expr) {
+  return HandleArray(expr);
 }
 
 absl::Status ConstexprEvaluator::HandleConstRef(const ConstRef* expr) {

@@ -56,6 +56,7 @@ bool IsOneOf(ObjT* obj) {
   X(Binop)                         \
   X(Block)                         \
   X(Cast)                          \
+  X(ChannelDecl)                   \
   X(ColonRef)                      \
   X(ConstantArray)                 \
   X(ConstRef)                      \
@@ -89,7 +90,6 @@ bool IsOneOf(ObjT* obj) {
 // XLS_DSLX_EXPR_NODE_EACH).
 #define XLS_DSLX_AST_NODE_EACH(X) \
   X(BuiltinNameDef)               \
-  X(ChannelDecl)                  \
   X(ConstantDef)                  \
   X(EnumDef)                      \
   X(Function)                     \
@@ -603,38 +603,24 @@ class ExprVisitor {
  public:
   virtual ~ExprVisitor() = default;
 
-  virtual absl::Status HandleArray(const Array* expr) = 0;
-  virtual absl::Status HandleAttr(const Attr* expr) = 0;
-  virtual absl::Status HandleBinop(const Binop* expr) = 0;
-  virtual absl::Status HandleBlock(const Block* expr) = 0;
-  virtual absl::Status HandleCast(const Cast* expr) = 0;
-  virtual absl::Status HandleChannelDecl(const ChannelDecl* expr) = 0;
-  virtual absl::Status HandleColonRef(const ColonRef* expr) = 0;
-  virtual absl::Status HandleConstRef(const ConstRef* expr) = 0;
-  virtual absl::Status HandleFor(const For* expr) = 0;
-  virtual absl::Status HandleFormatMacro(const FormatMacro* expr) = 0;
-  virtual absl::Status HandleIndex(const Index* expr) = 0;
-  virtual absl::Status HandleInvocation(const Invocation* expr) = 0;
-  virtual absl::Status HandleJoin(const Join* expr) = 0;
-  virtual absl::Status HandleLet(const Let* expr) = 0;
-  virtual absl::Status HandleMatch(const Match* expr) = 0;
-  virtual absl::Status HandleNameRef(const NameRef* expr) = 0;
-  virtual absl::Status HandleNumber(const Number* expr) = 0;
-  virtual absl::Status HandleRange(const Range* expr) = 0;
-  virtual absl::Status HandleRecv(const Recv* expr) = 0;
-  virtual absl::Status HandleRecvIf(const RecvIf* expr) = 0;
-  virtual absl::Status HandleSend(const Send* expr) = 0;
-  virtual absl::Status HandleSendIf(const SendIf* expr) = 0;
-  virtual absl::Status HandleSpawn(const Spawn* expr) = 0;
-  virtual absl::Status HandleString(const String* expr) = 0;
-  virtual absl::Status HandleStructInstance(const StructInstance* expr) = 0;
-  virtual absl::Status HandleSplatStructInstance(
-      const SplatStructInstance* expr) = 0;
-  virtual absl::Status HandleTernary(const Ternary* expr) = 0;
-  virtual absl::Status HandleTupleIndex(const TupleIndex* expr) = 0;
-  virtual absl::Status HandleUnop(const Unop* expr) = 0;
-  virtual absl::Status HandleUnrollFor(const UnrollFor* expr) = 0;
-  virtual absl::Status HandleXlsTuple(const XlsTuple* expr) = 0;
+#define DECLARE_HANDLER(__type) \
+  virtual absl::Status Handle##__type(const __type* expr) = 0;
+  XLS_DSLX_EXPR_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
+};
+
+// Subtype of abstract ExprVisitor that returns ok status (does nothing) for
+// every node type.
+class ExprVisitorWithDefault : public ExprVisitor {
+ public:
+  ~ExprVisitorWithDefault() override = default;
+
+#define DECLARE_HANDLER(__type)                              \
+  absl::Status Handle##__type(const __type* expr) override { \
+    return absl::OkStatus();                                 \
+  }
+  XLS_DSLX_EXPR_NODE_EACH(DECLARE_HANDLER)
+#undef DECLARE_HANDLER
 };
 
 // Abstract base class for AST node that can appear in expression positions

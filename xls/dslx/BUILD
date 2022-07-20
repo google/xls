@@ -419,6 +419,16 @@ cc_library(
 )
 
 cc_library(
+    name = "trait_visitor",
+    srcs = ["trait_visitor.cc"],
+    hdrs = ["trait_visitor.h"],
+    deps = [
+        ":ast",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+cc_library(
     name = "type_and_bindings",
     hdrs = ["type_and_bindings.h"],
     deps = [

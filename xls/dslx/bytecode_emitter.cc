@@ -522,6 +522,10 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
   return HandleColonRefToValue(module, node);
 }
 
+absl::Status BytecodeEmitter::HandleConstantArray(const ConstantArray* node) {
+  return HandleArray(node);
+}
+
 absl::Status BytecodeEmitter::HandleConstRef(const ConstRef* node) {
   return HandleNameRef(node);
 }
