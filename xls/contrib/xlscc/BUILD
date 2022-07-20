@@ -345,6 +345,31 @@ cc_test(
     ],
 )
 
+cc_test(
+    name = "xls_int_test",
+    srcs = ["xls_int_test.cc"],
+    data = [
+        ":synth_only_headers",
+        "@com_github_hlslibs_ac_types//:ac_types_as_data",
+    ],
+    shard_count = 10,
+    tags = [
+        "noasan",
+        "nomsan",
+    ],
+    deps = [
+        ":unit_test",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/status:matchers",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 filegroup(
     name = "synth_only_headers",
     srcs = [
