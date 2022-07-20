@@ -43,7 +43,7 @@ identifiers in the IR will be shown in bold.
 
 ### IR graph
 
-The right had side of the UI shows the IR in graphical form. Clicking on the
+The right-hand side of the UI shows the IR in graphical form. Clicking on the
 **View Graph** button renders the text IR on the left hand side as a graph. The
 **View Graph** button is enabled only if the IR is parsed successfully. The
 graph view may be manipulated as follows:
@@ -113,5 +113,5 @@ deselecting nodes.
 The button **Critical Path** selects exactly those nodes which are on the
 critical path as determined by XLS's timing model. This may be used with the
 **Show only selected nodes** toggle to show a graph containing only critical
-path elements and neighbors. In the screen shot above, the selected critical
+path elements and neighbors. In the screenshot above, the selected critical
 path is shown in blue.

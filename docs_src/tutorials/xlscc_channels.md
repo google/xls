@@ -36,7 +36,7 @@ change in the include paths:
 ## Introduction to fixed-width integers.
 
 XLS also provides a template class for fixed-width integers. These are declared
-using the template class `XlsInt<int Wdith, bool Signed = true>`.
+using the template class `XlsInt<int Width, bool Signed = true>`.
 
 To utilize fixed with integer types, include
 [xls_int.h](https://github.com/google/xls/tree/main/xls/contrib/xlscc/synth_only/xls_int.h).
@@ -56,7 +56,7 @@ void test_channels(__xls_channel<XlsInt<17, false>>& in,
 ```
 
 **NOTE** `"/xls_builtin.h"` has a `\/'` in order to reduce the chance of
-collisions with other include files that my exist on the system.
+collisions with other include files that may exist on the system.
 
 ## Configuring XLS[cc] for channel interfaces.
 

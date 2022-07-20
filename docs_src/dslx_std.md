@@ -88,7 +88,7 @@ pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N]
 ```
 
 Performs integer exponentiation as in Hacker's Delight, Section 11-3. Only
-nonnegative exponents are allowed, hence the uN parameter for spow.
+non-negative exponents are allowed, hence the uN parameter for spow.
 
 ## `std::clog2`
 

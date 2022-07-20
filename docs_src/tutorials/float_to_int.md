@@ -56,7 +56,7 @@ line-by-line:
 4.  Finally, the last line: the final statement in a function is its return
     value. Here, we're unconditionally returning a signed 32-bit number with
     the value `48879`. This is only temporary to
-    make the function syntatically valid - we're still learning the basics!
+    make the function syntactically valid - we're still learning the basics!
     Gimme a second!
 
 As an aside, it's a good idea to keep a bookmark to the

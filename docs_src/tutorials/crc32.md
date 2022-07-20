@@ -33,7 +33,7 @@ A DSLX `for` loop has the following structure:
     the next iteration of the loop (for non-terminal iterations) or as the
     result of the entire expression (for the terminal iteration).
 
-For this specific foor loop, the ndex variable and accumulator are `i` and
+For this specific for loop, the index variable and accumulator are `i` and
 `crc`, both of type `u32`. The iterable range expression specifies that the loop
 should execute 8 times.
 

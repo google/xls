@@ -17,7 +17,7 @@ for example.
 ## VAST Overview
 
 Each supported Verilog construct is represented with a C++ class. These classes
-form a type heirarchy with the class `VastNode` at the root. Objects are
+form a type hierarchy with the class `VastNode` at the root. Objects are
 gathered in tree-shaped structures to represent Verilog constructs. Ownership of
 all VAST objects is maintained by a `VerilogFile` object which represents a
 single file of Verilog source code. References between objects are stored as
@@ -55,7 +55,7 @@ of the assignment.
 ### Operator Precedence
 
 To avoid ambiguity, operators in Verilog follow precedence rules. For example,
-multiplication is higher precendence than addition so the expression `2 + 4 *
+multiplication is higher precedence than addition so the expression `2 + 4 *
 10` evaluates to `42` (i.e., `2 + (4 * 10)`) not `60` (i.e., `(2 + 4) * 10`). In
 VAST, expressions are built as a trees which is evaluated from the leaves to the
 root. To ensure that the operations are evaluated in the correct order when
@@ -81,7 +81,7 @@ construct as a string. Typically, `Emit` is called on the top-level
 Underneath the hood, this method calls the `Emit` method on all contained VAST
 objects and assembles the returned strings into the Verilog source code.
 
-### SytemVerilog support
+### SystemVerilog support
 
 XLS can emit either Verilog or SystemVerilog so VAST supports both languages.
 SystemVerilog constructs are included alongside Verilog constructs in VAST.

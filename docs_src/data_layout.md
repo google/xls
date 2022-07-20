@@ -15,7 +15,7 @@ be contain any number of tuple, array, or bits types, but whatever the layout of
 the type tree, all leaf nodes are Bits. When accessing the underlying storage of
 a `Bits` via the `ToBytes()` member function, the results are returned in a
 big-endian layout, i.e, with the most-significant data elements stored in the
-lowest addressible location. For example, the 32-bit value 12,345,678
+lowest addressable location. For example, the 32-bit value 12,345,678
 (0xBC614E), would be returned as:
 
 ```

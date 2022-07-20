@@ -34,7 +34,7 @@ narrow their operation and become cheaper, and this can continue transitively):
 
 Most arithmetic ops support mixed bit widths where the operand widths may not be
 the same width as each other or the result. This provides opportunities for
-narrowing. Specfically (for multiplies, adds and subtracts):
+narrowing. Specifically (for multiplies, adds and subtracts):
 
 1.  If the operands are wider than the result, the operand can be truncated to
     the result width.
@@ -52,7 +52,7 @@ narrowing. Specfically (for multiplies, adds and subtracts):
 
 As a special case, adds can be narrowed if the least-significant bits of an is
 all zeros. The add operation is narrowed to exclude this range of
-least-significant bits. The least-signifant bits of the result are simply the
+least-significant bits. The least-significant bits of the result are simply the
 least-significant bits of the non-zero operand:
 
 ![drawing](./narrowed_add.png)
@@ -69,7 +69,7 @@ two operands can be stripped which narrows the comparison and reduces the cost
 of the operation.
 
 Signed comparison are more complicated to handle because the sign bit
-(most-signicant bit) affects the interpretation of the value of the remaining
+(most-significant bit) affects the interpretation of the value of the remaining
 bits. Stripping leading bits must preserve the sign bit of the operand.
 
 ### Known-literals and `ArrayIndex`
@@ -156,7 +156,7 @@ vectors through a network of boolean operations, if you wind up with a vector
 `[1, 0, 1, 1]` at the end, it is sound to replace that whole network with the
 expression `X+~Y`. Similarly, if the algorithm arrived at the vector `[1, 1, 1,
 1]` at the end of the network, you could replace the result with a literal `1`,
-because it has been proven for all input operand possiblities the result is
+because it has been proven for all input operand possibilities the result is
 always `1` in every bit. Effectively, this method works by brute force
 enumerating all the possibilities for input bits and operating on all of those
 possibilities at the same time. In the end, the algorithm arrives at a composite
@@ -241,7 +241,7 @@ create a new label to refer to a set of bits, performing no actual computation.
 However, `Concat` optimizations can still provide benefit by reducing the number
 of IR nodes (increases human readability) or by refactoring the IR in a way that
 allows other optimizations to be applied. Several `Concat` optimizations involve
-hoisting an operation on one or more `Cocnat`s to above the `Concat` such that
+hoisting an operation on one or more `Concat`s to above the `Concat` such that
 the operation is applied on the `Concat` operands directly. This may provide
 opportunities for optimization by bringing operations which actually perform
 logic closer to other operations performing logic.
@@ -480,7 +480,7 @@ three adds down to two adds.
 
 Reassociation can also create opportunities for constant folding. If an
 expression contains multiple literal values (constants) the expressions can be
-reassociated to gather literals into the same subepxression which can then be
+reassociated to gather literals into the same subexpression which can then be
 folded. Generally this requires the operation to be commutative as well as
 associative. For example, given the following expression:
 

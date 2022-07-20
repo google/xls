@@ -127,7 +127,7 @@ proc Spawner {
 }
 ```
 
-For each childd proc, we first declare the necessary channels (each channel
+For each child proc, we first declare the necessary channels (each channel
 declaration produces a producer and consumer channel, respectively), then we
 actually spawn it. The first set of arguments is passed to the child's config
 function and the second is the initial state for the child proc. A spawn

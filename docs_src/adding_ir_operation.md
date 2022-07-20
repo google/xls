@@ -12,7 +12,7 @@ which are optional, are described below:
 
     Opcodes and IR node classes are defined in the file `op_specification.py`.
     This Python code generates the C++ header and source files which define
-    opcodes (`op.h` and `op.cc`) and the IR node type heirarchy (`nodes.h` and
+    opcodes (`op.h` and `op.cc`) and the IR node type hierarchy (`nodes.h` and
     `nodes.cc`). Every opcode has an associated node subclass derived from the
     `xls::Node` base class. Some opcodes such as `Op::kArray` have their own
     class (`Array`) because of the unique structure of the operation. Other
@@ -64,7 +64,7 @@ which are optional, are described below:
     Add support for parsing of the new operation. The parser tests typically
     send a snippet of IR with the operation through the parser and text
     serialization and verifies that the output matches the original. Supporting
-    the new operation may requre modifying the `xls::Node::ToString` method to
+    the new operation may require modifying the `xls::Node::ToString` method to
     emit any special fields required by the operation.
 
     [(Code example)](https://github.com/google/xls/commit/eb12ef77d51e2d65f4295e80ffa944043f021b2f)

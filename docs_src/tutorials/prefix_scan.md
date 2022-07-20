@@ -47,7 +47,7 @@ The full listing is in `examples/dslx_intro/prefix_scan_equality.x`.
 
 The implementation displays a few interesting language features.
 
-The function prototype is straigt-forward. Input is an array of 8 values of type
+The function prototype is straight-forward. Input is an array of 8 values of type
 `u32`. Output is an array of size 8 holding 3-bit values (the maximum resulting
 count can only be 7, which fits in 3 bits).
 
@@ -86,7 +86,7 @@ values named `prior`, `count`, and `result`.
 
 The types of the iterable and accumulator are specified next. The iterable is a
 tuple consisting of two `u32` values. The accumulator is more interesting, it is
-a tuple consiting of a `u32` value (`prior`), a `u3` value (`count`), and an
+a tuple consisting of a `u32` value (`prior`), a `u3` value (`count`), and an
 array type `u3[8]`, which is an array holding 8 elements of bit-width 3. This is
 the type of `result` in the accumulator.
 

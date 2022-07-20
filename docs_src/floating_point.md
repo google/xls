@@ -166,7 +166,7 @@ TODO(rspringer): 2021-04-06: This.
 
 The `fma` operation (again, fused multiply-add) is a three-operand operation
 that computes the product of the first two and the sum of that with the third.
-The IEEE 754-2008 decription of the operation states that the operation should
+The IEEE 754-2008 description of the operation states that the operation should
 be performed "as if with unbounded range and precision", limited only by
 rounding of the final result. In other words, this differs from a sequence of a
 separate multiply followed by an add in that there is only a single rounding
@@ -176,7 +176,7 @@ In practice, this means A) that the precision of an FMA is higher than
 individual ops, and thus that B) an FMA requires significantly more internal
 precision bits than naively expected.
 
-For binary32 inputs, to acheive the standard-specified precision, the initial
+For binary32 inputs, to achieve the standard-specified precision, the initial
 mul requires the usual 48 ((23 fraction + 1 "hidden") * 2) fraction bits.
 When performing the subsequent add step, though, it is necessary to maintain
 *72* fraction bits ((23 fraction + 1 "hidden") * 3). Fortunately, this sum

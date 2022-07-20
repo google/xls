@@ -81,5 +81,5 @@ To get a graphical view of the IR files, use the IR visualization tool:
 $ ./bazel-bin/xls/visualization/ir_viz/app --delay_model=unit --preload_ir_path=/tmp/simple_add.ir
 ```
 
-This starts a server on the local host port 5000 by default, so you can access
+This starts a server on localhost port 5000 by default, so you can access
 it from your machine as `http://localhost:5000` in a web browser.

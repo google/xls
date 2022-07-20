@@ -125,15 +125,15 @@ arbitrarily-typed. Each register must have a single `register_write` and a
 single `register_read` operation for writing and reading the register
 respectively.
 
-#### Instatiation
+#### Instantiation
 
 An instantiation is a block-scoped construct that represents a module
 instantiation at the Verilog level. The instantiated object can be another
 block, a FIFO (not yet supported), or a externally defined Verilog module (not
 yet supported). The instantiation is integrated into the instantiating block
 with `instantiation_input` and `instantiation_output` operations. There is a
-one-to-one mapping between the instantation input/output and the ports of the
-instantated objects.
+one-to-one mapping between the instantiation input/output and the ports of the
+instantiated objects.
 
 ## Operations
 
@@ -1072,7 +1072,7 @@ variable (`i` above) it accepts in order to pass an `i` value of that type.
 or equal number of bits to `i`.
 
 Code generation support for `dynamic_counted_for` is limited because the
-pipeline generator cannot handle an unkown trip count.
+pipeline generator cannot handle an unknown trip count.
 
 #### **`counted_for`**
 
@@ -1361,7 +1361,7 @@ Corresponds to a single input port of an instantiation.
 An instantiation is a block-scoped construct that represents a module
 instantiation at the Verilog level. Each `instantation_input` operation
 corresponds to a particular port of the instantiated object, so generally a
-single instatiation can have multiple associated `instantiation_input`
+single instantiation can have multiple associated `instantiation_input`
 operations (one for each input port).
 
 **Syntax**
@@ -1398,7 +1398,7 @@ Corresponds to a single output port of an instantiation.
 An instantiation is a block-scoped construct that represents a module
 instantiation at the Verilog level. Each `instantation_output` operation
 corresponds to a output particular port of the instantiated object, so generally
-a single instatiation can have multiple associated `instantiation_output`
+a single instantiation can have multiple associated `instantiation_output`
 operations (one for each output port).
 
 **Syntax**

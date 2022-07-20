@@ -66,7 +66,7 @@ Let's go over this, line-by-line:
 Let's run (and test) our code!
 
 First thing, though, we should make sure our module parses and passes
-typechecking. The fastest way to do that is via the DSLX
+type checking. The fastest way to do that is via the DSLX
 "[repl](https://en.wikipedia.org/wiki/Read%E2%80%93eval%E2%80%93print_loop)",
 conveniently called [`repl`](https://github.com/google/xls/tree/main/xls/tools/repl.cc).
 You can run it against the above example with the command:

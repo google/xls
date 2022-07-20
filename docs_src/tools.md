@@ -132,7 +132,7 @@ or other behaviors requiring explanation:
 ## [`repl`](https://github.com/google/xls/tree/main/xls/tools/repl.cc)
 
 Allows you to interactively run various parts of the compiler, including
-parsing/typechecking (`:reload`), lowering/optimization (`:ir`), Verilog
+parsing/type checking (`:reload`), lowering/optimization (`:ir`), Verilog
 codegen (`:verilog [identifier]`), and LLVM codegen (`:llvm`, not yet
 implemented). You can also inspect the IR types of identifiers with `:type`,
 and even imported identifiers can be accessed with `:type foo::bar`.
@@ -164,7 +164,7 @@ to prove equivalence of transformed representations with their original version.
 
 Parses a cell library ".lib" file and extracts boolean formulas from it that
 determine the functionality of cells. This is useful for LEC of the XLS IR
-against the post-sythesis netlist.
+against the post-synthesis netlist.
 
 ## [`dslx/highlight_main`](https://github.com/google/xls/tree/main/xls/dslx/highlight_main.cc)
 

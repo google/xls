@@ -4,7 +4,7 @@
 
 Pipeline scheduling divides the IR nodes of an XLS function or proc into a
 sequence of stages constituting a feed-forward pipeline. Sequential stages are
-separated by registers enabling pipeline parallelism. The schedule must satify
+separated by registers enabling pipeline parallelism. The schedule must satisfy
 dependency constraints between XLS nodes as well as timing constraints imposed
 by the target clock frequency. Pipeline scheduling has multiple competing
 optimization objectives: minimize number of stages (minimize pipeline latency),
@@ -20,7 +20,7 @@ Pipeline scheduling occurs in two phases:
     any pipeline stage and limits how many IR operations might be placed in each
     stage.
 
-2.  Given the contraints of the effective clock period and, optionally, a
+2.  Given the constraints of the effective clock period and, optionally, a
     user-defined number of pipeline stages, find the schedule which minimizes
     the number of pipeline registers. Pipeline registers are required for any IR
     operation whose value which is used in a later stage.
@@ -211,13 +211,13 @@ performed, one for each boundary between pipeline stages. Each min-cut
 partitions the nodes into two parts: the set of nodes scheduled before the
 respective stage boundary, and the set of node scheduled after. This imposes
 additional constraints on later min-cut computations. These constraints are
-imposed by extending infinite weight edges between thes nodes and the source or
+imposed by extending infinite weight edges between these nodes and the source or
 sink node in the graph.
 
 The order in which the sequence of cuts is performed (e.g., cut the boundary
 between stage 0 and stage 1, then between 1 and 2, then between 2 and 3, and so
 on) can affect the total number of pipeline flops so, in general, multiple
-orders are attemped and the result with the fewest pipeline flops is kept.
+orders are attempted and the result with the fewest pipeline flops is kept.
 
 ## Rematerialization
 

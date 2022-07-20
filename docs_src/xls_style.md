@@ -1,7 +1,7 @@
 # XLS Style Guide
 
 The Google style guides recommend enforcing local consistency where stylistic
-choices are not pre-defined. This file notes some of the choices we make locally
+choices are not predefined. This file notes some of the choices we make locally
 in the XLS project, with the relevant Google style guides
 ([C++](https://google.github.io/styleguide/cppguide.html),
 [Python](https://google.github.io/styleguide/pyguide.html)) as their bases.

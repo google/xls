@@ -27,7 +27,7 @@ void test_state(__xls_channel<int>& out) {
 ```
 
 As the above function uses channels, a proto detailing the type of interface is
-required. Create a a file named `test_state.textproto` with the following
+required. Create a file named `test_state.textproto` with the following
 contents to configure `out` as an output FIFO (ready/valid) interface.
 
 ```

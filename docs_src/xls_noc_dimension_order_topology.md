@@ -34,13 +34,13 @@ dotted lines show the connectivity between routers 0 and k-1 for a dimension.
 ![drawing](./symmetric_torus.png)
 
 **Figure
-Symmetic_Torus_4ary_2cube_example<a id="symmetic_torus_4ary_2cube_example"></a>.
+Symmetric_Torus_4ary_2cube_example<a id="symmetric_torus_4ary_2cube_example"></a>.
 A symmetric torus topology with four routers along each dimension, also known as
 a 4-ary 2-cube topology.**
 
 The symmetric torus topology is a special instance of the _k_-ary _n_-cube,
 where n is equal to two. Figure
-[Symmetic_Torus_4ary_2cube_example](#symmetic_torus_4ary_2cube_example) shows a
+[Symmetric_Torus_4ary_2cube_example](#symmetric_torus_4ary_2cube_example) shows a
 symmetric torus topology with four routers along each dimension, also known as a
 4-ary 2-cube topology. Router (3,0) has address 3 in a dimension and 0 in the
 other dimension. The dotted lines show the connectivity between routers 0 and
@@ -97,17 +97,17 @@ to the ring topology in Figure
 ![drawing](./symmetric_mesh.png)
 
 **Figure
-Symmetic_Mesh_4ary_2mesh_example<a id="symmetic_mesh_4ary_2mesh_example"></a>. A
+Symmetric_Mesh_4ary_2mesh_example<a id="symmetric_mesh_4ary_2mesh_example"></a>. A
 symmetric mesh topology with four routers along each dimension, also known as a
 4-ary 2-mesh topology.**
 
 The symmetric torus mesh is a special instance of the _k_-ary _n_-mesh, where
 _n_ is equal to two. Figure
-[Symmetic_Mesh_4ary_2mesh_example](#symmetic_mesh_4ary_2mesh_example) shows a
+[Symmetric_Mesh_4ary_2mesh_example](#symmetric_mesh_4ary_2mesh_example) shows a
 symmetric mesh topology with four routers along each dimension, also known as a
 4-ary 2-mesh topology. Router (1,2) has address 1 in a dimension and 2 in the
 other dimension. Compared to the torus topology in Figure
-[Symmetic_Torus_4ary_2cube_example](#symmetic_torus_4ary_2cube_example), the
+[Symmetric_Torus_4ary_2cube_example](#symmetric_torus_4ary_2cube_example), the
 connections between the pair of routers [(0,0), (0,3)], [(1,0), (1,3)], [(2,0),
 (2,3)], [(3,0), (3,3)], [(0,0), (3,0)], [(0,1), (3,1)], [(0,2), (3,2)], and
 [(0,3), (3,3)] are omitted.
