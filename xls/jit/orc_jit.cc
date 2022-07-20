@@ -139,8 +139,12 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
       return llvm::Expected<llvm::orc::ThreadSafeModule>(
           llvm::Error(std::make_unique<BadOptLevelError>(opt_level_)));
   }
-  llvm::ModulePassManager mpm =
-      pass_builder.buildPerModuleDefaultPipeline(llvm_opt_level);
+  llvm::ModulePassManager mpm;
+  if (llvm_opt_level == llvm::OptimizationLevel::O0) {
+    mpm = pass_builder.buildO0DefaultPipeline(llvm_opt_level);
+  } else {
+    mpm = pass_builder.buildPerModuleDefaultPipeline(llvm_opt_level);
+  }
   mpm.run(*bare_module, mam);
 
   XLS_VLOG(2) << "Optimized module IR:";
