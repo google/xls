@@ -108,6 +108,28 @@ function setFunctionSelector(selectElement, functionId) {
 }
 
 /**
+ * Returns the node ids of nodes which should be highlighted when the specified
+ * node is highlighted.
+ *
+ * @param {string} nodeId
+ * @return {!Array<string>}
+ */
+function getCohighlightedNodeIds(nodeId) {
+  let nodeDef = document.getElementById(`ir-node-def-${nodeId}`);
+  let cohighlightedNodeIds = new Set();
+  if (nodeDef && 'stateElement' in nodeDef.dataset) {
+    for (let index of nodeDef.dataset.stateElement.split(',')) {
+      document.querySelectorAll(`.state-element-${index}`).forEach(e => {
+        if ('nodeId' in e.dataset) {
+          cohighlightedNodeIds.add(e.dataset.nodeId);
+        }
+      });
+    }
+  }
+  return Array.from(cohighlightedNodeIds).sort();
+}
+
+/**
  * Class for visualizing IR graphs. Manages the text area containing the IR and
  * the element in which the graph is drawn.
  */
@@ -229,6 +251,14 @@ class IrVisualizer {
     document.querySelectorAll('.ir-node-identifier-' + nodeId).forEach(e => {
       e.classList.add('ir-node-identifier-highlighted');
     });
+
+    let cohighlightedNodeIds = getCohighlightedNodeIds(nodeId);
+    for (let id of cohighlightedNodeIds) {
+      document.querySelectorAll(`.ir-node-def-${id}`).forEach(e => {
+        e.classList.add('ir-node-identifier-highlighted');
+      });
+    }
+
     if (this.irGraph_ && this.nodeMetadataElement_) {
       let text = '<b>node:</b> ' + this.irGraph_.node(nodeId).ir;
       let delay = this.irGraph_.node(nodeId).attributes['delay_ps'];
@@ -243,10 +273,23 @@ class IrVisualizer {
       if (cycle != undefined) {
         text += '\n<b>cycle:</b> ' + cycle;
       }
+      let state_param_index =
+          this.irGraph_.node(nodeId).attributes['state_param_index'];
+      if (state_param_index !== null) {
+        text += '\n<b>state param index:</b> ' + state_param_index;
+      }
+      let initial_value =
+          this.irGraph_.node(nodeId).attributes['initial_value'];
+      if (initial_value !== null) {
+        text += '\n<b>initial state value:</b> ' + initial_value;
+      }
       setInnerHtml(this.nodeMetadataElement_, text);
     }
     if (this.graphView_) {
       this.graphView_.highlightNode(nodeId);
+      for (let id of cohighlightedNodeIds) {
+        this.graphView_.highlightNode(id);
+      }
     }
   }
 
@@ -258,11 +301,22 @@ class IrVisualizer {
     document.querySelectorAll('.ir-node-identifier-' + nodeId).forEach(e => {
       e.classList.remove('ir-node-identifier-highlighted');
     });
+
+    let cohighlightedNodeIds = getCohighlightedNodeIds(nodeId);
+    for (let id of cohighlightedNodeIds) {
+      document.querySelectorAll(`.ir-node-def-${id}`).forEach(e => {
+        e.classList.remove('ir-node-identifier-highlighted');
+      });
+    }
+
     if (this.irGraph_ && this.nodeMetadataElement_) {
       this.nodeMetadataElement_.textContent = '';
     }
     if (this.graphView_) {
       this.graphView_.unhighlightNode(nodeId);
+      for (let id of cohighlightedNodeIds) {
+        this.graphView_.unhighlightNode(id);
+      }
     }
   }
 

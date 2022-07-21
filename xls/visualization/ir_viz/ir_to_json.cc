@@ -19,18 +19,17 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
-#include "absl/strings/str_replace.h"
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/delay_model/analyze_critical_path.h"
 #include "xls/delay_model/delay_estimator.h"
-#include "xls/delay_model/delay_estimators.h"
+#include "xls/ir/block.h"
 #include "xls/ir/dfs_visitor.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/op.h"
 #include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/passes/bdd_query_engine.h"
 #include "xls/visualization/ir_viz/visualization.pb.h"
 #include "re2/re2.h"
@@ -98,6 +97,31 @@ class AttributeVisitor : public DfsVisitorWithDefault {
   viz::NodeAttributes attributes_;
 };
 
+std::vector<int64_t> GetAssociatedStateIndices(Node* node) {
+  if (!node->function_base()->IsProc()) {
+    return {};
+  }
+  Proc* proc = node->function_base()->AsProcOrDie();
+  std::vector<int64_t> state_indices;
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+    if (node == proc->GetStateParam(i) ||
+        node == proc->GetNextStateElement(i)) {
+      state_indices.push_back(i);
+    }
+  }
+  return state_indices;
+}
+
+std::optional<int64_t> MaybeGetStateParamIndex(Node* node) {
+  if (node->Is<Param>() && node->function_base()->IsProc()) {
+    Proc* proc = node->function_base()->AsProcOrDie();
+    if (node != proc->TokenParam()) {
+      return proc->GetStateParamIndex(node->As<Param>()).value();
+    }
+  }
+  return std::nullopt;
+}
+
 // Returns the attributes of a node (e.g., the index value of a kTupleIndex
 // instruction) as a proto which is to be serialized to JSON.
 absl::StatusOr<viz::NodeAttributes> NodeAttributes(
@@ -114,6 +138,14 @@ absl::StatusOr<viz::NodeAttributes> NodeAttributes(
   }
   if (query_engine.IsTracked(node)) {
     attributes.set_known_bits(query_engine.ToString(node));
+  }
+  if (std::optional<int64_t> state_index = MaybeGetStateParamIndex(node);
+      state_index.has_value()) {
+    attributes.set_state_param_index(state_index.value());
+    attributes.set_initial_value(node->function_base()
+                                     ->AsProcOrDie()
+                                     ->GetInitValueElement(state_index.value())
+                                     .ToString());
   }
 
   absl::StatusOr<int64_t> delay_ps_status =
@@ -269,16 +301,22 @@ static absl::Status WrapNodeDefInSpan(
     const absl::flat_hash_map<FunctionBase*, std::string>& function_ids,
     std::string* str) {
   std::string node_id = GetNodeUniqueId(node, function_ids);
-  XLS_RETURN_IF_ERROR(WrapTextInSpan(
-      node->GetName(),
-      /*dom_id=*/
-      absl::StrFormat("ir-node-def-%s", node_id),
-      /*classes=*/
-      {"ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", node_id)},
-      /*data=*/
-      {{"node-id", node_id},
-       {"function-id", function_ids.at(node->function_base())}},
-      str));
+  std::vector<std::string> classes = {
+      "ir-node-identifier", absl::StrFormat("ir-node-identifier-%s", node_id)};
+  std::vector<std::pair<std::string, std::string>> data = {
+      {"node-id", node_id},
+      {"function-id", function_ids.at(node->function_base())}};
+  if (std::vector<int64_t> state_indices = GetAssociatedStateIndices(node);
+      !state_indices.empty()) {
+    data.push_back({"state-element", absl::StrJoin(state_indices, ",")});
+    for (int64_t state_index : state_indices) {
+      classes.push_back(absl::StrFormat("state-element-%d", state_index));
+    }
+  }
+  XLS_RETURN_IF_ERROR(WrapTextInSpan(node->GetName(),
+                                     /*dom_id=*/
+                                     absl::StrFormat("ir-node-def-%s", node_id),
+                                     classes, data, str));
   return absl::OkStatus();
 }
 

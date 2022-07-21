@@ -44,6 +44,10 @@ message NodeAttributes {
   optional string known_bits = 6;
   optional bool on_critical_path = 7;
   optional double cycle = 8;
+  // If this node is a state parameter of a proc these fields hold the index
+  // and initial value.
+  optional double state_param_index = 9;
+  optional string initial_value = 10;
 }
 
 message Node {
