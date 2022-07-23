@@ -308,6 +308,28 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "to_string_helpers",
+    srcs = ["to_string_helpers.cc"],
+    hdrs = ["to_string_helpers.h"],
+    deps = [
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "to_string_helpers_test",
+    srcs = ["to_string_helpers_test.cc"],
+    deps = [
+        ":to_string_helpers",
+        ":xls_gunit_main",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "golden_files_test",
     srcs = ["golden_files_test.cc"],
