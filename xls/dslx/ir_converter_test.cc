@@ -970,7 +970,7 @@ fn main() -> u32 {
 TEST(IrConverterTest, UnconditionalFail) {
   const char* program = R"(
 fn main() -> u32 {
-  fail!(u32:42)
+  fail!("failure", u32:42)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -981,7 +981,7 @@ fn main() -> u32 {
 TEST(IrConverterTest, FailInTernaryConsequent) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
-  if x == u32:0 { fail!(x) } else { x }
+  if x == u32:0 { fail!("failure", x) } else { x }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -992,7 +992,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, FailInTernaryAlternate) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
-  if x == u32:0 { x } else { fail!(x) }
+  if x == u32:0 { x } else { fail!("failure", x) }
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1005,7 +1005,7 @@ TEST(IrConverterTest, FailInMatch) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
   match x {
-    u32:42 => fail!(x),
+    u32:42 => fail!("failure", x),
     _ => x
   }
 }
@@ -1018,7 +1018,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, FailInMatchInvocation) {
   const char* program = R"(
 fn do_fail(x: u32) -> u32 {
-  fail!(x)
+  fail!("failure", x)
 }
 
 fn main(x: u32) -> u32 {
@@ -1037,8 +1037,8 @@ TEST(IrConverterTest, MatchMultiFail) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
   match x {
-    u32:42 => fail!(x),
-    _ => fail!(x+u32:1)
+    u32:42 => fail!("failure_0", x),
+    _ => fail!("failure_1", x+u32:1)
   }
 }
 )";
@@ -1050,7 +1050,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, InvokeMethodThatFails) {
   const char* program = R"(
 fn does_fail() -> u32 {
-  fail!(u32:42)
+  fail!("failure", u32:42)
 }
 
 fn main(x: u32) -> u32 {
@@ -1065,7 +1065,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, InvokeParametricThatFails) {
   const char* program = R"(
 fn does_fail<N: u32>() -> bits[N] {
-  fail!(bits[N]:42)
+  fail!("failure", bits[N]:42)
 }
 
 fn main(x: u32) -> u32 {
@@ -1080,7 +1080,7 @@ fn main(x: u32) -> u32 {
 TEST(IrConverterTest, InvokeParametricThatInvokesFailing) {
   const char* program = R"(
 fn does_fail() -> u32 {
-  fail!(u32:42)
+  fail!("failure", u32:42)
 }
 
 fn calls_failing<N: u32>() -> bits[N] {
@@ -1100,7 +1100,7 @@ TEST(IrConverterTest, FailInsideFor) {
   const char* program = R"(
 fn main(x: u32) -> u32 {
   for (i, x): (u32, u32) in range(u32:0, u32:1) {
-    fail!(x)
+    fail!("failure", x)
   }(u32:0)
 }
 )";
@@ -1118,7 +1118,7 @@ fn main(x: u32) -> u32 {
   let x = for (i, x): (u32, u32) in range(u32:0, u32:1) {
     x
   }(u32:0);
-  fail!(x)
+  fail!("failure", x)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string converted,
@@ -1130,7 +1130,7 @@ TEST(IrConverterTest, FailInsideForWithTupleAccum) {
   const char* program = R"(
 fn main(x: u32) -> (u32, u32) {
   for (i, (x, y)): (u32, (u32, u32)) in range(u32:0, u32:1) {
-    fail!((x, y))
+    fail!("failure", (x, y))
   }((u32:0, u32:0))
 }
 )";
@@ -1399,7 +1399,7 @@ fn main() -> s32[4] {
 TEST(IrConverterTest, PublicFnGetsTokenWrapper) {
   const std::string kProgram = R"(
 fn callee_callee(x:u32) -> u32 {
-  let _ = fail!(x > u32:3);
+  let _ = fail!("failure", x > u32:3);
   x
 }
 
@@ -1420,7 +1420,7 @@ fn callee(x:u32) -> u32 {
 TEST(IrConverterTest, NonpublicFnDoesNotGetTokenWrapper) {
   const std::string kProgram = R"(
 fn callee_callee(x:u32) -> u32 {
-  let _ = fail!(x > u32:3);
+  let _ = fail!("failure", x > u32:3);
   x
 }
 

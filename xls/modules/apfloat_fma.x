@@ -222,7 +222,7 @@ pub fn fma<EXP_SZ: u32, FRACTION_SZ: u32,
     (true, false) => carry_fraction,
     (false, true) => cancel_fraction,
     (false, false) => abs_fraction as uN[WIDE_FRACTION],
-    _ => fail!(uN[WIDE_FRACTION]:0)
+    _ => fail!("carry_and_cancel", uN[WIDE_FRACTION]:0)
   };
 
   // Similar to the rounding in apfloat_add_2, except that the fraction

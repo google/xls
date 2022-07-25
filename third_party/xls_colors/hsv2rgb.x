@@ -60,7 +60,7 @@ pub fn hsv2rgb(h: u16, s: u8, v: u8) -> (u8, u8, u8) {
       u8:3 => (c, d, v),
       u8:4 => (u, c, v),
       u8:5 => (v, c, d),
-      _ => fail!((u8:0, u8:0, u8:0)),
+      _ => fail!("invalid_sextant", (u8:0, u8:0, u8:0)),
    }
   }
 }

@@ -525,6 +525,21 @@ static void PopulateSignatureToLambdaMap(
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), ConcreteType::MakeUnit())};
   };
+  map["(u8[N], T) -> T"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    const ArrayType* array_type;
+    auto checker = Checker(data.arg_types, data.name, data.span)
+                       .Len(2)
+                       .IsArray(0, &array_type);
+    checker.Eq(array_type->element_type(), BitsType(false, 8), [&] {
+      return absl::StrFormat("Element type of argument 0 %s should be a u8.",
+                             array_type->ToString());
+    });
+    XLS_RETURN_IF_ERROR(checker.status());
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
+  };
 }
 
 static const absl::flat_hash_map<std::string, SignatureFn>&

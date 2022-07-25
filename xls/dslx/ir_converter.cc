@@ -2043,9 +2043,9 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
 
   if (called_name == "fail!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());
-    XLS_RET_CHECK_EQ(args.size(), 1)
-        << called_name << " builtin only accepts a single argument";
-    return HandleFailBuiltin(node, std::move(args[0]));
+    XLS_RET_CHECK_EQ(args.size(), 2)
+        << called_name << " builtin requires two arguments";
+    return HandleFailBuiltin(node, std::move(args[1]));
   }
   if (called_name == "cover!") {
     XLS_ASSIGN_OR_RETURN(std::vector<BValue> args, accept_args());

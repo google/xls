@@ -26,7 +26,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
       {"clz", {"(uN[N]) -> uN[N]", false}},
       {"ctz", {"(uN[N]) -> uN[N]", false}},
       {"cover!", {"(u8[N], u1) -> ()", false}},
-      {"fail!", {"(T) -> T", false}},
+      {"fail!", {"(u8[N], T) -> T", false}},
       {"gate!", {"(u1, T) -> T", false}},
       {"map", {"(T[N], (T) -> U) -> U[N]", false}},
       {"one_hot", {"(uN[N], u1) -> uN[N+1]", false}},

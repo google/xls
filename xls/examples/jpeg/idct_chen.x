@@ -236,7 +236,7 @@ fn idct_cols(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
       u8:5 => col5[i >> u8:3],
       u8:6 => col6[i >> u8:3],
       u8:7 => col7[i >> u8:3],
-      _ => fail!(s32:0)
+      _ => fail!("invalid_column_index", s32:0)
     };
     update(accum, i, val)
   }(s32[COEFF_PER_MCU]:[0, ...])

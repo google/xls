@@ -15,7 +15,7 @@
 fn checked_divide(x: u32, y: u32) -> u32 {
   match y {
     u32:1 => x,
-    u32:0 => fail!(u32:0),
+    u32:0 => fail!("y_is_zero", u32:0),
     _ => x / y,
     }
 }

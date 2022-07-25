@@ -17,6 +17,7 @@
 #ifndef XLS_DSLX_CPP_BINDINGS_H_
 #define XLS_DSLX_CPP_BINDINGS_H_
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/logging/logging.h"
 #include "xls/dslx/ast.h"
@@ -105,6 +106,26 @@ class Bindings {
     local_bindings_[std::move(name)] = binding;
   }
 
+  // fail! labels must be unique within a function.
+  absl::Status AddFailLabel(const std::string& label) {
+    // Check parents, in case we're contained in a subblock. The root bindings
+    // will never contain any fail labels.
+    if (ContainsFailLabel(label)) {
+      return absl::InvalidArgumentError(
+          "A fail label must be unique within a function.");
+    }
+    fail_labels_.insert(label);
+    return absl::OkStatus();
+  }
+
+  bool ContainsFailLabel(const std::string& label) {
+    if (fail_labels_.contains(label)) return true;
+    if (parent_ != nullptr) {
+      return parent_->ContainsFailLabel(label);
+    }
+    return false;
+  }
+
   // Returns the AST node bound to 'name'.
   std::optional<BoundNode> ResolveNode(absl::string_view name) const {
     auto it = local_bindings_.find(name);
@@ -157,6 +178,7 @@ class Bindings {
  private:
   Bindings* parent_;
   absl::flat_hash_map<std::string, BoundNode> local_bindings_;
+  absl::flat_hash_set<std::string> fail_labels_;
 };
 
 // Returns the name definition node (either builtin or user-defined) associated

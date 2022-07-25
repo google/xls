@@ -26,7 +26,7 @@ pub fn is_inf(x: F32) -> bool { float32::is_inf(x) }
 
 pub fn fail_on_42(x: u32) -> u32 {
   match x {
-    u32:42 => fail!(x),
+    u32:42 => fail!("failure", x),
     _ => x
   }
 }

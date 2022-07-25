@@ -2011,7 +2011,7 @@ The `fail!` builtin indicates dataflow that should not be occurring in practice.
 Its general signature is:
 
 ```
-fail!(fallback_value)
+fail!(label, fallback_value)
 ```
 
 The `fail!` builtin can be thought of as a "fatal assertion macro". It is used
@@ -2040,16 +2040,20 @@ fn main(x: EnumType) -> u32 {
   match x {
     EnumType::FIRST => u32:0,
     EnumType::SECOND => u32:1,
-    _ => fail!(u32:0),
+    _ => fail!("unknown_EnumType", u32:0),
   }
 }
 ```
 
-The `fail!(u32:0)` above indicates that a) that match arm *should* not be
-reached (and if it is in the JIT or RTL simulation it will cause an error status
-or assertion failure respectively), but b) provides a fallback value to use (of
-the appropriate type) in case it were to happen in synthesized gates which did
-not insert fatal-error-indicating hardware.
+The `fail!("unknown_EnumType", u32:0)` above indicates that a) that match arm
+*should* not be reached (and if it is in the JIT or RTL simulation it will cause
+an error status or assertion failure respectively), but b) provides a fallback
+value to use (of the appropriate type) in case it were to happen in synthesized
+gates which did not insert fatal-error-indicating hardware.
+
+The associated label (the first argument) must be a valid Verilog identifier and
+is used for identifying the failure when lowered to SystemVerilog. At higher
+levels in the stack, it's unused.
 
 ### cover!
 

@@ -1029,6 +1029,17 @@ TEST_F(ParserTest, Range) {
   RoundTripExpr("let foo = a..b;\nfoo", {"a", "b"});
 }
 
+TEST_F(ParserTest, BuiltinFailWithLabels) {
+  constexpr absl::string_view kProgram = R"(fn main(x: u32) -> u32 {
+  let _ = if (x) == (u32:7) { fail!("x_is_7", u32:0) } else { u32:0 };
+  let _ = {
+    if (x) == (u32:8) { fail!("x_is_8", u32:0) } else { u32:0 }
+  };
+  x
+})";
+  RoundTrip(std::string(kProgram));
+}
+
 // -- Parse-time errors
 
 TEST_F(ParserTest, BadEnumRef) {
@@ -1056,6 +1067,22 @@ TEST_F(ParserTest, NumberSpan) {
   // TODO(https://github.com/google/xls/issues/438): 2021-05-24 Fix the
   // parsing/reporting of number spans so that the span starts at 0,0.
   EXPECT_EQ(number->span(), Span(Pos(kFilename, 0, 4), Pos(kFilename, 0, 6)));
+}
+
+TEST_F(ParserTest, DetectsDuplicateFailLabels) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u32) -> u32 {
+  let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
+  let _ = { if x == u32:7 { fail!("x_is_7", u32:0)} } else { u32:0 } };
+  x
+}
+)";
+
+  Scanner s{"test.x", std::string(kProgram)};
+  Parser parser{"test", &s};
+  EXPECT_THAT(parser.ParseModule(),
+              StatusIs(absl::StatusCode::kInvalidArgument,
+                       HasSubstr("A fail label must be unique")));
 }
 
 // Verifies that we can walk backwards through a tree. In this case, from the

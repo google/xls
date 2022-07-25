@@ -505,7 +505,7 @@ class Parser : public TokenParser {
   // Helper function that chooses between building a FormatMacro or an
   // Invocation based on the callee.
   absl::StatusOr<Expr*> BuildMacroOrInvocation(
-      Span span, Expr* callee, std::vector<Expr*> args,
+      Span span, Bindings* bindings, Expr* callee, std::vector<Expr*> args,
       std::vector<Expr*> parametrics = std::vector<Expr*>({}));
 
   // Traverses a Proc declaration to collect all the member data elements

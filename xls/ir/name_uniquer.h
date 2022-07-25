@@ -46,7 +46,7 @@ class NameUniquer {
   // available.
   std::string GetSanitizedUniqueName(absl::string_view prefix);
 
-  // Returns true if the given str is a valid identifier.
+  // Returns true if the given str is a valid Verilog, and thus XLS, identifier.
   static bool IsValidIdentifier(absl::string_view str);
 
  private:

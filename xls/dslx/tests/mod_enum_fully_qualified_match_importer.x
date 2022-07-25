@@ -24,7 +24,7 @@ fn main(x: exporter::EnumType) -> u32 {
   match x {
     exporter::EnumType::FIRST => u32:0,
     exporter::EnumType::SECOND => u32:1,
-    _ => fail!(u32:1),
+    _ => fail!("no_match", u32:1),
   }
 }
 

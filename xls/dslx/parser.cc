@@ -27,6 +27,7 @@
 #include "xls/dslx/bindings.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/scanner.h"
+#include "xls/ir/name_uniquer.h"
 
 namespace xls::dslx {
 namespace {
@@ -1405,8 +1406,8 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
             ParseCommaSeq(BindFront(&Parser::ParseExpression, outer_bindings),
                           TokenKind::kCParen));
         XLS_ASSIGN_OR_RETURN(
-            lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), lhs,
-                                        std::move(args)));
+            lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), outer_bindings,
+                                        lhs, std::move(args)));
         break;
       }
       case TokenKind::kDot: {
@@ -1481,9 +1482,9 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
                                                      sub_txn.bindings()),
                                            TokenKind::kCParen));
         XLS_ASSIGN_OR_RETURN(
-            lhs, BuildMacroOrInvocation(Span(new_pos, GetPos()), lhs,
-                                        std::move(args),
-                                        status_or_parametrics.value()));
+            lhs, BuildMacroOrInvocation(
+                     Span(new_pos, GetPos()), sub_txn.bindings(), lhs,
+                     std::move(args), status_or_parametrics.value()));
         sub_txn.CommitAndCancelCleanup(&sub_cleanup);
         break;
       }
@@ -1503,7 +1504,7 @@ done:
 }
 
 absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
-    Span span, Expr* callee, std::vector<Expr*> args,
+    Span span, Bindings* bindings, Expr* callee, std::vector<Expr*> args,
     std::vector<Expr*> parametrics) {
   if (auto* name_ref = dynamic_cast<NameRef*>(callee)) {
     if (auto* builtin = TryGet<BuiltinNameDef*>(name_ref->name_def())) {
@@ -1539,6 +1540,25 @@ absl::StatusOr<Expr*> Parser::BuildMacroOrInvocation(
             span, absl::StrFormat("The first argument of the %s macro must "
                                   "be a literal string.",
                                   name));
+      }
+
+      if (name == "fail!") {
+        if (args.size() != 2) {
+          return ParseErrorStatus(
+              span, "fail!() requires two arguments: a label and a condition.");
+        }
+
+        String* label = dynamic_cast<String*>(args.at(0));
+        if (label == nullptr) {
+          return ParseErrorStatus(
+              span, "The first argument to fail!() must be a label string.");
+        }
+
+        if (!NameUniquer::IsValidIdentifier(label->text())) {
+          return ParseErrorStatus(
+              span, "A fail! label must be a valid Verilog identifier.");
+        }
+        XLS_RETURN_IF_ERROR(bindings->AddFailLabel(label->text()));
       }
     }
   }

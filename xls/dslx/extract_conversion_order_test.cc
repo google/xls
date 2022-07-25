@@ -89,7 +89,7 @@ fn main() -> u32 { f(u2:0) }
 
 TEST(ExtractConversionOrderTest, BuiltinIsElided) {
   constexpr absl::string_view kProgram = R"(
-fn main() -> u32 { fail!(u32:0) }
+fn main() -> u32 { fail!("failure", u32:0) }
 )";
   auto import_data = CreateImportDataForTest();
   XLS_ASSERT_OK_AND_ASSIGN(

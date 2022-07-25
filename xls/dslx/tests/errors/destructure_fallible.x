@@ -18,7 +18,7 @@
 
 fn f(x: u8) -> (u8, u8, u8) {
   let (a, b) = match x {
-    _ => fail!((u8:0, u8:0))
+    _ => fail!("failure", (u8:0, u8:0))
   };
   (a, x, b)
 }

@@ -367,16 +367,16 @@ fn run_r_instruction(pc: u32,
      ADD => match funct7 {
         ADD_FUNCT7 => regs[rs1] + regs[rs2],
         SUB_FUNCT7 => regs[rs1] - regs[rs2],
-        _          => fail!(u32:0),
+        _          => fail!("unknown_ADD_funct7", u32:0),
         },
      // Note: SRL and SRA have the same opcode
      SRL => match funct7 {
         SRL_FUNCT7 => regs[rs1] >> regs[rs2],
         SRA_FUNCT7 => ((regs[rs1] as s32) >> regs[rs2]) as u32,
-        _          => fail!(u32:0),
+        _          => fail!("unknown_SRL_funct7", u32:0),
         },
      // LD.R, ST.C (atomics) will not be implemented here.
-     _   => fail!(u32:0)
+     _   => fail!("unmatched_func3", u32:0)
   };
   (pc + u32:4, update(regs, rd, new_value), dmem)
 }
@@ -400,7 +400,7 @@ fn run_i_instruction(pc: u32,
            SRLA => ((regs[rs1] as s32) >> (imm12 as u32)) as u32,
            ORI  => regs[rs1] |   (imm12 as u32),
            ANDI => regs[rs1] &   (imm12 as u32),
-           _    => fail!(u32:0)
+           _    => fail!("unmatched_I_ARITH_func3", u32:0)
         };
         (pc, value),
      I_LD =>
@@ -416,7 +416,7 @@ fn run_i_instruction(pc: u32,
 
            LBU  => dmem[regs[addr]] as u32,
            LHU  => (dmem[addr] ++ dmem[addr + u32:1]) as u32,
-           _    => fail!(u32:0)
+           _    => fail!("unmatched_I_LD_func3", u32:0)
         };
         (pc, value),
      I_JALR =>
@@ -425,13 +425,13 @@ fn run_i_instruction(pc: u32,
                   // Add imm12 to rs1 and clear the LSB
                   let pc = (regs[rs1] + signex(imm12, u32:0)) & u32:-2;
                   (pc, new_rd),
-          _    => fail!((pc, u32:0))
+          _    => fail!("unmatched_I_JALR_funct3", (pc, u32:0))
         };
         (pc, value),
 
      // Unsupported RV64I instructions:
      //   LD, LWU
-     _    => fail!((pc, u32:0))
+     _    => fail!("unsupported_instruction", (pc, u32:0))
   };
   (pc, update(regs, rd, new_value), dmem)
 }
@@ -464,7 +464,7 @@ fn run_s_instruction(pc: u32,
      SB   =>            update(dmem, regs[rs2] + u32:0 + (imm12 as u32),
                                regs[rs1][0 +: u8]),
      // Note: SD is a RV64I-only instruction.
-      _   => fail!(dmem),
+      _   => fail!("unsupported_funct3", dmem),
   };
   (pc + u32:4, regs, dmem)
 }
@@ -508,7 +508,7 @@ fn run_b_instruction(pc: u32,
      BGE  => if (regs[rs1] as s32) >= (regs[rs2] as s32) { pc_imm } else { pc4 },
      BLTU => if regs[rs1] < regs[rs2] { pc_imm } else { pc4 },
      BGEU => if regs[rs1] >= regs[rs2] { pc_imm } else { pc4 },
-     _    => fail!(u32:0)
+     _    => fail!("unsupported_func3", u32:0)
   };
   (new_pc, regs, dmem)
 }
@@ -531,7 +531,7 @@ fn run_instruction(pc: u32,
       B_CLASS  => run_b_instruction(pc, ins, regs, dmem),
       U_CLASS  => run_u_instruction(pc, ins, regs, dmem),
       UJ_CLASS => run_uj_instruction(pc, ins, regs, dmem),
-      _ => fail!((pc, regs, dmem)),
+      _ => fail!("unsupported_func3", (pc, regs, dmem)),
     };
     (pc, update(regs, u32:0, u32:0), dmem) // to ensure r0 == 0 at all times.
 }
