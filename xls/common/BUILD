@@ -330,6 +330,28 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "comparison_utils",
+    hdrs = ["comparison_utils.h"],
+    deps = [
+        ":to_string_helpers",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "comparison_utils_test",
+    srcs = ["comparison_utils_test.cc"],
+    deps = [
+        ":comparison_utils",
+        ":xls_gunit_main",
+        "@com_google_absl//absl/strings",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "golden_files_test",
     srcs = ["golden_files_test.cc"],
