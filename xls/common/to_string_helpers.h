@@ -83,11 +83,10 @@ std::string ToString(T value) {
 // Returns a string representation of a container containing a type without a
 // defined ToString() method.
 template <typename T, template <class...> class Container,
-          typename std::enable_if<
-              (std::is_integral_v<T> ||
-               has_const_iterator_v<T>)&&has_const_iterator_v<Container<T>> &&
-                  has_member_size_v<Container<T>>,
-              T>::type* = nullptr>
+          typename std::enable_if<!has_member_to_string_v<T> &&
+                                      has_const_iterator_v<Container<T>> &&
+                                      has_member_size_v<Container<T>>,
+                                  T>::type* = nullptr>
 std::string ToString(const Container<T>& values) {
   std::vector<std::string> entries;
   entries.reserve(values.size());
@@ -102,8 +101,7 @@ std::string ToString(const Container<T>& values) {
 // Returns a string representation of a container containing a type with a
 // defined ToString() method.
 template <typename T, template <class...> class Container,
-          typename std::enable_if<!std::is_integral_v<T> &&
-                                      !has_const_iterator_v<T> &&
+          typename std::enable_if<has_member_to_string_v<T> &&
                                       has_const_iterator_v<Container<T>> &&
                                       has_member_size_v<Container<T>>,
                                   T>::type* = nullptr>

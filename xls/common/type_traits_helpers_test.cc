@@ -106,5 +106,32 @@ TEST(TypeTraitHelperTest, HasMemberSizeNonSupportedTypes) {
   EXPECT_FALSE(has_member_size_v<std::forward_list<int64_t>>);
 }
 
+struct MyStruct {};
+
+struct MyStructWithToString {
+  std::string ToString() { return "MyStructWithToString"; }
+};
+
+TEST(TypeTraitHelperTest, HasMemberToString) {
+  EXPECT_FALSE(has_member_to_string_v<int64_t>);
+  EXPECT_FALSE(has_member_to_string_v<std::vector<int64_t>>);
+  EXPECT_FALSE(has_member_to_string_v<MyStruct>);
+  EXPECT_TRUE(has_member_to_string_v<MyStructWithToString>);
+}
+
+TEST(TypeTraitHelperTest, IsOneOf) {
+  bool result;
+  EXPECT_FALSE(is_one_of<>::value);
+  EXPECT_FALSE(is_one_of<int64_t>::value);
+  result = is_one_of<int8_t, std::variant<int64_t>>::value;
+  EXPECT_FALSE(result);
+  result = is_one_of<int8_t, std::variant<int64_t, MyStruct>>::value;
+  EXPECT_FALSE(result);
+  result = is_one_of<int64_t, std::variant<int64_t>>::value;
+  EXPECT_TRUE(result);
+  result = is_one_of<MyStruct, std::variant<int64_t, MyStruct>>::value;
+  EXPECT_TRUE(result);
+}
+
 }  // namespace
 }  // namespace xls
