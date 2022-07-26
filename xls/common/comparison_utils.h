@@ -17,6 +17,7 @@
 
 #include <string>
 #include <type_traits>
+#include <utility>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
@@ -24,13 +25,13 @@
 #include "xls/common/to_string_helpers.h"
 #include "xls/common/type_traits_helpers.h"
 
-// Utilities for comparing C++ primitive types and containers with a
+// Utilities for comparing C++ primitive types, std::pair and containers with a
 // const_iterator and size() members. The comparisons return a human readable
 // string useful during debugging.
 
 namespace xls {
 
-// Utilities for comparing C++ primitive types and containers with a
+// Utilities for comparing C++ primitive types, std::pair and containers with a
 // const_iterator and size() members.
 //
 // The comparisons are performed recursively. As a result, when comparing a
@@ -114,8 +115,31 @@ std::string Compare(absl::string_view element_name, T expected, T computed) {
                          element_name, ToString(expected), ToString(computed));
 }
 
-// TODO(vmirian): 7-25-2022 Enable compare for std::pair to support std::map and
-// std::multimap, std::unordered_map, std::unordered_multimap.
+// Compares std::pair types.
+template <typename T1, typename T2>
+std::string Compare(absl::string_view element_name,
+                    const std::pair<T1, T2>& expected,
+                    const std::pair<T1, T2>& computed) {
+  std::string comparison;
+  std::string ref_element_name = "";
+  if (!element_name.empty()) {
+    ref_element_name = absl::StrCat(element_name, ".");
+  }
+  absl::StrAppend(
+      &comparison,
+      absl::StrFormat("%s",
+                      ::xls::Compare(absl::StrCat(ref_element_name, "first"),
+                                     expected.first, computed.first)));
+  absl::StrAppend(
+      &comparison,
+      absl::StrFormat("%s",
+                      ::xls::Compare(absl::StrCat(ref_element_name, "second"),
+                                     expected.second, computed.second)));
+  return comparison;
+}
+
+// TODO(vmirian): 7-25-2022 Enable support for std::map, std::multimap,
+// std::unordered_map and std::unordered_multimap.
 // TODO(vmirian): 7-25-2022 Add support for std::array.
 
 // Compares a container.

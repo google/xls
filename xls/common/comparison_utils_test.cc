@@ -20,6 +20,7 @@
 #include <set>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -200,6 +201,22 @@ TEST(ComparisonUtilsTest, CompareSpanUserDefinedType) {
                          UserDefinedType{1, true}, UserDefinedType{42, false}}),
       HasSubstr("Element Span[0].integer differ: expected "
                 "(42), got (1)."));
+}
+
+TEST(ToStringHelpersTest, ToStringStdPair) {
+  EXPECT_THAT(::xls::Compare("UserDefinedType is equal",
+                             std::pair<int8_t, int8_t>{42, 1},
+                             std::pair<int8_t, int8_t>{42, 1}),
+              IsEmpty());
+  EXPECT_THAT(
+      ::xls::Compare("UserDefinedType", std::pair<int8_t, int8_t>{42, 1},
+                     std::pair<int8_t, int8_t>{42, 42}),
+      HasSubstr(
+          "Element UserDefinedType.second differ: expected (1), got (42)."));
+  // Differ with no name reference.
+  EXPECT_THAT(::xls::Compare("", std::pair<int8_t, int8_t>{42, 1},
+                             std::pair<int8_t, int8_t>{42, 42}),
+              HasSubstr("Element second differ: expected (1), got (42)."));
 }
 
 }  // namespace

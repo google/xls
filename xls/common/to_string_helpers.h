@@ -17,6 +17,7 @@
 
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "absl/strings/str_cat.h"
@@ -24,9 +25,9 @@
 #include "xls/common/type_traits_helpers.h"
 
 // Helpers for generating the string representation of: C++ primitive integral
-// types and containers with a const_iterator and size() members that contain
-// primitive integral types or user-defined types with a defined ToString()
-// method. Note that these helper functions are needed since an
+// types, std::pair and containers with a const_iterator and size() members that
+// contain primitive integral types or user-defined types with a defined
+// ToString() method. Note that these helper functions are needed since an
 // AbslFormatConvert does not exist for these types.
 //
 // The generation of the string are performed recursively. As a result, when
@@ -76,8 +77,62 @@ std::string ToString(T value) {
   return std::to_string(value);
 }
 
-// TODO(vmirian): 7-25-2022 Enable ToString for std::pair to support std::map
-// and std::multimap, std::unordered_map, std::unordered_multimap.
+// Returns a string representation of a std::pair containing elements without a
+// ToString method.
+template <typename T1, typename T2,
+          typename std::enable_if<!has_member_to_string_v<T1> &&
+                                      !has_member_to_string_v<T2>,
+                                  T1>::type* = nullptr>
+std::string ToString(const std::pair<T1, T2>& value) {
+  std::vector<std::string> entries = {ToString(value.first),
+                                      ToString(value.second)};
+  std::string content = absl::StrJoin(entries, ", ");
+  return absl::StrCat("{ ", content, " }");
+}
+
+// Returns a string representation of a std::pair with the first element
+// not containing a ToString method and the second element containing a ToString
+// method.
+template <typename T1, typename T2,
+          typename std::enable_if<!has_member_to_string_v<T1> &&
+                                      has_member_to_string_v<T2>,
+                                  T1>::type* = nullptr>
+std::string ToString(const std::pair<T1, T2>& value) {
+  std::vector<std::string> entries = {ToString(value.first),
+                                      value.second.ToString()};
+  std::string content = absl::StrJoin(entries, ", ");
+  return absl::StrCat("{ ", content, " }");
+}
+
+// Returns a string representation of a std::pair with the first element
+// containing a ToString method and the second element not containing a ToString
+// method.
+template <typename T1, typename T2,
+          typename std::enable_if<has_member_to_string_v<T1> &&
+                                      !has_member_to_string_v<T2>,
+                                  T1>::type* = nullptr>
+std::string ToString(const std::pair<T1, T2>& value) {
+  std::vector<std::string> entries = {value.first.ToString(),
+                                      ToString(value.second)};
+  std::string content = absl::StrJoin(entries, ", ");
+  return absl::StrCat("{ ", content, " }");
+}
+
+// Returns a string representation of a std::pair containing elements with a
+// ToString method.
+template <typename T1, typename T2,
+          typename std::enable_if<has_member_to_string_v<T1> &&
+                                      has_member_to_string_v<T2>,
+                                  T1>::type* = nullptr>
+std::string ToString(const std::pair<T1, T2>& value) {
+  std::vector<std::string> entries = {value.first.ToString(),
+                                      value.second.ToString()};
+  std::string content = absl::StrJoin(entries, ", ");
+  return absl::StrCat("{ ", content, " }");
+}
+
+// TODO(vmirian): 7-25-2022 Enable support for std::map, std::multimap,
+// std::unordered_map and std::unordered_multimap.
 // TODO(vmirian): 7-25-2022 Add support for std::array.
 
 // Returns a string representation of a container containing a type without a

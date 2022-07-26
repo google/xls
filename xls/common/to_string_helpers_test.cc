@@ -14,11 +14,13 @@
 
 #include "xls/common/to_string_helpers.h"
 
+#include <cstdint>
 #include <deque>
 #include <list>
 #include <set>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -128,6 +130,21 @@ TEST(ToStringHelpersTest, ToStringSpanUserDefinedType) {
       ::xls::ToString(absl::Span<const UserDefinedType>{
           UserDefinedType{42, true}, UserDefinedType{1, false}}),
       StrEq("[ {integer: 42, boolean: true}, {integer: 1, boolean: false} ]"));
+}
+
+TEST(ToStringHelpersTest, ToStringStdPair) {
+  EXPECT_THAT(::xls::ToString(std::pair<int8_t, int8_t>{42, 1}),
+              StrEq("{ 42, 1 }"));
+  EXPECT_THAT(::xls::ToString(std::pair<int8_t, UserDefinedType>{
+                  42, UserDefinedType{42, true}}),
+              StrEq("{ 42, {integer: 42, boolean: true} }"));
+  EXPECT_THAT(::xls::ToString(std::pair<UserDefinedType, int8_t>{
+                  UserDefinedType{42, true}, 42}),
+              StrEq("{ {integer: 42, boolean: true}, 42 }"));
+  EXPECT_THAT(
+      ::xls::ToString(std::pair<UserDefinedType, UserDefinedType>{
+          UserDefinedType{42, true}, UserDefinedType{1, false}}),
+      StrEq("{ {integer: 42, boolean: true}, {integer: 1, boolean: false} }"));
 }
 
 }  // namespace
