@@ -15,7 +15,10 @@
 #include "xls/common/to_string_helpers.h"
 
 #include <deque>
+#include <list>
+#include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -50,25 +53,50 @@ INSTANTIATE_TYPED_TEST_SUITE_P(Integrals, ToStringHelpersIntegralTypedTest,
                                MyIntegralTypes);
 
 template <typename T>
-class ToStringHelpersContainerTypedTest : public ::testing::Test {};
+class ToStringHelpersSequenceContainerTypedTest : public ::testing::Test {};
 
-TYPED_TEST_SUITE_P(ToStringHelpersContainerTypedTest);
+TYPED_TEST_SUITE_P(ToStringHelpersSequenceContainerTypedTest);
 
-TYPED_TEST_P(ToStringHelpersContainerTypedTest, Compare1DContainerIntegral) {
+TYPED_TEST_P(ToStringHelpersSequenceContainerTypedTest,
+             Compare1DSequenceContainerIntegral) {
   EXPECT_THAT(::xls::ToString(TypeParam{42, 1}), StrEq("[ 42, 1 ]"));
 }
 
-REGISTER_TYPED_TEST_SUITE_P(ToStringHelpersContainerTypedTest,
-                            Compare1DContainerIntegral);
+REGISTER_TYPED_TEST_SUITE_P(ToStringHelpersSequenceContainerTypedTest,
+                            Compare1DSequenceContainerIntegral);
 
 // Test a single integral type per container type, since the integral types were
 // thoroughly tested in a previous tests.
-using My1DContainerIntegralTypes =
-    ::testing::Types<absl::Span<const int8_t>, std::vector<int8_t>,
-                     std::deque<int8_t>>;
+using My1DSequenceContainerIntegralTypes =
+    ::testing::Types<absl::Span<const int8_t>, std::deque<int8_t>,
+                     std::list<int8_t>, std::vector<int8_t>>;
 
-INSTANTIATE_TYPED_TEST_SUITE_P(Integrals, ToStringHelpersContainerTypedTest,
-                               My1DContainerIntegralTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(Integrals,
+                               ToStringHelpersSequenceContainerTypedTest,
+                               My1DSequenceContainerIntegralTypes);
+
+template <typename T>
+class ToStringHelpersSetContainerTypedTest : public ::testing::Test {};
+
+TYPED_TEST_SUITE_P(ToStringHelpersSetContainerTypedTest);
+
+TYPED_TEST_P(ToStringHelpersSetContainerTypedTest,
+             Compare1DSetContainerIntegral) {
+  EXPECT_THAT(::xls::ToString(TypeParam{42, 1}), StrEq("[ 1, 42 ]"));
+}
+
+REGISTER_TYPED_TEST_SUITE_P(ToStringHelpersSetContainerTypedTest,
+                            Compare1DSetContainerIntegral);
+
+// Test a single integral type per container type, since the integral types were
+// thoroughly tested in a previous tests.
+using My1DSetContainerIntegralTypes =
+    ::testing::Types<std::multiset<int8_t>, std::set<int8_t>,
+                     std::unordered_multiset<int8_t>,
+                     std::unordered_set<int8_t>>;
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Integrals, ToStringHelpersSetContainerTypedTest,
+                               My1DSetContainerIntegralTypes);
 
 // Test a single container type for a multi-dimensional containers, since the
 // container types were thoroughly tested in a previous tests.

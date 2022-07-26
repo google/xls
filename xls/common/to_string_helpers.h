@@ -15,20 +15,19 @@
 #ifndef XLS_COMMON_TO_STRING_HELPERS_H_
 #define XLS_COMMON_TO_STRING_HELPERS_H_
 
-#include <deque>
 #include <string>
 #include <type_traits>
 #include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
-#include "absl/types/span.h"
+#include "xls/common/type_traits_helpers.h"
 
 // Helpers for generating the string representation of: C++ primitive integral
-// types and selected containers containing primitive integral types or
-// user-defined types with a defined ToString() method. Note that these helper
-// functions are needed since an AbslFormatConvert does not exist for these
-// types.
+// types and containers with a const_iterator and size() members that contain
+// primitive integral types or user-defined types with a defined ToString()
+// method. Note that these helper functions are needed since an
+// AbslFormatConvert does not exist for these types.
 //
 // The generation of the string are performed recursively. As a result, when
 // generating the string representation of a container, the string
@@ -77,55 +76,43 @@ std::string ToString(T value) {
   return std::to_string(value);
 }
 
-// Helper to determine whether type T has a const_iterator member. A type T with
-// a const_iterator is assumed to be a container.
-template <typename T>
-struct has_const_iterator {
- private:
-  template <typename C>
-  static int8_t test(typename C::const_iterator*);
-  template <typename C>
-  static int16_t test(...);
+// TODO(vmirian): 7-25-2022 Enable ToString for std::pair to support std::map
+// and std::multimap, std::unordered_map, std::unordered_multimap.
+// TODO(vmirian): 7-25-2022 Add support for std::array.
 
- public:
-  static constexpr bool value = sizeof(test<T>(0)) == sizeof(int8_t);
-};
-template <typename T>
-inline constexpr bool has_const_iterator_v = has_const_iterator<T>::value;
-
-// Returns a string representation of a container containing another container
-// or a C++ primitive integral type.
+// Returns a string representation of a container containing a type without a
+// defined ToString() method.
 template <typename T, template <class...> class Container,
           typename std::enable_if<
-              (std::is_integral_v<T> || has_const_iterator_v<T>)&&(
-                  std::is_same_v<Container<T>, absl::Span<const T>> ||
-                  std::is_same_v<Container<T>, std::vector<T>> ||
-                  std::is_same_v<Container<T>, std::deque<T>>),
+              (std::is_integral_v<T> ||
+               has_const_iterator_v<T>)&&has_const_iterator_v<Container<T>> &&
+                  has_member_size_v<Container<T>>,
               T>::type* = nullptr>
 std::string ToString(const Container<T>& values) {
   std::vector<std::string> entries;
   entries.reserve(values.size());
-  for (const T& value : values) {
-    entries.push_back(ToString(value));
+  for (typename Container<T>::const_iterator it = values.cbegin();
+       it != values.cend(); ++it) {
+    entries.push_back(ToString(*it));
   }
   std::string content = absl::StrJoin(entries, ", ");
   return absl::StrCat("[ ", content, " ]");
 }
 
-// Returns a string representation of a container containing a user-defined
-// type with a defined ToString() method.
+// Returns a string representation of a container containing a type with a
+// defined ToString() method.
 template <typename T, template <class...> class Container,
-          typename std::enable_if<
-              (!std::is_integral_v<T> && !has_const_iterator_v<T>)&&(
-                  std::is_same_v<Container<T>, absl::Span<const T>> ||
-                  std::is_same_v<Container<T>, std::vector<T>> ||
-                  std::is_same_v<Container<T>, std::deque<T>>),
-              T>::type* = nullptr>
+          typename std::enable_if<!std::is_integral_v<T> &&
+                                      !has_const_iterator_v<T> &&
+                                      has_const_iterator_v<Container<T>> &&
+                                      has_member_size_v<Container<T>>,
+                                  T>::type* = nullptr>
 std::string ToString(const Container<T>& values) {
   std::vector<std::string> entries;
   entries.reserve(values.size());
-  for (const T& value : values) {
-    entries.push_back(value.ToString());
+  for (typename Container<T>::const_iterator it = values.cbegin();
+       it != values.cend(); ++it) {
+    entries.push_back(it->ToString());
   }
   std::string content = absl::StrJoin(entries, ", ");
   return absl::StrCat("[ ", content, " ]");

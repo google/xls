@@ -16,7 +16,10 @@
 
 #include <cstdint>
 #include <deque>
+#include <list>
+#include <set>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "gmock/gmock.h"
@@ -59,33 +62,69 @@ INSTANTIATE_TYPED_TEST_SUITE_P(Integrals, ComparisonUtilsIntegralTypedTest,
                                MyIntegralTypes);
 
 template <typename T>
-class ComparisonUtilsContainerTypedTest : public ::testing::Test {};
+class ComparisonUtilsSequenceContainerTypedTest : public ::testing::Test {};
 
-TYPED_TEST_SUITE_P(ComparisonUtilsContainerTypedTest);
+TYPED_TEST_SUITE_P(ComparisonUtilsSequenceContainerTypedTest);
 
-TYPED_TEST_P(ComparisonUtilsContainerTypedTest, Compare1DContainerIntegral) {
+TYPED_TEST_P(ComparisonUtilsSequenceContainerTypedTest,
+             Compare1DSequenceContainerIntegral) {
   EXPECT_THAT(
       ::xls::Compare("Container is equal", TypeParam{42, 1}, TypeParam{42, 1}),
       IsEmpty());
+  EXPECT_THAT(
+      ::xls::Compare("Container", TypeParam{42, 1}, TypeParam{42, 1, 0}),
+      HasSubstr("Size of element Container differ: expected (2), got (3)."));
   EXPECT_THAT(
       ::xls::Compare("Container", TypeParam{42, 1}, TypeParam{42, 42}),
       HasSubstr("Element Container[1] differ: expected (1), got (42)."));
 }
 
-REGISTER_TYPED_TEST_SUITE_P(ComparisonUtilsContainerTypedTest,
-                            Compare1DContainerIntegral);
+REGISTER_TYPED_TEST_SUITE_P(ComparisonUtilsSequenceContainerTypedTest,
+                            Compare1DSequenceContainerIntegral);
 
 // Test a single integral type per container type, since the integral types were
 // thoroughly tested in a previous tests.
-using My1DContainerIntegralTypes =
-    ::testing::Types<absl::Span<const int8_t>, std::vector<int8_t>,
-                     std::deque<int8_t>>;
+using My1DSequenceContainerIntegralTypes =
+    ::testing::Types<absl::Span<const int8_t>, std::deque<int8_t>,
+                     std::list<int8_t>, std::vector<int8_t>>;
 
-INSTANTIATE_TYPED_TEST_SUITE_P(Integrals, ComparisonUtilsContainerTypedTest,
-                               My1DContainerIntegralTypes);
+INSTANTIATE_TYPED_TEST_SUITE_P(Integrals,
+                               ComparisonUtilsSequenceContainerTypedTest,
+                               My1DSequenceContainerIntegralTypes);
+
+template <typename T>
+class ComparisonUtilsSetContainerTypedTest : public ::testing::Test {};
+
+TYPED_TEST_SUITE_P(ComparisonUtilsSetContainerTypedTest);
+
+TYPED_TEST_P(ComparisonUtilsSetContainerTypedTest,
+             Compare1DSetContainerIntegral) {
+  EXPECT_THAT(::xls::Compare("SetContainer is equal", TypeParam{42, 1},
+                             TypeParam{42, 1}),
+              IsEmpty());
+  EXPECT_THAT(
+      ::xls::Compare("SetContainer", TypeParam{42, 1}, TypeParam{42, 1, 0}),
+      HasSubstr("Size of element SetContainer differ: expected (2), got (3)."));
+  EXPECT_THAT(
+      ::xls::Compare("SetContainer", TypeParam{1, 42}, TypeParam{0, 42}),
+      HasSubstr("differ: expected ("));
+}
+
+REGISTER_TYPED_TEST_SUITE_P(ComparisonUtilsSetContainerTypedTest,
+                            Compare1DSetContainerIntegral);
+
+// Test a single integral type per container type, since the integral types were
+// thoroughly tested in a previous tests.
+using My1DSetContainerIntegralTypes =
+    ::testing::Types<std::multiset<int8_t>, std::set<int8_t>,
+                     std::unordered_multiset<int8_t>,
+                     std::unordered_set<int8_t>>;
+
+INSTANTIATE_TYPED_TEST_SUITE_P(Integrals, ComparisonUtilsSetContainerTypedTest,
+                               My1DSetContainerIntegralTypes);
 
 // Test a single container type for a multi-dimensional containers, since the
-// container types were thoroughly tested in a previous tests.
+// container types were thoroughly tested in previous tests.
 TEST(ComparisonUtilsTest, Compare2DVectorIntegral) {
   EXPECT_THAT(
       ::xls::Compare("Vector is equal",

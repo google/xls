@@ -15,23 +15,23 @@
 #ifndef XLS_COMMON_COMPARISON_UTILS_H_
 #define XLS_COMMON_COMPARISON_UTILS_H_
 
-#include <deque>
 #include <string>
 #include <type_traits>
-#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
-#include "absl/types/span.h"
 #include "xls/common/to_string_helpers.h"
+#include "xls/common/type_traits_helpers.h"
 
-// Utilities for comparing C++ primitive types and selected containers. The
-// comparisons return a human readable string useful during debugging.
+// Utilities for comparing C++ primitive types and containers with a
+// const_iterator and size() members. The comparisons return a human readable
+// string useful during debugging.
 
 namespace xls {
 
-// Utilities for comparing C++ primitive types and selected containers.
+// Utilities for comparing C++ primitive types and containers with a
+// const_iterator and size() members.
 //
 // The comparisons are performed recursively. As a result, when comparing a
 // container, the elements within the container are also compared.
@@ -105,6 +105,7 @@ namespace xls {
 // Note that the comparison function leverages the comparison function for C++
 // primitives.
 
+// Compares integral types.
 template <typename T,
           typename std::enable_if<std::is_integral_v<T>, T>::type* = nullptr>
 std::string Compare(absl::string_view element_name, T expected, T computed) {
@@ -113,13 +114,15 @@ std::string Compare(absl::string_view element_name, T expected, T computed) {
                          element_name, ToString(expected), ToString(computed));
 }
 
-// TODO(vmirian): 7-25-2022 Add iterator trait to detect containers.
-template <
-    typename T, template <class...> class Container,
-    typename std::enable_if<std::is_same_v<Container<T>, absl::Span<const T>> ||
-                                std::is_same_v<Container<T>, std::vector<T>> ||
-                                std::is_same_v<Container<T>, std::deque<T>>,
-                            T>::type* = nullptr>
+// TODO(vmirian): 7-25-2022 Enable compare for std::pair to support std::map and
+// std::multimap, std::unordered_map, std::unordered_multimap.
+// TODO(vmirian): 7-25-2022 Add support for std::array.
+
+// Compares a container.
+template <typename T, template <class...> class Container,
+          typename std::enable_if<has_const_iterator_v<Container<T>> &&
+                                      has_member_size_v<Container<T>>,
+                                  T>::type* = nullptr>
 std::string Compare(absl::string_view element_name,
                     const Container<T>& expected,
                     const Container<T>& computed) {
@@ -129,12 +132,16 @@ std::string Compare(absl::string_view element_name,
         ToString(expected.size()), ToString(computed.size()));
   }
   std::string comparison;
-  for (int64_t i = 0; i < computed.size(); ++i) {
-    if (computed[i] != expected[i]) {
+  int64_t i = 0;
+  for (typename Container<T>::const_iterator computed_it = computed.cbegin(),
+                                             expected_it = expected.cbegin();
+       computed_it != computed.cend(); ++computed_it, ++expected_it) {
+    if (*computed_it != *expected_it) {
       absl::StrAppend(&comparison,
                       Compare(absl::StrCat(element_name, "[", i, "]"),
-                              expected[i], computed[i]));
+                              *expected_it, *computed_it));
     }
+    i++;
   }
   return comparison;
 }
