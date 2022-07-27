@@ -58,10 +58,10 @@ py_binary(
     deps = [
         requirement("Flask"),
         requirement("Jinja2"),
-        requirement("Werkzeug"),
         requirement("click"),
         requirement("itsdangerous"),
         requirement("MarkupSafe"),
+        requirement("Werkzeug"),
         "//xls/common:runfiles",
         "//xls/common/python:init_xls",
         "//xls/visualization/ir_viz/python:ir_to_json",
