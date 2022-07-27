@@ -47,6 +47,12 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModule(
     absl::string_view text, absl::string_view path,
     absl::string_view module_name);
 
+// Helper that parses and created a new Module from the given DSLX file path.
+//   path - path to the file to read and parse.
+//   module_name - the name given to the returned Module;
+absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
+    absl::string_view path, absl::string_view module_name);
+
 // Helper that typechecks an already parsed module, ownership of
 // the module will be given to import_data.
 //

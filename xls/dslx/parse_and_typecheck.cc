@@ -14,6 +14,8 @@
 
 #include "xls/dslx/parse_and_typecheck.h"
 
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/parser.h"
@@ -38,6 +40,14 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModule(
   Scanner scanner{std::string{path}, std::string{text}};
   Parser parser(std::string{module_name}, &scanner);
   return parser.ParseModule();
+}
+
+absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
+    absl::string_view file_path, absl::string_view module_name) {
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
+                       GetXlsRunfilePath(file_path));
+  XLS_ASSIGN_OR_RETURN(std::string text_dslx, GetFileContents(path));
+  return ParseModule(text_dslx, file_path, module_name);
 }
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(

@@ -94,5 +94,101 @@ fn __top__GetLatency() -> bits[64] {
   EXPECT_EQ(ret_val.value, Value(UBits(7, 64)));
 }
 
+TEST(IrWrapperTest, DslxProcsToIrOk) {
+  constexpr absl::string_view kTopDslx = R"(proc foo {
+  in_0: chan in u32;
+  in_1: chan in u32;
+  output: chan out u32;
+  config(in_0: chan in u32, in_1: chan in u32, output: chan out u32) {
+    (in_0, in_1, output)
+  }
+  next(tok: token) {
+    let (tok, a) = recv(tok, in_0);
+    let (tok, b) = recv(tok, in_1);
+    let tok = send(tok, output, (a) + (b));
+    ()
+  }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<dslx::Module> top_module,
+                           dslx::ParseModule(kTopDslx, "top_module.x", "top"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      IrWrapper ir_wrapper,
+      IrWrapper::Create("test_package", std::move(top_module), "top_module.x"));
+
+  // Test that modules can be retrieved.
+  XLS_ASSERT_OK_AND_ASSIGN(dslx::Module * top, ir_wrapper.GetDslxModule("top"));
+  EXPECT_EQ(top->ToString(), kTopDslx);
+
+  // Test that the ir proc can be compiled and retrieved.
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * top_proc, ir_wrapper.GetIrProc("foo_0_next"));
+  XLS_VLOG_LINES(3, top_proc->DumpIr());
+
+  XLS_ASSERT_OK_AND_ASSIGN(Package * package, ir_wrapper.GetIrPackage());
+  EXPECT_EQ(package->DumpIr(),
+            R"(package test_package
+
+file_number 0 "fake_file.x"
+
+chan foo_0_chandecl_top_module_x_5_10_5_27(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan foo_0_chandecl_top_module_x_5_29_5_46(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan foo_0_chandecl_top_module_x_5_48_5_68(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+proc __top__foo_0_next(__token: token, init={}) {
+  receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
+  tok: token = tuple_index(receive.4, index=0, id=5, pos=[(0,8,9)])
+  receive.7: (token, bits[32]) = receive(tok, channel_id=1, id=7)
+  a: bits[32] = tuple_index(receive.4, index=1, id=6, pos=[(0,8,14)])
+  b: bits[32] = tuple_index(receive.7, index=1, id=9, pos=[(0,9,14)])
+  tok__1: token = tuple_index(receive.7, index=0, id=8, pos=[(0,9,9)])
+  add.10: bits[32] = add(a, b, id=10, pos=[(0,10,36)])
+  tok__2: token = send(tok__1, add.10, channel_id=2, id=11)
+  after_all.13: token = after_all(__token, tok, tok__1, tok__2, id=13)
+  next (after_all.13)
+}
+)");
+
+  // Test that that the jit for the proc can be retrieved and run.
+  XLS_ASSERT_OK_AND_ASSIGN(ProcJit * jit,
+                           ir_wrapper.GetAndMaybeCreateProcJit("foo_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueWrapper in_0,
+                           ir_wrapper.CreateJitChannelQueueWrapper(
+                               "foo_0_chandecl_top_module_x_5_10_5_27", jit));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueWrapper in_1,
+                           ir_wrapper.CreateJitChannelQueueWrapper(
+                               "foo_0_chandecl_top_module_x_5_29_5_46", jit));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueWrapper out,
+                           ir_wrapper.CreateJitChannelQueueWrapper(
+                               "foo_0_chandecl_top_module_x_5_48_5_68", jit));
+
+  EXPECT_TRUE(in_0.Empty());
+  EXPECT_TRUE(in_1.Empty());
+  EXPECT_TRUE(out.Empty());
+
+  XLS_ASSERT_OK(in_0.EnqueueWithUint64(10));
+  XLS_ASSERT_OK(in_1.EnqueueWithUint64(20));
+
+  EXPECT_FALSE(in_0.Empty());
+  EXPECT_FALSE(in_1.Empty());
+  EXPECT_TRUE(out.Empty());
+
+  // Run one tick
+  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> next_state,
+                           DropInterpreterEvents(jit->Run({})));
+
+  EXPECT_TRUE(in_0.Empty());
+  EXPECT_TRUE(in_1.Empty());
+  EXPECT_FALSE(out.Empty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t out_value, out.DequeueWithUint64());
+
+  EXPECT_TRUE(in_0.Empty());
+  EXPECT_TRUE(in_1.Empty());
+  EXPECT_TRUE(out.Empty());
+
+  EXPECT_EQ(out_value, 30);
+}
+
 }  // namespace
 }  // namespace xls

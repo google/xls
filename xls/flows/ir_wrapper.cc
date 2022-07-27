@@ -31,6 +31,69 @@ namespace xls {
 using dslx::Module;
 using dslx::TypecheckedModule;
 
+absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
+    JitChannelQueue* queue, ProcJit* jit) {
+  JitChannelQueueWrapper wrapper;
+
+  wrapper.jit_ = jit;
+  wrapper.queue_ = queue;
+
+  int64_t id = queue->channel_id();
+  XLS_ASSIGN_OR_RETURN(Channel * ch, jit->proc()->package()->GetChannel(id));
+  wrapper.type_ = ch->type();
+
+  int64_t buffer_size = jit->type_converter()->GetTypeByteSize(wrapper.type_);
+  wrapper.buffer_.resize(buffer_size);
+
+  return wrapper;
+}
+
+absl::Status JitChannelQueueWrapper::Enqueue(const Value& v) {
+  jit_->runtime()->BlitValueToBuffer(v, type_, absl::MakeSpan(buffer_));
+
+  queue_->Send(buffer_.data(), buffer_.size());
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Value> JitChannelQueueWrapper::Dequeue() {
+  XLS_RET_CHECK(!queue_->Empty());
+
+  queue_->Recv(buffer_.data(), buffer_.size());
+
+  return jit_->runtime()->UnpackBuffer(buffer_.data(), type_);
+}
+
+absl::Status JitChannelQueueWrapper::EnqueueWithUint64(int64_t v) {
+  if (!type_->IsBits()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Queue id=%d has non-Bits-typed type: %s",
+                        queue_->channel_id(), type_->ToString()));
+  }
+
+  if (Bits::MinBitCountUnsigned(v) > type_->AsBitsOrDie()->bit_count()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Value %d for queue id=%d does not fit in type: %s", v,
+                        queue_->channel_id(), type_->ToString()));
+  }
+
+  Value xls_v(UBits(v, type_->AsBitsOrDie()->bit_count()));
+
+  return Enqueue(xls_v);
+}
+
+absl::StatusOr<int64_t> JitChannelQueueWrapper::DequeueWithUint64() {
+  XLS_ASSIGN_OR_RETURN(Value xls_v, Dequeue());
+
+  if (!xls_v.IsBits()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("Queue id=%d has non-Bits-typed type: %s",
+                        queue_->channel_id(), type_->ToString()));
+  }
+
+  return xls_v.bits().ToUint64();
+}
+
 absl::StatusOr<dslx::Module*> IrWrapper::GetDslxModule(
     absl::string_view name) const {
   XLS_RET_CHECK(top_module_ != nullptr);
@@ -130,6 +193,16 @@ absl::StatusOr<Function*> IrWrapper::GetIrFunction(
   return package_->GetFunction(mangled_name);
 }
 
+absl::StatusOr<Proc*> IrWrapper::GetIrProc(absl::string_view name) const {
+  XLS_RET_CHECK(top_module_ != nullptr);
+
+  XLS_ASSIGN_OR_RETURN(std::string mangled_name,
+                       dslx::MangleDslxName(top_module_->name(), name,
+                                            dslx::CallingConvention::kTypical));
+
+  return package_->GetProc(mangled_name);
+}
+
 absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
     absl::string_view name) {
   XLS_ASSIGN_OR_RETURN(Function * f, GetIrFunction(name));
@@ -143,6 +216,55 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
   pre_compiled_function_jit_[f] = std::move(jit);
 
   return pre_compiled_function_jit_[f].get();
+}
+
+namespace {
+
+// Recv/Send functions for the JIT proc creation.
+void RecvFn(JitChannelQueue* queue, Receive* recv_ptr, uint8_t* data_ptr,
+            int64_t data_sz, void* user_data) {
+  queue->Recv(data_ptr, data_sz);
+}
+
+void SendFn(JitChannelQueue* queue, Send* send_ptr, uint8_t* data_ptr,
+            int64_t data_sz, void* user_data) {
+  queue->Send(data_ptr, data_sz);
+}
+
+}  // namespace
+
+absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
+    absl::string_view name) {
+  XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
+
+  if (pre_compiled_proc_jit_.contains(p)) {
+    return pre_compiled_proc_jit_.at(p).get();
+  }
+
+  if (jit_channel_manager_ == nullptr) {
+    XLS_ASSIGN_OR_RETURN(jit_channel_manager_,
+                         JitChannelQueueManager::Create(package_.get()));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(p, jit_channel_manager_.get(), RecvFn, SendFn));
+  pre_compiled_proc_jit_[p] = std::move(jit);
+
+  return pre_compiled_proc_jit_[p].get();
+}
+
+absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(
+    absl::string_view name) const {
+  XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
+  return jit_channel_manager_->GetQueueById(channel->id());
+}
+
+absl::StatusOr<JitChannelQueueWrapper> IrWrapper::CreateJitChannelQueueWrapper(
+    absl::string_view name, ProcJit* jit) const {
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue, GetJitChannelQueue(name));
+
+  return JitChannelQueueWrapper::Create(queue, jit);
 }
 
 }  // namespace xls
