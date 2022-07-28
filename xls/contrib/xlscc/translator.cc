@@ -2118,7 +2118,12 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       XLS_ASSIGN_OR_RETURN(
           shared_ptr<CType> result_type,
           TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
-      XLS_CHECK(result_type->Is<CPointerType>());
+      if (!result_type->Is<CPointerType>()) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc,
+            "Ternaries in lvalues only supported for pointers, type used is %s",
+            (std::string)*result_type));
+      }
       XLS_ASSIGN_OR_RETURN(
           CValue lcv,
           Generate_TernaryOp(result_type, cond->getCond(), cond->getTrueExpr(),
@@ -2127,7 +2132,6 @@ absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
       return Assign(lcv.lvalue(), rvalue, loc);
     }
     default: {
-      lvalue->dump();
       return absl::UnimplementedError(
           ErrorMessage(loc, "Unimplemented assignment to lvalue of type %s",
                        lvalue->getStmtClassName()));
@@ -3085,6 +3089,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
+
     XLS_ASSIGN_OR_RETURN(
         shared_ptr<CType> ctype,
         TranslateTypeFromClang(stripped.base, GetLoc(*p),
@@ -5286,17 +5291,33 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
 
 absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
     const clang::QualType& t) {
-  const clang::Type* type = t.getTypePtr();
+  StrippedType ret = StrippedType(t, false);
 
-  if ((type->getTypeClass() == clang::Type::TypeClass::RValueReference) ||
-      (type->getTypeClass() == clang::Type::TypeClass::LValueReference)) {
-    return StrippedType(type->getPointeeType(), true);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Decayed) {
-    auto dec = clang_down_cast<const clang::DecayedType*>(type);
-    return StrippedType(dec->getOriginalType(), true);
-  } else {
-    return StrippedType(t, false);
+  // TODO(seanhaskell): Idiomatize this b/240570750
+  {
+    const clang::Type* type = ret.base.getTypePtr();
+    if ((type->getTypeClass() == clang::Type::TypeClass::RValueReference) ||
+        (type->getTypeClass() == clang::Type::TypeClass::LValueReference)) {
+      ret = StrippedType(type->getPointeeType(), true);
+    } else if (type->getTypeClass() == clang::Type::TypeClass::Decayed) {
+      auto dec = clang_down_cast<const clang::DecayedType*>(type);
+      ret = StrippedType(dec->getOriginalType(), true);
+    }
   }
+
+  const bool wasConst = ret.base.isConstQualified();
+
+  const clang::Type* type = ret.base.getTypePtr();
+  if (type->getTypeClass() == clang::Type::TypeClass::Elaborated) {
+    auto dec = clang_down_cast<const clang::ElaboratedType*>(type);
+    ret = StrippedType(dec->desugar(), ret.is_ref);
+  }
+
+  if (wasConst) {
+    ret.base.addConst();
+  }
+
+  return ret;
 }
 
 absl::Status Translator::ScanFile(

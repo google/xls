@@ -683,6 +683,21 @@ TEST_F(XlsIntTest, SaturateSignedLarge) {
              xabsl::SourceLocation::current());
 }
 
+
+TEST_F(XlsIntTest, IntTernaryAssign) {
+  const std::string content = R"(
+       #include "xls_int.h"
+
+       long long my_package(long long a, long long b) {
+        const XlsInt<7, false> valA = 20, valB = 50;
+        XlsInt<7, false> tmp;
+        tmp = b ? valA : valB;
+        return tmp;
+       })";
+  RunIntTest({{"a", 1}, {"b", 20}}, 20, content);
+}
+
+
 }  // namespace
 
 }  // namespace xlscc
