@@ -225,7 +225,8 @@ IrTranslator::IrTranslator(Z3_config config, FunctionBase* source)
     : config_(config),
       ctx_(Z3_mk_context(config_)),
       borrowed_context_(false),
-      xls_function_(source) {}
+      xls_function_(source),
+      current_symbol_(0) {}
 
 IrTranslator::IrTranslator(
     Z3_context ctx, FunctionBase* source,
@@ -233,7 +234,8 @@ IrTranslator::IrTranslator(
     : ctx_(ctx),
       borrowed_context_(true),
       imported_params_(imported_params),
-      xls_function_(source) {}
+      xls_function_(source),
+      current_symbol_(0) {}
 
 IrTranslator::~IrTranslator() {
   if (!borrowed_context_) {
@@ -571,6 +573,10 @@ Z3_ast IrTranslator::ZeroOfSort(Z3_sort sort) {
       XLS_LOG(FATAL) << "Unknown/unsupported sort kind: "
                      << static_cast<int>(sort_kind);
   }
+}
+
+Z3_symbol IrTranslator::GetNewSymbol() {
+  return Z3_mk_int_symbol(ctx_, current_symbol_++);
 }
 
 Z3_ast IrTranslator::CreateArray(ArrayType* type,
@@ -1163,6 +1169,33 @@ absl::Status IrTranslator::HandleXorReduce(BitwiseReductionOp* xor_reduce) {
   return HandleUnaryViaAbstractEval(xor_reduce);
 }
 
+static Z3_ast DoMul(Z3_context ctx, Z3_ast lhs, Z3_ast rhs, bool is_signed,
+                    int result_size) {
+  Z3_ast result;
+  // Do the mul at maximum width, then truncate if necessary to the result
+  // width.
+  if (is_signed) {
+    int lhs_size = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, lhs));
+    int rhs_size = Z3_get_bv_sort_size(ctx, Z3_get_sort(ctx, rhs));
+
+    int operation_size = std::max({result_size, lhs_size, rhs_size});
+
+    if (lhs_size < operation_size) {
+      lhs = Z3_mk_sign_ext(ctx, operation_size - lhs_size, lhs);
+    }
+    if (rhs_size < operation_size) {
+      rhs = Z3_mk_sign_ext(ctx, operation_size - rhs_size, rhs);
+    }
+    result = Z3_mk_bvmul(ctx, lhs, rhs);
+    if (operation_size > result_size) {
+      result = Z3_mk_extract(ctx, result_size - 1, 0, result);
+    }
+  } else {
+    result = DoUnsignedMul(ctx, lhs, rhs, result_size);
+  }
+  return result;
+}
+
 void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   // In XLS IR, multiply operands can potentially be of different widths. In Z3,
   // they can't, so we need to zext (for a umul) the operands to the size of the
@@ -1170,29 +1203,8 @@ void IrTranslator::HandleMul(ArithOp* mul, bool is_signed) {
   Z3_ast lhs = GetValue(mul->operand(0));
   Z3_ast rhs = GetValue(mul->operand(1));
   int result_size = mul->BitCountOrDie();
-  Z3_ast result;
-  // Do the mul at maximum width, then truncate if necessary to the result
-  // width.
-  if (is_signed) {
-    int lhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
-    int rhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, rhs));
 
-    int operation_size = std::max(result_size, std::max(lhs_size, rhs_size));
-
-    if (lhs_size < operation_size) {
-      lhs = Z3_mk_sign_ext(ctx_, operation_size - lhs_size, lhs);
-    }
-    if (rhs_size < operation_size) {
-      rhs = Z3_mk_sign_ext(ctx_, operation_size - rhs_size, rhs);
-    }
-    result = Z3_mk_bvmul(ctx_, lhs, rhs);
-    if (operation_size > result_size) {
-      result = Z3_mk_extract(ctx_, result_size - 1, 0, result);
-    }
-  } else {
-    result = DoUnsignedMul(ctx_, lhs, rhs, result_size);
-  }
-
+  Z3_ast result = DoMul(ctx_, lhs, rhs, is_signed, result_size);
   NoteTranslation(mul, result);
 }
 
@@ -1205,6 +1217,53 @@ absl::Status IrTranslator::HandleSMul(ArithOp* mul) {
 absl::Status IrTranslator::HandleUMul(ArithOp* mul) {
   ScopedErrorHandler seh(ctx_);
   HandleMul(mul, /*is_signed=*/false);
+  return seh.status();
+}
+
+// Partial product ops are unusual in that the output of the operation isn't
+// fully specified. The output is a 2-tuple with the property that the elements
+// of the tuple sum to the product of the inputs. The outputs can take any
+// values that satisfy this property. We model this in Z3 by creating two bound
+// variables for each element in the output tuple and adding a constraint that
+// the sum of these variables equals the desired product.
+void IrTranslator::HandleMulp(PartialProductOp* mul, bool is_signed) {
+  // In XLS IR, multiply operands can potentially be of different widths. In Z3,
+  // they can't, so we need to zext (for a umul) the operands to the size of the
+  // result.
+  Z3_ast lhs = GetValue(mul->operand(0));
+  Z3_ast rhs = GetValue(mul->operand(1));
+  int lhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, lhs));
+  int rhs_size = Z3_get_bv_sort_size(ctx_, Z3_get_sort(ctx_, rhs));
+  int result_size = mul->width();
+  int operation_size = std::max({result_size, lhs_size, rhs_size});
+  Z3_sort op_sort = Z3_mk_bv_sort(ctx_, operation_size);
+
+  Z3_ast result = DoMul(ctx_, lhs, rhs, /*is_signed=*/is_signed, result_size);
+
+  Z3_symbol product0_symbol = GetNewSymbol();
+  Z3_ast product0 = Z3_mk_const(ctx_, product0_symbol, op_sort);
+  Z3_symbol product1_symbol = GetNewSymbol();
+  Z3_ast product1 = Z3_mk_const(ctx_, product1_symbol, op_sort);
+
+  Z3_ast sum = Z3_mk_bvadd(ctx_, product0, product1);
+  Z3_ast eq = Z3_mk_eq(ctx_, sum, result);
+  Z3_app vars[] = {reinterpret_cast<Z3_app>(product0),
+                   reinterpret_cast<Z3_app>(product1)};
+  Z3_mk_forall_const(ctx_, /*weight=*/0, /*num_bound=*/2, /*bound=*/vars,
+                     /*num_patterns=*/0, /*patterns=*/nullptr,
+                     /*body=*/eq);
+  NoteTranslation(mul, CreateTuple(mul->GetType(), {product0, product1}));
+}
+
+absl::Status IrTranslator::HandleSMulp(PartialProductOp* mul) {
+  ScopedErrorHandler seh(ctx_);
+  HandleMulp(mul, /*is_signed=*/true);
+  return seh.status();
+}
+
+absl::Status IrTranslator::HandleUMulp(PartialProductOp* mul) {
+  ScopedErrorHandler seh(ctx_);
+  HandleMulp(mul, /*is_signed=*/false);
   return seh.status();
 }
 

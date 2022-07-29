@@ -38,8 +38,8 @@ class OpOverrideAssignment : public OpOverride {
 
   std::unique_ptr<OpOverride> Clone() const override;
   absl::StatusOr<NodeRepresentation> Emit(
-      Node* node, absl::Span<NodeRepresentation const> inputs,
-      ModuleBuilder& mb) override;
+      Node* node, absl::string_view name,
+      absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) override;
 
  private:
   std::string assignment_format_string_;
@@ -111,11 +111,25 @@ class OpOverrideAssertion : public OpOverride {
 
   std::unique_ptr<OpOverride> Clone() const override;
   absl::StatusOr<NodeRepresentation> Emit(
-      Node* node, absl::Span<NodeRepresentation const> inputs,
-      ModuleBuilder& mb) override;
+      Node* node, absl::string_view name,
+      absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) override;
 
  private:
   std::string assertion_format_string_;
+};
+
+class OpOverrideInstantiation : public OpOverride {
+ public:
+  explicit OpOverrideInstantiation(absl::string_view fmt_string)
+      : instantiation_format_string_(fmt_string) {}
+
+  std::unique_ptr<OpOverride> Clone() const override;
+  absl::StatusOr<NodeRepresentation> Emit(
+      Node* node, absl::string_view name,
+      absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) override;
+
+ private:
+  std::string instantiation_format_string_;
 };
 
 }  // namespace xls::verilog

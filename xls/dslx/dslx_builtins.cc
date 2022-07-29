@@ -14,6 +14,8 @@
 
 #include "xls/dslx/dslx_builtins.h"
 
+#include <memory>
+
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/errors.h"
@@ -539,6 +541,70 @@ static void PopulateSignatureToLambdaMap(
     XLS_RETURN_IF_ERROR(checker.status());
     return TypeAndBindings{std::make_unique<FunctionType>(
         CloneToUnique(data.arg_types), data.arg_types[1]->CloneToUnique())};
+  };
+  map["(uN[N], uN[N]) -> (uN[N], uN[N])"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    const BitsType* lhs_type;
+    const BitsType* rhs_type;
+    auto checker = Checker(data.arg_types, data.name, data.span)
+                       .Len(2)
+                       .IsBits(0, &lhs_type)
+                       .IsBits(1, &rhs_type);
+    XLS_CHECK(!lhs_type->is_signed());
+    XLS_CHECK(!rhs_type->is_signed());
+    XLS_RETURN_IF_ERROR(checker.status());
+
+    checker.Eq(*data.arg_types[0], *data.arg_types[1], [&] {
+      return absl::StrCat("Elements should have same type, got ",
+                          data.arg_types[0]->ToString(), " and ",
+                          data.arg_types[1]->ToString());
+    });
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
+                         data.arg_types[0]->GetTotalBitCount());
+
+    std::vector<std::unique_ptr<ConcreteType>> return_type_elems(2);
+    return_type_elems[0] =
+        std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/n);
+    return_type_elems[1] =
+        std::make_unique<BitsType>(/*is_signed=*/false, /*size=*/n);
+
+    auto return_type =
+        std::make_unique<TupleType>(std::move(return_type_elems));
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), std::move(return_type))};
+  };
+  map["(sN[N], sN[N]) -> (sN[N], sN[N])"] =
+      [](const SignatureData& data,
+         DeduceCtx* ctx) -> absl::StatusOr<TypeAndBindings> {
+    const BitsType* lhs_type;
+    const BitsType* rhs_type;
+    auto checker = Checker(data.arg_types, data.name, data.span)
+                       .Len(2)
+                       .IsBits(0, &lhs_type)
+                       .IsBits(1, &rhs_type);
+    XLS_CHECK(lhs_type->is_signed());
+    XLS_CHECK(rhs_type->is_signed());
+    XLS_RETURN_IF_ERROR(checker.status());
+
+    checker.Eq(*data.arg_types[0], *data.arg_types[1], [&] {
+      return absl::StrCat("Elements should have same type, got ",
+                          data.arg_types[0]->ToString(), " and ",
+                          data.arg_types[1]->ToString());
+    });
+    XLS_ASSIGN_OR_RETURN(ConcreteTypeDim n,
+                         data.arg_types[0]->GetTotalBitCount());
+
+    std::vector<std::unique_ptr<ConcreteType>> return_type_elems(2);
+    return_type_elems[0] =
+        std::make_unique<BitsType>(/*is_signed=*/true, /*size=*/n);
+    return_type_elems[1] =
+        std::make_unique<BitsType>(/*is_signed=*/true, /*size=*/n);
+
+    auto return_type =
+        std::make_unique<TupleType>(std::move(return_type_elems));
+    return TypeAndBindings{std::make_unique<FunctionType>(
+        CloneToUnique(data.arg_types), std::move(return_type))};
   };
 }
 

@@ -18,6 +18,7 @@
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/dslx/ast.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
@@ -50,6 +51,9 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
       }
     }
   }
+  if (auto* def = dynamic_cast<TypeDef*>(t)) {
+    return IsUBits(def->type_annotation());
+  }
   return false;
 }
 
@@ -71,6 +75,9 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
           return false;
       }
     }
+  }
+  if (auto* def = dynamic_cast<TypeDef*>(t)) {
+    return IsBits(def->type_annotation());
   }
   return false;
 }
@@ -216,6 +223,56 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
                    lhs.type};
 }
 
+absl::StatusOr<TypedExpr>
+AstGenerator::GeneratePartialProductDeterministicGroup(Env* env) {
+  XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
+  TypedExpr lhs = pair.first;
+  TypedExpr rhs = pair.second;
+  bool is_signed = RandomBool();
+
+  std::string op = (is_signed) ? "smulp" : "umulp";
+
+  XLS_CHECK(IsBits(lhs.type));
+  XLS_CHECK(IsBits(rhs.type));
+
+  TypedExpr lhs_cast, rhs_cast;
+  // Don't need a cast if lhs.type matches the sign of the op
+  if (is_signed != IsUBits(lhs.type)) {
+    lhs_cast = lhs;
+  } else {
+    lhs_cast.type = MakeTypeAnnotation(is_signed, GetTypeBitCount(lhs.type));
+    lhs_cast.expr = module_->Make<Cast>(fake_span_, lhs.expr, lhs_cast.type);
+  }
+  // Don't need a cast if rhs.type matches the sign of the op
+  if (is_signed != IsUBits(rhs.type)) {
+    rhs_cast = rhs;
+  } else {
+    rhs_cast.type = MakeTypeAnnotation(is_signed, GetTypeBitCount(rhs.type));
+    rhs_cast.expr = module_->Make<Cast>(fake_span_, rhs.expr, rhs_cast.type);
+  }
+
+  auto mulp = TypedExpr{module_->Make<Invocation>(
+                            fake_span_, MakeBuiltinNameRef(op),
+                            std::vector<Expr*>{lhs_cast.expr, rhs_cast.expr}),
+                        MakeTupleType({lhs_cast.type, rhs_cast.type})};
+  std::string mulp_identifier = GenSym();
+  auto* mulp_name_def =
+      module_->Make<NameDef>(fake_span_, mulp_identifier, /*definer=*/nullptr);
+  auto* mulp_name_ref = MakeNameRef(mulp_name_def);
+  auto* ndt = module_->Make<NameDefTree>(fake_span_, mulp_name_def);
+  auto mulp_lhs = module_->Make<TupleIndex>(fake_span_, mulp_name_ref,
+                                            /*index=*/MakeNumber(0));
+  auto mulp_rhs = module_->Make<TupleIndex>(fake_span_, mulp_name_ref,
+                                            /*index=*/MakeNumber(1));
+  auto* sum =
+      module_->Make<Binop>(fake_span_, BinopKind::kAdd, mulp_lhs, mulp_rhs);
+  auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
+                                 /*type=*/mulp.type, /*rhs=*/mulp.expr,
+                                 /*body=*/sum, /*is_const=*/false);
+  auto* block = module_->Make<Block>(fake_span_, let);
+  return TypedExpr{block, lhs_cast.type};
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
   TypedExpr lhs = pair.first;
@@ -278,6 +335,9 @@ int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
     }
     return total;
   }
+  if (auto* def = dynamic_cast<TypeDef*>(type)) {
+    return GetTypeBitCount(def->type_annotation());
+  }
 
   return type_bit_counts_.at(type_str);
 }
@@ -294,8 +354,8 @@ int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
   return number->GetAsUint64().value();
 }
 
-ConstRef* AstGenerator::GetOrCreateConstRef(
-    int64_t value, std::optional<int64_t> want_width) {
+ConstRef* AstGenerator::GetOrCreateConstRef(int64_t value,
+                                            std::optional<int64_t> want_width) {
   // We use a canonical naming scheme so we can detect duplicate requests for
   // the same value.
   int64_t width;
@@ -1081,6 +1141,7 @@ enum OpChoice {
   kMap,
   kNumber,
   kOneHotSelectBuiltin,
+  kPartialProduct,
   kPrioritySelectBuiltin,
   kShiftOp,
   kTupleOrIndex,
@@ -1131,6 +1192,8 @@ int OpProbability(OpChoice op) {
     case kNumber:
       return 3;
     case kOneHotSelectBuiltin:
+      return 1;
+    case kPartialProduct:
       return 1;
     case kPrioritySelectBuiltin:
       return 1;
@@ -1235,6 +1298,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         break;
       case kOneHotSelectBuiltin:
         generated = GenerateOneHotSelectBuiltin(env);
+        break;
+      case kPartialProduct:
+        generated = GeneratePartialProductDeterministicGroup(env);
         break;
       case kPrioritySelectBuiltin:
         generated = GeneratePrioritySelectBuiltin(env);

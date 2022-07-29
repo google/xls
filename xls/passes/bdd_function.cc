@@ -190,6 +190,8 @@ bool ShouldEvaluate(Node* node) {
     case Op::kAdd:
     case Op::kSMul:
     case Op::kUMul:
+    case Op::kSMulp:
+    case Op::kUMulp:
     case Op::kNeg:
     case Op::kSDiv:
     case Op::kSub:

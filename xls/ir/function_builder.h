@@ -190,6 +190,22 @@ class BuilderBase {
               const SourceInfo& loc = SourceInfo(),
               absl::string_view name = "");
 
+  // Unsigned/signed partial product multiply. Result width is the same as the
+  // operand width. Operand widths must be the same.
+  BValue UMulp(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
+               absl::string_view name = "");
+  BValue SMulp(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
+               absl::string_view name = "");
+
+  // Unsigned/signed partial product multiply with explicitly specified result
+  // width. Operand widths can be arbitrary.
+  BValue UMulp(BValue lhs, BValue rhs, int64_t result_width,
+               const SourceInfo& loc = SourceInfo(),
+               absl::string_view name = "");
+  BValue SMulp(BValue lhs, BValue rhs, int64_t result_width,
+               const SourceInfo& loc = SourceInfo(),
+               absl::string_view name = "");
+
   // Unsigned/signed division. Result width is the same as the operand
   // width. Operand widths must be the same.
   BValue UDiv(BValue lhs, BValue rhs, const SourceInfo& loc = SourceInfo(),
@@ -517,6 +533,10 @@ class BuilderBase {
                     std::optional<int64_t> result_width,
                     const SourceInfo& loc = SourceInfo(),
                     absl::string_view name = "");
+  BValue AddPartialProductOp(Op op, BValue lhs, BValue rhs,
+                             std::optional<int64_t> result_width,
+                             const SourceInfo& loc = SourceInfo(),
+                             absl::string_view name = "");
   BValue AddBitwiseReductionOp(Op op, BValue arg,
                                const SourceInfo& loc = SourceInfo(),
                                absl::string_view name = "");

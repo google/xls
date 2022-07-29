@@ -27,6 +27,7 @@
 namespace xls::dslx {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using testing::HasSubstr;
 
@@ -1256,6 +1257,74 @@ fn main(p: bool, x: u32) -> u32 {
                  {InterpValue::MakeBool(false), InterpValue::MakeU32(0xbeef)}));
   XLS_ASSERT_OK_AND_ASSIGN(int_value, value.GetBitValueUint64());
   EXPECT_EQ(int_value, 0x0);
+}
+
+TEST(BytecodeInterpreterTest, BuiltinSMulp) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: s10, y: s10) -> s10 {
+  let mulp = smulp(x, y);
+  mulp.0 + mulp.1
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      BytecodeInterpreter::Interpret(
+          &import_data, bf.get(),
+          {InterpValue::MakeSBits(10, 3), InterpValue::MakeSBits(10, -5)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
+  EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(-15));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      value, BytecodeInterpreter::Interpret(&import_data, bf.get(),
+                                            {InterpValue::MakeSBits(10, 511),
+                                             InterpValue::MakeSBits(10, -5)}));
+  XLS_ASSERT_OK_AND_ASSIGN(bits, value.GetBits());
+  EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(-507));
+}
+
+TEST(BytecodeInterpreterTest, BuiltinUMulp) {
+  constexpr absl::string_view kProgram = R"(
+fn main(x: u10, y: u10) -> u10 {
+  let mulp = umulp(x, y);
+  mulp.0 + mulp.1
+})";
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(kProgram, "test.x", "test", &import_data));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           tm.module->GetMemberOrError<Function>("main"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<BytecodeFunction> bf,
+      BytecodeEmitter::Emit(&import_data, tm.type_info, f, SymbolicBindings()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      InterpValue value,
+      BytecodeInterpreter::Interpret(
+          &import_data, bf.get(),
+          {InterpValue::MakeUBits(10, 3), InterpValue::MakeUBits(10, 5)}));
+  XLS_ASSERT_OK_AND_ASSIGN(Bits bits, value.GetBits());
+  EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(15));
+
+  XLS_ASSERT_OK_AND_ASSIGN(value, BytecodeInterpreter::Interpret(
+                                      &import_data, bf.get(),
+                                      {InterpValue::MakeUBits(10, 1023),
+                                       InterpValue::MakeUBits(10, 1000)}));
+  XLS_ASSERT_OK_AND_ASSIGN(bits, value.GetBits());
+  EXPECT_THAT(bits.ToInt64(), IsOkAndHolds(24));
 }
 
 TEST(BytecodeInterpreterTest, RangeExpr) {

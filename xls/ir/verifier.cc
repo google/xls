@@ -30,6 +30,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
@@ -716,6 +717,64 @@ class NodeChecker : public DfsVisitor {
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
     XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
     return ExpectHasBitsType(mul);
+  }
+
+  absl::Status HandleSMulp(PartialProductOp* mul) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(mul, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
+    XLS_RETURN_IF_ERROR(ExpectHasTupleType(mul));
+    if (!mul->GetType()->IsTuple()) {
+      return absl::InternalError(
+          StrFormat("Expected node to have tuple type: %s", mul->ToString()));
+    }
+    TupleType* type = mul->GetType()->AsTupleOrDie();
+    if (type->size() != 2) {
+      return absl::InternalError(
+          StrFormat("Type element count 2 does not match operand count %d: %s",
+                    type->size(), mul->ToString()));
+    }
+    if (!type->element_type(0)->IsBits()) {
+      return absl::InternalError(
+          StrFormat("Expected first output to have bits type: %s",
+                    type->element_type(0)->ToString()));
+    }
+    if (type->element_type(1) != type->element_type(0)) {
+      return absl::InternalError(StrFormat(
+          "Expected second output to have same type as first output: %s != %s",
+          type->element_type(0)->ToString(),
+          type->element_type(1)->ToString()));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleUMulp(PartialProductOp* mul) override {
+    XLS_RETURN_IF_ERROR(ExpectOperandCount(mul, 2));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 0));
+    XLS_RETURN_IF_ERROR(ExpectOperandHasBitsType(mul, 1));
+    XLS_RETURN_IF_ERROR(ExpectHasTupleType(mul));
+    if (!mul->GetType()->IsTuple()) {
+      return absl::InternalError(
+          StrFormat("Expected node to have tuple type: %s", mul->ToString()));
+    }
+    TupleType* type = mul->GetType()->AsTupleOrDie();
+    if (type->size() != 2) {
+      return absl::InternalError(
+          StrFormat("Type element count 2 does not match operand count %d: %s",
+                    type->size(), mul->ToString()));
+    }
+    if (!type->element_type(0)->IsBits()) {
+      return absl::InternalError(
+          StrFormat("Expected first output to have bits type: %s",
+                    type->element_type(0)->ToString()));
+    }
+    if (!type->element_type(1)->IsEqualTo(type->element_type(0))) {
+      return absl::InternalError(StrFormat(
+          "Expected second output to have same type as first output: %s != %s",
+          type->element_type(0)->ToString(),
+          type->element_type(1)->ToString()));
+    }
+    return absl::OkStatus();
   }
 
   absl::Status HandleNe(CompareOp* ne) override {

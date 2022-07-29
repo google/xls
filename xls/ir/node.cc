@@ -250,6 +250,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
     case Op::kSMul:
       XLS_RETURN_IF_ERROR(visitor->HandleSMul(down_cast<ArithOp*>(this)));
       break;
+    case Op::kSMulp:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleSMulp(down_cast<PartialProductOp*>(this)));
+      break;
     case Op::kSub:
       XLS_RETURN_IF_ERROR(visitor->HandleSub(down_cast<BinOp*>(this)));
       break;
@@ -280,6 +284,10 @@ absl::Status Node::VisitSingleNode(DfsVisitor* visitor) {
       break;
     case Op::kUMul:
       XLS_RETURN_IF_ERROR(visitor->HandleUMul(down_cast<ArithOp*>(this)));
+      break;
+    case Op::kUMulp:
+      XLS_RETURN_IF_ERROR(
+          visitor->HandleUMulp(down_cast<PartialProductOp*>(this)));
       break;
     case Op::kXor:
       XLS_RETURN_IF_ERROR(visitor->HandleNaryXor(down_cast<NaryOp*>(this)));

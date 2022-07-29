@@ -731,6 +731,32 @@ fn main(x: u8) -> u32 {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, SMulp) {
+  constexpr absl::string_view program = R"(
+fn main(x: s10, y: s10) -> s10 {
+  let product = smulp(x, y);
+  product.0 + product.1
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, UMulp) {
+  constexpr absl::string_view program = R"(
+fn main(x: u10, y: u10) -> u10 {
+  let product = umulp(x, y);
+  product.0 + product.1
+}
+)";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
+  ExpectIr(converted, TestName());
+}
+
 TEST(IrConverterTest, OneHotSelSplatVariadic) {
   const char* program =
       R"(

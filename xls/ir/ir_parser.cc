@@ -908,6 +908,46 @@ absl::StatusOr<BValue> Parser::ParseNode(
                          type->AsBitsOrDie()->bit_count(), *loc, node_name);
       break;
     }
+    case Op::kSMulp:
+    case Op::kUMulp: {
+      XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/2));
+      if (!type->IsTuple()) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "%s op has annotated type %s, but it should be a tuple.",
+            OpToString(op), type->ToString()));
+      }
+      auto element_types = type->AsTupleOrDie()->element_types();
+      if (element_types.size() != 2) {
+        return absl::InvalidArgumentError(absl::StrFormat(
+            "%s op has annotated type with %d elements, should be 2.",
+            OpToString(op), element_types.size()));
+      }
+      if (!element_types.at(0)->IsBits()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("%s op has tuple type with element %s, but it "
+                            "should be a bits type.",
+                            OpToString(op), element_types.at(0)->ToString()));
+      }
+      if (!element_types.at(1)->IsBits()) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("%s op has tuple type with element %s, but it "
+                            "should be a bits type.",
+                            OpToString(op), element_types.at(1)->ToString()));
+      }
+      if (!element_types.at(0)->AsBitsOrDie()->IsEqualTo(
+              element_types.at(1)->AsBitsOrDie())) {
+        return absl::InvalidArgumentError(
+            absl::StrFormat("%s op has a tuple type with elements (%s, %s) "
+                            "that do not have the same type.",
+                            OpToString(op), element_types.at(0)->ToString(),
+                            element_types.at(1)->ToString()));
+      }
+
+      bvalue = fb->AddPartialProductOp(op, operands[0], operands[1],
+                                       element_types.at(0)->GetFlatBitCount(),
+                                       *loc, node_name);
+      break;
+    }
     case Op::kReceive: {
       XLS_ASSIGN_OR_RETURN(ProcBuilder * pb,
                            CastToProcBuilderOrError(

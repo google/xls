@@ -15,6 +15,7 @@
 #include "xls/codegen/op_override_impls.h"
 
 #include "absl/strings/str_replace.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/status/status_macros.h"
 #include "re2/re2.h"
 
@@ -74,9 +75,9 @@ std::unique_ptr<OpOverride> OpOverrideAssignment::Clone() const {
 }
 
 absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
-    Node* node, absl::Span<NodeRepresentation const> inputs,
-    ModuleBuilder& mb) {
-  LogicRef* ref = mb.DeclareVariable(node->GetName(), node->GetType());
+    Node* node, absl::string_view name,
+    absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
+  LogicRef* ref = mb.DeclareVariable(name, node->GetType());
   absl::flat_hash_map<std::string, std::string> placeholders;
   for (size_t i = 0; i < inputs.size(); ++i) {
     if (std::holds_alternative<Expression*>(inputs[i])) {
@@ -84,7 +85,7 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
           std::get<Expression*>(inputs[i])->Emit(nullptr);
     }
   }
-  placeholders["output"] = node->GetName();
+  placeholders["output"] = name;
   placeholders["width"] = absl::StrCat(node->GetType()->GetFlatBitCount());
 
   for (const auto& itr : placeholder_aliases_) {
@@ -121,8 +122,8 @@ std::unique_ptr<OpOverride> OpOverrideAssertion::Clone() const {
 }
 
 absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
-    Node* node, absl::Span<NodeRepresentation const> inputs,
-    ModuleBuilder& mb) {
+    Node* node, absl::string_view name,
+    absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   XLS_CHECK(node->Is<xls::Assert>());
   xls::Assert* asrt = node->As<xls::Assert>();
   XLS_CHECK_EQ(inputs.size(), 2);
@@ -161,7 +162,41 @@ absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
                            unsupported_placeholders));
   return mb.AssertAlwaysComb(node->loc())
       ->statements()
-      ->Add<InlineVerilogStatement>(asrt->loc(), assert_str + ";");
+      ->Add<InlineVerilogStatement>(asrt->loc(), absl::StrCat(assert_str, ";"));
+}
+
+std::unique_ptr<OpOverride> OpOverrideInstantiation::Clone() const {
+  return std::make_unique<OpOverrideInstantiation>(
+      instantiation_format_string_);
+}
+
+absl::StatusOr<NodeRepresentation> OpOverrideInstantiation::Emit(
+    Node* node, absl::string_view name,
+    absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
+  LogicRef* ref = mb.DeclareVariable(name, node->GetType());
+
+  absl::flat_hash_map<std::string, std::string> placeholders;
+
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    if (std::holds_alternative<Expression*>(inputs[i])) {
+      placeholders[absl::StrCat("input", i)] =
+          std::get<Expression*>(inputs[i])->Emit(nullptr);
+      placeholders[absl::StrCat("input", i, "_width")] =
+          absl::StrCat(node->operand(i)->GetType()->GetFlatBitCount());
+    }
+  }
+  placeholders["output"] = name;
+  placeholders["output_width"] =
+      absl::StrCat(node->GetType()->GetFlatBitCount());
+
+  XLS_ASSIGN_OR_RETURN(
+      std::string formatted_string,
+      GenerateFormatString(instantiation_format_string_, placeholders, {}));
+
+  mb.instantiation_section()->Add<InlineVerilogStatement>(node->loc(),
+                                                          formatted_string);
+
+  return ref;
 }
 
 }  // namespace xls::verilog

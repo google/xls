@@ -27,6 +27,7 @@
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 
@@ -622,6 +623,42 @@ absl::Status IrInterpreter::HandleUMul(ArithOp* mul) {
     return SetBitsResult(mul, bits_ops::ZeroExtend(result, mul_width));
   }
   return SetBitsResult(mul, result);
+}
+
+absl::Status IrInterpreter::HandleSMulp(PartialProductOp* mul) {
+  const int64_t mul_width = mul->width();
+  XLS_VLOG(1) << "mul_width = " << mul_width << "\n";
+  Bits result = bits_ops::SMul(ResolveAsBits(mul->operand(0)),
+                               ResolveAsBits(mul->operand(1)));
+  Value zero((Bits(mul_width)));
+  if (result.bit_count() > mul_width) {
+    return SetValueResult(
+        mul, Value::Tuple({zero, Value(result.Slice(0, mul_width))}));
+  }
+  if (result.bit_count() < mul_width) {
+    return SetValueResult(
+        mul,
+        Value::Tuple({zero, Value(bits_ops::SignExtend(result, mul_width))}));
+  }
+  return SetValueResult(mul, Value::Tuple({zero, Value(result)}));
+}
+
+absl::Status IrInterpreter::HandleUMulp(PartialProductOp* mul) {
+  const int64_t mul_width = mul->width();
+  XLS_VLOG(1) << "mul_width = " << mul_width << "\n";
+  Bits result = bits_ops::UMul(ResolveAsBits(mul->operand(0)),
+                               ResolveAsBits(mul->operand(1)));
+  Value empty((Bits(mul_width)));
+  if (result.bit_count() > mul_width) {
+    return SetValueResult(
+        mul, Value::Tuple({empty, Value(result.Slice(0, mul_width))}));
+  }
+  if (result.bit_count() < mul_width) {
+    return SetValueResult(
+        mul,
+        Value::Tuple({empty, Value(bits_ops::ZeroExtend(result, mul_width))}));
+  }
+  return SetValueResult(mul, Value::Tuple({empty, Value(result)}));
 }
 
 absl::Status IrInterpreter::HandleNe(CompareOp* ne) {

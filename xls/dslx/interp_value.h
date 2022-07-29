@@ -45,8 +45,10 @@ namespace xls::dslx {
   X("rev", kRev)                         \
   X("select", kSelect)                   \
   X("signex", kSignex)                   \
+  X("smulp", kSMulp)                     \
   X("slice", kSlice)                     \
   X("trace!", kTrace)                    \
+  X("umulp", kUMulp)                     \
   X("update", kUpdate)                   \
   X("xor_reduce", kXorReduce)
 

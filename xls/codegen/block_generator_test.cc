@@ -573,6 +573,59 @@ TEST_P(BlockGeneratorTest, GatedBitsType) {
   }
 }
 
+TEST_P(BlockGeneratorTest, SmulpWithFormat) {
+  VerilogFile file(UseSystemVerilog());
+  Package package(TestBaseName());
+  BlockBuilder b(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue x = b.InputPort("x", u32);
+  BValue y = b.InputPort("y", u32);
+  BValue x_smulp_y = b.SMulp(x, y, SourceInfo(), "x_smulp_y");
+  BValue z = b.InputPort("z", u32);
+  BValue z_smulp_z = b.SMulp(z, z, SourceInfo(), "z_smulp_z");
+  b.OutputPort("out", b.Tuple({x_smulp_y, z_smulp_z}));
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, b.Build());
+
+  CodegenOptions options = codegen_options().SetOpOverride(
+      Op::kSMulp, std::make_unique<OpOverrideInstantiation>(
+                      R"(HardMultp #(
+  .lhs_width({input0_width}),
+  .rhs_width({input1_width}),
+  .output_width({output_width})
+) {output}_inst (
+  .lhs({input0}),
+  .rhs({input1}),
+  .do_signed(1'b1),
+  .output0({output}[({output_width}>>1)-1:0]),
+  .output1({output}[({output_width}>>1)*2-1:({output_width}>>1)])
+);)"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string verilog,
+                           GenerateVerilog(block, options));
+  verilog = absl::StrCat("`include \"hardmultp.v\"\n\n", verilog);
+
+  VerilogInclude hardmultp_definition;
+  hardmultp_definition.relative_path = "hardmultp.v";
+  hardmultp_definition.verilog_text =
+      R"(module HardMultp (lhs, rhs, do_signed, output0, output1);
+  parameter lhs_width = 32,
+    rhs_width = 32,
+    output_width = 32;
+  input wire [lhs_width-1:0] lhs;
+  input wire [rhs_width-1:0] rhs;
+  input wire do_signed;
+  output wire [output_width-1:0] output0;
+  output wire [output_width-1:0] output1;
+
+  assign output0 = 1'b0;
+  assign output1 = lhs * rhs;
+endmodule
+)";
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 verilog, {hardmultp_definition});
+}
+
 TEST_P(BlockGeneratorTest, GatedSingleBitType) {
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);

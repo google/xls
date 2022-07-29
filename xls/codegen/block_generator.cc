@@ -408,8 +408,10 @@ class BlockGenerator {
           inputs.push_back(node_exprs_.at(operand));
         }
 
-        XLS_ASSIGN_OR_RETURN(node_exprs_[node],
-                             (*op_override)->Emit(node, inputs, mb_));
+        XLS_ASSIGN_OR_RETURN(
+            node_exprs_[node],
+            (*op_override)
+                ->Emit(node, NodeAssignmentName(node, stage), inputs, mb_));
         continue;
       }
 

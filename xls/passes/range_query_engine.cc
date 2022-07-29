@@ -26,6 +26,7 @@
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/node_iterator.h"
+#include "xls/ir/nodes.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -236,6 +237,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleSLt(CompareOp* lt) override;
   absl::Status HandleSMod(BinOp* mod) override;
   absl::Status HandleSMul(ArithOp* mul) override;
+  absl::Status HandleSMulp(PartialProductOp* mul) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleSend(Send* send) override;
   absl::Status HandleShll(BinOp* shll) override;
@@ -253,6 +255,7 @@ class RangeQueryVisitor : public DfsVisitor {
   absl::Status HandleULt(CompareOp* lt) override;
   absl::Status HandleUMod(BinOp* mod) override;
   absl::Status HandleUMul(ArithOp* mul) override;
+  absl::Status HandleUMulp(PartialProductOp* mul) override;
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
@@ -1132,6 +1135,11 @@ absl::Status RangeQueryVisitor::HandleSMul(ArithOp* mul) {
   return absl::OkStatus();  // TODO(taktoa): implement: signed
 }
 
+absl::Status RangeQueryVisitor::HandleSMulp(PartialProductOp* mul) {
+  engine_->InitializeNode(mul);
+  return absl::OkStatus();
+}
+
 absl::Status RangeQueryVisitor::HandleSel(Select* sel) {
   engine_->InitializeNode(sel);
   IntervalSet selector_intervals = GetIntervalSetTree(sel->selector()).Get({});
@@ -1354,6 +1362,11 @@ absl::Status RangeQueryVisitor::HandleUMul(ArithOp* mul) {
         },
         mul);
   }
+  return absl::OkStatus();
+}
+
+absl::Status RangeQueryVisitor::HandleUMulp(PartialProductOp* mul) {
+  engine_->InitializeNode(mul);
   return absl::OkStatus();
 }
 

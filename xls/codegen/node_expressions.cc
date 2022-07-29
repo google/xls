@@ -375,7 +375,6 @@ absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
     return file->Mul(lhs, rhs, mul->loc());
   }
 }
-
 }  // namespace
 
 absl::StatusOr<Expression*> NodeToExpression(
@@ -509,6 +508,9 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kUMul:
     case Op::kSMul:
       return EmitMultiply(node, inputs[0], inputs[1], file);
+    case Op::kSMulp:
+    case Op::kUMulp:
+      return unimplemented();
     case Op::kNe:
       return file->NotEquals(inputs[0], inputs[1], node->loc());
     case Op::kNeg:

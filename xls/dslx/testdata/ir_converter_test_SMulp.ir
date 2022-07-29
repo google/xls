@@ -1,0 +1,12 @@
+package test_module
+
+file_number 0 "fake_file.x"
+
+fn __test_module__main(x: bits[10], y: bits[10]) -> bits[10] {
+  product: (bits[10], bits[10]) = smulp(x, y, id=3)
+  tuple_index.5: bits[10] = tuple_index(product, index=0, id=5)
+  tuple_index.7: bits[10] = tuple_index(product, index=1, id=7)
+  literal.4: bits[32] = literal(value=0, id=4)
+  literal.6: bits[32] = literal(value=1, id=6)
+  ret add.8: bits[10] = add(tuple_index.5, tuple_index.7, id=8)
+}

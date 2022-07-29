@@ -1401,6 +1401,57 @@ absl::Status IrBuilderVisitor::HandleUMul(ArithOp* mul) {
       /*is_signed=*/false);
 }
 
+absl::Status IrBuilderVisitor::HandleSMulp(PartialProductOp* mul) {
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(mul, NumberedStrings("operand", mul->operand_count())));
+
+  llvm::IRBuilder<>& b = node_context.builder();
+
+  llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
+      mul->GetType()->AsTupleOrDie()->element_type(0));
+  llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(mul->GetType());
+  llvm::Value* result = CreateTypedZeroValue(tuple_type);
+
+  llvm::Value* lhs = type_converter()->AsSignedValue(node_context.operand(0),
+                                                     mul->operand(0)->GetType(),
+                                                     node_context.builder());
+  llvm::Value* rhs = type_converter()->AsSignedValue(node_context.operand(1),
+                                                     mul->operand(1)->GetType(),
+                                                     node_context.builder());
+
+  result = b.CreateInsertValue(
+      result,
+      b.CreateMul(b.CreateIntCast(lhs, result_element_type, /*isSigned=*/true),
+                  b.CreateIntCast(rhs, result_element_type, /*isSigned=*/true)),
+      {1});
+
+  return FinalizeNodeIrContext(node_context, result);
+}
+
+absl::Status IrBuilderVisitor::HandleUMulp(PartialProductOp* mul) {
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(mul, NumberedStrings("operand", mul->operand_count())));
+
+  llvm::IRBuilder<>& b = node_context.builder();
+
+  llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
+      mul->GetType()->AsTupleOrDie()->element_type(0));
+  llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(mul->GetType());
+  llvm::Value* result = CreateTypedZeroValue(tuple_type);
+
+  result = b.CreateInsertValue(
+      result,
+      b.CreateMul(b.CreateIntCast(node_context.operand(0), result_element_type,
+                                  /*isSigned=*/false),
+                  b.CreateIntCast(node_context.operand(1), result_element_type,
+                                  /*isSigned=*/false)),
+      {1});
+
+  return FinalizeNodeIrContext(node_context, result);
+}
+
 absl::Status IrBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {
   return HandleNaryOp(and_op, [](absl::Span<llvm::Value* const> operands,
                                  llvm::IRBuilder<>& b) {

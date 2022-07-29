@@ -396,7 +396,9 @@ class FunctionConverter {
   absl::Status HandleBuiltinOrReduce(const Invocation* node);
   absl::Status HandleBuiltinRev(const Invocation* node);
   absl::Status HandleBuiltinSignex(const Invocation* node);
+  absl::Status HandleBuiltinSMulp(const Invocation* node);
   absl::Status HandleBuiltinUpdate(const Invocation* node);
+  absl::Status HandleBuiltinUMulp(const Invocation* node);
   absl::Status HandleBuiltinXorReduce(const Invocation* node);
 
   // Derefences the type definition to a struct definition.
@@ -2085,6 +2087,8 @@ absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
           {"or_reduce", &FunctionConverter::HandleBuiltinOrReduce},
           {"xor_reduce", &FunctionConverter::HandleBuiltinXorReduce},
           {"update", &FunctionConverter::HandleBuiltinUpdate},
+          {"umulp", &FunctionConverter::HandleBuiltinUMulp},
+          {"smulp", &FunctionConverter::HandleBuiltinSMulp},
       };
   auto it = map.find(called_name);
   if (it == map.end()) {
@@ -3111,6 +3115,17 @@ absl::Status FunctionConverter::HandleBuiltinSignex(const Invocation* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleBuiltinSMulp(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->args()[1]));
+
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->SMulp(lhs, rhs);
+  });
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
   XLS_RET_CHECK_EQ(node->args().size(), 3);
   XLS_ASSIGN_OR_RETURN(BValue arg, Use(node->args()[0]));
@@ -3118,6 +3133,17 @@ absl::Status FunctionConverter::HandleBuiltinUpdate(const Invocation* node) {
   XLS_ASSIGN_OR_RETURN(BValue new_value, Use(node->args()[2]));
   Def(node, [&](const SourceInfo& loc) {
     return function_builder_->ArrayUpdate(arg, new_value, {index}, loc);
+  });
+  return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleBuiltinUMulp(const Invocation* node) {
+  XLS_RET_CHECK_EQ(node->args().size(), 2);
+  XLS_ASSIGN_OR_RETURN(BValue lhs, Use(node->args()[0]));
+  XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->args()[1]));
+
+  Def(node, [&](const SourceInfo& loc) {
+    return function_builder_->UMulp(lhs, rhs);
   });
   return absl::OkStatus();
 }

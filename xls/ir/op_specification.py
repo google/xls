@@ -492,6 +492,17 @@ OpClass.kinds['ARITH_OP'] = OpClass(
     attributes=[Int64Attribute('width')]
 )
 
+OpClass.kinds['PARTIAL_PRODUCT_OP'] = OpClass(
+    name='PartialProductOp',
+    op='op',
+    operands=[Operand('lhs'), Operand('rhs')],
+    xls_type_expression='function->package()->GetTupleType({function->package()->GetBitsType(width), function->package()->GetBitsType(width)})',
+    extra_constructor_args=[ConstructorArgument(name='op',
+                                                cpp_type='Op',
+                                                clone_expression='op()')],
+    attributes=[Int64Attribute('width')]
+)
+
 OpClass.kinds['ASSERT'] = OpClass(
     name='Assert',
     op='Op::kAssert',
@@ -1372,6 +1383,13 @@ OPS = [
                     Property.COMMUTATIVE],
     ),
     Op(
+        enum_name='kSMulp',
+        name='smulp',
+        op_class=OpClass.kinds['PARTIAL_PRODUCT_OP'],
+        properties=[Property.ASSOCIATIVE,
+                    Property.COMMUTATIVE],
+    ),
+    Op(
         enum_name='kSub',
         name='sub',
         op_class=OpClass.kinds['BIN_OP'],
@@ -1429,6 +1447,13 @@ OPS = [
         enum_name='kUMul',
         name='umul',
         op_class=OpClass.kinds['ARITH_OP'],
+        properties=[Property.ASSOCIATIVE,
+                    Property.COMMUTATIVE],
+    ),
+    Op(
+        enum_name='kUMulp',
+        name='umulp',
+        op_class=OpClass.kinds['PARTIAL_PRODUCT_OP'],
         properties=[Property.ASSOCIATIVE,
                     Property.COMMUTATIVE],
     ),

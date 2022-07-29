@@ -786,6 +786,231 @@ TEST_P(IrEvaluatorTestBase, MixedWidthSignedMultiplicationExhaustive) {
   }
 }
 
+TEST_P(IrEvaluatorTestBase, SMulpSimple) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn simple_smulp(x: bits[10], y: bits[10]) -> bits[10] {
+    smulp.1: (bits[10], bits[10]) = smulp(x, y)
+    tuple_index.2: bits[10] = tuple_index(smulp.1, index=0)
+    tuple_index.3: bits[10] = tuple_index(smulp.1, index=1)
+    ret add.4: bits[10] = add(tuple_index.2, tuple_index.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits actual, RunWithBitsNoEvents(function, {SBits(0, 10), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(0, 10));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(3, 10), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(15, 10));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(-3, 10), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(-15, 10));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(511, 10), SBits(-1, 10)}));
+  EXPECT_EQ(actual, SBits(-511, 10));
+}
+
+TEST_P(IrEvaluatorTestBase, SMulpMixedWidth) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn simple_smulp(x: bits[7], y: bits[10]) -> bits[9] {
+    smulp.1: (bits[9], bits[9]) = smulp(x, y)
+    tuple_index.2: bits[9] = tuple_index(smulp.1, index=0)
+    tuple_index.3: bits[9] = tuple_index(smulp.1, index=1)
+    ret add.4: bits[9] = add(tuple_index.2, tuple_index.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits actual, RunWithBitsNoEvents(function, {SBits(0, 7), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(0, 9));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(3, 7), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(15, 9));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(-3, 7), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(-15, 9));
+}
+
+TEST_P(IrEvaluatorTestBase, SMulpMixedWidthExtraWideResult) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn simple_smulp(x: bits[7], y: bits[10]) -> bits[20] {
+    smulp.1: (bits[20], bits[20]) = smulp(x, y)
+    tuple_index.2: bits[20] = tuple_index(smulp.1, index=0)
+    tuple_index.3: bits[20] = tuple_index(smulp.1, index=1)
+    ret add.4: bits[20] = add(tuple_index.2, tuple_index.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits actual, RunWithBitsNoEvents(function, {SBits(0, 7), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(0, 20));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(3, 7), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(15, 20));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(-3, 7), SBits(5, 10)}));
+  EXPECT_EQ(actual, SBits(-15, 20));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {SBits(63, 7), SBits(-512, 10)}));
+  EXPECT_EQ(actual, SBits(-32256, 20));
+}
+
+TEST_P(IrEvaluatorTestBase, SMulpMixedWidthExhaustive) {
+  // Exhaustively check all bit width and value combinations of a mixed-width
+  // signed partial multiply up to a small constant bit width.
+  constexpr absl::string_view ir_text = R"(
+  fn simple_smulp(x: bits[$0], y: bits[$1]) -> bits[$2] {
+    smulp.1: (bits[$2], bits[$2]) = smulp(x, y)
+    tuple_index.2: bits[$2] = tuple_index(smulp.1, index=0)
+    tuple_index.3: bits[$2] = tuple_index(smulp.1, index=1)
+    ret add.4: bits[$2] = add(tuple_index.2, tuple_index.3)
+  }
+  )";
+
+  constexpr size_t kMaxWidth = 3;
+  for (size_t x_width = 1; x_width <= kMaxWidth; ++x_width) {
+    for (size_t y_width = 1; y_width <= kMaxWidth; ++y_width) {
+      for (size_t result_width = 1; result_width <= kMaxWidth; ++result_width) {
+        std::string formatted_ir =
+            absl::Substitute(ir_text, x_width, y_width, result_width);
+        Package package("my_package");
+        XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                                 ParseAndGetFunction(&package, formatted_ir));
+        for (int x = -(1 << (x_width - 1)); x < (1 << (x_width - 1)) - 1; ++x) {
+          for (int y = -(1 << (y_width - 1)); y < (1 << (y_width - 1)) - 1;
+               ++y) {
+            Bits x_bits = SBits(x, x_width);
+            Bits y_bits = SBits(y, y_width);
+            // The expected result width may be narrower or wider than the
+            // result produced by bits_ops::Umul so just sign extend to a wide
+            // value then slice it to size.
+            Bits expected = bits_ops::SignExtend(bits_ops::SMul(x_bits, y_bits),
+                                                 2 * kMaxWidth)
+                                .Slice(0, result_width);
+            EXPECT_THAT(RunWithBitsNoEvents(function, {x_bits, y_bits}),
+                        IsOkAndHolds(expected))
+                << absl::StreamFormat("smulp(bits[%d]: %s, bits[%d]: %s)",
+                                      x_width, x_bits.ToString(), y_width,
+                                      y_bits.ToString());
+          }
+        }
+      }
+    }
+  }
+}
+
+TEST_P(IrEvaluatorTestBase, UMulpSimple) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn simple_umulp(x: bits[10], y: bits[10]) -> bits[10] {
+    umulp.1: (bits[10], bits[10]) = umulp(x, y)
+    tuple_index.2: bits[10] = tuple_index(umulp.1, index=0)
+    tuple_index.3: bits[10] = tuple_index(umulp.1, index=1)
+    ret add.4: bits[10] = add(tuple_index.2, tuple_index.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits actual, RunWithBitsNoEvents(function, {UBits(0, 10), UBits(5, 10)}));
+  EXPECT_EQ(actual, UBits(0, 10));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {UBits(3, 10), UBits(5, 10)}));
+  EXPECT_EQ(actual, UBits(15, 10));
+}
+
+TEST_P(IrEvaluatorTestBase, UMulpMixedWidth) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn simple_umulp(x: bits[7], y: bits[10]) -> bits[9] {
+    umulp.1: (bits[9], bits[9]) = umulp(x, y)
+    tuple_index.2: bits[9] = tuple_index(umulp.1, index=0)
+    tuple_index.3: bits[9] = tuple_index(umulp.1, index=1)
+    ret add.4: bits[9] = add(tuple_index.2, tuple_index.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits actual, RunWithBitsNoEvents(function, {UBits(0, 7), UBits(5, 10)}));
+  EXPECT_EQ(actual, UBits(0, 9));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {UBits(3, 7), UBits(5, 10)}));
+  EXPECT_EQ(actual, UBits(15, 9));
+}
+
+TEST_P(IrEvaluatorTestBase, UMulpMixedWidthExtraWideResult) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn simple_umulp(x: bits[7], y: bits[10]) -> bits[20] {
+    umulp.1: (bits[20], bits[20]) = umulp(x, y)
+    tuple_index.2: bits[20] = tuple_index(umulp.1, index=0)
+    tuple_index.3: bits[20] = tuple_index(umulp.1, index=1)
+    ret add.4: bits[20] = add(tuple_index.2, tuple_index.3)
+  }
+  )"));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Bits actual, RunWithBitsNoEvents(function, {UBits(0, 7), UBits(5, 10)}));
+  EXPECT_EQ(actual, UBits(0, 20));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {UBits(3, 7), UBits(5, 10)}));
+  EXPECT_EQ(actual, UBits(15, 20));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      actual, RunWithBitsNoEvents(function, {UBits(63, 7), UBits(1023, 10)}));
+  EXPECT_EQ(actual, UBits(64449, 20));
+}
+
+TEST_P(IrEvaluatorTestBase, UMulpMixedWidthExhaustive) {
+  // Exhaustively check all bit width and value combinations of a mixed-width
+  // unsigned partial multiply up to a small constant bit width.
+  constexpr absl::string_view ir_text = R"(
+  fn simple_umulp(x: bits[$0], y: bits[$1]) -> bits[$2] {
+    umulp.1: (bits[$2], bits[$2]) = umulp(x, y)
+    tuple_index.2: bits[$2] = tuple_index(umulp.1, index=0)
+    tuple_index.3: bits[$2] = tuple_index(umulp.1, index=1)
+    ret add.4: bits[$2] = add(tuple_index.2, tuple_index.3)
+  }
+  )";
+
+  constexpr size_t kMaxWidth = 3;
+  for (size_t x_width = 1; x_width <= kMaxWidth; ++x_width) {
+    for (size_t y_width = 1; y_width <= kMaxWidth; ++y_width) {
+      for (size_t result_width = 1; result_width <= kMaxWidth; ++result_width) {
+        std::string formatted_ir =
+            absl::Substitute(ir_text, x_width, y_width, result_width);
+        Package package("my_package");
+        XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                                 ParseAndGetFunction(&package, formatted_ir));
+        for (int x = 0; x < 1 << x_width; ++x) {
+          for (int y = 0; y < 1 << y_width; ++y) {
+            Bits x_bits = UBits(x, x_width);
+            Bits y_bits = UBits(y, y_width);
+            // The expected result width may be narrower or wider than the
+            // result produced by bits_ops::Umul so just zero extend to a wide
+            // value then slice it to size.
+            Bits expected = bits_ops::ZeroExtend(bits_ops::UMul(x_bits, y_bits),
+                                                 2 * kMaxWidth)
+                                .Slice(0, result_width);
+            EXPECT_THAT(RunWithBitsNoEvents(function, {x_bits, y_bits}),
+                        IsOkAndHolds(expected))
+                << absl::StreamFormat("umulp(bits[%d]: %s, bits[%d]: %s)",
+                                      x_width, x_bits.ToString(), y_width,
+                                      y_bits.ToString());
+          }
+        }
+      }
+    }
+  }
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretUDiv) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,

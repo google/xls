@@ -937,6 +937,7 @@ cc_library(
     deps = [
         ":module_builder",
         ":op_override",
+        ":vast",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/types:span",

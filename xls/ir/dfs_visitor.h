@@ -84,6 +84,7 @@ class DfsVisitor {
   virtual absl::Status HandleSLt(CompareOp* lt) = 0;
   virtual absl::Status HandleSMod(BinOp* mod) = 0;
   virtual absl::Status HandleSMul(ArithOp* mul) = 0;
+  virtual absl::Status HandleSMulp(PartialProductOp* mul) = 0;
   virtual absl::Status HandleSel(Select* sel) = 0;
   virtual absl::Status HandleSend(Send* send) = 0;
   virtual absl::Status HandleShll(BinOp* shll) = 0;
@@ -101,6 +102,7 @@ class DfsVisitor {
   virtual absl::Status HandleULt(CompareOp* lt) = 0;
   virtual absl::Status HandleUMod(BinOp* mod) = 0;
   virtual absl::Status HandleUMul(ArithOp* mul) = 0;
+  virtual absl::Status HandleUMulp(PartialProductOp* mul) = 0;
   virtual absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) = 0;
   virtual absl::Status HandleZeroExtend(ExtendOp* zero_ext) = 0;
 
@@ -203,6 +205,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleSLt(CompareOp* lt) override;
   absl::Status HandleSMod(BinOp* mod) override;
   absl::Status HandleSMul(ArithOp* mul) override;
+  absl::Status HandleSMulp(PartialProductOp* mul) override;
   absl::Status HandleSel(Select* sel) override;
   absl::Status HandleSend(Send* send) override;
   absl::Status HandleShll(BinOp* shll) override;
@@ -220,6 +223,7 @@ class DfsVisitorWithDefault : public DfsVisitor {
   absl::Status HandleULt(CompareOp* lt) override;
   absl::Status HandleUMod(BinOp* mod) override;
   absl::Status HandleUMul(ArithOp* mul) override;
+  absl::Status HandleUMulp(PartialProductOp* mul) override;
   absl::Status HandleXorReduce(BitwiseReductionOp* xor_reduce) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 };

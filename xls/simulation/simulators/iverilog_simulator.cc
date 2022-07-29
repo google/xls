@@ -18,7 +18,9 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "absl/strings/strip.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
+#include "xls/common/file/temp_directory.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/module_initializer.h"
 #include "xls/common/status/status_macros.h"
@@ -29,6 +31,16 @@
 namespace xls {
 namespace verilog {
 namespace {
+
+static absl::Status SetupIncludes(const std::filesystem::path& temp_dir,
+                                  absl::Span<const VerilogInclude> includes) {
+  for (const VerilogInclude& include : includes) {
+    std::filesystem::path path = temp_dir / include.relative_path;
+    XLS_RETURN_IF_ERROR(RecursivelyCreateDir(path.parent_path()));
+    XLS_RETURN_IF_ERROR(SetFileContents(path, include.verilog_text));
+  }
+  return absl::OkStatus();
+}
 
 absl::StatusOr<std::pair<std::string, std::string>> InvokeIverilog(
     absl::Span<const std::string> args) {
@@ -61,10 +73,19 @@ class IcarusVerilogSimulator : public VerilogSimulator {
   absl::StatusOr<std::pair<std::string, std::string>> Run(
       absl::string_view text,
       absl::Span<const VerilogInclude> includes) const override {
-    XLS_ASSIGN_OR_RETURN(TempFile temp, TempFile::CreateWithContent(text));
-    XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create());
+    XLS_ASSIGN_OR_RETURN(TempDirectory temp_top, TempDirectory::Create());
+    XLS_RETURN_IF_ERROR(RecursivelyCreateDir(temp_top.path()));
+    std::filesystem::path temp_dir = temp_top.path();
+
+    std::string top_v_path = temp_dir / "top.v";
+    XLS_RETURN_IF_ERROR(SetFileContents(top_v_path, text));
+
+    XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
+
+    XLS_CHECK_OK(SetupIncludes(temp_dir, includes));
     XLS_RETURN_IF_ERROR(
-        InvokeIverilog({temp.path().string(), "-o", temp_out.path().string()})
+        InvokeIverilog({top_v_path, "-o", temp_out.path().string(), "-I",
+                        temp_dir.string()})
             .status());
 
     return InvokeVvp({temp_out.path().string()});
@@ -73,11 +94,19 @@ class IcarusVerilogSimulator : public VerilogSimulator {
   absl::Status RunSyntaxChecking(
       absl::string_view text,
       absl::Span<const VerilogInclude> includes) const override {
-    XLS_ASSIGN_OR_RETURN(TempFile temp, TempFile::CreateWithContent(text));
-    XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create());
+    XLS_ASSIGN_OR_RETURN(TempDirectory temp_top, TempDirectory::Create());
+    XLS_RETURN_IF_ERROR(RecursivelyCreateDir(temp_top.path()));
+    std::filesystem::path temp_dir = temp_top.path();
 
+    std::string top_v_path = temp_dir / "top.v";
+    XLS_RETURN_IF_ERROR(SetFileContents(top_v_path, text));
+
+    XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
+
+    XLS_CHECK_OK(SetupIncludes(temp_dir, includes));
     XLS_RETURN_IF_ERROR(
-        InvokeIverilog({temp.path().string(), "-o", temp_out.path().string()})
+        InvokeIverilog({top_v_path, "-o", temp_out.path().string(), "-I",
+                        temp_dir.string()})
             .status());
 
     return absl::OkStatus();

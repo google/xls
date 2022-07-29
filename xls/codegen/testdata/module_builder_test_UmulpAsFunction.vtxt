@@ -1,0 +1,19 @@
+module UmulpAsFunction(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  input wire [31:0] z
+);
+  // lint_off MULTIPLY
+  function automatic [63:0] umulp32b_32b_x_32b (input reg [31:0] lhs, input reg [31:0] rhs);
+    reg [31:0] result;
+    begin
+      result = lhs * rhs;
+      umulp32b_32b_x_32b = {32'h0000_0000, result};
+    end
+  endfunction
+  // lint_on MULTIPLY
+  wire [63:0] x_umulp_y;
+  wire [63:0] z_umulp_z;
+  assign x_umulp_y = umulp32b_32b_x_32b(x, y);
+  assign z_umulp_z = umulp32b_32b_x_32b(z, z);
+endmodule

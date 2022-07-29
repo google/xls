@@ -1753,6 +1753,19 @@ signature:
 fn add_with_carry<N>(x: uN[N], y: uN[N]) -> (u1, uN[N])
 ```
 
+### `smulp` and `umulp`
+
+`smulp` and `umulp` perform signed and unsigned partial multiplications. These
+operations return a two-element tuple with the property that the sum of the two
+elements is equal to the product of the original inputs. Performing a partial
+multiplication allows for a pipeline stage in the middle of a multiply. These
+operations have the following signatures:
+
+```
+fn smulp<N>(lhs: sN[N], rhs: sN[N]) -> (sN[N], sN[N])
+fn umulp<N>(lhs: uN[N], rhs: uN[N]) -> (uN[N], uN[N])
+```
+
 ### `map`
 
 `map`, similarly to other languages, executes a transformation function on all

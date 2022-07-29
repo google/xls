@@ -125,12 +125,14 @@ ABSL_FLAG(bool, separate_lines, false,
 ABSL_FLAG(std::string, gate_format, "", "Format string to use for gate! ops.");
 ABSL_FLAG(std::string, assert_format, "",
           "Format string to use for assertions.");
+ABSL_FLAG(std::string, smulp_format, "", "Format string to use for smulp.");
 ABSL_FLAG(std::string, streaming_channel_data_suffix, "",
           "Suffix to append to data signals for streaming channels.");
 ABSL_FLAG(std::string, streaming_channel_valid_suffix, "_vld",
           "Suffix to append to valid signals for streaming channels.");
 ABSL_FLAG(std::string, streaming_channel_ready_suffix, "_rdy",
           "Suffix to append to ready signals for streaming channels.");
+ABSL_FLAG(std::string, umulp_format, "", "Format string to use for smulp.");
 // LINT.ThenChange(//xls/build_rules/xls_codegen_rules.bzl)
 
 namespace xls {
@@ -229,6 +231,18 @@ absl::StatusOr<verilog::CodegenOptions> GetCodegenOptions() {
     options.SetOpOverride(Op::kAssert,
                           std::make_unique<verilog::OpOverrideAssertion>(
                               absl::GetFlag(FLAGS_assert_format)));
+  }
+
+  if (!absl::GetFlag(FLAGS_smulp_format).empty()) {
+    options.SetOpOverride(Op::kSMulp,
+                          std::make_unique<verilog::OpOverrideInstantiation>(
+                              absl::GetFlag(FLAGS_smulp_format)));
+  }
+
+  if (!absl::GetFlag(FLAGS_umulp_format).empty()) {
+    options.SetOpOverride(Op::kUMulp,
+                          std::make_unique<verilog::OpOverrideInstantiation>(
+                              absl::GetFlag(FLAGS_umulp_format)));
   }
 
   options.streaming_channel_data_suffix(

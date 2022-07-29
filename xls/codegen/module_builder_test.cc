@@ -370,6 +370,56 @@ TEST_P(ModuleBuilderTest, SmulAsFunction) {
                                  file.Emit());
 }
 
+TEST_P(ModuleBuilderTest, SmulpAsFunction) {
+  VerilogFile file(UseSystemVerilog());
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue x_param = fb.Param("x", u32);
+  BValue y_param = fb.Param("y", u32);
+  BValue x_smulp_y = fb.SMulp(x_param, y_param);
+  BValue z_param = fb.Param("z", u32);
+  BValue z_smulp_z = fb.SMulp(z_param, z_param);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u32));
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("x_smulp_y", x_smulp_y.node(), {x, y}).status());
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("z_smulp_z", z_smulp_z.node(), {z, z}).status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
+TEST_P(ModuleBuilderTest, UmulpAsFunction) {
+  VerilogFile file(UseSystemVerilog());
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  BValue x_param = fb.Param("x", u32);
+  BValue y_param = fb.Param("y", u32);
+  BValue x_umulp_y = fb.UMulp(x_param, y_param);
+  BValue z_param = fb.Param("z", u32);
+  BValue z_umulp_z = fb.UMulp(z_param, z_param);
+  XLS_ASSERT_OK(fb.Build());
+
+  ModuleBuilder mb(TestBaseName(), &file, codegen_options());
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * x, mb.AddInputPort("x", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * y, mb.AddInputPort("y", u32));
+  XLS_ASSERT_OK_AND_ASSIGN(LogicRef * z, mb.AddInputPort("z", u32));
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("x_umulp_y", x_umulp_y.node(), {x, y}).status());
+  XLS_ASSERT_OK(
+      mb.EmitAsAssignment("z_umulp_z", z_umulp_z.node(), {z, z}).status());
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 file.Emit());
+}
+
 TEST_P(ModuleBuilderTest, DynamicBitSliceAsFunction) {
   VerilogFile file(UseSystemVerilog());
   Package package(TestBaseName());

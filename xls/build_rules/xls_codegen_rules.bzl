@@ -219,6 +219,10 @@ def xls_ir_verilog_impl(ctx, src):
         "streaming_channel_data_suffix",
         "streaming_channel_ready_suffix",
         "streaming_channel_valid_suffix",
+        "assert_format",
+        "gate_format",
+        "smulp_format",
+        "umulp_format",
     )
 
     is_args_valid(codegen_args, CODEGEN_FLAGS)

@@ -355,6 +355,10 @@ class AstGenerator {
   // Generates a shift operation AST node.
   absl::StatusOr<TypedExpr> GenerateShift(Env* env);
 
+  // Generates a group of operations containing PartialProduct ops. The output
+  // of the group will be deterministic (e.g. a smulp followed by an add).
+  absl::StatusOr<TypedExpr> GeneratePartialProductDeterministicGroup(Env* env);
+
   // Creates and returns a type ref for the given type.
   //
   // As part of this process, an ast.TypeDef is created and added to the set of

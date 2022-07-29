@@ -160,6 +160,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleSLe(CompareOp* le) override;
   absl::Status HandleSLt(CompareOp* lt) override;
   absl::Status HandleSMul(ArithOp* mul) override;
+  absl::Status HandleSMulp(PartialProductOp* mul) override;
   absl::Status HandleSub(BinOp* sub) override;
   absl::Status HandleTuple(Tuple* tuple) override;
   absl::Status HandleTupleIndex(TupleIndex* tuple_index) override;
@@ -168,6 +169,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   absl::Status HandleULe(CompareOp* le) override;
   absl::Status HandleULt(CompareOp* lt) override;
   absl::Status HandleUMul(ArithOp* mul) override;
+  absl::Status HandleUMulp(PartialProductOp* mul) override;
   absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
 
   FunctionBase* xls_function() { return xls_function_; }
@@ -212,6 +214,7 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Common multiply handling.
   void HandleMul(ArithOp* mul, bool is_signed);
+  void HandleMulp(PartialProductOp* mul, bool is_signed);
 
   // Translates a OneHotSelect or Sel node whose (non-selector) operands are
   // Tuple typed. Accepts a function to actually call into the AbstractEvaluator
@@ -256,6 +259,9 @@ class IrTranslator : public DfsVisitorWithDefault {
   // Z3 version of xls::ZeroOfType() - creates a zero-valued element.
   Z3_ast ZeroOfSort(Z3_sort sort);
 
+  // Get a new Z3_symbol.
+  Z3_symbol GetNewSymbol();
+
   Z3_config config_;
   Z3_context ctx_;
 
@@ -270,6 +276,7 @@ class IrTranslator : public DfsVisitorWithDefault {
   // be used as this translation's parameter set.
   std::optional<absl::Span<const Z3_ast>> imported_params_;
   FunctionBase* xls_function_;
+  int current_symbol_;
 };
 
 // Describes a predicate to compute about a subject node in an XLS IR function.

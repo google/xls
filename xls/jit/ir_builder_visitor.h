@@ -157,6 +157,8 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   absl::Status HandleMap(Map* map) override;
   absl::Status HandleSMul(ArithOp* mul) override;
   absl::Status HandleUMul(ArithOp* mul) override;
+  absl::Status HandleSMulp(PartialProductOp* mul) override;
+  absl::Status HandleUMulp(PartialProductOp* mul) override;
   absl::Status HandleNaryAnd(NaryOp* and_op) override;
   absl::Status HandleNaryNand(NaryOp* nand_op) override;
   absl::Status HandleNaryNor(NaryOp* nor_op) override;

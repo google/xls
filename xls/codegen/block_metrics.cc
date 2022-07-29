@@ -173,7 +173,9 @@ BomKindProto OpToBomKind(Op op) {
     }
 
     case Op::kUMul:
-    case Op::kSMul: {
+    case Op::kUMulp:
+    case Op::kSMul:
+    case Op::kSMulp: {
       return BOM_KIND_MULTIPLIER;
     }
 

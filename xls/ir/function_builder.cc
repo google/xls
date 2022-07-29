@@ -179,9 +179,9 @@ BValue BuilderBase::OneHotSelect(BValue selector,
 }
 
 BValue BuilderBase::PrioritySelect(BValue selector,
-                                 absl::Span<const BValue> cases,
-                                 const SourceInfo& loc,
-                                 absl::string_view name) {
+                                   absl::Span<const BValue> cases,
+                                   const SourceInfo& loc,
+                                   absl::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -766,6 +766,36 @@ BValue BuilderBase::UMul(BValue lhs, BValue rhs, int64_t result_width,
   }
   return AddArithOp(Op::kUMul, lhs, rhs, result_width, loc, name);
 }
+BValue BuilderBase::SMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
+                          absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddPartialProductOp(Op::kSMulp, lhs, rhs,
+                             /*result_width=*/absl::nullopt, loc, name);
+}
+BValue BuilderBase::UMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
+                          absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddPartialProductOp(Op::kUMulp, lhs, rhs,
+                             /*result_width=*/absl::nullopt, loc, name);
+}
+BValue BuilderBase::SMulp(BValue lhs, BValue rhs, int64_t result_width,
+                          const SourceInfo& loc, absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddPartialProductOp(Op::kSMulp, lhs, rhs, result_width, loc, name);
+}
+BValue BuilderBase::UMulp(BValue lhs, BValue rhs, int64_t result_width,
+                          const SourceInfo& loc, absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  return AddPartialProductOp(Op::kUMulp, lhs, rhs, result_width, loc, name);
+}
 BValue BuilderBase::UDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
                          absl::string_view name) {
   if (ErrorPending()) {
@@ -1044,6 +1074,39 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
     width = lhs.BitCountOrDie();
   }
   return AddNode<ArithOp>(loc, lhs.node(), rhs.node(), width, op, name);
+}
+
+BValue BuilderBase::AddPartialProductOp(Op op, BValue lhs, BValue rhs,
+                                        std::optional<int64_t> result_width,
+                                        const SourceInfo& loc,
+                                        absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  XLS_CHECK_EQ(lhs.builder(), rhs.builder());
+  if (!lhs.GetType()->IsBits() || !rhs.GetType()->IsBits()) {
+    return SetError(
+        absl::StrFormat(
+            "Arithmetic arguments must be of Bits type; is: %s and %s",
+            lhs.GetType()->ToString(), rhs.GetType()->ToString()),
+        loc);
+  }
+  int64_t width;
+  if (result_width.has_value()) {
+    width = *result_width;
+  } else {
+    if (lhs.BitCountOrDie() != rhs.BitCountOrDie()) {
+      return SetError(
+          absl::StrFormat(
+              "Arguments of arithmetic operation must be same width if "
+              "result width is not specified; is: %s and %s",
+              lhs.GetType()->ToString(), rhs.GetType()->ToString()),
+          loc);
+    }
+    width = lhs.BitCountOrDie();
+  }
+  return AddNode<PartialProductOp>(loc, lhs.node(), rhs.node(), width, op,
+                                   name);
 }
 
 BValue BuilderBase::AddUnOp(Op op, BValue x, const SourceInfo& loc,

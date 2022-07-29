@@ -245,6 +245,10 @@ absl::Status DfsVisitorWithDefault::HandleUMul(ArithOp* mul) {
   return DefaultHandler(mul);
 }
 
+absl::Status DfsVisitorWithDefault::HandleUMulp(PartialProductOp* mul) {
+  return DefaultHandler(mul);
+}
+
 absl::Status DfsVisitorWithDefault::HandleSel(Select* sel) {
   return DefaultHandler(sel);
 }
@@ -269,6 +273,9 @@ absl::Status DfsVisitorWithDefault::HandleSMul(ArithOp* mul) {
   return DefaultHandler(mul);
 }
 
+absl::Status DfsVisitorWithDefault::HandleSMulp(PartialProductOp* mul) {
+  return DefaultHandler(mul);
+}
 absl::Status DfsVisitorWithDefault::HandleSub(BinOp* sub) {
   return DefaultHandler(sub);
 }

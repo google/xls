@@ -345,6 +345,12 @@ xls_dslx_test(
     },
 )
 
+# Note: no meaningful function to convert.
+xls_dslx_test(
+    name = "mulp_test",
+    srcs = ["mulp.x"],
+)
+
 dslx_lang_test(name = "basic_struct")
 
 dslx_lang_test(name = "basic_struct_parameter")

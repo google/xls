@@ -23,6 +23,7 @@
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
+#include "xls/codegen/codegen_options.h"
 #include "xls/codegen/flattening.h"
 #include "xls/codegen/lint_annotate.h"
 #include "xls/codegen/node_expressions.h"
@@ -390,6 +391,8 @@ bool ModuleBuilder::CanEmitAsInlineExpression(
     case Op::kSub:
     case Op::kSMul:
     case Op::kUMul:
+    case Op::kSMulp:
+    case Op::kUMulp:
     case Op::kSDiv:
     case Op::kUDiv:
       return false;
@@ -1185,6 +1188,8 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
   switch (node->op()) {
     case Op::kSMul:
     case Op::kUMul:
+    case Op::kSMulp:
+    case Op::kUMulp:
     case Op::kDynamicBitSlice:
     case Op::kBitSliceUpdate:
     case Op::kPrioritySel:
@@ -1203,6 +1208,12 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat(
           "%s%db_%db_x_%db", OpToString(node->op()), node->BitCountOrDie(),
           node->operand(0)->BitCountOrDie(), node->operand(1)->BitCountOrDie());
+    case Op::kSMulp:
+    case Op::kUMulp:
+      return absl::StrFormat("%s%db_%db_x_%db", OpToString(node->op()),
+                             node->As<PartialProductOp>()->width(),
+                             node->operand(0)->BitCountOrDie(),
+                             node->operand(1)->BitCountOrDie());
     case Op::kDynamicBitSlice:
       return absl::StrFormat(
           "%s_w%d_%db_%db", OpToString(node->op()), node->BitCountOrDie(),
@@ -1435,6 +1446,101 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
   return func;
 }
 
+// Defines and returns a function which implements the given SMulp node.
+absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
+    Node* node, absl::string_view function_name, ModuleSection* section) {
+  XLS_CHECK_EQ(node->op(), Op::kSMulp);
+  XLS_CHECK_EQ(node->operand_count(), 2);
+  int64_t width = node->As<PartialProductOp>()->width();
+
+  VerilogFile* file = section->file();
+
+  ScopedLintDisable lint_disable(section, {Lint::kMultiply});
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name, file->BitVectorType(width * 2, node->loc()));
+  Expression* lhs = func->AddArgument(
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs = func->AddArgument(
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+
+  // The code conservatively assigns signed-casted inputs to temporary
+  // variables, uses them in the multiply expression which is assigned to
+  // another signed temporary. Finally, this is unsign-casted and assigned to
+  // the return value of the function. These shenanigans ensure no surprising
+  // sign/zero extensions of any values.
+  LogicRef* signed_lhs = func->AddRegDef(
+      node->loc(), "signed_lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc(),
+                          /*is_signed=*/true),
+      /*init=*/nullptr);
+  LogicRef* signed_rhs = func->AddRegDef(
+      node->loc(), "signed_rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc(),
+                          /*is_signed=*/true),
+      /*init=*/nullptr);
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), signed_lhs, file->Make<SignedCast>(node->loc(), lhs));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), signed_rhs, file->Make<SignedCast>(node->loc(), rhs));
+
+  LogicRef* signed_result =
+      func->AddRegDef(node->loc(), "signed_result",
+                      file->BitVectorType(width, node->loc(),
+                                          /*is_signed=*/true),
+                      /*init=*/nullptr);
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), signed_result,
+      file->Mul(signed_lhs, signed_rhs, node->loc()));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Concat({file->Literal(0, width, node->loc()),
+                    file->Make<UnsignedCast>(node->loc(), signed_result)},
+                   node->loc()));
+
+  return func;
+}
+
+// Defines and returns a function which implements the given UMulp node.
+absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
+    Node* node, absl::string_view function_name, ModuleSection* section) {
+  XLS_CHECK_EQ(node->op(), Op::kUMulp);
+  XLS_CHECK_EQ(node->operand_count(), 2);
+  int64_t width = node->As<PartialProductOp>()->width();
+
+  VerilogFile* file = section->file();
+
+  ScopedLintDisable lint_disable(section, {Lint::kMultiply});
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name, file->BitVectorType(width * 2, node->loc()));
+  Expression* lhs = func->AddArgument(
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs = func->AddArgument(
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+
+  LogicRef* result = func->AddRegDef(node->loc(), "result",
+                                     file->BitVectorType(width, node->loc(),
+                                                         /*is_signed=*/false),
+                                     /*init=*/nullptr);
+  func->AddStatement<BlockingAssignment>(node->loc(), result,
+                                         file->Mul(lhs, rhs, node->loc()));
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Concat({file->Literal(0, width, node->loc()), result},
+                   node->loc()));
+
+  return func;
+}
+
 // Defines and returns a function which implements the given UMul node.
 VerilogFunction* DefinePrioritySelectFunction(
     PrioritySelect* sel, absl::string_view function_name,
@@ -1528,6 +1634,16 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
     case Op::kUMul:
       func = DefineUmulFunction(node, function_name, functions_section_);
       break;
+    case Op::kSMulp: {
+      XLS_ASSIGN_OR_RETURN(
+          func, DefineSmulpFunction(node, function_name, functions_section_));
+      break;
+    }
+    case Op::kUMulp: {
+      XLS_ASSIGN_OR_RETURN(
+          func, DefineUmulpFunction(node, function_name, functions_section_));
+      break;
+    }
     case Op::kDynamicBitSlice:
       func = DefineDynamicBitSliceFunction(node->As<DynamicBitSlice>(),
                                            function_name, functions_section_);

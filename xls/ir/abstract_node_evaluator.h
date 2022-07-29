@@ -239,6 +239,9 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       }
       return result;
     }
+    case Op::kSMulp:
+      return absl::UnimplementedError(
+          "smulp not implemented in abstract node evaluator.");
     case Op::kSub:
       XLS_RETURN_IF_ERROR(check_operand_count(2));
       return evaluator->Add(operands[0], evaluator->Neg(operands[1]));
@@ -277,6 +280,9 @@ absl::StatusOr<typename AbstractEvaluatorT::Vector> AbstractEvaluate(
       }
       return result;
     }
+    case Op::kUMulp:
+      return absl::UnimplementedError(
+          "umulp not implemented in abstract node evaluator.");
     case Op::kXor:
       return evaluator->BitwiseXor(operands);
     case Op::kXorReduce:

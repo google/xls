@@ -1089,9 +1089,13 @@ absl::Status BytecodeInterpreter::RunBuiltinFn(const Bytecode& bytecode,
       return RunBuiltinSignex(bytecode);
     case Builtin::kSlice:
       return RunBuiltinSlice(bytecode);
+    case Builtin::kSMulp:
+      return RunBuiltinSMulp(bytecode);
     case Builtin::kTrace:
       return absl::InternalError(
           "`trace!` builtins should be converted into kTrace opcodes.");
+    case Builtin::kUMulp:
+      return RunBuiltinUMulp(bytecode);
     case Builtin::kUpdate:
       return RunBuiltinUpdate(bytecode);
     case Builtin::kXorReduce:
@@ -1459,6 +1463,38 @@ absl::Status BytecodeInterpreter::RunBuiltinSlice(const Bytecode& bytecode) {
                               const InterpValue& type_value) {
     return basis.Slice(start, type_value);
   });
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinSMulp(const Bytecode& bytecode) {
+  return RunBinaryBuiltin(
+      [](const InterpValue& lhs,
+         const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+        XLS_ASSIGN_OR_RETURN(int64_t lhs_bitwidth, lhs.GetBitCount());
+        XLS_ASSIGN_OR_RETURN(int64_t rhs_bitwidth, lhs.GetBitCount());
+        XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
+        int64_t product_bitwidth = lhs_bitwidth;
+        std::vector<InterpValue> outputs;
+        outputs.push_back(InterpValue::MakeSBits(product_bitwidth, 0));
+        XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
+        outputs.push_back(product);
+        return InterpValue::MakeTuple(outputs);
+      });
+}
+
+absl::Status BytecodeInterpreter::RunBuiltinUMulp(const Bytecode& bytecode) {
+  return RunBinaryBuiltin(
+      [](const InterpValue& lhs,
+         const InterpValue& rhs) -> absl::StatusOr<InterpValue> {
+        XLS_ASSIGN_OR_RETURN(int64_t lhs_bitwidth, lhs.GetBitCount());
+        XLS_ASSIGN_OR_RETURN(int64_t rhs_bitwidth, lhs.GetBitCount());
+        XLS_CHECK_EQ(lhs_bitwidth, rhs_bitwidth);
+        int64_t product_bitwidth = lhs_bitwidth;
+        std::vector<InterpValue> outputs;
+        outputs.push_back(InterpValue::MakeUBits(product_bitwidth, 0));
+        XLS_ASSIGN_OR_RETURN(InterpValue product, lhs.Mul(rhs));
+        outputs.push_back(product);
+        return InterpValue::MakeTuple(outputs);
+      });
 }
 
 absl::Status BytecodeInterpreter::RunBuiltinUpdate(const Bytecode& bytecode) {

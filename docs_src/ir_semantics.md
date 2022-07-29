@@ -249,27 +249,35 @@ result = smod(lhs, rhs)
 result = sub(lhs, rhs)
 result = udiv(lhs, rhs)
 result = umod(lhs, rhs)
+result = smulp(lhs, rhs)
+result = umulp(lhs, rhs)
 ```
 
 **Types**
 
-Currently signed and unsigned multiply support arbitrary width operands and
-result. For all other arithmetic operations the operands and the result are the
-same width. The expectation is that all arithmetic operations will eventually
-support arbitrary widths.
+Currently signed and unsigned multiply, as wells as their partial product
+variants, support arbitrary width operands and result. For all other arithmetic
+operations the operands and the result are the same width. The expectation is
+that all arithmetic operations will eventually support arbitrary widths.
 
 **Operations**
 
-Operation | Opcode      | Semantics
---------- | ----------- | --------------------------------------------
-`add`     | `Op::kAdd`  | `result = lhs + rhs`
-`sdiv`    | `Op::kSDiv` | `result = $signed(lhs) / $signed(rhs)` * **
-`smod`    | `Op::kSMod` | `result = $signed(lhs) % $signed(rhs)` * ***
-`smul`    | `Op::kSMul` | `result = $signed(lhs) * $signed(rhs)`
-`sub`     | `Op::kSub`  | `result = lhs - rhs`
-`udiv`    | `Op::kUDiv` | `result = lhs / rhs` * **
-`umod`    | `Op::kUMod` | `result = lhs % rhs` *
-`umul`    | `Op::kUMul` | `result = lhs * rhs`
+<!-- mdformat off(multiline table cells not supported in mkdocs) -->
+
+| Operation | Opcode       | Semantics                                    |
+| --------- | ------------ | -------------------------------------------- |
+| `add`     | `Op::kAdd`   | `result = lhs + rhs`                         |
+| `sdiv`    | `Op::kSDiv`  | `result = $signed(lhs) / $signed(rhs)` * **  |
+| `smod`    | `Op::kSMod`  | `result = $signed(lhs) % $signed(rhs)` * *** |
+| `smul`    | `Op::kSMul`  | `result = $signed(lhs) * $signed(rhs)`       |
+| `smulp`   | `Op::kSMulp` | `result[0] + result[1] = $signed(lhs) * $signed(rhs)` \*\*\*\* |
+| `sub`     | `Op::kSub`   | `result = lhs - rhs`                         |
+| `udiv`    | `Op::kUDiv`  | `result = lhs / rhs` * **                    |
+| `umod`    | `Op::kUMod`  | `result = lhs % rhs` *                       |
+| `umul`    | `Op::kUMul`  | `result = lhs * rhs`                         |
+| `umulp`   | `Op::kUMulp` | `result[0] + result[1] = lhs * rhs` \*\*\*\* |
+
+<!-- mdformat on -->
 
 \* Synthesizing division or modulus can lead to failing synthesis and/or
 problems with timing closure. It is usually best not to rely on this Verilog
@@ -283,6 +291,10 @@ value if the dividend is negative.
 
 \*** The sign of the result of modulus matches the sign of the left operand. If
 the right operand is zero the result is zero.
+
+\*\*\*\* The partial product multiply variants return a two-element tuple with
+both elements having the same type. The outputs are not fully constrained; the
+operations are free to return any values that sum to the product `lhs * rhs`.
 
 ### Comparison operations
 
