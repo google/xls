@@ -76,6 +76,26 @@ class ProcJit {
   absl::StatusOr<InterpreterResult<std::vector<Value>>> Run(
       absl::Span<const Value> state, void* user_data = nullptr);
 
+  // Executes the compiled proc with the given state and updates the
+  // next state view.
+  //
+  // "views" - flat buffers onto which structures layouts can be applied (see
+  // value_view.h).
+  absl::Status RunWithViews(absl::Span<uint8_t const* const> state,
+                            absl::Span<uint8_t* const> next_state,
+                            void* user_data = nullptr);
+
+  // Converts the state respresented as xls Values to the native LLVM data
+  // layout.
+  //  - If initialize_with_value is false, then the native LLVM data
+  //   is only allocated and not initialized.
+  absl::StatusOr<std::vector<std::vector<uint8_t>>> ConvertStateToView(
+      absl::Span<const Value> state_value, bool initialize_with_value = true);
+
+  // Convert the state represented in native LLVM data layout to xls Values.
+  std::vector<Value> ConvertStateViewToValue(
+      absl::Span<uint8_t const* const> state_buffers);
+
   // Returns the function that the JIT executes.
   Proc* proc() { return proc_; }
 

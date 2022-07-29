@@ -553,38 +553,74 @@ absl::StatusOr<llvm::Function*> ProcJit::BuildWrapper(llvm::Function* callee) {
   return wrapper_function;
 }
 
-absl::StatusOr<InterpreterResult<std::vector<Value>>> ProcJit::Run(
-    absl::Span<const Value> state, void* user_data) {
-  // Buffers for state and next-state values. Allocate as std::unique_ptr.
-  std::vector<std::unique_ptr<uint8_t[]>> state_buffers;
-  std::vector<std::unique_ptr<uint8_t[]>> next_state_buffers;
+absl::StatusOr<std::vector<std::vector<uint8_t>>> ProcJit::ConvertStateToView(
+    absl::Span<const Value> state_value, bool initialize_with_value) {
+  std::vector<std::vector<uint8_t>> state_buffers;
 
-  // Copy of `state_buffers` and `next_state_buffers` but as raw pointers for
-  // passing to the generated function.
-  std::vector<uint8_t*> raw_state_buffers;
-  std::vector<uint8_t*> raw_next_state_buffers;
   for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
     Type* state_type = proc_->GetStateElementType(i);
 
-    if (!ValueConformsToType(state[i], state_type)) {
+    if (!ValueConformsToType(state_value[i], state_type)) {
       return absl::InvalidArgumentError(absl::StrFormat(
           "Expected state argument %s (%d) to be of type %s, is: %s",
           proc_->GetStateParam(i)->GetName(), i, state_type->ToString(),
-          state[i].ToString()));
+          state_value[i].ToString()));
     }
 
-    state_buffers.push_back(std::make_unique<uint8_t[]>(
-        orc_jit_->GetTypeConverter().GetTypeByteSize(state_type)));
-    ir_runtime_->BlitValueToBuffer(
-        state[i], state_type,
-        absl::MakeSpan(state_buffers.back().get(),
-                       type_converter()->GetTypeByteSize(state_type)));
-
-    next_state_buffers.push_back(std::make_unique<uint8_t[]>(
+    state_buffers.push_back(std::vector<uint8_t>(
         orc_jit_->GetTypeConverter().GetTypeByteSize(state_type)));
 
-    raw_state_buffers.push_back(state_buffers[i].get());
-    raw_next_state_buffers.push_back(next_state_buffers[i].get());
+    if (initialize_with_value) {
+      ir_runtime_->BlitValueToBuffer(state_value[i], state_type,
+                                     absl::MakeSpan(state_buffers.back()));
+    }
+  }
+
+  return state_buffers;
+}
+
+std::vector<Value> ProcJit::ConvertStateViewToValue(
+    absl::Span<uint8_t const* const> state_buffers) {
+  std::vector<Value> state_values;
+  for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
+    Type* state_type = proc_->GetStateElementType(i);
+    state_values.push_back(
+        ir_runtime_->UnpackBuffer(state_buffers[i], state_type));
+  }
+
+  return state_values;
+}
+
+absl::Status ProcJit::RunWithViews(absl::Span<uint8_t const* const> state,
+                                   absl::Span<uint8_t* const> next_state,
+                                   void* user_data) {
+  InterpreterEvents events;
+  invoker_(state.data(), next_state.data(), &events, user_data, runtime());
+
+  return absl::OkStatus();
+}
+
+absl::StatusOr<InterpreterResult<std::vector<Value>>> ProcJit::Run(
+    absl::Span<const Value> state, void* user_data) {
+  int64_t state_element_count = proc()->GetStateElementCount();
+
+  // Buffers for state and next-state values. Allocate as std::unique_ptr.
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::vector<uint8_t>> state_buffers,
+      ConvertStateToView(state, /*initialize_with_value=*/true));
+
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::vector<uint8_t>> next_state_buffers,
+      ConvertStateToView(state, /*initialize_with_value=*/false));
+
+  // Copy of `state_buffers` and `next_state_buffers` but as raw pointers for
+  // passing to the generated function.
+  std::vector<uint8_t*> raw_state_buffers(state_element_count);
+  std::vector<uint8_t*> raw_next_state_buffers(state_element_count);
+
+  for (int64_t i = 0; i < state_element_count; ++i) {
+    raw_state_buffers.at(i) = state_buffers.at(i).data();
+    raw_next_state_buffers.at(i) = next_state_buffers.at(i).data();
   }
 
   InterpreterEvents events;
@@ -592,12 +628,8 @@ absl::StatusOr<InterpreterResult<std::vector<Value>>> ProcJit::Run(
            user_data, runtime());
 
   // Convert from LLVM native type to xls::Value for returning.
-  std::vector<Value> next_state_values;
-  for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
-    Type* state_type = proc_->GetStateElementType(i);
-    next_state_values.push_back(
-        ir_runtime_->UnpackBuffer(next_state_buffers[i].get(), state_type));
-  }
+  std::vector<Value> next_state_values =
+      ConvertStateViewToValue(raw_next_state_buffers);
 
   return InterpreterResult<std::vector<Value>>{std::move(next_state_values),
                                                std::move(events)};
