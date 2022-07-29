@@ -18,6 +18,7 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "xls/dslx/ast.h"

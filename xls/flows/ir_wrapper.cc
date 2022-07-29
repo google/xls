@@ -16,6 +16,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/log_lines.h"
