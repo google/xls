@@ -720,7 +720,8 @@ inline ::testing::Matcher<const ::xls::Node*> Receive(
 
 inline ::testing::Matcher<const ::xls::Node*> Receive(
     ::testing::Matcher<const Node*> token,
-    ::testing::Matcher<const ::xls::Channel*> channel_matcher) {
+    std::optional<::testing::Matcher<const ::xls::Channel*>> channel_matcher =
+        std::nullopt) {
   return ::testing::MakeMatcher(
       new ::xls::op_matchers::ReceiveMatcher(token, channel_matcher));
 }

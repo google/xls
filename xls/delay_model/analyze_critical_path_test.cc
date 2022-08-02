@@ -145,14 +145,13 @@ TEST_F(AnalyzeCriticalPathTest, ProcWithSendReceive) {
       std::vector<CriticalPathEntry> cp,
       AnalyzeCriticalPath(proc, /*clock_period_ps=*/absl::nullopt,
                           *delay_estimator_));
-  ASSERT_EQ(cp.size(), 7);
-  EXPECT_EQ(cp[0].node->op(), Op::kAfterAll);
-  EXPECT_EQ(cp[1].node, send.node());
-  EXPECT_EQ(cp[2].node, rev.node());
-  EXPECT_EQ(cp[3].node, neg.node());
-  EXPECT_EQ(cp[4].node->op(), Op::kTupleIndex);
-  EXPECT_EQ(cp[5].node->op(), Op::kReceive);
-  EXPECT_EQ(cp[6].node, proc->TokenParam());
+  ASSERT_EQ(cp.size(), 6);
+  EXPECT_EQ(cp[0].node, send.node());
+  EXPECT_EQ(cp[1].node, rev.node());
+  EXPECT_EQ(cp[2].node, neg.node());
+  EXPECT_EQ(cp[3].node->op(), Op::kTupleIndex);
+  EXPECT_EQ(cp[4].node->op(), Op::kReceive);
+  EXPECT_EQ(cp[5].node, proc->TokenParam());
 }
 
 }  // namespace

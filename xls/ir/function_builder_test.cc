@@ -702,9 +702,10 @@ TEST(FunctionBuilderTest, TokenlessProcBuilder) {
   pb.Send(out_ch, pb.Add(state, a_plus_b));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({a_plus_b}));
 
-  EXPECT_THAT(proc->NextToken(), m::AfterAll(m::TupleIndex(m::Receive(), 0),
-                                             m::TupleIndex(m::Receive(), 0),
-                                             m::Send(m::Channel("out"))));
+  EXPECT_THAT(proc->NextToken(),
+              m::Send(m::TupleIndex(m::Receive(m::TupleIndex(m::Receive()))),
+                      m::Add()));
+
   EXPECT_THAT(proc->GetNextStateElement(0),
               m::Add(m::TupleIndex(m::Receive(m::Channel("a")), 1),
                      m::TupleIndex(m::Receive(m::Channel("b")), 1)));

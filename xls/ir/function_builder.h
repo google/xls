@@ -722,7 +722,8 @@ class TokenlessProcBuilder : public ProcBuilder {
   // no state elements.
   TokenlessProcBuilder(absl::string_view name, absl::string_view token_name,
                        Package* package, bool should_verify = true)
-      : ProcBuilder(name, token_name, package, should_verify) {}
+      : ProcBuilder(name, token_name, package, should_verify),
+        last_token_(GetTokenParam()) {}
 
   virtual ~TokenlessProcBuilder() = default;
 
@@ -772,8 +773,9 @@ class TokenlessProcBuilder : public ProcBuilder {
                 absl::string_view name = "");
 
  private:
-  // The tokens from any added send(if)/receive(if) nodes.
-  std::vector<BValue> tokens_;
+  // The token of the most recently added token-producing operation (send,
+  // receive, etc).
+  BValue last_token_;
 };
 
 // Class for building an XLS Block.
