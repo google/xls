@@ -527,6 +527,63 @@ absl::StatusOr<bool> MaybeNarrowAdd(Node* add,
   return false;
 }
 
+// Return the given node sign-extended (if 'mul' is Op::kSMul) or zero-extended
+// (if 'mul' is Op::kUMul) to the given bit count. If the node is already of the
+// given width, then the node is returned.
+absl::StatusOr<Node*> MaybeExtend(Node* node, int64_t bit_count,
+                                  bool is_signed) {
+  XLS_RET_CHECK(node->BitCountOrDie() <= bit_count);
+  if (node->BitCountOrDie() == bit_count) {
+    return node;
+  }
+  return node->function_base()->MakeNode<ExtendOp>(
+      node->loc(), node, /*new_bit_count=*/bit_count,
+      /*op=*/is_signed ? Op::kSignExt : Op::kZeroExt);
+}
+
+// Return the given node narrowed to the given bit count. If the node is already
+// of the given width, then the node is returned.
+absl::StatusOr<Node*> MaybeNarrow(Node* node, int64_t bit_count) {
+  XLS_RET_CHECK(node->BitCountOrDie() >= bit_count);
+  if (node->BitCountOrDie() == bit_count) {
+    return node;
+  }
+  return node->function_base()->MakeNode<BitSlice>(node->loc(), node,
+                                                   /*start=*/0,
+                                                   /*width=*/bit_count);
+}
+
+absl::StatusOr<std::optional<Node*>> MaybeNarrowUnsignedOperand(
+    Node* operand, const QueryEngine& query_engine) {
+  int64_t leading_zeros = CountLeadingKnownZeros(operand, query_engine);
+  if (leading_zeros == 0) {
+    return std::nullopt;
+  }
+  return operand->function_base()->MakeNode<BitSlice>(
+      operand->loc(), operand, /*start=*/0,
+      /*width=*/operand->BitCountOrDie() - leading_zeros);
+}
+
+absl::StatusOr<std::optional<Node*>> MaybeNarrowSignedOperand(
+    Node* operand, const QueryEngine& query_engine) {
+  if (operand->op() == Op::kSignExt) {
+    // Operand is a sign-extended value. Just use the value before
+    // sign-extension.
+    return operand->operand(0);
+  }
+  if (CountLeadingKnownZeros(operand, query_engine) > 1) {
+    // Operand has more than one leading zero, something like:
+    //    operand = 0000XXXX
+    // This is equivalent to:
+    //    operand = signextend(0XXXX)
+    // So we can replace the operand with 0XXXX.
+    return MaybeNarrow(operand,
+                       operand->BitCountOrDie() -
+                           CountLeadingKnownZeros(operand, query_engine) + 1);
+  }
+  return std::nullopt;
+}
+
 // Try to narrow the operands and/or the result of a multiply.
 absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
                                          const QueryEngine& query_engine) {
@@ -543,34 +600,6 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
       "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
       result_bit_count, lhs_bit_count, rhs_bit_count);
 
-  // Return the given node sign-extended (if 'mul' is Op::kSMul) or
-  // zero-extended (if 'mul' is Op::kUMul) to the given bit count. If the node
-  // is already of the given width, then the node is returned.
-  auto maybe_extend = [&](Node* node,
-                          int64_t bit_count) -> absl::StatusOr<Node*> {
-    XLS_RET_CHECK(node->BitCountOrDie() <= bit_count);
-    if (node->BitCountOrDie() == bit_count) {
-      return node;
-    }
-    return node->function_base()->MakeNode<ExtendOp>(
-        node->loc(), node,
-        /*new_bit_count=*/bit_count,
-        /*op=*/mul->op() == Op::kSMul ? Op::kSignExt : Op::kZeroExt);
-  };
-
-  // Return the given node narrowed to the given bit count. If the node
-  // is already of the given width, then the node is returned.
-  auto maybe_narrow = [&](Node* node,
-                          int64_t bit_count) -> absl::StatusOr<Node*> {
-    XLS_RET_CHECK(node->BitCountOrDie() >= bit_count);
-    if (node->BitCountOrDie() == bit_count) {
-      return node;
-    }
-    return node->function_base()->MakeNode<BitSlice>(node->loc(), node,
-                                                     /*start=*/0,
-                                                     /*width=*/bit_count);
-  };
-
   // The result can be unconditionally narrowed to the sum of the operand
   // widths, then zero/sign extended.
   if (result_bit_count > lhs_bit_count + rhs_bit_count) {
@@ -581,7 +610,8 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
             mul->loc(), lhs, rhs,
             /*width=*/lhs_bit_count + rhs_bit_count, mul->op()));
     XLS_ASSIGN_OR_RETURN(Node * replacement,
-                         maybe_extend(narrowed_mul, result_bit_count));
+                         MaybeExtend(narrowed_mul, result_bit_count,
+                                     /*is_signed=*/mul->op() == Op::kSMul));
     XLS_RETURN_IF_ERROR(mul->ReplaceUsesWith(replacement));
     return true;
   }
@@ -591,10 +621,10 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
     Node* narrowed_lhs = lhs;
     Node* narrowed_rhs = rhs;
     if (lhs_bit_count > result_bit_count) {
-      XLS_ASSIGN_OR_RETURN(narrowed_lhs, maybe_narrow(lhs, result_bit_count));
+      XLS_ASSIGN_OR_RETURN(narrowed_lhs, MaybeNarrow(lhs, result_bit_count));
     }
     if (rhs_bit_count > result_bit_count) {
-      XLS_ASSIGN_OR_RETURN(narrowed_rhs, maybe_narrow(rhs, result_bit_count));
+      XLS_ASSIGN_OR_RETURN(narrowed_rhs, MaybeNarrow(rhs, result_bit_count));
     }
     XLS_RETURN_IF_ERROR(
         mul->ReplaceUsesWithNew<ArithOp>(narrowed_lhs, narrowed_rhs,
@@ -610,26 +640,18 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
 
   // Zero-extended operands of unsigned multiplies can be narrowed.
   if (mul->op() == Op::kUMul || is_sign_agnostic) {
-    bool operand_narrowed = false;
-    auto maybe_narrow_operand = [&](Node* operand) -> absl::StatusOr<Node*> {
-      int64_t leading_zeros = CountLeadingKnownZeros(operand, query_engine);
-      if (leading_zeros == 0) {
-        return operand;
-      }
-      operand_narrowed = true;
-      return mul->function_base()->MakeNode<BitSlice>(
-          mul->loc(), operand, /*start=*/0,
-          /*width=*/operand->BitCountOrDie() - leading_zeros);
-    };
-    XLS_ASSIGN_OR_RETURN(Node * operand0,
-                         maybe_narrow_operand(mul->operand(0)));
-    XLS_ASSIGN_OR_RETURN(Node * operand1,
-                         maybe_narrow_operand(mul->operand(1)));
-    if (operand_narrowed) {
-      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<ArithOp>(operand0, operand1,
-                                                           result_bit_count,
-                                                           Op::kUMul)
-                              .status());
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand0,
+        MaybeNarrowUnsignedOperand(mul->operand(0), query_engine));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand1,
+        MaybeNarrowUnsignedOperand(mul->operand(1), query_engine));
+    if (operand0.has_value() || operand1.has_value()) {
+      XLS_RETURN_IF_ERROR(
+          mul->ReplaceUsesWithNew<ArithOp>(operand0.value_or(mul->operand(0)),
+                                           operand1.value_or(mul->operand(1)),
+                                           result_bit_count, Op::kUMul)
+              .status());
       return true;
     }
   }
@@ -637,35 +659,105 @@ absl::StatusOr<bool> MaybeNarrowMultiply(ArithOp* mul,
   // Sign-extended operands of signed multiplies can be narrowed by replacing
   // the operand of the multiply with the value before sign-extension.
   if (mul->op() == Op::kSMul || is_sign_agnostic) {
-    bool operand_narrowed = false;
-    auto maybe_narrow_operand = [&](Node* operand) -> absl::StatusOr<Node*> {
-      if (operand->op() == Op::kSignExt) {
-        // Operand is a sign-extended value. Just use the value before
-        // sign-extension.
-        operand_narrowed = true;
-        return operand->operand(0);
-      }
-      if (CountLeadingKnownZeros(operand, query_engine) > 1) {
-        // Operand has more than one leading zero, something like:
-        //    operand = 0000XXXX
-        // This is equivalent to:
-        //    operand = signextend(0XXXX)
-        // So we can replace the operand with 0XXXX.
-        operand_narrowed = true;
-        return maybe_narrow(
-            operand, operand->BitCountOrDie() -
-                         CountLeadingKnownZeros(operand, query_engine) + 1);
-      }
-      return operand;
-    };
-    XLS_ASSIGN_OR_RETURN(Node * operand0,
-                         maybe_narrow_operand(mul->operand(0)));
-    XLS_ASSIGN_OR_RETURN(Node * operand1,
-                         maybe_narrow_operand(mul->operand(1)));
-    if (operand_narrowed) {
-      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<ArithOp>(operand0, operand1,
-                                                           result_bit_count,
-                                                           Op::kSMul)
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand0,
+        MaybeNarrowSignedOperand(mul->operand(0), query_engine));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand1,
+        MaybeNarrowSignedOperand(mul->operand(1), query_engine));
+    if (operand0.has_value() || operand1.has_value()) {
+      XLS_RETURN_IF_ERROR(
+          mul->ReplaceUsesWithNew<ArithOp>(operand0.value_or(mul->operand(0)),
+                                           operand1.value_or(mul->operand(1)),
+                                           result_bit_count, Op::kSMul)
+              .status());
+      return true;
+    }
+  }
+
+  // TODO(meheff): If either lhs or rhs has trailing zeros, the multiply can be
+  // narrowed and the result concatenated with trailing zeros.
+
+  return false;
+}
+
+// Try to narrow the operands and/or the result of a multiply.
+absl::StatusOr<bool> MaybeNarrowPartialMultiply(
+    PartialProductOp* mul, const QueryEngine& query_engine) {
+  XLS_VLOG(3) << "Trying to narrow multiply: " << mul->ToString();
+
+  XLS_RET_CHECK(mul->op() == Op::kSMulp || mul->op() == Op::kUMulp);
+
+  Node* lhs = mul->operand(0);
+  Node* rhs = mul->operand(1);
+  const int64_t result_bit_count = mul->width();
+  const int64_t lhs_bit_count = lhs->BitCountOrDie();
+  const int64_t rhs_bit_count = rhs->BitCountOrDie();
+  XLS_VLOG(3) << absl::StreamFormat(
+      "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
+      result_bit_count, lhs_bit_count, rhs_bit_count);
+
+  // The operands can be unconditionally narrowed to the result width.
+  if (lhs_bit_count > result_bit_count || rhs_bit_count > result_bit_count) {
+    Node* narrowed_lhs = lhs;
+    Node* narrowed_rhs = rhs;
+    if (lhs_bit_count > result_bit_count) {
+      XLS_ASSIGN_OR_RETURN(narrowed_lhs, MaybeNarrow(lhs, result_bit_count));
+    }
+    if (rhs_bit_count > result_bit_count) {
+      XLS_ASSIGN_OR_RETURN(narrowed_rhs, MaybeNarrow(rhs, result_bit_count));
+    }
+    XLS_RETURN_IF_ERROR(
+        mul->ReplaceUsesWithNew<PartialProductOp>(narrowed_lhs, narrowed_rhs,
+                                                  result_bit_count, mul->op())
+            .status());
+    return true;
+  }
+
+  // TODO(google/xls#645): In the very similar narrowing pass for normal
+  // multiplies, this is where the output width would be narrowed if possible.
+  // However, there are some split multiply implementations with constraints
+  // that `result_bit_count > lhs_bit_count + rhs_bit_count`. Ideally, codegen
+  // would be able to deal with this problem, but until then we don't perform
+  // this optimization.
+
+  // A multiply where the result and both operands are the same width is the
+  // same operation whether it is signed or unsigned.
+  bool is_sign_agnostic =
+      result_bit_count == lhs_bit_count && result_bit_count == rhs_bit_count;
+
+  // Zero-extended operands of unsigned multiplies can be narrowed.
+  if (mul->op() == Op::kUMulp || is_sign_agnostic) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand0,
+        MaybeNarrowUnsignedOperand(mul->operand(0), query_engine));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand1,
+        MaybeNarrowUnsignedOperand(mul->operand(1), query_engine));
+    if (operand0.has_value() || operand1.has_value()) {
+      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
+                                 operand0.value_or(mul->operand(0)),
+                                 operand1.value_or(mul->operand(1)),
+                                 result_bit_count, Op::kUMulp)
+                              .status());
+      return true;
+    }
+  }
+
+  // Sign-extended operands of signed multiplies can be narrowed by replacing
+  // the operand of the multiply with the value before sign-extension.
+  if (mul->op() == Op::kSMulp || is_sign_agnostic) {
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand0,
+        MaybeNarrowSignedOperand(mul->operand(0), query_engine));
+    XLS_ASSIGN_OR_RETURN(
+        std::optional<Node*> operand1,
+        MaybeNarrowSignedOperand(mul->operand(1), query_engine));
+    if (operand0.has_value() || operand1.has_value()) {
+      XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<PartialProductOp>(
+                                 operand0.value_or(mul->operand(0)),
+                                 operand1.value_or(mul->operand(1)),
+                                 result_bit_count, Op::kSMulp)
                               .status());
       return true;
     }
@@ -848,6 +940,13 @@ absl::StatusOr<bool> NarrowingPass::RunOnFunctionBaseInternal(
         XLS_ASSIGN_OR_RETURN(
             node_modified,
             MaybeNarrowMultiply(node->As<ArithOp>(), *query_engine));
+        break;
+      }
+      case Op::kSMulp:
+      case Op::kUMulp: {
+        XLS_ASSIGN_OR_RETURN(node_modified,
+                             MaybeNarrowPartialMultiply(
+                                 node->As<PartialProductOp>(), *query_engine));
         break;
       }
       case Op::kULe:

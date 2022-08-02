@@ -179,7 +179,6 @@ TEST_P(NarrowingPassTest, NarrowableArrayIndexAllZeros) {
       m::ArrayIndex(m::Param("a"), /*indices=*/{m::Literal(UBits(0, 6))}));
 }
 
-
 TEST_P(NarrowingPassTest, MultiplyWiderThanSumOfOperands) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
@@ -240,6 +239,86 @@ TEST_P(NarrowingPassTest, ExtendedSMulOperands) {
               m::SMul(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
                                   /*width=*/18),
                       m::Param("rhs")));
+}
+
+TEST_P(NarrowingPassTest, ExtendedSMulSignAgnostic) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u21 = p->GetBitsType(21);
+  fb.SMul(fb.ZeroExtend(fb.Param("lhs", u17), 21), fb.Param("rhs", u21),
+          /*result_width=*/21);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(f->return_value(),
+              m::UMul(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
+                                  /*width=*/17),
+                      m::Param("rhs")));
+}
+
+TEST_P(NarrowingPassTest, PartialMultiplyOperandsWiderThanResult) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u42 = p->GetBitsType(42);
+  fb.UMulp(fb.Param("lhs", u17), fb.Param("rhs", u42), /*result_width=*/9);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(
+      f->return_value(),
+      m::UMulp(AllOf(m::Type("bits[9]"),
+                     m::BitSlice(m::Param("lhs"), /*start=*/0, /*width=*/9)),
+               AllOf(m::Type("bits[9]"),
+                     m::BitSlice(m::Param("rhs"), /*start=*/0, /*width=*/9))));
+}
+
+TEST_P(NarrowingPassTest, ExtendedUMulpOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  fb.UMulp(fb.ZeroExtend(fb.Param("lhs", u17), 32),
+           fb.SignExtend(fb.Param("rhs", u17), 54),
+           /*result_width=*/62);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // Only the zero-extend should have been elided.
+  EXPECT_THAT(f->return_value(),
+              m::UMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
+                                   /*width=*/17),
+                       m::SignExt(m::Param("rhs"))));
+}
+
+TEST_P(NarrowingPassTest, ExtendedSMulpOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21),
+           fb.SignExtend(fb.Param("rhs", u17), 23),
+           /*result_width=*/29);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(f->return_value(),
+              m::SMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
+                                   /*width=*/18),
+                       m::Param("rhs")));
+}
+
+TEST_P(NarrowingPassTest, ExtendedSMulpSignAgnostic) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u17 = p->GetBitsType(17);
+  Type* u21 = p->GetBitsType(21);
+  fb.SMulp(fb.ZeroExtend(fb.Param("lhs", u17), 21), fb.Param("rhs", u21),
+           /*result_width=*/21);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  // The zero-extended operand should be sliced down to the (zero) sign bit.
+  EXPECT_THAT(f->return_value(),
+              m::UMulp(m::BitSlice(m::ZeroExt(m::Param("lhs")), /*start=*/0,
+                                   /*width=*/17),
+                       m::Param("rhs")));
 }
 
 TEST_P(NarrowingPassTest, LeadingZerosOfUnsignedCompare) {

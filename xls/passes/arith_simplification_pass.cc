@@ -606,14 +606,16 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 
   // If either x or y is zero width:
   //   [US]Mul(x, y) => 0
+  //   [US]Mulp(x, y) => 0
   // This can arise due to narrowing of multiplies.
-  if (n->op() == Op::kUMul || n->op() == Op::kSMul) {
+  if (n->op() == Op::kUMul || n->op() == Op::kSMul || n->op() == Op::kUMulp ||
+      n->op() == Op::kSMulp) {
     for (Node* operand : n->operands()) {
       if (operand->BitCountOrDie() == 0) {
-        XLS_VLOG(2) << "FOUND: replace mul(bits[0], ...) with 0";
+        XLS_VLOG(2) << "FOUND: replace " << OpToString(n->op())
+                    << "(bits[0], ...) with 0";
         XLS_RETURN_IF_ERROR(
-            n->ReplaceUsesWithNew<Literal>(Value(UBits(0, n->BitCountOrDie())))
-                .status());
+            n->ReplaceUsesWithNew<Literal>(ZeroOfType(n->GetType())).status());
         return true;
       }
     }
