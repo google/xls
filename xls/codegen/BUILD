@@ -477,6 +477,7 @@ cc_library(
         ":codegen_checker",
         ":codegen_pass",
         ":codegen_wrapper_pass",
+        ":mulp_combining_pass",
         ":port_legalization_pass",
         ":register_legalization_pass",
         ":signature_generation_pass",
@@ -953,5 +954,32 @@ cc_library(
     hdrs = ["node_representation.h"],
     deps = [
         ":vast",
+    ],
+)
+
+cc_library(
+    name = "mulp_combining_pass",
+    srcs = ["mulp_combining_pass.cc"],
+    hdrs = ["mulp_combining_pass.h"],
+    deps = [
+        ":codegen_pass",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/ir",
+        "//xls/ir:op",
+    ],
+)
+
+cc_test(
+    name = "mulp_combining_pass_test",
+    srcs = ["mulp_combining_pass_test.cc"],
+    deps = [
+        ":codegen_pass",
+        ":mulp_combining_pass",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/ir:function_builder",
+        "//xls/ir:ir_matcher",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )

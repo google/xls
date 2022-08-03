@@ -20,6 +20,7 @@
 #include "xls/codegen/block_metrics_generation_pass.h"
 #include "xls/codegen/codegen_checker.h"
 #include "xls/codegen/codegen_wrapper_pass.h"
+#include "xls/codegen/mulp_combining_pass.h"
 #include "xls/codegen/port_legalization_pass.h"
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
@@ -48,6 +49,10 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
 
   // Remove zero-width registers.
   top->Add<RegisterLegalizationPass>();
+
+  // Eliminate no-longer-needed partial product operations by turning them into
+  // normal multiplies.
+  top->Add<MulpCombiningPass>();
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
   top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
