@@ -52,12 +52,14 @@ std::string GetTimeoutMessage() {
 ModuleTestbench::ModuleTestbench(Module* module,
                                  const VerilogSimulator* simulator,
                                  std::optional<absl::string_view> clk_name,
-                                 std::optional<ResetProto> reset)
+                                 std::optional<ResetProto> reset,
+                                 absl::Span<const VerilogInclude> includes)
     // Emit the entire file because the module may instantiate other modules.
     : verilog_text_(module->file()->Emit()),
       module_name_(module->name()),
       simulator_(simulator),
-      clk_name_(clk_name) {
+      clk_name_(clk_name),
+      includes_(includes) {
   XLS_VLOG(3) << "Building ModuleTestbench for Verilog module:";
   XLS_VLOG_LINES(3, verilog_text_);
 
@@ -77,10 +79,12 @@ ModuleTestbench::ModuleTestbench(Module* module,
 
 ModuleTestbench::ModuleTestbench(absl::string_view verilog_text,
                                  const ModuleSignature& signature,
-                                 const VerilogSimulator* simulator)
+                                 const VerilogSimulator* simulator,
+                                 absl::Span<const VerilogInclude> includes)
     : verilog_text_(verilog_text),
       module_name_(signature.module_name()),
-      simulator_(simulator) {
+      simulator_(simulator),
+      includes_(includes) {
   XLS_VLOG(3) << "Building ModuleTestbench for Verilog module:";
   XLS_VLOG_LINES(3, verilog_text_);
   XLS_VLOG(3) << "With signature:\n" << signature;
@@ -536,7 +540,7 @@ absl::Status ModuleTestbench::Run() {
   XLS_VLOG(2) << verilog_text;
 
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSIGN_OR_RETURN(stdout_stderr, simulator_->Run(verilog_text));
+  XLS_ASSIGN_OR_RETURN(stdout_stderr, simulator_->Run(verilog_text, includes_));
 
   XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
   XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;

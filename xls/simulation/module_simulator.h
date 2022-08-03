@@ -39,10 +39,12 @@ class ModuleSimulator {
   //  simulator: Verilog simulator to use.
   ModuleSimulator(const ModuleSignature& signature,
                   absl::string_view verilog_text,
-                  const VerilogSimulator* simulator)
+                  const VerilogSimulator* simulator,
+                  absl::Span<const VerilogInclude> includes = {})
       : signature_(signature),
         verilog_text_(verilog_text),
-        simulator_(simulator) {}
+        simulator_(simulator),
+        includes_(includes) {}
 
   // Simulates the module with the given inputs as Bits types. Returns a
   // map containing the outputs by port name.
@@ -77,6 +79,7 @@ class ModuleSimulator {
   ModuleSignature signature_;
   std::string verilog_text_;
   const VerilogSimulator* simulator_;
+  absl::Span<const VerilogInclude> includes_;
 };
 
 }  // namespace verilog

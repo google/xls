@@ -40,13 +40,15 @@ class ModuleTestbench {
   // reset signal.
   ModuleTestbench(Module* module, const VerilogSimulator* simulator,
                   std::optional<absl::string_view> clk_name = absl::nullopt,
-                  std::optional<ResetProto> reset = absl::nullopt);
+                  std::optional<ResetProto> reset = absl::nullopt,
+                  absl::Span<const VerilogInclude> includes = {});
 
   // Constructor for testing a module defined in Verilog text with an interface
   // described with a ModuleSignature.
   ModuleTestbench(absl::string_view verilog_text,
                   const ModuleSignature& signature,
-                  const VerilogSimulator* simulator);
+                  const VerilogSimulator* simulator,
+                  absl::Span<const VerilogInclude> includes = {});
 
   // Sets the given module input port to the given value in the current
   // cycle. The value is sticky and remains driven to this value across cycle
@@ -123,6 +125,7 @@ class ModuleTestbench {
   std::string module_name_;
   const VerilogSimulator* simulator_;
   std::optional<std::string> clk_name_;
+  absl::Span<const VerilogInclude> includes_;
 
   // Map of each input/output port name to its width.
   absl::flat_hash_map<std::string, int64_t> input_port_widths_;
