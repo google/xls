@@ -24,6 +24,7 @@ const NUM_ROUNDS = u32:10;
 type KeyWord = u32;
 type Key = KeyWord[KEY_WORDS];
 type KeySchedule = Key[NUM_ROUNDS + u32:1];
+type State = u8[4][4];
 
 // The Rijndael S-box.
 const S_BOX = u8[256]:[
@@ -65,6 +66,30 @@ const R_CON = u32[10]:[0x01000000, 0x02000000, 0x04000000, 0x08000000,
                        0x10000000, 0x20000000, 0x40000000, 0x80000000,
                        0x1b000000, 0x36000000];
 
+// Produces a key whose bytes are in the same order as the incoming byte stream,
+// e.g.,
+// "abcd..." (i.e., 0x61, 0x62, 0x63, 0x64...) -> [0x61626364, ...]
+pub fn bytes_to_key(bytes: u8[16]) -> Key {
+    Key:[bytes[0] ++ bytes[1] ++ bytes[2] ++ bytes[3],
+         bytes[4] ++ bytes[5] ++ bytes[6] ++ bytes[7],
+         bytes[8] ++ bytes[9] ++ bytes[10] ++ bytes[11],
+         bytes[12] ++ bytes[13] ++ bytes[14] ++ bytes[15]]
+}
+
+fn trace_key(key: Key) {
+    let bytes0 = key[0] as u8[4];
+    let bytes1 = key[1] as u8[4];
+    let bytes2 = key[2] as u8[4];
+    let bytes3 = key[3] as u8[4];
+    let _ = trace_fmt!(
+        "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+        bytes0[0], bytes0[1], bytes0[2], bytes0[3],
+        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
+        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
+        bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
+    ()
+}
+
 fn rot_word(word: KeyWord) -> KeyWord {
     let bytes = word as u8[4];
     let bytes = u8[4]:[bytes[1], bytes[2], bytes[3], bytes[0]];
@@ -92,46 +117,15 @@ pub fn create_key_schedule(key : Key) -> KeySchedule {
     sched
 }
 
-// Produces a key whose bytes are in the reverse order as the incoming byte stream,
-// e.g.,
-// "abcd..." (i.e., 0x61, 0x62, 0x63, 0x64...) -> [0x64636261, ...]
-pub fn string_to_key(input: u8[16]) -> Key {
-    Key:[input[15] ++ input[14] ++ input[13] ++ input[12],
-         input[11] ++ input[10] ++ input[9] ++ input[8],
-         input[7] ++ input[6] ++ input[5] ++ input[4],
-         input[3] ++ input[2] ++ input[1] ++ input[0]]
-}
-
-// Produces a key whose bytes are in the same order as the incoming byte stream,
-// e.g.,
-// "abcd..." (i.e., 0x61, 0x62, 0x63, 0x64...) -> [0x61626364, ...]
-pub fn bytes_to_key(bytes: u8[16]) -> Key {
-    Key:[bytes[0] ++ bytes[1] ++ bytes[2] ++ bytes[3],
-         bytes[4] ++ bytes[5] ++ bytes[6] ++ bytes[7],
-         bytes[8] ++ bytes[9] ++ bytes[10] ++ bytes[11],
-         bytes[12] ++ bytes[13] ++ bytes[14] ++ bytes[15]]
-}
-
-fn trace_key(key: Key) {
-    let bytes0 = key[0] as u8[4];
-    let bytes1 = key[1] as u8[4];
-    let bytes2 = key[2] as u8[4];
-    let bytes3 = key[3] as u8[4];
-    let _ = trace_fmt!(
-        "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
-        bytes0[0], bytes0[1], bytes0[2], bytes0[3],
-        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
-        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
-        bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
-    ()
-}
-
 // Verifies we produce a correct schedule for a given input key.
 // Verification values were generated from from the BoringSSL implementation,
 // commit efd09b7e.
 #![test]
 fn test_key_schedule() {
-    let key = string_to_key("0123456789abcdef");
+    let key =
+        bytes_to_key(
+            u8[16]:[u8:0x66, u8:0x65, u8:0x64, u8:0x63, u8:0x62, u8:0x61, u8:0x39, u8:0x38,
+                    u8:0x37, u8:0x36, u8:0x35, u8:0x34, u8:0x33, u8:0x32, u8:0x31, u8:0x30]);
     let sched = create_key_schedule(key);
     let _ = assert_eq(sched[0], key);
     let _ = assert_eq(
@@ -152,4 +146,163 @@ fn test_key_schedule() {
             u8[16]:[u8:0x71, u8:0x21, u8:0x06, u8:0xf1, u8:0x59, u8:0xd1, u8:0x69, u8:0x25,
                     u8:0x03, u8:0x21, u8:0xe7, u8:0xaa, u8:0xb9, u8:0xae, u8:0x62, u8:0xe0]));
     ()
+}
+
+pub fn add_round_key(state: State, key: Key) -> State {
+    let key_0 = key[0] as u8[4];
+    let key_1 = key[1] as u8[4];
+    let key_2 = key[2] as u8[4];
+    let key_3 = key[3] as u8[4];
+    State:[
+        [state[0][0] ^ key_0[0], state[0][1] ^ key_0[1],
+         state[0][2] ^ key_0[2], state[0][3] ^ key_0[3]],
+        [state[1][0] ^ key_1[0], state[1][1] ^ key_1[1],
+         state[1][2] ^ key_1[2], state[1][3] ^ key_1[3]],
+        [state[2][0] ^ key_2[0], state[2][1] ^ key_2[1],
+         state[2][2] ^ key_2[2], state[2][3] ^ key_2[3]],
+        [state[3][0] ^ key_3[0], state[3][1] ^ key_3[1],
+         state[3][2] ^ key_3[2], state[3][3] ^ key_3[3]],
+    ]
+}
+
+#![test]
+fn test_add_round_key() {
+    let key = Key: [
+        u8:0x30 ++ u8:0x31 ++ u8:0x32 ++ u8:0x33,
+        u8:0x34 ++ u8:0x35 ++ u8:0x36 ++ u8:0x37,
+        u8:0x38 ++ u8:0x39 ++ u8:0x61 ++ u8:0x62,
+        u8:0x63 ++ u8:0x64 ++ u8:0x65 ++ u8:0x66,
+    ];
+    let state = State:[
+        [u8:0, u8:1, u8:2, u8:3],
+        [u8:0xff, u8:0xaa, u8:0x55, u8:0x00],
+        [u8:0xa5, u8:0x5a, u8:0x5a, u8:0xa5],
+        [u8:3, u8:2, u8:1, u8:0],
+    ];
+    let expected = State:[
+        [u8:0x30, u8:0x30, u8:0x30, u8:0x30],
+        [u8:0xcb, u8:0x9f, u8:0x63, u8:0x37],
+        [u8:0x9d, u8:0x63, u8:0x3b, u8:0xc7],
+        [u8:0x60, u8:0x66, u8:0x64, u8:0x66],
+    ];
+    assert_eq(add_round_key(state, key), expected)
+}
+
+// Performs the "SubBytes" step. Replaces each byte of the input with the
+// corresponding byte from the S-box.
+pub fn sub_bytes(state: State) -> State {
+    State:[
+        [S_BOX[state[0][0]], S_BOX[state[0][1]], S_BOX[state[0][2]], S_BOX[state[0][3]]],
+        [S_BOX[state[1][0]], S_BOX[state[1][1]], S_BOX[state[1][2]], S_BOX[state[1][3]]],
+        [S_BOX[state[2][0]], S_BOX[state[2][1]], S_BOX[state[2][2]], S_BOX[state[2][3]]],
+        [S_BOX[state[3][0]], S_BOX[state[3][1]], S_BOX[state[3][2]], S_BOX[state[3][3]]],
+    ]
+}
+
+#![test]
+fn test_sub_bytes() {
+    let input = State:[
+        [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
+        [u8:0xff, u8:0xfe, u8:0xfd, u8:0xfc],
+        [u8:0xa5, u8:0x5a, u8:0xaa, u8:0x55],
+        [u8:0xde, u8:0xad, u8:0xbe, u8:0xef],
+    ];
+    let expected = State:[
+        [u8:0x63, u8:0x7c, u8:0x77, u8:0x7b],
+        [u8:0x16, u8:0xbb, u8:0x54, u8:0xb0],
+        [u8:0x06, u8:0xbe, u8:0xac, u8:0xfc],
+        [u8:0x1d, u8:0x95, u8:0xae, u8:0xdf],
+    ];
+    assert_eq(sub_bytes(input), expected)
+}
+
+// Performs the "ShiftRows" step. Rotates row N to the left by N spaces.
+pub fn shift_rows(state: State) -> State {
+    State:[
+        u8[4]:[state[0][0], state[1][1], state[2][2], state[3][3]],
+        u8[4]:[state[1][0], state[2][1], state[3][2], state[0][3]],
+        u8[4]:[state[2][0], state[3][1], state[0][2], state[1][3]],
+        u8[4]:[state[3][0], state[0][1], state[1][2], state[2][3]],
+    ]
+}
+
+#![test]
+fn test_shift_rows() {
+    let input = State:[
+        [u8:0, u8:1, u8:2, u8:3],
+        [u8:4, u8:5, u8:6, u8:7],
+        [u8:8, u8:9, u8:10, u8:11],
+        [u8:12, u8:13, u8:14, u8:15],
+    ];
+    let expected = State:[
+        [u8:0, u8:5, u8:10, u8:15],
+        [u8:4, u8:9, u8:14, u8:3],
+        [u8:8, u8:13, u8:2, u8:7],
+        [u8:12, u8:1, u8:6, u8:11],
+    ];
+    assert_eq(shift_rows(input), expected)
+}
+
+// Performs multiplication of the input by 2 in GF(2^8). See "MixColumns" below.
+fn gfmul2(input: u8) -> u8 {
+    let result = input << 1;
+    if input & u8:0x80 != u8:0 { result ^ u8:0x1b } else { result }
+}
+
+// Performs multiplication of the input by 3 in GF(2^8). See "MixColumns" below.
+fn gfmul3(input: u8) -> u8 {
+    let result = gfmul2(input);
+    result ^ input
+}
+
+// See "MixColumns" below. This implements transformation of one column.
+fn mix_column(col: u8[4]) -> u8[4]{
+    u8[4]:[
+        gfmul2(col[0]) ^ gfmul3(col[1]) ^ col[2] ^ col[3],
+        col[0] ^ gfmul2(col[1]) ^ gfmul3(col[2]) ^ col[3],
+        col[0] ^ col[1] ^ gfmul2(col[2]) ^ gfmul3(col[3]),
+        gfmul3(col[0]) ^ col[1] ^ col[2] ^ gfmul2(col[3]),
+    ]
+}
+
+// Implements the "MixColumns" step: multiplies a column of the state by the matrix:
+// [[2 ,3, 1, 1]
+//  [1, 2, 3, 1]
+//  [1, 1, 2, 3]
+//  [3, 1, 1, 2]]
+// within GF(2*8) (the 256-element Galois field). In this field, addition is XOR.
+// Multiplication by 1 is the identity.
+// Multiplication by 2 is left shifting by one and XORing the result by 0x1b
+// if it overflows.
+// Multiplication by 3 is multiplying by 2 and XORing that with the identity.
+pub fn mix_columns(state: State) -> State {
+    let col0 = mix_column(u8[4]:[state[0][0], state[0][1], state[0][2], state[0][3]]);
+    let col1 = mix_column(u8[4]:[state[1][0], state[1][1], state[1][2], state[1][3]]);
+    let col2 = mix_column(u8[4]:[state[2][0], state[2][1], state[2][2], state[2][3]]);
+    let col3 = mix_column(u8[4]:[state[3][0], state[3][1], state[3][2], state[3][3]]);
+    State:[
+        [col0[0], col0[1], col0[2], col0[3]],
+        [col1[0], col1[1], col1[2], col1[3]],
+        [col2[0], col2[1], col2[2], col2[3]],
+        [col3[0], col3[1], col3[2], col3[3]],
+    ]
+}
+
+// Verification values were generated from from the BoringSSL implementation,
+// commit efd09b7e.
+#![test]
+fn test_mix_columns() {
+    let input = State:[
+        [u8:0xdb, u8:0xf2, u8:0xc6, u8:0x2d],
+        [u8:0x13, u8:0x0a, u8:0xc6, u8:0x26],
+        [u8:0x53, u8:0x22, u8:0xc6, u8:0x31],
+        [u8:0x45, u8:0x5c, u8:0xc6, u8:0x4c],
+    ];
+    let expected = State:[
+        [u8:0x4b, u8:0x58, u8:0xc9, u8:0x18],
+        [u8:0xd8, u8:0x70, u8:0xe4, u8:0xb5],
+        [u8:0x37, u8:0x77, u8:0xb5, u8:0x73],
+        [u8:0xe4, u8:0xe0, u8:0x5a, u8:0xcd],
+    ];
+    assert_eq(mix_columns(input), expected)
 }
