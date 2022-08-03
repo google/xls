@@ -40,13 +40,17 @@ using ::testing::HasSubstr;
 
 class DummyPass : public Pass {
  public:
-  DummyPass(std::string short_name, std::string long_name)
-      : Pass(short_name, long_name) {}
+  // `change` indicates whether the pass will return that the IR was changed.
+  DummyPass(std::string short_name, std::string long_name, bool change = false)
+      : Pass(short_name, long_name), change_(change) {}
 
   absl::StatusOr<bool> RunInternal(Package* p, const PassOptions& options,
                                    PassResults* results) const override {
-    return false;
+    return change_;
   }
+
+ private:
+  bool change_;
 };
 
 // BuildShift0 builds an IR that initially looks like this:
@@ -249,6 +253,47 @@ TEST(PassesTest, InvariantCheckerFailsAfterPass) {
                        HasSubstr("Function has name 'bar'; [after 'Adds "
                                  "function named bar' pass")))
       << result.status();
+}
+
+// Invariant checker which counts the number of times it was invoked.
+class CounterChecker : public InvariantChecker {
+ public:
+  explicit CounterChecker() {}
+
+  absl::Status Run(Package* package, const PassOptions& options,
+                   PassResults* results) const override {
+    counter_++;
+    return absl::OkStatus();
+  }
+
+  int64_t run_count() const { return counter_; }
+
+ private:
+  mutable int64_t counter_ = 0;
+};
+
+TEST(PassesTest, InvariantCheckerOnlyRunsAfterChangedPasses) {
+  // Verify the error message when the invariant checker fails only after
+  // running a particular pass.
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> p,
+                           Parser::ParsePackage(kInvariantTesterPackage));
+  CompoundPass pass_mgr("TOP", "Top level pass manager");
+  pass_mgr.Add<DummyPass>("d1", "Dummy pass 1", /*change=*/false);
+  pass_mgr.Add<DummyPass>("d2", "Dummy pass 2", /*change=*/false);
+  pass_mgr.Add<DummyPass>("d3", "Dummy pass 3", /*change=*/true);
+  pass_mgr.Add<DummyPass>("d4", "Dummy pass 4", /*change=*/false);
+  pass_mgr.Add<DummyPass>("d5", "Dummy pass 5", /*change=*/true);
+  pass_mgr.Add<DummyPass>("d6", "Dummy pass 6", /*change=*/false);
+
+  CounterChecker* checker = pass_mgr.AddInvariantChecker<CounterChecker>();
+  EXPECT_EQ(checker->run_count(), 0);
+
+  PassResults results;
+  XLS_EXPECT_OK(pass_mgr.Run(p.get(), PassOptions(), &results).status());
+
+  // Checkers should run once at the beginning then only after a passes that
+  // indicate the IR has been changed.
+  EXPECT_EQ(checker->run_count(), 3);
 }
 
 // Pass which just records that it was run via a shared vector of strings.

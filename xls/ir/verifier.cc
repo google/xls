@@ -1379,16 +1379,24 @@ class NodeChecker : public DfsVisitor {
   }
 };
 
-absl::Status VerifyNodeIdUnique(Node* node,
-                                absl::flat_hash_map<int64_t, SourceInfo>* ids) {
+absl::Status VerifyNodeIdUnique(Node* node, absl::flat_hash_set<int64_t>* ids) {
   // TODO(meheff): param IDs currently collide with non-param IDs. All IDs
   // should be globally unique.
   if (!node->Is<Param>()) {
-    if (!ids->insert({node->id(), node->loc()}).second) {
-      const SourceInfo& info = ids->at(node->id());
+    if (!ids->insert(node->id()).second) {
+      // Find locations of all nodes in the package with this node ID for error
+      // message.
+      std::vector<std::string> location_strings;
+      for (FunctionBase* f : node->package()->GetFunctionBases()) {
+        for (Node* n : f->nodes()) {
+          if (!n->Is<Param>() && n->id() == node->id()) {
+            location_strings.push_back(n->loc().ToString());
+          }
+        }
+      }
       return absl::InternalError(absl::StrFormat(
-          "ID %d is not unique; previously seen source location:\n%s",
-          node->id(), info.ToString()));
+          "ID %d is not unique; source locations of nodes with same id:\n%s",
+          node->id(), absl::StrJoin(location_strings, ", ")));
     }
   }
   return absl::OkStatus();
@@ -1406,7 +1414,7 @@ absl::Status VerifyFunctionBase(FunctionBase* function) {
   }
 
   // Verify ids are unique within the function.
-  absl::flat_hash_map<int64_t, SourceInfo> ids;
+  absl::flat_hash_set<int64_t> ids;
   ids.reserve(function->node_count());
   for (Node* node : function->nodes()) {
     XLS_RETURN_IF_ERROR(VerifyNodeIdUnique(node, &ids));
@@ -1696,7 +1704,7 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
 
   // Verify node IDs are unique within the package and uplinks point to this
   // package.
-  absl::flat_hash_map<int64_t, SourceInfo> ids;
+  absl::flat_hash_set<int64_t> ids;
   ids.reserve(package->GetNodeCount());
   for (FunctionBase* function : package->GetFunctionBases()) {
     XLS_RET_CHECK(function->package() == package);
@@ -1710,7 +1718,7 @@ absl::Status VerifyPackage(Package* package, bool codegen) {
   // occupied by the package's nodes.
   int64_t max_id_seen = -1;
   for (const auto& item : ids) {
-    max_id_seen = std::max(item.first, max_id_seen);
+    max_id_seen = std::max(item, max_id_seen);
   }
   XLS_RET_CHECK_GT(package->next_node_id(), max_id_seen);
 

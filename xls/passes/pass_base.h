@@ -387,14 +387,16 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
                                  /*ordinal=*/results->invocations.size(),
                                  /*changed=*/pass_changed));
     }
-    absl::Time checker_start = absl::Now();
-    XLS_RETURN_IF_ERROR(run_invariant_checkers(
-        absl::StrFormat("after '%s' pass, dynamic pass #%d", pass->long_name(),
-                        results->invocations.size() - 1)));
-    XLS_VLOG(1) << absl::StreamFormat(
-        "Ran invariant checkers [elapsed %s]",
-        FormatDuration(absl::Now() - checker_start));
-
+    // Only run the verifiers if the pass changed.
+    if (pass_changed) {
+      absl::Time checker_start = absl::Now();
+      XLS_RETURN_IF_ERROR(run_invariant_checkers(
+          absl::StrFormat("after '%s' pass, dynamic pass #%d",
+                          pass->long_name(), results->invocations.size() - 1)));
+      XLS_VLOG(1) << absl::StreamFormat(
+          "Ran invariant checkers [elapsed %s]",
+          FormatDuration(absl::Now() - checker_start));
+    }
     XLS_VLOG(5) << "After " << pass->long_name() << ":";
     XLS_VLOG_LINES(5, ir->DumpIr());
   }
