@@ -75,6 +75,74 @@ absl::StatusOr<InterpValue> CastBitsToEnum(const InterpValue& bits_value,
                                &enum_def);
 }
 
+absl::StatusOr<InterpValue> CreateZeroValueFromType(
+    const ConcreteType& concrete_type) {
+  if (auto* bits_type = dynamic_cast<const BitsType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_type->size().GetAsInt64());
+
+    if (bits_type->is_signed()) {
+      return InterpValue::MakeSBits(bit_count, /*value=*/0);
+    }
+
+    return InterpValue::MakeUBits(bit_count, /*value=*/0);
+  }
+
+  if (auto* tuple_type = dynamic_cast<const TupleType*>(&concrete_type)) {
+    const int64_t tuple_size = tuple_type->size();
+
+    std::vector<InterpValue> zero_elements;
+    zero_elements.reserve(tuple_size);
+
+    for (int64_t i = 0; i < tuple_size; ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue zero_element,
+          CreateZeroValueFromType(tuple_type->GetMemberType(i)));
+      zero_elements.push_back(zero_element);
+    }
+
+    return InterpValue::MakeTuple(zero_elements);
+  }
+
+  if (auto* struct_type = dynamic_cast<const StructType*>(&concrete_type)) {
+    const int64_t struct_size = struct_type->size();
+
+    std::vector<InterpValue> zero_elements;
+    zero_elements.reserve(struct_size);
+
+    for (int64_t i = 0; i < struct_size; ++i) {
+      XLS_ASSIGN_OR_RETURN(
+          InterpValue zero_element,
+          CreateZeroValueFromType(struct_type->GetMemberType(i)));
+      zero_elements.push_back(zero_element);
+    }
+
+    return InterpValue::MakeTuple(zero_elements);
+  }
+
+  if (auto* array_type = dynamic_cast<const ArrayType*>(&concrete_type)) {
+    XLS_ASSIGN_OR_RETURN(const int64_t array_size,
+                         array_type->size().GetAsInt64());
+
+    if (array_size == 0) {
+      return InterpValue::MakeArray({});
+    }
+
+    XLS_ASSIGN_OR_RETURN(InterpValue zero_element,
+                         CreateZeroValueFromType(array_type->element_type()));
+    std::vector<InterpValue> zero_elements(array_size, zero_element);
+    return InterpValue::MakeArray(zero_elements);
+  }
+
+  if (auto* enum_type = dynamic_cast<const EnumType*>(&concrete_type)) {
+    if (!enum_type->members().empty()) {
+      return enum_type->members().at(0);
+    }
+  }
+
+  return absl::UnimplementedError("Cannot create zero value for type type: " +
+                                  concrete_type.ToString());
+}
+
 absl::StatusOr<InterpValue> CreateZeroValue(const InterpValue& value) {
   switch (value.tag()) {
     case InterpValueTag::kSBits: {
