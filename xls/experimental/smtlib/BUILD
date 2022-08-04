@@ -18,7 +18,6 @@
 # pytype binary, library
 
 package(
-    default_visibility = ["//xls:xls_internal"],
     licenses = ["notice"],  # Apache 2.0
 )
 
