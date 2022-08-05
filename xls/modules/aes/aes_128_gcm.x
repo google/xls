@@ -12,7 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Implementation of the AES-128 cipher, using cipher block chaining.
+// Implementation of the AES-128 cipher in Galois counter mode (GCM).
+//
+// Note that throughout, "row" and "column" seem to be swapped: that's because
+// DSLX is a row-major language, whereas AES is described in a column-major
+// manner.
 // TODO(rspringer): Complete the implementation.
 
 const KEY_BITS = u32:128;
@@ -25,6 +29,7 @@ type KeyWord = u32;
 type Key = KeyWord[KEY_WORDS];
 type KeySchedule = Key[NUM_ROUNDS + u32:1];
 type State = u8[4][4];
+type Block = u8[4][4];
 
 // The Rijndael S-box.
 const S_BOX = u8[256]:[
@@ -47,7 +52,7 @@ const S_BOX = u8[256]:[
     u8:0xcd, u8:0x0c, u8:0x13, u8:0xec, u8:0x5f, u8:0x97, u8:0x44, u8:0x17,
     u8:0xc4, u8:0xa7, u8:0x7e, u8:0x3d, u8:0x64, u8:0x5d, u8:0x19, u8:0x73,
     u8:0x60, u8:0x81, u8:0x4f, u8:0xdc, u8:0x22, u8:0x2a, u8:0x90, u8:0x88,
-    u8:0x46, u8:0xee, u8:0xb8, u8:0x14, u8:0xde, u8:0x5a, u8:0x0b, u8:0xdb,
+    u8:0x46, u8:0xee, u8:0xb8, u8:0x14, u8:0xde, u8:0x5e, u8:0x0b, u8:0xdb,
     u8:0xe0, u8:0x32, u8:0x3a, u8:0x0a, u8:0x49, u8:0x06, u8:0x24, u8:0x5c,
     u8:0xc2, u8:0xd3, u8:0xac, u8:0x62, u8:0x91, u8:0x95, u8:0xe4, u8:0x79,
     u8:0xe7, u8:0xc8, u8:0x37, u8:0x6d, u8:0x8d, u8:0xd5, u8:0x4e, u8:0xa9,
@@ -76,13 +81,27 @@ pub fn bytes_to_key(bytes: u8[16]) -> Key {
          bytes[12] ++ bytes[13] ++ bytes[14] ++ bytes[15]]
 }
 
+fn trace_block(block: Block) {
+    let bytes0 = block[0];
+    let bytes1 = block[1];
+    let bytes2 = block[2];
+    let bytes3 = block[3];
+    let _ = trace_fmt!(
+        "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
+        bytes0[0], bytes0[1], bytes0[2], bytes0[3],
+        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
+        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
+        bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
+    ()
+}
+
 fn trace_key(key: Key) {
     let bytes0 = key[0] as u8[4];
     let bytes1 = key[1] as u8[4];
     let bytes2 = key[2] as u8[4];
     let bytes3 = key[3] as u8[4];
     let _ = trace_fmt!(
-        "{:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x} {:x}",
+        "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
         bytes0[0], bytes0[1], bytes0[2], bytes0[3],
         bytes1[0], bytes1[1], bytes1[2], bytes1[3],
         bytes2[0], bytes2[1], bytes2[2], bytes2[3],
@@ -305,4 +324,48 @@ fn test_mix_columns() {
         [u8:0xe4, u8:0xe0, u8:0x5a, u8:0xcd],
     ];
     assert_eq(mix_columns(input), expected)
+}
+
+// Performs AES encryption of the given block. Features such as GCM or CBC mode
+// additions would be performed outside this core routine itself.
+pub fn aes_encrypt(key: Key, block: Block) -> Block {
+    let round_keys = create_key_schedule(key);
+    let block = add_round_key(block, round_keys[0]);
+
+    let block = for (i, block): (u32, State) in range(u32:1, u32:10) {
+        let block = sub_bytes(block);
+        let block = shift_rows(block);
+        let block = mix_columns(block);
+        let block = add_round_key(block, round_keys[i]);
+        block
+    }(block);
+    let block = sub_bytes(block);
+    let block = shift_rows(block);
+    let block = add_round_key(block, round_keys[10]);
+    block
+}
+
+#![test]
+fn test_aes_encrypt() {
+    let input = Block:[
+        [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
+        [u8:0x4, u8:0x5, u8:0x6, u8:0x7],
+        [u8:0x8, u8:0x9, u8:0xa, u8:0xb],
+        [u8:0xc, u8:0xd, u8:0xe, u8:0xf],
+    ];
+    let key = Key:[
+        u8:0x0 ++ u8:0x1 ++ u8:0x2 ++ u8:0x3,
+        u8:0x4 ++ u8:0x5 ++ u8:0x6 ++ u8:0x7,
+        u8:0x8 ++ u8:0x9 ++ u8:0xa ++ u8:0xb,
+        u8:0xc ++ u8:0xd ++ u8:0xe ++ u8:0xf,
+    ];
+    let expected = Block:[
+        u8[4]:[u8:0x0a, u8:0x94, u8:0x0b, u8:0xb5],
+        u8[4]:[u8:0x41, u8:0x6e, u8:0xf0, u8:0x45],
+        u8[4]:[u8:0xf1, u8:0xc3, u8:0x94, u8:0x58],
+        u8[4]:[u8:0xc6, u8:0x53, u8:0xea, u8:0x5a],
+    ];
+    let actual = aes_encrypt(key, input);
+    let _ = trace_block(actual);
+    assert_eq(actual, expected)
 }
