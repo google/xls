@@ -165,21 +165,106 @@ absl::StatusOr<DelayMap> ComputeNodeDelays(
   return result;
 }
 
-// Compute Critical Combinational Path's delay between any pair of nodes.
+// Returns the minimal set of schedule constraints which ensure that no
+// combinational path in the schedule exceeds `clock_period_ps`. The returned
+// map has a (potentially empty) vector entry for each node in `f`. The map
+// value (vector of nodes) for node `x` is the set of nodes which must be
+// scheduled at least one cycle later than `x`. That is, if `return_value[x]` is
+// `S` then:
 //
-// The result maps a path's `(src, dst)` pair to the path's combinational delay.
-absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>>
-ComputeCriticalCombinationalPaths(FunctionBase* f, const DelayMap& delay_map) {
-  GraphContraction<Node*, int64_t, absl::monostate> graph;
+//   cycle(i) + 1 >= cycle(x) for i \in S
+//
+// The set of constraints is a minimal set which guarantees that no
+// combinational path violates the clock period timing. Specifically, `(a, b)`
+// is in the set of returned constraints (ie., `return_value[a]` contains `b`)
+// iff critical-path distance from `a` to `b` including the delay of `a` and `b`
+// is greater than `critical_path_period`, but the critical-path distance of the
+// path *not* including the delay of `b` is *less than* `critical_path_period`.
+absl::flat_hash_map<Node*, std::vector<Node*>>
+ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
+                                     const DelayMap& delay_map) {
+  absl::flat_hash_map<Node*, std::vector<Node*>> result;
+  result.reserve(f->node_count());
+
+  // Compute all-pairs longest distance between all nodes in `f`. The distance
+  // from node `a` to node `b` is defined as the length of the longest delay
+  // path from `a` to `b` which includes the delay of the path endpoints `a` and
+  // `b`. The all-pairs distance is stored in the map of vectors `node_to_index`
+  // where `node_to_index[y]` holds the critical-path distances from each node
+  // `x` to `y`.
+  absl::flat_hash_map<Node*, std::vector<int64_t>> distances_to_node;
+  distances_to_node.reserve(f->node_count());
+
+  // Compute a map from Node* to the interval [0, node_count). These map values
+  // serve as indices into a flat vector of distances.
+  absl::flat_hash_map<Node*, int32_t> node_to_index;
+  std::vector<Node*> index_to_node(f->node_count());
+  node_to_index.reserve(f->node_count());
+  int32_t index = 0;
   for (Node* node : f->nodes()) {
-    graph.AddVertex(node, delay_map.at(node));
+    node_to_index[node] = index;
+    index_to_node[index] = node;
+    index++;
+
+    // Initialize the constraint map entry to an empty vector.
+    result[node];
   }
-  for (Node* node : f->nodes()) {
-    for (Node* child : node->operands()) {
-      graph.AddEdge(child, node, absl::monostate());
+
+  for (Node* node : TopoSort(f)) {
+    int64_t node_index = node_to_index.at(node);
+    int64_t node_delay = delay_map.at(node);
+    std::vector<int64_t> distances = std::vector<int64_t>(f->node_count(), -1);
+
+    // Compute the critical-path distance from `a` to `node` for all nodes `a`
+    // from the distances of `a` to each operand of `node`.
+    for (int64_t operand_i = 0; operand_i < node->operand_count();
+         ++operand_i) {
+      Node* operand = node->operand(operand_i);
+      const std::vector<int64_t>& distances_to_operand =
+          distances_to_node.at(operand);
+      for (int64_t i = 0; i < f->node_count(); ++i) {
+        int64_t operand_distance = distances_to_operand[i];
+        if (operand_distance != -1) {
+          if (distances[i] < operand_distance + node_delay) {
+            distances[i] = operand_distance + node_delay;
+            // Only add a constraint if the delay of `node` results in the
+            // length of the critical-path crossing the `clock_period_ps`
+            // boundary.
+            if (operand_distance <= clock_period_ps &&
+                operand_distance + node_delay > clock_period_ps) {
+              result[index_to_node[i]].push_back(node);
+            }
+          }
+        }
+      }
+    }
+
+    distances[node_index] = node_delay;
+    distances_to_node[node] = std::move(distances);
+  }
+
+  if (XLS_VLOG_IS_ON(3)) {
+    XLS_VLOG(3) << "All-pairs critical-path distances:";
+    for (Node* target : TopoSort(f)) {
+      XLS_VLOG(3) << absl::StrFormat("  distances to %s:", target->GetName());
+      for (int64_t i = 0; i < f->node_count(); ++i) {
+        Node* source = index_to_node[i];
+        XLS_VLOG(3) << absl::StrFormat(
+            "    %s -> %s : %s", source->GetName(), target->GetName(),
+            distances_to_node[target][i] == -1
+                ? "(none)"
+                : absl::StrCat(distances_to_node[target][i]));
+      }
+    }
+    XLS_VLOG(3) << absl::StrFormat("Constraints (clock period: %dps):",
+                                   clock_period_ps);
+    for (Node* node : TopoSort(f)) {
+      XLS_VLOG(3) << absl::StrFormat(
+          "  %s: [%s]", node->GetName(),
+          absl::StrJoin(result.at(node), ", ", NodeFormatter));
     }
   }
-  return graph.LongestNodePaths().value();
+  return result;
 }
 
 // Schedule to minimize the total pipeline registers using SDC scheduling
@@ -313,20 +398,16 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
   }
 
   XLS_ASSIGN_OR_RETURN(auto delay_map, ComputeNodeDelays(f, delay_estimator));
-  absl::flat_hash_map<Node*, absl::flat_hash_map<Node*, int64_t>> ccp =
-      ComputeCriticalCombinationalPaths(f, delay_map);
+  absl::flat_hash_map<Node*, std::vector<Node*>> delay_constraints =
+      ComputeCombinationalDelayConstraints(f, clock_period_ps, delay_map);
   for (Node* source : f->nodes()) {
-    absl::flat_hash_map<Node*, int64_t> targets = ccp.at(source);
-    absl::btree_map<Node*, int64_t, Node::NodeIdLessThan> targets_deterministic(
-        targets.begin(), targets.end());
-    for (const auto& [target, delay] : targets_deterministic) {
-      if (delay > clock_period_ps) {
-        or_tools::MPConstraint* timing = solver->MakeRowConstraint(1, infinity);
-        timing->SetCoefficient(cycle_var[target], 1);
-        timing->SetCoefficient(cycle_var[source], -1);
-      }
+    for (Node* target : delay_constraints.at(source)) {
+      or_tools::MPConstraint* timing = solver->MakeRowConstraint(1, infinity);
+      timing->SetCoefficient(cycle_var[target], 1);
+      timing->SetCoefficient(cycle_var[source], -1);
     }
   }
+
   or_tools::MPObjective* objective = solver->MutableObjective();
   for (Node* node : f->nodes()) {
     // This acts as a tie-breaker for underconstrained problems.
