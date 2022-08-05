@@ -18,9 +18,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ir_converter.h"
@@ -65,7 +65,7 @@ absl::StatusOr<Value> JitChannelQueueWrapper::Dequeue() {
   return jit_->runtime()->UnpackBuffer(buffer_.data(), type_);
 }
 
-absl::Status JitChannelQueueWrapper::EnqueueWithUint64(int64_t v) {
+absl::Status JitChannelQueueWrapper::EnqueueWithUint64(uint64_t v) {
   if (!type_->IsBits()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Queue id=%d has non-Bits-typed type: %s",
@@ -83,7 +83,7 @@ absl::Status JitChannelQueueWrapper::EnqueueWithUint64(int64_t v) {
   return Enqueue(xls_v);
 }
 
-absl::StatusOr<int64_t> JitChannelQueueWrapper::DequeueWithUint64() {
+absl::StatusOr<uint64_t> JitChannelQueueWrapper::DequeueWithUint64() {
   XLS_ASSIGN_OR_RETURN(Value xls_v, Dequeue());
 
   if (!xls_v.IsBits()) {
@@ -93,6 +93,16 @@ absl::StatusOr<int64_t> JitChannelQueueWrapper::DequeueWithUint64() {
   }
 
   return xls_v.bits().ToUint64();
+}
+
+absl::Status JitChannelQueueWrapper::Enqueue(absl::Span<uint8_t> buffer) {
+  queue_->Send(buffer.data(), buffer.size());
+  return absl::OkStatus();
+}
+
+absl::Status JitChannelQueueWrapper::Dequeue(absl::Span<uint8_t> buffer) {
+  queue_->Recv(buffer.data(), buffer.size());
+  return absl::OkStatus();
 }
 
 absl::StatusOr<dslx::Module*> IrWrapper::GetDslxModule(

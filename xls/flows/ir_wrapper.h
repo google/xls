@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "absl/types/span.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
@@ -52,10 +53,19 @@ class JitChannelQueueWrapper {
   absl::StatusOr<Value> Dequeue();
 
   // Convenience function to enqueue uint64.
-  absl::Status EnqueueWithUint64(int64_t v);
+  absl::Status EnqueueWithUint64(uint64_t v);
 
   // Convenience function to dequeue uint64.
-  absl::StatusOr<int64_t> DequeueWithUint64();
+  absl::StatusOr<uint64_t> DequeueWithUint64();
+
+  // Return the buffer of the instance.
+  absl::Span<uint8_t> buffer() { return absl::MakeSpan(buffer_); }
+
+  // Enqueue the buffer on the channel.
+  absl::Status Enqueue(absl::Span<uint8_t> buffer);
+
+  // Dequeue the content of the channel in the buffer.
+  absl::Status Dequeue(absl::Span<uint8_t> buffer);
 
  private:
   // Pointer to the jit.

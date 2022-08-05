@@ -14,6 +14,7 @@
 
 #include "xls/flows/ir_wrapper.h"
 
+#include <cstdint>
 #include <utility>
 
 #include "gmock/gmock.h"
@@ -24,6 +25,7 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/ir/value_view.h"
 
 namespace xls {
 namespace {
@@ -162,6 +164,7 @@ proc __top__foo_0_next(__token: token, init={}) {
                            ir_wrapper.CreateJitChannelQueueWrapper(
                                "foo_0_chandecl_top_module_x_5_48_5_68", jit));
 
+  // Send data.
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
   EXPECT_TRUE(out.Empty());
@@ -181,6 +184,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_TRUE(in_1.Empty());
   EXPECT_FALSE(out.Empty());
 
+  // Receive data.
   XLS_ASSERT_OK_AND_ASSIGN(uint64_t out_value, out.DequeueWithUint64());
 
   EXPECT_TRUE(in_0.Empty());
@@ -188,6 +192,38 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_TRUE(out.Empty());
 
   EXPECT_EQ(out_value, 30);
+
+  // Send data.
+  absl::Span<uint8_t> in_0_buffer = in_0.buffer();
+  absl::Span<uint8_t> in_1_buffer = in_1.buffer();
+  using MutableInt32View = MutableBitsView<32>;
+  auto in0_data = MutableInt32View(in_0_buffer.data());
+  in0_data.SetValue(20);
+  auto in1_data = MutableInt32View(in_1_buffer.data());
+  in1_data.SetValue(20);
+  XLS_ASSERT_OK(in_0.Enqueue(in_0_buffer));
+  XLS_ASSERT_OK(in_1.Enqueue(in_1_buffer));
+
+  EXPECT_FALSE(in_0.Empty());
+  EXPECT_FALSE(in_1.Empty());
+
+  // Run one tick
+  XLS_ASSERT_OK_AND_ASSIGN(next_state, DropInterpreterEvents(jit->Run({})));
+
+  EXPECT_TRUE(in_0.Empty());
+  EXPECT_TRUE(in_1.Empty());
+  EXPECT_FALSE(out.Empty());
+
+  // Receive data.
+  absl::Span<uint8_t> out_buffer = out.buffer();
+  XLS_ASSERT_OK(out.Dequeue(out_buffer));
+
+  EXPECT_TRUE(out.Empty());
+
+  auto out_data = MutableInt32View(out_buffer.data());
+  out_value = out_data.GetValue();
+
+  EXPECT_EQ(out_value, 40);
 }
 
 }  // namespace

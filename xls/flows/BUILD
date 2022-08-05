@@ -22,8 +22,10 @@ cc_library(
     srcs = ["ir_wrapper.cc"],
     hdrs = ["ir_wrapper.h"],
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -54,6 +56,7 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/common/status:status_macros",
         "//xls/dslx:parse_and_typecheck",
+        "//xls/ir:value_view",
         "@com_google_googletest//:gtest",
     ],
 )
