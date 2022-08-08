@@ -18,6 +18,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/strings/string_view.h"
 #include "xls/ir/function_base.h"
+#include "xls/ir/node.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
 
@@ -80,6 +81,10 @@ class Proc : public FunctionBase {
 
   // Sets the next token value.
   absl::Status SetNextToken(Node* next);
+
+  // Sets the next token value of the proc to the existing next token value
+  // joined with `tokens` using an after all node.
+  absl::Status JoinNextTokenWith(absl::Span<Node* const> tokens);
 
   // Sets the next recurrent state value for the state element of the given
   // index. Node type must match the type of the state element.

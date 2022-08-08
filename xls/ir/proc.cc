@@ -17,9 +17,6 @@
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
-#include "xls/ir/channel.h"
-#include "xls/ir/function.h"
-#include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/value_helpers.h"
 
@@ -85,6 +82,28 @@ absl::Status Proc::SetNextToken(Node* next) {
         next->GetName(), next->GetType()->ToString()));
   }
   next_token_ = next;
+  return absl::OkStatus();
+}
+
+absl::Status Proc::JoinNextTokenWith(absl::Span<Node* const> tokens) {
+  std::vector<Node*> operands;
+  if (NextToken()->Is<AfterAll>()) {
+    operands.insert(operands.end(), NextToken()->operands().begin(),
+                    NextToken()->operands().end());
+  } else {
+    operands.push_back(NextToken());
+  }
+  operands.insert(operands.end(), tokens.begin(), tokens.end());
+  if (operands.size() == 1) {
+    return SetNextToken(operands.front());
+  }
+  XLS_ASSIGN_OR_RETURN(Node * next,
+                       MakeNode<AfterAll>(NextToken()->loc(), operands));
+  Node* old_next = NextToken();
+  XLS_RETURN_IF_ERROR(SetNextToken(next));
+  if (old_next->Is<AfterAll>() && old_next->users().empty()) {
+    XLS_RETURN_IF_ERROR(RemoveNode(old_next));
+  }
   return absl::OkStatus();
 }
 

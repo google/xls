@@ -290,5 +290,37 @@ TEST_F(ProcTest, Clone) {
 )");
 }
 
+TEST_F(ProcTest, JoinNextTokenWith) {
+  auto p = CreatePackage();
+  ProcBuilder pb("p", "tkn", p.get());
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(pb.GetTokenParam(), {}));
+  EXPECT_EQ(proc->node_count(), 1);
+  EXPECT_THAT(proc->NextToken(), m::Param());
+
+  XLS_ASSERT_OK(proc->JoinNextTokenWith({}));
+  EXPECT_EQ(proc->node_count(), 1);
+  EXPECT_THAT(proc->NextToken(), m::Param());
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * tkn_a, proc->MakeNodeWithName<UnOp>(
+                        SourceInfo(), proc->TokenParam(), Op::kIdentity, "a"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * tkn_b, proc->MakeNodeWithName<UnOp>(
+                        SourceInfo(), proc->TokenParam(), Op::kIdentity, "b"));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Node * tkn_c, proc->MakeNodeWithName<UnOp>(
+                        SourceInfo(), proc->TokenParam(), Op::kIdentity, "c"));
+
+  EXPECT_EQ(proc->node_count(), 4);
+  XLS_ASSERT_OK(proc->JoinNextTokenWith({tkn_a}));
+  EXPECT_EQ(proc->node_count(), 5);
+  EXPECT_THAT(proc->NextToken(), m::AfterAll(m::Param(), m::Name("a")));
+
+  XLS_ASSERT_OK(proc->JoinNextTokenWith({tkn_b, tkn_c}));
+  EXPECT_EQ(proc->node_count(), 5);
+  EXPECT_THAT(proc->NextToken(), m::AfterAll(m::Param(), m::Name("a"),
+                                             m::Name("b"), m::Name("c")));
+}
+
 }  // namespace
 }  // namespace xls

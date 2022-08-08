@@ -87,6 +87,18 @@ absl::StatusOr<Node*> AndNot(
   return And(a, not_b, name);
 }
 
+// Replace uses of `node` with `node || pred`.
+absl::StatusOr<Node*> OrWithPredicate(Node* node, Node* pred) {
+  std::vector<Node*> orig_users(node->users().begin(), node->users().end());
+  XLS_ASSIGN_OR_RETURN(
+      Node * new_or, node->function_base()->MakeNode<NaryOp>(
+                         node->loc(), std::vector<Node*>{node, pred}, Op::kOr));
+  for (Node* user : orig_users) {
+    user->ReplaceOperand(node, new_or);
+  }
+  return new_or;
+}
+
 // Adds the given predicate to the send. If the send already has a predicate
 // then the new predicate will be `old_predicate` AND `predicate`, otherwise the
 // send is replaced with a new send with `predicate` as the predicate.
@@ -218,16 +230,17 @@ class VirtualChannel {
                          proc->MakeNodeWithName<Literal>(
                              SourceInfo(), ZeroOfType(channel->type()),
                              absl::StrFormat("%s_data_in", channel->name())));
+    vc.is_send_attached_ = false;
     XLS_ASSIGN_OR_RETURN(
-        vc.send_fired_in_,
+        vc.any_send_fired_,
         proc->MakeNodeWithName<Literal>(
             SourceInfo(), Value(UBits(0, 1)),
-            absl::StrFormat("%s_send_fired_in", channel->name())));
+            absl::StrFormat("%s_send_fired", channel->name())));
     XLS_ASSIGN_OR_RETURN(
-        vc.receive_fired_in_,
+        vc.any_receive_fired_,
         proc->MakeNodeWithName<Literal>(
             SourceInfo(), Value(UBits(0, 1)),
-            absl::StrFormat("%s_receive_fired_in", channel->name())));
+            absl::StrFormat("%s_any_receive_fired_in", channel->name())));
 
     if (channel->kind() == ChannelKind::kStreaming) {
       StreamingChannel* streaming_channel =
@@ -259,7 +272,7 @@ class VirtualChannel {
         XLS_ASSIGN_OR_RETURN(
             Node * data_next,
             proc->MakeNodeWithName<Select>(
-                SourceInfo(), /*selector=*/vc.send_fired_in_, /*cases=*/
+                SourceInfo(), /*selector=*/vc.any_send_fired_, /*cases=*/
                 std::vector<Node*>{vc.saved_data_->GetState(), vc.data_in_},
                 /*default_case=*/absl::nullopt,
                 absl::StrFormat("%s_data_next", channel->name())));
@@ -283,12 +296,12 @@ class VirtualChannel {
         //                    (send || data_valid) && !receive
         XLS_ASSIGN_OR_RETURN(
             Node * send_and_valid,
-            And(vc.GetSendFiredIn(), vc.saved_data_valid_->GetState()));
+            And(vc.GetSendFiredInput(), vc.saved_data_valid_->GetState()));
         XLS_ASSIGN_OR_RETURN(
             Node * send_or_valid,
-            Or(vc.GetSendFiredIn(), vc.saved_data_valid_->GetState()));
+            Or(vc.GetSendFiredInput(), vc.saved_data_valid_->GetState()));
         XLS_ASSIGN_OR_RETURN(Node * tmp,
-                             AndNot(send_or_valid, vc.GetReceiveFiredIn()));
+                             AndNot(send_or_valid, vc.GetReceiveFiredInput()));
         XLS_ASSIGN_OR_RETURN(
             Node * valid_next,
             Or(send_and_valid, tmp,
@@ -297,7 +310,7 @@ class VirtualChannel {
 
         XLS_ASSIGN_OR_RETURN(
             vc.valid_out_,
-            Or(vc.send_fired_in_, vc.saved_data_valid_->GetState(),
+            Or(vc.any_send_fired_, vc.saved_data_valid_->GetState(),
                absl::StrFormat("%s_valid", channel->name())));
       } else {
         // For FIFO depth 0, just pass data through from `data_in` to
@@ -308,7 +321,7 @@ class VirtualChannel {
                      absl::StrFormat("%s_data_out", channel->name())));
         XLS_ASSIGN_OR_RETURN(
             vc.valid_out_,
-            Identity(vc.send_fired_in_,
+            Identity(vc.any_send_fired_,
                      absl::StrFormat("%s_valid", channel->name())));
       }
     } else {
@@ -328,30 +341,92 @@ class VirtualChannel {
 
   Channel* GetChannel() const { return channel_; }
 
-  // Set various inputs to the virtual channel to the given node.
-  absl::Status SetDataIn(Node* node) {
-    XLS_RETURN_IF_ERROR(data_in_->ReplaceUsesWith(node));
-    data_in_ = node;
+  // Attaches a send operation to this virtual channel. `data` is the data to be
+  // sent on the channel, and `send_fired` is the signal that the send occured
+  // (activated and predicate (if any) is true).
+  absl::Status AttachSend(Node* data, Node* send_fired) {
+    if (!is_send_attached_) {
+      // No send has been attached to the virtual channel. Connect the send data
+      // to the data input.
+      XLS_RETURN_IF_ERROR(data_in_->ReplaceUsesWith(data));
+      data_in_ = data;
+
+      XLS_RETURN_IF_ERROR(any_send_fired_->ReplaceUsesWith(send_fired));
+      any_send_fired_ = send_fired;
+    } else {
+      // One or more sends have already been attached, add a select operation to
+      // conditionally select this send's data as the channel data.
+      XLS_ASSIGN_OR_RETURN(Node * select,
+                           data->function_base()->MakeNode<Select>(
+                               data->loc(), /*selector=*/send_fired, /*cases=*/
+                               std::vector<Node*>{data_in_, data},
+                               /*default_case=*/absl::nullopt));
+      XLS_RETURN_IF_ERROR(data_in_->ReplaceUsesWith(select));
+      data_in_ = select;
+
+      XLS_ASSIGN_OR_RETURN(any_send_fired_,
+                           OrWithPredicate(any_send_fired_, send_fired));
+    }
+    is_send_attached_ = true;
     return absl::OkStatus();
   }
 
-  // Get/set the virtual channel input indicating that the associated send has
-  // fired.
-  absl::Status SetSendFiredIn(Node* node) {
-    XLS_RETURN_IF_ERROR(send_fired_in_->ReplaceUsesWith(node));
-    send_fired_in_ = node;
+  // Attaches a receive operation to this virtual channel. `receive_fired` is
+  // the signal that the receive occured (activated and predicate (if any) is
+  // true).
+  absl::Status AttachReceive(Node* receive_fired) {
+    XLS_ASSIGN_OR_RETURN(any_receive_fired_,
+                         OrWithPredicate(any_receive_fired_, receive_fired));
     return absl::OkStatus();
   }
-  Node* GetSendFiredIn() const { return send_fired_in_; }
 
-  // Get/set the virtual channel input indicating that the associated receive
-  // has fired.
-  absl::Status SetReceiveFiredIn(Node* node) {
-    XLS_RETURN_IF_ERROR(receive_fired_in_->ReplaceUsesWith(node));
-    receive_fired_in_ = node;
-    return absl::OkStatus();
+  // Add a kAssert operation which fires if data is lost.
+  absl::StatusOr<Node*> AddDataLossAssertion(Node* token) {
+    if (channel_->kind() != ChannelKind::kStreaming) {
+      return token;
+    }
+    // For streaming channels which add an assert which fires if data is
+    // dropped. There are two different cases:
+    //
+    //  Stateless channel (fifo-depth 0): data loss if send fired but receive
+    //    did not.
+    //
+    //  Stateful channel (fifo-depth 1): data loss if send fired and channel has
+    //    data but receive did not fire.
+    StreamingChannel* streaming_channel =
+        down_cast<StreamingChannel*>(channel_);
+    XLS_RET_CHECK(streaming_channel->GetFifoDepth().has_value());
+    XLS_RET_CHECK_LE(streaming_channel->GetFifoDepth().value(), 1);
+    Node* data_loss;
+    if (streaming_channel->GetFifoDepth().value() == 0) {
+      XLS_ASSIGN_OR_RETURN(
+          data_loss, AndNot(GetValidOut(), GetReceiveFiredInput(),
+                            absl::StrFormat("%s_data_loss", channel_->name())));
+    } else {
+      // FIFO depth 1.
+      XLS_ASSIGN_OR_RETURN(
+          Node * send_fired_and_channel_has_data,
+          And(GetSendFiredInput(), ChannelValidState()->GetState()));
+      XLS_ASSIGN_OR_RETURN(
+          data_loss,
+          AndNot(send_fired_and_channel_has_data, GetReceiveFiredInput(),
+                 absl::StrFormat("%s_data_loss", channel_->name())));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        Node * no_data_loss,
+        Not(data_loss, absl::StrFormat("%s_no_data_loss", channel_->name())));
+    return data_in_->function_base()->MakeNode<Assert>(
+        SourceInfo(), token, no_data_loss,
+        /*message=*/
+        absl::StrFormat("Channel %s lost data, send fired but receive did not",
+                        channel_->name()),
+        /*label=*/
+        absl::StrFormat("%s_data_loss_assert", channel_->name()));
   }
-  Node* GetReceiveFiredIn() const { return receive_fired_in_; }
+
+  // Returns the signal indicating whether any send/receive fired this tick.
+  Node* GetSendFiredInput() const { return any_send_fired_; }
+  Node* GetReceiveFiredInput() const { return any_receive_fired_; }
 
   // Returns various outputs from the virtual channel.
   Node* GetDataOut() const { return data_out_; }
@@ -367,10 +442,16 @@ class VirtualChannel {
  private:
   Channel* channel_;
 
-  // Inputs to the virtual channel.
+  // Data input to the virtual channel.
   Node* data_in_;
-  Node* send_fired_in_;
-  Node* receive_fired_in_;
+
+  // Whether any of the send/receive operations attached to this channel have
+  // fired.
+  Node* any_send_fired_;
+  Node* any_receive_fired_;
+
+  // Whether a send operation has been attached to the virtual channel.
+  bool is_send_attached_;
 
   // Outputs of the virtual channel.
   Node* data_out_;
@@ -1242,8 +1323,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualSend(
         send_fired, Identity(activation_in, absl::StrFormat("%s_send_fired",
                                                             channel->name())));
   }
-  XLS_RETURN_IF_ERROR(virtual_channel.SetDataIn(send->data()));
-  XLS_RETURN_IF_ERROR(virtual_channel.SetSendFiredIn(send_fired));
+  XLS_RETURN_IF_ERROR(virtual_channel.AttachSend(send->data(), send_fired));
 
   XLS_RETURN_IF_ERROR(send->ReplaceUsesWith(send->token()));
   return send->token();
@@ -1292,7 +1372,7 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
         Identity(activation_node->activation_out,
                  absl::StrFormat("%s_receive_fired", channel->name())));
   }
-  XLS_RETURN_IF_ERROR(virtual_channel.SetReceiveFiredIn(receive_fired));
+  XLS_RETURN_IF_ERROR(virtual_channel.AttachReceive(receive_fired));
   XLS_RETURN_IF_ERROR(SetStallCondition(activation_node, stall));
 
   // If the receive has not fired, the data value presented to uses of the
@@ -1312,57 +1392,12 @@ absl::StatusOr<Node*> ProcThread::CreateVirtualReceive(
                        /*default_case=*/absl::nullopt,
                        absl::StrFormat("%s_receive_data", channel->name())));
 
-  Node* token = receive->token();
-
-  // For streaming channels which send actual data (e.g., not an empty tuples),
-  // add an assert which fires if data is dropped. There are two different
-  // cases:
-  //
-  //  Stateless channel (fifo-depth 0): data loss if send fired but receive did
-  //    not.
-  //
-  //  Stateful channel (fifo-depth 1): data loss if send fired and channel has
-  //    data but receive did not fire.
-  if (channel->kind() == ChannelKind::kStreaming &&
-      channel->type()->GetFlatBitCount() > 0) {
-    StreamingChannel* streaming_channel = down_cast<StreamingChannel*>(channel);
-    XLS_RET_CHECK(streaming_channel->GetFifoDepth().has_value());
-    XLS_RET_CHECK_LE(streaming_channel->GetFifoDepth().value(), 1);
-    Node* data_loss;
-    if (streaming_channel->GetFifoDepth().value() == 0) {
-      XLS_ASSIGN_OR_RETURN(
-          data_loss, AndNot(virtual_channel.GetValidOut(), receive_fired,
-                            absl::StrFormat("%s_data_loss", channel->name())));
-    } else {
-      // FIFO depth 1.
-      XLS_ASSIGN_OR_RETURN(
-          Node * send_fired_and_channel_has_data,
-          And(virtual_channel.GetSendFiredIn(),
-              virtual_channel.ChannelValidState()->GetState()));
-      XLS_ASSIGN_OR_RETURN(
-          data_loss, AndNot(send_fired_and_channel_has_data, receive_fired,
-                            absl::StrFormat("%s_data_loss", channel->name())));
-    }
-    XLS_ASSIGN_OR_RETURN(
-        Node * no_data_loss,
-        Not(data_loss, absl::StrFormat("%s_no_data_loss", channel->name())));
-    XLS_ASSIGN_OR_RETURN(
-        Node * assert_no_data_loss,
-        container_proc_->MakeNode<Assert>(
-            SourceInfo(), token, no_data_loss,
-            /*message=*/
-            absl::StrFormat(
-                "Channel %s lost data, send fired but receive did not",
-                channel->name()),
-            /*label=*/
-            absl::StrFormat("%s_data_loss_assert", channel->name())));
-    token = assert_no_data_loss;
-  }
   // The output of a receive operation is a tuple of (token, data).
-  XLS_ASSIGN_OR_RETURN(Node * result,
-                       container_proc_->MakeNodeWithName<Tuple>(
-                           SourceInfo(), std::vector<Node*>{token, data},
-                           absl::StrFormat("%s_receive", channel->name())));
+  XLS_ASSIGN_OR_RETURN(
+      Node * result,
+      container_proc_->MakeNodeWithName<Tuple>(
+          SourceInfo(), std::vector<Node*>{receive->token(), data},
+          absl::StrFormat("%s_receive", channel->name())));
   XLS_RETURN_IF_ERROR(receive->ReplaceUsesWith(result));
 
   return result;
@@ -1501,28 +1536,9 @@ absl::StatusOr<ProcThread> InlineProcAsProcThread(
   XLS_RETURN_IF_ERROR(proc_thread.SetNextState(next_state));
 
   // Wire in the next-token value from the inlined proc into the next-token of
-  // the container proc. Use an afterall to join the tokens. If the container
-  // proc next-token is already an afterall, replace it with an afterall with
-  // the inlined proc's cloned next-token added in.
-  Node* proc_next_token = node_map.at(proc_to_inline->NextToken());
-  if (container_proc->NextToken()->Is<AfterAll>()) {
-    std::vector<Node*> operands(container_proc->NextToken()->operands().begin(),
-                                container_proc->NextToken()->operands().end());
-    operands.push_back(proc_next_token);
-    Node* old_after_all = container_proc->NextToken();
-    XLS_RETURN_IF_ERROR(
-        old_after_all->ReplaceUsesWithNew<AfterAll>(operands).status());
-    XLS_RETURN_IF_ERROR(container_proc->RemoveNode(old_after_all));
-  } else if (container_proc->NextToken()->Is<Param>()) {
-    // This is the first proc inlined into container_proc.
-    XLS_RETURN_IF_ERROR(container_proc->SetNextToken(proc_next_token));
-  } else {
-    XLS_RETURN_IF_ERROR(container_proc->NextToken()
-                            ->ReplaceUsesWithNew<AfterAll>(std::vector<Node*>(
-                                {container_proc->NextToken(), proc_next_token}))
-                            .status());
-  }
-
+  // the container proc.
+  XLS_RETURN_IF_ERROR(container_proc->JoinNextTokenWith(
+      {node_map.at(proc_to_inline->NextToken())}));
   return std::move(proc_thread);
 }
 
@@ -1621,6 +1637,20 @@ absl::StatusOr<bool> ProcInliningPass::RunInternal(Package* p,
     for (const StateElement& state_element : proc_thread.GetStateElements()) {
       state_elements.push_back(state_element);
     }
+  }
+
+  // For each virtual channel, add an assertion which fires if data is dropped.
+  std::vector<Node*> assertion_tokens;
+  for (Channel* ch : p->channels()) {
+    if (virtual_channels.contains(ch)) {
+      XLS_ASSIGN_OR_RETURN(Node * assertion_token,
+                           virtual_channels.at(ch).AddDataLossAssertion(
+                               container_proc->TokenParam()));
+      assertion_tokens.push_back(assertion_token);
+    }
+  }
+  if (!assertion_tokens.empty()) {
+    XLS_RETURN_IF_ERROR(container_proc->JoinNextTokenWith(assertion_tokens));
   }
 
   XLS_RETURN_IF_ERROR(SetProcState(container_proc, state_elements));
