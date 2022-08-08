@@ -761,7 +761,7 @@ xls_ir_opt_ir(
     ...
 )
 
-xls_ir_cc_library(
+xls_ir_cc_library_macro(
     name = "foo_cc",
     src = ":foo.opt.ir",
     top = "bar",

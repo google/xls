@@ -216,7 +216,7 @@ def xls_ir_cc_library_macro(
         ...
     )
 
-    xls_ir_cc_library(
+    xls_ir_cc_library_macro(
         name = "foo_cc",
         src = ":foo.opt.ir",
         top = "bar",
