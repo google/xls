@@ -478,5 +478,135 @@ TEST(SerialProcRuntimeTest, StateReset) {
   EXPECT_THAT(get_output(), IsOkAndHolds(Value(SBits(14, 32))));
 }
 
+TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
+  Package package("test_proc");
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in0, package.CreateStreamingChannel(
+                                              "in0", ChannelOps::kReceiveOnly,
+                                              package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in1, package.CreateStreamingChannel(
+                                              "in1", ChannelOps::kReceiveOnly,
+                                              package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in2, package.CreateSingleValueChannel(
+                                              "in2", ChannelOps::kReceiveOnly,
+                                              package.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out0, package.CreateStreamingChannel(
+                                               "out0", ChannelOps::kSendOnly,
+                                               package.GetBitsType(32)));
+
+  ProcBuilder pb("nb_recv", /*token_name=*/"tok", &package);
+
+  BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, pb.GetTokenParam());
+  BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, pb.GetTokenParam());
+
+  BValue sum = pb.Literal(UBits(0, 32));
+
+  BValue in0_tok = pb.TupleIndex(in0_data_and_valid, 0);
+  BValue in0_data = pb.TupleIndex(in0_data_and_valid, 1);
+  BValue in0_valid = pb.TupleIndex(in0_data_and_valid, 2);
+  BValue add_sum_in0 = pb.Add(sum, in0_data);
+  BValue sum0 = pb.Select(in0_valid, {sum, add_sum_in0});
+
+  BValue in1_tok = pb.TupleIndex(in1_data_and_valid, 0);
+  BValue in1_data = pb.TupleIndex(in1_data_and_valid, 1);
+  BValue in1_valid = pb.TupleIndex(in1_data_and_valid, 2);
+  BValue add_sum0_in1 = pb.Add(sum0, in1_data);
+  BValue sum1 = pb.Select(in1_valid, {sum0, add_sum0_in1});
+
+  BValue in2_tok = pb.TupleIndex(in2_data_and_valid, 0);
+  BValue in2_data = pb.TupleIndex(in2_data_and_valid, 1);
+  BValue in2_valid = pb.TupleIndex(in2_data_and_valid, 2);
+  BValue add_sum1_in2 = pb.Add(sum1, in2_data);
+  BValue sum2 = pb.Select(in2_valid, {sum1, add_sum1_in2});
+
+  BValue after_in_tok = pb.AfterAll({in0_tok, in1_tok, in2_tok});
+  BValue tok_fin = pb.Send(out0, after_in_tok, sum2);
+
+  XLS_ASSERT_OK(pb.Build(tok_fin, {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
+
+  auto get_output = [&]() -> absl::StatusOr<Value> {
+    return runtime->DequeueValueFromChannel(out0);
+  };
+
+  // Initialize the single value queue.
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in2, Value(UBits(10, 32))));
+
+  // All other channels are non-blocking, so run even if the queues are empty.
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
+
+  // Run with only in1 (and in2) having data, followed by only in2 with data.
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(5, 32))));
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(7, 32))));
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(3, 32))));
+
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(15, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(17, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(13, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
+
+  // Run with only in0 (and in2) having data followed by only in2 with data.
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(7, 32))));
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(100, 32))));
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(13, 32))));
+
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(17, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(110, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(23, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
+
+  // Run with all channels having data.
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in0, Value(UBits(11, 32))));
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(22, 32))));
+
+  XLS_ASSERT_OK(runtime->Tick());
+
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(SBits(43, 32))));
+
+  // Try large numnbers in the channels.
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in0, Value(UBits(0xffffffff, 32))));
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in0, Value(UBits(0x0faabbcc, 32))));
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in0, Value(UBits(0xfffffff2, 32))));
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in0, Value(UBits(0xfffffff2, 32))));
+
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(0, 32))));
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in1, Value(UBits(0xf0000000, 32))));
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in1, Value(UBits(0x0000000e, 32))));
+  XLS_ASSERT_OK(
+      runtime->EnqueueValueToChannel(in1, Value(UBits(0x0000000f, 32))));
+
+  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in2, Value(UBits(0, 32))));
+
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+  XLS_ASSERT_OK(runtime->Tick());
+
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(0xffffffff, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(0xffaabbcc, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(0, 32))));
+  EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(1, 32))));
+}
+
 }  // namespace
 }  // namespace xls

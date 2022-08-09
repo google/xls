@@ -387,8 +387,10 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
   return absl::OkStatus();
 }
 
-void DummyRecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
-                 int64_t data_bytes, void* user_data) {}
+bool DummyRecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
+                 int64_t data_bytes, void* user_data) {
+  return true;
+}
 void DummySendFn(JitChannelQueue* queue, Send* send, uint8_t* data,
                  int64_t data_bytes, void* user_data) {}
 

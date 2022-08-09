@@ -578,6 +578,9 @@ OpClass.kinds['RECEIVE'] = OpClass(
                    Method(name='predicate',
                           return_cpp_type='absl::optional<Node*>',
                           expression='operand_count() > 1 ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
+                   Method(name='GetPayloadType',
+                          return_cpp_type='Type*',
+                          expression=None),
                    ],
     attributes=[Int64Attribute('channel_id'), BoolAttribute('is_blocking')],
     custom_clone_method=True

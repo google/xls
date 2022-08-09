@@ -70,9 +70,13 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
 // To implement Proc blocking receive semantics, RecvFn blocks if its associated
 // queue is empty. The main thread unblocks it periodically (by changing its
 // ThreadData::State) to try to receive again.
-void SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
+bool SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
                                uint8_t* data, int64_t data_bytes,
                                void* user_data) {
+  if (!recv->is_blocking()) {
+    return queue->Recv(data, data_bytes);
+  }
+
   ThreadData* thread_data = absl::bit_cast<ThreadData*>(user_data);
   absl::flat_hash_set<ThreadData::State> await_states(
       {ThreadData::State::kRunning, ThreadData::State::kCancelled});
@@ -80,13 +84,14 @@ void SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
   absl::MutexLock lock(&thread_data->mutex);
   while (queue->Empty()) {
     if (thread_data->thread_state == ThreadData::State::kCancelled) {
-      return;
+      return false;
     }
     thread_data->thread_state = ThreadData::State::kBlocked;
     thread_data->blocking_channel = queue->channel_id();
     AwaitState(thread_data, await_states);
   }
-  queue->Recv(data, data_bytes);
+
+  return queue->Recv(data, data_bytes);
 }
 
 void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send,

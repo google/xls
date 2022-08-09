@@ -58,7 +58,7 @@ class ProcJit {
   //  - data_sz is the size of the receive buffer.
   //  - user_data is an opaque pointer to user-provided data needed for
   //    processing, e.g., thread/queue info.
-  using RecvFnT = void (*)(JitChannelQueue*, Receive*, uint8_t*, int64_t,
+  using RecvFnT = bool (*)(JitChannelQueue*, Receive*, uint8_t*, int64_t,
                            void*);
   using SendFnT = void (*)(JitChannelQueue*, Send*, uint8_t*, int64_t, void*);
 

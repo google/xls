@@ -20,6 +20,8 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_test_base.h"
@@ -46,10 +48,10 @@ uint32_t DequeueData(JitChannelQueue* queue) {
 class ProcJitTest : public IrTestBase {};
 
 // Recv/Send functions for the "CanCompileProcs" test.
-void CanCompileProcs_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
+bool CanCompileProcs_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
                           uint8_t* data_ptr, int64_t data_sz, void* user_data) {
   JitChannelQueue* queue = absl::bit_cast<JitChannelQueue*>(queue_ptr);
-  queue->Recv(data_ptr, data_sz);
+  return queue->Recv(data_ptr, data_sz);
 }
 
 void CanCompileProcs_send(JitChannelQueue* queue_ptr, Send* send_ptr,
@@ -193,12 +195,12 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
 }
 
 // Recv/Send functions for the "GetsUserData" test.
-void GetsUserData_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
+bool GetsUserData_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
                        uint8_t* data_ptr, int64_t data_sz, void* user_data) {
   JitChannelQueue* queue = absl::bit_cast<JitChannelQueue*>(queue_ptr);
   uint64_t* int_data = absl::bit_cast<uint64_t*>(user_data);
   *int_data = *int_data * 2;
-  queue->Recv(data_ptr, data_sz);
+  return queue->Recv(data_ptr, data_sz);
 }
 
 void GetsUserData_send(JitChannelQueue* queue_ptr, Send* send_ptr,
@@ -423,6 +425,133 @@ TEST_F(ProcJitTest, MultistateProc) {
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 104);
 
   EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->Empty());
+}
+
+TEST_F(ProcJitTest, NonBlockingReceivesProc) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in0, package->CreateStreamingChannel(
+                                              "in0", ChannelOps::kReceiveOnly,
+                                              package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in1, package->CreateStreamingChannel(
+                                              "in1", ChannelOps::kReceiveOnly,
+                                              package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * in2, package->CreateSingleValueChannel(
+                                              "in2", ChannelOps::kReceiveOnly,
+                                              package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * out0, package->CreateStreamingChannel(
+                                               "out0", ChannelOps::kSendOnly,
+                                               package->GetBitsType(32)));
+
+  ProcBuilder pb("nb_recv", /*token_name=*/"tok", package.get());
+
+  BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+  BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, pb.GetTokenParam());
+  BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, pb.GetTokenParam());
+
+  BValue sum = pb.Literal(UBits(0, 32));
+
+  BValue in0_tok = pb.TupleIndex(in0_data_and_valid, 0);
+  BValue in0_data = pb.TupleIndex(in0_data_and_valid, 1);
+  BValue in0_valid = pb.TupleIndex(in0_data_and_valid, 2);
+  BValue add_sum_in0 = pb.Add(sum, in0_data);
+  BValue sum0 = pb.Select(in0_valid, {sum, add_sum_in0});
+
+  BValue in1_tok = pb.TupleIndex(in1_data_and_valid, 0);
+  BValue in1_data = pb.TupleIndex(in1_data_and_valid, 1);
+  BValue in1_valid = pb.TupleIndex(in1_data_and_valid, 2);
+  BValue add_sum0_in1 = pb.Add(sum0, in1_data);
+  BValue sum1 = pb.Select(in1_valid, {sum0, add_sum0_in1});
+
+  BValue in2_tok = pb.TupleIndex(in2_data_and_valid, 0);
+  BValue in2_data = pb.TupleIndex(in2_data_and_valid, 1);
+  BValue in2_valid = pb.TupleIndex(in2_data_and_valid, 2);
+  BValue add_sum1_in2 = pb.Add(sum1, in2_data);
+  BValue sum2 = pb.Select(in2_valid, {sum1, add_sum1_in2});
+
+  BValue after_in_tok = pb.AfterAll({in0_tok, in1_tok, in2_tok});
+  BValue tok_fin = pb.Send(out0, after_in_tok, sum2);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
+  XLS_VLOG_LINES(3, proc->DumpIr());
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
+                           JitChannelQueueManager::Create(package.get()));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
+                      CanCompileProcs_send));
+
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * in0_queue,
+                           queue_mgr->GetQueueById(in0->id()));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * in1_queue,
+                           queue_mgr->GetQueueById(in1->id()));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * in2_queue,
+                           queue_mgr->GetQueueById(in2->id()));
+  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * out0_queue,
+                           queue_mgr->GetQueueById(out0->id()));
+
+  // Initialize the single value queue.
+  EnqueueData(in2_queue, 10);
+
+  // All other channels are non-blocking, so run even if the queues are empty.
+  EXPECT_TRUE(in0_queue->Empty());
+  EXPECT_TRUE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_TRUE(out0_queue->Empty());
+  XLS_ASSERT_OK(jit->Run({}));
+  EXPECT_TRUE(in0_queue->Empty());
+  EXPECT_TRUE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_FALSE(out0_queue->Empty());
+
+  EXPECT_EQ(DequeueData(out0_queue), 10);
+
+  // Run with only in1 (and in2) having data.
+  EnqueueData(in1_queue, 5);
+
+  EXPECT_TRUE(in0_queue->Empty());
+  EXPECT_FALSE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_TRUE(out0_queue->Empty());
+  XLS_ASSERT_OK(jit->Run({}));
+  EXPECT_TRUE(in0_queue->Empty());
+  EXPECT_TRUE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_FALSE(out0_queue->Empty());
+
+  EXPECT_EQ(DequeueData(out0_queue), 15);
+
+  // Run with only in0 (and in2) having data.
+  EnqueueData(in0_queue, 7);
+
+  EXPECT_FALSE(in0_queue->Empty());
+  EXPECT_TRUE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_TRUE(out0_queue->Empty());
+  XLS_ASSERT_OK(jit->Run({}));
+  EXPECT_TRUE(in0_queue->Empty());
+  EXPECT_TRUE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_FALSE(out0_queue->Empty());
+
+  EXPECT_EQ(DequeueData(out0_queue), 17);
+
+  // Run with all channels having data.
+  EnqueueData(in0_queue, 11);
+  EnqueueData(in1_queue, 22);
+
+  EXPECT_FALSE(in0_queue->Empty());
+  EXPECT_FALSE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_TRUE(out0_queue->Empty());
+  XLS_ASSERT_OK(jit->Run({}));
+  EXPECT_TRUE(in0_queue->Empty());
+  EXPECT_TRUE(in1_queue->Empty());
+  EXPECT_FALSE(in2_queue->Empty());
+  EXPECT_FALSE(out0_queue->Empty());
+
+  EXPECT_EQ(DequeueData(out0_queue), 43);
 }
 
 }  // namespace

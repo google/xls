@@ -53,14 +53,18 @@ Type* GetMapType(Node* operand, Function* to_apply) {
                                  to_apply->return_value()->GetType());
 }
 
+Type* GetReceivePayloadType(Package* package, int64_t channel_id) {
+  return package->GetChannel(channel_id).value()->type();
+}
+
 Type* GetReceiveType(Package* package, int64_t channel_id, bool is_blocking) {
   if(is_blocking) {
     return package->GetTupleType({package->GetTokenType(),
-                             package->GetChannel(channel_id).value()->type()});
+                                  GetReceivePayloadType(package, channel_id)});
   }
 
   return package->GetTupleType({package->GetTokenType(),
-                           package->GetChannel(channel_id).value()->type(),
+                           GetReceivePayloadType(package, channel_id),
                            package->GetBitsType(1)});
 }
 
@@ -230,6 +234,10 @@ absl::StatusOr<Node*> Trace::CloneInNewFunction(
                                       new_operands.subspan(2),
                                       format(),
                                       name_);
+}
+
+Type* Receive::GetPayloadType() const {
+  return GetReceivePayloadType(function_base_->package(), channel_id_);
 }
 
 absl::StatusOr<Node*> Receive::CloneInNewFunction(

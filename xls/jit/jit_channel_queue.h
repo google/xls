@@ -42,7 +42,11 @@ class JitChannelQueue {
   virtual void Send(uint8_t* data, int64_t num_bytes) = 0;
 
   // Called to pull data off of this queue/FIFO.
-  virtual void Recv(uint8_t* buffer, int64_t num_bytes) = 0;
+  //  Returns
+  //   true : The queue is non-empty, and the data at queue front is copied
+  //          into buffer.
+  //   false: The queue is empty, and the buffer is untouched.
+  virtual bool Recv(uint8_t* buffer, int64_t num_bytes) = 0;
 
   virtual bool Empty() = 0;
 
@@ -74,11 +78,17 @@ class FifoJitChannelQueue : public JitChannelQueue {
     the_queue_.push_back(std::move(buffer));
   }
 
-  void Recv(uint8_t* buffer, int64_t num_bytes) override {
+  bool Recv(uint8_t* buffer, int64_t num_bytes) override {
     absl::MutexLock lock(&mutex_);
+
+    if (the_queue_.empty()) {
+      return false;
+    }
+
     memcpy(buffer, the_queue_.front().get(), num_bytes);
     buffer_pool_.push_back(std::move(the_queue_.front()));
     the_queue_.pop_front();
+    return true;
   }
 
   bool Empty() override {
@@ -116,16 +126,17 @@ class SingleValueJitChannelQueue : public JitChannelQueue {
     memcpy(buffer_.get(), data, num_bytes);
   }
 
-  virtual void Recv(uint8_t* buffer, int64_t num_bytes) {
+  virtual bool Recv(uint8_t* buffer, int64_t num_bytes) {
     absl::MutexLock lock(&mutex_);
     XLS_CHECK(buffer_ != nullptr);
     XLS_CHECK_EQ(buffer_size_, num_bytes);
     memcpy(buffer, buffer_.get(), num_bytes);
+    return true;
   }
 
   virtual bool Empty() {
     absl::MutexLock lock(&mutex_);
-    return buffer_ != nullptr;
+    return buffer_ == nullptr;
   }
 
  protected:

@@ -341,6 +341,8 @@ cc_test(
         ":proc_jit",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
         "//xls/common/status:matchers",
         "//xls/ir",
         "//xls/ir:function_builder",

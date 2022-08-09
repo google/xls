@@ -232,9 +232,9 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
 namespace {
 
 // Recv/Send functions for the JIT proc creation.
-void RecvFn(JitChannelQueue* queue, Receive* recv_ptr, uint8_t* data_ptr,
+bool RecvFn(JitChannelQueue* queue, Receive* recv_ptr, uint8_t* data_ptr,
             int64_t data_sz, void* user_data) {
-  queue->Recv(data_ptr, data_sz);
+  return queue->Recv(data_ptr, data_sz);
 }
 
 void SendFn(JitChannelQueue* queue, Send* send_ptr, uint8_t* data_ptr,

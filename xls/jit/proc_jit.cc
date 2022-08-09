@@ -125,7 +125,7 @@ class ProcBuilderVisitor : public IrBuilderVisitor {
 absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
     llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive,
     llvm::Value* user_data) {
-  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+  llvm::Type* bool_type = llvm::Type::getInt1Ty(ctx());
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
 
@@ -140,29 +140,46 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   std::vector<llvm::Type*> params = {int64_type, int64_type, int8_ptr_type,
                                      int64_type, void_ptr_type};
   llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+      llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
 
+  // recv_type is the full type of the receive.
+  //   1. If blocking, then it is a tuple of (token, payload).
+  //   2. If non-blocking, then it is a tuple of (token, payload, bool).
   llvm::Type* recv_type =
       type_converter()->ConvertToLlvmType(receive->GetType());
-  int64_t recv_bytes = type_converter()->GetTypeByteSize(receive->GetType());
   llvm::AllocaInst* alloca = builder->CreateAlloca(recv_type);
+
+  // recv_payload_bytes is just the size of the payload.
+  //
+  // As token is zero size, it can also be considered the size of the
+  // token + payload.
+  int64_t recv_payload_bytes =
+      type_converter()->GetTypeByteSize(receive->GetPayloadType());
 
   // Call the user-provided receive function.
   std::vector<llvm::Value*> args = {
       llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
       llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(receive)),
       builder->CreatePointerCast(alloca, int8_ptr_type),
-      llvm::ConstantInt::get(int64_type, recv_bytes),
+      llvm::ConstantInt::get(int64_type, recv_payload_bytes),
       user_data,
   };
   llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
       llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(recv_fn_));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  builder->CreateCall(fn_type, fn_ptr, args);
+  llvm::Value* data_valid = builder->CreateCall(fn_type, fn_ptr, args);
 
   // Load the reveive data from the bounce buffer.
-  return builder->CreateLoad(recv_type, alloca);
+  llvm::Value* data = builder->CreateLoad(recv_type, alloca);
+
+  if (receive->is_blocking()) {
+    return data;
+  }
+
+  // For non-blocking receives, add data_valid as the last entry in the
+  // return tuple.
+  return builder->CreateInsertValue(data, data_valid, {2});
 }
 
 absl::Status ProcBuilderVisitor::HandleReceive(Receive* recv) {

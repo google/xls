@@ -101,7 +101,7 @@ class SerialProcRuntime {
   static void ThreadFn(ThreadData* thread_data);
 
   // Proc Receive handler function.
-  static void RecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
+  static bool RecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
                      int64_t data_bytes, void* user_data);
 
   // Proc Send handler function.
