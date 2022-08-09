@@ -278,11 +278,11 @@ absl::StatusOr<Node*> RollIntoProcPass::CloneCountedFor(
 absl::StatusOr<Node*> RollIntoProcPass::ReplaceReceiveWithConditionalReceive(
     Proc* proc, Receive* original_receive, Node* receive_condition,
     Node* on_condition_false) const {
-  XLS_ASSIGN_OR_RETURN(auto new_receive,
-                       proc->MakeNode<Receive>(original_receive->loc(),
-                                               proc->TokenParam(),
-                                               receive_condition,
-                                               original_receive->channel_id()));
+  XLS_ASSIGN_OR_RETURN(
+      auto new_receive,
+      proc->MakeNode<Receive>(original_receive->loc(), proc->TokenParam(),
+                              receive_condition, original_receive->channel_id(),
+                              original_receive->is_blocking()));
   XLS_ASSIGN_OR_RETURN(
       auto new_receive_token,
       proc->MakeNode<TupleIndex>(original_receive->loc(), new_receive, 0));

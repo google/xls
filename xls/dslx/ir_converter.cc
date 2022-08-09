@@ -782,7 +782,12 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
   if (absl::holds_alternative<BValue>(value)) {
     return absl::StrFormat("%p", absl::get<BValue>(value).node());
   }
-  return absl::StrFormat("%p", absl::get<CValue>(value).value.node());
+
+  if (absl::holds_alternative<CValue>(value)) {
+    return absl::StrFormat("%p", absl::get<CValue>(value).value.node());
+  }
+
+  return absl::StrFormat("%p", absl::get<Channel*>(value));
 }
 
 FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
@@ -2246,12 +2251,11 @@ absl::Status FunctionConverter::HandleRecvNonBlocking(
   }
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  // TODO(tedhong): 2022-07-26 Update with IR non-blocking channel.
-  BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value), token);
+  BValue value =
+      builder_ptr->ReceiveNonBlocking(absl::get<Channel*>(ir_value), token);
   node_to_ir_[node] = value;
 
-  return absl::UnimplementedError(absl::StrFormat(
-      "ir conversion of recv_nb not implemented: %s", node->ToString()));
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {

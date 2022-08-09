@@ -108,10 +108,11 @@ absl::StatusOr<bool> UselessIORemovalPass::RunInternal(
               proc->MakeNode<Tuple>(
                   node->loc(), std::vector<Node*>{receive->token(), zero}));
         } else if (IsLiteralUnsignedOne(predicate)) {
-          XLS_ASSIGN_OR_RETURN(replacement, proc->MakeNode<Receive>(
-                                                node->loc(), receive->token(),
-                                                /*predicate=*/absl::nullopt,
-                                                receive->channel_id()));
+          XLS_ASSIGN_OR_RETURN(
+              replacement, proc->MakeNode<Receive>(
+                               node->loc(), receive->token(),
+                               /*predicate=*/absl::nullopt,
+                               receive->channel_id(), receive->is_blocking()));
         }
       }
       if (replacement != nullptr) {

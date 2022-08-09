@@ -956,6 +956,8 @@ absl::StatusOr<BValue> Parser::ParseNode(
       std::optional<BValue>* predicate =
           arg_parser.AddOptionalKeywordArg<BValue>("predicate");
       int64_t* channel_id = arg_parser.AddKeywordArg<int64_t>("channel_id");
+      bool* is_blocking = arg_parser.AddOptionalKeywordArg<bool>(
+          "blocking", /*default_value=*/true);
       XLS_ASSIGN_OR_RETURN(operands, arg_parser.Run(/*arity=*/1));
       // Get the channel from the package.
       if (!package->HasChannelWithId(*channel_id)) {
@@ -963,8 +965,14 @@ absl::StatusOr<BValue> Parser::ParseNode(
             absl::StrFormat("No such channel with channel ID %d", *channel_id));
       }
       XLS_ASSIGN_OR_RETURN(Channel * channel, package->GetChannel(*channel_id));
+
       Type* expected_type =
-          package->GetTupleType({package->GetTokenType(), channel->type()});
+          (*is_blocking)
+              ? package->GetTupleType(
+                    {package->GetTokenType(), channel->type()})
+              : package->GetTupleType({package->GetTokenType(), channel->type(),
+                                       package->GetBitsType(1)});
+
       if (expected_type != type) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Receive op type is type: %s. Expected: %s",
@@ -973,8 +981,10 @@ absl::StatusOr<BValue> Parser::ParseNode(
       if (predicate->has_value()) {
         bvalue = pb->ReceiveIf(channel, operands[0], predicate->value(), *loc,
                                node_name);
-      } else {
+      } else if (*is_blocking) {
         bvalue = pb->Receive(channel, operands[0], *loc, node_name);
+      } else {
+        bvalue = pb->ReceiveNonBlocking(channel, operands[0], *loc, node_name);
       }
       break;
     }

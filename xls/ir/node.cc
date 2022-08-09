@@ -510,6 +510,10 @@ std::string Node::ToStringInternal(bool include_operand_types) const {
             "predicate=%s", receive->predicate().value()->GetName()));
       }
       args.push_back(absl::StrFormat("channel_id=%d", receive->channel_id()));
+      if (receive->is_blocking() == false) {
+        // Default blocking=true so we only need to push is !is_blocking().
+        args.push_back("blocking=false");
+      }
       break;
     }
     case Op::kSignExt:

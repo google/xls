@@ -704,8 +704,11 @@ absl::StatusOr<bool> MergeSends(Predicates* p, FunctionBase* f,
 absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
                                    absl::Span<Node* const> to_merge) {
   int64_t channel_id = to_merge.front()->As<Receive>()->channel_id();
+  bool is_blocking = to_merge.front()->As<Receive>()->is_blocking();
+
   for (Node* send : to_merge) {
     XLS_CHECK_EQ(channel_id, send->As<Receive>()->channel_id());
+    XLS_CHECK_EQ(is_blocking, send->As<Receive>()->is_blocking());
   }
 
   XLS_ASSIGN_OR_RETURN(std::vector<Node*> token_inputs,
@@ -720,9 +723,9 @@ absl::StatusOr<bool> MergeReceives(Predicates* p, FunctionBase* f,
   XLS_ASSIGN_OR_RETURN(Node * predicate,
                        f->MakeNode<NaryOp>(SourceInfo(), predicates, Op::kOr));
 
-  XLS_ASSIGN_OR_RETURN(
-      Node * receive,
-      f->MakeNode<Receive>(SourceInfo(), token, predicate, channel_id));
+  XLS_ASSIGN_OR_RETURN(Node * receive,
+                       f->MakeNode<Receive>(SourceInfo(), token, predicate,
+                                            channel_id, is_blocking));
 
   XLS_ASSIGN_OR_RETURN(Node * token_output,
                        f->MakeNode<TupleIndex>(SourceInfo(), receive, 0));

@@ -53,6 +53,17 @@ Type* GetMapType(Node* operand, Function* to_apply) {
                                  to_apply->return_value()->GetType());
 }
 
+Type* GetReceiveType(Package* package, int64_t channel_id, bool is_blocking) {
+  if(is_blocking) {
+    return package->GetTupleType({package->GetTokenType(),
+                             package->GetChannel(channel_id).value()->type()});
+  }
+
+  return package->GetTupleType({package->GetTokenType(),
+                           package->GetChannel(channel_id).value()->type(),
+                           package->GetBitsType(1)});
+}
+
 }  // namespace
 
 {% for op_class in spec.OpClass.kinds.values() -%}
@@ -229,7 +240,7 @@ absl::StatusOr<Node*> Receive::CloneInNewFunction(
       loc(), new_operands[0],
       new_operands.size() > 1 ? std::optional<Node*>(new_operands[1])
                               : absl::nullopt,
-      channel_id(), name_);
+      channel_id(), is_blocking(), name_);
 }
 
 absl::StatusOr<Node*> Send::CloneInNewFunction(

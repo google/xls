@@ -152,6 +152,12 @@ class Attribute(object):
         expression=self.data_member.name)
 
 
+class BoolAttribute(Attribute):
+
+  def __init__(self, name):
+    super(BoolAttribute, self).__init__(name, cpp_type='bool')
+
+
 class Int64Attribute(Attribute):
 
   def __init__(self, name):
@@ -565,7 +571,7 @@ OpClass.kinds['RECEIVE'] = OpClass(
     name='Receive',
     op='Op::kReceive',
     operands=[Operand('token'), OptionalOperand('predicate')],
-    xls_type_expression='function->package()->GetTupleType({function->package()->GetTokenType(),function->package()->GetChannel(channel_id).value()->type()})',
+    xls_type_expression='GetReceiveType(function->package(), channel_id, is_blocking)',
     extra_methods=[Method(name='token',
                           return_cpp_type='Node*',
                           expression='operand(0)'),
@@ -573,7 +579,7 @@ OpClass.kinds['RECEIVE'] = OpClass(
                           return_cpp_type='absl::optional<Node*>',
                           expression='operand_count() > 1 ? absl::optional<Node*>(operand(1)) : absl::nullopt'),
                    ],
-    attributes=[Int64Attribute('channel_id')],
+    attributes=[Int64Attribute('channel_id'), BoolAttribute('is_blocking')],
     custom_clone_method=True
 )
 

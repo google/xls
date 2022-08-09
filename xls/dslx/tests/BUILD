@@ -16,10 +16,12 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_opt_ir",
     "xls_dslx_opt_ir_test",
     "xls_dslx_test",
+    "xls_ir_opt_ir",
 )
 load("//xls/dslx/tests:build_defs.bzl", "dslx_lang_test")
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
@@ -808,12 +810,20 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "non_blocking_receives",
-    benchmark_ir = False,
     convert_to_ir = False,
     dslx_entry = "proc_main",
-    # No normal 'function' entry point, it is a proc.
-    evaluate_ir = False,
-    test_ir_equivalence = False,
+)
+
+xls_dslx_ir(
+    name = "non_blocking_receives_ir",
+    dslx_top = "proc_main",
+    library = "non_blocking_receives_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "non_blocking_receives_opt_ir",
+    src = ":non_blocking_receives_ir.ir",
+    top = "__non_blocking_receives__proc_main__test_impl_0_next",
 )
 
 exports_files([

@@ -19,8 +19,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
-#include "xls/examples/sample_packages.h"
 #include "xls/ir/ir_matcher.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/package.h"
 
 namespace m = ::xls::op_matchers;
@@ -444,6 +444,72 @@ TEST(FunctionBuilderTest, SendAndReceive) {
             p.GetTupleType({p.GetTokenType(), ch1->type()}));
   EXPECT_EQ(receive_if.node()->GetType(),
             p.GetTupleType({p.GetTokenType(), ch3->type()}));
+}
+
+TEST(FunctionBuilderTest, NonBlockingAndBlockingReceives) {
+  Package p("p");
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in0, p.CreateStreamingChannel("in0", ChannelOps::kReceiveOnly,
+                                              p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in1, p.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly,
+                                              p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in2, p.CreateSingleValueChannel("in2", ChannelOps::kReceiveOnly,
+                                                p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in3, p.CreateSingleValueChannel("in3", ChannelOps::kReceiveOnly,
+                                                p.GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out0, p.CreateStreamingChannel("out0", ChannelOps::kSendOnly,
+                                               p.GetBitsType(32)));
+
+  TokenlessProcBuilder b("nb_and_b_receives", /*token_name=*/"tkn", &p);
+
+  // Streaming blocking receive.
+  BValue in0_data = b.Receive(in0);
+
+  // Streaming non-blocking receive.
+  BValue in1_data_and_valid = b.ReceiveNonBlocking(in1);
+  BValue in1_data = b.TupleIndex(in1_data_and_valid, 0);
+
+  // Single-value blocking receive (which will not block).
+  BValue in2_data = b.Receive(in2);
+
+  // Single-value non-blocking receive which will always return a valid.
+  BValue in3_data_and_valid = b.ReceiveNonBlocking(in3);
+  BValue in3_data = b.TupleIndex(in3_data_and_valid, 0);
+
+  BValue sum = b.Add(in0_data, b.Add(in1_data, b.Add(in2_data, in3_data)));
+  b.Send(out0, sum);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, b.Build({}));
+
+  // Check that the receive nodes are of the expected type.
+  // Non-blocking nodes will have an extra bit for valid.
+  EXPECT_EQ(in0_data.node()->GetType(), in0->type());
+  EXPECT_EQ(in1_data_and_valid.node()->GetType(),
+            p.GetTupleType({in1->type(), p.GetBitsType(1)}));
+  EXPECT_EQ(in2_data.node()->GetType(), in2->type());
+  EXPECT_EQ(in3_data_and_valid.node()->GetType(),
+            p.GetTupleType({in3->type(), p.GetBitsType(1)}));
+
+  // Check that the receive nodes are correctly built as either
+  // blocking or non-blocking.
+  for (Node* node : proc->nodes()) {
+    if (!node->Is<Receive>()) {
+      continue;
+    }
+
+    Receive* receive = node->As<Receive>();
+    XLS_ASSERT_OK_AND_ASSIGN(Channel * channel, GetChannelUsedByNode(receive));
+
+    if (channel == in0 || channel == in2) {
+      EXPECT_TRUE(receive->is_blocking());
+    } else {
+      EXPECT_FALSE(receive->is_blocking());
+    }
+  }
 }
 
 TEST(FunctionBuilderTest, WrongAddOpMethodBinOp) {

@@ -129,7 +129,8 @@ absl::StatusOr<Receive*> AddReceivePredicate(Receive* receive,
   }
   XLS_ASSIGN_OR_RETURN(Receive * new_receive,
                        receive->ReplaceUsesWithNew<Receive>(
-                           receive->token(), predicate, receive->channel_id()));
+                           receive->token(), predicate, receive->channel_id(),
+                           receive->is_blocking()));
   return new_receive;
 }
 

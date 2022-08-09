@@ -254,7 +254,7 @@ absl::StatusOr<Proc*> Proc::Clone(
                                cloned_operands.size() == 2
                                    ? std::optional<Node*>(cloned_operands[1])
                                    : absl::nullopt,
-                               channel_id, src->GetName()));
+                               channel_id, src->is_blocking(), src->GetName()));
     } else if (node->Is<Send>()) {
       Send* src = node->As<Send>();
       int64_t channel_id = channel_remapping.contains(src->channel_id())

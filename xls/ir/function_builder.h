@@ -677,6 +677,12 @@ class ProcBuilder : public BuilderBase {
                  const SourceInfo& loc = SourceInfo(),
                  absl::string_view name = "");
 
+  // Add a non-blocking receive operation. The type of the data value received
+  // is determined by the channel.
+  BValue ReceiveNonBlocking(Channel* channel, BValue token,
+                            const SourceInfo& loc = SourceInfo(),
+                            absl::string_view name = "");
+
   // Add a conditional receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is
   // determined by the channel.
@@ -740,6 +746,16 @@ class TokenlessProcBuilder : public ProcBuilder {
   using ProcBuilder::Receive;
   BValue Receive(Channel* channel, const SourceInfo& loc = SourceInfo(),
                  absl::string_view name = "");
+
+  // Add a non-blocking receive operation. The type of the data value received
+  // is determined by the channel. The returned BValue is a tuple of
+  // the received data itself along with a valid bit (*not* the receive
+  // operation itself which produces a tuple containing a token, the data,
+  // and a valid bit).
+  using ProcBuilder::ReceiveNonBlocking;
+  BValue ReceiveNonBlocking(Channel* channel,
+                            const SourceInfo& loc = SourceInfo(),
+                            absl::string_view name = "");
 
   // Add a conditinal receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is

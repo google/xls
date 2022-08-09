@@ -1319,7 +1319,24 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
         loc);
   }
   return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/absl::nullopt,
-                               channel->id(), name);
+                               channel->id(), /*is_blocking=*/true, name);
+}
+
+BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
+                                       const SourceInfo& loc,
+                                       absl::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of receive must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Receive>(loc, token.node(), /*predicate=*/absl::nullopt,
+                               channel->id(), /*is_blocking=*/false, name);
 }
 
 BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
@@ -1343,7 +1360,7 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
         loc);
   }
   return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->id(),
-                               name);
+                               /*is_blocking=*/true, name);
 }
 
 BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
@@ -1389,6 +1406,14 @@ BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,
   BValue rcv = ProcBuilder::Receive(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0);
   return TupleIndex(rcv, 1);
+}
+
+BValue TokenlessProcBuilder::ReceiveNonBlocking(Channel* channel,
+                                                const SourceInfo& loc,
+                                                absl::string_view name) {
+  BValue rcv = ProcBuilder::ReceiveNonBlocking(channel, last_token_, loc, name);
+  last_token_ = TupleIndex(rcv, 0, loc);
+  return Tuple({TupleIndex(rcv, 1), TupleIndex(rcv, 2)}, loc);
 }
 
 BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
