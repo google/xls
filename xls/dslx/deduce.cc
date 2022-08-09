@@ -2247,6 +2247,29 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecv(const Recv* node,
   return std::make_unique<TupleType>(std::move(elements));
 }
 
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
+    const RecvNonBlocking* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(ChannelTypeAnnotation * channel_annot,
+                       ResolveChannelType(node->span(), node->channel()));
+  if (channel_annot->direction() == ChannelTypeAnnotation::Direction::kOut) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Cannot recv on an output channel.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(auto channel_type, Deduce(node->channel(), ctx));
+  ChannelType* ct = dynamic_cast<ChannelType*>(channel_type.get());
+  XLS_RET_CHECK_NE(ct, nullptr);
+
+  std::vector<std::unique_ptr<ConcreteType>> elements;
+  elements.emplace_back(std::make_unique<TokenType>());
+  elements.emplace_back(ct->payload_type().CloneToUnique());
+
+  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
+  elements.emplace_back(bool_type->CloneToUnique());
+
+  return std::make_unique<TupleType>(std::move(elements));
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
                                                            DeduceCtx* ctx) {
   XLS_ASSIGN_OR_RETURN(ChannelTypeAnnotation * channel_annot,
@@ -2656,6 +2679,7 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Match)
   DEDUCE_DISPATCH(Range)
   DEDUCE_DISPATCH(Recv)
+  DEDUCE_DISPATCH(RecvNonBlocking)
   DEDUCE_DISPATCH(RecvIf)
   DEDUCE_DISPATCH(Send)
   DEDUCE_DISPATCH(SendIf)

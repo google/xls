@@ -76,6 +76,8 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
       return "range";
     case AstNodeKind::kRecv:
       return "receive";
+    case AstNodeKind::kRecvNonBlocking:
+      return "receive-nonblocking";
     case AstNodeKind::kRecvIf:
       return "receive-if";
     case AstNodeKind::kSend:
@@ -1606,6 +1608,16 @@ Recv::Recv(Module* owner, Span span, NameRef* token, Expr* channel)
 
 std::string Recv::ToString() const {
   return absl::StrFormat("recv(%s, %s)", token_->identifier(),
+                         channel_->ToString());
+}
+// -- class RecvNonBlocking
+
+RecvNonBlocking::RecvNonBlocking(Module* owner, Span span, NameRef* token,
+                                 Expr* channel)
+    : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
+
+std::string RecvNonBlocking::ToString() const {
+  return absl::StrFormat("recv_nonblocking(%s, %s)", token_->identifier(),
                          channel_->ToString());
 }
 

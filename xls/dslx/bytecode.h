@@ -122,6 +122,14 @@ class Bytecode {
     // terminates execution at the opcode's PC. The interpreter can be
     // resumed/retried if/when a value becomes available.
     kRecv,
+    // Pulls a value off of the channel at TOS0, but does not block if empty.
+    // A tuple containing
+    //   0. A token.
+    //   1. The value pulled off (or a zero value if the channel is empty).
+    //     and
+    //   2. A valid flag (false if the channel is empty).
+    // is pushed on the stack.
+    kRecvNonBlocking,
     // Inserts the value at TOS0 into the channel at TOS1.
     kSend,
     // Performs a left shift of the second-to-top stack element by the
@@ -255,6 +263,8 @@ class Bytecode {
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
   static Bytecode MakeRecv(Span span);
+  static Bytecode MakeRecvNonBlocking(Span span,
+                                      std::unique_ptr<ConcreteType> type);
   static Bytecode MakeRange(Span span);
   static Bytecode MakeStore(Span span, SlotIndex slot_index);
   static Bytecode MakeSpawn(Span span, SpawnData spawn_data);

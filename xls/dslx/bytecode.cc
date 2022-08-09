@@ -14,6 +14,8 @@
 
 #include "xls/dslx/bytecode.h"
 
+#include <memory>
+
 #include "absl/strings/str_split.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
@@ -125,6 +127,9 @@ absl::StatusOr<Bytecode::Op> OpFromString(std::string_view s) {
   if (s == "recv") {
     return Bytecode::Op::kRecv;
   }
+  if (s == "recv_nonblocking") {
+    return Bytecode::Op::kRecvNonBlocking;
+  }
   if (s == "send") {
     return Bytecode::Op::kSend;
   }
@@ -232,6 +237,8 @@ std::string OpToString(Bytecode::Op op) {
       return "range";
     case Bytecode::Op::kRecv:
       return "recv";
+    case Bytecode::Op::kRecvNonBlocking:
+      return "recv_nonblocking";
     case Bytecode::Op::kSend:
       return "send";
     case Bytecode::Op::kShl:
@@ -381,6 +388,11 @@ DEF_UNARY_BUILDER(Send);
 DEF_UNARY_BUILDER(Swap);
 
 #undef DEF_UNARY_BUILDER
+
+/* static */ Bytecode Bytecode::MakeRecvNonBlocking(
+    Span span, std::unique_ptr<ConcreteType> type) {
+  return Bytecode(span, Op::kRecvNonBlocking, std::move(type));
+}
 
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
   return Bytecode(span, Op::kJumpRelIf, target);

@@ -16,6 +16,7 @@
 
 #include "absl/cleanup/cleanup.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_format.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -148,6 +149,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(QuickCheck);
   DEFAULT_HANDLER(Range);
   DEFAULT_HANDLER(Recv);
+  DEFAULT_HANDLER(RecvNonBlocking);
   DEFAULT_HANDLER(RecvIf);
   DEFAULT_HANDLER(Send);
   DEFAULT_HANDLER(SendIf);
@@ -969,6 +971,32 @@ absl::Status BytecodeEmitter::HandleRecv(const Recv* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   Add(Bytecode::MakeRecv(node->span()));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleRecvNonBlocking(
+    const RecvNonBlocking* node) {
+  XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
+
+  // Find concrete type of channel's payload.
+  std::optional<ConcreteType*> type = type_info_->GetItem(node->channel());
+  if (!type.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Could not retrieve type of channel %s", node->channel()->ToString()));
+  }
+
+  ChannelType* channel_type = dynamic_cast<ChannelType*>(type.value());
+  if (channel_type == nullptr) {
+    return absl::InternalError(absl::StrFormat(
+        "Channel %s type is not of type channel", node->channel()->ToString()));
+  }
+
+  std::unique_ptr<ConcreteType> channel_payload_type =
+      channel_type->payload_type().CloneToUnique();
+
+  Add(Bytecode::MakeRecvNonBlocking(node->span(),
+                                    std::move(channel_payload_type)));
   return absl::OkStatus();
 }
 

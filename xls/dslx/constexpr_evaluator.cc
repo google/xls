@@ -129,6 +129,9 @@ class NameRefCollector : public ExprVisitor {
   absl::Status HandleRecv(const Recv* expr) override {
     return absl::OkStatus();
   }
+  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
+    return absl::OkStatus();
+  }
   absl::Status HandleRecvIf(const RecvIf* expr) override {
     XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
     return absl::OkStatus();

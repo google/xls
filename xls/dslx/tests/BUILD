@@ -806,6 +806,16 @@ dslx_lang_test(
     test_ir_equivalence = False,
 )
 
+dslx_lang_test(
+    name = "non_blocking_receives",
+    benchmark_ir = False,
+    convert_to_ir = False,
+    dslx_entry = "proc_main",
+    # No normal 'function' entry point, it is a proc.
+    evaluate_ir = False,
+    test_ir_equivalence = False,
+)
+
 exports_files([
     "mod_const_enum_importer.x",
     "mod_simple_const_enum.x",

@@ -14,6 +14,8 @@
 
 #include "xls/dslx/bytecode_interpreter.h"
 
+#include <variant>
+
 #include "absl/status/status.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -285,6 +287,10 @@ absl::Status BytecodeInterpreter::EvalNextInstruction() {
     }
     case Bytecode::Op::kRecv: {
       XLS_RETURN_IF_ERROR(EvalRecv(bytecode));
+      break;
+    }
+    case Bytecode::Op::kRecvNonBlocking: {
+      XLS_RETURN_IF_ERROR(EvalRecvNonBlocking(bytecode));
       break;
     }
     case Bytecode::Op::kSend: {
@@ -832,6 +838,34 @@ absl::Status BytecodeInterpreter::EvalPop(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
   return RangeInternal();
+}
+
+absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
+    const Bytecode& bytecode) {
+  // TODO(rspringer): 2022-03-10 Thread safety!
+  XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
+  XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
+  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+  if (channel->empty()) {
+    XLS_RET_CHECK(bytecode.has_data());
+    const Bytecode::Data& data = bytecode.data().value();
+
+    XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
+    const std::unique_ptr<ConcreteType>& payload_type =
+        absl::get<std::unique_ptr<ConcreteType>>(data);
+
+    XLS_ASSIGN_OR_RETURN(InterpValue zero,
+                         CreateZeroValueFromType(*payload_type));
+    stack_.push_back(
+        InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
+  } else {
+    stack_.push_back(InterpValue::MakeTuple(
+        {token, channel->front(), InterpValue::MakeBool(true)}));
+    channel->pop_front();
+  }
+
+  return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {

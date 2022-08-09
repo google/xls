@@ -86,6 +86,7 @@ enum AstNodeKindProto {
   AST_NODE_KIND_BLOCK = 52;
   AST_NODE_KIND_UNROLL_FOR = 53;
   AST_NODE_KIND_RANGE = 54;
+  AST_NODE_KIND_RECV_NONBLOCKING = 55;
 }
 
 message BitsValueProto {

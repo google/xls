@@ -336,6 +336,7 @@ class FunctionConverter {
   absl::Status HandleMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
   absl::Status HandleRecv(const Recv* node);
+  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* node);
   absl::Status HandleRecvIf(const RecvIf* node);
   absl::Status HandleSend(const Send* node);
   absl::Status HandleSendIf(const SendIf* node);
@@ -709,6 +710,7 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Range)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
+  NO_TRAVERSE_DISPATCH_VISIT(RecvNonBlocking)
   NO_TRAVERSE_DISPATCH_VISIT(RecvIf)
   NO_TRAVERSE_DISPATCH_VISIT(Send)
   NO_TRAVERSE_DISPATCH_VISIT(SendIf)
@@ -2220,6 +2222,36 @@ absl::Status FunctionConverter::HandleRecv(const Recv* node) {
   BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value), token);
   node_to_ir_[node] = value;
   return absl::OkStatus();
+}
+
+absl::Status FunctionConverter::HandleRecvNonBlocking(
+    const RecvNonBlocking* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Recv nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->token()));
+  XLS_RETURN_IF_ERROR(Visit(node->channel()));
+  if (!node_to_ir_.contains(node->channel())) {
+    return absl::InternalError("Recv channel not found!");
+  }
+  IrValue ir_value = node_to_ir_[node->channel()];
+  if (!absl::holds_alternative<Channel*>(ir_value)) {
+    return absl::InvalidArgumentError(
+        "Expected channel, got BValue or CValue.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
+  // TODO(tedhong): 2022-07-26 Update with IR non-blocking channel.
+  BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value), token);
+  node_to_ir_[node] = value;
+
+  return absl::UnimplementedError(absl::StrFormat(
+      "ir conversion of recv_nb not implemented: %s", node->ToString()));
 }
 
 absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {

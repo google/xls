@@ -359,6 +359,36 @@ proc consumer {
   EXPECT_EQ(m->ToString(), kModule);
 }
 
+TEST_F(ParserTest, ParseSendIfAndRecvNb) {
+  constexpr absl::string_view kModule = R"(proc producer {
+  c: chan in u32;
+  config(c: chan in u32) {
+    (c,)
+  }
+  next(tok: token, do_send: bool) {
+    let _ = send_if(tok, c, do_send, ((do_send) as u32));
+    (!(do_send),)
+  }
+}
+proc consumer {
+  c: chan in u32;
+  config(c: chan in u32) {
+    (c,)
+  }
+  next(tok: token) {
+    let (_, foo, valid) = recv_nonblocking(tok, c);
+    let _ = assert_eq(!((foo) ^ (valid)), true);
+    ()
+  }
+})";
+
+  Scanner s{"test.x", std::string{kModule}};
+  Parser parser{"test", &s};
+  Bindings bindings;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
+  EXPECT_EQ(m->ToString(), kModule);
+}
+
 TEST_F(ParserTest, ParseJoin) {
   constexpr absl::string_view kModule = R"(proc foo {
   c0: chan out u32;

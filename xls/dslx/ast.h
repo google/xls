@@ -71,6 +71,7 @@ bool IsOneOf(ObjT* obj) {
   X(Number)                        \
   X(Range)                         \
   X(Recv)                          \
+  X(RecvNonBlocking)               \
   X(RecvIf)                        \
   X(Send)                          \
   X(SendIf)                        \
@@ -228,6 +229,7 @@ enum class AstNodeKind {
   kIndex,
   kRange,
   kRecv,
+  kRecvNonBlocking,
   kRecvIf,
   kSend,
   kSendIf,
@@ -2065,6 +2067,39 @@ class Recv : public Expr {
   }
 
   absl::string_view GetNodeTypeName() const override { return "Recv"; }
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {token_, channel_};
+  }
+
+  NameRef* token() const { return token_; }
+  Expr* channel() const { return channel_; }
+
+ private:
+  NameRef* token_;
+  Expr* channel_;
+};
+
+// Represents a non-blocking recv node: the mechanism by which a proc gets info
+// from another proc.
+class RecvNonBlocking : public Expr {
+ public:
+  RecvNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel);
+
+  AstNodeKind kind() const override { return AstNodeKind::kRecvNonBlocking; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleRecvNonBlocking(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleRecvNonBlocking(this);
+  }
+
+  absl::string_view GetNodeTypeName() const override {
+    return "RecvNonBlocking";
+  }
+
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
