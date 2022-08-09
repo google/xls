@@ -38,6 +38,7 @@ class ProcIrInterpreter : public IrInterpreter {
   absl::Status HandleReceive(Receive* receive) override {
     XLS_ASSIGN_OR_RETURN(ChannelQueue * queue,
                          queue_manager_->GetQueueById(receive->channel_id()));
+
     if (receive->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(receive->predicate().value());
       if (pred.IsZero()) {
@@ -47,8 +48,21 @@ class ProcIrInterpreter : public IrInterpreter {
         return SetValueResult(receive, ZeroOfType(receive->GetType()));
       }
     }
+
+    // If this is a non-blocking queue, if the queue is empty, then
+    // return a value of zero for that type.
+    if (!receive->is_blocking() && queue->empty()) {
+      return SetValueResult(receive, ZeroOfType(receive->GetType()));
+    }
+
     XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
-    return SetValueResult(receive, Value::Tuple({Value::Token(), value}));
+
+    if (receive->is_blocking()) {
+      return SetValueResult(receive, Value::Tuple({Value::Token(), value}));
+    }
+
+    return SetValueResult(
+        receive, Value::Tuple({Value::Token(), value, Value(UBits(1, 1))}));
   }
 
   absl::Status HandleSend(Send* send) override {
@@ -159,7 +173,7 @@ ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
     if (std::all_of(node->operands().begin(), node->operands().end(),
                     executed_this_iteration)) {
       // Check to see if this is a receive node which is blocked.
-      if (node->Is<Receive>()) {
+      if (node->Is<Receive>() && node->As<Receive>()->is_blocking()) {
         Receive* receive = node->As<Receive>();
         bool predicate = !receive->predicate().has_value() ||
                          visitor_->ResolveAsValue(receive->predicate().value())
