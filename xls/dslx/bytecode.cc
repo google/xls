@@ -531,50 +531,64 @@ std::string Bytecode::ToString(bool source_locs) const {
   }
 
   if (data_.has_value()) {
-    std::string data_string;
-    if (absl::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value())) {
-      data_string =
-          absl::get<std::unique_ptr<ConcreteType>>(data_.value())->ToString();
-    } else if (absl::holds_alternative<InvocationData>(data_.value())) {
-      InvocationData iv = absl::get<InvocationData>(data_.value());
-      if (iv.bindings.has_value()) {
-        data_string = absl::StrCat(iv.invocation->ToString(), " : ",
-                                   iv.bindings.value().ToString());
-      } else {
-        data_string = iv.invocation->ToString();
+    struct DataVisitor {
+      std::string operator()(const std::unique_ptr<ConcreteType>& v) {
+        return v->ToString();
       }
-    } else if (absl::holds_alternative<InterpValue>(data_.value())) {
-      data_string = absl::get<InterpValue>(data_.value()).ToString();
-    } else if (absl::holds_alternative<NumElements>(data_.value())) {
-      data_string = absl::StrCat(absl::get<NumElements>(data_.value()).value());
-    } else if (absl::holds_alternative<SlotIndex>(data_.value())) {
-      data_string = absl::StrCat(absl::get<SlotIndex>(data_.value()).value());
-    } else if (absl::holds_alternative<TraceData>(data_.value())) {
-      TraceData trace_data = absl::get<TraceData>(data_.value());
-      std::vector<std::string> pieces;
-      pieces.reserve(trace_data.size());
-      for (const auto& step : trace_data) {
-        if (absl::holds_alternative<std::string>(step)) {
-          pieces.push_back(absl::get<std::string>(step));
-        } else {
-          pieces.push_back(std::string(
-              FormatPreferenceToString(absl::get<FormatPreference>(step))));
+
+      std::string operator()(const InvocationData& iv) {
+        if (iv.bindings.has_value()) {
+          return absl::StrCat(iv.invocation->ToString(), " : ",
+                              iv.bindings.value().ToString());
         }
+
+        return iv.invocation->ToString();
       }
-      data_string = absl::StrCat("trace data: ", absl::StrJoin(pieces, ", "));
-    } else if (absl::holds_alternative<JumpTarget>(data_.value())) {
-      JumpTarget target = absl::get<JumpTarget>(data_.value());
-      if (target == kPlaceholderJumpAmount) {
-        data_string = "<placeholder>";
-      } else {
-        data_string = absl::StrCat(target.value());
+
+      std::string operator()(const InterpValue& v) { return v.ToString(); }
+
+      std::string operator()(const NumElements& v) {
+        return absl::StrCat(v.value());
       }
-    } else {
-      // MatchArmItem.
-      data_string = absl::get<MatchArmItem>(data_.value()).ToString();
-    }
+
+      std::string operator()(const SlotIndex& v) {
+        return absl::StrCat(v.value());
+      }
+
+      std::string operator()(const TraceData& trace_data) {
+        std::vector<std::string> pieces;
+        pieces.reserve(trace_data.size());
+        for (const auto& step : trace_data) {
+          if (absl::holds_alternative<std::string>(step)) {
+            pieces.push_back(absl::get<std::string>(step));
+          } else {
+            pieces.push_back(std::string(
+                FormatPreferenceToString(absl::get<FormatPreference>(step))));
+          }
+        }
+        return absl::StrCat("trace data: ", absl::StrJoin(pieces, ", "));
+      }
+
+      std::string operator()(const JumpTarget& target) {
+        if (target == kPlaceholderJumpAmount) {
+          return "<placeholder>";
+        }
+
+        return absl::StrCat(target.value());
+      }
+
+      std::string operator()(const MatchArmItem& v) { return v.ToString(); }
+
+      std::string operator()(const SpawnData& spawn_data) {
+        return spawn_data.spawn->ToString();
+      }
+    };
+
+    std::string data_string = std::visit(DataVisitor(), data_.value());
+
     return absl::StrFormat("%s %s%s", op_string, data_string, loc_string);
   }
+
   return absl::StrFormat("%s%s", op_string, loc_string);
 }
 
