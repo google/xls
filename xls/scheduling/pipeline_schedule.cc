@@ -243,23 +243,23 @@ ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
     distances_to_node[node] = std::move(distances);
   }
 
-  if (XLS_VLOG_IS_ON(3)) {
-    XLS_VLOG(3) << "All-pairs critical-path distances:";
+  if (XLS_VLOG_IS_ON(4)) {
+    XLS_VLOG(4) << "All-pairs critical-path distances:";
     for (Node* target : TopoSort(f)) {
-      XLS_VLOG(3) << absl::StrFormat("  distances to %s:", target->GetName());
+      XLS_VLOG(4) << absl::StrFormat("  distances to %s:", target->GetName());
       for (int64_t i = 0; i < f->node_count(); ++i) {
         Node* source = index_to_node[i];
-        XLS_VLOG(3) << absl::StrFormat(
+        XLS_VLOG(4) << absl::StrFormat(
             "    %s -> %s : %s", source->GetName(), target->GetName(),
             distances_to_node[target][i] == -1
                 ? "(none)"
                 : absl::StrCat(distances_to_node[target][i]));
       }
     }
-    XLS_VLOG(3) << absl::StrFormat("Constraints (clock period: %dps):",
+    XLS_VLOG(4) << absl::StrFormat("Constraints (clock period: %dps):",
                                    clock_period_ps);
     for (Node* node : TopoSort(f)) {
-      XLS_VLOG(3) << absl::StrFormat(
+      XLS_VLOG(4) << absl::StrFormat(
           "  %s: [%s]", node->GetName(),
           absl::StrJoin(result.at(node), ", ", NodeFormatter));
     }
@@ -309,9 +309,8 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
   for (Node* node : f->nodes()) {
     cycle_var[node] =
         solver->MakeNumVar(bounds->lb(node), bounds->ub(node), node->GetName());
-    lifetime_var[node] =
-        solver->MakeNumVar(0.0, bounds->max_lower_bound(),
-                           absl::StrFormat("lifetime_%s", node->GetName()));
+    lifetime_var[node] = solver->MakeNumVar(
+        0.0, infinity, absl::StrFormat("lifetime_%s", node->GetName()));
   }
 
   // Map from channel name to set of nodes that send/receive on that channel.
@@ -350,16 +349,26 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
         // The desired constraint `cycle[target] - cycle[source] >= min_latency`
         // becomes `-(cycle[target] - cycle[source]) <= -min_latency`
         // becomes `cycle[source] - cycle[target] <= -min_latency`
-        or_tools::MPConstraint* min_io_constraint =
-            solver->MakeRowConstraint(-infinity, -constraint.MinimumLatency());
+        or_tools::MPConstraint* min_io_constraint = solver->MakeRowConstraint(
+            -infinity, -constraint.MinimumLatency(),
+            absl::StrFormat("min_io_%s_%s", source->GetName(),
+                            target->GetName()));
         min_io_constraint->SetCoefficient(source_var, 1);
         min_io_constraint->SetCoefficient(target_var, -1);
 
         // Constraint: `cycle[target] - cycle[source] <= max_latency`
-        or_tools::MPConstraint* max_io_constraint =
-            solver->MakeRowConstraint(-infinity, constraint.MaximumLatency());
+        or_tools::MPConstraint* max_io_constraint = solver->MakeRowConstraint(
+            -infinity, constraint.MaximumLatency(),
+            absl::StrFormat("max_io_%s_%s", source->GetName(),
+                            target->GetName()));
         max_io_constraint->SetCoefficient(target_var, 1);
         max_io_constraint->SetCoefficient(source_var, -1);
+
+        XLS_VLOG(2) << "Setting IO constraint: "
+                    << absl::StrFormat("%d ≤ cycle[%s] - cycle[%s] ≤ %d",
+                                       constraint.MinimumLatency(),
+                                       target->GetName(), source->GetName(),
+                                       constraint.MaximumLatency());
       }
     }
   }
@@ -374,26 +383,37 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
     or_tools::MPVariable* cycle_at_node = cycle_var[node];
 
     auto add_du_chains_related_constraints =
-        [&](or_tools::MPVariable* cycle_at_user) {
+        [&](absl::string_view user_str, or_tools::MPVariable* cycle_at_user) {
           // Constraint: cycle[node] - cycle[node_user] <= 0
-          or_tools::MPConstraint* causal =
-              solver->MakeRowConstraint(-infinity, 0.0);
+          or_tools::MPConstraint* causal = solver->MakeRowConstraint(
+              -infinity, 0.0,
+              absl::StrFormat("causal_%s_%s", node->GetName(), user_str));
           causal->SetCoefficient(cycle_at_node, 1);
           causal->SetCoefficient(cycle_at_user, -1);
 
+          XLS_VLOG(2) << "Setting causal constraint: "
+                      << absl::StrFormat("cycle[%s] - cycle[%s] ≥ 0", user_str,
+                                         node->GetName());
+
           // Constraint: cycle[node_user] - cycle[node] - lifetime[node] <= 0
-          or_tools::MPConstraint* lifetime =
-              solver->MakeRowConstraint(-infinity, 0.0);
+          or_tools::MPConstraint* lifetime = solver->MakeRowConstraint(
+              -infinity, 0.0,
+              absl::StrFormat("lifetime_%s_%s", node->GetName(), user_str));
           lifetime->SetCoefficient(cycle_at_user, 1);
           lifetime->SetCoefficient(cycle_at_node, -1);
           lifetime->SetCoefficient(lifetime_at_node, -1);
+
+          XLS_VLOG(2) << "Setting lifetime constraint: "
+                      << absl::StrFormat(
+                             "lifetime[%s] + cycle[%s] - cycle[%s] ≥ 0",
+                             node->GetName(), node->GetName(), user_str);
         };
 
     for (Node* user : node->users()) {
-      add_du_chains_related_constraints(cycle_var.at(user));
+      add_du_chains_related_constraints(user->GetName(), cycle_var.at(user));
     }
     if (f->HasImplicitUse(node)) {
-      add_du_chains_related_constraints(cycle_at_sinknode);
+      add_du_chains_related_constraints("«sink»", cycle_at_sinknode);
     }
   }
 
@@ -402,9 +422,15 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
       ComputeCombinationalDelayConstraints(f, clock_period_ps, delay_map);
   for (Node* source : f->nodes()) {
     for (Node* target : delay_constraints.at(source)) {
-      or_tools::MPConstraint* timing = solver->MakeRowConstraint(1, infinity);
+      or_tools::MPConstraint* timing = solver->MakeRowConstraint(
+          1, infinity,
+          absl::StrFormat("timing_%s_%s", source->GetName(),
+                          target->GetName()));
       timing->SetCoefficient(cycle_var[target], 1);
       timing->SetCoefficient(cycle_var[source], -1);
+      XLS_VLOG(2) << "Setting timing constraint: "
+                  << absl::StrFormat("%s - %s ≥ 1", target->GetName(),
+                                     source->GetName());
     }
   }
 
@@ -423,6 +449,7 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
   or_tools::MPSolver::ResultStatus status = solver->Solve();
   // Check that the problem has an optimal solution.
   if (status != or_tools::MPSolver::OPTIMAL) {
+    XLS_VLOG(3) << "ScheduleToMinimizeRegistersSDC failed with " << status;
     return absl::InternalError(
         "The problem does not have an optimal solution!");
   }
@@ -443,8 +470,6 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
 // Returns the nodes of `f` which must be scheduled in the first stage of a
 // pipeline. For functions this is parameters. For procs, this is receive nodes
 // and next state nodes.
-// TODO(meheff): 2021/09/22 Enable receives to be scheduled in cycles other than
-// the initial cycle.
 std::vector<Node*> FirstStageNodes(FunctionBase* f) {
   if (Function* function = dynamic_cast<Function*>(f)) {
     return std::vector<Node*>(function->params().begin(),
@@ -456,9 +481,8 @@ std::vector<Node*> FirstStageNodes(FunctionBase* f) {
       // TODO(tedhong): 2021/10/14 Make this more flexible (ex. for ii>N),
       // where the next state node must be scheduled before a specific state
       // but not necessarily the 1st stage.
-      if (node->Is<Receive>() ||
-          std::find(proc->NextState().begin(), proc->NextState().end(), node) !=
-              proc->NextState().end()) {
+      if (std::find(proc->NextState().begin(), proc->NextState().end(), node) !=
+          proc->NextState().end()) {
         nodes.push_back(node);
       }
     }
@@ -469,10 +493,7 @@ std::vector<Node*> FirstStageNodes(FunctionBase* f) {
 }
 
 // Returns the nodes of `f` which must be scheduled in the final stage of a
-// pipeline. For functions this is the return value. For procs, this is send
-// nodes.
-// TODO(meheff): 2021/09/22 Enable sends to be scheduled in cycles other than
-// the final cycle.
+// pipeline. For functions this is the return value.
 std::vector<Node*> FinalStageNodes(FunctionBase* f) {
   if (Function* function = dynamic_cast<Function*>(f)) {
     // If the return value is a parameter, then we do not force the return value
@@ -482,15 +503,6 @@ std::vector<Node*> FinalStageNodes(FunctionBase* f) {
       return {};
     }
     return {function->return_value()};
-  }
-  if (Proc* proc = dynamic_cast<Proc*>(f)) {
-    std::vector<Node*> nodes;
-    for (Node* node : proc->nodes()) {
-      if (node->Is<Send>()) {
-        nodes.push_back(node);
-      }
-    }
-    return nodes;
   }
 
   return {};

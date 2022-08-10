@@ -151,7 +151,7 @@ TEST_F(PipelineScheduleTest, InfeasibleScheduleWithBinPacking) {
               "Cannot be scheduled in 2 stages. Computed lower bound is 3.")));
 }
 
-TEST_F(PipelineScheduleTest, InfeasiableScheduleWithReturnValueUsers) {
+TEST_F(PipelineScheduleTest, InfeasibleScheduleWithReturnValueUsers) {
   // Create function which has users of the return value node such that the
   // return value cannot be scheduled in the final cycle.
   auto p = CreatePackage();
@@ -661,8 +661,7 @@ TEST_F(PipelineScheduleTest, MultistateProcSchedule) {
 }
 
 TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
-  // Test a proc with a conditional receive. The receive condition must be
-  // scheduled in cycle 0 along with the receive.
+  // Test a proc with a conditional receive.
   Package p("p");
   Type* u16 = p.GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -691,10 +690,10 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceive) {
   EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
-TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
+TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveLongCondition) {
   // Test a proc with a conditional receive. The receive condition takes too
-  // long to compute which prevents the receive from being scheduled in the
-  // first cycle which results in an error.
+  // long to compute in the same cycle as the receive so the receive is pushed
+  // to stage 1.
   Package p("p");
   Type* u16 = p.GetBitsType(16);
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -710,14 +709,15 @@ TEST_F(PipelineScheduleTest, ProcWithConditionalReceiveError) {
   BValue out = pb.Negate(pb.Not(pb.Negate(rcv)));
   pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
-
-  ASSERT_THAT(
+  XLS_ASSERT_OK_AND_ASSIGN(
+      PipelineSchedule schedule,
       PipelineSchedule::Run(proc, TestDelayEstimator(),
-                            SchedulingOptions().clock_period_ps(1))
-          .status(),
-      StatusIs(absl::StatusCode::kResourceExhausted,
-               HasSubstr("node `rcv` must be scheduled in the first cycle but "
-                         "that is impossible due to the node's operand(s)")));
+                            SchedulingOptions().clock_period_ps(1)));
+
+  EXPECT_EQ(schedule.length(), 5);
+
+  EXPECT_EQ(schedule.cycle(cond.node()), 1);
+  EXPECT_EQ(schedule.cycle(rcv.node()), 2);
 }
 
 TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
@@ -746,7 +746,7 @@ TEST_F(PipelineScheduleTest, ReceiveFollowedBySend) {
                             SchedulingOptions().pipeline_stages(5)));
   EXPECT_EQ(schedule.length(), 5);
   EXPECT_EQ(schedule.cycle(rcv.node()), 0);
-  EXPECT_EQ(schedule.cycle(send.node()), 4);
+  EXPECT_EQ(schedule.cycle(send.node()), 2);
 }
 
 TEST_F(PipelineScheduleTest, ProcScheduleWithInputDelay) {

@@ -70,12 +70,16 @@ class TestDelayEstimator : public DelayEstimator {
 
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
     switch (node->op()) {
+      case Op::kAfterAll:
       case Op::kParam:
       case Op::kInputPort:
       case Op::kOutputPort:
       case Op::kLiteral:
       case Op::kBitSlice:
       case Op::kConcat:
+      case Op::kTupleIndex:
+      case Op::kReceive:
+      case Op::kSend:
         return 0;
       default:
         return 1;
@@ -106,7 +110,9 @@ class ProcConversionTestFixture : public BlockConversionTest {
   //
   // Returns the newly created package.
   virtual absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
-      int64_t stage_count, const CodegenOptions& options) = 0;
+      int64_t stage_count, const CodegenOptions& options) {
+    return absl::UnimplementedError("BuildBlockInPackage() unimplemented");
+  }
 
   // For cycles in range [first_cycle, last_cycle] inclusive,
   // add the IO signals as described in signals to io.
@@ -762,7 +768,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
                            ProcToCombinationalBlock(proc, codegen_options()));
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
-              m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1))));
+              m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1),
+                                              m::Literal(1), m::Literal(1))));
 }
 
 TEST_F(BlockConversionTest, OnlyFIFOInProc) {
@@ -818,7 +825,8 @@ proc my_proc(tkn: token, st: (), init={()}) {
 
   EXPECT_THAT(FindNode("out", block), m::OutputPort("out", m::InputPort("in")));
   EXPECT_THAT(FindNode("out_vld", block),
-              m::OutputPort("out_vld", m::Literal(1)));
+              m::OutputPort("out_vld", m::And(m::Literal(1), m::Literal(1),
+                                              m::Literal(1))));
   EXPECT_THAT(FindNode("out_rdy", block), m::InputPort("out_rdy"));
 }
 
@@ -1049,10 +1057,18 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
     XLS_VLOG(2) << "Simple streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
-    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Run(
-                             proc, TestDelayEstimator(),
-                             SchedulingOptions().pipeline_stages(stage_count)));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(
+            proc, TestDelayEstimator(),
+            SchedulingOptions()
+                .pipeline_stages(stage_count)
+                // Force recv into first cycle and send into
+                // the last cycle, since many of these tests depend
+                // precisely on the latency of the pipeline.
+                .add_constraint(SchedulingConstraint(
+                    "in", IODirection::kReceive, "out", IODirection::kSend,
+                    stage_count - 1, stage_count - 1))));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -1234,6 +1250,11 @@ TEST_F(SimplePipelinedProcTest, BasicResetAndStall) {
   XLS_ASSERT_OK_AND_ASSIGN(running_out_val,
                            SetIncrementingSignalOverCycles(
                                3, 9, "out", running_out_val, expected_outputs));
+  // The way SDC schedules this requires this, because there's a not node after
+  // a register in stage 0, so on reset that outputs !0 = INT_MAX.
+  // We can't easily change SimplePipelinedProcTest to use a manual schedule
+  // because it accepts the number of stages as a parameter.
+  expected_outputs.at(2).at("out") = std::numeric_limits<uint32_t>::max();
 
   // Once reset is deasserted, then the pipeline is closed, no further changes
   // in the output is expected if the input is not valid.
@@ -1786,10 +1807,21 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
     XLS_VLOG(2) << "Multi input streaming proc";
     XLS_VLOG_LINES(2, proc->DumpIr());
 
-    XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::Run(
-                             proc, TestDelayEstimator(),
-                             SchedulingOptions().pipeline_stages(stage_count)));
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(
+            proc, TestDelayEstimator(),
+            SchedulingOptions()
+                .pipeline_stages(stage_count)
+                // Force recv into first cycle and send into
+                // the last cycle, since many of these tests depend
+                // precisely on the latency of the pipeline.
+                .add_constraint(SchedulingConstraint(
+                    "in0", IODirection::kReceive, "out", IODirection::kSend,
+                    stage_count - 1, stage_count - 1))
+                .add_constraint(SchedulingConstraint(
+                    "in1", IODirection::kReceive, "out", IODirection::kSend,
+                    stage_count - 1, stage_count - 1))));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -2861,6 +2893,305 @@ TEST_F(BlockConversionTest, IOSignatureProcToCombBlock) {
   EXPECT_EQ(out_streaming_rv->GetDataPortName().value(), "out_streaming");
   EXPECT_EQ(out_streaming_rv->GetValidPortName().value(), "out_streaming_vld");
   EXPECT_EQ(out_streaming_rv->GetReadyPortName().value(), "out_streaming_rdy");
+}
+
+TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in,
+      package.CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  BValue recv = pb.Receive(in);
+  pb.Send(out, pb.Not(pb.Not(pb.Not(pb.Not(recv)))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  for (int32_t seed = 100000; seed < 100000 + 5000 * 100; seed += 5000) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(proc, TestDelayEstimator(),
+                              SchedulingOptions(SchedulingStrategy::RANDOM)
+                                  .pipeline_stages(20)
+                                  .seed(seed)));
+    CodegenOptions options;
+    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+    options.valid_control("input_valid", "output_valid");
+    options.reset("rst", false, false, true);
+    options.streaming_channel_data_suffix("_data");
+    options.streaming_channel_valid_suffix("_valid");
+    options.streaming_channel_ready_suffix("_ready");
+    options.module_name("pipelined_proc");
+
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_VLOG_LINES(2, block->DumpIr());
+
+    int64_t input_count = 40;
+    int64_t simulation_cycle_count = 200;
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>
+        non_streaming_inputs(simulation_cycle_count, {{"rst", 0}});
+
+    std::vector<uint64_t> in_values(input_count);
+    std::iota(in_values.begin(), in_values.end(), 0);
+
+    std::vector<ChannelSource> sources{
+        ChannelSource("in_data", "in_valid", "in_ready", 0.5, block),
+    };
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(in_values));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
+    };
+
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+                             InterpretChannelizedSequentialBlockWithUint64(
+                                 block, absl::MakeSpan(sources),
+                                 absl::MakeSpan(sinks), non_streaming_inputs));
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+        io_results.inputs;
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+        io_results.outputs;
+
+    // Add a cycle count for easier comparison with simulation results.
+    XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1,
+                                                  "cycle", 0, outputs));
+
+    XLS_ASSERT_OK(VLogTestPipelinedIO(
+        std::vector<SignalSpec>{
+            {"cycle", SignalType::kOutput},
+            {"rst", SignalType::kInput, /*active_low_reset=*/false},
+            {"in_data", SignalType::kInput},
+            {"in_valid", SignalType::kInput},
+            {"in_ready", SignalType::kOutput},
+            {"out_data", SignalType::kOutput},
+            {"out_valid", SignalType::kOutput},
+            {"out_ready", SignalType::kInput}},
+        /*column_width=*/10, inputs, outputs));
+
+    EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                                         12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                         22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                                         32, 33, 34, 35, 36, 37, 38, 39)));
+  }
+}
+
+TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_a,
+      package.CreateStreamingChannel("in_a", ChannelOps::kReceiveOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_b,
+      package.CreateStreamingChannel("in_b", ChannelOps::kReceiveOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out,
+      package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  BValue a = pb.Receive(in_a);
+  BValue b = pb.Receive(in_b);
+  pb.Send(out, pb.Not(pb.Not(pb.Not(pb.Not(pb.Add(a, b))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  for (int32_t seed = 100000; seed < 100000 + 5000 * 100; seed += 5000) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(proc, TestDelayEstimator(),
+                              SchedulingOptions(SchedulingStrategy::RANDOM)
+                                  .pipeline_stages(20)
+                                  .seed(seed)));
+    CodegenOptions options;
+    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+    options.valid_control("input_valid", "output_valid");
+    options.reset("rst", false, false, true);
+    options.streaming_channel_data_suffix("_data");
+    options.streaming_channel_valid_suffix("_valid");
+    options.streaming_channel_ready_suffix("_ready");
+    options.module_name("pipelined_proc");
+
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_VLOG_LINES(2, block->DumpIr());
+
+    int64_t input_count = 40;
+    int64_t simulation_cycle_count = 200;
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>
+        non_streaming_inputs(simulation_cycle_count, {{"rst", 0}});
+
+    std::vector<uint64_t> in_values(input_count);
+    std::iota(in_values.begin(), in_values.end(), 0);
+
+    std::vector<ChannelSource> sources{
+        ChannelSource("in_a_data", "in_a_valid", "in_a_ready", 0.5, block),
+        ChannelSource("in_b_data", "in_b_valid", "in_b_ready", 0.5, block),
+    };
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(in_values));
+    XLS_ASSERT_OK(sources.at(1).SetDataSequence(in_values));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
+    };
+
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+                             InterpretChannelizedSequentialBlockWithUint64(
+                                 block, absl::MakeSpan(sources),
+                                 absl::MakeSpan(sinks), non_streaming_inputs));
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+        io_results.inputs;
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+        io_results.outputs;
+
+    // Add a cycle count for easier comparison with simulation results.
+    XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1,
+                                                  "cycle", 0, outputs));
+
+    XLS_ASSERT_OK(VLogTestPipelinedIO(
+        std::vector<SignalSpec>{
+            {"cycle", SignalType::kOutput},
+            {"rst", SignalType::kInput, /*active_low_reset=*/false},
+            {"in_a_data", SignalType::kInput},
+            {"in_a_valid", SignalType::kInput},
+            {"in_a_ready", SignalType::kOutput},
+            {"in_b_data", SignalType::kInput},
+            {"in_b_valid", SignalType::kInput},
+            {"in_b_ready", SignalType::kOutput},
+            {"out_data", SignalType::kOutput},
+            {"out_valid", SignalType::kOutput},
+            {"out_ready", SignalType::kInput}},
+        /*column_width=*/10, inputs, outputs));
+
+    EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(ElementsAre(0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20,
+                                         22, 24, 26, 28, 30, 32, 34, 36, 38, 40,
+                                         42, 44, 46, 48, 50, 52, 54, 56, 58, 60,
+                                         62, 64, 66, 68, 70, 72, 74, 76, 78)));
+  }
+}
+
+TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
+  Package package(TestName());
+  Type* u32 = package.GetBitsType(32);
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_a,
+      package.CreateStreamingChannel("in_a", ChannelOps::kReceiveOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * in_b,
+      package.CreateStreamingChannel("in_b", ChannelOps::kReceiveOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_a,
+      package.CreateStreamingChannel("out_a", ChannelOps::kSendOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out_b,
+      package.CreateStreamingChannel("out_b", ChannelOps::kSendOnly, u32, {},
+                                     absl::nullopt, FlowControl::kReadyValid));
+
+  TokenlessProcBuilder pb(TestName(), "tkn", &package);
+  pb.Send(out_a, pb.Not(pb.Not(pb.Not(pb.Not(pb.Receive(in_a))))));
+  pb.Send(out_b, pb.Not(pb.Not(pb.Not(pb.Not(pb.Receive(in_b))))));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  for (int32_t seed = 100000; seed < 100000 + 5000 * 100; seed += 5000) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(proc, TestDelayEstimator(),
+                              SchedulingOptions(SchedulingStrategy::RANDOM)
+                                  .pipeline_stages(20)
+                                  .seed(seed)));
+    CodegenOptions options;
+    options.flop_inputs(false).flop_outputs(false).clock_name("clk");
+    options.valid_control("input_valid", "output_valid");
+    options.reset("rst", false, false, true);
+    options.streaming_channel_data_suffix("_data");
+    options.streaming_channel_valid_suffix("_valid");
+    options.streaming_channel_ready_suffix("_ready");
+    options.module_name("pipelined_proc");
+
+    XLS_ASSERT_OK_AND_ASSIGN(Block * block,
+                             ProcToPipelinedBlock(schedule, options, proc));
+    XLS_VLOG_LINES(2, block->DumpIr());
+
+    int64_t input_count = 40;
+    int64_t simulation_cycle_count = 200;
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>
+        non_streaming_inputs(simulation_cycle_count, {{"rst", 0}});
+
+    std::vector<uint64_t> in_values(input_count);
+    std::iota(in_values.begin(), in_values.end(), 0);
+
+    std::vector<ChannelSource> sources{
+        ChannelSource("in_a_data", "in_a_valid", "in_a_ready", 0.5, block),
+        ChannelSource("in_b_data", "in_b_valid", "in_b_ready", 0.5, block),
+    };
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(in_values));
+    XLS_ASSERT_OK(sources.at(1).SetDataSequence(in_values));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("out_a_data", "out_a_valid", "out_a_ready", 0.5, block),
+        ChannelSink("out_b_data", "out_b_valid", "out_b_ready", 0.5, block),
+    };
+
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+                             InterpretChannelizedSequentialBlockWithUint64(
+                                 block, absl::MakeSpan(sources),
+                                 absl::MakeSpan(sinks), non_streaming_inputs));
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
+        io_results.inputs;
+    std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
+        io_results.outputs;
+
+    // Add a cycle count for easier comparison with simulation results.
+    XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1,
+                                                  "cycle", 0, outputs));
+
+    XLS_ASSERT_OK(VLogTestPipelinedIO(
+        std::vector<SignalSpec>{
+            {"cycle", SignalType::kOutput},
+            {"rst", SignalType::kInput, /*active_low_reset=*/false},
+            {"in_a_data", SignalType::kInput},
+            {"in_a_valid", SignalType::kInput},
+            {"in_a_ready", SignalType::kOutput},
+            {"in_b_data", SignalType::kInput},
+            {"in_b_valid", SignalType::kInput},
+            {"in_b_ready", SignalType::kOutput},
+            {"out_a_data", SignalType::kOutput},
+            {"out_a_valid", SignalType::kOutput},
+            {"out_a_ready", SignalType::kInput},
+            {"out_b_data", SignalType::kOutput},
+            {"out_b_valid", SignalType::kOutput},
+            {"out_b_ready", SignalType::kInput}},
+        /*column_width=*/10, inputs, outputs));
+
+    EXPECT_THAT(sinks.at(0).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                                         12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                         22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                                         32, 33, 34, 35, 36, 37, 38, 39)));
+    EXPECT_THAT(sinks.at(1).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(ElementsAre(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                                         12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+                                         22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+                                         32, 33, 34, 35, 36, 37, 38, 39)));
+  }
 }
 
 }  // namespace
