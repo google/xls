@@ -405,6 +405,7 @@ cc_binary(
         ":metadata_output_cc_proto",
         ":translator",
         "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
         "//xls/common/logging",
         "//xls/common/logging:log_flags",
         "//xls/common/status:status_macros",

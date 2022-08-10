@@ -29,6 +29,7 @@
 #include "clang/include/clang/AST/DeclCXX.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/Stmt.h"
+#include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_flags.h"
 #include "xls/common/logging/logging.h"
@@ -71,6 +72,8 @@ ABSL_FLAG(std::vector<std::string>, include_dirs, std::vector<std::string>(),
 
 ABSL_FLAG(std::string, meta_out, "",
           "Path at which to output metadata protobuf");
+
+ABSL_FLAG(bool, meta_out_text, false, "Output metadata as textproto?");
 
 ABSL_FLAG(std::string, verilog_line_map_out, "",
           "Path at which to output Verilog line map protobuf");
@@ -195,13 +198,17 @@ absl::Status Run(absl::string_view cpp_path) {
   if (!metadata_out_path.empty()) {
     XLS_ASSIGN_OR_RETURN(xlscc_metadata::MetadataOutput meta,
                          translator.GenerateMetadata());
-    std::ofstream ostr(metadata_out_path);
-    if (!ostr.good()) {
-      return absl::NotFoundError(absl::StrFormat(
-          "Couldn't open metadata output path: %s", metadata_out_path));
-    }
-    if (!meta.SerializeToOstream(&ostr)) {
-      return absl::UnknownError("Error writing metadata proto");
+    if (absl::GetFlag(FLAGS_meta_out_text)) {
+      XLS_RETURN_IF_ERROR(xls::SetTextProtoFile(metadata_out_path, meta));
+    } else {
+      std::ofstream ostr(metadata_out_path);
+      if (!ostr.good()) {
+        return absl::NotFoundError(absl::StrFormat(
+            "Couldn't open metadata output path: %s", metadata_out_path));
+      }
+      if (!meta.SerializeToOstream(&ostr)) {
+        return absl::UnknownError("Error writing metadata proto");
+      }
     }
   }
 
