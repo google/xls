@@ -128,28 +128,6 @@ class InterpreterTest(test_base.TestCase):
     """)
     self._parse_and_test(program)
 
-  def test_subtract_a_negative_u32(self):
-    program = textwrap.dedent("""\
-    #![test]
-    fn simple_subtract_test() {
-      let x: u32 = u32:5;
-      let y: u32 = u32:-1;
-      assert_eq(u32:6, x-y)
-    }
-    """)
-    self._parse_and_test(program)
-
-  def test_add_a_negative_u32(self):
-    program = textwrap.dedent("""\
-    #![test]
-    fn simple_add_test() {
-      let x: u32 = u32:0;
-      let y: u32 = u32:-2;
-      assert_eq(u32:-2, x+y)
-    }
-    """)
-    self._parse_and_test(program)
-
   def test_tree_binding(self):
     program = textwrap.dedent("""\
     #![test]
@@ -263,7 +241,7 @@ class InterpreterTest(test_base.TestCase):
     fn not_equals_test() {
       let _: () = assert_eq(false, u32:0 != u32:0);
       let _: () = assert_eq(true, u32:1 != u32:0);
-      let _: () = assert_eq(true, u32:1 != u32:-1);
+      let _: () = assert_eq(true, s32:1 != s32:-1);
       let _: () = assert_eq(true, u32:1 != u32:2);
       ()
     }

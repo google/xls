@@ -1,4 +1,4 @@
-// Copyright 2021 The XLS Authors
+// Copyright 2022 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(p: bool, x: u32) -> u32 {
-  gate!(p, x)
-}
-
-#![test]
-fn test_main() {
-  let _ = assert_eq(u32:0, main(false, u32:1));
-  let _ = assert_eq(u32:1, main(true, u32:1));
-  ()
+fn main() -> u8 {
+  u8:256
 }

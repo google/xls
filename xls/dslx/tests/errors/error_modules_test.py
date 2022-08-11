@@ -357,6 +357,21 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('expects 1 argument(s) from format but has 0 argument(s)',
                   stderr)
 
+  def test_oob_signed_value(self):
+    stderr = self._run('xls/dslx/tests/errors/oob_signed_value.x')
+    self.assertIn('oob_signed_value.x:16:6-16:9', stderr)
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn('Value \'256\' does not fit in the bitwidth of a sN[8]',
+                  stderr)
+    self.assertIn('Valid values are [-128, 127]', stderr)
+
+  def test_oob_unigned_value(self):
+    stderr = self._run('xls/dslx/tests/errors/oob_unsigned_value.x')
+    self.assertIn('oob_unsigned_value.x:16:6-16:9', stderr)
+    self.assertIn('TypeInferenceError', stderr)
+    self.assertIn('Value \'256\' does not fit in the bitwidth of a uN[8]',
+                  stderr)
+    self.assertIn('Valid values are [0, 255]', stderr)
 
 if __name__ == '__main__':
   test_base.main()

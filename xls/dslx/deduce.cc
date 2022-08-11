@@ -98,8 +98,15 @@ absl::StatusOr<Proc*> ResolveColonRefToProc(const ColonRef* ref,
 }
 
 // If the width is known for "type", checks that "number" fits in that type.
-absl::Status TryEnsureFitsInType(const Number& number,
-                                 const ConcreteType& type) {
+absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
+  if (number.text()[0] == '-' && !type.is_signed()) {
+    return TypeInferenceErrorStatus(
+        number.span(), &type,
+        absl::StrFormat("Number %s invalid: "
+                        "can't assign a negative value to an unsigned type.",
+                        number.ToString()));
+  }
+
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
   if (!absl::holds_alternative<InterpValue>(bits_dim.value())) {
     // We have to wait for the dimension to be fully resolved before we can
@@ -109,11 +116,25 @@ absl::Status TryEnsureFitsInType(const Number& number,
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, bits_dim.GetAsInt64());
   absl::StatusOr<Bits> bits = number.GetBits(bit_count);
   if (!bits.ok()) {
+    std::string low;
+    std::string high;
+    if (type.is_signed()) {
+      low =
+          Bits::MinSigned(bit_count).ToString(FormatPreference::kSignedDecimal);
+      high =
+          Bits::MaxSigned(bit_count).ToString(FormatPreference::kSignedDecimal);
+    } else {
+      low = Bits(bit_count).ToString(FormatPreference::kUnsignedDecimal);
+      high =
+          Bits::AllOnes(bit_count).ToString(FormatPreference::kUnsignedDecimal);
+    }
+
     return TypeInferenceErrorStatus(
         number.span(), &type,
         absl::StrFormat("Value '%s' does not fit in "
-                        "the bitwidth of a %s (%d)",
-                        number.text(), type.ToString(), bit_count));
+                        "the bitwidth of a %s (%d). "
+                        "Valid values are [%s, %s].",
+                        number.text(), type.ToString(), bit_count, low, high));
   }
   return absl::OkStatus();
 }
@@ -276,13 +297,14 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceNumber(const Number* node,
   }
 
   XLS_ASSIGN_OR_RETURN(concrete_type, Resolve(*concrete_type, ctx));
-  if (dynamic_cast<BitsType*>(concrete_type.get()) == nullptr) {
+  BitsType* bits_type = dynamic_cast<BitsType*>(concrete_type.get());
+  if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(
         node->span(), concrete_type.get(),
         "Non-bits type used to define a numeric literal.");
   }
 
-  XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *concrete_type));
+  XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*node, *bits_type));
   ctx->type_info()->SetItem(node, *concrete_type);
   return concrete_type;
 }
@@ -514,13 +536,14 @@ static const Number* IsBareNumber(const AstNode* node,
 static absl::Status ValidateNumber(const Number& number,
                                    const ConcreteType& type) {
   XLS_VLOG(5) << "Validating " << number.ToString() << " vs " << type;
-  if (dynamic_cast<const BitsType*>(&type) == nullptr) {
+  const BitsType* bits_type = dynamic_cast<const BitsType*>(&type);
+  if (bits_type == nullptr) {
     return TypeInferenceErrorStatus(
         number.span(), &type,
         absl::StrFormat("Non-bits type (%s) used to define a numeric literal.",
                         type.GetDebugTypeName()));
   }
-  return TryEnsureFitsInType(number, type);
+  return TryEnsureFitsInType(number, *bits_type);
 }
 
 // When enums have no type annotation explicitly placed on them we infer the
@@ -989,7 +1012,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
     if (Number* number = dynamic_cast<Number*>(member);
         number != nullptr && number->type_annotation() == nullptr) {
       ctx->type_info()->SetItem(member, element_type);
-      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, element_type));
+      const BitsType* bits_type = dynamic_cast<const BitsType*>(&element_type);
+      XLS_RET_CHECK_NE(bits_type, nullptr);
+      XLS_RETURN_IF_ERROR(TryEnsureFitsInType(*number, *bits_type));
     }
   }
 
