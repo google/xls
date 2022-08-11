@@ -6840,6 +6840,21 @@ TEST_F(TranslatorTest, ArrayZeroExtendStructWithConstructor) {
   Run({{"a", 5}}, 7, content);
 }
 
+// Check that enum array initializers function properly
+TEST_F(TranslatorTest, EnumArrayInitializer) {
+  const std::string content = R"(
+        typedef enum {
+          VAL_1,
+          VAL_2
+        } enum_val;
+        #pragma hls_top
+        bool my_package(int a) {
+         enum_val x[3] = { VAL_1, VAL_1, VAL_2 };
+         return x[2] == VAL_2;
+       })";
+  Run({{"a", 2}}, static_cast<int64_t>(true), content);
+}
+
 }  // namespace
 
 }  // namespace xlscc
