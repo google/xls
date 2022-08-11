@@ -84,14 +84,8 @@ struct ImplicitTokenData {
 
 // Wrapper around the type information query for whether DSL function "f"
 // requires an implicit token calling convention.
-//
-// This query is not necessary when emit_fail_as_assert is off, then we never
-// use the "implicit token" calling convention.
 static bool GetRequiresImplicitToken(dslx::Function* f, ImportData* import_data,
                                      const ConvertOptions& options) {
-  if (!options.emit_fail_as_assert) {
-    return false;
-  }
   std::optional<bool> requires_opt = import_data->GetRootTypeInfo(f->owner())
                                           .value()
                                           ->GetRequiresImplicitToken(f);
@@ -2505,9 +2499,7 @@ absl::StatusOr<xls::Function*> FunctionConverter::HandleFunction(
 
   if (requires_implicit_token) {
     // Now join all the assertion tokens together to make the output token.
-    XLS_RET_CHECK(!implicit_token_data_->control_tokens.empty())
-        << "Function " << node->ToString()
-        << " has no assertion tokens to join!";
+    // This set may be empty if "emit_fail_as_assert" is false.
     BValue join_token =
         function_builder_->AfterAll(implicit_token_data_->control_tokens);
     std::vector<BValue> elements = {join_token, return_value};
