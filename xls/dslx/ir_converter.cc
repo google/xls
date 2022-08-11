@@ -3390,20 +3390,14 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
       ConcreteType* ct = maybe_type.value();
       XLS_ASSIGN_OR_RETURN(Type * ir_type, TypeToIr(package_data.package, *ct,
                                                     SymbolicBindings()));
-      std::string name = absl::StrCat(proc_id.ToString(), "_chandecl_",
-                                      param->span().ToString());
-      name = absl::StrReplaceAll(name, {{":", "_"},
-                                        {".", "_"},
-                                        {"-", "_"},
-                                        {"/", "_"},
-                                        {"\\", "_"},
-                                        {">", "_"}});
       ChannelOps op = channel_type->direction() == ChannelTypeAnnotation::kIn
                           ? ChannelOps::kReceiveOnly
                           : ChannelOps::kSendOnly;
-      XLS_ASSIGN_OR_RETURN(
-          StreamingChannel * channel,
-          package_data.package->CreateStreamingChannel(name, op, ir_type));
+      std::string channel_name =
+          absl::StrCat(package_data.package->name(), "__", param->identifier());
+      XLS_ASSIGN_OR_RETURN(StreamingChannel * channel,
+                           package_data.package->CreateStreamingChannel(
+                               channel_name, op, ir_type));
       proc_data->id_to_config_args[proc_id].push_back(channel);
     }
   }

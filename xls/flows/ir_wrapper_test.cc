@@ -133,9 +133,9 @@ TEST(IrWrapperTest, DslxProcsToIrOk) {
 
 file_number 0 "fake_file.x"
 
-chan foo_0_chandecl_top_module_x_5_10_5_27(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan foo_0_chandecl_top_module_x_5_29_5_46(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
-chan foo_0_chandecl_top_module_x_5_48_5_68(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+chan test_package__in_0(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan test_package__in_1(bits[32], id=1, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan test_package__output(bits[32], id=2, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
 
 proc __top__foo_0_next(__token: token, init={}) {
   receive.4: (token, bits[32]) = receive(__token, channel_id=0, id=4)
@@ -154,15 +154,15 @@ proc __top__foo_0_next(__token: token, init={}) {
   // Test that that the jit for the proc can be retrieved and run.
   XLS_ASSERT_OK_AND_ASSIGN(ProcJit * jit,
                            ir_wrapper.GetAndMaybeCreateProcJit("foo_0_next"));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueWrapper in_0,
-                           ir_wrapper.CreateJitChannelQueueWrapper(
-                               "foo_0_chandecl_top_module_x_5_10_5_27", jit));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueWrapper in_1,
-                           ir_wrapper.CreateJitChannelQueueWrapper(
-                               "foo_0_chandecl_top_module_x_5_29_5_46", jit));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueueWrapper out,
-                           ir_wrapper.CreateJitChannelQueueWrapper(
-                               "foo_0_chandecl_top_module_x_5_48_5_68", jit));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      JitChannelQueueWrapper in_0,
+      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_0", jit));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      JitChannelQueueWrapper in_1,
+      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_1", jit));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      JitChannelQueueWrapper out,
+      ir_wrapper.CreateJitChannelQueueWrapper("test_package__output", jit));
 
   // Send data.
   EXPECT_TRUE(in_0.Empty());

@@ -1634,6 +1634,35 @@ proc main {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, BoundaryChannels) {
+  constexpr absl::string_view kProgram = R"(proc foo {
+  in_0: chan in u32;
+  in_1: chan in u32;
+  output: chan out u32;
+
+  config(in_0: chan in u32, in_1: chan in u32, output: chan out u32) {
+    (in_0, in_1, output)
+  }
+
+  next(tok: token) {
+    let (tok, a) = recv(tok, in_0);
+    let (tok, b) = recv(tok, in_1);
+    let tok = send(tok, output, a + b);
+    ()
+  }
+})";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "foo", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

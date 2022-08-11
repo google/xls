@@ -1924,9 +1924,10 @@ absl::StatusOr<Proc*> Parser::ParseProc(bool is_public,
   // nodes could be difficult, so instead, we can just parse 2x by using the
   // transaction mechanism.
   Transaction txn(this, &bindings);
+  auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> config_members,
                        CollectProcMembers(&bindings));
-  txn.Rollback();
+  std::move(cleanup).Invoke();
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> proc_members,
                        CollectProcMembers(&bindings));
 
