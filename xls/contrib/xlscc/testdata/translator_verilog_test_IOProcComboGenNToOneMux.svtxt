@@ -1,10 +1,10 @@
 module foo_proc(
   input wire [31:0] dir,
   input wire [31:0] in1,
-  input wire [31:0] in2,
-  input wire out_rdy,
   input wire in1_vld,
+  input wire [31:0] in2,
   input wire in2_vld,
+  input wire out_rdy,
   output wire [31:0] out,
   output wire out_vld,
   output wire in1_rdy,
@@ -12,12 +12,12 @@ module foo_proc(
 );
   wire in1_pred;
   wire in2_pred;
-  wire and_109;
+  wire and_114;
   assign in1_pred = dir == 32'h0000_0000;
   assign in2_pred = dir != 32'h0000_0000;
-  assign and_109 = out_rdy;
+  assign and_114 = out_rdy;
   assign out = in2_pred ? in2 : in1 & {32{in1_pred}};
   assign out_vld = (~in1_pred | in1_vld) & (~in2_pred | in2_vld) & 1'h1 & 1'h1;
-  assign in1_rdy = in1_pred & and_109;
-  assign in2_rdy = in2_pred & and_109;
+  assign in1_rdy = in1_pred & and_114;
+  assign in2_rdy = in2_pred & and_114;
 endmodule

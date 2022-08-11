@@ -636,6 +636,27 @@ struct StreamingInput {
   InputPort* port;
   InputPort* port_valid;
   OutputPort* port_ready;
+
+  // signal_data and signal_valid respresent the internal view of the
+  // streaming input.  These are used (ex. for handling non-blocking receives)
+  // as additional logic are placed between the ports and the pipeline use of
+  // these signals.
+  //
+  // Pictorially:
+  //      | port_data   | port_valid   | port_ready
+  //  ----|-------------|--------------|-------------
+  //  |   |             |              |            |
+  //  | |--------------------------|   |            |
+  //  | |  Logic / Adapter         |   |            |
+  //  | |                          |   |            |
+  //  | |--------------------------|   |            |
+  //  |   | signal_data | signal_valid |            |
+  //  |   |             |              |            |
+  //  |                                             |
+  //  -----------------------------------------------
+  Node* signal_data;
+  Node* signal_valid;
+
   Channel* channel;
   std::optional<Node*> predicate;
 };
@@ -675,7 +696,7 @@ struct StreamingIoPipeline {
 
   // Node in block that represents when all output channels (that
   // are predicated true) are ready.
-  // See MakeOutputReadyPortsForOutputChannels().
+  // See MakeInputReadyPortsForOutputChannels().
   std::vector<Node*> all_active_outputs_ready;
   std::vector<Node*> all_active_inputs_valid;
 };
@@ -743,7 +764,7 @@ absl::Status UpdateChannelMetadata(const StreamingIoPipeline& io,
 // generate an  all_active_outputs_ready signal.
 //
 // Upon success returns a Node* to the all_active_inputs_valid signal.
-static absl::StatusOr<std::vector<Node*>> MakeOutputReadyPortsForOutputChannels(
+static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
     absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
     int64_t stage_count, absl::string_view ready_suffix, Block* block) {
   std::vector<Node*> result;
@@ -819,11 +840,9 @@ static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     std::vector<Node*> active_valids;
     if (streaming_inputs.contains(i)) {
       for (StreamingInput& streaming_input : streaming_inputs.at(i)) {
-        XLS_ASSIGN_OR_RETURN(
-            streaming_input.port_valid,
-            block->AddInputPort(
-                absl::StrCat(streaming_input.channel->name(), valid_suffix),
-                block->package()->GetBitsType(1)));
+        // Input ports for input channels are already created during
+        // HandleReceiveNode().
+        Node* streaming_input_valid = streaming_input.signal_valid;
 
         if (streaming_input.predicate.has_value()) {
           // Logic for the active valid signal for a Receive operation with a
@@ -835,7 +854,7 @@ static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
               Node * not_pred,
               block->MakeNode<UnOp>(
                   SourceInfo(), streaming_input.predicate.value(), Op::kNot));
-          std::vector<Node*> operands = {not_pred, streaming_input.port_valid};
+          std::vector<Node*> operands = {not_pred, streaming_input_valid};
           XLS_ASSIGN_OR_RETURN(
               Node * active_valid,
               block->MakeNode<NaryOp>(SourceInfo(), operands, Op::kOr));
@@ -843,7 +862,7 @@ static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
         } else {
           // No predicate is the same as pred = true, so
           // active = !pred | valid = !true | valid = false | valid = valid
-          active_valids.push_back(streaming_input.port_valid);
+          active_valids.push_back(streaming_input_valid);
         }
       }
     }
@@ -1683,7 +1702,7 @@ static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
                                   Block* block) {
   for (auto& [stage, vec] : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
-      valid_nodes.push_back(input.port_valid);
+      valid_nodes.push_back(input.signal_valid);
     }
   }
 
@@ -1728,8 +1747,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_outputs_ready,
-      MakeOutputReadyPortsForOutputChannels(streaming_io.outputs, stage_count,
-                                            ready_suffix, block));
+      MakeInputReadyPortsForOutputChannels(streaming_io.outputs, stage_count,
+                                           ready_suffix, block));
   streaming_io.all_active_outputs_ready = all_active_outputs_ready;
 
   XLS_VLOG(3) << "After Outputs Ready";
@@ -1817,8 +1836,8 @@ static absl::Status AddCombinationalFlowControl(
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_outputs_ready,
-      MakeOutputReadyPortsForOutputChannels(
-          streaming_outputs, /*stage_count=*/1, ready_suffix, block));
+      MakeInputReadyPortsForOutputChannels(streaming_outputs, /*stage_count=*/1,
+                                           ready_suffix, block));
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_inputs_valid,
@@ -2111,6 +2130,13 @@ class CloneNodesIntoBlockHandler {
 
   // Don't clone Receive operations. Instead replace with a tuple
   // containing the Receive's token operand and an InputPort operation.
+  //
+  // Both data and valid ports are created in this function.  See
+  // MakeInputValidPortsForInputChannels() for additional handling of
+  // the valid signal.
+  //
+  // In the case of handling non-blocking receives, the logic to adapt
+  // data to a tuple of (data, valid) is added here.
   absl::StatusOr<Node*> HandleReceiveNode(Node* node, int64_t stage) {
     Node* next_node;
 
@@ -2124,13 +2150,26 @@ class CloneNodesIntoBlockHandler {
         InputPort * input_port,
         block_->AddInputPort(absl::StrCat(channel->name(), data_suffix),
                              channel->type()));
+
     XLS_ASSIGN_OR_RETURN(
-        next_node,
-        block_->MakeNode<Tuple>(
-            node->loc(),
-            std::vector<Node*>({node_map_.at(node->operand(0)), input_port})));
+        Node * literal_1,
+        block_->MakeNode<xls::Literal>(SourceInfo(), Value(UBits(1, 1))));
 
     if (channel->kind() == ChannelKind::kSingleValue) {
+      if (receive->is_blocking()) {
+        XLS_ASSIGN_OR_RETURN(
+            next_node,
+            block_->MakeNode<Tuple>(
+                node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
+                                                 input_port})));
+      } else {
+        XLS_ASSIGN_OR_RETURN(
+            next_node,
+            block_->MakeNode<Tuple>(
+                node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
+                                                 input_port, literal_1})));
+      }
+
       result_.single_value_inputs.push_back(
           SingleValueInput{.port = input_port, .channel = channel});
 
@@ -2141,9 +2180,38 @@ class CloneNodesIntoBlockHandler {
     XLS_RET_CHECK_EQ(down_cast<StreamingChannel*>(channel)->GetFlowControl(),
                      FlowControl::kReadyValid);
 
+    // Construct the valid port.
+    absl::string_view valid_suffix = options_.streaming_channel_valid_suffix();
+
+    XLS_ASSIGN_OR_RETURN(
+        InputPort * input_valid_port,
+        block_->AddInputPort(absl::StrCat(channel->name(), valid_suffix),
+                             block_->package()->GetBitsType(1)));
+
+    // If blocking return a tuple of (token, data), and if non-blocking
+    // return a tuple of (token, data, valid).
+    if (receive->is_blocking()) {
+      XLS_ASSIGN_OR_RETURN(
+          next_node,
+          block_->MakeNode<Tuple>(
+              node->loc(), std::vector<Node*>(
+                               {node_map_.at(node->operand(0)), input_port})));
+    } else {
+      XLS_ASSIGN_OR_RETURN(
+          next_node,
+          block_->MakeNode<Tuple>(
+              node->loc(), std::vector<Node*>({node_map_.at(node->operand(0)),
+                                               input_port, input_valid_port})));
+    }
+
+    // To the rest of the logic, a non-blocking receive is always valid.
+    Node* signal_valid = receive->is_blocking() ? input_valid_port : literal_1;
+
     StreamingInput streaming_input{.port = input_port,
-                                   .port_valid = nullptr,
+                                   .port_valid = input_valid_port,
                                    .port_ready = nullptr,
+                                   .signal_data = next_node,
+                                   .signal_valid = signal_valid,
                                    .channel = channel};
 
     if (receive->predicate().has_value()) {

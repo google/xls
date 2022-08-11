@@ -3194,6 +3194,281 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
   }
 }
 
+// Fixture used to test non-blocking receives.
+class NonblockingReceivesProcTest : public ProcConversionTestFixture {
+ protected:
+  absl::StatusOr<std::unique_ptr<Package>> BuildBlockInPackage(
+      int64_t stage_count, const CodegenOptions& options) override {
+    auto package_ptr = std::make_unique<Package>(TestName());
+    Package& package = *package_ptr;
+
+    Type* u32 = package.GetBitsType(32);
+    XLS_ASSIGN_OR_RETURN(
+        Channel * in0,
+        package.CreateStreamingChannel("in0", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * in1,
+        package.CreateStreamingChannel("in1", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * in2,
+        package.CreateSingleValueChannel("in2", ChannelOps::kReceiveOnly, u32));
+    XLS_ASSIGN_OR_RETURN(
+        Channel * out0,
+        package.CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+    ProcBuilder pb(TestName(), /*token_name=*/"tok", &package);
+
+    BValue in0_data_and_valid = pb.ReceiveNonBlocking(in0, pb.GetTokenParam());
+    BValue in1_data_and_valid = pb.ReceiveNonBlocking(in1, pb.GetTokenParam());
+    BValue in2_data_and_valid = pb.ReceiveNonBlocking(in2, pb.GetTokenParam());
+
+    BValue sum = pb.Literal(UBits(0, 32));
+
+    BValue in0_tok = pb.TupleIndex(in0_data_and_valid, 0);
+    BValue in0_data = pb.TupleIndex(in0_data_and_valid, 1);
+    BValue in0_valid = pb.TupleIndex(in0_data_and_valid, 2);
+    BValue add_sum_in0 = pb.Add(sum, in0_data);
+    BValue sum0 = pb.Select(in0_valid, {sum, add_sum_in0});
+
+    BValue in1_tok = pb.TupleIndex(in1_data_and_valid, 0);
+    BValue in1_data = pb.TupleIndex(in1_data_and_valid, 1);
+    BValue in1_valid = pb.TupleIndex(in1_data_and_valid, 2);
+    BValue add_sum0_in1 = pb.Add(sum0, in1_data);
+    BValue sum1 = pb.Select(in1_valid, {sum0, add_sum0_in1});
+
+    BValue in2_tok = pb.TupleIndex(in2_data_and_valid, 0);
+    BValue in2_data = pb.TupleIndex(in2_data_and_valid, 1);
+    BValue in2_valid = pb.TupleIndex(in2_data_and_valid, 2);
+    BValue add_sum1_in2 = pb.Add(sum1, in2_data);
+    BValue sum2 = pb.Select(in2_valid, {sum1, add_sum1_in2});
+
+    BValue after_in_tok = pb.AfterAll({in0_tok, in1_tok, in2_tok});
+    BValue tok_fin = pb.Send(out0, after_in_tok, sum2);
+
+    XLS_ASSIGN_OR_RETURN(Proc * proc, pb.Build(tok_fin, {}));
+
+    XLS_VLOG(2) << "Non-blocking proc";
+    XLS_VLOG_LINES(2, proc->DumpIr());
+
+    XLS_ASSIGN_OR_RETURN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(
+            proc, TestDelayEstimator(),
+            SchedulingOptions()
+                .pipeline_stages(stage_count)
+                .add_constraint(SchedulingConstraint(
+                    "in1", IODirection::kReceive, "out", IODirection::kSend,
+                    stage_count - 1, stage_count - 1))
+                .add_constraint(SchedulingConstraint(
+                    "in0", IODirection::kReceive, "out", IODirection::kSend,
+                    stage_count - 1, stage_count - 1))));
+
+    CodegenOptions codegen_options = options;
+    codegen_options.module_name(kBlockName);
+
+    XLS_RET_CHECK_OK(ProcToPipelinedBlock(schedule, codegen_options, proc));
+
+    return package_ptr;
+  }
+};
+
+// Fixture to sweep NonblockingReceivesProcTest
+//
+// Sweep parameters are (stage_count, flop_inputs, flop_outputs,
+// flop_output_kind).
+class NonblockingReceivesProcTestSweepFixture
+    : public NonblockingReceivesProcTest,
+      public testing::WithParamInterface<
+          std::tuple<int64_t, bool, bool, CodegenOptions::IOKind,
+                     CodegenOptions::IOKind>> {
+ public:
+  static std::string PrintToStringParamName(
+      const testing::TestParamInfo<ParamType>& info) {
+    int64_t stage_count = std::get<0>(info.param);
+    bool flop_inputs = std::get<1>(info.param);
+    bool flop_outputs = std::get<2>(info.param);
+    CodegenOptions::IOKind flop_inputs_kind = std::get<3>(info.param);
+    CodegenOptions::IOKind flop_outputs_kind = std::get<4>(info.param);
+
+    return absl::StrFormat(
+        "stage_count_%d_flop_inputs_%d_flop_outputs_%d_"
+        "flop_inputs_kind_%s_flop_outputs_kind_%s",
+        stage_count, flop_inputs, flop_outputs,
+        CodegenOptions::IOKindToString(flop_inputs_kind),
+        CodegenOptions::IOKindToString(flop_outputs_kind));
+  }
+};
+
+TEST_P(NonblockingReceivesProcTestSweepFixture, RandomInput) {
+  int64_t stage_count = std::get<0>(GetParam());
+  bool flop_inputs = std::get<1>(GetParam());
+  bool flop_outputs = std::get<2>(GetParam());
+  CodegenOptions::IOKind flop_inputs_kind = std::get<3>(GetParam());
+  CodegenOptions::IOKind flop_outputs_kind = std::get<4>(GetParam());
+  bool add_idle_output = true;
+  bool active_low_reset = false;
+
+  CodegenOptions options;
+  options.flop_inputs(flop_inputs).flop_outputs(flop_outputs).clock_name("clk");
+  options.flop_inputs_kind(flop_inputs_kind);
+  options.flop_outputs_kind(flop_outputs_kind);
+  options.add_idle_output(add_idle_output);
+  options.valid_control("input_valid", "output_valid");
+  options.reset("rst", false, /*active_low=*/active_low_reset, false);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<Package> package,
+      BuildBlockInPackage(/*stage_count=*/stage_count, options));
+
+  XLS_ASSERT_OK_AND_ASSIGN(Block * block, package->GetBlock(kBlockName));
+
+  XLS_VLOG(2) << "Nonblocking receives pipelined block";
+  XLS_VLOG_LINES(2, block->DumpIr());
+
+  // The input stimulus to this test are
+  //  1. 10 cycles of reset
+  //  2a. Randomly varying in0_vld, in1_vld
+  //  2b. Constant out_rdy
+  //  2c. Constant in2 data
+  //  3. in_vld = 0 and out_rdy = 1 for 10 cycles to drain the pipeline
+  int64_t simulation_cycle_count = 10000;
+  int64_t max_random_cycle = simulation_cycle_count - 10 - 1;
+  uint64_t in2_val = 77;
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, 9, {{"rst", 1}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(10, simulation_cycle_count - 1,
+                                     {{"rst", 0}}, inputs));
+
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
+                                                "in0", 1, inputs));
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, simulation_cycle_count - 1,
+                                                "in1", 1, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, simulation_cycle_count - 1,
+                                     {{"in2", in2_val}}, inputs));
+
+  std::minstd_rand rng_engine;
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in0_vld", 0, 1,
+                                          rng_engine, inputs));
+  XLS_ASSERT_OK(SetRandomSignalOverCycles(0, max_random_cycle, "in1_vld", 0, 1,
+                                          rng_engine, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(max_random_cycle + 1,
+                                     simulation_cycle_count - 1,
+                                     {{"in0_vld", 0}, {"in1_vld", 0}}, inputs));
+  XLS_ASSERT_OK(SetSignalsOverCycles(0, simulation_cycle_count - 1,
+                                     {{"out_rdy", 1}}, inputs));
+
+  std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
+  XLS_ASSERT_OK_AND_ASSIGN(outputs, InterpretSequentialBlock(block, inputs));
+
+  // Add a cycle count for easier comparison with simulation results.
+  XLS_ASSERT_OK(SetIncrementingSignalOverCycles(0, outputs.size() - 1, "cycle",
+                                                0, outputs));
+
+  XLS_VLOG(1) << "Signal Trace";
+  XLS_ASSERT_OK(VLogTestPipelinedIO(
+      std::vector<SignalSpec>{{"cycle", SignalType::kOutput},
+                              {"rst", SignalType::kInput},
+                              {"in0", SignalType::kInput},
+                              {"in0_vld", SignalType::kInput},
+                              {"in0_rdy", SignalType::kOutput},
+                              {"in1", SignalType::kInput},
+                              {"in1_vld", SignalType::kInput},
+                              {"in1_rdy", SignalType::kOutput},
+                              {"in2", SignalType::kInput},
+                              {"out", SignalType::kOutput},
+                              {"out_vld", SignalType::kOutput},
+                              {"out_rdy", SignalType::kInput}},
+      /*column_width=*/10, inputs, outputs));
+
+  // Check the following property
+  // 1. The sequence of inputs where (in_vld && in_rdy && !rst) is true
+  //    is strictly monotone increasing with no duplicates.
+  // 2. The sequence of outputs where out_vld && out_rdy is true
+  //    is strictly monotone increasing with no duplicates.
+  // 3. Both sequences in #1 and #2 are identical.
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> input0_sequence,
+      GetChannelSequenceFromIO({"in0", SignalType::kInput},
+                               {"in0_vld", SignalType::kInput},
+                               {"in0_rdy", SignalType::kOutput},
+                               {"rst", SignalType::kInput}, inputs, outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> input1_sequence,
+      GetChannelSequenceFromIO({"in1", SignalType::kInput},
+                               {"in1_vld", SignalType::kInput},
+                               {"in1_rdy", SignalType::kOutput},
+                               {"rst", SignalType::kInput}, inputs, outputs));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::vector<CycleAndValue> output_sequence,
+      GetChannelSequenceFromIO({"out", SignalType::kOutput},
+                               {"out_vld", SignalType::kOutput},
+                               {"out_rdy", SignalType::kInput},
+                               {"rst", SignalType::kInput}, inputs, outputs));
+
+  // Because things are non-blocking there should be an output value every cycle
+  // except for the reset time and pipeline fill time.
+  int64_t pipe_latency = stage_count - 1;
+
+  // If we are flopping the input (with either flop or skid buffer), then the
+  // input has a once cycle delay before arriving at the pipeline.  This results
+  // in an extra output. So flopping input does not increase the time it takes
+  // for a valid output to appear.
+  if (flop_outputs) {
+    ++pipe_latency;
+  }
+  EXPECT_EQ(output_sequence.size(), simulation_cycle_count - pipe_latency - 10);
+
+  int64_t input0_index = 0;
+  int64_t input1_index = 0;
+  int64_t output_index = 0;
+
+  if (flop_inputs) {
+    EXPECT_EQ(output_sequence.at(0).value, in2_val);
+    ++output_index;
+  }
+
+  for (int64_t cycle = 10; cycle < simulation_cycle_count; ++cycle) {
+    uint64_t in0_val = 0;
+    uint64_t in1_val = 0;
+
+    if (input0_index < input0_sequence.size() &&
+        input0_sequence[input0_index].cycle == cycle) {
+      in0_val = input0_sequence[input0_index].value;
+      ++input0_index;
+    }
+
+    if (input1_index < input1_sequence.size() &&
+        input1_sequence[input1_index].cycle == cycle) {
+      in1_val = input1_sequence[input1_index].value;
+      ++input1_index;
+    }
+
+    uint64_t expected_out_val = in0_val + in1_val + in2_val;
+    if (output_index < output_sequence.size()) {
+      uint64_t out_val = output_sequence[output_index].value;
+
+      EXPECT_EQ(expected_out_val, out_val) << absl::StreamFormat(
+          "Output cycle %d from input cycle %d expected %d+%d+%d=%d, got %d",
+          output_sequence[output_index].cycle, cycle, in0_val, in1_val, in2_val,
+          out_val, expected_out_val);
+      ++output_index;
+    }
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    NonblockingReceivesProcTestSweep, NonblockingReceivesProcTestSweepFixture,
+    testing::Combine(testing::Values(1, 2, 3), testing::Values(false, true),
+                     testing::Values(false, true),
+                     testing::Values(CodegenOptions::IOKind::kFlop,
+                                     CodegenOptions::IOKind::kSkidBuffer),
+                     testing::Values(CodegenOptions::IOKind::kFlop,
+                                     CodegenOptions::IOKind::kSkidBuffer)),
+    NonblockingReceivesProcTestSweepFixture::PrintToStringParamName);
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls
