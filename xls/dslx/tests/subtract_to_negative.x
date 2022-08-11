@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-fn main(x: s32, y: s32) -> s32 {
+fn main(x: u32, y: u32) -> u32 {
   x-y
 }
 
 #![test]
 fn subtract_to_negative() {
-  let x: s32 = s32:5;
-  let y: s32 = s32:6;
-  assert_eq(s32:-1, main(x, y))
+  let x: u32 = u32:5;
+  let y: u32 = u32:6;
+  assert_eq(u32:-1, main(x, y))
 }

@@ -31,7 +31,7 @@ fn prefix_scan_eq(x: u32[8]) -> u3[8] {
       };
       let new_result: u3[8] = update(result, i, to_place);
     (elem, new_count, new_result)
-  }((u32:0xffffffff, u3:0, u3[8]:[u3:0, ...]));
+  }((u32:-1, u3:0, u3[8]:[u3:0, ...]));
   result
 }
 

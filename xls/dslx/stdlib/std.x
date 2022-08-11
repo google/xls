@@ -14,47 +14,6 @@
 
 // DSLX standard library routines.
 
-// Returns the maximum signed value contained in N bits.
-pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
-  ((sN[N]:1 << N_MINUS_ONE) - sN[N]:1) as sN[N]
-}
-
-#![test]
-fn signed_max_value_test() {
-  let _ = assert_eq(s8:0x7f, signed_max_value<u32:8>());
-  let _ = assert_eq(s16:0x7fff, signed_max_value<u32:16>());
-  let _ = assert_eq(s17:0xffff, signed_max_value<u32:17>());
-  let _ = assert_eq(s32:0x7fffffff, signed_max_value<u32:32>());
-  ()
-}
-
-// Returns the minimum signed value contained in N bits.
-pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
-  (uN[N]:1 << N_MINUS_ONE) as sN[N]
-}
-
-#![test]
-fn signed_min_value_test() {
-  let _ = assert_eq(s8:-128, signed_min_value<u32:8>());
-  let _ = assert_eq(s16:-32768, signed_min_value<u32:16>());
-  let _ = assert_eq(s17:-65536, signed_min_value<u32:17>());
-  ()
-}
-
-// Returns the maximum unsigned value contained in N bits.
-pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = N + u32:1>() -> uN[N] {
-    ((uN[N_PLUS_ONE]:1 << N) - uN[N_PLUS_ONE]:1) as uN[N]
-}
-
-#![test]
-fn unsigned_max_value_test() {
-  let _ = assert_eq(u8:0xff, unsigned_max_value<u32:8>());
-  let _ = assert_eq(u16:0xffff, unsigned_max_value<u32:16>());
-  let _ = assert_eq(u17:0x1ffff, unsigned_max_value<u32:17>());
-  let _ = assert_eq(u32:0xffffffff, unsigned_max_value<u32:32>());
-  ()
-}
-
 // Returns unsigned mul of x (N bits) and y (M bits) as an N+M bit value.
 pub fn umul<N: u32, M: u32, R: u32 = N + M>(x: uN[N], y: uN[M]) -> uN[R] {
   (x as uN[R]) * (y as uN[R])

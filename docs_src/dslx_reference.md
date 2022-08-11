@@ -342,7 +342,7 @@ fn extend_to_32b(x: MySignedEnum) -> u32 {
 
 #![test]
 fn test_extend_to_32b() {
-  assert_eq(extend_to_32b(MySignedEnum::LOW), u32:0xffffffff)
+  assert_eq(extend_to_32b(MySignedEnum::LOW), u32:-1)
 }
 ```
 
@@ -1459,19 +1459,19 @@ for semantics of numeric casts:
 #![test]
 fn test_numerical_conversions() {
   let s8_m2 = s8:-2;
-  let u8_m2 = u8:0xfe;
+  let u8_m2 = u8:-2;
   // Sign extension (source type is signed).
   let _ = assert_eq(s32:-2, s8_m2 as s32);
-  let _ = assert_eq(u32:0xfffffffe, s8_m2 as u32);
+  let _ = assert_eq(u32:-2, s8_m2 as u32);
   let _ = assert_eq(s16:-2, s8_m2 as s16);
-  let _ = assert_eq(u16:0xfffe, s8_m2 as u16);
+  let _ = assert_eq(u16:-2, s8_m2 as u16);
   // Zero extension (source type is unsigned).
   let _ = assert_eq(u32:0xfe, u8_m2 as u32);
   let _ = assert_eq(s32:0xfe, u8_m2 as s32);
   // Nop (bitwidth is unchanged).
   let _ = assert_eq(s8:-2, s8_m2 as s8);
   let _ = assert_eq(s8:-2, u8_m2 as s8);
-  let _ = assert_eq(u8:0xfe, u8_m2 as u8);
+  let _ = assert_eq(u8:-2, u8_m2 as u8);
   let _ = assert_eq(s8:-2, u8_m2 as s8);
   ()
 }
@@ -1846,7 +1846,7 @@ only its type is used to determine the result type of the sign extension.
 ```dslx
 #![test]
 fn test_signex() {
-  let x = u8:0xff;
+  let x = u8:-1;
   let s: s32 = signex(x, s32:0);
   let u: u32 = signex(x, u32:0);
   assert_eq(s as u32, u)
