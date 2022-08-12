@@ -253,8 +253,9 @@ absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
   }
 
   if (jit_channel_manager_ == nullptr) {
-    XLS_ASSIGN_OR_RETURN(jit_channel_manager_,
-                         JitChannelQueueManager::Create(package_.get()));
+    XLS_ASSIGN_OR_RETURN(
+        jit_channel_manager_,
+        JitChannelQueueManager::CreateThreadUnsafe(package_.get()));
   }
 
   XLS_ASSIGN_OR_RETURN(

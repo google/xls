@@ -16,32 +16,24 @@
 
 #include "absl/memory/memory.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/channel.h"
 
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
 JitChannelQueueManager::Create(Package* package) {
   auto queue_mgr = absl::WrapUnique(new JitChannelQueueManager(package));
-  XLS_RETURN_IF_ERROR(queue_mgr->Init());
+  XLS_RETURN_IF_ERROR(queue_mgr->Init<FifoJitChannelQueue>());
   return queue_mgr;
 }
 
 JitChannelQueueManager::JitChannelQueueManager(Package* package)
     : package_(package) {}
 
-absl::Status JitChannelQueueManager::Init() {
-  for (Channel* chan : package_->channels()) {
-    if (chan->kind() == ChannelKind::kStreaming) {
-      queues_.insert(
-          {chan->id(), std::make_unique<FifoJitChannelQueue>(chan->id())});
-    } else {
-      XLS_RET_CHECK_EQ(chan->kind(), ChannelKind::kSingleValue);
-      queues_.insert({chan->id(), std::make_unique<SingleValueJitChannelQueue>(
-                                      chan->id())});
-    }
-  }
-  return absl::OkStatus();
+absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
+JitChannelQueueManager::CreateThreadUnsafe(Package* package) {
+  auto queue_mgr = absl::WrapUnique(new JitChannelQueueManager(package));
+  XLS_RETURN_IF_ERROR(queue_mgr->Init<LocklessFifoJitChannelQueue>());
+  return queue_mgr;
 }
 
 }  // namespace xls

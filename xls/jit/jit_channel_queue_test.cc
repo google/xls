@@ -23,8 +23,15 @@
 namespace xls {
 namespace {
 
-TEST(JitChannelQueue, FifoJitChannelQueue) {
-  FifoJitChannelQueue fifo(0);
+using testing::HasSubstr;
+
+template <typename T>
+class FifoJitChannelQueueTypedTest : public ::testing::Test {};
+
+TYPED_TEST_SUITE_P(FifoJitChannelQueueTypedTest);
+
+TYPED_TEST_P(FifoJitChannelQueueTypedTest, BasicAccess) {
+  TypeParam fifo(0);
   EXPECT_EQ(fifo.channel_id(), 0);
   EXPECT_TRUE(fifo.Empty());
   std::vector<uint8_t> send_buffer(1);
@@ -49,6 +56,25 @@ TEST(JitChannelQueue, FifoJitChannelQueue) {
   }
   EXPECT_TRUE(fifo.Empty());
 }
+
+TYPED_TEST_P(FifoJitChannelQueueTypedTest, Failures) {
+  TypeParam fifo(0);
+  std::vector<uint8_t> golden_buffer(1);
+  std::vector<uint8_t> error_buffer(2);
+  fifo.Send(golden_buffer.data(), golden_buffer.size());
+  EXPECT_DEATH(fifo.Send(error_buffer.data(), error_buffer.size()),
+               HasSubstr("expected (1), got (2)"));
+  EXPECT_DEATH(fifo.Recv(error_buffer.data(), error_buffer.size()),
+               HasSubstr("expected (1), got (2)"));
+}
+
+REGISTER_TYPED_TEST_SUITE_P(FifoJitChannelQueueTypedTest, BasicAccess,
+                            Failures);
+
+using FifoTypes =
+    ::testing::Types<FifoJitChannelQueue, LocklessFifoJitChannelQueue>;
+INSTANTIATE_TYPED_TEST_SUITE_P(FifoJitChannelQueue,
+                               FifoJitChannelQueueTypedTest, FifoTypes);
 
 TEST(JitChannelQueue, SingleValueJitChannelQueue) {
   SingleValueJitChannelQueue channel(0);
