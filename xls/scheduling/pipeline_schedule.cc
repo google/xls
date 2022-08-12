@@ -28,12 +28,12 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/data_structures/binary_search.h"
-#include "xls/data_structures/graph_contraction.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/node_util.h"
 #include "xls/scheduling/function_partition.h"
 #include "xls/scheduling/schedule_bounds.h"
-#include "ortools/linear_solver/linear_solver.h"
+#include "xls/scheduling/scheduling_options.h"
+#include "xls/scheduling/sdc_scheduler.h"
 
 namespace xls {
 namespace {
@@ -145,324 +145,6 @@ absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegisters(
   for (Node* node : f->nodes()) {
     XLS_RET_CHECK_EQ(bounds->lb(node), bounds->ub(node)) << node->GetName();
     cycle_map[node] = bounds->lb(node);
-  }
-  return cycle_map;
-}
-
-using DelayMap = absl::flat_hash_map<Node*, int64_t>;
-
-// A helper function to compute each node's delay by calling the delay estimator
-// The result is used by `ComputeCriticalCombPathsUntilNextCycle`,
-// `ComputeSingleSourceCCPUntilNextCycle`,
-// `ScheduleToMinimizeRegistersSDC`
-absl::StatusOr<DelayMap> ComputeNodeDelays(
-    FunctionBase* f, const DelayEstimator& delay_estimator) {
-  DelayMap result;
-  for (Node* node : f->nodes()) {
-    XLS_ASSIGN_OR_RETURN(result[node],
-                         delay_estimator.GetOperationDelayInPs(node));
-  }
-  return result;
-}
-
-// Returns the minimal set of schedule constraints which ensure that no
-// combinational path in the schedule exceeds `clock_period_ps`. The returned
-// map has a (potentially empty) vector entry for each node in `f`. The map
-// value (vector of nodes) for node `x` is the set of nodes which must be
-// scheduled at least one cycle later than `x`. That is, if `return_value[x]` is
-// `S` then:
-//
-//   cycle(i) + 1 >= cycle(x) for i \in S
-//
-// The set of constraints is a minimal set which guarantees that no
-// combinational path violates the clock period timing. Specifically, `(a, b)`
-// is in the set of returned constraints (ie., `return_value[a]` contains `b`)
-// iff critical-path distance from `a` to `b` including the delay of `a` and `b`
-// is greater than `critical_path_period`, but the critical-path distance of the
-// path *not* including the delay of `b` is *less than* `critical_path_period`.
-absl::flat_hash_map<Node*, std::vector<Node*>>
-ComputeCombinationalDelayConstraints(FunctionBase* f, int64_t clock_period_ps,
-                                     const DelayMap& delay_map) {
-  absl::flat_hash_map<Node*, std::vector<Node*>> result;
-  result.reserve(f->node_count());
-
-  // Compute all-pairs longest distance between all nodes in `f`. The distance
-  // from node `a` to node `b` is defined as the length of the longest delay
-  // path from `a` to `b` which includes the delay of the path endpoints `a` and
-  // `b`. The all-pairs distance is stored in the map of vectors `node_to_index`
-  // where `node_to_index[y]` holds the critical-path distances from each node
-  // `x` to `y`.
-  absl::flat_hash_map<Node*, std::vector<int64_t>> distances_to_node;
-  distances_to_node.reserve(f->node_count());
-
-  // Compute a map from Node* to the interval [0, node_count). These map values
-  // serve as indices into a flat vector of distances.
-  absl::flat_hash_map<Node*, int32_t> node_to_index;
-  std::vector<Node*> index_to_node(f->node_count());
-  node_to_index.reserve(f->node_count());
-  int32_t index = 0;
-  for (Node* node : f->nodes()) {
-    node_to_index[node] = index;
-    index_to_node[index] = node;
-    index++;
-
-    // Initialize the constraint map entry to an empty vector.
-    result[node];
-  }
-
-  for (Node* node : TopoSort(f)) {
-    int64_t node_index = node_to_index.at(node);
-    int64_t node_delay = delay_map.at(node);
-    std::vector<int64_t> distances = std::vector<int64_t>(f->node_count(), -1);
-
-    // Compute the critical-path distance from `a` to `node` for all nodes `a`
-    // from the distances of `a` to each operand of `node`.
-    for (int64_t operand_i = 0; operand_i < node->operand_count();
-         ++operand_i) {
-      Node* operand = node->operand(operand_i);
-      const std::vector<int64_t>& distances_to_operand =
-          distances_to_node.at(operand);
-      for (int64_t i = 0; i < f->node_count(); ++i) {
-        int64_t operand_distance = distances_to_operand[i];
-        if (operand_distance != -1) {
-          if (distances[i] < operand_distance + node_delay) {
-            distances[i] = operand_distance + node_delay;
-            // Only add a constraint if the delay of `node` results in the
-            // length of the critical-path crossing the `clock_period_ps`
-            // boundary.
-            if (operand_distance <= clock_period_ps &&
-                operand_distance + node_delay > clock_period_ps) {
-              result[index_to_node[i]].push_back(node);
-            }
-          }
-        }
-      }
-    }
-
-    distances[node_index] = node_delay;
-    distances_to_node[node] = std::move(distances);
-  }
-
-  if (XLS_VLOG_IS_ON(4)) {
-    XLS_VLOG(4) << "All-pairs critical-path distances:";
-    for (Node* target : TopoSort(f)) {
-      XLS_VLOG(4) << absl::StrFormat("  distances to %s:", target->GetName());
-      for (int64_t i = 0; i < f->node_count(); ++i) {
-        Node* source = index_to_node[i];
-        XLS_VLOG(4) << absl::StrFormat(
-            "    %s -> %s : %s", source->GetName(), target->GetName(),
-            distances_to_node[target][i] == -1
-                ? "(none)"
-                : absl::StrCat(distances_to_node[target][i]));
-      }
-    }
-    XLS_VLOG(4) << absl::StrFormat("Constraints (clock period: %dps):",
-                                   clock_period_ps);
-    for (Node* node : TopoSort(f)) {
-      XLS_VLOG(4) << absl::StrFormat(
-          "  %s: [%s]", node->GetName(),
-          absl::StrJoin(result.at(node), ", ", NodeFormatter));
-    }
-  }
-  return result;
-}
-
-// Schedule to minimize the total pipeline registers using SDC scheduling
-// the constraint matrix is totally unimodular, this ILP problem can be solved
-// by LP.
-//
-// References:
-//   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
-//   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
-//   Conference. IEEE, 2006.
-//   - Zhang, Zhiru, and Bin Liu. "SDC-based modulo scheduling for pipeline
-//   synthesis." 2013 IEEE/ACM International Conference on Computer-Aided Design
-//   (ICCAD). IEEE, 2013.
-absl::StatusOr<ScheduleCycleMap> ScheduleToMinimizeRegistersSDC(
-    FunctionBase* f, int64_t pipeline_stages,
-    const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
-    int64_t clock_period_ps,
-    absl::Span<const SchedulingConstraint> constraints) {
-  XLS_VLOG(3) << "ScheduleToMinimizeRegistersSDC()";
-  XLS_VLOG(3) << "  pipeline stages = " << pipeline_stages;
-  XLS_VLOG_LINES(4, f->DumpIr());
-
-  XLS_VLOG(4) << "Initial bounds:";
-  XLS_VLOG_LINES(4, bounds->ToString());
-
-  namespace or_tools = ::operations_research;
-
-  std::unique_ptr<or_tools::MPSolver> solver(
-      or_tools::MPSolver::CreateSolver("GLOP"));
-  if (!solver) {
-    return absl::UnavailableError("GLOP solver unavailable.");
-  }
-
-  const double infinity = solver->infinity();
-
-  // Node's cycle after scheduling
-  absl::flat_hash_map<Node*, or_tools::MPVariable*> cycle_var;
-
-  // Node's lifetime, from when it finishes executing until it is consumed by
-  // the last user.
-  absl::flat_hash_map<Node*, or_tools::MPVariable*> lifetime_var;
-  for (Node* node : f->nodes()) {
-    cycle_var[node] =
-        solver->MakeNumVar(bounds->lb(node), bounds->ub(node), node->GetName());
-    lifetime_var[node] = solver->MakeNumVar(
-        0.0, infinity, absl::StrFormat("lifetime_%s", node->GetName()));
-  }
-
-  // Map from channel name to set of nodes that send/receive on that channel.
-  absl::flat_hash_map<std::string, std::vector<Node*>> channel_to_nodes;
-  for (Node* node : f->nodes()) {
-    if (node->Is<Receive>() || node->Is<Send>()) {
-      XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-      channel_to_nodes[channel->name()].push_back(node);
-    }
-  }
-
-  // Scheduling constraints
-  for (const SchedulingConstraint& constraint : constraints) {
-    // We use `channel_to_nodes[...]` instead of `channel_to_nodes.at(...)`
-    // below because we don't want to error out if a constraint is specified
-    // that affects a channel with no associated send/receives in this proc.
-    for (Node* source : channel_to_nodes[constraint.SourceChannel()]) {
-      for (Node* target : channel_to_nodes[constraint.TargetChannel()]) {
-        auto node_matches_direction = [](Node* node, IODirection dir) -> bool {
-          return (node->Is<Send>() && dir == IODirection::kSend) ||
-                 (node->Is<Receive>() && dir == IODirection::kReceive);
-        };
-        if (!node_matches_direction(source, constraint.SourceDirection())) {
-          continue;
-        }
-        if (!node_matches_direction(target, constraint.TargetDirection())) {
-          continue;
-        }
-        if (source == target) {
-          continue;
-        }
-
-        or_tools::MPVariable* source_var = cycle_var.at(source);
-        or_tools::MPVariable* target_var = cycle_var.at(target);
-
-        // The desired constraint `cycle[target] - cycle[source] >= min_latency`
-        // becomes `-(cycle[target] - cycle[source]) <= -min_latency`
-        // becomes `cycle[source] - cycle[target] <= -min_latency`
-        or_tools::MPConstraint* min_io_constraint = solver->MakeRowConstraint(
-            -infinity, -constraint.MinimumLatency(),
-            absl::StrFormat("min_io_%s_%s", source->GetName(),
-                            target->GetName()));
-        min_io_constraint->SetCoefficient(source_var, 1);
-        min_io_constraint->SetCoefficient(target_var, -1);
-
-        // Constraint: `cycle[target] - cycle[source] <= max_latency`
-        or_tools::MPConstraint* max_io_constraint = solver->MakeRowConstraint(
-            -infinity, constraint.MaximumLatency(),
-            absl::StrFormat("max_io_%s_%s", source->GetName(),
-                            target->GetName()));
-        max_io_constraint->SetCoefficient(target_var, 1);
-        max_io_constraint->SetCoefficient(source_var, -1);
-
-        XLS_VLOG(2) << "Setting IO constraint: "
-                    << absl::StrFormat("%d ≤ cycle[%s] - cycle[%s] ≤ %d",
-                                       constraint.MinimumLatency(),
-                                       target->GetName(), source->GetName(),
-                                       constraint.MaximumLatency());
-      }
-    }
-  }
-
-  // A dummy node to represent an artificial sink node on the data-dependence
-  // graph.
-  or_tools::MPVariable* cycle_at_sinknode =
-      solver->MakeNumVar(-infinity, infinity, "cycle_at_sinknode");
-
-  for (Node* node : f->nodes()) {
-    or_tools::MPVariable* lifetime_at_node = lifetime_var[node];
-    or_tools::MPVariable* cycle_at_node = cycle_var[node];
-
-    auto add_du_chains_related_constraints =
-        [&](absl::string_view user_str, or_tools::MPVariable* cycle_at_user) {
-          // Constraint: cycle[node] - cycle[node_user] <= 0
-          or_tools::MPConstraint* causal = solver->MakeRowConstraint(
-              -infinity, 0.0,
-              absl::StrFormat("causal_%s_%s", node->GetName(), user_str));
-          causal->SetCoefficient(cycle_at_node, 1);
-          causal->SetCoefficient(cycle_at_user, -1);
-
-          XLS_VLOG(2) << "Setting causal constraint: "
-                      << absl::StrFormat("cycle[%s] - cycle[%s] ≥ 0", user_str,
-                                         node->GetName());
-
-          // Constraint: cycle[node_user] - cycle[node] - lifetime[node] <= 0
-          or_tools::MPConstraint* lifetime = solver->MakeRowConstraint(
-              -infinity, 0.0,
-              absl::StrFormat("lifetime_%s_%s", node->GetName(), user_str));
-          lifetime->SetCoefficient(cycle_at_user, 1);
-          lifetime->SetCoefficient(cycle_at_node, -1);
-          lifetime->SetCoefficient(lifetime_at_node, -1);
-
-          XLS_VLOG(2) << "Setting lifetime constraint: "
-                      << absl::StrFormat(
-                             "lifetime[%s] + cycle[%s] - cycle[%s] ≥ 0",
-                             node->GetName(), node->GetName(), user_str);
-        };
-
-    for (Node* user : node->users()) {
-      add_du_chains_related_constraints(user->GetName(), cycle_var.at(user));
-    }
-    if (f->HasImplicitUse(node)) {
-      add_du_chains_related_constraints("«sink»", cycle_at_sinknode);
-    }
-  }
-
-  XLS_ASSIGN_OR_RETURN(auto delay_map, ComputeNodeDelays(f, delay_estimator));
-  absl::flat_hash_map<Node*, std::vector<Node*>> delay_constraints =
-      ComputeCombinationalDelayConstraints(f, clock_period_ps, delay_map);
-  for (Node* source : f->nodes()) {
-    for (Node* target : delay_constraints.at(source)) {
-      or_tools::MPConstraint* timing = solver->MakeRowConstraint(
-          1, infinity,
-          absl::StrFormat("timing_%s_%s", source->GetName(),
-                          target->GetName()));
-      timing->SetCoefficient(cycle_var[target], 1);
-      timing->SetCoefficient(cycle_var[source], -1);
-      XLS_VLOG(2) << "Setting timing constraint: "
-                  << absl::StrFormat("%s - %s ≥ 1", target->GetName(),
-                                     source->GetName());
-    }
-  }
-
-  or_tools::MPObjective* objective = solver->MutableObjective();
-  for (Node* node : f->nodes()) {
-    // This acts as a tie-breaker for underconstrained problems.
-    objective->SetCoefficient(cycle_var[node], 1);
-    // Minimize node lifetimes.
-    // The scaling makes the tie-breaker small in comparison, and is a power
-    // of two so that there's no imprecision (just add to exponent).
-    objective->SetCoefficient(lifetime_var[node],
-                              1024 * node->GetType()->GetFlatBitCount());
-  }
-  objective->SetMinimization();
-
-  or_tools::MPSolver::ResultStatus status = solver->Solve();
-  // Check that the problem has an optimal solution.
-  if (status != or_tools::MPSolver::OPTIMAL) {
-    XLS_VLOG(3) << "ScheduleToMinimizeRegistersSDC failed with " << status;
-    return absl::InternalError(
-        "The problem does not have an optimal solution!");
-  }
-
-  // Extract result from LP solver
-  ScheduleCycleMap cycle_map;
-  for (Node* node : f->nodes()) {
-    double cycle = cycle_var[node]->solution_value();
-    if (std::fabs(cycle - std::round(cycle)) > 0.001) {
-      return absl::InternalError(
-          "The scheduling result is expected to be integer");
-    }
-    cycle_map[node] = std::round(cycle);
   }
   return cycle_map;
 }
@@ -824,17 +506,20 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
       ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
                       options.pipeline_stages(), delay_estimator_with_delay));
   int64_t schedule_length = bounds.max_lower_bound() + 1;
+  if (options.pipeline_stages().has_value()) {
+    schedule_length = options.pipeline_stages().value();
+  }
 
   ScheduleCycleMap cycle_map;
-  if (options.strategy() == SchedulingStrategy::MINIMIZE_REGISTERS) {
+  if (options.strategy() == SchedulingStrategy::MIN_CUT) {
     XLS_ASSIGN_OR_RETURN(cycle_map, ScheduleToMinimizeRegisters(
                                         f, schedule_length,
                                         delay_estimator_with_delay, &bounds));
-  } else if (options.strategy() == SchedulingStrategy::MINIMIZE_REGISTERS_SDC) {
-    XLS_ASSIGN_OR_RETURN(
-        cycle_map, ScheduleToMinimizeRegistersSDC(
-                       f, schedule_length, delay_estimator_with_delay, &bounds,
-                       clock_period_ps, options.constraints()));
+  } else if (options.strategy() == SchedulingStrategy::SDC) {
+    XLS_ASSIGN_OR_RETURN(cycle_map,
+                         SDCScheduler(f, schedule_length, clock_period_ps,
+                                      delay_estimator_with_delay, &bounds,
+                                      options.constraints()));
   } else if (options.strategy() == SchedulingStrategy::RANDOM) {
     for (Node* node : TopoSort(f)) {
       int64_t lower_bound = bounds.lb(node);
@@ -873,29 +558,32 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
     }
 
     for (const SchedulingConstraint& constraint : options.constraints()) {
-      // We use `channel_to_nodes[...]` instead of `channel_to_nodes.at(...)`
-      // below because we don't want to error out if a constraint is specified
-      // that affects a channel with no associated send/receives in this proc.
-      for (Node* source : channel_to_nodes[constraint.SourceChannel()]) {
-        for (Node* target : channel_to_nodes[constraint.TargetChannel()]) {
-          if (source == target) {
-            continue;
+      if (std::holds_alternative<IOConstraint>(constraint)) {
+        IOConstraint io_constr = std::get<IOConstraint>(constraint);
+        // We use `channel_to_nodes[...]` instead of `channel_to_nodes.at(...)`
+        // below because we don't want to error out if a constraint is specified
+        // that affects a channel with no associated send/receives in this proc.
+        for (Node* source : channel_to_nodes[io_constr.SourceChannel()]) {
+          for (Node* target : channel_to_nodes[io_constr.TargetChannel()]) {
+            if (source == target) {
+              continue;
+            }
+            int64_t source_cycle = cycle_map.at(source);
+            int64_t target_cycle = cycle_map.at(target);
+            int64_t latency = target_cycle - source_cycle;
+            if ((io_constr.MinimumLatency() <= latency) &&
+                (latency <= io_constr.MaximumLatency())) {
+              continue;
+            }
+            return absl::ResourceExhaustedError(absl::StrFormat(
+                "Scheduling constraint violated: node %s was scheduled %d "
+                "cycles before node %s which violates the constraint that ops "
+                "on channel %s must be between %d and %d cycles (inclusive) "
+                "before ops on channel %s.",
+                source->ToString(), latency, target->ToString(),
+                io_constr.SourceChannel(), io_constr.MinimumLatency(),
+                io_constr.MaximumLatency(), io_constr.TargetChannel()));
           }
-          int64_t source_cycle = cycle_map.at(source);
-          int64_t target_cycle = cycle_map.at(target);
-          int64_t latency = target_cycle - source_cycle;
-          if ((constraint.MinimumLatency() <= latency) &&
-              (latency <= constraint.MaximumLatency())) {
-            continue;
-          }
-          return absl::ResourceExhaustedError(absl::StrFormat(
-              "Scheduling constraint violated: node %s was scheduled %d cycles "
-              "before node %s which violates the constraint that ops on "
-              "channel %s must be between %d and %d cycles (inclusive) before "
-              "ops on channel %s.",
-              source->ToString(), latency, target->ToString(),
-              constraint.SourceChannel(), constraint.MinimumLatency(),
-              constraint.MaximumLatency(), constraint.TargetChannel()));
         }
       }
     }

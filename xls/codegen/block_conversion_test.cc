@@ -1063,12 +1063,7 @@ class SimplePipelinedProcTest : public ProcConversionTestFixture {
             proc, TestDelayEstimator(),
             SchedulingOptions()
                 .pipeline_stages(stage_count)
-                // Force recv into first cycle and send into
-                // the last cycle, since many of these tests depend
-                // precisely on the latency of the pipeline.
-                .add_constraint(SchedulingConstraint(
-                    "in", IODirection::kReceive, "out", IODirection::kSend,
-                    stage_count - 1, stage_count - 1))));
+                .add_constraint(RecvsFirstSendsLastConstraint())));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -1813,15 +1808,7 @@ class MultiInputPipelinedProcTest : public ProcConversionTestFixture {
             proc, TestDelayEstimator(),
             SchedulingOptions()
                 .pipeline_stages(stage_count)
-                // Force recv into first cycle and send into
-                // the last cycle, since many of these tests depend
-                // precisely on the latency of the pipeline.
-                .add_constraint(SchedulingConstraint(
-                    "in0", IODirection::kReceive, "out", IODirection::kSend,
-                    stage_count - 1, stage_count - 1))
-                .add_constraint(SchedulingConstraint(
-                    "in1", IODirection::kReceive, "out", IODirection::kSend,
-                    stage_count - 1, stage_count - 1))));
+                .add_constraint(RecvsFirstSendsLastConstraint())));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);
@@ -3256,12 +3243,7 @@ class NonblockingReceivesProcTest : public ProcConversionTestFixture {
             proc, TestDelayEstimator(),
             SchedulingOptions()
                 .pipeline_stages(stage_count)
-                .add_constraint(SchedulingConstraint(
-                    "in1", IODirection::kReceive, "out", IODirection::kSend,
-                    stage_count - 1, stage_count - 1))
-                .add_constraint(SchedulingConstraint(
-                    "in0", IODirection::kReceive, "out", IODirection::kSend,
-                    stage_count - 1, stage_count - 1))));
+                .add_constraint(RecvsFirstSendsLastConstraint())));
 
     CodegenOptions codegen_options = options;
     codegen_options.module_name(kBlockName);

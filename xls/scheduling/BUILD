@@ -58,6 +58,40 @@ cc_test(
 )
 
 cc_library(
+    name = "scheduling_options",
+    hdrs = ["scheduling_options.h"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+    ],
+)
+
+cc_library(
+    name = "sdc_scheduler",
+    srcs = ["sdc_scheduler.cc"],
+    hdrs = ["sdc_scheduler.h"],
+    deps = [
+        ":schedule_bounds",
+        ":scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:node_util",
+        "@com_google_ortools//ortools/linear_solver",
+    ],
+)
+
+cc_library(
     name = "pipeline_schedule",
     srcs = ["pipeline_schedule.cc"],
     hdrs = ["pipeline_schedule.h"],
@@ -65,6 +99,8 @@ cc_library(
         ":function_partition",
         ":pipeline_schedule_cc_proto",
         ":schedule_bounds",
+        ":scheduling_options",
+        ":sdc_scheduler",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -75,11 +111,9 @@ cc_library(
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
         "//xls/data_structures:binary_search",
-        "//xls/data_structures:graph_contraction",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",
-        "@com_google_ortools//ortools/linear_solver",
     ],
 )
 

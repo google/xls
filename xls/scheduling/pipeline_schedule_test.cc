@@ -116,11 +116,10 @@ TEST_F(PipelineScheduleTest, OutrightInfeasibleSchedule) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ASSERT_THAT(
-      PipelineSchedule::Run(
-          f, TestDelayEstimator(),
-          SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
-              .clock_period_ps(1)
-              .pipeline_stages(2))
+      PipelineSchedule::Run(f, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                                .clock_period_ps(1)
+                                .pipeline_stages(2))
           .status(),
       StatusIs(
           absl::StatusCode::kResourceExhausted,
@@ -139,11 +138,10 @@ TEST_F(PipelineScheduleTest, InfeasibleScheduleWithBinPacking) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
 
   ASSERT_THAT(
-      PipelineSchedule::Run(
-          f, TestDelayEstimator(),
-          SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
-              .clock_period_ps(2)
-              .pipeline_stages(2))
+      PipelineSchedule::Run(f, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                                .clock_period_ps(2)
+                                .pipeline_stages(2))
           .status(),
       StatusIs(
           absl::StatusCode::kResourceExhausted,
@@ -162,11 +160,10 @@ TEST_F(PipelineScheduleTest, InfeasibleScheduleWithReturnValueUsers) {
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(ret_value));
 
   ASSERT_THAT(
-      PipelineSchedule::Run(
-          f, TestDelayEstimator(),
-          SchedulingOptions(SchedulingStrategy::MINIMIZE_REGISTERS)
-              .clock_period_ps(1)
-              .pipeline_stages(2))
+      PipelineSchedule::Run(f, TestDelayEstimator(),
+                            SchedulingOptions(SchedulingStrategy::MIN_CUT)
+                                .clock_period_ps(1)
+                                .pipeline_stages(2))
           .status(),
       StatusIs(
           absl::StatusCode::kResourceExhausted,
@@ -825,20 +822,18 @@ TEST_F(PipelineScheduleTest, ProcScheduleWithConstraints) {
   BValue send = pb.Send(out_ch, out);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({st}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      PipelineSchedule schedule,
-      PipelineSchedule::Run(
-          proc, TestDelayEstimator(),
-          SchedulingOptions()
-              .pipeline_stages(10)
-              // TODO: change this to a more meaningful test once codegen
-              // supports send/receive in cycles other than the first and last
-              .add_constraint(SchedulingConstraint("in", IODirection::kReceive,
-                                                   "out", IODirection::kSend, 9,
-                                                   9))));
+  for (int64_t i = 3; i <= 9; ++i) {
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(
+            proc, TestDelayEstimator(),
+            SchedulingOptions().pipeline_stages(10).add_constraint(
+                IOConstraint("in", IODirection::kReceive, "out",
+                             IODirection::kSend, i, i))));
 
-  EXPECT_EQ(schedule.length(), 10);
-  EXPECT_EQ(schedule.cycle(send.node()) - schedule.cycle(rcv.node()), 9);
+    EXPECT_EQ(schedule.length(), 10);
+    EXPECT_EQ(schedule.cycle(send.node()) - schedule.cycle(rcv.node()), i);
+  }
 }
 
 TEST_F(PipelineScheduleTest, RandomSchedule) {

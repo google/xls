@@ -46,8 +46,8 @@ ABSL_FLAG(int64_t, period_relaxation_percent, 0,
           "count. See https://google.github.io/xls/scheduling for details.");
 ABSL_FLAG(int64_t, additional_input_delay_ps, 0,
           "The additional delay added to each receive node.");
-ABSL_FLAG(std::vector<std::string>, scheduling_constraints, {},
-          "A comma-separated list of scheduling constraints, each of which is "
+ABSL_FLAG(std::vector<std::string>, io_constraints, {},
+          "A comma-separated list of IO constraints, each of which is "
           "specified by a literal like `foo:send:bar:recv:3:5` which means "
           "that sends on channel `foo` must occur between 3 and 5 cycles "
           "(inclusive) before receives on channel `bar`. "
@@ -58,6 +58,9 @@ ABSL_FLAG(std::vector<std::string>, scheduling_constraints, {},
           "If the special minimum/maximum value `none` is used, then "
           "the minimum latency will be the lowest representable int64_t, "
           "and likewise for maximum latency.");
+ABSL_FLAG(bool, receives_first_sends_last, false,
+          "If true, this forces receives into the first cycle and sends into "
+          "the last cycle.");
 // LINT.ThenChange(//xls/build_rules/xls_codegen_rules.bzl)
 
 namespace xls {
@@ -83,11 +86,11 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p) {
     scheduling_options.additional_input_delay_ps(
         absl::GetFlag(FLAGS_additional_input_delay_ps));
   }
-  for (const std::string& c : absl::GetFlag(FLAGS_scheduling_constraints)) {
+  for (const std::string& c : absl::GetFlag(FLAGS_io_constraints)) {
     std::vector<std::string> components = absl::StrSplit(c, ':');
     if (components.size() != 6) {
       return absl::InternalError(
-          absl::StrFormat("Could not parse scheduling constraint: `%s`", c));
+          absl::StrFormat("Could not parse IO constraint: `%s`", c));
     }
     auto parse_dir =
         [&](const std::string& str) -> absl::StatusOr<IODirection> {
@@ -98,7 +101,7 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p) {
         return IODirection::kReceive;
       }
       return absl::InternalError(
-          absl::StrFormat("Could not parse scheduling constraint: "
+          absl::StrFormat("Could not parse IO constraint: "
                           "invalid channel direction in `%s`",
                           c));
     };
@@ -111,7 +114,7 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p) {
       min_latency = std::numeric_limits<int64_t>::min();
     } else if (!absl::SimpleAtoi(components[4], &min_latency)) {
       return absl::InternalError(
-          absl::StrFormat("Could not parse scheduling constraint: "
+          absl::StrFormat("Could not parse IO constraint: "
                           "invalid minimum latency in `%s`",
                           c));
     }
@@ -119,28 +122,34 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p) {
       max_latency = std::numeric_limits<int64_t>::max();
     } else if (!absl::SimpleAtoi(components[5], &max_latency)) {
       return absl::InternalError(
-          absl::StrFormat("Could not parse scheduling constraint: "
+          absl::StrFormat("Could not parse IO constraint: "
                           "invalid maximum latency in `%s`",
                           c));
     }
-    SchedulingConstraint constraint(source, source_dir, target, target_dir,
-                                    min_latency, max_latency);
+    IOConstraint constraint(source, source_dir, target, target_dir, min_latency,
+                            max_latency);
     scheduling_options.add_constraint(constraint);
+  }
+  if (absl::GetFlag(FLAGS_receives_first_sends_last)) {
+    scheduling_options.add_constraint(RecvsFirstSendsLastConstraint());
   }
 
   if (p != nullptr) {
     for (const SchedulingConstraint& c : scheduling_options.constraints()) {
-      if (!p->GetChannel(c.SourceChannel()).ok()) {
-        return absl::InternalError(absl::StrFormat(
-            "Invalid channel name in scheduling constraint: %s; "
-            "this name did not correspond to any channel in the package",
-            c.SourceChannel()));
-      }
-      if (!p->GetChannel(c.TargetChannel()).ok()) {
-        return absl::InternalError(absl::StrFormat(
-            "Invalid channel name in scheduling constraint: %s; "
-            "this name did not correspond to any channel in the package",
-            c.TargetChannel()));
+      if (std::holds_alternative<IOConstraint>(c)) {
+        IOConstraint io_constr = std::get<IOConstraint>(c);
+        if (!p->GetChannel(io_constr.SourceChannel()).ok()) {
+          return absl::InternalError(absl::StrFormat(
+              "Invalid channel name in IO constraint: %s; "
+              "this name did not correspond to any channel in the package",
+              io_constr.SourceChannel()));
+        }
+        if (!p->GetChannel(io_constr.TargetChannel()).ok()) {
+          return absl::InternalError(absl::StrFormat(
+              "Invalid channel name in IO constraint: %s; "
+              "this name did not correspond to any channel in the package",
+              io_constr.TargetChannel()));
+        }
       }
     }
   }
