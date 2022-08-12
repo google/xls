@@ -39,7 +39,7 @@ proc test_proc {
   }
   next(tok: token, y: u32) {
     let y = y + x;
-    (y,)
+    y
   }
 }
 

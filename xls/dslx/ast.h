@@ -1364,7 +1364,7 @@ class Function : public AstNode {
   const std::vector<ParametricBinding*>& parametric_bindings() const {
     return parametric_bindings_;
   }
-  const std::vector<Param*> params() const { return params_; }
+  const std::vector<Param*>& params() const { return params_; }
   Block* body() const { return body_; }
 
   bool IsParametric() const { return !parametric_bindings_.empty(); }

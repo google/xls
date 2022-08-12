@@ -38,7 +38,7 @@ proc test_impl {
 
     let state = o0;
 
-    (state,)
+    state
   }
 }
 

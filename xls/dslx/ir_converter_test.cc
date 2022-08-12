@@ -47,14 +47,15 @@ std::string TestName() {
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
     absl::string_view program, absl::string_view fn_name,
-    ImportData& import_data, const ConvertOptions& options) {
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ParseAndTypecheck(program, /*path=*/"test_module.x",
-                                         /*module_name=*/"test_module",
-                                         /*import_data=*/&import_data));
-  return ConvertOneFunction(tm.module, /*entry_function_name=*/fn_name,
-                            /*import_data=*/&import_data,
-                            /*symbolic_bindings=*/nullptr, options);
+    ImportData& import_data, const ConvertOptions& options,
+    std::optional<absl::string_view> top_proc_state = std::nullopt) {
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(program, /*path=*/"test_module.x",
+                        /*module_name=*/"test_module", &import_data));
+  return ConvertOneFunction(
+      tm.module, /*entry_function_name=*/fn_name, &import_data,
+      /*symbolic_bindings=*/nullptr, options, top_proc_state);
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
@@ -1501,7 +1502,7 @@ proc producer {
   }
   next(tok: token, i: u32) {
     let tok = send(tok, c, i);
-    (i + u32:1,)
+    i + u32:1
   }
 }
 
@@ -1512,7 +1513,7 @@ proc consumer {
   }
   next(tok: token, i: u32) {
     let (tok, i) = recv(tok, c);
-    (i + i,)
+    i + i
   }
 }
 
@@ -1548,7 +1549,7 @@ TEST(IrConverterTest, SendIfRecvIf) {
 
   next(tok: token, do_send: bool) {
     let _ = send_if(tok, c, do_send, ((do_send) as u32));
-    (!(do_send),)
+    !do_send
   }
 }
 
@@ -1561,7 +1562,7 @@ proc consumer {
 
   next(tok: token, do_recv: bool) {
     let (_, foo) = recv_if(tok, c, do_recv);
-    (!(do_recv),)
+    !do_recv
   }
 }
 
@@ -1607,8 +1608,8 @@ TEST(IrConverterTest, Join) {
     let tok2 = send(tok, p2, ((state) as u32));
     let tok3 = send(tok0, p0, ((state) as u32));
     let tok = join(tok0, tok1, tok2, send(tok0, p0, state as u32));
-    let (tok, value) = recv(tok, c3);
-    (state + u32:1,)
+    let (tok, value) = recv(tok3, c3);
+    state + u32:1
   }
 }
 
@@ -1660,6 +1661,26 @@ TEST(IrConverterTest, BoundaryChannels) {
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertOneFunctionForTest(kProgram, "foo", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, TopProcWithState) {
+  constexpr absl::string_view kProgram = R"(proc main {
+  config() { () }
+
+  next(tok: token, state: (u32, u32[4])) { state }
+})";
+
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  std::string initial_state_str = "(4, [4000, 4001, 0x24, 0x25])";
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options,
+                                initial_state_str));
   ExpectIr(converted, TestName());
 }
 

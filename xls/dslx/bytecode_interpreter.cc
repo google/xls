@@ -1718,14 +1718,16 @@ absl::Status ProcInstance::Run() {
 
   if (result_status.ok()) {
     InterpValue result_value = interpreter_->stack_.back();
-    XLS_ASSIGN_OR_RETURN(const std::vector<InterpValue>* elements,
-                         result_value.GetValues());
     // If we're starting from next fn top, then set [non-member] args for the
     // next go-around.
     // Don't forget to add the [implicit] token!
-    XLS_RET_CHECK_EQ(elements->size() + 1, proc_->next()->params().size());
-    for (int i = 0; i < elements->size(); i++) {
-      next_args_[proc_->members().size() + 1 + i] = elements->at(i);
+    // If we get an empty tuple and the proc has no recurrent state, then don't
+    // add it.
+    if (next_args_.size() == proc_->members().size() + 2) {
+      next_args_[proc_->members().size() + 1] = result_value;
+    } else {
+      XLS_QCHECK(result_value.IsTuple() &&
+                 result_value.GetLength().value() == 0);
     }
 
     XLS_RETURN_IF_ERROR(interpreter_->InitFrame(next_fn_.get(), next_args_));

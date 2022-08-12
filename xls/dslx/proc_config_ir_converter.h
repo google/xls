@@ -18,7 +18,6 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/extract_conversion_order.h"
 #include "xls/dslx/import_data.h"
-#include "xls/dslx/interp_value.h"
 #include "xls/dslx/type_info.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/package.h"
@@ -38,7 +37,7 @@ struct ProcConversionData {
 
   // Maps a proc instance ID to the IR Value to use for the first execution
   // of the `next` function.
-  absl::flat_hash_map<ProcId, std::vector<Value>> id_to_initial_values;
+  absl::flat_hash_map<ProcId, Value> id_to_initial_value;
 
   // Maps a proc instance ID to its set of members and values.
   absl::flat_hash_map<ProcId, MemberNameToValue> id_to_members;

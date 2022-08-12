@@ -21,7 +21,6 @@
 // IN THE SOFTWARE.
 
 #include "fast_hsv2rgb.h"
-#include "xls/codegen/combinational_generator.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
@@ -29,9 +28,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/package.h"
 
 namespace {
 
@@ -54,7 +51,8 @@ class XlsColorsTest : public xls::IrTestBase {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::string package_text,
         xls::dslx::ConvertOneFunction(tm.module, "hsv2rgb", &import_data,
-                                      /*symbolic_bindings=*/nullptr, options));
+                                      /*symbolic_bindings=*/nullptr, options,
+                                      std::nullopt));
     const uint8_t kS = 255;
     const uint8_t kV = 255;
     const uint16_t kHStep = 8;

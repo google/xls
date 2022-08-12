@@ -124,6 +124,7 @@ def _convert_to_ir(ctx, src):
     IR_CONV_FLAGS = (
         "dslx_path",
         "emit_fail_as_assert",
+        "top_proc_initial_state",
     )
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)

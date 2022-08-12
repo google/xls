@@ -198,20 +198,16 @@ absl::Status ProcConfigIrConverter::HandleSpawn(const Spawn* node) {
   }
   proc_data_->id_to_config_args[new_id] = config_args;
 
-  // Store the "next" function's initial args, while we have them.
-  std::vector<Value> initial_values;
-  for (const auto& arg : node->next()->args()) {
-    XLS_ASSIGN_OR_RETURN(InterpValue value, ConstexprEvaluator::EvaluateToValue(
-                                                import_data_, type_info_,
-                                                bindings_, arg, nullptr));
+  if (!node->next()->args().empty()) {
+    XLS_ASSIGN_OR_RETURN(
+        InterpValue value,
+        ConstexprEvaluator::EvaluateToValue(import_data_, type_info_, bindings_,
+                                            node->next()->args()[0], nullptr));
     XLS_ASSIGN_OR_RETURN(auto ir_value, value.ConvertToIr());
-    initial_values.push_back(ir_value);
+    proc_data_->id_to_initial_value[new_id] = ir_value;
   }
-  proc_data_->id_to_initial_values[new_id] = initial_values;
 
   return node->body()->Accept(this);
-
-  return absl::OkStatus();
 }
 
 absl::Status ProcConfigIrConverter::HandleStructInstance(

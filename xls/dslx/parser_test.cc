@@ -245,14 +245,14 @@ proc main {
   EXPECT_EQ(m->ToString(), text);
 }
 
-TEST_F(ParserTest, ChannelsNotAsIterArgs) {
+TEST_F(ParserTest, ChannelsNotAsNextArgs) {
   const char* text = R"(proc producer {
   c_: chan out u32;
   config(c: chan out u32) {
     let c_ = (c);
     ()
   }
-  next(tok: token, c: chan out u32, i: u32) {
+  next(tok: token, state: (chan out u32, u32)) {
     send((c), (i));
     (i) + (i)
   }

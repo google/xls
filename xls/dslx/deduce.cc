@@ -2479,11 +2479,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSpawn(const Spawn* node,
                           .status());
 
   return ctx->Deduce(node->body());
-  XLS_RETURN_IF_ERROR(ctx->Deduce(node->body()).status());
-  // XLS_LOG(INFO) << "DeduceSpawn: body type: " <<
-
-  // TODO(rspringer): 2021-09-02 : #504 : How to handle fail! in procs?
-  return ConcreteType::MakeUnit();
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceMapInvocation(

@@ -12,15 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 proc producer {
-  c: chan out u32;
+  p: chan out u32;
 
-  config(c: chan out u32) {
-    (c,)
+  config(p: chan out u32) {
+    (p,)
   }
 
   next(tok: token, do_send: bool) {
-    let tok = send_if(tok, c, do_send, ((do_send) as u32));
-    (!(do_send),)
+    let tok = send_if(tok, p, do_send, ((do_send) as u32));
+    !do_send
   }
 }
 
@@ -33,7 +33,7 @@ proc consumer {
 
   next(tok: token, do_recv: bool) {
     let (tok, foo) = recv_if(tok, c, do_recv);
-    (!(do_recv),)
+    !do_recv
   }
 }
 

@@ -50,7 +50,7 @@ proc strange_mather {
     let (tok, double_input) = recv(tok, doubler_output_c);
 
     let tok = send(tok, p, acc);
-    (acc * factor + double_input,)
+    acc * factor + double_input
   }
 }
 

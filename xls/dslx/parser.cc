@@ -1838,6 +1838,28 @@ bool TypeIsToken(TypeAnnotation* type) {
   return builtin_type->builtin_type() == BuiltinType::kToken;
 }
 
+bool HasChannelElement(const TypeAnnotation* type) {
+  if (const auto* array_type = dynamic_cast<const ArrayTypeAnnotation*>(type);
+      array_type != nullptr) {
+    return HasChannelElement(array_type->element_type());
+  }
+  if (const auto* channel_type =
+          dynamic_cast<const ChannelTypeAnnotation*>(type);
+      channel_type != nullptr) {
+    return true;
+  }
+  if (const auto* tuple_type = dynamic_cast<const TupleTypeAnnotation*>(type);
+      tuple_type != nullptr) {
+    for (const auto* sub_type : tuple_type->members()) {
+      if (HasChannelElement(sub_type)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
@@ -1855,42 +1877,48 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
     return ParseParam(&bindings);
   };
 
-  // TODO(rspringer): 2022-06-07: Could we instead use the AST cloner for this?
   Transaction txn(this, &bindings);
+  auto cleanup = absl::Cleanup([&txn]() { txn.Rollback(); });
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params_for_return_type,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
-  txn.Rollback();
+  std::move(cleanup).Invoke();
 
   XLS_ASSIGN_OR_RETURN(std::vector<Param*> next_params,
                        ParseCommaSeq<Param*>(parse_param, TokenKind::kCParen));
-  std::vector<TypeAnnotation*> return_elements;
   if (next_params.empty() || !TypeIsToken(next_params[0]->type_annotation())) {
     return ParseErrorStatus(
         Span(GetPos(), GetPos()),
         "The first parameter in a Proc next function must be a token.");
   }
 
-  for (int i = 1; i < next_params.size(); i++) {
-    Param* param = next_params.at(i);
-    if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) !=
-        nullptr) {
-      return ParseErrorStatus(param->span(),
+  if (next_params.size() > 2) {
+    return ParseErrorStatus(Span(GetPos(), GetPos()),
+                            "A Proc next function only takes two arguments: "
+                            "a token and a recurrent state element.");
+  }
+
+  TypeAnnotation* return_type;
+  if (next_params.size() == 2) {
+    Param* state = next_params_for_return_type.at(1);
+    if (HasChannelElement(state->type_annotation())) {
+      return ParseErrorStatus(state->span(),
                               "Channels cannot be Proc next params.");
     }
 
-    if (TypeIsToken(param->type_annotation())) {
+    if (TypeIsToken(state->type_annotation())) {
       return ParseErrorStatus(
-          param->span(),
+          state->span(),
           "Only the first parameter in a Proc next function may be a token.");
     }
 
-    return_elements.push_back(
-        next_params_for_return_type[i]->type_annotation());
+    return_type = state->type_annotation();
+  } else {
+    return_type = module_->Make<TupleTypeAnnotation>(
+        next_params_for_return_type[0]->span(), std::vector<TypeAnnotation*>());
   }
+
   XLS_ASSIGN_OR_RETURN(Block * body, ParseBlockExpression(&bindings));
   Span span(oparen.span().start(), GetPos());
-  TypeAnnotation* return_type =
-      module_->Make<TupleTypeAnnotation>(span, return_elements);
   NameDef* name_def =
       module_->Make<NameDef>(span, absl::StrCat(proc_name, ".next"), nullptr);
   Function* next = module_->Make<Function>(span, name_def, parametric_bindings,

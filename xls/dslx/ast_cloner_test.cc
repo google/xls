@@ -229,7 +229,7 @@ TEST(AstClonerTest, Procs) {
     (u32:7, u64:0xfffffffffffff)
   }
   next(tok: token, state: u19) {
-    ((((((a) as u64)) + (b)) as u19),)
+    (((((a) as u64)) + (b)) as u19)
   }
 })";
 
@@ -268,7 +268,7 @@ proc my_test_proc {
     (u32:0, uN[127]:127, terminator)
   }
   next(tok: token, state: u64) {
-    (((state) + (((a) as u64))) + (((b) as u64)),)
+    ((state) + (((a) as u64))) + (((b) as u64))
   }
 })";
 
@@ -348,7 +348,7 @@ proc my_proc {
   }
   next(tok: token, state: u16) {
     let x = my_function(((state) as u32));
-    (((((a) as u16)) + (((b) as u16))) + (x),)
+    ((((a) as u16)) + (((b) as u16))) + (x)
   }
 })";
 
@@ -366,9 +366,9 @@ fn my_function(a: u32) -> u16 {
 fn my_proc.config() -> (u8, u32) {
   (u8:32, u32:8)
 }
-fn my_proc.next(tok: token, state: u16) -> (u16,) {
+fn my_proc.next(tok: token, state: u16) -> u16 {
   let x = my_function(((state) as u32));
-  (((((a) as u16)) + (((b) as u16))) + (x),)
+  ((((a) as u16)) + (((b) as u16))) + (x)
 }
 proc my_proc {
   a: u8;
@@ -378,7 +378,7 @@ proc my_proc {
   }
   next(tok: token, state: u16) {
     let x = my_function(((state) as u32));
-    (((((a) as u16)) + (((b) as u16))) + (x),)
+    ((((a) as u16)) + (((b) as u16))) + (x)
   }
 })";
 
@@ -529,7 +529,7 @@ proc MyProc {
     let (tok1, state) = recv(tok, output_c);
     let (tok2, foo) = recv_if(tok, output_c, state > u32:32);
     let tok = join(tok1, tok2);
-    ((state) + (foo),)
+    (state) + (foo)
   }
 })";
   constexpr absl::string_view kExpected = R"(import other_module
@@ -539,13 +539,13 @@ fn MyProc.config() -> (chan out u32, chan out u64) {
   spawn other_module::OtherProc(input_c, output_p)();
   (input_p, output_c)
 }
-fn MyProc.next(tok: token, state: u32) -> (u32,) {
+fn MyProc.next(tok: token, state: u32) -> u32 {
   let tok = send(tok, input_p, state);
   let tok = send_if(tok, input_p, (state) > (u32:32), state);
   let (tok1, state) = recv(tok, output_c);
   let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32));
   let tok = join(tok1, tok2);
-  ((state) + (foo),)
+  (state) + (foo)
 }
 proc MyProc {
   input_p: chan out u32;
@@ -562,7 +562,7 @@ proc MyProc {
     let (tok1, state) = recv(tok, output_c);
     let (tok2, foo) = recv_if(tok, output_c, (state) > (u32:32));
     let tok = join(tok1, tok2);
-    ((state) + (foo),)
+    (state) + (foo)
   }
 })";
 

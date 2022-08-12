@@ -1258,7 +1258,7 @@ proc Child {
 
   next(tok: token, a: u64) {
     let (tok, b) = recv(tok, c);
-    (a + x as u64 + y + b as u64,)
+    a + x as u64 + y + b as u64
   }
 }
 
@@ -1316,16 +1316,16 @@ proc Parent {
       bf, BytecodeEmitter::EmitProcNext(&import_data, child_ti, child->next(),
                                         SymbolicBindings(), members));
   const std::vector<Bytecode>& next_bytecodes = bf->bytecodes();
-  ASSERT_EQ(next_bytecodes.size(), 16);
+  ASSERT_EQ(next_bytecodes.size(), 15);
   const std::vector<std::string> kNextExpected = {
-      "load 3 @ test.x:12:25-12:28",      "load 0 @ test.x:12:30-12:31",
-      "recv @ test.x:12:20-12:32",        "expand_tuple @ test.x:12:9-12:17",
-      "store 5 @ test.x:12:10-12:13",     "store 6 @ test.x:12:15-12:16",
-      "load 4 @ test.x:13:6-13:7",        "load 1 @ test.x:13:10-13:11",
-      "cast uN[64] @ test.x:13:10-13:18", "add @ test.x:13:8-13:9",
-      "load 2 @ test.x:13:21-13:22",      "add @ test.x:13:19-13:20",
-      "load 6 @ test.x:13:25-13:26",      "cast uN[64] @ test.x:13:25-13:33",
-      "add @ test.x:13:23-13:24",         "create_tuple 1 @ test.x:13:5-13:35"};
+      "load 3 @ test.x:12:25-12:28",     "load 0 @ test.x:12:30-12:31",
+      "recv @ test.x:12:20-12:32",       "expand_tuple @ test.x:12:9-12:17",
+      "store 5 @ test.x:12:10-12:13",    "store 6 @ test.x:12:15-12:16",
+      "load 4 @ test.x:13:5-13:6",       "load 1 @ test.x:13:9-13:10",
+      "cast uN[64] @ test.x:13:9-13:17", "add @ test.x:13:7-13:8",
+      "load 2 @ test.x:13:20-13:21",     "add @ test.x:13:18-13:19",
+      "load 6 @ test.x:13:24-13:25",     "cast uN[64] @ test.x:13:24-13:32",
+      "add @ test.x:13:22-13:23"};
   for (int i = 0; i < next_bytecodes.size(); i++) {
     ASSERT_EQ(next_bytecodes[i].ToString(), kNextExpected[i]);
   }

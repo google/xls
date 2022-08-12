@@ -11,25 +11,21 @@ top proc __test_module__main_0_next(__token: token, __state: (), init={()}) {
   next (after_all.5, tuple.4)
 }
 
-proc __test_module__main__producer_0_next(__token: token, __state: (bits[1]), init={(1)}) {
-  do_send: bits[1] = tuple_index(__state, index=0, id=9)
-  zero_ext.10: bits[32] = zero_ext(do_send, new_bit_count=32, id=10)
-  not.12: bits[1] = not(do_send, id=12)
-  _: token = send(__token, zero_ext.10, predicate=do_send, channel_id=0, id=11)
+proc __test_module__main__producer_0_next(__token: token, __state: bits[1], init={1}) {
+  zero_ext.9: bits[32] = zero_ext(__state, new_bit_count=32, id=9)
+  _: token = send(__token, zero_ext.9, predicate=__state, channel_id=0, id=10)
   literal.8: bits[1] = literal(value=1, id=8)
-  tuple.13: (bits[1]) = tuple(not.12, id=13)
-  after_all.14: token = after_all(__token, _, id=14)
-  next (after_all.14, tuple.13)
+  not.11: bits[1] = not(__state, id=11)
+  after_all.12: token = after_all(__token, _, id=12)
+  next (after_all.12, not.11)
 }
 
-proc __test_module__main__consumer_0_next(__token: token, __state: (bits[1]), init={(1)}) {
-  do_recv: bits[1] = tuple_index(__state, index=0, id=18)
-  receive.19: (token, bits[32]) = receive(__token, predicate=do_recv, channel_id=0, id=19)
-  not.22: bits[1] = not(do_recv, id=22)
-  tuple_index.20: token = tuple_index(receive.19, index=0, id=20)
-  literal.17: bits[1] = literal(value=1, id=17)
-  foo: bits[32] = tuple_index(receive.19, index=1, id=21)
-  tuple.23: (bits[1]) = tuple(not.22, id=23)
-  after_all.24: token = after_all(__token, tuple_index.20, id=24)
-  next (after_all.24, tuple.23)
+proc __test_module__main__consumer_0_next(__token: token, __state: bits[1], init={1}) {
+  receive.16: (token, bits[32]) = receive(__token, predicate=__state, channel_id=0, id=16)
+  tuple_index.17: token = tuple_index(receive.16, index=0, id=17)
+  literal.15: bits[1] = literal(value=1, id=15)
+  foo: bits[32] = tuple_index(receive.16, index=1, id=18)
+  not.19: bits[1] = not(__state, id=19)
+  after_all.20: token = after_all(__token, tuple_index.17, id=20)
+  next (after_all.20, not.19)
 }

@@ -94,7 +94,8 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 absl::StatusOr<std::string> ConvertOneFunction(
     Module* module, absl::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
-    const ConvertOptions& options);
+    const ConvertOptions& options,
+    std::optional<absl::string_view> top_proc_initial_state);
 
 // As above, but the package is provided explicitly.
 //
@@ -102,6 +103,7 @@ absl::StatusOr<std::string> ConvertOneFunction(
 // inside of it, it may not be nullptr.
 absl::Status ConvertOneFunctionIntoPackage(
     Module* module, absl::string_view entry_function_name,
+    std::optional<absl::string_view> top_proc_initial_state,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package);
 

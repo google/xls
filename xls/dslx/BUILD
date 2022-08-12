@@ -997,6 +997,7 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:channel_ops",
         "//xls/ir:function_builder",
+        "//xls/ir:ir_parser",
         "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",

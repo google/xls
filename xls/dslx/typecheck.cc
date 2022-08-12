@@ -359,16 +359,6 @@ absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
 }
 
 bool CanTypecheckProc(Proc* p) {
-  // We can typecheck any top-level proc that has no next params: config
-  // functions may accept channel arguments.
-  // Other procs are typechecked as instantiated from some entry proc.
-  // `next` functions always have a token arg.
-  if (p->next()->params().size() > 1) {
-    XLS_VLOG(3) << "Can't typecheck " << p->identifier() << " at top-level: "
-                << "its `next` function has a non-token param.";
-    return false;
-  }
-
   for (Param* param : p->config()->params()) {
     if (dynamic_cast<ChannelTypeAnnotation*>(param->type_annotation()) ==
         nullptr) {

@@ -22,7 +22,6 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
-#include "xls/dslx/error_printer.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parser.h"
@@ -35,6 +34,9 @@ ABSL_FLAG(std::string, top, "",
           "top entity in the generated IR. When not provided, all functions "
           "and procs are converted, there is no top entity defined in the "
           "generated IR.");
+ABSL_FLAG(std::string, top_proc_initial_state, "",
+          "Initial value for the top-level proc state. "
+          "Requires --top and a top-level proc.");
 ABSL_FLAG(std::string, stdlib_path, xls::kDefaultDslxStdlibPath,
           "Path to DSLX standard library files.");
 ABSL_FLAG(std::string, dslx_path, "",
@@ -84,6 +86,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(absl::string_view text,
 // "package".
 static absl::Status AddPathToPackage(
     absl::string_view path, std::optional<absl::string_view> entry,
+    std::optional<absl::string_view> top_proc_initial_state,
     const ConvertOptions& convert_options, std::string stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, Package* package,
     bool* printed_error) {
@@ -111,7 +114,7 @@ static absl::Status AddPathToPackage(
 
   if (entry.has_value()) {
     XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
-        module.get(), entry.value(),
+        module.get(), entry.value(), top_proc_initial_state,
         /*import_data=*/&import_data,
         /*symbolic_bindings=*/nullptr, convert_options, package));
   } else {
@@ -124,6 +127,7 @@ static absl::Status AddPathToPackage(
 
 absl::Status RealMain(absl::Span<const absl::string_view> paths,
                       std::optional<absl::string_view> top,
+                      std::optional<absl::string_view> top_proc_initial_state,
                       std::optional<absl::string_view> package_name,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
@@ -154,9 +158,9 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
       .verify_ir = verify_ir,
   };
   for (absl::string_view path : paths) {
-    XLS_RETURN_IF_ERROR(AddPathToPackage(path, top, convert_options,
-                                         stdlib_path, dslx_paths,
-                                         &package.value(), printed_error));
+    XLS_RETURN_IF_ERROR(AddPathToPackage(
+        path, top, top_proc_initial_state, convert_options, stdlib_path,
+        dslx_paths, &package.value(), printed_error));
   }
   std::cout << package->DumpIr();
 
@@ -194,12 +198,21 @@ int main(int argc, char* argv[]) {
     package_name = absl::GetFlag(FLAGS_package_name);
   }
 
+  std::optional<std::string> top_proc_initial_state;
+  if (!absl::GetFlag(FLAGS_top_proc_initial_state).empty()) {
+    top_proc_initial_state = absl::GetFlag(FLAGS_top_proc_initial_state);
+  }
+  if (top_proc_initial_state.has_value() && !top.has_value()) {
+    XLS_LOG(QFATAL)
+        << "--top_proc_initial_state requires that --top is also set.";
+  }
+
   bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
   bool verify_ir = absl::GetFlag(FLAGS_verify);
   bool printed_error = false;
-  absl::Status status =
-      xls::dslx::RealMain(args, top, package_name, stdlib_path, dslx_paths,
-                          emit_fail_as_assert, verify_ir, &printed_error);
+  absl::Status status = xls::dslx::RealMain(
+      args, top, top_proc_initial_state, package_name, stdlib_path, dslx_paths,
+      emit_fail_as_assert, verify_ir, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

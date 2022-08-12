@@ -322,7 +322,7 @@ proc p2 {
   config() { () }
 
   next(tok: token, x: u32) {
-    (f0(),)
+    f0()
   }
 }
 
@@ -332,7 +332,7 @@ proc p1 {
     ()
   }
   next(tok: token, i: u32) {
-    (i,)
+    i
   }
 }
 
@@ -344,7 +344,7 @@ proc p0 {
   }
   next(tok: token, i: u32) {
     let j = f1();
-    (f0() + j,)
+    f0() + j
   }
 }
 
@@ -453,7 +453,7 @@ proc p2 {
   config() { () }
 
   next(tok: token, x: u32) {
-    (f0(),)
+    f0()
   }
 }
 
@@ -463,7 +463,7 @@ proc p1 {
     ()
   }
   next(tok: token, i: u32) {
-    (i,)
+    i
   }
 }
 
@@ -475,7 +475,7 @@ proc p0 {
   }
   next(tok: token, i: u32) {
     let j = f1();
-    (f0() + j,)
+    f0() + j
   }
 }
 

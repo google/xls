@@ -40,6 +40,6 @@ proc test_main {
   next(tok: token, iter: u32) {
     let tok = send(tok, input_p, u32:0);
     let tok = send_if(tok, terminator_p, iter == u32:2, true);
-    (iter + u32:1,)
+    iter + u32:1
   }
 }
