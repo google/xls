@@ -14,12 +14,19 @@
 #ifndef XLS_JIT_JIT_CHANNEL_QUEUE_H_
 #define XLS_JIT_JIT_CHANNEL_QUEUE_H_
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
-#include <deque>
+#include <string>
+#include <vector>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/inlined_vector.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_format.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/ir/package.h"
 
@@ -57,51 +64,132 @@ class JitChannelQueue {
 };
 
 // Queue for streaming channels. This queue behaves as an infinite depth FIFO.
+// It is preallocated with storage.
 class FifoJitChannelQueue : public JitChannelQueue {
  public:
-  explicit FifoJitChannelQueue(int64_t channel_id)
-      : JitChannelQueue(channel_id) {}
+  FifoJitChannelQueue(int64_t channel_id)
+      : JitChannelQueue(channel_id),
+        channel_element_size_(0),
+        allocated_element_size_(0),
+        bytes_used_(0),
+        enqueue_index_(0),
+        dequeue_index_(0) {}
 
   void Send(uint8_t* data, int64_t num_bytes) override {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif
-    std::unique_ptr<uint8_t[]> buffer;
-    if (buffer_pool_.empty()) {
-      buffer = std::make_unique<uint8_t[]>(num_bytes);
-    } else {
-      buffer = std::move(buffer_pool_.back());
-      buffer_pool_.pop_back();
+    bool first_call = false;
+    if (channel_element_size_ == 0) {
+      channel_element_size_ = num_bytes;
+      allocated_element_size_ =
+          RoundUpToNearest(channel_element_size_,
+                           static_cast<int64_t>(alignof(std::max_align_t)));
+      first_call = true;
     }
-    memcpy(buffer.get(), data, num_bytes);
+    XLS_CHECK_EQ(num_bytes, channel_element_size_) << absl::StrFormat(
+        "Invalid number of bytes given to Send Function of "
+        "FifoJitChannelQueue: expected (%s), got (%s).",
+        std::to_string(channel_element_size_), std::to_string(num_bytes));
+
     absl::MutexLock lock(&mutex_);
-    the_queue_.push_back(std::move(buffer));
+    // TODO(vmirian): 8-09-2022 Provide the element size at the constructor and
+    // remove the following if statement.
+    if (first_call) {
+      // Align the vector allocation to a power of 2 for efficient utilization
+      // of the memory.
+      int64_t element_size_2 = 1 << CeilOfLog2(allocated_element_size_);
+      if (element_size_2 > kInitBufferSize) {
+        circular_buffer_.resize(element_size_2);
+      } else {
+        circular_buffer_.resize(kInitBufferSize);
+      }
+      max_byte_count_ =
+          FloorOfRatio(static_cast<int64_t>(circular_buffer_.size()),
+                       allocated_element_size_) *
+          allocated_element_size_;
+    }
+    // Resize the circular buffer for a new entry when there is insufficient
+    // space in the queue.
+    if (bytes_used_ == max_byte_count_) {
+      circular_buffer_.resize(circular_buffer_.size() * 2);
+      max_byte_count_ =
+          FloorOfRatio(static_cast<int64_t>(circular_buffer_.size()),
+                       allocated_element_size_) *
+          allocated_element_size_;
+      // The content of the circular buffer must be rearranged when the dequeue
+      // index is not at the beginning of the circular buffer to ensure correct
+      // ordering.
+      if (dequeue_index_ != 0) {
+        std::move(circular_buffer_.begin(),
+                  circular_buffer_.begin() + dequeue_index_,
+                  circular_buffer_.begin() + bytes_used_);
+      }
+      // Realign the enqueue index to the next available slot.
+      enqueue_index_ = bytes_used_ + dequeue_index_;
+      if (enqueue_index_ == max_byte_count_) {
+        enqueue_index_ = 0;
+      }
+    }
+    memcpy(circular_buffer_.data() + enqueue_index_, data,
+           channel_element_size_);
+    bytes_used_ += allocated_element_size_;
+    enqueue_index_ = enqueue_index_ + allocated_element_size_;
+    if (enqueue_index_ == max_byte_count_) {
+      enqueue_index_ = 0;
+    }
   }
 
   bool Recv(uint8_t* buffer, int64_t num_bytes) override {
     absl::MutexLock lock(&mutex_);
 
-    if (the_queue_.empty()) {
+    if (bytes_used_ == 0) {
       return false;
     }
 
-    memcpy(buffer, the_queue_.front().get(), num_bytes);
-    buffer_pool_.push_back(std::move(the_queue_.front()));
-    the_queue_.pop_front();
+    XLS_CHECK_EQ(num_bytes, channel_element_size_) << absl::StrFormat(
+        "Invalid number of bytes given to Recv Function of "
+        "FifoJitChannelQueue: expected (%s), got (%s).",
+        std::to_string(channel_element_size_), std::to_string(num_bytes));
+
+    memcpy(buffer, circular_buffer_.data() + dequeue_index_,
+           channel_element_size_);
+    bytes_used_ -= allocated_element_size_;
+    dequeue_index_ = dequeue_index_ + allocated_element_size_;
+    if (dequeue_index_ == max_byte_count_) {
+      dequeue_index_ = 0;
+    }
     return true;
   }
 
   bool Empty() override {
     absl::MutexLock lock(&mutex_);
-    return the_queue_.empty();
+    return bytes_used_ == 0;
   }
 
-  int64_t channel_id() { return channel_id_; }
-
  protected:
+  static constexpr int64_t kInitBufferSize = 128;
   absl::Mutex mutex_;
-  std::deque<std::unique_ptr<uint8_t[]>> the_queue_ ABSL_GUARDED_BY(mutex_);
-  std::vector<std::unique_ptr<uint8_t[]>> buffer_pool_;
+  // Size of an element in the channel in units of bytes. The producers and
+  // consumers must sent buffer length equivalent to this size. It is
+  // initialized on the first call to send.
+  int64_t channel_element_size_;
+  // Allocated size of an element in the circular buffer in units of bytes. The
+  // elements are aligned to the largest scalar type.
+  int64_t allocated_element_size_;
+  // TODO(vmirian): 8-09-2022 Place the following guarded members on a single
+  // cache line for optimal performance.
+  // The maximum number of bytes that can hold elements in the circular buffer.
+  int64_t max_byte_count_ ABSL_GUARDED_BY(mutex_);
+  // The number of bytes used in the circular buffer.
+  int64_t bytes_used_ ABSL_GUARDED_BY(mutex_);
+  // Index in the circular buffer to enqueue send requests.
+  int64_t enqueue_index_ ABSL_GUARDED_BY(mutex_);
+  // Index in the circular buffer to dequeue receive requests.
+  int64_t dequeue_index_ ABSL_GUARDED_BY(mutex_);
+  // A circular buffer to store the elements. It is preallocated with storage.
+  absl::InlinedVector<uint8_t, kInitBufferSize> circular_buffer_
+      ABSL_GUARDED_BY(mutex_);
 };
 
 // Queue for single value channels. Unsurprisingly, this queue holds a single
