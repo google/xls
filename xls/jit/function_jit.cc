@@ -14,7 +14,6 @@
 
 #include "xls/jit/function_jit.h"
 
-#include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -26,13 +25,10 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_preference.h"
 #include "xls/ir/keyword_args.h"
-#include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
@@ -228,17 +224,13 @@ llvm::FunctionType* GetFunctionType(Function* xls_function, OrcJit& jit) {
         jit.GetTypeConverter().ConvertToLlvmType(param->GetType()));
   }
 
-  // Treat void pointers as int64_t values at the LLVM IR level.
-  // Using an actual pointer type triggers LLVM asserts when compiling
-  // in debug mode.
-  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(context);
+  llvm::Type* ptr_type = llvm::PointerType::get(context, 0);
 
   // After the XLS function parameters are:
   //   events pointer, user data, jit runtime
-  param_types.push_back(void_ptr_type);
-  param_types.push_back(void_ptr_type);
-  param_types.push_back(void_ptr_type);
+  param_types.push_back(ptr_type);
+  param_types.push_back(ptr_type);
+  param_types.push_back(ptr_type);
 
   llvm::Type* llvm_return_type = jit.GetTypeConverter().ConvertToLlvmType(
       xls_function->return_value()->GetType());
@@ -257,23 +249,11 @@ llvm::FunctionType* GetWrapperFunctionType(int64_t param_count,
                                            OrcJit& jit) {
   llvm::LLVMContext& context = *jit.GetContext();
 
-  std::vector<llvm::Type*> param_types;
-  llvm::Type* i8_type = llvm::Type::getInt8Ty(context);
-
-  // Represent the input args as char/i8 pointers to their data.
-  param_types.push_back(llvm::PointerType::get(
-      llvm::ArrayType::get(llvm::PointerType::get(i8_type, /*AddressSpace=*/0),
-                           param_count),
-      /*AddressSpace=*/0));
-
-  param_types.push_back(
-      llvm::PointerType::get(return_value_type, /*AddressSpace=*/0));
-
-  // The final three parameters are:
-  //   interpreter events, user data, JIT runtime pointer
-  param_types.push_back(llvm::Type::getInt64Ty(context));
-  param_types.push_back(llvm::Type::getInt64Ty(context));
-  param_types.push_back(llvm::Type::getInt64Ty(context));
+  // The parameters are:
+  //   (input arg ptrs, return value ptr, events, user data, JIT runtime)
+  // All are opaque pointer types in llvm IR.
+  llvm::Type* ptr_type = llvm::PointerType::get(context, 0);
+  std::vector<llvm::Type*> param_types(5, ptr_type);
 
   return llvm::FunctionType::get(
       llvm::Type::getVoidTy(context),

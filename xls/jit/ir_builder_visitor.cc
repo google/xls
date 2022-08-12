@@ -35,14 +35,6 @@
 namespace xls {
 namespace {
 
-// Treat void pointers as int64_t values at the LLVM IR level.
-// Using an actual pointer type triggers LLVM asserts when compiling
-// in debug mode.
-// TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-llvm::Type* GetVoidPtrType(llvm::LLVMContext& context) {
-  return llvm::Type::getInt64Ty(context);
-}
-
 // Returns a sequence of numbered strings. Example: NumberedStrings("foo", 3)
 // returns: {"foo_0", "foo_1", "foo_2"}
 std::vector<std::string> NumberedStrings(absl::string_view s, int64_t count) {
@@ -372,12 +364,8 @@ absl::Status InvokeFormatStepCallback(llvm::IRBuilder<>* builder,
       llvm::ConstantInt::get(i64_type, absl::bit_cast<uint64_t>(operand_type));
 
   std::vector<llvm::Type*> params = {
-      jit_runtime_ptr->getType(),
-      i64_type,
-      operand->getType(),
-      i64_type,
-      i64_type,
-  };
+      jit_runtime_ptr->getType(), llvm_operand_type->getType(),
+      operand->getType(), llvm_format->getType(), buffer_ptr->getType()};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
@@ -402,9 +390,9 @@ void RecordTrace(std::string* buffer, xls::InterpreterEvents* events) {
 absl::Status InvokeRecordTraceCallback(llvm::IRBuilder<>* builder,
                                        llvm::Value* buffer_ptr,
                                        llvm::Value* interpreter_events_ptr) {
-  llvm::Type* void_ptr_type = GetVoidPtrType(builder->getContext());
+  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
 
-  std::vector<llvm::Type*> params = {buffer_ptr->getType(), void_ptr_type};
+  std::vector<llvm::Type*> params = {buffer_ptr->getType(), ptr_type};
 
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
 
@@ -431,10 +419,10 @@ absl::StatusOr<llvm::Value*> InvokeCreateBufferCallback(
     llvm::IRBuilder<>* builder) {
   std::vector<llvm::Type*> params;
 
-  llvm::Type* void_ptr_type = GetVoidPtrType(builder->getContext());
+  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
 
   llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_ptr_type, params, /*isVarArg=*/false);
+      llvm::FunctionType::get(ptr_type, params, /*isVarArg=*/false);
 
   std::vector<llvm::Value*> args;
 
@@ -460,9 +448,9 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
 
   llvm::Type* msg_type = msg_constant->getType();
 
-  llvm::Type* void_ptr_type = GetVoidPtrType(builder->getContext());
+  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
 
-  std::vector<llvm::Type*> params = {msg_type, void_ptr_type};
+  std::vector<llvm::Type*> params = {msg_type, ptr_type};
 
   llvm::Type* void_type = llvm::Type::getVoidTy(builder->getContext());
 
@@ -492,9 +480,11 @@ llvm::Function* NodeIrContext::CreateFunction(
   }
   if (environment.has_value()) {
     // Add parameters for events, runtime, and user_data.
-    param_types.push_back(GetVoidPtrType(module->getContext()));
-    param_types.push_back(GetVoidPtrType(module->getContext()));
-    param_types.push_back(GetVoidPtrType(module->getContext()));
+    llvm::PointerType* ptr_type =
+        llvm::PointerType::get(module->getContext(), 0);
+    param_types.push_back(ptr_type);
+    param_types.push_back(ptr_type);
+    param_types.push_back(ptr_type);
   }
   llvm::Type* result_type = type_converter->ConvertToLlvmType(node->GetType());
   llvm::FunctionType* function_type = llvm::FunctionType::get(
@@ -766,11 +756,7 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
       type_converter_->ConvertToLlvmType(slice->GetType());
   llvm::Type* result_element_type = type_converter_->ConvertToLlvmType(
       slice->GetType()->AsArrayOrDie()->element_type());
-  llvm::AllocaInst* alloca_uncasted = b.CreateAlloca(result_type);
-  llvm::Value* alloca = b.CreateBitCast(
-      alloca_uncasted,
-      llvm::PointerType::get(result_element_type, /*AddressSpace=*/0),
-      "alloca");
+  llvm::Value* alloca = b.CreateAlloca(result_type, 0, "alloca");
   llvm::Value* start_big = b.CreateZExt(start, index_type, "start_big");
 
   for (int64_t i = 0; i < width; i++) {
@@ -787,7 +773,7 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
     b.CreateStore(value, gep);
   }
 
-  llvm::Value* sliced_array = b.CreateLoad(result_type, alloca_uncasted);
+  llvm::Value* sliced_array = b.CreateLoad(result_type, alloca);
 
   return FinalizeNodeIrContext(node_context, sliced_array);
 }
@@ -2006,12 +1992,7 @@ llvm::Value* IrBuilderVisitor::LoadPointerFromPointerArray(
           llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), index),
       });
 
-  // The GEP gives a pointer to a u8*; so 'load' is an i8*. Cast it to pointer
-  // to the data type.
-  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(context, 0);
-  llvm::LoadInst* load = builder->CreateLoad(int8_ptr_type, gep);
-  return builder->CreateBitCast(
-      load, llvm::PointerType::get(data_type, /*AddressSpace=*/0));
+  return builder->CreateLoad(llvm::PointerType::get(context, 0), gep);
 }
 
 absl::Status IrBuilderVisitor::StoreResult(Node* node, llvm::Value* value) {
@@ -2030,20 +2011,15 @@ void IrBuilderVisitor::UnpoisonBuffer(llvm::Value* buffer, int64_t size,
       llvm::ConstantInt::get(llvm::Type::getInt64Ty(context),
                              absl::bit_cast<uint64_t>(&__msan_unpoison));
   llvm::Type* void_type = llvm::Type::getVoidTy(context);
-  llvm::Type* u8_ptr_type = llvm::PointerType::get(
-      llvm::Type::getInt8Ty(context), /*AddressSpace=*/0);
+  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
   llvm::Type* size_t_type =
       llvm::Type::getIntNTy(context, sizeof(size_t) * CHAR_BIT);
   llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, {u8_ptr_type, size_t_type}, false);
+      llvm::FunctionType::get(void_type, {ptr_type, size_t_type}, false);
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
 
-  // The out_param can have any width, so cast the output argument pointer to a
-  // u8 pointer to match the parameter types above.
-  llvm::Value* buffer_casted = builder->CreatePointerCast(buffer, u8_ptr_type);
-
-  std::vector<llvm::Value*> args = {buffer_casted,
+  std::vector<llvm::Value*> args = {buffer,
                                     llvm::ConstantInt::get(size_t_type, size)};
 
   builder->CreateCall(fn_type, fn_ptr, args);

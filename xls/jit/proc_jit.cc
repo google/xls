@@ -14,7 +14,6 @@
 
 #include "xls/jit/proc_jit.h"
 
-#include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -26,12 +25,9 @@
 #include "xls/common/logging/log_lines.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/logging/vlog_is_on.h"
-#include "xls/common/math_util.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/format_preference.h"
-#include "xls/ir/keyword_args.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
@@ -129,16 +125,12 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
 
-  // Treat void pointers as int64_t values at the LLVM IR level.
-  // Using an actual pointer type triggers LLVM asserts when compiling
-  // in debug mode.
-  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-  llvm::Type* void_ptr_type = int64_type;
+  llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
   // Call the user-provided function of type ProcJit::RecvFnT to receive the
   // value.
   std::vector<llvm::Type*> params = {int64_type, int64_type, int8_ptr_type,
-                                     int64_type, void_ptr_type};
+                                     int64_type, ptr_type};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
 
@@ -257,16 +249,12 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
   llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
   llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
 
-  // Treat void pointers as int64_t values at the LLVM IR level.
-  // Using an actual pointer type triggers LLVM asserts when compiling
-  // in debug mode.
-  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-  llvm::Type* void_ptr_type = int64_type;
+  llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
   // We do the same for sending/enqueuing as we do for receiving/dequeueing
   // above (set up and call an external function).
   std::vector<llvm::Type*> params = {
-      int64_type, int64_type, int8_ptr_type, int64_type, void_ptr_type,
+      int64_type, int64_type, int8_ptr_type, int64_type, ptr_type,
   };
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
@@ -373,26 +361,17 @@ absl::StatusOr<llvm::Function*> BuildProcFunction(
     param_types.push_back(llvm_state_type);
   }
 
-  // Add next state parameters. These are passed by pointer.
-  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
-    llvm::Type* llvm_state_type =
-        jit.GetTypeConverter().ConvertToLlvmType(proc->GetStateElementType(i));
-    param_types.push_back(
-        llvm::PointerType::get(llvm_state_type, /*AddressSpace=*/0));
-  }
+  llvm::Type* ptr_type = llvm::PointerType::get(context, 0);
 
-  // Treat void pointers as int64_t values at the LLVM IR level.
-  // Using an actual pointer type triggers LLVM asserts when compiling
-  // in debug mode.
-  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(context);
+  // Add next state parameters. These are passed by pointer.
+  param_types.insert(param_types.end(), proc->GetStateElementCount(), ptr_type);
 
   // After the XLS function parameters are:
   //   events pointer, user data, jit runtime
-  // All are void pointer type.
-  param_types.push_back(void_ptr_type);
-  param_types.push_back(void_ptr_type);
-  param_types.push_back(void_ptr_type);
+  // All are pointer type.
+  param_types.push_back(ptr_type);
+  param_types.push_back(ptr_type);
+  param_types.push_back(ptr_type);
 
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(context),
@@ -464,30 +443,10 @@ absl::StatusOr<llvm::Function*> ProcJit::BuildWrapper(llvm::Function* callee) {
   //
   //   void f(uint8_t*[] state, uint8_t*[] next_state,
   //          void* events, void* user_data, void* jit_runtime)
-  std::vector<llvm::Type*> param_types;
-  llvm::Type* array_of_i8_type = llvm::ArrayType::get(
-      llvm::PointerType::get(llvm::Type::getInt8Ty(*bare_context),
-                             /*AddressSpace=*/0),
-      proc_->GetStateElementCount());
-  // Argument 0: state pointers
-  param_types.push_back(llvm::PointerType::get(array_of_i8_type,
-                                               /*AddressSpace=*/0));
-  // Argument 1: next state pointers
-  param_types.push_back(llvm::PointerType::get(array_of_i8_type,
-                                               /*AddressSpace=*/0));
-
-  // Treat void pointers as int64_t values at the LLVM IR level.
-  // Using an actual pointer type triggers LLVM asserts when compiling
-  // in debug mode.
-  // TODO(amfv): 2021-04-05 Figure out why and fix void pointer handling.
-  llvm::Type* void_ptr_type = llvm::Type::getInt64Ty(*bare_context);
-
-  // interpreter events argument
-  param_types.push_back(void_ptr_type);
-  // user data argument
-  param_types.push_back(void_ptr_type);
-  // JIT runtime argument
-  param_types.push_back(void_ptr_type);
+  //
+  // At the llvm IR level pointers are untyped.
+  llvm::Type* ptr_type = llvm::PointerType::get(*bare_context, 0);
+  std::vector<llvm::Type*> param_types(5, ptr_type);
 
   llvm::FunctionType* function_type = llvm::FunctionType::get(
       llvm::Type::getVoidTy(*bare_context),

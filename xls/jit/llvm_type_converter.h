@@ -17,8 +17,6 @@
 
 #include <cstdint>
 
-#include "absl/container/inlined_vector.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Constants.h"
