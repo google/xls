@@ -37,6 +37,5 @@ fn multiplies_test() {
   let _ = assert_eq(s6:-6, smul_3(s3:3,  s3:-2));
   let _ = assert_eq(s6:6,  smul_3(s3:3,  s3:2));
   let _ = assert_eq(s6:1,  smul_3(s3:-1, s3:-1));
-  let _ = assert_eq(u6:49, std::umul(u3:-1, u3:-1));
   ()
 }

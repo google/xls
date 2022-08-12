@@ -667,13 +667,17 @@ TEST(TypecheckTest, Index) {
 
 TEST(TypecheckTest, OutOfRangeNumber) {
   XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8:255 }"));
-  XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8:-1 }"));
-  XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8:-2 }"));
+  XLS_EXPECT_OK(Typecheck("fn f() -> s8 { s8:-1 }"));
   EXPECT_THAT(
       Typecheck("fn f() -> u8 { u8:256 }"),
       StatusIs(
           absl::StatusCode::kInvalidArgument,
           HasSubstr("Value '256' does not fit in the bitwidth of a uN[8]")));
+  EXPECT_THAT(
+      Typecheck("fn f() -> s8 { s8:256 }"),
+      StatusIs(
+          absl::StatusCode::kInvalidArgument,
+          HasSubstr("Value '256' does not fit in the bitwidth of a sN[8]")));
 }
 
 TEST(TypecheckTest, OutOfRangeNumberInConstantArray) {

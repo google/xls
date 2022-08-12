@@ -423,7 +423,7 @@ fn run_i_instruction(pc: u32,
         let (pc, value) = match funct3 {
           JALR => let new_rd : u32 = pc + u32:4;
                   // Add imm12 to rs1 and clear the LSB
-                  let pc = (regs[rs1] + signex(imm12, u32:0)) & u32:-2;
+                  let pc = (regs[rs1] + signex(imm12, u32:0)) & u32:0xfffffffe;
                   (pc, new_rd),
           _    => fail!("unmatched_I_JALR_funct3", (pc, u32:0))
         };
@@ -650,7 +650,7 @@ fn risc_v_example_test() {
                          make_b_insn(BGE, r1, r2, u12:8), regs, dmem);
   let _ = assert_eq(PC, u32:0xc4);
   let (PC, regs, dmem) = run_instruction(PC,
-                         make_b_insn(BLT, r2, r1, u12:-8), regs, dmem);
+                         make_b_insn(BLT, r2, r1, s12:-8 as u12), regs, dmem);
   let _ = assert_eq(PC, u32:0xb4);
   _
 }

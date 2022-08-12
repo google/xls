@@ -14,6 +14,9 @@
 
 // Performs a table-less crc32 of the input data as in Hacker's Delight:
 // https://www.hackersdelight.org/hdcodetxt/crc.c.txt (roughly flavor b)
+import std
+
+const U32_MAX = std::unsigned_max_value<u32:32>();
 
 fn crc32_one_byte(byte: u8, polynomial: u32, crc: u32) -> u32 {
   let crc = crc ^ (byte as u32);
@@ -25,7 +28,7 @@ fn crc32_one_byte(byte: u8, polynomial: u32, crc: u32) -> u32 {
 }
 
 fn main(message: u8) -> u32 {
-  crc32_one_byte(message, u32:0xEDB88320, u32:-1) ^ u32:-1
+  crc32_one_byte(message, u32:0xEDB88320, U32_MAX) ^ U32_MAX
 }
 
 #![test]

@@ -14,7 +14,7 @@
 
 #![test]
 fn signex_builtin() {
-  let x = u8:-1;
+  let x = s8:-1;
   let s: s32 = signex(x, s32:0);
   let u: u32 = signex(x, u32:0);
   assert_eq(s as u32, u)

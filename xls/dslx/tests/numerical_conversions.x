@@ -15,19 +15,19 @@
 #![test]
 fn numerical_conversions() {
   let s8_m2 = s8:-2;
-  let u8_m2 = u8:-2;
+  let u8_m2 = u8:0xfe;
   // Sign extension (source type is signed).
   let _ = assert_eq(s32:-2, s8_m2 as s32);
-  let _ = assert_eq(u32:-2, s8_m2 as u32);
+  let _ = assert_eq(u32:0xfffffffe, s8_m2 as u32);
   let _ = assert_eq(s16:-2, s8_m2 as s16);
-  let _ = assert_eq(u16:-2, s8_m2 as u16);
+  let _ = assert_eq(u16:0xfffe, s8_m2 as u16);
   // Zero extension (source type is unsigned).
   let _ = assert_eq(u32:0xfe, u8_m2 as u32);
   let _ = assert_eq(s32:0xfe, u8_m2 as s32);
   // Nop (bitwidth is unchanged).
   let _ = assert_eq(s8:-2, s8_m2 as s8);
   let _ = assert_eq(s8:-2, u8_m2 as s8);
-  let _ = assert_eq(u8:-2, u8_m2 as u8);
+  let _ = assert_eq(u8:0xfe, u8_m2 as u8);
   let _ = assert_eq(s8:-2, u8_m2 as s8);
   ()
 }

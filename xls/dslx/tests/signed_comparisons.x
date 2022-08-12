@@ -14,6 +14,9 @@
 
 import std
 
+const U32_NEG_2 = u32:0xfffffffe;
+const U32_NEG_3 = u32:0xfffffffd;
+
 #![test]
 fn signed_comparisons() {
   let _: () = assert_eq(true,  std::slt(u32:2, u32:3));
@@ -28,19 +31,19 @@ fn signed_comparisons() {
   let _: () = assert_eq(false, std::sge(u32:2, u32:3));
 
   // Negative vs negative numbers.
-  let _: () = assert_eq(false, std::slt(u32:-2, u32:-3));
-  let _: () = assert_eq(true,  std::slt(u32:-3, u32:-2));
-  let _: () = assert_eq(false, std::slt(u32:-3, u32:-3));
+  let _: () = assert_eq(false, std::slt(U32_NEG_2, U32_NEG_3));
+  let _: () = assert_eq(true,  std::slt(U32_NEG_3, U32_NEG_2));
+  let _: () = assert_eq(false, std::slt(U32_NEG_3, U32_NEG_3));
 
-  let _: () = assert_eq(false, std::sle(u32:-2, u32:-3));
-  let _: () = assert_eq(true,  std::sle(u32:-3, u32:-2));
+  let _: () = assert_eq(false, std::sle(U32_NEG_2, U32_NEG_3));
+  let _: () = assert_eq(true,  std::sle(U32_NEG_3, U32_NEG_2));
 
-  let _: () = assert_eq(true,  std::sgt(u32:-2, u32:-3));
-  let _: () = assert_eq(false, std::sgt(u32:-2, u32:-2));
-  let _: () = assert_eq(false, std::sgt(u32:-3, u32:-2));
+  let _: () = assert_eq(true,  std::sgt(U32_NEG_2, U32_NEG_3));
+  let _: () = assert_eq(false, std::sgt(U32_NEG_2, U32_NEG_2));
+  let _: () = assert_eq(false, std::sgt(U32_NEG_3, U32_NEG_2));
 
-  let _: () = assert_eq(false, std::sge(u32:-3, u32:-2));
-  let _: () = assert_eq(true, std::sge(u32:-2, u32:-3));
-  let _: () = assert_eq(true, std::sge(u32:-3, u32:-3));
+  let _: () = assert_eq(false, std::sge(U32_NEG_3, U32_NEG_2));
+  let _: () = assert_eq(true, std::sge(U32_NEG_2, U32_NEG_3));
+  let _: () = assert_eq(true, std::sge(U32_NEG_3, U32_NEG_3));
   ()
 }
