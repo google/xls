@@ -527,30 +527,6 @@ TEST_F(PipelineScheduleTest, PeriodRelaxation) {
   }
 }
 
-TEST_F(PipelineScheduleTest, MinCutCycleOrders) {
-  EXPECT_THAT(GetMinCutCycleOrders(0), ElementsAre(std::vector<int64_t>()));
-  EXPECT_THAT(GetMinCutCycleOrders(1), ElementsAre(std::vector<int64_t>({0})));
-  EXPECT_THAT(
-      GetMinCutCycleOrders(2),
-      ElementsAre(std::vector<int64_t>({0, 1}), std::vector<int64_t>({1, 0})));
-  EXPECT_THAT(GetMinCutCycleOrders(3),
-              ElementsAre(std::vector<int64_t>({0, 1, 2}),
-                          std::vector<int64_t>({2, 1, 0}),
-                          std::vector<int64_t>({1, 0, 2})));
-  EXPECT_THAT(GetMinCutCycleOrders(4),
-              ElementsAre(std::vector<int64_t>({0, 1, 2, 3}),
-                          std::vector<int64_t>({3, 2, 1, 0}),
-                          std::vector<int64_t>({1, 0, 2, 3})));
-  EXPECT_THAT(GetMinCutCycleOrders(5),
-              ElementsAre(std::vector<int64_t>({0, 1, 2, 3, 4}),
-                          std::vector<int64_t>({4, 3, 2, 1, 0}),
-                          std::vector<int64_t>({2, 0, 1, 3, 4})));
-  EXPECT_THAT(GetMinCutCycleOrders(8),
-              ElementsAre(std::vector<int64_t>({0, 1, 2, 3, 4, 5, 6, 7}),
-                          std::vector<int64_t>({7, 6, 5, 4, 3, 2, 1, 0}),
-                          std::vector<int64_t>({3, 1, 0, 2, 5, 4, 6, 7})));
-}
-
 TEST_F(PipelineScheduleTest, SerializeAndDeserialize) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());

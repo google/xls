@@ -27,16 +27,6 @@
 
 namespace xls {
 
-// Returns the list of ordering of cycles (pipeline stages) in which to compute
-// min cut of the graph. Each min cut of the graph computes which XLS node
-// values are in registers after a particular stage in the pipeline schedule. A
-// min-cut must be computed for each stage in the schedule to determine the set
-// of pipeline registers for the entire pipeline. The ordering of stages for
-// which the min-cut is performed (e.g., stage 0 then 1, vs stage 1 then 0) can
-// affect the total number of registers in the pipeline so multiple orderings
-// are tried. This function returns this set of orderings.  Exposed for testing.
-std::vector<std::vector<int64_t>> GetMinCutCycleOrders(int64_t length);
-
 // Abstraction describing the binding of Nodes to cycles.
 class PipelineSchedule {
  public:

@@ -70,6 +70,38 @@ cc_library(
 )
 
 cc_library(
+    name = "min_cut_scheduler",
+    srcs = ["min_cut_scheduler.cc"],
+    hdrs = ["min_cut_scheduler.h"],
+    deps = [
+        ":function_partition",
+        ":schedule_bounds",
+        ":scheduling_options",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/common/status:ret_check",
+        "//xls/delay_model:delay_estimator",
+        "//xls/ir",
+        "//xls/ir:node_util",
+    ],
+)
+
+cc_test(
+    name = "min_cut_scheduler_test",
+    srcs = ["min_cut_scheduler_test.cc"],
+    deps = [
+        ":min_cut_scheduler",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
     name = "sdc_scheduler",
     srcs = ["sdc_scheduler.cc"],
     hdrs = ["sdc_scheduler.h"],
@@ -96,7 +128,7 @@ cc_library(
     srcs = ["pipeline_schedule.cc"],
     hdrs = ["pipeline_schedule.h"],
     deps = [
-        ":function_partition",
+        ":min_cut_scheduler",
         ":pipeline_schedule_cc_proto",
         ":schedule_bounds",
         ":scheduling_options",
