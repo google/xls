@@ -209,6 +209,16 @@ cc_library(
     ],
 )
 
+cc_test(
+    name = "jit_channel_queue_test",
+    srcs = ["jit_channel_queue_test.cc"],
+    deps = [
+        ":jit_channel_queue",
+        "//xls/common:xls_gunit_main",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_library(
     name = "jit_runtime",
     srcs = ["jit_runtime.cc"],
