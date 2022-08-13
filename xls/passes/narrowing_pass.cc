@@ -697,6 +697,32 @@ absl::StatusOr<bool> MaybeNarrowPartialMultiply(
       "  result_bit_count = %d, lhs_bit_count = %d, rhs_bit_count = %d",
       result_bit_count, lhs_bit_count, rhs_bit_count);
 
+  // The result can be unconditionally narrowed to the sum of the operand
+  // widths, then zero/sign extended.
+  if (result_bit_count > lhs_bit_count + rhs_bit_count) {
+    XLS_VLOG(3) << "Result is wider than sum of operands. Narrowing multiply.";
+    XLS_ASSIGN_OR_RETURN(
+        Node * narrowed_mul,
+        mul->function_base()->MakeNode<PartialProductOp>(
+            mul->loc(), lhs, rhs,
+            /*width=*/lhs_bit_count + rhs_bit_count, mul->op()));
+    XLS_ASSIGN_OR_RETURN(Node * product0,
+                         mul->function_base()->MakeNode<TupleIndex>(
+                             mul->loc(), narrowed_mul, /*index=*/0));
+    XLS_ASSIGN_OR_RETURN(Node * product1,
+                         mul->function_base()->MakeNode<TupleIndex>(
+                             mul->loc(), narrowed_mul, /*index=*/1));
+    std::vector<Node*> elements(2);
+    XLS_ASSIGN_OR_RETURN(elements[0],
+                         MaybeExtend(product0, result_bit_count,
+                                     /*is_signed=*/mul->op() == Op::kSMulp));
+    XLS_ASSIGN_OR_RETURN(elements[1],
+                         MaybeExtend(product1, result_bit_count,
+                                     /*is_signed=*/mul->op() == Op::kSMulp));
+    XLS_RETURN_IF_ERROR(mul->ReplaceUsesWithNew<Tuple>(elements).status());
+    return true;
+  }
+
   // The operands can be unconditionally narrowed to the result width.
   if (lhs_bit_count > result_bit_count || rhs_bit_count > result_bit_count) {
     Node* narrowed_lhs = lhs;

@@ -257,6 +257,19 @@ TEST_P(NarrowingPassTest, ExtendedSMulSignAgnostic) {
                       m::Param("rhs")));
 }
 
+TEST_P(NarrowingPassTest, PartialMultiplyWiderThanSumOfOperands) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u8 = p->GetBitsType(8);
+  fb.SMulp(fb.Param("lhs", u8), fb.Param("rhs", u8), /*result_width=*/42);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              AllOf(m::Type("(bits[42], bits[42])"),
+                    m::Tuple(m::SignExt(m::Type("bits[16]")),
+                             m::SignExt(m::Type("bits[16]")))));
+}
+
 TEST_P(NarrowingPassTest, PartialMultiplyOperandsWiderThanResult) {
   auto p = CreatePackage();
   FunctionBuilder fb(TestName(), p.get());
