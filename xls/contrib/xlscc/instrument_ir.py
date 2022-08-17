@@ -72,14 +72,16 @@ flags.DEFINE_string(
 flags.DEFINE_bool(
     "delete_temps", True, "Delete temporary files?", required=False)
 flags.DEFINE_integer(
-    "random_seed",
-    42,
-    "Random seed for testbench.",
-    required=False)
+    "random_seed", 42, "Random seed for testbench.", required=False)
 flags.DEFINE_float(
     "prob_input_valid_assert",
     1.0,
     "Single-cycle probability of asserting valid with more input ready.",
+    required=False)
+flags.DEFINE_integer(
+    "max_ticks",
+    0,
+    "Maximum number of ticks per frame (0=no limit).",
     required=False)
 
 EVAL_IR_PATH = runfiles.get_path("xls/tools/eval_ir_main")
@@ -367,6 +369,8 @@ struct tick_on_exit {
                   == "__xls_channel")
 
       ch_type = channel.type
+      stream_name = "{n}_stream".format(n=channel.name)
+      print_val = format_print_value("value", stream_name, ch_type, metadata)
       instrument_src += textwrap.dedent("""
                           struct direct_in_on_exit_{n} {{
                             {t} &value;
@@ -380,11 +384,7 @@ struct tick_on_exit {
                               {n}_stream << std::endl;
                             }}
                           }} direct_in_on_exit_{n}_i({n}, {n}_stream);
-""".format(
-    n=channel.name,
-    t=type_to_string(ch_type),
-    print_val=format_print_value("value", "{n}_stream".format(n=channel.name),
-                                 ch_type, metadata)))
+""".format(n=channel.name, t=type_to_string(ch_type), print_val=print_val))
     elif hls_ch.type == hls_block_pb2.ChannelType.FIFO:
       assert channel.type.as_inst and channel.type.as_inst.name.fully_qualified_name == "__xls_channel"
 
@@ -612,8 +612,8 @@ def instrument_source(
   Returns:
     The path to the C++ file that was modified
   """
-
   filename_to_modify = function_to_instrument_proto.return_location.begin.filename
+  print("filename_to_modify", filename_to_modify)
 
   shutil.copyfile(filename_to_modify, original_src_tmp)
 
@@ -743,8 +743,8 @@ def main(argv):
     args = [
         EVAL_IR_PATH, "--top", function_to_instrument_proto.name.xls_name,
         "--input_file", inputs_tmp.name, "--expected_file", outputs_tmp.name,
-        "--use_llvm_jit" if (FLAGS.backend == "serial_jit")
-        else "--nouse_llvm_jit",
+        "--use_llvm_jit" if
+        (FLAGS.backend == "serial_jit") else "--nouse_llvm_jit",
         FLAGS.ir_to_test
     ]
     print("Eval command: ", args)
@@ -755,6 +755,14 @@ def main(argv):
       ticks_per_frame = x.read().split()
 
     ticks_per_frame = filter(lambda x: int(x) > 0, ticks_per_frame)
+
+    def apply_max_ticks(x):
+      return str(x if (FLAGS.max_ticks <= 0) else min(FLAGS.max_ticks, int(x)))
+
+    ticks_per_frame = map(apply_max_ticks, ticks_per_frame)
+
+    ticks_filtered = list(ticks_per_frame)
+    ticks_joined = ",".join(ticks_filtered)
 
     input_ch_specs = []
     expected_ch_specs = []
@@ -769,12 +777,12 @@ def main(argv):
         expected_ch_specs += [ch.name + "=" + tmp.name]
 
     args = [
-        EVAL_PROC_PATH, FLAGS.ir_to_test, "--ticks",
-        ",".join(map(str, ticks_per_frame)), "--backend", FLAGS.backend,
-        "--random_seed", str(FLAGS.random_seed),
-        "--prob_input_valid_assert", str(FLAGS.prob_input_valid_assert),
-        "--inputs_for_channels", ",".join(input_ch_specs),
-        "--expected_outputs_for_channels", ",".join(expected_ch_specs)
+        EVAL_PROC_PATH, FLAGS.ir_to_test, "--ticks", ticks_joined, "--backend",
+        FLAGS.backend, "--random_seed",
+        str(FLAGS.random_seed), "--prob_input_valid_assert",
+        str(FLAGS.prob_input_valid_assert), "--inputs_for_channels",
+        ",".join(input_ch_specs), "--expected_outputs_for_channels",
+        ",".join(expected_ch_specs)
     ]
     if FLAGS.block_signature_proto:
       args += ["--block_signature_proto", FLAGS.block_signature_proto]
