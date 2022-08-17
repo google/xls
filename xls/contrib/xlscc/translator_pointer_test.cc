@@ -96,6 +96,27 @@ TEST_F(TranslatorPointerTest, ArraySlice) {
   Run({}, 5 + 6, content);
 }
 
+TEST_F(TranslatorPointerTest, ArraySliceDynamic) {
+  const std::string content = R"(
+    int sum(const int v[2]) {
+      int ret = 0;
+      #pragma hls_unroll yes
+      for(int i=0;i<2;++i) {
+        ret += v[i];
+      }
+      return ret;
+    }
+
+    int my_package(long long i) {
+      int arr[10] = {1,2,3,4,5,6,7,8,9,10};
+      int* p = &arr[i];
+      return sum(p);
+    })";
+
+  Run({{"i", 0}}, 1 + 2, content);
+  Run({{"i", 4}}, 5 + 6, content);
+}
+
 TEST_F(TranslatorPointerTest, ArraySliceAssign) {
   const std::string content = R"(
     void addto(int v[2]) {
@@ -224,6 +245,32 @@ TEST_F(TranslatorPointerTest, ArraySliceAssignDirect3) {
     })";
 
   Run({}, 3 + 3, content);
+}
+
+TEST_F(TranslatorPointerTest, ArraySliceAssignDynamic) {
+  const std::string content = R"(
+    void addto(int v[2]) {
+      #pragma hls_unroll yes
+      for(int i=0;i<2;++i) {
+        v[i] += 3;
+      }
+    }
+
+    int my_package(long long wi, long long ri) {
+      int arr[4] = {1,2,3,4};
+      addto(&arr[wi]);
+      return arr[ri];
+    })";
+
+  Run({{"wi", 1}, {"ri", 0}}, 1, content);
+  Run({{"wi", 1}, {"ri", 1}}, 2 + 3, content);
+  Run({{"wi", 1}, {"ri", 2}}, 3 + 3, content);
+  Run({{"wi", 1}, {"ri", 3}}, 4, content);
+
+  Run({{"wi", 0}, {"ri", 0}}, 1 + 3, content);
+  Run({{"wi", 0}, {"ri", 1}}, 2 + 3, content);
+  Run({{"wi", 0}, {"ri", 2}}, 3, content);
+  Run({{"wi", 0}, {"ri", 3}}, 4, content);
 }
 
 TEST_F(TranslatorPointerTest, ArraySliceOutOfBounds) {

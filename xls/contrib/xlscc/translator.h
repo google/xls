@@ -1163,7 +1163,8 @@ class Translator {
                                     const class clang::ASTContext& ctx,
                                     const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> EvaluateNode(xls::Node* node,
-                                          const xls::SourceInfo& loc);
+                                          const xls::SourceInfo& loc,
+                                          bool do_check = true);
 
   absl::Status ShortCircuitNode(xls::Node* node, xls::BValue& top_bval,
                                 xls::Node* parent,
@@ -1171,13 +1172,18 @@ class Translator {
                                 const xls::SourceInfo& loc);
   absl::Status ShortCircuitBVal(xls::BValue& bval, const xls::SourceInfo& loc);
   absl::StatusOr<xls::Value> EvaluateBVal(xls::BValue bval,
-                                          const xls::SourceInfo& loc);
+                                          const xls::SourceInfo& loc,
+                                          bool do_check = true);
+  absl::StatusOr<int64_t> EvaluateBValInt64(xls::BValue bval,
+                                            const xls::SourceInfo& loc,
+                                            bool do_check = true);
   absl::StatusOr<Z3_lbool> IsBitSatisfiable(
       xls::Node* node, Z3_solver& solver,
       xls::solvers::z3::IrTranslator& z3_translator);
 
-  absl::StatusOr<ConstValue> TranslateBValToConstVal(
-      const CValue& bvalue, const xls::SourceInfo& loc);
+  absl::StatusOr<ConstValue> TranslateBValToConstVal(const CValue& bvalue,
+                                                     const xls::SourceInfo& loc,
+                                                     bool do_check = true);
 
   absl::StatusOr<xls::Op> XLSOpcodeFromClang(clang::BinaryOperatorKind clang_op,
                                              const CType& left_type,

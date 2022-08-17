@@ -1056,7 +1056,8 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
       // which otherwise confuse XLS[cc] itself.
       bool do_default = false;
 
-      absl::StatusOr<xls::Value> eval_result = EvaluateBVal(op_condition, loc);
+      absl::StatusOr<xls::Value> eval_result =
+          EvaluateBVal(op_condition, loc, /*do_check=*/false);
       if (eval_result.ok()) {
         if (eval_result.value().IsAllZeros()) {
           do_default = true;
@@ -1758,7 +1759,7 @@ absl::StatusOr<CValue> Translator::PrepareRValueWithSelect(
   // Avoid generating unnecessary selects
   absl::StatusOr<xls::Value> const_var_cond = xls::Value(xls::UBits(1, 1));
   if (relative_condition.valid()) {
-    const_var_cond = EvaluateBVal(relative_condition, loc);
+    const_var_cond = EvaluateBVal(relative_condition, loc, /*do_check=*/false);
   }
   if (const_var_cond.ok() && const_var_cond.value().IsAllOnes()) {
     return rvalue_to_use;
@@ -1856,50 +1857,91 @@ int64_t Translator::ArrayBValueWidth(xls::BValue array_bval) {
   return type->AsArrayOrDie()->size();
 }
 
+absl::StatusOr<int64_t> Translator::EvaluateBValInt64(
+    xls::BValue bval, const xls::SourceInfo& loc, bool do_check) {
+  absl::StatusOr<xls::Value> val_result = EvaluateBVal(bval, loc, do_check);
+  if (!val_result.ok()) {
+    return val_result.status();
+  }
+  xls::Value val = val_result.value();
+  XLS_CHECK(val.IsBits());
+  XLS_ASSIGN_OR_RETURN(int64_t const_index, val.bits().ToInt64());
+  return const_index;
+}
+
 absl::StatusOr<xls::BValue> Translator::UpdateArraySlice(
     xls::BValue array_to_update, xls::BValue start_index,
     xls::BValue slice_to_write, const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(xls::Value start_index_val,
-                       EvaluateBVal(start_index, loc));
-  XLS_CHECK(start_index_val.IsBits());
-  XLS_ASSIGN_OR_RETURN(int64_t const_index, start_index_val.bits().ToInt64());
-
   const int64_t total_width = ArrayBValueWidth(array_to_update);
   const int64_t slice_width = ArrayBValueWidth(slice_to_write);
 
-  if (total_width < (const_index + slice_width)) {
+  absl::StatusOr<int64_t> const_index_result =
+      EvaluateBValInt64(start_index, loc, /*do_check=*/false);
+
+  // Constant index case: use array concatenation
+  if (const_index_result.ok()) {
+    const int64_t const_index = const_index_result.value();
+
+    if (total_width < (const_index + slice_width)) {
+      return absl::OutOfRangeError(
+          ErrorMessage(loc, "Array slice out of bounds"));
+    }
+
+    int64_t remaining_width = total_width;
+
+    std::vector<xls::BValue> parts;
+
+    if (const_index > 0) {
+      parts.push_back(context().fb->ArraySlice(
+          array_to_update, context().fb->Literal(xls::SBits(0, 32), loc),
+          const_index, loc));
+      remaining_width -= const_index;
+    }
+
+    parts.push_back(slice_to_write);
+    remaining_width -= slice_width;
+
+    if (remaining_width > 0) {
+      parts.push_back(context().fb->ArraySlice(
+          array_to_update,
+          context().fb->Literal(xls::SBits(total_width - remaining_width, 32),
+                                loc),
+          remaining_width, loc));
+    }
+
+    xls::BValue updated_array_const = context().fb->ArrayConcat(parts, loc);
+    const int64_t updated_array_width = ArrayBValueWidth(updated_array_const);
+
+    XLS_CHECK_EQ(total_width, updated_array_width);
+
+    XLS_CHECK(updated_array_const.valid());
+    return updated_array_const;
+  }
+
+  xls::BValue updated_array_dynamic = array_to_update;
+
+  // Dynamic index case: update elements one by one
+  if (total_width <= slice_width) {
     return absl::OutOfRangeError(
-        ErrorMessage(loc, "Array slice out of bounds"));
+        ErrorMessage(loc, "Array slice sure to be out of bounds"));
   }
 
-  int64_t remaining_width = total_width;
-
-  std::vector<xls::BValue> parts;
-
-  if (const_index > 0) {
-    parts.push_back(context().fb->ArraySlice(
-        array_to_update, context().fb->Literal(xls::SBits(0, 32), loc),
-        const_index, loc));
-    remaining_width -= const_index;
+  for (uint64_t si = 0; si < slice_width; ++si) {
+    xls::BValue slice_idx_bval =
+        context().fb->Literal(xls::UBits(si, start_index.BitCountOrDie()), loc);
+    XLS_CHECK(slice_idx_bval.valid());
+    xls::BValue index_bval =
+        context().fb->Add(start_index, slice_idx_bval, loc);
+    XLS_CHECK(index_bval.valid());
+    xls::BValue slice_bval =
+        context().fb->ArrayIndex(slice_to_write, {slice_idx_bval}, loc);
+    XLS_CHECK(slice_bval.valid());
+    updated_array_dynamic = context().fb->ArrayUpdate(
+        updated_array_dynamic, slice_bval, {index_bval}, loc);
   }
 
-  parts.push_back(slice_to_write);
-  remaining_width -= slice_width;
-
-  if (remaining_width > 0) {
-    parts.push_back(context().fb->ArraySlice(
-        array_to_update,
-        context().fb->Literal(xls::SBits(total_width - remaining_width, 32),
-                              loc),
-        remaining_width, loc));
-  }
-
-  xls::BValue updated_array = context().fb->ArrayConcat(parts, loc);
-  const int64_t updated_array_width = ArrayBValueWidth(updated_array);
-
-  XLS_CHECK_EQ(total_width, updated_array_width);
-
-  return updated_array;
+  XLS_CHECK(updated_array_dynamic.valid());
+  return updated_array_dynamic;
 }
 
 absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
@@ -3766,16 +3808,22 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
   }
 }
 
-absl::StatusOr<xls::Value> Translator::EvaluateNode(
-    xls::Node* node, const xls::SourceInfo& loc) {
+absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node,
+                                                    const xls::SourceInfo& loc,
+                                                    bool do_check) {
   xls::IrInterpreter visitor({});
   absl::Status status = node->Accept(&visitor);
   if (!status.ok()) {
-    return absl::UnavailableError(
+    auto err = absl::UnavailableError(
         ErrorMessage(loc,
                      "Couldn't evaluate node as a constant. Error from IR "
                      "interpreter was: %s",
                      status.message()));
+    if (do_check) {
+      XLS_LOG(ERROR) << err.ToString();
+    } else {
+      return err;
+    }
   }
   xls::Value result = visitor.ResolveAsValue(node);
   return result;
@@ -3808,7 +3856,8 @@ absl::Status Translator::ShortCircuitNode(
     return absl::OkStatus();
   }
 
-  absl::StatusOr<xls::Value> const_result = EvaluateNode(node, loc);
+  absl::StatusOr<xls::Value> const_result =
+      EvaluateNode(node, loc, /*do_check=*/false);
 
   // Try to replace the node with a literal
   if (const_result.ok()) {
@@ -3857,15 +3906,16 @@ absl::Status Translator::ShortCircuitNode(
   return absl::OkStatus();
 }
 
-absl::StatusOr<xls::Value> Translator::EvaluateBVal(
-    xls::BValue bval, const xls::SourceInfo& loc) {
-  return EvaluateNode(bval.node(), loc);
+absl::StatusOr<xls::Value> Translator::EvaluateBVal(xls::BValue bval,
+                                                    const xls::SourceInfo& loc,
+                                                    bool do_check) {
+  return EvaluateNode(bval.node(), loc, do_check);
 }
 
 absl::StatusOr<ConstValue> Translator::TranslateBValToConstVal(
-    const CValue& bvalue, const xls::SourceInfo& loc) {
+    const CValue& bvalue, const xls::SourceInfo& loc, bool do_check) {
   XLS_ASSIGN_OR_RETURN(xls::Value const_value,
-                       EvaluateBVal(bvalue.rvalue(), loc));
+                       EvaluateBVal(bvalue.rvalue(), loc, do_check));
   return ConstValue(const_value, bvalue.type());
 }
 
@@ -3910,8 +3960,8 @@ absl::Status Translator::GenerateIR_StaticDecl(const clang::VarDecl* vard,
       any_side_effects = true;
     } else {
       // Check for const-evaluatability
-      absl::StatusOr<ConstValue> translate_result =
-          TranslateBValToConstVal(translated_without_side_effects, loc);
+      absl::StatusOr<ConstValue> translate_result = TranslateBValToConstVal(
+          translated_without_side_effects, loc, /*do_check=*/false);
       if (!translate_result.ok()) {
         use_on_reset = true;
       } else {
