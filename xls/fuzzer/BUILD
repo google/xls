@@ -480,3 +480,24 @@ cc_test(
         "@com_google_googletest//:gtest",
     ],
 )
+
+py_test(
+    name = "fuzz_integration_test",
+    srcs = ["fuzz_integration_test.py"],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    tags = [
+        "manual",
+        "notap",
+    ],
+    deps = [
+        ":run_fuzz",
+        ":sample_runner",
+        "//xls/common:gfile",
+        "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/logging",
+        "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
