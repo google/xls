@@ -1156,6 +1156,13 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   sf.clang_decl = funcdecl;
 
+  // Pragma at class or method level
+  XLS_ASSIGN_OR_RETURN(sf.in_synthetic_int, FunctionIsInSyntheticInt(funcdecl));
+  XLS_ASSIGN_OR_RETURN(Pragma pragma,
+                       FindPragmaForLoc(GetPresumedLoc(*funcdecl)));
+  const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+  sf.in_synthetic_int = sf.in_synthetic_int || synthetic_int_pragma;
+
   // Functions need a clean context
   context() = TranslationContext();
   context().propagate_up = false;
@@ -1497,7 +1504,6 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
           "Warning: interpreting definition-less struct '%s' as empty",
           signature->base()->getNameAsString());
     }
-
     XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
     const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
     const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
@@ -2586,6 +2592,26 @@ absl::StatusOr<GeneratedFunction*> Translator::TranslateFunctionToXLS(
   } else {
     return GenerateIR_Function(decl);
   }
+}
+
+absl::StatusOr<bool> Translator::FunctionIsInSyntheticInt(
+    const clang::FunctionDecl* decl) {
+  if (clang::isa<clang::CXXMethodDecl>(decl)) {
+    auto method_decl = clang::dyn_cast<clang::CXXMethodDecl>(decl);
+    auto type_alias = std::make_shared<CInstantiableTypeAlias>(
+        static_cast<const clang::NamedDecl*>(method_decl->getParent()));
+    auto found = inst_types_.find(type_alias);
+    if (found == inst_types_.end()) {
+      return false;
+    }
+    XLS_CHECK(found != inst_types_.end());
+    auto struct_type = dynamic_cast<const CStructType*>(found->second.get());
+    XLS_CHECK_NE(struct_type, nullptr);
+    if (struct_type->synthetic_int_flag()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
@@ -6033,11 +6059,17 @@ std::string Translator::LocString(const xls::SourceInfo& loc) {
 
 xls::SourceInfo Translator::GetLoc(const clang::Stmt& stmt) {
   XLS_CHECK_NE(parser_.get(), nullptr);
+  if (context().sf != nullptr && context().sf->in_synthetic_int) {
+    return xls::SourceInfo();
+  }
   return parser_->GetLoc(stmt);
 }
 
 xls::SourceInfo Translator::GetLoc(const clang::Decl& decl) {
   XLS_CHECK_NE(parser_.get(), nullptr);
+  if (context().sf != nullptr && context().sf->in_synthetic_int) {
+    return xls::SourceInfo();
+  }
   return parser_->GetLoc(decl);
 }
 

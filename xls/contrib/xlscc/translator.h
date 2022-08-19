@@ -495,6 +495,8 @@ struct GeneratedFunction {
 
   int64_t return_value_count = 0;
 
+  bool in_synthetic_int = false;
+
   absl::flat_hash_map<const clang::NamedDecl*, uint64_t>
       declaration_order_by_name_;
 
@@ -1157,6 +1159,8 @@ class Translator {
   absl::StatusOr<std::shared_ptr<CType>> ResolveTypeInstanceDeeply(
       std::shared_ptr<CType> t);
   absl::StatusOr<GeneratedFunction*> TranslateFunctionToXLS(
+      const clang::FunctionDecl* decl);
+  absl::StatusOr<bool> FunctionIsInSyntheticInt(
       const clang::FunctionDecl* decl);
 
   absl::StatusOr<int64_t> EvaluateInt64(const clang::Expr& expr,
