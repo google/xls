@@ -275,6 +275,9 @@ absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
                  (at = match_pragma(line, "#pragma hls_design top")) !=
                      std::string::npos) {
         hls_pragmas_[location] = Pragma(Pragma_Top);
+      } else if ((at = match_pragma(line, "#pragma hls_synthetic_int")) !=
+                 std::string::npos) {
+        hls_pragmas_[location] = Pragma(Pragma_SyntheticInt);
       } else if ((at = match_pragma(line, init_interval_pragma)) !=
                  std::string::npos) {
         const std::string after_pragma = line.substr(

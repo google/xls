@@ -46,6 +46,7 @@ static_assert(Log2Ceil<15> == 4);
 static_assert(Log2Ceil<16> == 4);
 static_assert(Log2Ceil<17> == 5);
 
+#pragma hls_synthetic_int
 template <typename T, int Width>
 class BuiltinIntToBits {
  public:
@@ -59,9 +60,11 @@ class BuiltinIntToBits {
   }
 };
 
+#pragma hls_synthetic_int
 template <int FromW, int ToW, bool Signed>
 class ExtendBits {};
 
+#pragma hls_synthetic_int
 template <int FromW, int ToW>
 class ExtendBits<FromW, ToW, false> {
  public:
@@ -77,6 +80,7 @@ class ExtendBits<FromW, ToW, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int FromW, int ToW>
 class ExtendBits<FromW, ToW, true> {
  public:
@@ -90,6 +94,7 @@ class ExtendBits<FromW, ToW, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int FromW, int ToW>
 class SliceBits {
  public:
@@ -103,6 +108,7 @@ class SliceBits {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class PassThroughBits {
  public:
@@ -111,6 +117,7 @@ class PassThroughBits {
   }
 };
 
+#pragma hls_synthetic_int
 template <int FromW, int ToW, bool Signed>
 class ConvertBits
     : public std::conditional<(ToW == FromW), PassThroughBits<FromW>,
@@ -118,9 +125,11 @@ class ConvertBits
                                   (ToW > FromW), ExtendBits<FromW, ToW, Signed>,
                                   SliceBits<FromW, ToW> >::type>::type {};
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class MultiplyWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class MultiplyWithSign<Width, false> {
  public:
@@ -135,6 +144,7 @@ class MultiplyWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class MultiplyWithSign<Width, true> {
  public:
@@ -149,9 +159,11 @@ class MultiplyWithSign<Width, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed, int IndexW>
 class ShiftRightWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width, int IndexW>
 class ShiftRightWithSign<Width, false, IndexW> {
  public:
@@ -166,6 +178,7 @@ class ShiftRightWithSign<Width, false, IndexW> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, int IndexW>
 class ShiftRightWithSign<Width, true, IndexW> {
  public:
@@ -180,9 +193,11 @@ class ShiftRightWithSign<Width, true, IndexW> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class DivideWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class DivideWithSign<Width, false> {
  public:
@@ -197,6 +212,7 @@ class DivideWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class DivideWithSign<Width, true> {
  public:
@@ -211,9 +227,11 @@ class DivideWithSign<Width, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class ModuloWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class ModuloWithSign<Width, false> {
  public:
@@ -228,6 +246,7 @@ class ModuloWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class ModuloWithSign<Width, true> {
  public:
@@ -242,9 +261,11 @@ class ModuloWithSign<Width, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class GreaterWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class GreaterWithSign<Width, false> {
  public:
@@ -258,6 +279,7 @@ class GreaterWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class GreaterWithSign<Width, true> {
  public:
@@ -271,9 +293,11 @@ class GreaterWithSign<Width, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class GreaterOrEqWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class GreaterOrEqWithSign<Width, false> {
  public:
@@ -287,6 +311,7 @@ class GreaterOrEqWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class GreaterOrEqWithSign<Width, true> {
  public:
@@ -300,9 +325,11 @@ class GreaterOrEqWithSign<Width, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class LessWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class LessWithSign<Width, false> {
  public:
@@ -316,6 +343,7 @@ class LessWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class LessWithSign<Width, true> {
  public:
@@ -329,9 +357,11 @@ class LessWithSign<Width, true> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class LessOrEqWithSign {};
 
+#pragma hls_synthetic_int
 template <int Width>
 class LessOrEqWithSign<Width, false> {
  public:
@@ -345,6 +375,7 @@ class LessOrEqWithSign<Width, false> {
   }
 };
 
+#pragma hls_synthetic_int
 template <int Width>
 class LessOrEqWithSign<Width, true> {
  public:
@@ -362,11 +393,11 @@ class LessOrEqWithSign<Width, true> {
 
 // The point of XlsIntBase is to provide different conversions
 //  for signed and unsigned ints. It is the base class to XlsInt.
-#pragma hls_no_tuple
+#pragma hls_synthetic_int
 template <int Width, bool Signed>
 class XlsIntBase {};
 
-#pragma hls_no_tuple
+#pragma hls_synthetic_int
 template <int Width>
 class XlsIntBase<Width, false> {
   static_assert(Width > 0, "Must be at least 1 bit wide");
@@ -393,7 +424,7 @@ class XlsIntBase<Width, false> {
   __xls_bits<Width> storage;
 };
 
-#pragma hls_no_tuple
+#pragma hls_synthetic_int
 template <int Width>
 class XlsIntBase<Width, true> {
   static_assert(Width > 0, "Must be at least 1 bit wide");
@@ -426,7 +457,7 @@ class XlsIntBase<Width, true> {
 // TODO(seanhaskell): This class does not contain a reference to an XlsInt
 //   because XLS[cc] doesn't support returning references yet. Instead,
 //   XLS[cc] contains a hack to explicitly handle this case.
-#pragma hls_no_tuple
+#pragma hls_synthetic_int
 struct BitElemRef {
   template <typename T>
   inline BitElemRef(T in) : v(in & 1) {}
@@ -438,7 +469,7 @@ struct BitElemRef {
   bool v;
 };
 
-#pragma hls_no_tuple
+#pragma hls_synthetic_int
 template <int Width, bool Signed = true>
 class XlsInt : public XlsIntBase<Width, Signed> {
  public:
@@ -805,7 +836,7 @@ class XlsInt : public XlsIntBase<Width, Signed> {
 
   inline index_t leading_sign(bool &all_sign) const {
     index_t ls = leading_sign();
-    all_sign = (ls == Width-Signed);
+    all_sign = (ls == Width - Signed);
     return ls;
   }
 

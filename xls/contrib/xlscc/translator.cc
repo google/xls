@@ -374,8 +374,10 @@ bool CInstantiableTypeAlias::operator==(const CType& o) const {
 }
 
 CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
-                         bool no_tuple_flag)
-    : no_tuple_flag_(no_tuple_flag), fields_(fields) {
+                         bool no_tuple_flag, bool synthetic_int_flag)
+    : no_tuple_flag_(no_tuple_flag),
+      synthetic_int_flag_(synthetic_int_flag),
+      fields_(fields) {
   for (const std::shared_ptr<CField>& pf : fields) {
     XLS_CHECK(!fields_by_name_.contains(pf->name()));
     fields_by_name_[pf->name()] = pf;
@@ -436,6 +438,8 @@ absl::Status CStructType::GetMetadataValue(
 }
 
 bool CStructType::no_tuple_flag() const { return no_tuple_flag_; }
+
+bool CStructType::synthetic_int_flag() const { return synthetic_int_flag_; }
 
 int CStructType::GetBitWidth() const {
   int ret = 0;
@@ -1495,7 +1499,10 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
     }
 
     XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
-    new_type.reset(new CStructType(fields, pragma.type() == Pragma_NoTuples));
+    const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
+    const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+    new_type.reset(new CStructType(
+        fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma));
   }
 
   inst_types_[signature] = new_type;
@@ -2550,7 +2557,8 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstanceDeeply(
         fields.push_back(std::make_shared<CField>(field->name(), field->index(),
                                                   field_type));
       }
-      return std::make_shared<CStructType>(fields, ret_struct->no_tuple_flag());
+      return std::make_shared<CStructType>(fields, ret_struct->no_tuple_flag(),
+                                           ret_struct->synthetic_int_flag());
     }
   }
 
@@ -4648,7 +4656,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
       fields.push_back(field_ptr);
     }
 
-    context_struct_type = std::make_shared<CStructType>(fields, false);
+    context_struct_type = std::make_shared<CStructType>(
+        fields, /*no_tuple=*/false, /*synthetic_int=*/false);
     context_tuple_out =
         CValue(MakeStructXLS(tuple_values, *context_struct_type, loc),
                context_struct_type);

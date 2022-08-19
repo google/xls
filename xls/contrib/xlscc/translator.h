@@ -202,7 +202,8 @@ class CField {
 // C/C++ struct
 class CStructType : public CType {
  public:
-  CStructType(std::vector<std::shared_ptr<CField>> fields, bool no_tuple_flag);
+  CStructType(std::vector<std::shared_ptr<CField>> fields, bool no_tuple_flag,
+              bool synthetic_int_flag);
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
@@ -215,6 +216,7 @@ class CStructType : public CType {
 
   // Returns true if the #pragma no_notuple directive was given for the struct
   bool no_tuple_flag() const;
+  bool synthetic_int_flag() const;
   const std::vector<std::shared_ptr<CField>>& fields() const;
   const absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CField>>&
   fields_by_name() const;
@@ -224,6 +226,7 @@ class CStructType : public CType {
 
  private:
   bool no_tuple_flag_;
+  bool synthetic_int_flag_;
   std::vector<std::shared_ptr<CField>> fields_;
   absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CField>>
       fields_by_name_;

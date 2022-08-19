@@ -29,8 +29,8 @@
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
-#include "xls/ir/source_location.h"
 #include "xls/ir/block.h"
+#include "xls/ir/source_location.h"
 
 namespace xlscc {
 
@@ -42,6 +42,7 @@ enum PragmaType {
   Pragma_InitInterval,
   Pragma_Label,
   Pragma_ArrayAllowDefaultPad,
+  Pragma_SyntheticInt,
 };
 
 class Pragma {
