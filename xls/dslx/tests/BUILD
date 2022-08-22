@@ -801,11 +801,14 @@ dslx_lang_test(
 
 dslx_lang_test(
     name = "send_if_recv_if",
-    benchmark_ir = False,
-    evaluate_ir = False,
-    ir_entry = "main",
-    # No normal 'function' entry point, it is a proc.
-    test_ir_equivalence = False,
+    convert_to_ir = False,
+    dslx_entry = "main",
+)
+
+xls_dslx_ir(
+    name = "send_if_recv_if_ir",
+    dslx_top = "main",
+    library = "send_if_recv_if_dslx",
 )
 
 dslx_lang_test(

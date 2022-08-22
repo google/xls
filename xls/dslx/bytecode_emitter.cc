@@ -967,10 +967,37 @@ absl::Status BytecodeEmitter::HandleRange(const Range* node) {
   return absl::OkStatus();
 }
 
+namespace {
+
+// Find concrete type of channel's payload.
+absl::StatusOr<std::unique_ptr<ConcreteType>> GetChannelPayloadType(
+    const TypeInfo* type_info, const Expr* channel) {
+  std::optional<ConcreteType*> type = type_info->GetItem(channel);
+
+  if (!type.has_value()) {
+    return absl::InternalError(absl::StrFormat(
+        "Could not retrieve type of channel %s", channel->ToString()));
+  }
+
+  ChannelType* channel_type = dynamic_cast<ChannelType*>(type.value());
+  if (channel_type == nullptr) {
+    return absl::InternalError(absl::StrFormat(
+        "Channel %s type is not of type channel", channel->ToString()));
+  }
+
+  return channel_type->payload_type().CloneToUnique();
+}
+
+}  // namespace
+
 absl::Status BytecodeEmitter::HandleRecv(const Recv* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
-  Add(Bytecode::MakeRecv(node->span()));
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
+                       GetChannelPayloadType(type_info_, node->channel()));
+  Add(Bytecode::MakeRecv(node->span(), std::move(channel_payload_type)));
   return absl::OkStatus();
 }
 
@@ -978,42 +1005,23 @@ absl::Status BytecodeEmitter::HandleRecvNonBlocking(
     const RecvNonBlocking* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
 
-  // Find concrete type of channel's payload.
-  std::optional<ConcreteType*> type = type_info_->GetItem(node->channel());
-  if (!type.has_value()) {
-    return absl::InternalError(absl::StrFormat(
-        "Could not retrieve type of channel %s", node->channel()->ToString()));
-  }
-
-  ChannelType* channel_type = dynamic_cast<ChannelType*>(type.value());
-  if (channel_type == nullptr) {
-    return absl::InternalError(absl::StrFormat(
-        "Channel %s type is not of type channel", node->channel()->ToString()));
-  }
-
-  std::unique_ptr<ConcreteType> channel_payload_type =
-      channel_type->payload_type().CloneToUnique();
-
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
+                       GetChannelPayloadType(type_info_, node->channel()));
   Add(Bytecode::MakeRecvNonBlocking(node->span(),
                                     std::move(channel_payload_type)));
   return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
-  // We destructure this into an if/else, rather than creating a new opcode,
-  // since our [sequential] execution model allows us to skip nodes (unlike a
-  // real-chip model).
-  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
-  size_t jump_index = bytecode_.size();
-
-  Add(Bytecode::MakeJumpRelIf(node->span(), Bytecode::kPlaceholderJumpAmount));
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
-  Add(Bytecode::MakeRecv(node->span()));
+  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
 
-  Add(Bytecode::MakeJumpDest(node->span()));
-  bytecode_.at(jump_index).PatchJumpTarget(bytecode_.size());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
+                       GetChannelPayloadType(type_info_, node->channel()));
+  Add(Bytecode::MakeRecv(node->span(), std::move(channel_payload_type)));
   return absl::OkStatus();
 }
 
@@ -1021,23 +1029,17 @@ absl::Status BytecodeEmitter::HandleSend(const Send* node) {
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->payload()->AcceptExpr(this));
+  Add(Bytecode::MakeLiteral(node->span(), InterpValue::MakeUBits(1, 1)));
   Add(Bytecode::MakeSend(node->span()));
   return absl::OkStatus();
 }
 
 absl::Status BytecodeEmitter::HandleSendIf(const SendIf* node) {
-  // Same structure as RecvIf.
-  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
-  size_t jump_index = bytecode_.size();
-  Add(Bytecode::MakeJumpRelIf(node->span(), Bytecode::kPlaceholderJumpAmount));
-
   XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
   XLS_RETURN_IF_ERROR(node->payload()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
   Add(Bytecode::MakeSend(node->span()));
-
-  Add(Bytecode::MakeJumpDest(node->span()));
-  bytecode_.at(jump_index).PatchJumpTarget(bytecode_.size());
   return absl::OkStatus();
 }
 

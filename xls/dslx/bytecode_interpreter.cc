@@ -843,6 +843,7 @@ absl::Status BytecodeInterpreter::EvalRange(const Bytecode& bytecode) {
 absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
     const Bytecode& bytecode) {
   // TODO(rspringer): 2022-03-10 Thread safety!
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
@@ -870,26 +871,49 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
 
 absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
   // TODO(rspringer): 2022-03-10 Thread safety!
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
-  if (channel->empty()) {
-    // Restore the stack!
-    stack_.push_back(channel_value);
-    return absl::UnavailableError("Channel is empty.");
+
+  if (condition.IsTrue()) {
+    if (channel->empty()) {
+      // Restore the stack!
+      stack_.push_back(channel_value);
+      stack_.push_back(condition);
+      return absl::UnavailableError("Channel is empty.");
+    }
+
+    XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+
+    stack_.push_back(InterpValue::MakeTuple({token, channel->front()}));
+    channel->pop_front();
+  } else {
+    XLS_RET_CHECK(bytecode.has_data());
+    const Bytecode::Data& data = bytecode.data().value();
+
+    XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
+    const std::unique_ptr<ConcreteType>& payload_type =
+        absl::get<std::unique_ptr<ConcreteType>>(data);
+
+    XLS_ASSIGN_OR_RETURN(InterpValue zero,
+                         CreateZeroValueFromType(*payload_type));
+
+    XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
+    stack_.push_back(InterpValue::MakeTuple({token, zero}));
   }
 
-  XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
-  stack_.push_back(InterpValue::MakeTuple({token, channel->front()}));
-  channel->pop_front();
   return absl::OkStatus();
 }
 
 absl::Status BytecodeInterpreter::EvalSend(const Bytecode& bytecode) {
+  XLS_ASSIGN_OR_RETURN(InterpValue condition, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue payload, Pop());
   XLS_ASSIGN_OR_RETURN(InterpValue channel_value, Pop());
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
-  channel->push_back(payload);
+  if (condition.IsTrue()) {
+    channel->push_back(payload);
+  }
   stack_.push_back(token);
   return absl::OkStatus();
 }

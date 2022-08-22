@@ -383,11 +383,15 @@ DEF_UNARY_BUILDER(JumpDest);
 DEF_UNARY_BUILDER(LogicalOr);
 DEF_UNARY_BUILDER(Pop);
 DEF_UNARY_BUILDER(Range);
-DEF_UNARY_BUILDER(Recv);
 DEF_UNARY_BUILDER(Send);
 DEF_UNARY_BUILDER(Swap);
 
 #undef DEF_UNARY_BUILDER
+
+/* static */ Bytecode Bytecode::MakeRecv(Span span,
+                                         std::unique_ptr<ConcreteType> type) {
+  return Bytecode(span, Op::kRecv, std::move(type));
+}
 
 /* static */ Bytecode Bytecode::MakeRecvNonBlocking(
     Span span, std::unique_ptr<ConcreteType> type) {

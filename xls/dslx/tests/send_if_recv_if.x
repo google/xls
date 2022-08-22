@@ -46,3 +46,36 @@ proc main {
     }
     next(tok: token) { () }
 }
+
+#![test_proc()]
+proc test_main {
+  terminator: chan out bool;
+  data0: chan in u32;
+  data1: chan out u32;
+
+  config(terminator: chan out bool) {
+    let (data0_p, data0_c) = chan u32;
+    let (data1_p, data1_c) = chan u32;
+
+    spawn producer(data0_p)(true);
+    spawn consumer(data1_c)(true);
+
+    (terminator, data0_c, data1_p)
+  }
+
+  next(tok: token) {
+    // Sending consumer data.
+    let tok = send(tok, data1, u32:10);
+    let tok = send(tok, data1, u32:20);
+
+    // Receiving producer data.
+    let (tok, v) = recv(tok, data0);
+    let _ = assert_eq(v, u32:1);
+
+    let (tok, v) = recv(tok, data0);
+    let _ = assert_eq(v, u32:1);
+
+    let tok = send(tok, terminator, true);
+    ()
+  }
+}

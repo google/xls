@@ -118,9 +118,13 @@ class Bytecode {
     kPop,
     // Creates an array of values [TOS1, TOS0).
     kRange,
-    // Pulls a value off of the channel at TOS0, or "blocks" if empty:
-    // terminates execution at the opcode's PC. The interpreter can be
-    // resumed/retried if/when a value becomes available.
+    // Pulls TOS0 (a condition) and TOS1 (a channel).
+    // If TOS0 is true, then
+    //   pulls a value off of the channel or "blocks"
+    //   if empty: terminates execution at the opcode's PC. The interpreter can
+    //    be resumed/retried if/when a value becomes available.
+    // else
+    //   a tuple containing a tuple and zero value is pushed on the stack.
     kRecv,
     // Pulls a value off of the channel at TOS0, but does not block if empty.
     // A tuple containing
@@ -262,7 +266,7 @@ class Bytecode {
   static Bytecode MakeLogicalOr(Span span);
   static Bytecode MakeMatchArm(Span span, MatchArmItem item);
   static Bytecode MakePop(Span span);
-  static Bytecode MakeRecv(Span span);
+  static Bytecode MakeRecv(Span span, std::unique_ptr<ConcreteType> type);
   static Bytecode MakeRecvNonBlocking(Span span,
                                       std::unique_ptr<ConcreteType> type);
   static Bytecode MakeRange(Span span);
