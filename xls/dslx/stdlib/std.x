@@ -309,6 +309,39 @@ fn umin_test() {
   ()
 }
 
+// Returns `floor(log2(x))`, with one exception:
+//
+// When x=0, this function differs from the true mathematical function:
+// flog2(0) = 0
+// floor(log2(0)) = -infinity
+//
+// This function is frequently used to calculate the number of bits required to
+// represent an unsigned integer `n` to define flog2(0) = 0.
+//
+// Example: flog2(7) = 2, flog2(8) = 3.
+pub fn flog2<N: u32>(x: bits[N]) -> bits[N] {
+  if x >= bits[N]:1 {
+    (N as bits[N]) - clz(x) - bits[N]:1
+  } else {
+    bits[N]:0
+  }
+}
+
+#![test]
+fn flog2_test() {
+  let _ = assert_eq(u32:0, flog2(u32:0));
+  let _ = assert_eq(u32:0, flog2(u32:1));
+  let _ = assert_eq(u32:1, flog2(u32:2));
+  let _ = assert_eq(u32:1, flog2(u32:3));
+  let _ = assert_eq(u32:2, flog2(u32:4));
+  let _ = assert_eq(u32:2, flog2(u32:5));
+  let _ = assert_eq(u32:2, flog2(u32:6));
+  let _ = assert_eq(u32:2, flog2(u32:7));
+  let _ = assert_eq(u32:3, flog2(u32:8));
+  let _ = assert_eq(u32:3, flog2(u32:9));
+  ()
+}
+
 // Returns `ceiling(log2(x))`, with one exception:
 //
 // When x=0, this function differs from the true mathematical function:
