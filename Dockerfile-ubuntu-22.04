@@ -1,5 +1,5 @@
 # NOTE: We try to support Ubuntu 22.04 environment as it is the latest Ubuntu
-LTS release.
+# LTS release.
 
 # Download base image ubuntu 22.04
 FROM ubuntu:22.04
