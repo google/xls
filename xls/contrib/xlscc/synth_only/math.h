@@ -15,4 +15,14 @@
 #ifndef __MATH_H__
 #define __MATH_H__
 
+#include <assert.h>
+
+double floor(double x) { assert(!"Unimplemented"); return 0.0; }
+float floorf(float x) { assert(!"Unimplemented"); return 0.0f; }
+long double floorl(long double x) { assert(!"Unimplemented"); return 0.0L; }
+
+double ceil(double x) { assert(!"Unimplemented"); return 0.0; }
+float ceilf(float x) { assert(!"Unimplemented"); return 0.0f; }
+long double ceill(long double x) { assert(!"Unimplemented"); return 0.0L; }
+
 #endif  //__MATH_H__
