@@ -14,6 +14,7 @@
 
 #include "xls/ir/channel.h"
 
+#include "google/protobuf/text_format.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
@@ -71,8 +72,15 @@ std::string Channel::ToString() const {
     }
   }
 
+  std::string metadata_textproto;
+  google::protobuf::TextFormat::Printer printer;
+  printer.SetSingleLineMode(true);
+  printer.PrintToString(metadata(), &metadata_textproto);
+  if (!metadata_textproto.empty() && metadata_textproto.back() == ' ') {
+    metadata_textproto.pop_back();
+  }
   absl::StrAppendFormat(&result, "metadata=\"\"\"%s\"\"\")",
-                        metadata().ShortDebugString());
+                        metadata_textproto);
 
   return result;
 }
