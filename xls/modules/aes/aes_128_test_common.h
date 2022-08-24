@@ -38,7 +38,7 @@ constexpr int32_t kInitialValueBytes =
     kInitialValueBits / std::numeric_limits<uint8_t>::digits;
 
 using Block = std::array<uint8_t, kBlockBytes>;
-using InitialValue = std::array<uint8_t, kInitialValueBytes>;
+using InitVector = std::array<uint8_t, kInitialValueBytes>;
 
 // Returns a string representation of the given key in a format suitable for
 // printing/debugging.
@@ -49,8 +49,9 @@ std::string FormatKey(const std::vector<uint8_t>& key);
 std::string FormatBlock(const Block& block);
 std::string FormatBlocks(const std::vector<Block>& block, int indent);
 
-// Returns a string representation of the "initial value" for AES counter modes.
-std::string FormatInitialValue(const InitialValue& iv);
+// Returns a string representation of the initialization vector for AES counter
+// modes.
+std::string FormatInitVector(const InitVector& iv);
 
 // Prints an appropriate error message on a block value mismatch.
 void PrintFailure(const Block& expected_block, const Block& actual_block,

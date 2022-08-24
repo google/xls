@@ -49,7 +49,7 @@ struct State {
   blocks_left: uN[32],
 }
 
-// Performs the actual work of encoding a block in CTR mode.
+// Performs the actual work of encrypting (or decrypting!) a block in CTR mode.
 fn aes_128_ctr_encrypt(key: Key, ctr: uN[128], block: Block) -> Block {
     // TODO(rspringer): Avoid the need for this two-step type conversion.
     let ctr_array = ctr as u32[4];
@@ -69,7 +69,8 @@ fn aes_128_ctr_encrypt(key: Key, ctr: uN[128], block: Block) -> Block {
     ]
 }
 
-proc aes_128_ctr_encrypter {
+// Note that encryption and decryption are the _EXACT_SAME_PROCESS_!
+proc aes_128_ctr {
     command_in: chan in Command;
     ptxt_in: chan in Block;
     ctxt_out: chan out Block;
@@ -128,7 +129,7 @@ proc aes_128_ctr_test {
             blocks_left: u32:0,
         };
 
-        spawn aes_128_ctr_encrypter(command_in, ptxt_in, ctxt_out)(init_state);
+        spawn aes_128_ctr(command_in, ptxt_in, ctxt_out)(init_state);
         (terminator, command_out, ptxt_out, ctxt_in)
     }
 
@@ -206,6 +207,29 @@ proc aes_128_ctr_test {
             u8[4]:[u8:0xc7, u8:0x99, u8:0xd2, u8:0x19],
         ];
         let _ = assert_eq(ctxt, expected);
+
+        // Now test decryption! Just do a single block.
+        let cmd = Command {
+            msg_bytes: u32:16,
+            key: key,
+            iv: iv,
+        };
+        let tok = send(tok, command_out, cmd);
+        let ciphertext_0 = Block:[
+            u8[4]:[u8:0x27, u8:0x6a, u8:0xec, u8:0x41],
+            u8[4]:[u8:0xfd, u8:0xa9, u8:0x9f, u8:0x26],
+            u8[4]:[u8:0x34, u8:0xc5, u8:0x43, u8:0x73],
+            u8[4]:[u8:0xc7, u8:0x99, u8:0xd2, u8:0x19],
+        ];
+        let tok = send(tok, ptxt_out, ciphertext_0);
+        let (tok, ptxt) = recv(tok, ctxt_in);
+        let expected = Block:[
+            u8[4]:[u8:0x20, u8:0x21, u8:0x22, u8:0x23],
+            u8[4]:[u8:0x24, u8:0x25, u8:0x26, u8:0x27],
+            u8[4]:[u8:0x28, u8:0x29, u8:0x2a, u8:0x2b],
+            u8[4]:[u8:0x2c, u8:0x2d, u8:0x2e, u8:0x2f],
+        ];
+        let _ = assert_eq(ptxt, expected);
 
         let tok = send(tok, terminator, true);
         ()

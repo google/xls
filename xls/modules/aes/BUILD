@@ -139,8 +139,8 @@ xls_dslx_test(
 )
 
 xls_dslx_opt_ir(
-    name = "aes_128_ctr_encrypter",
-    dslx_top = "aes_128_ctr_encrypter",
+    name = "aes_128_ctr",
+    dslx_top = "aes_128_ctr",
     ir_conv_args = {
         "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0], 0), 0, 0)'",
     },
@@ -151,7 +151,7 @@ cc_test(
     name = "aes_128_ctr_test",
     srcs = ["aes_128_ctr_test.cc"],
     data = [
-        ":aes_128_ctr_encrypter.ir",
+        ":aes_128_ctr.ir",
     ],
     deps = [
         ":aes_128_test_common",

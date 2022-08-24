@@ -40,8 +40,7 @@
 #include "xls/jit/proc_jit.h"
 #include "xls/modules/aes/aes_128_test_common.h"
 
-constexpr absl::string_view kEncrypterIrPath =
-    "xls/modules/aes/aes_128_ctr_encrypter.ir";
+constexpr absl::string_view kEncrypterIrPath = "xls/modules/aes/aes_128_ctr.ir";
 
 ABSL_FLAG(int32_t, num_samples, 1000,
           "The number of (randomly-generated) blocks to test.");
@@ -52,16 +51,11 @@ namespace xls::aes {
 
 constexpr int32_t kIvBits = 96;
 constexpr int32_t kIvBytes = kIvBits / 8;
-// TODO(rspringer): This is just for this commit; the next commit will support
-// messages of different block sizes.
-constexpr int32_t kNumBlocks = 2;
-
-using InitialValue = std::array<uint8_t, kIvBytes>;
 
 struct SampleData {
   std::vector<uint8_t> key;
   // Held as a uN[96] in the DSLX.
-  InitialValue iv;
+  InitVector iv;
   std::vector<Block> input_blocks;
 };
 
@@ -90,7 +84,7 @@ void KeyToBuffer(const std::vector<uint8_t>& key,
 
 // In the DSLX, the IV is treated as a uN[96], so we potentially need to swap
 // its byte ordering as well.
-void IvToBuffer(const InitialValue& iv, std::array<uint8_t, kIvBytes>* buffer) {
+void IvToBuffer(const InitVector& iv, std::array<uint8_t, kIvBytes>* buffer) {
   for (int i = kIvBytes - 1; i >= 0; i--) {
     buffer->data()[i] = iv[kIvBytes - 1 - i];
   }
@@ -108,8 +102,8 @@ void PrintTraceMessages(const InterpreterEvents& events) {
 absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
                                               JitData* jit_data) {
   const absl::string_view kCmdChannel = "aes_128_ctr__command_in";
-  const absl::string_view kPtxtChannel = "aes_128_ctr__ptxt_in";
-  const absl::string_view kCtxtChannel = "aes_128_ctr__ctxt_out";
+  const absl::string_view kInputDataChannel = "aes_128_ctr__ptxt_in";
+  const absl::string_view kOutputDataChannel = "aes_128_ctr__ctxt_out";
 
   // Set initial state: step, command, ctr, and blocks_left.
   // TODO(rspringer): Get these sizes from the DSLX C++ type transpiler, then
@@ -160,12 +154,13 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
                        jit_data->queue_mgr->GetQueueById(cmd_channel_id));
   cmd_queue->Send(reinterpret_cast<uint8_t*>(&command), sizeof(CtrCommand));
 
-  XLS_ASSIGN_OR_RETURN(Channel * ptxt_channel,
-                       jit_data->package->GetChannel(kPtxtChannel));
-  int ptxt_channel_id = ptxt_channel->id();
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * ptxt_queue,
-                       jit_data->queue_mgr->GetQueueById(ptxt_channel_id));
-  ptxt_queue->Send(sample_data.input_blocks[0].data(), kBlockBytes);
+  XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
+                       jit_data->package->GetChannel(kInputDataChannel));
+  int input_data_channel_id = input_data_channel->id();
+  XLS_ASSIGN_OR_RETURN(
+      JitChannelQueue * input_data_queue,
+      jit_data->queue_mgr->GetQueueById(input_data_channel_id));
+  input_data_queue->Send(sample_data.input_blocks[0].data(), kBlockBytes);
 
   // TODO(rspringer): Can we eliminate the need for this tuple wrap?
   Value bar = Value::Tuple({state});
@@ -176,7 +171,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
 
   // TODO(rspringer): Set this up to handle partial blocks.
   for (int i = 1; i < num_blocks; i++) {
-    ptxt_queue->Send(sample_data.input_blocks[i].data(), kBlockBytes);
+    input_data_queue->Send(sample_data.input_blocks[i].data(), kBlockBytes);
     XLS_ASSIGN_OR_RETURN(InterpreterResult<std::vector<Value>> run_result,
                          jit_data->jit->Run(state, jit_data));
     state = run_result.value;
@@ -184,15 +179,16 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   }
 
   // Finally, read out the ciphertext.
-  XLS_ASSIGN_OR_RETURN(Channel * ctxt_channel,
-                       jit_data->package->GetChannel(kCtxtChannel));
-  int ctxt_channel_id = ctxt_channel->id();
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * ctxt_queue,
-                       jit_data->queue_mgr->GetQueueById(ctxt_channel_id));
+  XLS_ASSIGN_OR_RETURN(Channel * output_data_channel,
+                       jit_data->package->GetChannel(kOutputDataChannel));
+  int output_data_channel_id = output_data_channel->id();
+  XLS_ASSIGN_OR_RETURN(
+      JitChannelQueue * output_data_queue,
+      jit_data->queue_mgr->GetQueueById(output_data_channel_id));
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
-    XLS_QCHECK(ctxt_queue->Recv(blocks[i].data(), kBlockBytes));
+    XLS_QCHECK(output_data_queue->Recv(blocks[i].data(), kBlockBytes));
   }
 
   return blocks;
@@ -212,8 +208,6 @@ std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
 
   uint8_t ecount[kKeyBytes] = {0};
 
-  // OpenSSL doesn't have a GCM implementation, so we'll have to use something
-  // else once we get there.
   AES_KEY aes_key;
   uint32_t num = 0;
   XLS_QCHECK_EQ(AES_set_encrypt_key(local_key, kKeyBits, &aes_key), 0);
@@ -238,22 +232,20 @@ std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
 }
 
 // Returns false on error (will terminate further runs).
-absl::StatusOr<bool> RunSample(JitData* encrypt_jit_data,
-                               const SampleData& sample_data,
-                               absl::Duration* xls_encrypt_dur,
-                               absl::Duration* xls_decrypt_dur) {
+absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
+                               absl::Duration* xls_encrypt_dur) {
   std::vector<Block> reference_ciphertext = ReferenceEncrypt(sample_data);
 
   absl::Time start_time = absl::Now();
   XLS_ASSIGN_OR_RETURN(std::vector<Block> xls_ciphertext,
-                       XlsEncrypt(sample_data, encrypt_jit_data));
+                       XlsEncrypt(sample_data, jit_data));
   *xls_encrypt_dur += absl::Now() - start_time;
 
-  XLS_VLOG(1) << "Input plaintext     :\n"
+  XLS_VLOG(1) << "Input plaintext:\n"
               << FormatBlocks(sample_data.input_blocks, /*indent=*/4);
   XLS_VLOG(1) << "Reference ciphertext:\n"
               << FormatBlocks(reference_ciphertext, /*indent=*/4);
-  XLS_VLOG(1) << "XLS ciphertext      :\n"
+  XLS_VLOG(1) << "XLS ciphertext:\n"
               << FormatBlocks(xls_ciphertext, /*indent=*/4);
 
   if (reference_ciphertext.size() != xls_ciphertext.size()) {
@@ -276,6 +268,39 @@ absl::StatusOr<bool> RunSample(JitData* encrypt_jit_data,
     }
   }
 
+  // Now decryption!
+  SampleData decryption_data;
+  decryption_data.key = sample_data.key;
+  decryption_data.iv = sample_data.iv;
+  decryption_data.input_blocks = xls_ciphertext;
+  start_time = absl::Now();
+  XLS_ASSIGN_OR_RETURN(std::vector<Block> xls_plaintext,
+                       XlsEncrypt(decryption_data, jit_data));
+
+  XLS_VLOG(1) << "XLS plaintext:\n"
+              << FormatBlocks(xls_plaintext, /*indent=*/4);
+  *xls_encrypt_dur += absl::Now() - start_time;
+  if (sample_data.input_blocks.size() != xls_plaintext.size()) {
+    std::cout << "Error: XLS decrypted plaintext and input plaintext differ "
+              << "in num blocks XLS: " << xls_ciphertext.size()
+              << ", ref: " << sample_data.input_blocks.size() << std::endl;
+    return false;
+  }
+
+  for (int32_t block_idx = 0; block_idx < sample_data.input_blocks.size();
+       block_idx++) {
+    for (int32_t byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
+      if (sample_data.input_blocks[block_idx][byte_idx] !=
+          xls_plaintext[block_idx][byte_idx]) {
+        std::cout << "Error comparing block " << block_idx << ":" << std::endl;
+        PrintFailure(sample_data.input_blocks[block_idx],
+                     xls_ciphertext[block_idx], sample_data.key, byte_idx,
+                     /*ciphertext=*/false);
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -288,9 +313,8 @@ absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path,
   XLS_VLOG(1) << "Parsing IR.";
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(
-      Proc * proc,
-      package->GetProc("__aes_128_ctr__aes_128_ctr_encrypter_0_next"));
+  XLS_ASSIGN_OR_RETURN(Proc * proc,
+                       package->GetProc("__aes_128_ctr__aes_128_ctr_0_next"));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_mgr,
                        JitChannelQueueManager::Create(package.get()));
@@ -321,7 +345,6 @@ absl::Status RealMain(int32_t num_samples) {
   SampleData sample_data;
   sample_data.key.resize(kKeyBytes, 0);
   memset(sample_data.iv.data(), 0, sizeof(sample_data.iv));
-  sample_data.input_blocks.resize(kNumBlocks);
 
   XLS_ASSIGN_OR_RETURN(
       JitData encrypt_jit_data,
@@ -329,12 +352,15 @@ absl::Status RealMain(int32_t num_samples) {
 
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
-  absl::Duration xls_decrypt_dur;
   for (int32_t i = 0; i < num_samples; i++) {
     for (int32_t j = 0; j < kKeyBytes; j++) {
       sample_data.key[j] = absl::Uniform(bitgen, 0, 256);
     }
-    for (int32_t block_idx = 0; block_idx < kNumBlocks; block_idx++) {
+
+    // TODO(rspringer): Support zero blocks!
+    int num_blocks = absl::Uniform(bitgen, 1, 16);
+    sample_data.input_blocks.resize(num_blocks);
+    for (int32_t block_idx = 0; block_idx < num_blocks; block_idx++) {
       for (int32_t byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
         sample_data.input_blocks[block_idx][byte_idx] =
             absl::Uniform(bitgen, 0, 256);
@@ -344,12 +370,11 @@ absl::Status RealMain(int32_t num_samples) {
       sample_data.iv[j] = absl::Uniform(bitgen, 0, 256);
     }
 
-    XLS_ASSIGN_OR_RETURN(bool proceed,
-                         RunSample(&encrypt_jit_data, sample_data,
-                                   &xls_encrypt_dur, &xls_decrypt_dur));
+    XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&encrypt_jit_data, sample_data,
+                                                 &xls_encrypt_dur));
     if (!proceed) {
       std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
-      std::cout << "IV       : " << FormatInitialValue(sample_data.iv)
+      std::cout << "IV       : " << FormatInitVector(sample_data.iv)
                 << std::endl;
       std::cout << "Plaintext: " << std::endl
                 << FormatBlocks(sample_data.input_blocks, /*indent=*/4)

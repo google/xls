@@ -46,7 +46,7 @@ std::string FormatBlocks(const std::vector<Block>& blocks, int indent) {
   return absl::StrJoin(pieces, "\n");
 }
 
-std::string FormatInitialValue(const InitialValue& iv) {
+std::string FormatInitVector(const InitVector& iv) {
   return absl::StrFormat(
       "0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, "
       "0x%02x, 0x%02x, 0x%02x, 0x%02x",
