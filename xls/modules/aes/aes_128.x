@@ -17,19 +17,13 @@
 // Note that throughout, "row" and "column" seem to be swapped: that's because
 // DSLX is a row-major language, whereas AES is described in a column-major
 // manner.
+import xls.modules.aes.aes_128_common
 import xls.modules.aes.constants
 
-const KEY_BITS = u32:128;
-const KEY_WORD_BITS = u32:32;
-const KEY_WORDS = KEY_BITS / KEY_WORD_BITS;
-
-const NUM_ROUNDS = u32:10;
-
-type KeyWord = u32;
-type Key = KeyWord[KEY_WORDS];
-type KeySchedule = Key[NUM_ROUNDS + u32:1];
-type State = u8[4][4];
-type Block = u8[4][4];
+type KeyWord = aes_128_common::KeyWord;
+type Key = aes_128_common::Key;
+type KeySchedule = aes_128_common::KeySchedule;
+type Block = aes_128_common::Block;
 
 // Produces a key whose bytes are in the same order as the incoming byte stream,
 // e.g.,
@@ -39,38 +33,6 @@ pub fn bytes_to_key(bytes: u8[16]) -> Key {
          bytes[4] ++ bytes[5] ++ bytes[6] ++ bytes[7],
          bytes[8] ++ bytes[9] ++ bytes[10] ++ bytes[11],
          bytes[12] ++ bytes[13] ++ bytes[14] ++ bytes[15]]
-}
-
-// Until GitHub issue #629 is resolved, this MUST NOT be called in AOT-compiled
-// code!
-fn trace_block(block: Block) {
-    let bytes0 = block[0];
-    let bytes1 = block[1];
-    let bytes2 = block[2];
-    let bytes3 = block[3];
-    let _ = trace_fmt!(
-        "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
-        bytes0[0], bytes0[1], bytes0[2], bytes0[3],
-        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
-        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
-        bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
-    ()
-}
-
-// Until GitHub issue #629 is resolved, this MUST NOT be called in AOT-compiled
-// code!
-fn trace_key(key: Key) {
-    let bytes0 = key[0] as u8[4];
-    let bytes1 = key[1] as u8[4];
-    let bytes2 = key[2] as u8[4];
-    let bytes3 = key[3] as u8[4];
-    let _ = trace_fmt!(
-        "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
-        bytes0[0], bytes0[1], bytes0[2], bytes0[3],
-        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
-        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
-        bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
-    ()
 }
 
 fn rot_word(word: KeyWord) -> KeyWord {
@@ -90,7 +52,7 @@ fn sub_word(word: KeyWord) -> KeyWord {
 pub fn create_key_schedule(key : Key) -> KeySchedule {
     let sched = KeySchedule:[key, ... ];
     let (sched, _) = for (round, (sched, last_word)) : (u32, (KeySchedule, KeyWord))
-                                                        in range(u32:1, NUM_ROUNDS + u32:1) {
+            in range(u32:1, aes_128_common::NUM_ROUNDS + u32:1) {
         let word0 = sched[round - u32:1][0] ^ sub_word(rot_word(last_word)) ^ constants::R_CON[round - 1];
         let word1 = sched[round - u32:1][1] ^ word0;
         let word2 = sched[round - u32:1][2] ^ word1;
@@ -132,20 +94,20 @@ fn test_key_schedule() {
     ()
 }
 
-pub fn add_round_key(state: State, key: Key) -> State {
+pub fn add_round_key(block: Block, key: Key) -> Block {
     let key_0 = key[0] as u8[4];
     let key_1 = key[1] as u8[4];
     let key_2 = key[2] as u8[4];
     let key_3 = key[3] as u8[4];
-    State:[
-        [state[0][0] ^ key_0[0], state[0][1] ^ key_0[1],
-         state[0][2] ^ key_0[2], state[0][3] ^ key_0[3]],
-        [state[1][0] ^ key_1[0], state[1][1] ^ key_1[1],
-         state[1][2] ^ key_1[2], state[1][3] ^ key_1[3]],
-        [state[2][0] ^ key_2[0], state[2][1] ^ key_2[1],
-         state[2][2] ^ key_2[2], state[2][3] ^ key_2[3]],
-        [state[3][0] ^ key_3[0], state[3][1] ^ key_3[1],
-         state[3][2] ^ key_3[2], state[3][3] ^ key_3[3]],
+    Block:[
+        [block[0][0] ^ key_0[0], block[0][1] ^ key_0[1],
+         block[0][2] ^ key_0[2], block[0][3] ^ key_0[3]],
+        [block[1][0] ^ key_1[0], block[1][1] ^ key_1[1],
+         block[1][2] ^ key_1[2], block[1][3] ^ key_1[3]],
+        [block[2][0] ^ key_2[0], block[2][1] ^ key_2[1],
+         block[2][2] ^ key_2[2], block[2][3] ^ key_2[3]],
+        [block[3][0] ^ key_3[0], block[3][1] ^ key_3[1],
+         block[3][2] ^ key_3[2], block[3][3] ^ key_3[3]],
     ]
 }
 
@@ -157,45 +119,45 @@ fn test_add_round_key() {
         u8:0x38 ++ u8:0x39 ++ u8:0x61 ++ u8:0x62,
         u8:0x63 ++ u8:0x64 ++ u8:0x65 ++ u8:0x66,
     ];
-    let state = State:[
+    let block = Block:[
         [u8:0, u8:1, u8:2, u8:3],
         [u8:0xff, u8:0xaa, u8:0x55, u8:0x00],
         [u8:0xa5, u8:0x5a, u8:0x5a, u8:0xa5],
         [u8:3, u8:2, u8:1, u8:0],
     ];
-    let expected = State:[
+    let expected = Block:[
         [u8:0x30, u8:0x30, u8:0x30, u8:0x30],
         [u8:0xcb, u8:0x9f, u8:0x63, u8:0x37],
         [u8:0x9d, u8:0x63, u8:0x3b, u8:0xc7],
         [u8:0x60, u8:0x66, u8:0x64, u8:0x66],
     ];
-    assert_eq(add_round_key(state, key), expected)
+    assert_eq(add_round_key(block, key), expected)
 }
 
 // Performs the "SubBytes" step. Replaces each byte of the input with the
 // corresponding byte from the S-box.
-pub fn sub_bytes(state: State) -> State {
-    State:[
-        [constants::S_BOX[state[0][0]], constants::S_BOX[state[0][1]],
-         constants::S_BOX[state[0][2]], constants::S_BOX[state[0][3]]],
-        [constants::S_BOX[state[1][0]], constants::S_BOX[state[1][1]],
-         constants::S_BOX[state[1][2]], constants::S_BOX[state[1][3]]],
-        [constants::S_BOX[state[2][0]], constants::S_BOX[state[2][1]],
-         constants::S_BOX[state[2][2]], constants::S_BOX[state[2][3]]],
-        [constants::S_BOX[state[3][0]], constants::S_BOX[state[3][1]],
-         constants::S_BOX[state[3][2]], constants::S_BOX[state[3][3]]],
+pub fn sub_bytes(block: Block) -> Block {
+    Block:[
+        [constants::S_BOX[block[0][0]], constants::S_BOX[block[0][1]],
+         constants::S_BOX[block[0][2]], constants::S_BOX[block[0][3]]],
+        [constants::S_BOX[block[1][0]], constants::S_BOX[block[1][1]],
+         constants::S_BOX[block[1][2]], constants::S_BOX[block[1][3]]],
+        [constants::S_BOX[block[2][0]], constants::S_BOX[block[2][1]],
+         constants::S_BOX[block[2][2]], constants::S_BOX[block[2][3]]],
+        [constants::S_BOX[block[3][0]], constants::S_BOX[block[3][1]],
+         constants::S_BOX[block[3][2]], constants::S_BOX[block[3][3]]],
     ]
 }
 
 #![test]
 fn test_sub_bytes() {
-    let input = State:[
+    let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
         [u8:0xff, u8:0xfe, u8:0xfd, u8:0xfc],
         [u8:0xa5, u8:0x5a, u8:0xaa, u8:0x55],
         [u8:0xde, u8:0xad, u8:0xbe, u8:0xef],
     ];
-    let expected = State:[
+    let expected = Block:[
         [u8:0x63, u8:0x7c, u8:0x77, u8:0x7b],
         [u8:0x16, u8:0xbb, u8:0x54, u8:0xb0],
         [u8:0x06, u8:0xbe, u8:0xac, u8:0xfc],
@@ -205,24 +167,24 @@ fn test_sub_bytes() {
 }
 
 // Performs the "ShiftRows" step. Rotates row N to the left by N spaces.
-pub fn shift_rows(state: State) -> State {
-    State:[
-        u8[4]:[state[0][0], state[1][1], state[2][2], state[3][3]],
-        u8[4]:[state[1][0], state[2][1], state[3][2], state[0][3]],
-        u8[4]:[state[2][0], state[3][1], state[0][2], state[1][3]],
-        u8[4]:[state[3][0], state[0][1], state[1][2], state[2][3]],
+pub fn shift_rows(block: Block) -> Block {
+    Block:[
+        u8[4]:[block[0][0], block[1][1], block[2][2], block[3][3]],
+        u8[4]:[block[1][0], block[2][1], block[3][2], block[0][3]],
+        u8[4]:[block[2][0], block[3][1], block[0][2], block[1][3]],
+        u8[4]:[block[3][0], block[0][1], block[1][2], block[2][3]],
     ]
 }
 
 #![test]
 fn test_shift_rows() {
-    let input = State:[
+    let input = Block:[
         [u8:0, u8:1, u8:2, u8:3],
         [u8:4, u8:5, u8:6, u8:7],
         [u8:8, u8:9, u8:10, u8:11],
         [u8:12, u8:13, u8:14, u8:15],
     ];
-    let expected = State:[
+    let expected = Block:[
         [u8:0, u8:5, u8:10, u8:15],
         [u8:4, u8:9, u8:14, u8:3],
         [u8:8, u8:13, u8:2, u8:7],
@@ -291,12 +253,12 @@ fn mix_column(col: u8[4]) -> u8[4]{
 // Multiplication by 2 is left shifting by one and XORing the result by 0x1b
 // if it overflows.
 // Multiplication by 3 is multiplying by 2 and XORing that with the identity.
-pub fn mix_columns(state: State) -> State {
-    let col0 = mix_column(u8[4]:[state[0][0], state[0][1], state[0][2], state[0][3]]);
-    let col1 = mix_column(u8[4]:[state[1][0], state[1][1], state[1][2], state[1][3]]);
-    let col2 = mix_column(u8[4]:[state[2][0], state[2][1], state[2][2], state[2][3]]);
-    let col3 = mix_column(u8[4]:[state[3][0], state[3][1], state[3][2], state[3][3]]);
-    State:[
+pub fn mix_columns(block: Block) -> Block {
+    let col0 = mix_column(u8[4]:[block[0][0], block[0][1], block[0][2], block[0][3]]);
+    let col1 = mix_column(u8[4]:[block[1][0], block[1][1], block[1][2], block[1][3]]);
+    let col2 = mix_column(u8[4]:[block[2][0], block[2][1], block[2][2], block[2][3]]);
+    let col3 = mix_column(u8[4]:[block[3][0], block[3][1], block[3][2], block[3][3]]);
+    Block:[
         [col0[0], col0[1], col0[2], col0[3]],
         [col1[0], col1[1], col1[2], col1[3]],
         [col2[0], col2[1], col2[2], col2[3]],
@@ -308,13 +270,13 @@ pub fn mix_columns(state: State) -> State {
 // commit efd09b7e.
 #![test]
 fn test_mix_columns() {
-    let input = State:[
+    let input = Block:[
         [u8:0xdb, u8:0xf2, u8:0xc6, u8:0x2d],
         [u8:0x13, u8:0x0a, u8:0xc6, u8:0x26],
         [u8:0x53, u8:0x22, u8:0xc6, u8:0x31],
         [u8:0x45, u8:0x5c, u8:0xc6, u8:0x4c],
     ];
-    let expected = State:[
+    let expected = Block:[
         [u8:0x4b, u8:0x58, u8:0xc9, u8:0x18],
         [u8:0xd8, u8:0x70, u8:0xe4, u8:0xb5],
         [u8:0x37, u8:0x77, u8:0xb5, u8:0x73],
@@ -329,7 +291,7 @@ pub fn aes_encrypt(key: Key, block: Block) -> Block {
     let round_keys = create_key_schedule(key);
     let block = add_round_key(block, round_keys[0]);
 
-    let block = for (i, block): (u32, State) in range(u32:1, u32:10) {
+    let block = for (i, block): (u32, Block) in range(u32:1, u32:10) {
         let block = sub_bytes(block);
         let block = shift_rows(block);
         let block = mix_columns(block);
@@ -366,22 +328,22 @@ fn test_aes_encrypt() {
     assert_eq(actual, expected)
 }
 
-fn inv_sub_bytes(state: State) -> State {
-    State:[
-        [constants::INV_S_BOX[state[0][0]], constants::INV_S_BOX[state[0][1]],
-         constants::INV_S_BOX[state[0][2]], constants::INV_S_BOX[state[0][3]]],
-        [constants::INV_S_BOX[state[1][0]], constants::INV_S_BOX[state[1][1]],
-         constants::INV_S_BOX[state[1][2]], constants::INV_S_BOX[state[1][3]]],
-        [constants::INV_S_BOX[state[2][0]], constants::INV_S_BOX[state[2][1]],
-         constants::INV_S_BOX[state[2][2]], constants::INV_S_BOX[state[2][3]]],
-        [constants::INV_S_BOX[state[3][0]], constants::INV_S_BOX[state[3][1]],
-         constants::INV_S_BOX[state[3][2]], constants::INV_S_BOX[state[3][3]]],
+fn inv_sub_bytes(block: Block) -> Block {
+    Block:[
+        [constants::INV_S_BOX[block[0][0]], constants::INV_S_BOX[block[0][1]],
+         constants::INV_S_BOX[block[0][2]], constants::INV_S_BOX[block[0][3]]],
+        [constants::INV_S_BOX[block[1][0]], constants::INV_S_BOX[block[1][1]],
+         constants::INV_S_BOX[block[1][2]], constants::INV_S_BOX[block[1][3]]],
+        [constants::INV_S_BOX[block[2][0]], constants::INV_S_BOX[block[2][1]],
+         constants::INV_S_BOX[block[2][2]], constants::INV_S_BOX[block[2][3]]],
+        [constants::INV_S_BOX[block[3][0]], constants::INV_S_BOX[block[3][1]],
+         constants::INV_S_BOX[block[3][2]], constants::INV_S_BOX[block[3][3]]],
     ]
 }
 
 #![test]
-fn test_inv_sub_bytes(state: State) {
-    let input = State:[
+fn test_inv_sub_bytes(block: Block) {
+    let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
         [u8:0xff, u8:0xfe, u8:0xfd, u8:0xfc],
         [u8:0xa5, u8:0x5a, u8:0xaa, u8:0x55],
@@ -390,18 +352,18 @@ fn test_inv_sub_bytes(state: State) {
     assert_eq(inv_sub_bytes(sub_bytes(input)), input)
 }
 
-fn inv_shift_rows(state: State) -> State {
-    State:[
-        u8[4]:[state[0][0], state[3][1], state[2][2], state[1][3]],
-        u8[4]:[state[1][0], state[0][1], state[3][2], state[2][3]],
-        u8[4]:[state[2][0], state[1][1], state[0][2], state[3][3]],
-        u8[4]:[state[3][0], state[2][1], state[1][2], state[0][3]],
+fn inv_shift_rows(block: Block) -> Block {
+    Block:[
+        u8[4]:[block[0][0], block[3][1], block[2][2], block[1][3]],
+        u8[4]:[block[1][0], block[0][1], block[3][2], block[2][3]],
+        u8[4]:[block[2][0], block[1][1], block[0][2], block[3][3]],
+        u8[4]:[block[3][0], block[2][1], block[1][2], block[0][3]],
     ]
 }
 
 #![test]
-fn test_inv_shift_rows(state: State) {
-    let input = State:[
+fn test_inv_shift_rows(block: Block) {
+    let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
         [u8:0x4, u8:0x5, u8:0x6, u8:0x7],
         [u8:0x8, u8:0x9, u8:0xa, u8:0xb],
@@ -419,12 +381,12 @@ fn inv_mix_column(col: u8[4]) -> u8[4]{
     ]
 }
 
-pub fn inv_mix_columns(state: State) -> State {
-    let col0 = inv_mix_column(u8[4]:[state[0][0], state[0][1], state[0][2], state[0][3]]);
-    let col1 = inv_mix_column(u8[4]:[state[1][0], state[1][1], state[1][2], state[1][3]]);
-    let col2 = inv_mix_column(u8[4]:[state[2][0], state[2][1], state[2][2], state[2][3]]);
-    let col3 = inv_mix_column(u8[4]:[state[3][0], state[3][1], state[3][2], state[3][3]]);
-    State:[
+pub fn inv_mix_columns(block: Block) -> Block {
+    let col0 = inv_mix_column(u8[4]:[block[0][0], block[0][1], block[0][2], block[0][3]]);
+    let col1 = inv_mix_column(u8[4]:[block[1][0], block[1][1], block[1][2], block[1][3]]);
+    let col2 = inv_mix_column(u8[4]:[block[2][0], block[2][1], block[2][2], block[2][3]]);
+    let col3 = inv_mix_column(u8[4]:[block[3][0], block[3][1], block[3][2], block[3][3]]);
+    Block:[
         [col0[0], col0[1], col0[2], col0[3]],
         [col1[0], col1[1], col1[2], col1[3]],
         [col2[0], col2[1], col2[2], col2[3]],
@@ -434,7 +396,7 @@ pub fn inv_mix_columns(state: State) -> State {
 
 #![test]
 fn test_inv_mix_columns() {
-    let input = State:[
+    let input = Block:[
         [u8:0xdb, u8:0xf2, u8:0xc6, u8:0x2d],
         [u8:0x13, u8:0x0a, u8:0xc6, u8:0x26],
         [u8:0x53, u8:0x22, u8:0xc6, u8:0x31],
@@ -450,7 +412,7 @@ pub fn aes_decrypt(key: Key, block: Block) -> Block {
     let block = inv_shift_rows(block);
     let block = inv_sub_bytes(block);
 
-    let block = for (i, block): (u32, State) in range(u32:1, u32:10) {
+    let block = for (i, block): (u32, Block) in range(u32:1, u32:10) {
         let block = add_round_key(block, round_keys[u32:10 - i]);
         let block = inv_mix_columns(block);
         let block = inv_shift_rows(block);

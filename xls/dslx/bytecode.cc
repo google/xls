@@ -388,14 +388,9 @@ DEF_UNARY_BUILDER(Swap);
 
 #undef DEF_UNARY_BUILDER
 
-/* static */ Bytecode Bytecode::MakeRecv(Span span,
-                                         std::unique_ptr<ConcreteType> type) {
-  return Bytecode(span, Op::kRecv, std::move(type));
-}
-
-/* static */ Bytecode Bytecode::MakeRecvNonBlocking(
-    Span span, std::unique_ptr<ConcreteType> type) {
-  return Bytecode(span, Op::kRecvNonBlocking, std::move(type));
+/* static */ Bytecode Bytecode::MakeCreateTuple(Span span,
+                                                NumElements num_elements) {
+  return Bytecode(span, Op::kCreateTuple, num_elements);
 }
 
 /* static */ Bytecode Bytecode::MakeJumpRelIf(Span span, JumpTarget target) {
@@ -416,6 +411,16 @@ DEF_UNARY_BUILDER(Swap);
 
 /* static */ Bytecode Bytecode::MakeMatchArm(Span span, MatchArmItem item) {
   return Bytecode(span, Op::kMatchArm, std::move(item));
+}
+
+/* static */ Bytecode Bytecode::MakeRecv(Span span,
+                                         std::unique_ptr<ConcreteType> type) {
+  return Bytecode(span, Op::kRecv, std::move(type));
+}
+
+/* static */ Bytecode Bytecode::MakeRecvNonBlocking(
+    Span span, std::unique_ptr<ConcreteType> type) {
+  return Bytecode(span, Op::kRecvNonBlocking, std::move(type));
 }
 
 /* static */ Bytecode Bytecode::MakeSpawn(Span span, SpawnData spawn_data) {

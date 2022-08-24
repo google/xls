@@ -1991,6 +1991,7 @@ absl::Status FunctionConverter::HandleFormatMacro(const FormatMacro* node) {
 
   // The result of the trace is the output token, so pass it along.
   Def(node, [&](const SourceInfo& loc) { return trace_result_token; });
+  tokens_.push_back(trace_result_token);
   return absl::OkStatus();
 }
 

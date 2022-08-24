@@ -162,7 +162,7 @@ absl::StatusOr<llvm::Value*> ProcBuilderVisitor::InvokeRecvCallback(
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   llvm::Value* data_valid = builder->CreateCall(fn_type, fn_ptr, args);
 
-  // Load the reveive data from the bounce buffer.
+  // Load the receive data from the bounce buffer.
   llvm::Value* data = builder->CreateLoad(recv_type, alloca);
 
   if (receive->is_blocking()) {

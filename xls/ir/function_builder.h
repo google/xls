@@ -656,7 +656,7 @@ class ProcBuilder : public BuilderBase {
   BValue GetStateParam(int64_t index) const { return state_params_.at(index); }
 
   // Build the proc using the given BValues as the recurrent token and next
-  // state values respectively. The number of recurrent state eleemnts in
+  // state values respectively. The number of recurrent state elements in
   // `next_state` must match the number of state parameters.
   absl::StatusOr<Proc*> Build(BValue token,
                               absl::Span<const BValue> next_state);

@@ -35,6 +35,7 @@
 #include "xls/ir/value.h"
 #include "xls/modules/aes/aes_128_decrypt_cc.h"
 #include "xls/modules/aes/aes_128_encrypt_cc.h"
+#include "xls/modules/aes/aes_128_test_common.h"
 
 constexpr int32_t kKeyBits = 128;
 constexpr int32_t kKeyBytes = kKeyBits / 8;
@@ -43,54 +44,10 @@ constexpr int32_t kBlockBytes = 16;
 ABSL_FLAG(int32_t, num_samples, 1000,
           "The number of (randomly-generated) blocks to test.");
 
-namespace xls {
+namespace xls::aes {
 
-absl::StatusOr<Value> KeyToValue(const std::vector<uint8_t>& key) {
-  constexpr int32_t kKeyWords = kKeyBits / 32;
-  std::vector<Value> key_values;
-  key_values.reserve(kKeyWords);
-  for (int32_t i = 0; i < kKeyWords; i++) {
-    uint32_t q = i * kKeyWords;
-    // XLS is big-endian, so we have to populate the key in "reverse" order.
-    uint32_t key_word = static_cast<uint32_t>(key[q + 3]) |
-                        static_cast<uint32_t>(key[q + 2]) << 8 |
-                        static_cast<uint32_t>(key[q + 1]) << 16 |
-                        static_cast<uint32_t>(key[q]) << 24;
-    key_values.push_back(Value(UBits(key_word, /*bit_count=*/32)));
-  }
-  return Value::Array(key_values);
-}
-
-absl::StatusOr<Value> BlockToValue(const std::vector<uint8_t>& plaintext) {
-  std::vector<Value> block_rows;
-  block_rows.reserve(4);
-  for (int32_t i = 0; i < 4; i++) {
-    std::vector<Value> block_cols;
-    block_cols.reserve(4);
-    for (int32_t j = 0; j < 4; j++) {
-      block_cols.push_back(Value(UBits(plaintext[i * 4 + j], /*bit_count=*/8)));
-    }
-    block_rows.push_back(Value::ArrayOrDie(block_cols));
-  }
-  return Value::Array(block_rows);
-}
-
-absl::StatusOr<std::vector<uint8_t>> ValueToBlock(const Value& value) {
-  std::vector<uint8_t> result(kBlockBytes, 0);
-  XLS_ASSIGN_OR_RETURN(std::vector<Value> result_rows, value.GetElements());
-  for (int32_t i = 0; i < 4; i++) {
-    XLS_ASSIGN_OR_RETURN(std::vector<Value> result_cols,
-                         result_rows[i].GetElements());
-    for (int32_t j = 0; j < 4; j++) {
-      XLS_ASSIGN_OR_RETURN(result[i * 4 + j], result_cols[j].bits().ToUint64());
-    }
-  }
-
-  return result;
-}
-
-absl::StatusOr<std::vector<uint8_t>> XlsEncrypt(
-    const std::vector<uint8_t>& key, const std::vector<uint8_t>& plaintext) {
+absl::StatusOr<Block> XlsEncrypt(const std::vector<uint8_t>& key,
+                                 const Block& plaintext) {
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(plaintext));
   XLS_ASSIGN_OR_RETURN(Value result_value,
@@ -98,18 +55,18 @@ absl::StatusOr<std::vector<uint8_t>> XlsEncrypt(
   return ValueToBlock(result_value);
 }
 
-absl::StatusOr<std::vector<uint8_t>> XlsDecrypt(
-    const std::vector<uint8_t>& key, const std::vector<uint8_t>& plaintext) {
+absl::StatusOr<Block> XlsDecrypt(const std::vector<uint8_t>& key,
+                                 const Block& ciphertext) {
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
-  XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(plaintext));
+  XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(ciphertext));
   XLS_ASSIGN_OR_RETURN(Value result_value,
                        xls::aes::aes_decrypt(key_value, block_value));
   return ValueToBlock(result_value);
 }
 
-std::vector<uint8_t> ReferenceEncrypt(const std::vector<uint8_t>& key,
-                                      const std::vector<uint8_t>& plaintext) {
-  std::vector<uint8_t> ciphertext(kBlockBytes, 0);
+Block ReferenceEncrypt(const std::vector<uint8_t>& key,
+                       const Block& plaintext) {
+  Block ciphertext;
 
   // Needed because the key is modified during operation.
   uint8_t local_key[kKeyBytes];
@@ -123,61 +80,17 @@ std::vector<uint8_t> ReferenceEncrypt(const std::vector<uint8_t>& key,
   return ciphertext;
 }
 
-std::vector<uint8_t> ReferenceDecrypt(const std::vector<uint8_t>& key,
-                                      const std::vector<uint8_t>& ciphertext) {
-  std::vector<uint8_t> plaintext(kBlockBytes, 0);
-
-  // Needed because the key is modified during operation.
-  uint8_t local_key[kKeyBytes];
-  memcpy(local_key, key.data(), kKeyBytes);
-
-  AES_KEY aes_key;
-  XLS_QCHECK_EQ(AES_set_decrypt_key(local_key, kKeyBits, &aes_key), 0);
-  AES_decrypt(ciphertext.data(), plaintext.data(), &aes_key);
-  return plaintext;
-}
-
-// `block` had better have 16 elements!
-std::string FormatBlock(const std::vector<uint8_t> block) {
-  return absl::StrFormat(
-      "0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, "
-      "0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x",
-      block[0], block[1], block[2], block[3], block[4], block[5], block[6],
-      block[7], block[8], block[9], block[10], block[11], block[12], block[13],
-      block[14], block[15]);
-}
-
-std::string FormatKey(std::vector<uint8_t>& key) {
-  return absl::StrFormat(
-      "0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, "
-      "0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x",
-      key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8],
-      key[9], key[10], key[11], key[12], key[13], key[14], key[15]);
-}
-
-void PrintFailure(const std::vector<uint8_t>& expected_block,
-                  const std::vector<uint8_t>& actual_block,
-                  const std::vector<uint8_t>& key, int32_t index,
-                  bool ciphertext) {
-  std::string type_str = ciphertext ? "ciphertext" : "plaintext";
-  std::cout << "Mismatch in " << type_str << " at byte " << index << ": "
-            << std::hex << "expected: 0x"
-            << static_cast<uint32_t>(expected_block[index]) << "; actual: 0x"
-            << static_cast<uint32_t>(actual_block[index]) << std::endl;
-}
-
 // Returns false on error (will terminate further runs).
-absl::StatusOr<bool> RunSample(const std::vector<uint8_t>& input,
+absl::StatusOr<bool> RunSample(const Block& input,
                                const std::vector<uint8_t>& key,
                                absl::Duration* xls_encrypt_dur,
                                absl::Duration* xls_decrypt_dur) {
   XLS_VLOG(2) << "Plaintext: " << FormatBlock(input) << std::endl;
 
-  std::vector<uint8_t> reference_ciphertext = ReferenceEncrypt(key, input);
+  Block reference_ciphertext = ReferenceEncrypt(key, input);
 
   absl::Time start_time = absl::Now();
-  XLS_ASSIGN_OR_RETURN(std::vector<uint8_t> xls_ciphertext,
-                       XlsEncrypt(key, input));
+  XLS_ASSIGN_OR_RETURN(Block xls_ciphertext, XlsEncrypt(key, input));
   *xls_encrypt_dur += absl::Now() - start_time;
 
   XLS_VLOG(2) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
@@ -195,8 +108,7 @@ absl::StatusOr<bool> RunSample(const std::vector<uint8_t>& input,
   }
 
   start_time = absl::Now();
-  XLS_ASSIGN_OR_RETURN(std::vector<uint8_t> xls_decrypted,
-                       XlsDecrypt(key, input));
+  XLS_ASSIGN_OR_RETURN(Block xls_decrypted, XlsDecrypt(key, input));
   *xls_decrypt_dur += absl::Now() - start_time;
 
   XLS_VLOG(2) << "Decrypted plaintext: " << FormatBlock(xls_decrypted)
@@ -215,7 +127,7 @@ absl::StatusOr<bool> RunSample(const std::vector<uint8_t>& input,
 }
 
 absl::Status RealMain(int32_t num_samples) {
-  std::vector<uint8_t> input(kBlockBytes, 0);
+  Block input;
   std::vector<uint8_t> key(kKeyBytes, 0);
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
@@ -246,10 +158,10 @@ absl::Status RealMain(int32_t num_samples) {
   return absl::OkStatus();
 }
 
-}  // namespace xls
+}  // namespace xls::aes
 
 int32_t main(int32_t argc, char** argv) {
   std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
-  XLS_QCHECK_OK(xls::RealMain(absl::GetFlag(FLAGS_num_samples)));
+  XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
   return 0;
 }

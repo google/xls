@@ -57,6 +57,8 @@ class JitRuntime {
   void BlitValueToBuffer(const Value& value, const Type* type,
                          absl::Span<uint8_t> buffer);
 
+  const llvm::DataLayout& data_layout() { return data_layout_; }
+
  private:
   llvm::DataLayout data_layout_;
   LlvmTypeConverter* type_converter_;

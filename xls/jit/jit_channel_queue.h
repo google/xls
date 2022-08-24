@@ -47,7 +47,7 @@ class JitChannelQueue {
   virtual ~JitChannelQueue() = default;
 
   // Called to push data onto this queue/FIFO.
-  virtual void Send(uint8_t* data, int64_t num_bytes) = 0;
+  virtual void Send(const uint8_t* data, int64_t num_bytes) = 0;
 
   // Called to pull data off of this queue/FIFO.
   //  Returns
@@ -76,7 +76,7 @@ class FifoJitChannelQueue : public JitChannelQueue {
         enqueue_index_(0),
         dequeue_index_(0) {}
 
-  void Send(uint8_t* data, int64_t num_bytes) override {
+  void Send(const uint8_t* data, int64_t num_bytes) override {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif
@@ -210,7 +210,7 @@ class LocklessFifoJitChannelQueue : public JitChannelQueue {
         enqueue_index_(0),
         dequeue_index_(0) {}
 
-  void Send(uint8_t* data, int64_t num_bytes) override {
+  void Send(const uint8_t* data, int64_t num_bytes) override {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif
@@ -325,7 +325,7 @@ class SingleValueJitChannelQueue : public JitChannelQueue {
   explicit SingleValueJitChannelQueue(int64_t channel_id)
       : JitChannelQueue(channel_id), buffer_size_(0) {}
 
-  virtual void Send(uint8_t* data, int64_t num_bytes) {
+  virtual void Send(const uint8_t* data, int64_t num_bytes) {
 #ifdef ABSL_HAVE_MEMORY_SANITIZER
     __msan_unpoison(data, num_bytes);
 #endif

@@ -25,6 +25,7 @@
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/dslx/interp_value.h"
+#include "xls/dslx/interp_value_helpers.h"
 
 // TODO(rspringer): 2022-03-01: Verify that, for all valid programs (or at least
 // some subset that we test), interpretation terminates with only a single value

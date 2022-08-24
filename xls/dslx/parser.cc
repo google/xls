@@ -1769,7 +1769,7 @@ absl::StatusOr<Function*> Parser::ParseProcConfig(
   if (!peek->IsKeyword(Keyword::kConfig)) {
     return ParseErrorStatus(
         peek->span(),
-        absl::StrCat("Expected 'config', got ", peek->GetStringValue()));
+        absl::StrCat("Expected 'config', got ", peek->ToString()));
   }
 
   XLS_RETURN_IF_ERROR(DropToken());
@@ -1867,8 +1867,8 @@ absl::StatusOr<Function*> Parser::ParseProcNext(
   Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsKeyword(Keyword::kNext)) {
-    return ParseErrorStatus(peek->span(), absl::StrCat("Expected 'next', got ",
-                                                       peek->GetStringValue()));
+    return ParseErrorStatus(
+        peek->span(), absl::StrCat("Expected 'next', got ", peek->ToString()));
   }
   XLS_RETURN_IF_ERROR(DropToken());
   XLS_ASSIGN_OR_RETURN(Token oparen, PopTokenOrError(TokenKind::kOParen));

@@ -65,13 +65,13 @@ namespace xls {
 //  the conversion function would be as follows:
 //
 //     namespace xls {
-//        absl::StatusOr<xls::Value>
-//                          ConvertToXlsValue(
-//                                  const Type* type,
-//                                  const userspace::UserStruct& user_struct) {
-//          return ConvertToXlsValue(type,
-//          std::make_tuple(user_struct.integer_value,
-//                                               user_struct.boolean_value));
+//        absl::StatusOr<xls::Value> ConvertToXlsValue(
+//            const Type* type,
+//            const userspace::UserStruct& user_struct) {
+//          return ConvertToXlsValue(
+//              type,
+//              std::make_tuple(user_struct.integer_value,
+//                              user_struct.boolean_value));
 //        }
 //      }  // namespace xls
 //

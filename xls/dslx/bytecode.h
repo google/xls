@@ -254,6 +254,7 @@ class Bytecode {
                              std::unique_ptr<ConcreteType>, InvocationData,
                              MatchArmItem, SpawnData, TraceData>;
 
+  static Bytecode MakeCreateTuple(Span span, NumElements elements);
   static Bytecode MakeDup(Span span);
   static Bytecode MakeFail(Span span, std::string);
   static Bytecode MakeIndex(Span span);

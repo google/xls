@@ -38,11 +38,11 @@ class ProcJit {
   //
   // The receive function has the following prototype:
   //
-  // void recv_fn(uint64_t queue_ptr, uint64_t recv_ptr, uint8_t* buffer,
+  // void recv_fn(JitChannelQueue* queue, uint64_t recv, uint8_t* buffer,
   //              int64_t data_sz, void* user_data);
   // where:
-  //  - queue_ptr is a pointer to a JitChannelQueue,
-  //  - recv_ptr is a pointer to a Receive node,
+  //  - queue is a pointer to a JitChannelQueue,
+  //  - recv is a pointer to a Receive node,
   //  - buffer is a pointer to the data to fill (with incoming data), and
   //  - data_sz is the size of the receive buffer.
   //  - user_data is an opaque pointer to user-provided data needed for

@@ -31,9 +31,17 @@ package(
 )
 
 xls_dslx_library(
+    name = "aes_128_common_dslx",
+    srcs = ["aes_128_common.x"],
+)
+
+xls_dslx_library(
     name = "aes_128_dslx",
     srcs = ["aes_128.x"],
-    deps = [":constants_dslx"],
+    deps = [
+        ":aes_128_common_dslx",
+        ":constants_dslx",
+    ],
 )
 
 xls_dslx_opt_ir(
@@ -79,6 +87,7 @@ cc_test(
     deps = [
         ":aes_128_decrypt_cc",
         ":aes_128_encrypt_cc",
+        ":aes_128_test_common",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -94,7 +103,75 @@ cc_test(
     ],
 )
 
+cc_library(
+    name = "aes_128_test_common",
+    srcs = ["aes_128_test_common.cc"],
+    hdrs = ["aes_128_test_common.h"],
+    deps = [
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value",
+    ],
+)
+
 xls_dslx_library(
     name = "constants_dslx",
     srcs = ["constants.x"],
+)
+
+xls_dslx_library(
+    name = "aes_128_ctr_dslx",
+    srcs = ["aes_128_ctr.x"],
+    deps = [
+        ":aes_128_common_dslx",
+        ":aes_128_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "aes_128_ctr_dslx_test",
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":aes_128_ctr_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "aes_128_ctr_encrypter",
+    dslx_top = "aes_128_ctr_encrypter",
+    ir_conv_args = {
+        "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0], 0), 0, 0)'",
+    },
+    library = ":aes_128_ctr_dslx",
+)
+
+cc_test(
+    name = "aes_128_ctr_test",
+    srcs = ["aes_128_ctr_test.cc"],
+    data = [
+        ":aes_128_ctr_encrypter.ir",
+    ],
+    deps = [
+        ":aes_128_test_common",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "//xls/common:init_xls",
+        "//xls/common/file:filesystem",
+        "//xls/common/file:get_runfile_path",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
+        "//xls/ir:ir_parser",
+        "//xls/ir:value",
+        "//xls/jit:jit_channel_queue",
+        "//xls/jit:proc_jit",
+        "@boringssl//:crypto",
+    ],
 )

@@ -1684,6 +1684,22 @@ TEST(IrConverterTest, TopProcWithState) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, FormatMacro) {
+  constexpr absl::string_view kProgram = R"(fn main() {
+  let _ = trace_fmt!("Look! I don't explode!");
+  ()
+})";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertOneFunctionForTest(kProgram, "main", import_data, options));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

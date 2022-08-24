@@ -57,19 +57,7 @@ TYPED_TEST_P(FifoJitChannelQueueTypedTest, BasicAccess) {
   EXPECT_TRUE(fifo.Empty());
 }
 
-TYPED_TEST_P(FifoJitChannelQueueTypedTest, Failures) {
-  TypeParam fifo(0);
-  std::vector<uint8_t> golden_buffer(1);
-  std::vector<uint8_t> error_buffer(2);
-  fifo.Send(golden_buffer.data(), golden_buffer.size());
-  EXPECT_DEATH(fifo.Send(error_buffer.data(), error_buffer.size()),
-               HasSubstr("expected (1), got (2)"));
-  EXPECT_DEATH(fifo.Recv(error_buffer.data(), error_buffer.size()),
-               HasSubstr("expected (1), got (2)"));
-}
-
-REGISTER_TYPED_TEST_SUITE_P(FifoJitChannelQueueTypedTest, BasicAccess,
-                            Failures);
+REGISTER_TYPED_TEST_SUITE_P(FifoJitChannelQueueTypedTest, BasicAccess);
 
 using FifoTypes =
     ::testing::Types<FifoJitChannelQueue, LocklessFifoJitChannelQueue>;

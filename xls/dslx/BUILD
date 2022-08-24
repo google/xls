@@ -117,6 +117,7 @@ cc_library(
         ":concrete_type",
         ":import_data",
         ":interp_value",
+        ":interp_value_helpers",
         ":symbolic_bindings",
         ":type_info",
         "//xls/common:visitor",
