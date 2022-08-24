@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// XLS implementation of the GHASH subroutine of AES-GCM.
+// XLS implementation of the GHASH subroutine of the Galois counter mode of operation for
+// block ciphers, as described in NIST Special Publication 800-38D: "Recommendation for Block
+// Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC".
 import xls.modules.aes.aes_128
 import xls.modules.aes.aes_128_common
 
@@ -146,3 +148,255 @@ fn gf128_mul_test() {
     assert_eq(z, expected)
 }
 
+// Describes the inputs to the GHASH function/proc.
+// TODO(rspringer): Make more flexible: enable partial AAD and ciphertext blocks.
+struct Command {
+    // The number of complete blocks of additional authentication data (AAD).
+    aad_blocks: u32,
+
+    // The number of complete blocks of ciphertext.
+    ctxt_blocks: u32,
+
+    // The hash key to use for tag generation: accepted as an input rather than
+    // being computed to avoid introducing an AES block here.
+    hash_key: Block,
+}
+
+// The current step/state of the GHASH block's FSM.
+enum Step : u2 {
+    IDLE = 0,
+    RECV_INPUT = 1,
+    HASH_LENGTHS = 2,
+}
+
+// The carried state of the GHASH proc.
+struct State {
+    // The current FSM step, as above.
+    step: Step,
+
+    // The current command being processed.
+    command: Command,
+
+    // The number of data blocks left to process.
+    input_blocks_left: u32,
+
+    // The output of the last state of the proc. Once all blocks plus the final
+    // "lengths" block have been hashed, this is the output of the proc.
+    last_tag: Block,
+}
+
+// Convenience function to XOR two blocks.
+fn xor_block(a: Block, b: Block) -> Block {
+    Block:[
+        (a[0] as u32 ^ b[0] as u32) as u8[4],
+        (a[1] as u32 ^ b[1] as u32) as u8[4],
+        (a[2] as u32 ^ b[2] as u32) as u8[4],
+        (a[3] as u32 ^ b[3] as u32) as u8[4],
+    ]
+}
+
+// Creates a zero-valued State struct, suitable for proc initialization.
+pub fn initial_state() -> State {
+    State {
+        step: Step::IDLE,
+        command: Command {
+            aad_blocks: u32:0,
+            ctxt_blocks: u32:0,
+            hash_key: ZERO_BLOCK,
+        },
+        input_blocks_left: u32:0,
+        last_tag: ZERO_BLOCK,
+    }
+}
+
+// Returns the state values to use during a proc "tick": either a new command
+// or the carried state, depending on the FSM step/state.
+fn get_current_state(state: State, command: Command) -> State {
+    let command = if state.step == Step::IDLE { command } else { state.command };
+    let input_blocks_left =
+        if state.step == Step::IDLE { command.aad_blocks + command.ctxt_blocks }
+        else { state.input_blocks_left };
+    let last_tag = if state.step == Step::IDLE { ZERO_BLOCK } else { state.last_tag };
+    let init_step =
+        if input_blocks_left != u32:0 {
+            Step::RECV_INPUT
+        } else {
+            Step::HASH_LENGTHS
+        };
+    let step = if state.step == Step::IDLE { init_step } else { state.step };
+
+    State {
+        step: step,
+        command: command,
+        input_blocks_left: input_blocks_left,
+        last_tag: last_tag,
+    }
+}
+
+// Calculates the authentication tag for the Galois Counter Mode of operation
+// for block ciphers.
+// Since input streams can be of ~arbitrary length, this must be implemented
+// as a proc instead of as a fixed function. When idle, this proc accepts a new
+// command and will consume a block of input, either AAD or ciphertext, per
+// "tick" (read from the same channel). Once complete, the resulting tag will be
+// sent on the provided output channel.
+proc aes_128_ghash {
+    command_in: chan in Command;
+    input_in: chan in Block;
+    tag_out: chan out Block;
+
+    config(command_in: chan in Command, input_in: chan in Block, tag_out: chan out Block) {
+        (command_in, input_in, tag_out)
+    }
+
+    next(tok: token, state: State) {
+        let (tok, command) = recv_if(tok, command_in, state.step == Step::IDLE);
+        let state = get_current_state(state, command);
+        let _ = trace_fmt!("Step: {:d}", state.step as u32);
+        let _ = trace_fmt!(" - IBL: {:d}", state.input_blocks_left);
+
+        // Get the current working block and update block counts.
+        let (tok, input_block) = recv_if(tok, input_in, state.step == Step::RECV_INPUT);
+        let block =
+            if state.step == Step::RECV_INPUT {
+                input_block
+            } else {
+                let x = ((state.command.aad_blocks * u32:128) as u64) as u32[2];
+                let y = ((state.command.ctxt_blocks * u32:128) as u64) as u32[2];
+                Block:[x[0] as u8[4], x[1] as u8[4], y[0] as u8[4], y[1] as u8[4]]
+            };
+
+        // Will underflow when state.step == Step::HASH_LENGTHS, but it doesn't matter.
+        let input_blocks_left = state.input_blocks_left - u32:1;
+
+        let last_tag = gf128_mul(xor_block(state.last_tag, block), state.command.hash_key);
+        let tok = send_if(tok, tag_out, state.step == Step::HASH_LENGTHS, last_tag);
+
+        let new_step = match (state.step, input_blocks_left == u32:0) {
+            (  Step::RECV_INPUT, false) => Step::RECV_INPUT,
+            (  Step::RECV_INPUT,  true) => Step::HASH_LENGTHS,
+            (Step::HASH_LENGTHS,     _) => Step::IDLE,
+        };
+
+        State {
+            step: new_step,
+            command: state.command,
+            input_blocks_left: input_blocks_left,
+            last_tag: last_tag,
+        }
+    }
+}
+
+// General test of GHASH operation. Verified against the Go cipher package's
+// GCM implementation.
+#![test_proc()]
+proc aes_128_ghash_test {
+	command_out: chan out Command;
+    data_out: chan out Block;
+    tag_in: chan in Block;
+    terminator: chan out bool;
+
+    config(terminator: chan out bool) {
+		let (command_in, command_out) = chan Command;
+        let (data_in, data_out) = chan Block;
+        let (tag_in, tag_out) = chan Block;
+
+        spawn aes_128_ghash(command_in, data_in, tag_out)(initial_state());
+        (command_out, data_out, tag_in, terminator,)
+    }
+
+    next(tok: token) {
+        // Test 1: single AAD block, single ctxt block.
+        let key = Key:[u32:0, u32:0, u32:0, u32:0];
+        let hash_key = aes_128::aes_encrypt(key, ZERO_BLOCK);
+
+        let aad = Block:[
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+        ];
+        let ctxt = Block:[
+            [u8:0x40, u8:0x00, u8:0x00, u8:0x00],
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+            [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
+        ];
+        let command = Command {
+            aad_blocks: u32:1,
+            ctxt_blocks: u32:1,
+            hash_key: hash_key,
+        };
+        let tok = send(tok, command_out, command);
+        let tok = send(tok, data_out, aad);
+        let tok = send(tok, data_out, ctxt);
+        let (tok, tag) = recv(tok, tag_in);
+
+        let expected = Block:[
+            [u8:0x6c, u8:0xfa, u8:0x83, u8:0xe9],
+            [u8:0x9f, u8:0xa1, u8:0x90, u8:0xe0],
+            [u8:0xfa, u8:0xe9, u8:0x0d, u8:0x93],
+            [u8:0x9e, u8:0x5e, u8:0x57, u8:0x14],
+        ];
+        let _ = assert_eq(tag, expected);
+
+        // Test 2: two AAD blocks, three ctxt blocks. Random data.
+        let key = Key:[u32:0xdf388b6d, u32:0x4b9952d6, u32:0x42407bea, u32:0xb37a01c9];
+        let hash_key = aes_128::aes_encrypt(key, ZERO_BLOCK);
+
+        let command = Command {
+            aad_blocks: u32:2,
+            ctxt_blocks: u32:3,
+            hash_key: hash_key,
+        };
+        let tok = send(tok, command_out, command);
+
+        let aad_0 = Block:[
+            [u8:0xd7, u8:0xdb, u8:0xe2, u8:0x80],
+            [u8:0x39, u8:0xf8, u8:0x76, u8:0xa9],
+            [u8:0xd0, u8:0x9f, u8:0xe0, u8:0xcb],
+            [u8:0xbd, u8:0xa4, u8:0xc3, u8:0x5a],       ];
+        let aad_1 = Block:[
+            [u8:0x57, u8:0x66, u8:0x1d, u8:0xb5],
+            [u8:0x4f, u8:0x04, u8:0xe2, u8:0x9d],
+            [u8:0x22, u8:0xf0, u8:0xda, u8:0x06],
+            [u8:0x23, u8:0xb6, u8:0x95, u8:0x61],
+        ];
+        let tok = send(tok, data_out, aad_0);
+        let tok = send(tok, data_out, aad_1);
+
+        let ctxt_0 = Block:[
+            [u8:0x20, u8:0x76, u8:0xbc, u8:0x70],
+            [u8:0x41, u8:0x01, u8:0xba, u8:0x75],
+            [u8:0x08, u8:0x20, u8:0xa9, u8:0x47],
+            [u8:0x43, u8:0xb1, u8:0x38, u8:0x4a],
+        ];
+        let ctxt_1 = Block:[
+            [u8:0xc8, u8:0xd9, u8:0xd5, u8:0xdd],
+            [u8:0x19, u8:0xef, u8:0x72, u8:0x40],
+            [u8:0x98, u8:0x72, u8:0x55, u8:0x49],
+            [u8:0xbe, u8:0xbd, u8:0x33, u8:0xe5],
+        ];
+        let ctxt_2 = Block:[
+            [u8:0x98, u8:0x60, u8:0x48, u8:0xf5],
+            [u8:0xe0, u8:0x37, u8:0x03, u8:0x01],
+            [u8:0xd8, u8:0x4e, u8:0x38, u8:0xdd],
+            [u8:0x0b, u8:0x11, u8:0xdc, u8:0x8e],
+        ];
+        let tok = send(tok, data_out, ctxt_0);
+        let tok = send(tok, data_out, ctxt_1);
+        let tok = send(tok, data_out, ctxt_2);
+        let (tok, tag) = recv(tok, tag_in);
+
+        let expected = Block:[
+            [u8:0x67, u8:0xd4, u8:0xb1, u8:0xfb],
+            [u8:0x65, u8:0x20, u8:0x5f, u8:0x0a],
+            [u8:0x0a, u8:0xb8, u8:0xb1, u8:0xc2],
+            [u8:0x9d, u8:0x13, u8:0xae, u8:0x52],
+        ];
+        let _ = assert_eq(tag, expected);
+
+        let _ = send(tok, terminator, true);
+        ()
+    }
+}

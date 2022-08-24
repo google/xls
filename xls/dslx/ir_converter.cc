@@ -1113,7 +1113,7 @@ absl::Status FunctionConverter::HandleXlsTuple(const XlsTuple* node) {
 }
 
 absl::Status FunctionConverter::HandleParam(const Param* node) {
-  XLS_VLOG(5) << "HandleParam: " << node->ToString();
+  XLS_VLOG(5) << "FunctionConverter::HandleParam: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(xls::Type * type,
                        ResolveTypeToIr(node->type_annotation()));
   Def(node->name_def(), [&](const SourceInfo& loc) {
@@ -1160,6 +1160,7 @@ absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
 }
 
 absl::Status FunctionConverter::HandleLet(const Let* node) {
+  XLS_VLOG(5) << "FunctionConverter::HandleLet: " << node->ToString();
   XLS_RETURN_IF_ERROR(Visit(node->rhs()));
 
   XLS_ASSIGN_OR_RETURN(BValue rhs, Use(node->rhs()));
@@ -2026,6 +2027,7 @@ absl::Status FunctionConverter::HandleCoverBuiltin(const Invocation* node,
 }
 
 absl::Status FunctionConverter::HandleInvocation(const Invocation* node) {
+  XLS_VLOG(5) << "FunctionConverter::HandleInvocation: " << node->ToString();
   XLS_ASSIGN_OR_RETURN(std::string called_name, GetCalleeIdentifier(node));
   auto accept_args = [&]() -> absl::StatusOr<std::vector<BValue>> {
     std::vector<BValue> values;
@@ -2910,6 +2912,8 @@ absl::Status FunctionConverter::HandleBinop(const Binop* node) {
 }
 
 absl::Status FunctionConverter::HandleAttr(const Attr* node) {
+  XLS_VLOG(5) << "FunctionConverter::HandleAttr: " << node->ToString() << " @ "
+              << node->span().ToString();
   XLS_RETURN_IF_ERROR(Visit(node->lhs()));
   std::optional<const ConcreteType*> lhs_type =
       current_type_info_->GetItem(node->lhs());
@@ -3449,6 +3453,15 @@ static absl::Status ConvertCallGraph(
     }
   }
 
+  // If the top proc requires state and we don't have it, we can't convert!
+  if (top_proc != nullptr && top_proc->next()->params().size() > 1 &&
+      !initial_proc_state.has_value()) {
+    return absl::InvalidArgumentError(
+        absl::StrFormat("The top proc, \"%s\", requires a state parameter, "
+                        "but no initial state was provided.",
+                        top_proc->identifier()));
+  }
+
   for (const auto& record : order) {
     if (record.f()->tag() == Function::Tag::kProcConfig &&
         record.f()->proc().value() == top_proc) {
@@ -3463,7 +3476,7 @@ static absl::Status ConvertCallGraph(
     }
   }
 
-  // Set first proc's initial value
+  // Set first proc's initial value.
   if (initial_proc_state.has_value()) {
     XLS_QCHECK(first_proc_next != nullptr)
         << "Initial proc state specified, but no top-level proc was found.";

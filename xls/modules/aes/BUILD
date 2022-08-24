@@ -187,5 +187,9 @@ xls_dslx_library(
 
 xls_dslx_test(
     name = "aes_128_ghash_dslx_test",
+    # TODO(rspringer): Remove when GitHub issue #673 is resolved.
+    dslx_test_args = {
+        "compare": "none",
+    },
     library = ":aes_128_ghash_dslx",
 )

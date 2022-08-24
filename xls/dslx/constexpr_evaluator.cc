@@ -290,6 +290,7 @@ absl::Status ConstexprEvaluator::HandleAttr(const Attr* expr) {
 }
 
 absl::Status ConstexprEvaluator::HandleArray(const Array* expr) {
+  XLS_VLOG(3) << "ConstexprEvaluator::HandleArray : " << expr->ToString();
   std::vector<InterpValue> values;
   for (const Expr* member : expr->members()) {
     GET_CONSTEXPR_OR_RETURN(InterpValue value, member);

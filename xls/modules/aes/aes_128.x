@@ -285,8 +285,7 @@ fn test_mix_columns() {
     assert_eq(mix_columns(input), expected)
 }
 
-// Performs AES encryption of the given block. Features such as GCM or CBC mode
-// additions would be performed outside this core routine itself.
+// Performs AES encryption of the given block.
 pub fn aes_encrypt(key: Key, block: Block) -> Block {
     let round_keys = create_key_schedule(key);
     let block = add_round_key(block, round_keys[0]);
