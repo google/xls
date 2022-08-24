@@ -956,7 +956,12 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
         context().fb->Param(safe_param_name, xls_item_type, loc);
 
     // Check for duplicate params
-    XLS_CHECK(pbval.valid());
+    if (!pbval.valid()) {
+      return absl::InternalError(ErrorMessage(
+          loc,
+          "Failed to create implicit parameter %s, duplicate? See b/239861050",
+          safe_param_name.c_str()));
+    }
 
     op.input_value = CValue(pbval, channel->item_type);
   }
