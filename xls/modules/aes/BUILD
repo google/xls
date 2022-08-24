@@ -175,3 +175,17 @@ cc_test(
         "@boringssl//:crypto",
     ],
 )
+
+xls_dslx_library(
+    name = "aes_128_ghash_dslx",
+    srcs = ["aes_128_ghash.x"],
+    deps = [
+        ":aes_128_common_dslx",
+        ":aes_128_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "aes_128_ghash_dslx_test",
+    library = ":aes_128_ghash_dslx",
+)

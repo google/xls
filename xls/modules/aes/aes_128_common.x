@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Common constants and types for the AES-128 cypher.
+// Common constants and types for the AES-128 cipher.
 pub const KEY_BITS = u32:128;
 pub const KEY_WORD_BITS = u32:32;
 pub const KEY_WORDS = KEY_BITS / KEY_WORD_BITS;
