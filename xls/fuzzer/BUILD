@@ -481,15 +481,14 @@ cc_test(
     ],
 )
 
+# By default (no flags) the integration test generates only 10 samples which
+# serves as a smoke test for the health of the test itself.
 py_test(
     name = "fuzz_integration_test",
     srcs = ["fuzz_integration_test.py"],
+    args = ["--seed=1234"],
     python_version = "PY3",
     srcs_version = "PY3",
-    tags = [
-        "manual",
-        "notap",
-    ],
     deps = [
         ":run_fuzz",
         ":sample_runner",

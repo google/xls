@@ -17,6 +17,8 @@
 import datetime
 import hashlib
 import os
+import random
+import sys
 import tempfile
 
 from absl import flags
@@ -30,7 +32,7 @@ from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.python.cpp_sample import Sample
 from xls.fuzzer.python.cpp_sample import SampleOptions
 
-_SEED = flags.DEFINE_integer('seed', 0, 'Seed value for generation')
+_SEED = flags.DEFINE_integer('seed', None, 'Seed value for generation')
 _SAMPLE_COUNT = flags.DEFINE_integer('sample_count', 10,
                                      'Number of samples to generate')
 _CALLS_PER_SAMPLE = flags.DEFINE_integer('calls_per_sample', 128,
@@ -48,6 +50,9 @@ _MAX_WIDTH_AGGREGATE_TYPES = flags.DEFINE_integer(
 _FORCE_FAILURE = flags.DEFINE_bool(
     'force_failure', False,
     'Forces the samples to fail. Can be used to test failure code paths.')
+_USE_SYSTEM_VERILOG = flags.DEFINE_bool(
+    'use_system_verilog', False,
+    'Whether to generate SystemVerilog or Verilog.')
 
 # The maximum number of failures before the test aborts.
 MAX_FAILURES = 10
@@ -91,7 +96,14 @@ class FuzzIntegrationTest(absltest.TestCase):
   def test(self):
     """Runs the fuzzer based on flag values."""
     crasher_dir = _get_crasher_directory()
-    rng = ast_generator.RngState(_SEED.value)
+    if _SEED.value is None:
+      seed = random.randrange(sys.maxsize)
+      logging.info('Random seed (generated nondeterministically): %s', seed)
+    else:
+      seed = _SEED.value
+      logging.info('Random seed specified via flag: %s', seed)
+
+    rng = ast_generator.RngState(seed)
     generator_options = ast_generator.AstGeneratorOptions(
         max_width_bits_types=_MAX_WIDTH_BITS_TYPES.value,
         max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value,
@@ -106,11 +118,13 @@ class FuzzIntegrationTest(absltest.TestCase):
         codegen=_SIMULATE.value,
         simulate=_SIMULATE.value,
         simulator=_SIMULATOR.value,
-        use_system_verilog=_SIMULATE.value,
+        use_system_verilog=_USE_SYSTEM_VERILOG.value,
         timeout_seconds=None)
 
     crasher_count = 0
+    sample_count = 0
     for i in range(_SAMPLE_COUNT.value):
+      sample_count += 1
       logging.info('Running sample %d', i)
       sample = ast_generator.generate_sample(generator_options,
                                              _CALLS_PER_SAMPLE.value,
@@ -137,7 +151,12 @@ class FuzzIntegrationTest(absltest.TestCase):
         break
 
     if crasher_count > 0:
-      self.fail(f'Fuzzing found {crasher_count} failing samples')
+      if crasher_count == MAX_FAILURES:
+        msg = f'Fuzzing stopped after finding {crasher_count} failures'
+      else:
+        msg = f'Fuzzing found {crasher_count} failures.'
+      self.fail(
+          f'{msg}. Generated {sample_count} total samples [seed = {seed}]')
 
 
 if __name__ == '__main__':
