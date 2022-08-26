@@ -32,7 +32,11 @@ from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.python.cpp_sample import Sample
 from xls.fuzzer.python.cpp_sample import SampleOptions
 
-_SEED = flags.DEFINE_integer('seed', None, 'Seed value for generation')
+_USE_NONDETERMINISTIC_SEED = flags.DEFINE_bool(
+    'use_nondeterministic_seed', False,
+    'Use a non-deterministic seed for the random number generator. '
+    'If specified, the flag --seed is ignored')
+_SEED = flags.DEFINE_integer('seed', 0, 'Seed value for generation')
 _SAMPLE_COUNT = flags.DEFINE_integer('sample_count', 10,
                                      'Number of samples to generate')
 _CALLS_PER_SAMPLE = flags.DEFINE_integer('calls_per_sample', 128,
@@ -96,7 +100,7 @@ class FuzzIntegrationTest(absltest.TestCase):
   def test(self):
     """Runs the fuzzer based on flag values."""
     crasher_dir = _get_crasher_directory()
-    if _SEED.value is None:
+    if _USE_NONDETERMINISTIC_SEED.value:
       seed = random.randrange(sys.maxsize)
       logging.info('Random seed (generated nondeterministically): %s', seed)
     else:

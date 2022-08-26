@@ -486,7 +486,6 @@ cc_test(
 py_test(
     name = "fuzz_integration_test",
     srcs = ["fuzz_integration_test.py"],
-    args = ["--seed=1234"],
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
