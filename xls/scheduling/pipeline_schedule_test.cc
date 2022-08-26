@@ -39,30 +39,6 @@ using ::testing::HasSubstr;
 using ::testing::UnorderedElementsAre;
 using xls::status_testing::StatusIs;
 
-class TestDelayEstimator : public DelayEstimator {
- public:
-  TestDelayEstimator() : DelayEstimator("test") {}
-
-  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
-    switch (node->op()) {
-      case Op::kAfterAll:
-      case Op::kBitSlice:
-      case Op::kConcat:
-      case Op::kLiteral:
-      case Op::kParam:
-      case Op::kReceive:
-      case Op::kSend:
-      case Op::kTupleIndex:
-        return 0;
-      case Op::kUDiv:
-      case Op::kSDiv:
-        return 2;
-      default:
-        return 1;
-    }
-  }
-};
-
 class PipelineScheduleTest : public IrTestBase {};
 
 TEST_F(PipelineScheduleTest, SelectsEntry) {

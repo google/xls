@@ -19,6 +19,8 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/source_location.h"
+#include "xls/delay_model/delay_estimator.h"
+#include "xls/delay_model/delay_estimators.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_base.h"
 #include "xls/ir/node.h"
@@ -127,6 +129,30 @@ class IrTestBase : public ::testing::Test {
   // determined by the package return value.
   static absl::StatusOr<Value> UInt64ResultToValue(uint64_t value,
                                                    Package* package);
+};
+
+class TestDelayEstimator : public DelayEstimator {
+ public:
+  TestDelayEstimator() : DelayEstimator("test") {}
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
+    switch (node->op()) {
+      case Op::kAfterAll:
+      case Op::kBitSlice:
+      case Op::kConcat:
+      case Op::kLiteral:
+      case Op::kParam:
+      case Op::kReceive:
+      case Op::kSend:
+      case Op::kTupleIndex:
+        return 0;
+      case Op::kUDiv:
+      case Op::kSDiv:
+        return 2;
+      default:
+        return 1;
+    }
+  }
 };
 
 }  // namespace xls

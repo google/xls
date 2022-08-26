@@ -31,7 +31,9 @@ ABSL_FLAG(std::string, function, "",
 ABSL_FLAG(std::string, output_path, "", "Path to which to write output.");
 ABSL_FLAG(std::string, schedule_path, "",
           "Path to the function's pipeline schedule.");
-ABSL_FLAG(int, stage, -1, "Pipeline stage to extract.");
+ABSL_FLAG(
+    int, stage, -1,
+    "Pipeline stage to extract, if not specified all stages are extracted.");
 
 namespace xls {
 
@@ -41,9 +43,14 @@ absl::Status RealMain(const std::string& ir_path,
                       const std::string& output_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
-  Function* function;
+  FunctionBase* function;
   if (function_name) {
-    XLS_ASSIGN_OR_RETURN(function, package->GetFunction(function_name.value()));
+    auto get_proc = package->GetFunction(function_name.value());
+    if (get_proc.ok()) {
+      function = get_proc.value();
+    } else {
+      XLS_ASSIGN_OR_RETURN(function, package->GetProc(function_name.value()));
+    }
   } else {
     XLS_ASSIGN_OR_RETURN(function, package->GetTopAsFunction());
   }
@@ -53,8 +60,28 @@ absl::Status RealMain(const std::string& ir_path,
       ParseTextProtoFile<PipelineScheduleProto>(schedule_path));
   XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
                        PipelineSchedule::FromProto(function, proto));
+  std::vector<FunctionBase*> funcs = package->GetFunctionBases();
 
-  XLS_RETURN_IF_ERROR(ExtractStage(function, schedule, stage).status());
+  if (stage == -1) {
+    bool assigned_top = false;
+    for (int i = 0; i < schedule.length(); ++i) {
+      XLS_ASSIGN_OR_RETURN(Function * stage,
+                           ExtractStage(function, schedule, i));
+      XLS_RETURN_IF_ERROR(package->SetTop(stage));
+      assigned_top = true;
+    }
+  } else {
+    XLS_ASSIGN_OR_RETURN(Function * stage,
+                         ExtractStage(function, schedule, stage));
+    XLS_RETURN_IF_ERROR(package->SetTop(stage));
+  }
+
+  for (auto& f : funcs) {
+    XLS_RETURN_IF_ERROR(package->RemoveFunctionBase(f));
+  }
+  while (!package->channels().empty()) {
+    XLS_RETURN_IF_ERROR(package->RemoveChannel(package->channels().front()));
+  }
   XLS_RETURN_IF_ERROR(SetFileContents(output_path, package->DumpIr()));
 
   return absl::OkStatus();
@@ -77,7 +104,6 @@ int main(int argc, char* argv[]) {
   XLS_QCHECK(!schedule_path.empty()) << "--schedule_path can't be empty!";
 
   int stage = absl::GetFlag(FLAGS_stage);
-  XLS_QCHECK(stage != -1) << "--stage must be specified!";
 
   std::string output_path = absl::GetFlag(FLAGS_output_path);
   XLS_QCHECK(!output_path.empty()) << "--output path can't be empty!";

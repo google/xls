@@ -255,7 +255,7 @@ PipelineSchedule::PipelineSchedule(FunctionBase* function_base,
 }
 
 absl::StatusOr<PipelineSchedule> PipelineSchedule::FromProto(
-    Function* function, const PipelineScheduleProto& proto) {
+    FunctionBase* function, const PipelineScheduleProto& proto) {
   ScheduleCycleMap cycle_map;
   for (const auto& stage : proto.stages()) {
     for (const auto& node_name : stage.nodes()) {

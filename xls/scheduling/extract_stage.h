@@ -23,7 +23,7 @@ namespace xls {
 
 // Creates a new function containing only the nodes within the specified
 // pipeline stage and new params/output nodes.
-absl::StatusOr<Function*> ExtractStage(Function* src,
+absl::StatusOr<Function*> ExtractStage(FunctionBase* src,
                                        const PipelineSchedule& schedule,
                                        int stage);
 

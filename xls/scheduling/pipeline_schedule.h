@@ -38,7 +38,7 @@ class PipelineSchedule {
 
   // Reconstructs a PipelineSchedule object from a proto representation.
   static absl::StatusOr<PipelineSchedule> FromProto(
-      Function* function, const PipelineScheduleProto& proto);
+      FunctionBase* function, const PipelineScheduleProto& proto);
 
   // Constructs a schedule for the given function with the given cycle map. If
   // length is not given, then the length equal to the largest cycle in cycle
