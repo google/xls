@@ -423,6 +423,7 @@ cc_library(
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:node_hash_map",
         "@com_google_absl//absl/container:node_hash_set",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
     ],
 )
@@ -451,6 +452,7 @@ cc_library(
         ":ast_generator",
         ":cpp_sample",
         "//xls/common/status:ret_check",
+        "//xls/dslx:ast",
         "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",

@@ -30,6 +30,7 @@ using ::testing::MatchesRegex;
 
 // Parses and typechecks the given text to ensure it's valid -- prints errors to
 // the screen in a useful way for debugging if they fail parsing / typechecking.
+template <typename ModuleMember>
 absl::Status ParseAndTypecheck(absl::string_view text,
                                absl::string_view module_name) {
   XLS_LOG_LINES(INFO, text);
@@ -48,7 +49,7 @@ absl::Status ParseAndTypecheck(absl::string_view text,
   TryPrintError(parsed_or.status(), get_file_contents);
   XLS_ASSIGN_OR_RETURN(TypecheckedModule parsed, parsed_or);
   XLS_RETURN_IF_ERROR(
-      parsed.module->GetMemberOrError<Function>("main").status());
+      parsed.module->GetMemberOrError<ModuleMember>("main").status());
   return absl::OkStatus();
 }
 
@@ -64,11 +65,31 @@ TEST(AstGeneratorTest, GeneratesValidFunctions) {
     AstGenerator g(options, &rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
     std::string module_name = absl::StrFormat("sample_%d", i);
-    XLS_ASSERT_OK_AND_ASSIGN(auto generated,
-                             g.GenerateFunctionInModule("main", module_name));
-    std::string text = generated.second->ToString();
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                             g.Generate("main", module_name));
+    std::string text = module->ToString();
     // Parses/typechecks as well, which is primarily what we're testing here.
-    XLS_ASSERT_OK(ParseAndTypecheck(text, module_name));
+    XLS_ASSERT_OK(ParseAndTypecheck<Function>(text, module_name));
+  }
+}
+
+// Simply tests that we generate a bunch of valid procs using seed 0 (that
+// parse and typecheck).
+TEST(AstGeneratorTest, GeneratesValidProcs) {
+  std::mt19937 rng(0);
+  AstGeneratorOptions options;
+  options.generate_proc = true;
+  options.short_samples = true;
+  for (int64_t i = 0; i < 32; ++i) {
+    AstGenerator g(options, &rng);
+    XLS_LOG(INFO) << "Generating sample: " << i;
+    std::string module_name = absl::StrFormat("sample_%d", i);
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                             g.Generate("main", module_name));
+
+    std::string text = module->ToString();
+    //  Parses/typechecks as well, which is primarily what we're testing here.
+    XLS_ASSERT_OK(ParseAndTypecheck<Proc>(text, module_name));
   }
 }
 
@@ -97,15 +118,15 @@ static void TestRepeatable(int64_t seed) {
   for (int64_t i = 0; i < 32; ++i) {
     std::mt19937 rng(seed);
     AstGenerator g(options, &rng);
-    XLS_ASSERT_OK_AND_ASSIGN(auto generated,
-                             g.GenerateFunctionInModule("main", "test"));
-    std::string text = generated.second->ToString();
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> module,
+                             g.Generate("main", "test"));
+    std::string text = module->ToString();
     if (first.has_value()) {
       ASSERT_EQ(text, *first) << "sample " << i << " seed " << seed;
     } else {
       first = text;
       // Parse and typecheck for good measure.
-      XLS_ASSERT_OK(ParseAndTypecheck(text, "test"));
+      XLS_ASSERT_OK(ParseAndTypecheck<Function>(text, "test"));
     }
   }
 }

@@ -14,8 +14,11 @@
 
 #include "xls/fuzzer/sample_generator.h"
 
+#include <memory>
+
 #include "absl/strings/match.h"
 #include "xls/common/status/ret_check.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -32,6 +35,7 @@ using dslx::FunctionType;
 using dslx::ImportData;
 using dslx::InterpValue;
 using dslx::InterpValueTag;
+using dslx::Module;
 using dslx::TupleType;
 using dslx::TypecheckedModule;
 
@@ -186,8 +190,9 @@ static std::vector<std::string> GenerateCodegenArgs(bool use_system_verilog,
 static absl::StatusOr<std::string> Generate(
     const AstGeneratorOptions& ast_options, RngState* rng) {
   AstGenerator g(ast_options, &rng->rng());
-  XLS_ASSIGN_OR_RETURN(auto pair, g.GenerateFunctionInModule("main", "test"));
-  return pair.second->ToString();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                       g.Generate("main", "test"));
+  return module->ToString();
 }
 
 static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(

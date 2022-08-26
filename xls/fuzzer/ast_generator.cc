@@ -14,6 +14,12 @@
 
 #include "xls/fuzzer/ast_generator.h"
 
+#include <algorithm>
+#include <optional>
+#include <set>
+#include <vector>
+
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
@@ -35,8 +41,8 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
 }
 
 /* static */ bool AstGenerator::IsUBits(TypeAnnotation* t) {
-  if (auto* bits = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
-    return !bits->GetSignedness();
+  if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
+    return builtin->GetBitCount() != 0 && !builtin->GetSignedness();
   }
   if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
     if (auto* builtin =
@@ -58,8 +64,8 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
 }
 
 /* static */ bool AstGenerator::IsBits(TypeAnnotation* t) {
-  if (dynamic_cast<BuiltinTypeAnnotation*>(t) != nullptr) {
-    return true;
+  if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
+    return builtin->GetBitCount() != 0;
   }
   if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
     if (auto* builtin =
@@ -93,6 +99,15 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   return dynamic_cast<TupleTypeAnnotation*>(t) != nullptr;
 }
 
+/* static */ bool AstGenerator::IsToken(TypeAnnotation* t) {
+  auto* token = dynamic_cast<BuiltinTypeAnnotation*>(t);
+  return token != nullptr && token->builtin_type() == BuiltinType::kToken;
+}
+
+/* static */ bool AstGenerator::IsChannel(TypeAnnotation* t) {
+  return dynamic_cast<ChannelTypeAnnotation*>(t) != nullptr;
+}
+
 /* static */ bool AstGenerator::IsNil(TypeAnnotation* t) {
   if (auto* tuple = dynamic_cast<TupleTypeAnnotation*>(t);
       tuple != nullptr && tuple->empty()) {
@@ -110,6 +125,18 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
 /* static */ bool AstGenerator::EnvContainsTuple(const Env& e) {
   return std::any_of(e.begin(), e.end(), [](const auto& item) -> bool {
     return IsTuple(item.second.type);
+  });
+}
+
+/* static */ bool AstGenerator::EnvContainsToken(const Env& e) {
+  return std::any_of(e.begin(), e.end(), [](const auto& item) -> bool {
+    return IsToken(item.second.type);
+  });
+}
+
+/* static */ bool AstGenerator::EnvContainsChannel(const Env& e) {
+  return std::any_of(e.begin(), e.end(), [](const auto& item) -> bool {
+    return IsChannel(item.second.type);
   });
 }
 
@@ -159,6 +186,10 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
   return pbs;
 }
 
+BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
+  return module_->Make<BuiltinTypeAnnotation>(fake_span_, BuiltinType::kToken);
+}
+
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
                                                  int64_t width) {
   XLS_CHECK_GT(width, 0);
@@ -185,6 +216,149 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompare(Env* env) {
   TypedExpr rhs = pair.second;
   Binop* binop = module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr);
   return TypedExpr{binop, MakeTypeAnnotation(false, 1)};
+}
+
+namespace {
+
+enum class ChannelOpType {
+  kRecv,
+  kRecvNonBlocking,
+  kRecvIf,
+  kSend,
+  kSendIf,
+};
+
+struct ChannelOpInfo {
+  ChannelTypeAnnotation::Direction channel_direction;
+  bool requires_payload;
+  bool requires_predicate;
+};
+
+ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
+  switch (chan_op) {
+    case ChannelOpType::kRecv:
+      return ChannelOpInfo{
+          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
+          .requires_payload = false,
+          .requires_predicate = false};
+    case ChannelOpType::kRecvNonBlocking:
+      return ChannelOpInfo{
+          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
+          .requires_payload = false,
+          .requires_predicate = false};
+    case ChannelOpType::kRecvIf:
+      return ChannelOpInfo{
+          .channel_direction = ChannelTypeAnnotation::Direction::kIn,
+          .requires_payload = false,
+          .requires_predicate = true};
+    case ChannelOpType::kSend:
+      return ChannelOpInfo{
+          .channel_direction = ChannelTypeAnnotation::Direction::kOut,
+          .requires_payload = true,
+          .requires_predicate = false};
+    case ChannelOpType::kSendIf:
+      return ChannelOpInfo{
+          .channel_direction = ChannelTypeAnnotation::Direction::kOut,
+          .requires_payload = true,
+          .requires_predicate = true};
+  }
+}
+
+}  // namespace
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
+  // Lambda that chooses a boolean value for a predicate.
+  auto choose_predicate = [this](const TypedExpr& e) -> bool {
+    TypeAnnotation* t = e.type;
+    return IsUBits(t) && GetTypeBitCount(t) == 1;
+  };
+  // Equal distribution for channel ops.
+  ChannelOpType chan_op_type = RandomChoice<ChannelOpType>(
+      {ChannelOpType::kRecv, ChannelOpType::kRecvNonBlocking,
+       ChannelOpType::kRecvIf, ChannelOpType::kSend, ChannelOpType::kSendIf});
+  ChannelOpInfo chan_op_info = GetChannelOpInfo(chan_op_type);
+
+  // If needed, generate a predicate.
+  std::optional<TypedExpr> predicate;
+  if (chan_op_info.requires_predicate) {
+    predicate = ChooseEnvValueOptional(env, /*take=*/choose_predicate);
+    if (!predicate.has_value()) {
+      // If there's no natural environment value to use as the predicate,
+      // generate a boolean.
+      Number* boolean = MakeBool(RandomBool());
+      predicate = TypedExpr{boolean, boolean->type_annotation()};
+    }
+  }
+
+  // Generate an arbitrary type for the channel.
+  TypeAnnotation* channel_type = GenerateType();
+
+  // If needed, choose a payload from the environment.
+  std::optional<TypedExpr> payload;
+  if (chan_op_info.requires_payload) {
+    // TODO(vmirian): 8-22-2002 Payloads of the type may not be present in the
+    // env. Create payload of the type enabling more ops requiring a payload
+    // (e.g. send and send_if).
+    XLS_ASSIGN_OR_RETURN(payload, ChooseEnvValue(env, channel_type));
+  }
+
+  // Create the channel.
+  // TODO(vmirian): 8-22-2022 If payload type exists, create an array of
+  // channels.
+  ChannelTypeAnnotation* channel_type_annotation =
+      module_->Make<ChannelTypeAnnotation>(fake_span_,
+                                           chan_op_info.channel_direction,
+                                           channel_type, std::nullopt);
+  Param* param = GenerateParam(channel_type_annotation);
+  proc_properties_.params.push_back(param);
+  NameRef* chan_expr = module_->Make<NameRef>(fake_span_, param->identifier(),
+                                              param->name_def());
+
+  // Choose a random token for the channel op.
+  XLS_ASSIGN_OR_RETURN(TypedExpr token, ChooseEnvValue(env, MakeTokenType()));
+  auto* token_name_ref = dynamic_cast<NameRef*>(token.expr);
+  XLS_CHECK(token_name_ref != nullptr);
+
+  switch (chan_op_type) {
+    case ChannelOpType::kRecv:
+      return TypedExpr{
+          module_->Make<Recv>(fake_span_, token_name_ref, chan_expr),
+          MakeTupleType({token.type, channel_type})};
+    case ChannelOpType::kRecvNonBlocking:
+      return TypedExpr{
+          module_->Make<RecvNonBlocking>(fake_span_, token_name_ref, chan_expr),
+          MakeTupleType(
+              {token.type, channel_type, MakeTypeAnnotation(false, 1)})};
+    case ChannelOpType::kRecvIf:
+      return TypedExpr{module_->Make<RecvIf>(fake_span_, token_name_ref,
+                                             chan_expr, predicate.value().expr),
+                       MakeTupleType({token.type, channel_type})};
+    case ChannelOpType::kSend:
+      return TypedExpr{module_->Make<Send>(fake_span_, token_name_ref,
+                                           chan_expr, payload.value().expr),
+                       MakeTupleType({token.type})};
+    case ChannelOpType::kSendIf:
+      return TypedExpr{
+          module_->Make<SendIf>(fake_span_, token_name_ref, chan_expr,
+                                predicate.value().expr, payload.value().expr),
+          token.type};
+  }
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Env* env) {
+  // Lambda that chooses a token TypedExpr.
+  auto token_predicate = [](const TypedExpr& e) -> bool {
+    return IsToken(e.type);
+  };
+  std::vector<TypedExpr> tokens = GatherAllValues(env, token_predicate);
+  int64_t token_count = RandRange(1, tokens.size() + 1);
+  std::vector<Expr*> tokens_to_join(token_count);
+  for (int64_t i = 0; i < token_count; ++i) {
+    int64_t token_index = RandRange(0, tokens.size());
+    tokens_to_join[i] = tokens[token_index].expr;
+  }
+  return TypedExpr{module_->Make<Join>(fake_span_, tokens_to_join),
+                   MakeTokenType()};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareArray(Env* env) {
@@ -300,7 +474,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateLogicalOp(Env* env) {
 Number* AstGenerator::MakeNumber(int64_t value, TypeAnnotation* type) {
   if (IsBuiltinBool(type)) {
     XLS_CHECK(value == 0 || value == 1) << value;
-    return module_->Make<Number>(fake_span_, value ? "true" : "false",
+    return module_->Make<Number>(fake_span_, value == 1 ? "true" : "false",
                                  NumberKind::kBool, type);
   }
   return module_->Make<Number>(fake_span_, absl::StrFormat("%d", value),
@@ -752,6 +926,20 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
   return TypedExpr{tuple, MakeTupleType(types)};
 }
 
+// The return value for a proc's next function must be of the state type if a
+// state is present.
+absl::StatusOr<TypedExpr> AstGenerator::GenerateProcNextFunctionRetval(
+    Env* env) {
+  if (proc_properties_.state_types.empty()) {
+    // Return an empty tuple.
+    return TypedExpr{module_->Make<XlsTuple>(fake_span_, std::vector<Expr*>()),
+                     MakeTupleType(std::vector<TypeAnnotation*>())};
+  }
+  // A state is present, therefore the return value for a proc's next function
+  // must be of the state type.
+  return ChooseEnvValue(env, proc_properties_.state_types[0]);
+}
+
 absl::StatusOr<TypedExpr> AstGenerator::GenerateCountedFor(Env* env) {
   // Right now just generates the 'identity' for loop.
   // TODO(meheff): Generate more interesting loop bodies.
@@ -1131,13 +1319,15 @@ enum OpChoice {
   kBitSliceUpdate,
   kBitwiseReduction,
   kCastToBitsArray,
+  kChannelOp,
   kCompareOp,
   kCompareArrayOp,
   kCompareTupleOp,
   kConcat,
   kCountedFor,
-  kLogical,
   kGate,
+  kJoinOp,
+  kLogical,
   kMap,
   kNumber,
   kOneHotSelectBuiltin,
@@ -1173,6 +1363,8 @@ int OpProbability(OpChoice op) {
       return 3;
     case kCastToBitsArray:
       return 1;
+    case kChannelOp:
+      return 5;
     case kCompareOp:
       return 3;
     case kCompareArrayOp:
@@ -1185,6 +1377,8 @@ int OpProbability(OpChoice op) {
       return 1;
     case kGate:
       return 1;
+    case kJoinOp:
+      return 5;
     case kLogical:
       return 3;
     case kMap:
@@ -1211,11 +1405,18 @@ int OpProbability(OpChoice op) {
   XLS_LOG(FATAL) << "Invalid op choice: " << static_cast<int64_t>(op);
 }
 
-std::discrete_distribution<int>& GetOpDistribution() {
-  static std::discrete_distribution<int> dist = []() {
+std::discrete_distribution<int>& GetOpDistribution(bool generate_proc) {
+  static std::discrete_distribution<int> dist = [generate_proc]() {
+    static const std::set<int> proc_ops = {int{kChannelOp}, int{kJoinOp}};
     std::vector<int> tmp;
     tmp.reserve(int{kEndSentinel});
     for (int i = 0; i < int{kEndSentinel}; ++i) {
+      // When not generating a proc, do not generate proc operations by setting
+      // its probability to zero.
+      if (!generate_proc && proc_ops.find(i) != proc_ops.end()) {
+        tmp.push_back(0);
+        continue;
+      }
       tmp.push_back(OpProbability(static_cast<OpChoice>(i)));
     }
     return std::discrete_distribution<int>(tmp.begin(), tmp.end());
@@ -1230,6 +1431,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
                                                      Env* env) {
   if (!ShouldNest(expr_size, call_depth)) {
     // Should not nest any more, select return values.
+    if (options_.generate_proc) {
+      return GenerateProcNextFunctionRetval(env);
+    }
     return GenerateRetval(env);
   }
 
@@ -1240,7 +1444,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
     // With particularly low probability we generate a map -- if maps recurse
     // with equal probability then the output will grow exponentially with
     // level, so we need to scale inversely.
-    int choice = GetOpDistribution()(rng_);
+    int choice = GetOpDistribution(options_.generate_proc)(rng_);
     switch (static_cast<OpChoice>(choice)) {
       case kArray:
         generated = GenerateArray(env);
@@ -1287,7 +1491,18 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
         }
         generated = GenerateGate(env);
         break;
+      case kChannelOp:
+        generated = GenerateChannelOp(env);
+        break;
+      case kJoinOp:
+        generated = GenerateJoinOp(env);
+        break;
       case kMap:
+        // TODO(vmirian): 8-22-2022 For initial support of procs, only support a
+        // single level calling stack.
+        if (options_.generate_proc) {
+          continue;
+        }
         generated = GenerateMap(call_depth, env);
         break;
       case kUnop:
@@ -1348,12 +1563,50 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   auto* name_ref = MakeNameRef(name_def);
   (*env)[identifier] = TypedExpr{name_ref, rhs.type};
 
+  // Unpack result tuples from channel operations and place them in environment
+  // to be easily accessible creating more interesting behavior.
+  // Currently, results from operations that are tuples and start with a token
+  // are assumed to be channel operations.
+  std::vector<std::pair<NameDef*, TypedExpr>> channel_tuples;
+  if (IsTuple(rhs.type)) {
+    auto* tuple_type = dynamic_cast<TupleTypeAnnotation*>(rhs.type);
+    if (!tuple_type->empty() && IsToken(tuple_type->members()[0])) {
+      channel_tuples.resize(tuple_type->members().size());
+      for (int64_t index = 0; index < tuple_type->members().size(); ++index) {
+        std::string member_identifier = GenSym();
+        auto* member_name_def = module_->Make<NameDef>(
+            fake_span_, member_identifier, /*definer=*/nullptr);
+        auto* member_name_ref = MakeNameRef(member_name_def);
+        (*env)[member_identifier] =
+            TypedExpr{member_name_ref, tuple_type->members()[index]};
+        // Insert in reverse order so the identifier are consecutive when
+        // displayed on the output.
+        channel_tuples[tuple_type->members().size() - index - 1] =
+            std::pair<NameDef*, TypedExpr>{
+                member_name_def,
+                TypedExpr{module_->Make<TupleIndex>(fake_span_, name_ref,
+                                                    MakeNumber(index)),
+                          tuple_type->members()[index]}};
+      }
+    }
+  }
+
   XLS_ASSIGN_OR_RETURN(TypedExpr body,
                        GenerateExpr(expr_size + 1, call_depth, env));
+
+  auto* let = body.expr;
+  for (const auto& channel_tuple : channel_tuples) {
+    auto* ndt = module_->Make<NameDefTree>(fake_span_, channel_tuple.first);
+    let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
+                             /*type=*/channel_tuple.second.type,
+                             /*rhs=*/channel_tuple.second.expr,
+                             /*body=*/let, /*is_const=*/false);
+  }
+
   auto* ndt = module_->Make<NameDefTree>(fake_span_, name_def);
-  auto* let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
-                                 /*type=*/rhs.type, /*rhs=*/rhs.expr,
-                                 /*body=*/body.expr, /*is_const=*/false);
+  let = module_->Make<Let>(fake_span_, /*name_def_tree=*/ndt,
+                           /*type=*/rhs.type, /*rhs=*/rhs.expr,
+                           /*body=*/let, /*is_const=*/false);
   return TypedExpr{let, body.type};
 }
 
@@ -1420,6 +1673,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBody(
   return GenerateExpr(/*expr_size=*/0, call_depth, env);
 }
 
+// TODO(vmirian): 8-22-2022 Track caller of this function for different control
+// paths (e.g. Function or Proc). Perhaps, use stack implementation for state
+// transitions.
 absl::StatusOr<Function*> AstGenerator::GenerateFunction(
     std::string name, int64_t call_depth,
     std::optional<absl::Span<TypeAnnotation* const>> param_types) {
@@ -1483,11 +1739,8 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
   return f;
 }
 
-absl::StatusOr<std::pair<Function*, std::unique_ptr<Module>>>
-AstGenerator::GenerateFunctionInModule(std::string fn_name,
-                                       std::string module_name) {
-  module_ = std::make_unique<Module>(module_name);
-  XLS_ASSIGN_OR_RETURN(Function * f, GenerateFunction(fn_name));
+absl::Status AstGenerator::GenerateFunctionInModule(std::string name) {
+  XLS_ASSIGN_OR_RETURN(Function * f, GenerateFunction(name));
   for (auto& item : constants_) {
     XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
   }
@@ -1498,7 +1751,115 @@ AstGenerator::GenerateFunctionInModule(std::string fn_name,
     XLS_RETURN_IF_ERROR(module_->AddTop(item));
   }
   XLS_RETURN_IF_ERROR(module_->AddTop(f));
-  return std::make_pair(f, std::move(module_));
+  return absl::OkStatus();
+}
+
+absl::StatusOr<Function*> AstGenerator::GenerateProcConfigFunction(
+    std::string name, absl::Span<Param* const> proc_params) {
+  std::vector<Param*> params;
+  std::vector<Expr*> tuple_members;
+  std::vector<TypeAnnotation*> tuple_member_types;
+  for (Param* proc_param : proc_params) {
+    params.push_back(GenerateParam(proc_param->type_annotation()));
+    tuple_members.push_back(MakeNameRef(proc_param->name_def()));
+    tuple_member_types.push_back(proc_param->type_annotation());
+  }
+  TupleTypeAnnotation* ret_tuple_type =
+      module_->Make<TupleTypeAnnotation>(fake_span_, tuple_member_types);
+  XlsTuple* ret_tuple = module_->Make<XlsTuple>(fake_span_, tuple_members);
+  Block* block = module_->Make<Block>(fake_span_, ret_tuple);
+  NameDef* name_def =
+      module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
+  Function* f = module_->Make<Function>(
+      fake_span_, name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/params,
+      /*return_type=*/ret_tuple_type, block, Function::Tag::kProcConfig,
+      /*is_public=*/false);
+  name_def->set_definer(f);
+  return f;
+}
+
+absl::StatusOr<Function*> AstGenerator::GenerateProcNextFunction(
+    Env* env, std::string name) {
+  // A token is required as the first parameter of the next function.
+  NameDef* token_name_def = module_->Make<NameDef>(fake_span_, GenSym(),
+                                                   /*definer=*/nullptr);
+  Param* token_param = module_->Make<Param>(token_name_def, MakeTokenType());
+  std::vector<Param*> params = {token_param};
+
+  // 70% of the time: add a state to the param list.
+  if (RandomFloat() >= 0.30) {
+    params.insert(params.end(), GenerateParam());
+    proc_properties_.state_types.push_back(params.back()->type_annotation());
+  }
+
+  for (Param* param : params) {
+    (*env)[param->identifier()] =
+        TypedExpr{MakeNameRef(param->name_def()), param->type_annotation()};
+  }
+
+  XLS_ASSIGN_OR_RETURN(TypedExpr retval, GenerateBody(0, params, env));
+
+  NameDef* name_def =
+      module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
+  Block* block = module_->Make<Block>(fake_span_, retval.expr);
+  Function* f = module_->Make<Function>(
+      fake_span_, name_def,
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*params=*/params,
+      /*return_type=*/retval.type, block, Function::Tag::kNormal,
+      /*is_public=*/false);
+  name_def->set_definer(f);
+  return f;
+}
+
+absl::StatusOr<Proc*> AstGenerator::GenerateProc(std::string name) {
+  Env env;
+
+  XLS_ASSIGN_OR_RETURN(Function * next_function,
+                       GenerateProcNextFunction(&env, "next"));
+
+  XLS_ASSIGN_OR_RETURN(
+      Function * config_function,
+      GenerateProcConfigFunction("config", proc_properties_.params));
+  NameDef* name_def =
+      module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
+  Proc* proc = module_->Make<Proc>(
+      fake_span_, name_def, /*config_name_def=*/config_function->name_def(),
+      /*next_name_def=*/next_function->name_def(),
+      /*parametric_bindings=*/std::vector<ParametricBinding*>(),
+      /*members=*/proc_properties_.params,
+      /*config=*/config_function, /*next=*/next_function,
+      /*is_public=*/false);
+  name_def->set_definer(proc);
+  return proc;
+}
+
+absl::Status AstGenerator::GenerateProcInModule(std::string proc_name) {
+  XLS_ASSIGN_OR_RETURN(Proc * proc, GenerateProc(proc_name));
+  for (auto& item : constants_) {
+    XLS_RETURN_IF_ERROR(module_->AddTop(item.second));
+  }
+  for (auto& item : type_defs_) {
+    XLS_RETURN_IF_ERROR(module_->AddTop(item));
+  }
+  for (auto& item : functions_) {
+    XLS_RETURN_IF_ERROR(module_->AddTop(item));
+  }
+  XLS_RETURN_IF_ERROR(module_->AddTop(proc));
+  return absl::OkStatus();
+}
+
+absl::StatusOr<std::unique_ptr<Module>> AstGenerator::Generate(
+    std::string top_entity_name, std::string module_name) {
+  module_ = std::make_unique<Module>(module_name);
+  if (options_.generate_proc) {
+    XLS_RETURN_IF_ERROR(GenerateProcInModule(top_entity_name));
+  } else {
+    XLS_RETURN_IF_ERROR(GenerateFunctionInModule(top_entity_name));
+  }
+  return std::move(module_);
 }
 
 AstGenerator::AstGenerator(AstGeneratorOptions options, std::mt19937* rng)

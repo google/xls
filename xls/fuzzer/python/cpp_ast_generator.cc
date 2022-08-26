@@ -15,6 +15,8 @@
 // Exposes AST generation capability (as is needed for fuzzing) to Python code
 // (which currently drives the sampling / running process).
 
+#include <memory>
+
 #include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"
@@ -23,6 +25,7 @@
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/ast.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample_generator.h"
 
@@ -49,7 +52,8 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
                        std::optional<int64_t> max_width_aggregate_types,
                        std::optional<std::vector<BinopKind>> binop_allowlist,
                        std::optional<bool> generate_empty_tuples,
-                       std::optional<bool> emit_gate) {
+                       std::optional<bool> emit_gate,
+                       std::optional<bool> generate_proc) {
              AstGeneratorOptions options;
              if (disallow_divide.has_value()) {
                options.disallow_divide = disallow_divide.value();
@@ -74,6 +78,9 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
              if (emit_gate.has_value()) {
                options.emit_gate = emit_gate.value();
              }
+             if (generate_proc.has_value()) {
+               options.generate_proc = generate_proc.value();
+             }
              return options;
            }),
            py::arg("disallow_divide") = absl::nullopt,
@@ -83,15 +90,16 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
            py::arg("max_width_aggregate_types") = absl::nullopt,
            py::arg("binop_allowlist") = absl::nullopt,
            py::arg("generate_empty_tuples") = absl::nullopt,
-           py::arg("emit_gate") = absl::nullopt);
+           py::arg("emit_gate") = absl::nullopt,
+           py::arg("generate_proc") = absl::nullopt);
 
   m.def("generate",
         [](const AstGeneratorOptions& options,
            RngState& state) -> absl::StatusOr<std::string> {
           AstGenerator g(options, &state.rng());
-          XLS_ASSIGN_OR_RETURN(auto pair,
-                               g.GenerateFunctionInModule("main", "test"));
-          return pair.second->ToString();
+          XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
+                               g.Generate("main", "test"));
+          return module->ToString();
         });
 
   m.def("choose_bit_pattern", [](int64_t bit_count, RngState& state) -> Bits {

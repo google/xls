@@ -146,7 +146,7 @@ class FuzzCoverageTest(test_base.TestCase):
     self.assertGreater(summary.get_op_count('param', type_str='tuple'), 0)
     self.assertGreater(summary.get_op_count('param', type_str='array'), 0)
 
-    # Test coverage of all other  ops.
+    # Test coverage of all other ops.
     expect_seen = (
         'add and and_reduce array array_index array_update array_concat '
         'bit_slice bit_slice_update concat counted_for dynamic_bit_slice '

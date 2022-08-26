@@ -36,6 +36,15 @@ struct BitsAndSignedness {
   bool signedness;
 };
 
+struct ProcProperties {
+  // A list of the state types in the proc's next function. Currently, at most a
+  // single state is supported. The order of types as they appear in the
+  // container mirrors the order present in the proc's next function.
+  std::vector<TypeAnnotation*> state_types;
+  // Parameters of the proc.
+  std::vector<Param*> params;
+};
+
 // Options that are used to configure the AST generator.
 struct AstGeneratorOptions {
   // Emit signed types (currently not connected, signed types are always
@@ -70,6 +79,9 @@ struct AstGeneratorOptions {
 
   // Whether to emit `gate!()` builtin calls.
   bool emit_gate = true;
+
+  // Whether to generate a proc.
+  bool generate_proc = false;
 };
 
 // Type that generates a random module for use in fuzz testing; i.e.
@@ -85,13 +97,15 @@ class AstGenerator {
   // select a random value from the environment across something like different
   // hash function seed states. That is, ideally different process invocation
   // would all produce identical generated functions for the same seed.
+  // TODO(vmirian) : Consider making this a class with context metadata and
+  // optimization for storing special types like tokens.
   using Env = absl::btree_map<std::string, TypedExpr>;
 
   AstGenerator(AstGeneratorOptions options, std::mt19937* rng);
 
-  // Generates a function with name "fn_name" in a module named "module_name".
-  absl::StatusOr<std::pair<Function*, std::unique_ptr<Module>>>
-  GenerateFunctionInModule(std::string fn_name, std::string module_name);
+  // Generates the entity with name "name" in a module named "module_name".
+  absl::StatusOr<std::unique_ptr<Module>> Generate(std::string top_entity_name,
+                                                   std::string module_name);
 
   // Chooses a random "interesting" bit pattern with the given bit count.
   Bits ChooseBitPattern(int64_t bit_count);
@@ -141,12 +155,22 @@ class AstGenerator {
   static bool IsUBits(TypeAnnotation* t);
   static bool IsArray(TypeAnnotation* t);
   static bool IsTuple(TypeAnnotation* t);
+  static bool IsToken(TypeAnnotation* t);
+  static bool IsChannel(TypeAnnotation* t);
   static bool IsNil(TypeAnnotation* t);
   static std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>> Unzip(
       absl::Span<const TypedExpr> typed_exprs);
 
   static bool EnvContainsArray(const Env& e);
   static bool EnvContainsTuple(const Env& e);
+  static bool EnvContainsToken(const Env& e);
+  static bool EnvContainsChannel(const Env& e);
+
+  // Generates a function with name "name".
+  absl::Status GenerateFunctionInModule(std::string name);
+
+  // Generates a proc with name "name".
+  absl::Status GenerateProcInModule(std::string name);
 
   // Generate an DSLX function with the given name. call_depth is the current
   // depth of the call stack (if any) calling this function to be
@@ -156,6 +180,18 @@ class AstGenerator {
       std::string name, int64_t call_depth = 0,
       std::optional<absl::Span<TypeAnnotation* const>> param_types =
           absl::nullopt);
+
+  // Generate the proc's config function with the given name and proc parameters
+  // (proc members).
+  absl::StatusOr<Function*> GenerateProcConfigFunction(
+      std::string name, absl::Span<Param* const> proc_params);
+
+  // Generate the proc's next function with the given name.
+  absl::StatusOr<Function*> GenerateProcNextFunction(Env* env,
+                                                     std::string name);
+
+  // Generate an DSLX proc with the given name.
+  absl::StatusOr<Proc*> GenerateProc(std::string name);
 
   // Chooses a value from the environment that satisfies the predicate "take",
   // or returns nullopt if none exists.
@@ -297,6 +333,9 @@ class AstGenerator {
   // Generates a return-value positioned expression.
   absl::StatusOr<TypedExpr> GenerateRetval(Env* env);
 
+  // Generates a return-value positioned expression for a proc next function.
+  absl::StatusOr<TypedExpr> GenerateProcNextFunctionRetval(Env* env);
+
   // Generates a counted for loop.
   absl::StatusOr<TypedExpr> GenerateCountedFor(Env* env);
 
@@ -337,6 +376,9 @@ class AstGenerator {
   // Currently, the all bindings have a number expression as their default.
   std::vector<ParametricBinding*> GenerateParametricBindings(int64_t count);
 
+  // Return a token builtin type.
+  BuiltinTypeAnnotation* MakeTokenType();
+
   TypeAnnotation* MakeTypeAnnotation(bool is_signed, int64_t width);
 
   // Generates a binary operation AST node in which operands and results type
@@ -346,11 +388,21 @@ class AstGenerator {
   // Generates a comparison operation AST node.
   absl::StatusOr<TypedExpr> GenerateCompare(Env* env);
 
+  // Generates a channel operation AST node. The operations include recv,
+  // recv_nonblocking, recv_if, send, send_if.
+  absl::StatusOr<TypedExpr> GenerateChannelOp(Env* env);
+
   // Generates an Eq or Neq comparison on arrays.
   absl::StatusOr<TypedExpr> GenerateCompareArray(Env* env);
 
   // Generates an Eq or Neq comparison on tuples.
   absl::StatusOr<TypedExpr> GenerateCompareTuple(Env* env);
+
+  // Generates a join operation AST node.
+  absl::StatusOr<TypedExpr> GenerateJoinOp(Env* env);
+
+  // Generates an operation AST node supported by the proc's next function.
+  absl::StatusOr<TypedExpr> GenerateProcNextFunctionOp(Env* env);
 
   // Generates a shift operation AST node.
   absl::StatusOr<TypedExpr> GenerateShift(Env* env);
@@ -389,7 +441,7 @@ class AstGenerator {
   Number* MakeNumber(int64_t value, TypeAnnotation* type = nullptr);
   Number* MakeNumberFromBits(const Bits& value, TypeAnnotation* type);
   Number* MakeBool(bool value) {
-    return MakeNumber(value, MakeTypeAnnotation(false, 1));
+    return MakeNumber(value ? 1 : 0, MakeTypeAnnotation(false, 1));
   }
 
   // Creates an array type with the given size and element type.
@@ -495,6 +547,9 @@ class AstGenerator {
 
   // Set of constants defined during module generation.
   absl::btree_map<std::string, ConstantDef*> constants_;
+
+  // Contains properties of the generated proc.
+  ProcProperties proc_properties_;
 };
 
 }  // namespace xls::dslx
