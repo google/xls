@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_state/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.0">
+      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.2">
     
     
       
@@ -1340,31 +1340,31 @@ contents to configure <code>out</code> as an output FIFO (ready/valid) interface
 name: &quot;xls_test_state&quot;
 </code></pre></div>
 <h2 id="generate-optimized-xls-ir">Generate optimized XLS IR.</h2>
-<p>Use a combination of <code>proto2bin</code>, <code>xlscc</code> and <code>xls_opt</code> to generate optimized
+<p>Use a combination of <code>proto2bin</code>, <code>xlscc</code> and <code>opt_main</code> to generate optimized
 XLS IR.</p>
 <div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/proto2bin test_state.textproto --message xlscc.HLSBlock --output test_state.pb
-$ ./bazel-bin/xls/contrib/xlscc/xlscc test_state.cc \
-  --block_pb test_state.pb \
-  --dump_ir_only test_channels.ir
-$ ./bazel-bin/xls/tools/xls_opt test_state.ir &gt; test_state.opt.ir
+$ ./bazel-bin/xls/contrib/xlscc/xlscc test_state.cc <span class="se">\</span>
+  --block_pb test_state.pb <span class="se">\</span>
+  &gt; test_state.ir
+$ ./bazel-bin/xls/tools/opt_main test_state.ir &gt; test_state.opt.ir
 </code></pre></div>
 <h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
 <p>In this case, we will generate a single-stage pipeline without input and output
 flops. This will result in a module with a 32-bit increment adder along with
 32-bit of state.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_state.opt.ir \
-  --generator=pipeline \
-  --delay_model=&quot;sky130&quot; \
-  --output_verilog_path=xls_counter.v \
-  --module_name=xls_counter \
-  --top_level_proc=xls_test_state_proc \
-  --reset=rst \
-  --reset_active_low=false \
-  --reset_asynchronous=false \
-  --reset_data_path=true \
-  --pipeline_stages=1  \
-  --flop_inputs=false \
-  --flop_outputs=false
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_state.opt.ir <span class="se">\</span>
+  --generator<span class="o">=</span>pipeline <span class="se">\</span>
+  --delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span> <span class="se">\</span>
+  --output_verilog_path<span class="o">=</span>xls_counter.v <span class="se">\</span>
+  --module_name<span class="o">=</span>xls_counter <span class="se">\</span>
+  --top<span class="o">=</span>xls_test_state_proc <span class="se">\</span>
+  --reset<span class="o">=</span>rst <span class="se">\</span>
+  --reset_active_low<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --reset_asynchronous<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --reset_data_path<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+  --pipeline_stages<span class="o">=</span><span class="m">1</span>  <span class="se">\</span>
+  --flop_inputs<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --flop_outputs<span class="o">=</span><span class="nb">false</span>
 </code></pre></div>
 <p>After running codegen, you should see a file named <code>xls_counter.v</code> with contents
 similar to the following.</p>
@@ -1375,28 +1375,24 @@ similar to the following.</p>
   output wire [31:0] out,
   output wire out_vld
 );
-  wire [31:0] __st_init;
-  assign __st_init = {32&#39;h0000_0000};
-  reg [31:0] __st;
-  wire [31:0] tuple_index_28;
-  wire [31:0] add_30;
-  wire literal_36;
-  wire [31:0] tuple_32;
+  reg [31:0] __st__1;
+  wire literal_43;
+  wire literal_40;
+  wire [31:0] add_37;
   wire pipeline_enable;
-  assign tuple_index_28 = __st[31:0];
-  assign add_30 = tuple_index_28 + 32&#39;h0000_0001;
-  assign literal_36 = 1&#39;h1;
-  assign tuple_32 = {add_30};
-  assign pipeline_enable = out_rdy &amp; literal_36;
+  assign literal_43 = 1&#39;h1;
+  assign literal_40 = 1&#39;h1;
+  assign add_37 = __st__1 + 32&#39;h0000_0001;
+  assign pipeline_enable = literal_43 &amp; literal_40 &amp; out_rdy &amp; (literal_43 &amp; literal_40 &amp; out_rdy);
   always_ff @ (posedge clk) begin
     if (rst) begin
-      __st &lt;= __st_init;
+      __st__1 &lt;= 32&#39;h0000_0000;
     end else begin
-      __st &lt;= pipeline_enable ? tuple_32 : __st;
-    end
-  end
-  assign out = tuple_index_28;
-  assign out_vld = literal_36;
+      __st__1 &lt;= pipeline_enable ? add_37 : __st__1;
+    end 
+  end 
+  assign out = __st__1;
+  assign out_vld = literal_40 &amp; literal_43 &amp; 1&#39;h1;
 endmodule
 </code></pre></div>
 <h2 id="additional-xlscc-examples">Additional XLS[cc] examples.</h2>

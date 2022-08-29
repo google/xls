@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_overview/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.0">
+      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.2">
     
     
       
@@ -1337,35 +1337,37 @@ may be included in that one file, but only the top-level file should be
 provided.</p>
 <p>Create a file called <code>test.cc</code> with the following contents.</p>
 <div class="highlight"><pre><span></span><code><span class="cp">#pragma hls_top</span>
-<span class="kt">int</span><span class="w"> </span><span class="nf">add2</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">input</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">add3</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">input</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">input</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 </code></pre></div>
 <p>Note that <code>#pragma hls_top</code> denotes the top-level function for the module. The
 xls func or proc created will follow that function's interface.</p>
 <h2 id="translate-into-optimized-xls-ir">Translate into optimized XLS IR.</h2>
 <p>Now that the C++ function has been created, <code>xlscc</code> can be used to translate the
-C++ into XLS IR. <code>xls_opt</code> is used afterwards to optimize and transform the IR
+C++ into XLS IR. <code>opt_main</code> is used afterwards to optimize and transform the IR
 into a form more easily synthesized into verilog.</p>
 <div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/contrib/xlscc/xlscc test.cc &gt; test.ir
-$ ./bazel-bin/xls/tools/xls_opt test.ir &gt; test.opt.ir
+$ ./bazel-bin/xls/tools/opt_main test.ir &gt; test.opt.ir
 </code></pre></div>
 <p>The resulting <code>test.opt.ir</code> file should look something like the following</p>
 <div class="highlight"><pre><span></span><code>package my_package
 
-fn add2(input: bits[32]) -&gt; bits[32] {
-  literal.2: bits[32] = literal(value=2, id=2, pos=[(1,3,3)])
-  ret add.3: bits[32] = add(input, literal.2, id=3, pos=[(1,3,3)])
+file_number 1 &quot;./test.cc&quot;
+
+top fn add3(input: bits[32]) -&gt; bits[32] {
+  literal.2: bits[32] = literal(value=3, id=2, pos=[(1,2,23)])
+  ret add.3: bits[32] = add(input, literal.2, id=3, pos=[(1,2,23)])
 }
 </code></pre></div>
 <h2 id="perform-code-generation-into-a-combinational-verilog-block">Perform code-generation into a combinational Verilog block.</h2>
 <p>With the same IR, you can either generate a combinational block or a clocked
 pipelined block with the <code>codegen_main</code> tool. In this section, we'll demonstrate
 how to generate a combinational block.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test.opt.ir \
-  --generator=combinational \
-  --delay_model=&quot;unit&quot; \
-  --output_verilog_path=test.v \
-  --module_name=xls_test \
-  --entry=add2
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test.opt.ir <span class="se">\</span>
+  --generator<span class="o">=</span>combinational <span class="se">\</span>
+  --delay_model<span class="o">=</span><span class="s2">&quot;unit&quot;</span> <span class="se">\</span>
+  --output_verilog_path<span class="o">=</span>test.v <span class="se">\</span>
+  --module_name<span class="o">=</span>xls_test <span class="se">\</span>
+  --top<span class="o">=</span>add3
 </code></pre></div>
 <p>Below is a quick summary of each option:</p>
 <ol>
@@ -1377,8 +1379,8 @@ how to generate a combinational block.</p>
     to.</li>
 <li><code>--module_name=xls_test</code> states that the generated verilog module should
     have the name of <code>xls_test</code>.</li>
-<li><code>--entry=add2</code> states that the function that should be used for codegen is
-    the function (<code>fn</code>) named <code>add2</code>.</li>
+<li><code>--top=add3</code> states that the function that should be used for codegen is
+    the function (<code>fn</code>) named <code>add3</code>.</li>
 </ol>
 <p>The resulting <code>test.v</code> should have contents similar to the following</p>
 <div class="highlight"><pre><span></span><code>module xls_test(
@@ -1408,26 +1410,25 @@ a file called <code>test_unroll.cc</code> with the following contents.</p>
 </code></pre></div>
 <p>Then compile, and optimize the resulting IR</p>
 <div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/contrib/xlscc/xlscc test_unroll.cc &gt; test_unroll.ir
-$ ./bazel-bin/xls/tools/xls_opt test_unroll.ir &gt; test_unroll.opt.ir
+$ ./bazel-bin/xls/tools/opt_main test_unroll.ir &gt; test_unroll.opt.ir
 </code></pre></div>
 <h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
 <p>The previous section should have left you with an IR file called
 <code>test_unroll.opt.ir</code> with a function with the signature <code>fn test_unroll(x:
 bits[32]) -&gt; bits[32]</code>. The function is likely too large to fit into a single
 clock cycle so we'll create a pipelined module.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_unroll.opt.ir \
-  --generator=pipeline \
-  --delay_model=&quot;asap7&quot; \
-  --output_verilog_path=test_unroll.v \
-  --module_name=xls_test_unroll \
-  --entry=test_unroll \
-  --reset=rst \
-  --reset_active_low=false \
-  --reset_asynchronous=false \
-  --reset_data_path=true
-  --pipeline_stages=5  \
-  --flop_inputs=true \
-  --flop_outputs=true
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_unroll.opt.ir <span class="se">\</span>
+  --generator<span class="o">=</span>pipeline <span class="se">\</span>
+  --delay_model<span class="o">=</span><span class="s2">&quot;asap7&quot;</span> <span class="se">\</span>
+  --output_verilog_path<span class="o">=</span>test_unroll.v <span class="se">\</span>
+  --module_name<span class="o">=</span>xls_test_unroll <span class="se">\</span>
+  --entry<span class="o">=</span>test_unroll <span class="se">\</span>
+  --reset<span class="o">=</span>rst <span class="se">\</span>
+  --reset_active_low<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --reset_asynchronous<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --pipeline_stages<span class="o">=</span><span class="m">5</span> <span class="se">\</span>
+  --flop_inputs<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+  --flop_outputs<span class="o">=</span><span class="nb">true</span>
 </code></pre></div>
 <p>Below is a quick summary of each option:</p>
 <ol>
@@ -1442,9 +1443,6 @@ clock cycle so we'll create a pipelined module.</p>
 <li><code>--reset=rst</code> - there should be a reset signal named <code>rst</code>.</li>
 <li><code>--reset_active_low=false</code> - a high reset signal means reset the module.</li>
 <li><code>--reset_asynchronous=false</code> - rst is a synchronous reset signal.</li>
-<li><code>--rest_data_path=true</code> - all registers including those on the datapath
-    should be reset. If this is false, reset should be held active for
-    sufficient time to flush the pipeline.</li>
 <li><code>--pipeline_stages=5</code> - create a 5 stage pipeline.</li>
 <li><code>--flop_inputs=true</code> and <code>--flop_outputs=true</code> - input and outputs for the
     block are registered.</li>

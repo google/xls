@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_channels/">
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.0">
+      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.2">
     
     
       
@@ -1379,7 +1379,7 @@ tutorial.</p>
 <span class="w">  </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="mi">3</span><span class="o">*</span><span class="n">in</span><span class="p">.</span><span class="n">read</span><span class="p">());</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </code></pre></div>
-<p><strong>NOTE</strong> <code>"/xls_builtin.h"</code> has a <code>\/'</code> in order to reduce the chance of
+<p><strong>NOTE</strong> <code>"/xls_builtin.h"</code> has a <code>/</code> in order to reduce the chance of
 collisions with other include files that may exist on the system.</p>
 <h2 id="configuring-xlscc-for-channel-interfaces">Configuring XLS[cc] for channel interfaces.</h2>
 <p>To support different of channel interfaces, a protofile is provided to XLS[cc]
@@ -1407,7 +1407,7 @@ channels {
   is_input: false
   type: FIFO
 }
-name: &quot;xls_test&quot;`
+name: &quot;xls_test&quot;
 </code></pre></div>
 <p>Then convert it to a protobin. This protobin will be later provided to <code>xlscc</code>
 with <code>--block_pb test_channels.pb</code>.</p>
@@ -1427,12 +1427,11 @@ include paths and pre-define the <code>__SYNTHESIS__</code> name as a macro.</p>
 </code></pre></div>
 <h2 id="translate-into-optimized-xls-ir">Translate into optimized XLS IR.</h2>
 <p>With the above setup complete, XLS IR can now be generated using a sequence of
-<code>xlscc</code> and <code>xls_opt</code>.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/contrib/xlscc/xlscc test_channels.cc \
-  --clang_args_file clang.args \
-  --block_pb test_channels.pb \
-  --dump_ir_only &gt; test_channels.ir
-$ ./bazel-bin/xls/tools/xls_opt test_channels.ir &gt; test_channels.opt.ir
+<code>xlscc</code> and <code>opt_main</code>.</p>
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/contrib/xlscc/xlscc test_channels.cc <span class="se">\</span>
+  --clang_args_file clang.args <span class="se">\</span>
+  --block_pb test_channels.pb &gt; test_channels.ir
+$ ./bazel-bin/xls/tools/opt_main test_channels.ir &gt; test_channels.opt.ir
 </code></pre></div>
 <p>Note that unlike in the prior tutorial, XLS[cc] is used to generate
 <a href="../../ir_semantics/#proc">XLS procs</a>
@@ -1442,26 +1441,26 @@ of channels.</p>
 <p>With the same IR, you can either generate a combinational block or a clocked
 pipelined block with the <code>codegen_main</code> tool. In this section, we'll demonstrate
 how to generate a pipelined block using the above C++ code.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_channels.opt.ir \
-  --generator=pipeline \
-  --delay_model=&quot;sky130&quot; \
-  --output_verilog_path=test_channels.v \
-  --module_name=xls_test \
-  --top_level_proc=xls_test_proc \
-  --reset=rst \
-  --reset_active_low=false \
-  --reset_asynchronous=false \
-  --reset_data_path=true \
-  --pipeline_stages=5  \
-  --flop_inputs=true \
-  --flop_outputs=true \
-  --flop_inputs_kind=skid \
-  --flop_outputs_kind=skid
+<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_channels.opt.ir <span class="se">\</span>
+  --generator<span class="o">=</span>pipeline <span class="se">\</span>
+  --delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span> <span class="se">\</span>
+  --output_verilog_path<span class="o">=</span>test_channels.v <span class="se">\</span>
+  --module_name<span class="o">=</span>xls_test <span class="se">\</span>
+  --top<span class="o">=</span>xls_test_proc <span class="se">\</span>
+  --reset<span class="o">=</span>rst <span class="se">\</span>
+  --reset_active_low<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --reset_asynchronous<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
+  --reset_data_path<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+  --pipeline_stages<span class="o">=</span><span class="m">5</span> <span class="se">\</span>
+  --flop_inputs<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+  --flop_outputs<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
+  --flop_inputs_kind<span class="o">=</span>skid <span class="se">\</span>
+  --flop_outputs_kind<span class="o">=</span>skid
 </code></pre></div>
 <p>Below is a quick summary of the new options.</p>
 <ol>
 <li><code>--delay_model="sky130"</code> - use the sky130 delay model.</li>
-<li><code>--top_level_proc=xls_test_proc</code> - the proc that is the top-level is named
+<li><code>--top=xls_test_proc</code> - the proc that is the top-level is named
     <code>xls_test_proc</code>. This should be the name specified in the textproto given to
     XLS[cc] with a <code>_proc</code> suffix appended.</li>
 <li><code>--flop_inputs_kind=skid</code> and <code>--flop_outputs_kind=skid</code> - control what type
