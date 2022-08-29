@@ -17,9 +17,9 @@ provided.
 
 Create a file called `test.cc` with the following contents.
 
-```c
+```c++
 #pragma hls_top
-int add2(int input) { return input + 2; }
+int add3(int input) { return input + 2; }
 ```
 
 Note that `#pragma hls_top` denotes the top-level function for the module. The
@@ -28,12 +28,12 @@ xls func or proc created will follow that function's interface.
 ## Translate into optimized XLS IR.
 
 Now that the C++ function has been created, `xlscc` can be used to translate the
-C++ into XLS IR. `xls_opt` is used afterwards to optimize and transform the IR
+C++ into XLS IR. `opt_main` is used afterwards to optimize and transform the IR
 into a form more easily synthesized into verilog.
 
 ```
 $ ./bazel-bin/xls/contrib/xlscc/xlscc test.cc > test.ir
-$ ./bazel-bin/xls/tools/xls_opt test.ir > test.opt.ir
+$ ./bazel-bin/xls/tools/opt_main test.ir > test.opt.ir
 ```
 
 The resulting `test.opt.ir` file should look something like the following
@@ -41,9 +41,11 @@ The resulting `test.opt.ir` file should look something like the following
 ```
 package my_package
 
-fn add2(input: bits[32]) -> bits[32] {
-  literal.2: bits[32] = literal(value=2, id=2, pos=[(1,3,3)])
-  ret add.3: bits[32] = add(input, literal.2, id=3, pos=[(1,3,3)])
+file_number 1 "./test.cc"
+
+top fn add3(input: bits[32]) -> bits[32] {
+  literal.2: bits[32] = literal(value=3, id=2, pos=[(1,2,23)])
+  ret add.3: bits[32] = add(input, literal.2, id=3, pos=[(1,2,23)])
 }
 ```
 
@@ -53,13 +55,13 @@ With the same IR, you can either generate a combinational block or a clocked
 pipelined block with the `codegen_main` tool. In this section, we'll demonstrate
 how to generate a combinational block.
 
-```
+```shell
 $ ./bazel-bin/xls/tools/codegen_main test.opt.ir \
   --generator=combinational \
   --delay_model="unit" \
   --output_verilog_path=test.v \
   --module_name=xls_test \
-  --entry=add2
+  --top=add3
 ```
 
 Below is a quick summary of each option:
@@ -72,8 +74,8 @@ Below is a quick summary of each option:
     to.
 4.  `--module_name=xls_test` states that the generated verilog module should
     have the name of `xls_test`.
-5.  `--entry=add2` states that the function that should be used for codegen is
-    the function (`fn`) named `add2`.
+5.  `--top=add3` states that the function that should be used for codegen is
+    the function (`fn`) named `add3`.
 
 The resulting `test.v` should have contents similar to the following
 
@@ -97,7 +99,7 @@ demonstrate loop unrolling.
 Unrolled loops are annotated with `#pragma hls_unroll yes`. For example, create
 a file called `test_unroll.cc` with the following contents.
 
-```c
+```c++
 #pragma hls_top
 int test_unroll(int x) {
   int ret = 0;
@@ -113,7 +115,7 @@ Then compile, and optimize the resulting IR
 
 ```
 $ ./bazel-bin/xls/contrib/xlscc/xlscc test_unroll.cc > test_unroll.ir
-$ ./bazel-bin/xls/tools/xls_opt test_unroll.ir > test_unroll.opt.ir
+$ ./bazel-bin/xls/tools/opt_main test_unroll.ir > test_unroll.opt.ir
 ```
 
 ## Perform code-generation into a pipelined Verilog block.
@@ -123,7 +125,7 @@ The previous section should have left you with an IR file called
 bits[32]) -> bits[32]`. The function is likely too large to fit into a single
 clock cycle so we'll create a pipelined module.
 
-```
+```shell
 $ ./bazel-bin/xls/tools/codegen_main test_unroll.opt.ir \
   --generator=pipeline \
   --delay_model="asap7" \
@@ -133,8 +135,7 @@ $ ./bazel-bin/xls/tools/codegen_main test_unroll.opt.ir \
   --reset=rst \
   --reset_active_low=false \
   --reset_asynchronous=false \
-  --reset_data_path=true
-  --pipeline_stages=5  \
+  --pipeline_stages=5 \
   --flop_inputs=true \
   --flop_outputs=true
 ```
@@ -152,9 +153,6 @@ Below is a quick summary of each option:
 6.  `--reset=rst` - there should be a reset signal named `rst`.
 7.  `--reset_active_low=false` - a high reset signal means reset the module.
 8.  `--reset_asynchronous=false` - rst is a synchronous reset signal.
-9.  `--rest_data_path=true` - all registers including those on the datapath
-    should be reset. If this is false, reset should be held active for
-    sufficient time to flush the pipeline.
-10. `--pipeline_stages=5` - create a 5 stage pipeline.
-11. `--flop_inputs=true` and `--flop_outputs=true` - input and outputs for the
+9.  `--pipeline_stages=5` - create a 5 stage pipeline.
+10. `--flop_inputs=true` and `--flop_outputs=true` - input and outputs for the
     block are registered.

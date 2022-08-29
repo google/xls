@@ -52,7 +52,7 @@ fn hello_xls(hello_string: u8[11]) {
 Let's go over this, line-by-line:
 
 1.  This first line declares a fn (`fn`) named "`hello_xls`". This function
-    accepts an array of eight characters (u8) called `hello_string`, and returns
+    accepts an array of eleven characters (u8) called `hello_string`, and returns
     no value (the return type would be specified after the argument list's
     closing parenthesis and before the function-opening curly brace, if the
     function returned a value).

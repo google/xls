@@ -18,7 +18,7 @@ To utilize channels include the special xls\_builtin header file: `#include
 An example of a usage is below, which reads an integer on the input channel,
 multiplies it by 3, and writes it to the output channel.
 
-```c
+```c++
 #include "/xls_builtin.h"
 
 #pragma hls_top
@@ -44,7 +44,7 @@ To utilize fixed with integer types, include
 Create a `test_channels.cc` with the following contents for the rest of this
 tutorial.
 
-```c
+```c++
 #include "/xls_builtin.h"
 #include "xls_int.h"
 
@@ -55,7 +55,7 @@ void test_channels(__xls_channel<XlsInt<17, false>>& in,
 }
 ```
 
-**NOTE** `"/xls_builtin.h"` has a `\/'` in order to reduce the chance of
+**NOTE** `"/xls_builtin.h"` has a `/` in order to reduce the chance of
 collisions with other include files that may exist on the system.
 
 ## Configuring XLS[cc] for channel interfaces.
@@ -73,7 +73,7 @@ The below textproto specifies that
 
 Create a file `test_channels.textproto` with the following contents.
 
-```
+```textproto
 channels {
   name: "in"
   is_input: true
@@ -84,7 +84,7 @@ channels {
   is_input: false
   type: FIFO
 }
-name: "xls_test"`
+name: "xls_test"
 ```
 
 Then convert it to a protobin. This protobin will be later provided to `xlscc`
@@ -100,7 +100,7 @@ XLS[cc] fixed-width integers have a dependency on the `ac_datatypes` library.
 Clone the repository (https://github.com/hlslibs) into a directory named
 `ac_datatypes`.
 
-```
+```shell
 git clone https://github.com/hlslibs/ac_types.git ac_datatypes
 ```
 
@@ -116,14 +116,13 @@ include paths and pre-define the `__SYNTHESIS__` name as a macro.
 ## Translate into optimized XLS IR.
 
 With the above setup complete, XLS IR can now be generated using a sequence of
-`xlscc` and `xls_opt`.
+`xlscc` and `opt_main`.
 
-```
+```shell
 $ ./bazel-bin/xls/contrib/xlscc/xlscc test_channels.cc \
   --clang_args_file clang.args \
-  --block_pb test_channels.pb \
-  --dump_ir_only > test_channels.ir
-$ ./bazel-bin/xls/tools/xls_opt test_channels.ir > test_channels.opt.ir
+  --block_pb test_channels.pb > test_channels.ir
+$ ./bazel-bin/xls/tools/opt_main test_channels.ir > test_channels.opt.ir
 ```
 
 Note that unlike in the prior tutorial, XLS[cc] is used to generate
@@ -137,18 +136,18 @@ With the same IR, you can either generate a combinational block or a clocked
 pipelined block with the `codegen_main` tool. In this section, we'll demonstrate
 how to generate a pipelined block using the above C++ code.
 
-```
+```shell
 $ ./bazel-bin/xls/tools/codegen_main test_channels.opt.ir \
   --generator=pipeline \
   --delay_model="sky130" \
   --output_verilog_path=test_channels.v \
   --module_name=xls_test \
-  --top_level_proc=xls_test_proc \
+  --top=xls_test_proc \
   --reset=rst \
   --reset_active_low=false \
   --reset_asynchronous=false \
   --reset_data_path=true \
-  --pipeline_stages=5  \
+  --pipeline_stages=5 \
   --flop_inputs=true \
   --flop_outputs=true \
   --flop_inputs_kind=skid \
@@ -158,7 +157,7 @@ $ ./bazel-bin/xls/tools/codegen_main test_channels.opt.ir \
 Below is a quick summary of the new options.
 
 1.  `--delay_model="sky130"` - use the sky130 delay model.
-2.  `--top_level_proc=xls_test_proc` - the proc that is the top-level is named
+2.  `--top=xls_test_proc` - the proc that is the top-level is named
     `xls_test_proc`. This should be the name specified in the textproto given to
     XLS[cc] with a `_proc` suffix appended.
 3.  `--flop_inputs_kind=skid` and `--flop_outputs_kind=skid` - control what type
