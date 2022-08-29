@@ -491,6 +491,7 @@ py_test(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
+        ":cli_helpers",
         ":run_fuzz",
         ":sample_runner",
         "//xls/common:gfile",

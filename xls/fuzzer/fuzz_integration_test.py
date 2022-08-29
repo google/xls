@@ -26,6 +26,7 @@ from absl import logging
 
 from absl.testing import absltest
 from xls.common import gfile
+from xls.fuzzer import cli_helpers
 from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
@@ -39,6 +40,8 @@ _USE_NONDETERMINISTIC_SEED = flags.DEFINE_bool(
 _SEED = flags.DEFINE_integer('seed', 0, 'Seed value for generation')
 _SAMPLE_COUNT = flags.DEFINE_integer('sample_count', 10,
                                      'Number of samples to generate')
+_DURATION = flags.DEFINE_string('duration', None,
+                                'Duration to run the fuzzer for.')
 _CALLS_PER_SAMPLE = flags.DEFINE_integer('calls_per_sample', 128,
                                          'Arguments to generate per sample')
 _SIMULATE = flags.DEFINE_boolean('simulate', False, 'Run Verilog simulation.')
@@ -127,9 +130,24 @@ class FuzzIntegrationTest(absltest.TestCase):
 
     crasher_count = 0
     sample_count = 0
-    for i in range(_SAMPLE_COUNT.value):
+    start = datetime.datetime.now()
+    duration = None if _DURATION.value is None else cli_helpers.parse_duration(
+        _DURATION.value)
+
+    def keep_going() -> bool:
+      if duration is None:
+        done = sample_count >= _SAMPLE_COUNT.value
+        if done:
+          logging.info('Generated target number of samples. Exiting.')
+      else:
+        done = datetime.datetime.now() - start >= duration
+        if done:
+          logging.info('Ran for target duration of %s. Exiting.', duration)
+      return not done
+
+    while keep_going():
+      logging.info('Running sample %d', sample_count)
       sample_count += 1
-      logging.info('Running sample %d', i)
       sample = ast_generator.generate_sample(generator_options,
                                              _CALLS_PER_SAMPLE.value,
                                              default_sample_options, rng)
