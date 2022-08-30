@@ -142,7 +142,7 @@ xls_dslx_opt_ir(
     name = "aes_128_ctr",
     dslx_top = "aes_128_ctr",
     ir_conv_args = {
-        "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0], 0), 0, 0)'",
+        "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0], 0, 0), 0, 0)'",
     },
     library = ":aes_128_ctr_dslx",
 )
@@ -192,4 +192,24 @@ xls_dslx_test(
         "compare": "none",
     },
     library = ":aes_128_ghash_dslx",
+)
+
+xls_dslx_library(
+    name = "aes_128_gcm_dslx",
+    srcs = ["aes_128_gcm.x"],
+    deps = [
+        ":aes_128_common_dslx",
+        ":aes_128_ctr_dslx",
+        ":aes_128_dslx",
+        ":aes_128_ghash_dslx",
+    ],
+)
+
+xls_dslx_test(
+    name = "aes_128_gcm_dslx_test",
+    # TODO(rspringer): Remove when GitHub issue #673 is resolved.
+    dslx_test_args = {
+        "compare": "none",
+    },
+    library = ":aes_128_gcm_dslx",
 )

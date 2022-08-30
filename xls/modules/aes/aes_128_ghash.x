@@ -21,12 +21,7 @@ import xls.modules.aes.aes_128_common
 type Block = aes_128_common::Block;
 type Key = aes_128_common::Key;
 
-const ZERO_BLOCK = Block:[
-    u32:0 as u8[4],
-    u32:0 as u8[4],
-    u32:0 as u8[4],
-    u32:0 as u8[4],
-];
+const ZERO_BLOCK = aes_128_common::ZERO_BLOCK;
 
 // Simply linearizes a block of data.
 fn block_to_u128(x: Block) -> uN[128] {
@@ -150,7 +145,7 @@ fn gf128_mul_test() {
 
 // Describes the inputs to the GHASH function/proc.
 // TODO(rspringer): Make more flexible: enable partial AAD and ciphertext blocks.
-struct Command {
+pub struct Command {
     // The number of complete blocks of additional authentication data (AAD).
     aad_blocks: u32,
 
@@ -170,7 +165,7 @@ enum Step : u2 {
 }
 
 // The carried state of the GHASH proc.
-struct State {
+pub struct State {
     // The current FSM step, as above.
     step: Step,
 
@@ -183,16 +178,6 @@ struct State {
     // The output of the last state of the proc. Once all blocks plus the final
     // "lengths" block have been hashed, this is the output of the proc.
     last_tag: Block,
-}
-
-// Convenience function to XOR two blocks.
-fn xor_block(a: Block, b: Block) -> Block {
-    Block:[
-        (a[0] as u32 ^ b[0] as u32) as u8[4],
-        (a[1] as u32 ^ b[1] as u32) as u8[4],
-        (a[2] as u32 ^ b[2] as u32) as u8[4],
-        (a[3] as u32 ^ b[3] as u32) as u8[4],
-    ]
 }
 
 // Creates a zero-valued State struct, suitable for proc initialization.
@@ -240,7 +225,7 @@ fn get_current_state(state: State, command: Command) -> State {
 // command and will consume a block of input, either AAD or ciphertext, per
 // "tick" (read from the same channel). Once complete, the resulting tag will be
 // sent on the provided output channel.
-proc aes_128_ghash {
+pub proc aes_128_ghash {
     command_in: chan in Command;
     input_in: chan in Block;
     tag_out: chan out Block;
@@ -252,8 +237,6 @@ proc aes_128_ghash {
     next(tok: token, state: State) {
         let (tok, command) = recv_if(tok, command_in, state.step == Step::IDLE);
         let state = get_current_state(state, command);
-        let _ = trace_fmt!("Step: {:d}", state.step as u32);
-        let _ = trace_fmt!(" - IBL: {:d}", state.input_blocks_left);
 
         // Get the current working block and update block counts.
         let (tok, input_block) = recv_if(tok, input_in, state.step == Step::RECV_INPUT);
@@ -269,7 +252,7 @@ proc aes_128_ghash {
         // Will underflow when state.step == Step::HASH_LENGTHS, but it doesn't matter.
         let input_blocks_left = state.input_blocks_left - u32:1;
 
-        let last_tag = gf128_mul(xor_block(state.last_tag, block), state.command.hash_key);
+        let last_tag = gf128_mul(aes_128_common::xor_block(state.last_tag, block), state.command.hash_key);
         let tok = send_if(tok, tag_out, state.step == Step::HASH_LENGTHS, last_tag);
 
         let new_step = match (state.step, input_blocks_left == u32:0) {

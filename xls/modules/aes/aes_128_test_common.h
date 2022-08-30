@@ -33,12 +33,12 @@ constexpr int32_t kKeyBytes = kKeyBits / std::numeric_limits<uint8_t>::digits;
 constexpr int32_t kBlockBits = 128;
 constexpr int32_t kBlockBytes =
     kBlockBits / std::numeric_limits<uint8_t>::digits;
-constexpr int32_t kInitialValueBits = 96;
-constexpr int32_t kInitialValueBytes =
-    kInitialValueBits / std::numeric_limits<uint8_t>::digits;
+constexpr int32_t kInitialVectorBits = 96;
+constexpr int32_t kInitialVectorBytes =
+    kInitialVectorBits / std::numeric_limits<uint8_t>::digits;
 
 using Block = std::array<uint8_t, kBlockBytes>;
-using InitVector = std::array<uint8_t, kInitialValueBytes>;
+using InitVector = std::array<uint8_t, kInitialVectorBytes>;
 
 // Returns a string representation of the given key in a format suitable for
 // printing/debugging.

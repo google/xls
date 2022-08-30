@@ -120,6 +120,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
     XLS_ASSIGN_OR_RETURN(Value key_value, Value::Array(key_elements));
     initial_command_elements.push_back(key_value);
     initial_command_elements.push_back(Value(UBits(0, 96)));
+    initial_command_elements.push_back(Value(UBits(0, 32)));
   }
   state.push_back(Value::Tuple(initial_command_elements));
   // Ctr.
@@ -127,7 +128,6 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   // Blocks left.
   state.push_back(Value(UBits(0, 32)));
 
-  // Prep the queues for the first
   // TODO(rspringer): Find a better way to collect queue IDs than IR inspection:
   // numbering is not guaranteed! Perhaps GetQueueByName?
   // TODO(rspringer): This is not safe! We're mapping between native and XLS
@@ -139,6 +139,8 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
     uint32_t padding;
     std::array<uint8_t, kIvBytes> init_vector;
     uint32_t padding_2;
+    uint32_t initial_ctr;
+    uint32_t padding_3;
   };
   uint32_t num_blocks = sample_data.input_blocks.size();
   uint32_t num_bytes = num_blocks * kBlockBytes;
@@ -146,6 +148,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   command.msg_bytes = num_bytes;
   KeyToBuffer(sample_data.key, &command.key);
   IvToBuffer(sample_data.iv, &command.init_vector);
+  command.initial_ctr = 0;
 
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));

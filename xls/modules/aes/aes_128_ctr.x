@@ -19,11 +19,11 @@ import xls.modules.aes.aes_128
 import xls.modules.aes.aes_128_common
 
 type Block = aes_128_common::Block;
+type InitVector = aes_128_common::InitVector;
 type Key = aes_128_common::Key;
-type InitVector = uN[96];
 
-// The command sent to the encoding proc at the beginning of processing.
-struct Command {
+// The command sent to the encrypting proc at the beginning of processing.
+pub struct Command {
     // The number of bytes to expect in the incoming message.
     // At present, this number must be a multiple of 128.
     msg_bytes: u32,
@@ -33,20 +33,39 @@ struct Command {
 
     // The initialization vector for the operation.
     iv: InitVector,
+
+    // The initial counter value. When used standalone, this should be 0, but
+    // when used as part of GCM, we start encrypting the plaintext with a
+    // counter value of 2.
+    initial_ctr: u32,
 }
 
 // The current FSM state of the encoding block.
-enum Step : bool {
+pub enum Step : bool {
   IDLE = 0,
   PROCESSING = 1,
 }
 
 // The recurrent state of the proc.
-struct State {
+pub struct State {
   step: Step,
   command: Command,
   ctr: uN[32],
   blocks_left: uN[32],
+}
+
+pub fn initial_state() -> State {
+    State {
+        step: Step::IDLE,
+        command: Command {
+            msg_bytes: u32:0,
+            key: Key:[u32:0, ...],
+            iv: InitVector:uN[96]:0,
+            initial_ctr: u32:0,
+        },
+        ctr: uN[32]:0,
+        blocks_left: uN[32]:0,
+    }
 }
 
 // Performs the actual work of encrypting (or decrypting!) a block in CTR mode.
@@ -70,7 +89,7 @@ fn aes_128_ctr_encrypt(key: Key, ctr: uN[128], block: Block) -> Block {
 }
 
 // Note that encryption and decryption are the _EXACT_SAME_PROCESS_!
-proc aes_128_ctr {
+pub proc aes_128_ctr {
     command_in: chan in Command;
     ptxt_in: chan in Block;
     ctxt_out: chan out Block;
@@ -85,17 +104,19 @@ proc aes_128_ctr {
 
         let (tok, cmd) = recv_if(tok, command_in, step == Step::IDLE);
         let cmd = if step == Step::IDLE { cmd } else { state.command };
-        let ctr = if step == Step::IDLE { u32:0 } else { state.ctr };
+        let ctr = if step == Step::IDLE { cmd.initial_ctr } else { state.ctr };
+        let blocks_left = if step == Step::IDLE {
+            std::ceil_div(cmd.msg_bytes, u32:16)
+        } else {
+            state.blocks_left
+        };
         let full_ctr = cmd.iv ++ ctr;
 
-        // TODO(rspringer): Only recv if cmd specifies non-zero blocks!
-        let (tok, block) = recv(tok, ptxt_in);
+        let (tok, block) = recv_if(tok, ptxt_in, blocks_left != u32:0);
         let ctxt = aes_128_ctr_encrypt(cmd.key, full_ctr, block);
         let tok = send(tok, ctxt_out, ctxt);
 
-        let blocks_left =
-            if step == Step::IDLE { std::ceil_div(cmd.msg_bytes, u32:16) - u32:1 }
-            else { state.blocks_left - u32:1 };
+        let blocks_left = blocks_left - u32:1;
         let step = if blocks_left == u32:0 { Step::IDLE } else { Step::PROCESSING };
 
         // We don't have to worry about ctr overflowing (which would result in an
@@ -124,6 +145,7 @@ proc aes_128_ctr_test {
                 msg_bytes: u32:0,
                 key: Key:[ u32:0, u32:0, u32:0, u32:0 ],
                 iv: InitVector:0,
+                initial_ctr: u32:0,
             },
             ctr: uN[32]:0,
             blocks_left: u32:0,
@@ -149,6 +171,7 @@ proc aes_128_ctr_test {
             msg_bytes: u32:32,
             key: key,
             iv: iv,
+            initial_ctr: u32:0,
         };
         let tok = send(tok, command_out, cmd);
 
@@ -189,6 +212,7 @@ proc aes_128_ctr_test {
             msg_bytes: u32:16,
             key: key,
             iv: iv,
+            initial_ctr: u32:0,
         };
 
         let tok = send(tok, command_out, cmd);
@@ -213,6 +237,7 @@ proc aes_128_ctr_test {
             msg_bytes: u32:16,
             key: key,
             iv: iv,
+            initial_ctr: u32:0,
         };
         let tok = send(tok, command_out, cmd);
         let ciphertext_0 = Block:[
