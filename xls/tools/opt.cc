@@ -23,10 +23,10 @@
 
 namespace xls::tools {
 
-absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
-                                               const OptOptions& options) {
-  if (!options.entry.empty()) {
-    XLS_VLOG(3) << "OptimizeIrForEntry; entry: '" << options.entry
+absl::StatusOr<std::string> OptimizeIrForTop(absl::string_view ir,
+                                             const OptOptions& options) {
+  if (!options.top.empty()) {
+    XLS_VLOG(3) << "OptimizeIrForEntry; top: '" << options.top
                 << "'; opt_level: " << options.opt_level;
   } else {
     XLS_VLOG(3) << "OptimizeIrForEntry; opt_level: " << options.opt_level;
@@ -34,8 +34,8 @@ absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir, options.ir_path));
-  if (!options.entry.empty()) {
-    XLS_RETURN_IF_ERROR(package->SetTopByName(options.entry));
+  if (!options.top.empty()) {
+    XLS_RETURN_IF_ERROR(package->SetTopByName(options.top));
   }
   std::optional<FunctionBase*> top = package->GetTop();
   if (!top.has_value()) {

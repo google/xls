@@ -74,7 +74,7 @@ absl::Status RealMain(absl::string_view input_path) {
     input_path = "/dev/stdin";
   }
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
-  std::string entry = absl::GetFlag(FLAGS_top);
+  std::string top = absl::GetFlag(FLAGS_top);
   std::string ir_dump_path = absl::GetFlag(FLAGS_ir_dump_path);
   std::vector<std::string> run_only_passes =
       absl::GetFlag(FLAGS_run_only_passes);
@@ -82,7 +82,7 @@ absl::Status RealMain(absl::string_view input_path) {
       absl::GetFlag(FLAGS_convert_array_index_to_select);
   const OptOptions options = {
       .opt_level = absl::GetFlag(FLAGS_opt_level),
-      .entry = entry,
+      .top = top,
       .ir_dump_path = ir_dump_path,
       .run_only_passes = run_only_passes.empty()
                              ? absl::nullopt
@@ -95,7 +95,7 @@ absl::Status RealMain(absl::string_view input_path) {
       .inline_procs = absl::GetFlag(FLAGS_inline_procs),
   };
   XLS_ASSIGN_OR_RETURN(std::string opt_ir,
-                       tools::OptimizeIrForEntry(ir, options));
+                       tools::OptimizeIrForTop(ir, options));
   std::cout << opt_ir;
   return absl::OkStatus();
 }

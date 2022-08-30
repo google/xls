@@ -42,7 +42,7 @@ Emit delay information about a function including per-stage critical path
 information:
    delay_info_main --delay_model=unit \
      --schedule_path=SCHEDULE_FILE \
-     --entry=ENTRY \
+     --top=ENTRY \
      IR_FILE
 )";
 

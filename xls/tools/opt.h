@@ -33,7 +33,7 @@ namespace xls::tools {
 // this consolidated library).
 struct OptOptions {
   int64_t opt_level = xls::kMaxOptLevel;
-  absl::string_view entry;
+  absl::string_view top;
   std::string ir_dump_path = "";
   std::optional<std::string> ir_path = absl::nullopt;
   std::optional<std::vector<std::string>> run_only_passes = absl::nullopt;
@@ -43,10 +43,10 @@ struct OptOptions {
 };
 
 // Helper used in the opt_main tool, optimizes the given IR for a particular
-// entry point function at the given opt level and returns the resulting
-// optimized IR.
-absl::StatusOr<std::string> OptimizeIrForEntry(absl::string_view ir,
-                                               const OptOptions& options);
+// top-level entity (e.g., function, proc, etc) at the given opt level and
+// returns the resulting optimized IR.
+absl::StatusOr<std::string> OptimizeIrForTop(absl::string_view ir,
+                                             const OptOptions& options);
 
 }  // namespace xls::tools
 

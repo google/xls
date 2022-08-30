@@ -68,10 +68,10 @@ absl::StatusOr<std::string> ConvertDslxPathToIr(
     std::filesystem::path path, absl::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
-// Optimizes the generated XLS IR with the given entry point (which should be a
-// function present inside the IR text).
+// Optimizes the generated XLS IR with the given top-level entity (e.g.,
+// function, proc, etc).
 absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
-                                       absl::string_view entry);
+                                       absl::string_view top);
 
 // Mangles the given DSL module/function name combination so it can be resolved
 // as a corresponding symbol in converted IR.

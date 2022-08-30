@@ -64,12 +64,12 @@ absl::StatusOr<std::string> ConvertDslxPathToIr(
 }
 
 absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
-                                       absl::string_view entry) {
+                                       absl::string_view top) {
   const tools::OptOptions options = {
       .opt_level = xls::kMaxOptLevel,
-      .entry = entry,
+      .top = top,
   };
-  return tools::OptimizeIrForEntry(ir, options);
+  return tools::OptimizeIrForTop(ir, options);
 }
 
 absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,

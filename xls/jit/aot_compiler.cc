@@ -39,7 +39,7 @@
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
 ABSL_FLAG(std::string, top, "",
           "IR function to compile. "
-          "If unspecified, the package entry function will be used - "
+          "If unspecified, the package top function will be used - "
           "in that case, the package-scoping mangling will be removed.");
 ABSL_FLAG(std::string, namespaces, "",
           "Comma-separated list of namespaces into which to place the "
