@@ -606,6 +606,8 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
             inputs[0]->AsIndexableExpressionOrDie();
         int64_t input_array_size =
             slice->array()->GetType()->AsArrayOrDie()->size();
+        Type* array_element_type =
+            slice->array()->GetType()->AsArrayOrDie()->element_type();
 
         // If the start value is too narrow to hold the maximum index value of
         // the input array, zero-extend it to avoid overflows in the necessary
@@ -657,11 +659,14 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
                     node->loc()),
                 node->loc());
           }
-          assignment_section()->Add<ContinuousAssignment>(
-              node->loc(),
+          XLS_RETURN_IF_ERROR(AddAssignment(
+              array_element_type,
               file_->Index(ref, file_->PlainLiteral(i, node->loc()),
                            node->loc()),
-              element);
+              element, [&](Expression* lhs, Expression* rhs) {
+                assignment_section()->Add<ContinuousAssignment>(node->loc(),
+                                                                lhs, rhs);
+              }));
         }
         break;
       }

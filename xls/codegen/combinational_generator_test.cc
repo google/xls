@@ -1621,6 +1621,43 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, TwoDArraySlice) {
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* u32 = package.GetBitsType(32);
+  Type* a2_u32 = package.GetArrayType(2, u32);
+  Type* a2x3_u32 = package.GetArrayType(3, a2_u32);
+  BValue a = fb.Param("a", a2x3_u32);
+  BValue start = fb.Param("start", package.GetBitsType(16));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.BuildWithReturnValue(fb.ArraySlice(
+                                             a, start, /*width=*/2)));
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator(result.signature, result.verilog_text,
+                            GetFileType(), GetSimulator());
+  XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
+                           Value::UBits2DArray({{1, 2}, {3, 4}, {5, 6}}, 32));
+
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 16))}}),
+              IsOkAndHolds(Value::UBits2DArray({{1, 2}, {3, 4}}, 32).value()));
+
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 16))}}),
+              IsOkAndHolds(Value::UBits2DArray({{3, 4}, {5, 6}}, 32).value()));
+
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(2, 16))}}),
+              IsOkAndHolds(Value::UBits2DArray({{5, 6}, {5, 6}}, 32).value()));
+
+  EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(10, 16))}}),
+              IsOkAndHolds(Value::UBits2DArray({{5, 6}, {5, 6}}, 32).value()));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

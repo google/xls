@@ -1,0 +1,19 @@
+module TwoDArraySlice(
+  input wire [191:0] a,
+  input wire [15:0] start,
+  output wire [127:0] out
+);
+  wire [31:0] a_unflattened[0:2][0:1];
+  assign a_unflattened[0][0] = a[31:0];
+  assign a_unflattened[0][1] = a[63:32];
+  assign a_unflattened[1][0] = a[95:64];
+  assign a_unflattened[1][1] = a[127:96];
+  assign a_unflattened[2][0] = a[159:128];
+  assign a_unflattened[2][1] = a[191:160];
+  wire [31:0] array_slice_6[0:1][0:1];
+  assign array_slice_6[0][0] = a_unflattened[start > 16'h0002 ? 16'h0002 : start + 16'h0000][0];
+  assign array_slice_6[0][1] = a_unflattened[start > 16'h0002 ? 16'h0002 : start + 16'h0000][1];
+  assign array_slice_6[1][0] = a_unflattened[start > 16'h0001 ? 16'h0002 : start + 16'h0001][0];
+  assign array_slice_6[1][1] = a_unflattened[start > 16'h0001 ? 16'h0002 : start + 16'h0001][1];
+  assign out = {{array_slice_6[1][1], array_slice_6[1][0]}, {array_slice_6[0][1], array_slice_6[0][0]}};
+endmodule
