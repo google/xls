@@ -25,7 +25,10 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/codegen_options.h"
+#include "xls/codegen/module_signature.h"
 #include "xls/codegen/vast.h"
+#include "xls/simulation/module_simulator.h"
+#include "xls/simulation/module_testbench.h"
 #include "xls/simulation/verilog_simulator.h"
 #include "xls/simulation/verilog_simulators.h"
 
@@ -115,8 +118,28 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
     return parts.front();
   }
 
-  // Returns a CodegenOptions data structure with the system verilog option set
-  // to the test param value.
+  // Returns a newly created VerilogFile of the type (SystemVerilog or Verilog)
+  // indicated by the TestParam.
+  VerilogFile NewVerilogFile() { return VerilogFile(GetFileType()); }
+
+  // Returns a module testbench for testing the given verilog and signature. The
+  // underlying simulator and file type is determined by the test parameters.
+  ModuleTestbench NewModuleTestbench(
+      absl::string_view verilog_text, const ModuleSignature& signature,
+      absl::Span<const VerilogInclude> includes = {}) {
+    return ModuleTestbench(verilog_text, GetFileType(), signature,
+                           GetSimulator(), includes);
+  }
+
+  ModuleSimulator NewModuleSimulator(
+      absl::string_view verilog_text, const ModuleSignature& signature,
+      absl::Span<const VerilogInclude> includes = {}) {
+    return ModuleSimulator(signature, verilog_text, GetFileType(),
+                           GetSimulator(), includes);
+  }
+
+  // Returns a CodegenOptions data structure with the system verilog option
+  // set to the test param value.
   CodegenOptions codegen_options() {
     return CodegenOptions().use_system_verilog(UseSystemVerilog());
   }
@@ -130,6 +153,8 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   // codegen target language as determined by the test parameters.
   bool UseSystemVerilog() const { return GetParam().use_system_verilog; }
 
+  // Returns the type of file (SystemVerilog or Verilog) being tested by this
+  // test instance.
   FileType GetFileType() const {
     return UseSystemVerilog() ? FileType::kSystemVerilog : FileType::kVerilog;
   }

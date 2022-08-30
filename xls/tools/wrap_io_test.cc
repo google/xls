@@ -35,7 +35,7 @@ constexpr char kTestdataPath[] = "xls/tools/testdata";
 class WrapIoTest : public VerilogTestBase {};
 
 TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
 
   const std::string kWrappedModuleName = "device_to_wrap";
   Module* wrapped_m = file.AddModule("device_to_wrap", SourceInfo());
@@ -64,7 +64,7 @@ TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
 }
 
 TEST_P(WrapIoTest, WrapIoIncrement8b) {
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
 
   const std::string kWrappedModuleName = TestBaseName();
   Module* wrapped_m = file.AddModule(kWrappedModuleName, SourceInfo());
@@ -100,7 +100,7 @@ TEST_P(WrapIoTest, WrapIoIncrement8b) {
 }
 
 TEST_P(WrapIoTest, WrapIoNot16b) {
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
 
   const std::string kWrappedModuleName = TestBaseName();
   Module* wrapped_m = file.AddModule(kWrappedModuleName, SourceInfo());
@@ -140,7 +140,7 @@ TEST_P(WrapIoTest, WrapIoNot16b) {
 }
 
 TEST_P(WrapIoTest, InputShiftRegisterTest) {
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/16, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -175,7 +175,7 @@ TEST_P(WrapIoTest, InputShiftRegisterTest) {
 
 TEST_P(WrapIoTest, OneByteShiftRegisterTest) {
   // Verify the input shift register works when it is only a byte wide.
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/8, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -210,7 +210,7 @@ TEST_P(WrapIoTest, OneByteShiftRegisterTest) {
 
 TEST_P(WrapIoTest, ThreeBitShiftRegisterTest) {
   // Verify the input shift register can handle small inputs (3 bits).
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/3, &file));
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -236,7 +236,7 @@ TEST_P(WrapIoTest, ThreeBitShiftRegisterTest) {
 }
 
 TEST_P(WrapIoTest, OddBitWidthShiftRegisterTest) {
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   // 57 bits is 7 bytes with a bit left over. The left over bit (MSb) is written
   // in first.
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
@@ -264,7 +264,7 @@ TEST_P(WrapIoTest, OddBitWidthShiftRegisterTest) {
 }
 
 TEST_P(WrapIoTest, InputResetModuleTest) {
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputResetModule(&file));
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -317,7 +317,7 @@ TEST_P(WrapIoTest, InputControllerForSimpleComputation) {
   mb.AddDataOutput("sum", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -345,7 +345,7 @@ TEST_P(WrapIoTest, InputControllerResetControlCode) {
   mb.AddDataOutput("sum", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -380,7 +380,7 @@ TEST_P(WrapIoTest, InputControllerEscapedCharacters) {
   mb.AddDataOutput("sum", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -417,7 +417,7 @@ TEST_P(WrapIoTest, InputControllerWideInput) {
   mb.AddDataOutput("out", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputControllerModule(signature, &file));
 
   ModuleTestbench tb(m, GetSimulator(), /*clk_name=*/"clk");
@@ -458,7 +458,7 @@ TEST_P(WrapIoTest, OutputControllerForSimpleComputation) {
   mb.AddDataOutput("out", 32);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
-  VerilogFile file(GetFileType());
+  VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            OutputControllerModule(signature, &file));
 

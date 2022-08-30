@@ -107,8 +107,8 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(ModuleSimulator::BitsMap()),
               IsOkAndHolds(UBits(42, 32)));
 }
@@ -135,8 +135,8 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(
       simulator.Run(absl::flat_hash_map<std::string, Value>()),
       IsOkAndHolds(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))})));
@@ -159,8 +159,8 @@ TEST_P(PipelineGeneratorTest, ReturnEmptyTuple) {
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({})));
 }
@@ -182,8 +182,8 @@ TEST_P(PipelineGeneratorTest, NestedEmptyTuple) {
           schedule, func,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({Value::Tuple({})})));
 }
@@ -208,8 +208,8 @@ TEST_P(PipelineGeneratorTest, TakesEmptyTuple) {
           schedule, f,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
                              {"b", Value::Tuple({})},
                              {"c", Value(UBits(100, 8))}}),
@@ -232,8 +232,8 @@ TEST_P(PipelineGeneratorTest, PassesEmptyTuple) {
           schedule, f,
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
               IsOkAndHolds(Value::Tuple({})));
 }
@@ -260,8 +260,8 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(
                   Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))})));
@@ -309,8 +309,8 @@ TEST_P(PipelineGeneratorTest, PassThroughArray) {
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   Value array = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   EXPECT_THAT(simulator.Run({{"x", array}}), IsOkAndHolds(array));
@@ -341,8 +341,8 @@ TEST_P(PipelineGeneratorTest, TupleOfArrays) {
 
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   Value array_0 = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   Value array_1 = Value::ArrayOrDie({Value(UBits(4, 16)), Value(UBits(5, 16))});
@@ -374,8 +374,8 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   Value inner_array_0 = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   Value inner_array_1 = Value::ArrayOrDie(
@@ -831,8 +831,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsAndOutputs) {
                                  result.verilog_text);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -863,8 +863,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsNotOutputs) {
                                  result.verilog_text);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -895,8 +895,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopOutputsNotInputs) {
                                  result.verilog_text);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -927,8 +927,8 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
                                  result.verilog_text);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 1);
 
-  ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));

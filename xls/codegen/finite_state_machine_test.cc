@@ -34,7 +34,7 @@ constexpr char kTestdataPath[] = "xls/codegen/testdata";
 class FiniteStateMachineTest : public VerilogTestBase {};
 
 TEST_P(FiniteStateMachineTest, TrivialFsm) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -52,7 +52,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsm) {
 }
 
 TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -80,7 +80,7 @@ TEST_P(FiniteStateMachineTest, TrivialFsmWithOutputs) {
 }
 
 TEST_P(FiniteStateMachineTest, SimpleFsm) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -118,7 +118,7 @@ TEST_P(FiniteStateMachineTest, SimpleFsm) {
 }
 
 TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -160,7 +160,7 @@ TEST_P(FiniteStateMachineTest, FsmWithNestedLogic) {
 }
 
 TEST_P(FiniteStateMachineTest, CounterFsm) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -185,7 +185,7 @@ TEST_P(FiniteStateMachineTest, CounterFsm) {
 }
 
 TEST_P(FiniteStateMachineTest, ComplexFsm) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -237,7 +237,7 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
   // different states. Verify the proper insertion of assignment of default
   // values to the outputs such that each code path has exactly one assignment
   // per output.
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -307,7 +307,7 @@ TEST_P(FiniteStateMachineTest, OutputAssignments) {
 }
 
 TEST_P(FiniteStateMachineTest, MultipleAssignments) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =
@@ -333,7 +333,7 @@ TEST_P(FiniteStateMachineTest, MultipleAssignments) {
 }
 
 TEST_P(FiniteStateMachineTest, MultipleConditionalAssignments) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* module = f.Add(f.Make<Module>(SourceInfo(), TestBaseName()));
 
   LogicRef* clk =

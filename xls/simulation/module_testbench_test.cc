@@ -71,7 +71,7 @@ class ModuleTestbenchTest : public VerilogTestBase {
 };
 
 TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -84,7 +84,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipeline) {
 }
 
 TEST_P(ModuleTestbenchTest, WaitForXAndNotX) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -97,7 +97,7 @@ TEST_P(ModuleTestbenchTest, WaitForXAndNotX) {
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f, 128);
 
   Bits input1 = bits_ops::Concat(
@@ -115,7 +115,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithWideInput) {
 }
 
 TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   // Drive the pipeline with a valid value, then X, then another valid
@@ -130,7 +130,7 @@ TEST_P(ModuleTestbenchTest, TwoStagePipelineWithX) {
 }
 
 TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoStageIdentityPipeline(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -148,7 +148,7 @@ TEST_P(ModuleTestbenchTest, TwoStageWithExpectationFailure) {
 }
 
 TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = f.AddModule("test_module", SourceInfo());
   LogicRef* clk = m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* x =
@@ -202,7 +202,7 @@ TEST_P(ModuleTestbenchTest, MultipleOutputsWithCapture) {
 }
 
 TEST_P(ModuleTestbenchTest, TestTimeout) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = f.AddModule("test_module", SourceInfo());
   m->AddInput("clk", f.ScalarType(SourceInfo()), SourceInfo());
   LogicRef* out = m->AddOutput("out", f.ScalarType(SourceInfo()), SourceInfo());
@@ -218,7 +218,7 @@ TEST_P(ModuleTestbenchTest, TestTimeout) {
 }
 
 TEST_P(ModuleTestbenchTest, TracesFound) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoMessageModule(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -230,7 +230,7 @@ TEST_P(ModuleTestbenchTest, TracesFound) {
 }
 
 TEST_P(ModuleTestbenchTest, TracesNotFound) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoMessageModule(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");
@@ -242,7 +242,7 @@ TEST_P(ModuleTestbenchTest, TracesNotFound) {
 }
 
 TEST_P(ModuleTestbenchTest, TracesOutOfOrder) {
-  VerilogFile f(GetFileType());
+  VerilogFile f = NewVerilogFile();
   Module* m = MakeTwoMessageModule(&f);
 
   ModuleTestbench tb(m, GetSimulator(), "clk");

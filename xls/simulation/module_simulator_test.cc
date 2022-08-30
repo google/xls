@@ -127,8 +127,8 @@ endmodule
 
 TEST_P(ModuleSimulatorTest, FixedLatency) {
   XLS_ASSERT_OK_AND_ASSIGN(auto verilog_signature, MakeFixedLatencyModule());
-  ModuleSimulator simulator(verilog_signature.second, verilog_signature.first,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(verilog_signature.first, verilog_signature.second);
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
@@ -141,8 +141,8 @@ TEST_P(ModuleSimulatorTest, FixedLatency) {
 
 TEST_P(ModuleSimulatorTest, FixedLatencyBatched) {
   XLS_ASSERT_OK_AND_ASSIGN(auto verilog_signature, MakeFixedLatencyModule());
-  ModuleSimulator simulator(verilog_signature.second, verilog_signature.first,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(verilog_signature.first, verilog_signature.second);
 
   // Test using bits
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ModuleSimulator::BitsMap> outputs,
@@ -158,8 +158,8 @@ TEST_P(ModuleSimulatorTest, FixedLatencyBatched) {
 
 TEST_P(ModuleSimulatorTest, CombinationalBatched) {
   XLS_ASSERT_OK_AND_ASSIGN(auto verilog_signature, MakeCombinationalModule());
-  ModuleSimulator simulator(verilog_signature.second, verilog_signature.first,
-                            GetFileType(), GetSimulator());
+  ModuleSimulator simulator =
+      NewModuleSimulator(verilog_signature.first, verilog_signature.second);
 
   // Test using bits
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -196,7 +196,7 @@ endmodule
   b.AddDataOutput("out2", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
-  ModuleSimulator simulator(signature, text, GetFileType(), GetSimulator());
+  ModuleSimulator simulator = NewModuleSimulator(text, signature);
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(7, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
@@ -230,7 +230,7 @@ endmodule
   b.AddDataOutput("out", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
-  ModuleSimulator simulator(signature, text, GetFileType(), GetSimulator());
+  ModuleSimulator simulator = NewModuleSimulator(text, signature);
 
   {
     absl::flat_hash_map<std::string, Bits> inputs;
