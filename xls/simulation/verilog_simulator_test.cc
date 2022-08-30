@@ -59,7 +59,7 @@ endmodule
   // Run the simulation and collect observations.
   XLS_ASSERT_OK_AND_ASSIGN(
       std::vector<Observation> observations,
-      GetSimulator()->SimulateCombinational(text, to_observe));
+      GetSimulator()->SimulateCombinational(text, GetFileType(), to_observe));
   ASSERT_EQ(2, observations.size());
 
   // First observation (of z).
@@ -97,11 +97,11 @@ endmodule
     return;
   }
   EXPECT_THAT(
-      GetSimulator()->Run(text),
+      GetSimulator()->Run(text, FileType::kSystemVerilog),
       StatusIs(
           absl::StatusCode::kAborted,
           HasSubstr(
-              "SystemVerilog assert failed at top.v:6: Input is too big")));
+              "SystemVerilog assert failed at top.sv:6: Input is too big")));
 }
 
 TEST_P(VerilogSimulatorTest, SystemVerilogAssertNotAsserted) {
@@ -128,7 +128,7 @@ endmodule
   if (!GetParam().use_system_verilog) {
     return;
   }
-  XLS_EXPECT_OK(GetSimulator()->Run(text));
+  XLS_EXPECT_OK(GetSimulator()->Run(text, FileType::kSystemVerilog));
 }
 
 INSTANTIATE_TEST_SUITE_P(VerilogSimulatorTestInstantiation,

@@ -40,6 +40,11 @@
 namespace xls {
 namespace verilog {
 
+enum class FileType {
+  kVerilog,
+  kSystemVerilog,
+};
+
 // Forward declarations.
 class VastNode;
 class VerilogFile;
@@ -1561,8 +1566,7 @@ using FileMember = absl::variant<Module*, Include*, BlankLine*, Comment*>;
 // Represents a file (as a Verilog translation-unit equivalent).
 class VerilogFile {
  public:
-  explicit VerilogFile(bool use_system_verilog)
-      : use_system_verilog_(use_system_verilog) {}
+  explicit VerilogFile(FileType file_type) : file_type_(file_type) {}
 
   Module* AddModule(absl::string_view name, const SourceInfo& loc) {
     return Add(Make<Module>(loc, name));
@@ -1815,7 +1819,9 @@ class VerilogFile {
   }
 
   // Returns whether this is a SystemVerilog or Verilog file.
-  bool use_system_verilog() const { return use_system_verilog_; }
+  bool use_system_verilog() const {
+    return file_type_ == FileType::kSystemVerilog;
+  }
 
  private:
   // Same as PlainLiteral if value fits in an int32_t. Otherwise creates a
@@ -1829,7 +1835,7 @@ class VerilogFile {
     }
   }
 
-  bool use_system_verilog_;
+  FileType file_type_;
   std::vector<FileMember> members_;
   std::vector<std::unique_ptr<VastNode>> nodes_;
 };

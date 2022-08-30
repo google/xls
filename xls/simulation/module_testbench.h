@@ -45,7 +45,7 @@ class ModuleTestbench {
 
   // Constructor for testing a module defined in Verilog text with an interface
   // described with a ModuleSignature.
-  ModuleTestbench(absl::string_view verilog_text,
+  ModuleTestbench(absl::string_view verilog_text, FileType file_type,
                   const ModuleSignature& signature,
                   const VerilogSimulator* simulator,
                   absl::Span<const VerilogInclude> includes = {});
@@ -122,6 +122,7 @@ class ModuleTestbench {
   void CheckIsOutput(absl::string_view name);
 
   std::string verilog_text_;
+  FileType file_type_;
   std::string module_name_;
   const VerilogSimulator* simulator_;
   std::optional<std::string> clk_name_;

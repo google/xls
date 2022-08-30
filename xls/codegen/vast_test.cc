@@ -31,6 +31,9 @@ using ::testing::HasSubstr;
 class VastTest : public testing::TestWithParam<bool> {
  protected:
   bool UseSystemVerilog() const { return GetParam(); }
+  FileType GetFileType() const {
+    return GetParam() ? FileType::kSystemVerilog : FileType::kVerilog;
+  }
 };
 
 TEST_P(VastTest, SanitizeIdentifier) {
@@ -47,7 +50,7 @@ TEST_P(VastTest, SanitizeIdentifier) {
 }
 
 TEST_P(VastTest, DataTypes) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
 
   LineInfo line_info;
   DataType* scalar = f.ScalarType(SourceInfo());
@@ -137,7 +140,7 @@ TEST_P(VastTest, DataTypes) {
 }
 
 TEST_P(VastTest, ModuleWithManyVariableDefinitions) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   LogicRef* a_ref =
       module->AddInput("a", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -253,7 +256,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, ModuleWithUnpackedArrayRegWithSize) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   LogicRef* out_ref =
       module->AddOutput("out", f.BitVectorType(64, SourceInfo()), SourceInfo());
@@ -282,7 +285,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, ModuleWithUnpackedArrayRegWithPackedDims) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   LogicRef* out_ref =
       module->AddOutput("out", f.BitVectorType(64, SourceInfo()), SourceInfo());
@@ -320,7 +323,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, Literals) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   EXPECT_EQ("32'd44", f.Literal(UBits(44, 32), SourceInfo(),
                                 FormatPreference::kUnsignedDecimal)
                           ->Emit(nullptr));
@@ -405,7 +408,7 @@ TEST_P(VastTest, Literals) {
 }
 
 TEST_P(VastTest, Precedence) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("precedence", SourceInfo());
   auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
   auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
@@ -443,7 +446,7 @@ TEST_P(VastTest, Precedence) {
 }
 
 TEST_P(VastTest, UnaryReductionOperations) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("precedence", SourceInfo());
   auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
   auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
@@ -462,7 +465,7 @@ TEST_P(VastTest, UnaryReductionOperations) {
 }
 
 TEST_P(VastTest, NestedUnaryOps) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("NestedUnaryOps", SourceInfo());
   auto a = m->AddReg("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
   auto b = m->AddReg("b", f.BitVectorType(8, SourceInfo()), SourceInfo());
@@ -483,7 +486,7 @@ TEST_P(VastTest, NestedUnaryOps) {
 }
 
 TEST_P(VastTest, Case) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* thing_next =
       m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -512,7 +515,7 @@ endcase)");
 }
 
 TEST_P(VastTest, Casez) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* thing_next =
       m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -543,7 +546,7 @@ endcase)");
 
 
 TEST_P(VastTest, CaseWithHighZ) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* thing_next =
       m->AddWire("thing_next", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -589,7 +592,7 @@ TEST_P(VastTest, AlwaysFlopTestNoReset) {
       "tx_byte_valid",
   };
 
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* clk =
       m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -614,7 +617,7 @@ end)");
 }
 
 TEST_P(VastTest, AlwaysFlopTestSyncReset) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* clk =
       m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -646,7 +649,7 @@ end)");
 }
 
 TEST_P(VastTest, AlwaysFlopTestAsyncResetActiveLow) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* clk =
       m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -678,7 +681,7 @@ end)");
 }
 
 TEST_P(VastTest, AlwaysFf) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* clk =
       m->AddInput("my_clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -712,7 +715,7 @@ end)");
 }
 
 TEST_P(VastTest, Always) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* foo =
       m->AddReg("foo", f.BitVectorType(32, SourceInfo()), SourceInfo());
@@ -736,7 +739,7 @@ end)");
 }
 
 TEST_P(VastTest, AlwaysCombTest) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* rx_byte_done = m->AddWire(
       "rx_byte_done", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -771,7 +774,7 @@ end)");
 }
 
 TEST_P(VastTest, InstantiationTest) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   auto* default_clocks_per_baud =
       f.Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD");
   auto* clk_def =
@@ -805,7 +808,7 @@ TEST_P(VastTest, InstantiationTest) {
 }
 
 TEST_P(VastTest, BlockingAndNonblockingAssignments) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* a = m->AddReg("a", f.BitVectorType(1, SourceInfo()), SourceInfo());
   LogicRef* b = m->AddReg("b", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -822,7 +825,7 @@ end)");
 }
 
 TEST_P(VastTest, ParameterAndLocalParam) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   m->AddParameter("ClocksPerBaud",
                   f.Make<MacroRef>(SourceInfo(), "DEFAULT_CLOCKS_PER_BAUD"),
@@ -853,7 +856,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, SimpleConditional) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* input =
       m->AddInput("input", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -871,7 +874,7 @@ end)");
 }
 
 TEST_P(VastTest, SignedOperation) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* a =
       m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
@@ -894,7 +897,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, ComplexConditional) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* input1 =
       m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -940,7 +943,7 @@ end)");
 }
 
 TEST_P(VastTest, NestedConditional) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* input1 =
       m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -992,7 +995,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, TestbenchClock) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("testbench", SourceInfo());
   LogicRef* clk =
       m->AddReg("clk", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -1022,7 +1025,7 @@ endmodule
 }
 
 TEST_P(VastTest, TestbenchDisplayAndMonitor) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("testbench", SourceInfo());
   LogicRef* input1 =
       m->AddInput("input1", f.BitVectorType(1, SourceInfo()), SourceInfo());
@@ -1063,7 +1066,7 @@ endmodule
 }
 
 TEST_P(VastTest, Concat) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("Concat", SourceInfo());
   EXPECT_EQ(
       "{32'h0000_002a}",
@@ -1086,7 +1089,7 @@ TEST_P(VastTest, Concat) {
 }
 
 TEST_P(VastTest, PartSelect) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("PartSelect", SourceInfo());
   EXPECT_EQ("a[4'h3 +: 16'h0006]",
             f.PartSelect(
@@ -1103,7 +1106,7 @@ TEST_P(VastTest, PartSelect) {
 }
 
 TEST_P(VastTest, ArrayAssignmentPattern) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("ArrayAssignmentPattern", SourceInfo());
   EXPECT_EQ(
       "'{32'h0000_002a}",
@@ -1136,7 +1139,7 @@ TEST_P(VastTest, ArrayAssignmentPattern) {
 }
 
 TEST_P(VastTest, ModuleSections) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* module = f.Make<Module>(SourceInfo(), "my_module");
   ModuleSection* s0 = module->Add<ModuleSection>(SourceInfo());
   module->AddReg("foo", f.BitVectorType(1, SourceInfo()), SourceInfo(),
@@ -1182,7 +1185,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, VerilogFunction) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   VerilogFunction* func = m->Add<VerilogFunction>(
       SourceInfo(), "func", f.BitVectorType(42, SourceInfo()));
@@ -1214,7 +1217,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, VerilogFunctionNoArguments) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   VerilogFunction* func = m->Add<VerilogFunction>(
       SourceInfo(), "func", f.BitVectorType(42, SourceInfo()));
@@ -1241,7 +1244,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, VerilogFunctionWithRegDefs) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   VerilogFunction* func = m->Add<VerilogFunction>(
       SourceInfo(), "func", f.BitVectorType(42, SourceInfo()));
@@ -1278,7 +1281,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, VerilogFunctionWithScalarReturn) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   VerilogFunction* func = m->Add<VerilogFunction>(
       SourceInfo(), "func", f.Make<DataType>(SourceInfo()));
@@ -1304,7 +1307,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, AssertTest) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   LogicRef* a_ref =
       m->AddInput("a", f.BitVectorType(8, SourceInfo()), SourceInfo());
@@ -1349,7 +1352,7 @@ endmodule)");
 }
 
 TEST_P(VastTest, VerilogFunctionWithComplicatedTypes) {
-  VerilogFile f(UseSystemVerilog());
+  VerilogFile f(GetFileType());
   Module* m = f.AddModule("top", SourceInfo());
   DataType* return_type =
       f.PackedArrayType(6, {3, 33}, SourceInfo(), /*is_signed=*/true);

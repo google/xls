@@ -38,11 +38,24 @@ class ModuleSimulator {
   //  verilog_text: Verilog text containing the module to test.
   //  simulator: Verilog simulator to use.
   ModuleSimulator(const ModuleSignature& signature,
+                  absl::string_view verilog_text, FileType file_type,
+                  const VerilogSimulator* simulator,
+                  absl::Span<const VerilogInclude> includes = {})
+      : signature_(signature),
+        verilog_text_(verilog_text),
+        file_type_(file_type),
+        simulator_(simulator),
+        includes_(includes) {}
+
+  // TODO(meheff): 2022/08/30 Remove after users of this constructor are
+  // migrated.
+  ModuleSimulator(const ModuleSignature& signature,
                   absl::string_view verilog_text,
                   const VerilogSimulator* simulator,
                   absl::Span<const VerilogInclude> includes = {})
       : signature_(signature),
         verilog_text_(verilog_text),
+        file_type_(FileType::kVerilog),
         simulator_(simulator),
         includes_(includes) {}
 
@@ -78,6 +91,7 @@ class ModuleSimulator {
 
   ModuleSignature signature_;
   std::string verilog_text_;
+  FileType file_type_;
   const VerilogSimulator* simulator_;
   absl::Span<const VerilogInclude> includes_;
 };

@@ -96,7 +96,8 @@ class SequentialModuleBuilder {
  public:
   SequentialModuleBuilder(const SequentialOptions& options,
                           const CountedFor* loop)
-      : file_(options.use_system_verilog()),
+      : file_(options.use_system_verilog() ? FileType::kSystemVerilog
+                                           : FileType::kVerilog),
         loop_(loop),
         sequential_options_(options) {}
 

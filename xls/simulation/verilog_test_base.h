@@ -128,7 +128,11 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
 
   // Returns whether or not the SystemVerilog or Verilog should be used as the
   // codegen target language as determined by the test parameters.
-  bool UseSystemVerilog() { return GetParam().use_system_verilog; }
+  bool UseSystemVerilog() const { return GetParam().use_system_verilog; }
+
+  FileType GetFileType() const {
+    return UseSystemVerilog() ? FileType::kSystemVerilog : FileType::kVerilog;
+  }
 
   // Validates the given verilog text by running it through the verilog
   // simulator. No functional testing is performed.
@@ -140,8 +144,9 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   void ExpectVerilogEqual(absl::string_view expected, absl::string_view actual,
                           absl::Span<const VerilogInclude> includes = {});
 
-  // EXPECTs that the given text is equal to the golden reference file specified
-  // by golden_file_path. Also EXPECTs that the text is valid Verilog.
+  // EXPECTs that the given text is equal to the golden reference file
+  // specified by golden_file_path. Also EXPECTs that the text is valid
+  // Verilog.
   //
   // `golden_file_path` should be relative to the main XLS source directory.
   //

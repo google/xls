@@ -71,13 +71,17 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
 class IcarusVerilogSimulator : public VerilogSimulator {
  public:
   absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text,
+      absl::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const override {
+    if (file_type == FileType::kSystemVerilog) {
+      return absl::UnimplementedError(
+          "iverilog does not support SystemVerilog");
+    }
     XLS_ASSIGN_OR_RETURN(TempDirectory temp_top, TempDirectory::Create());
     XLS_RETURN_IF_ERROR(RecursivelyCreateDir(temp_top.path()));
     std::filesystem::path temp_dir = temp_top.path();
 
-    std::string top_v_path = temp_dir / "top.v";
+    std::string top_v_path = temp_dir / GetTopFileName(file_type);
     XLS_RETURN_IF_ERROR(SetFileContents(top_v_path, text));
 
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
@@ -92,13 +96,17 @@ class IcarusVerilogSimulator : public VerilogSimulator {
   }
 
   absl::Status RunSyntaxChecking(
-      absl::string_view text,
+      absl::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const override {
+    if (file_type == FileType::kSystemVerilog) {
+      return absl::UnimplementedError(
+          "iverilog does not support SystemVerilog");
+    }
     XLS_ASSIGN_OR_RETURN(TempDirectory temp_top, TempDirectory::Create());
     XLS_RETURN_IF_ERROR(RecursivelyCreateDir(temp_top.path()));
     std::filesystem::path temp_dir = temp_top.path();
 
-    std::string top_v_path = temp_dir / "top.v";
+    std::string top_v_path = temp_dir / GetTopFileName(file_type);
     XLS_RETURN_IF_ERROR(SetFileContents(top_v_path, text));
 
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));

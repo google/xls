@@ -905,6 +905,7 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/codegen:module_signature",
+        "//xls/codegen:vast",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",

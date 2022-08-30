@@ -86,19 +86,21 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
 }  // namespace
 
 absl::StatusOr<std::pair<std::string, std::string>> VerilogSimulator::Run(
-    absl::string_view text) const {
-  return Run(text, /*includes=*/{});
+    absl::string_view text, FileType file_type) const {
+  return Run(text, file_type, /*includes=*/{});
 }
 
-absl::Status VerilogSimulator::RunSyntaxChecking(absl::string_view text) const {
-  return RunSyntaxChecking(text, /*includes=*/{});
+absl::Status VerilogSimulator::RunSyntaxChecking(absl::string_view text,
+                                                 FileType file_type) const {
+  return RunSyntaxChecking(text, file_type, /*includes=*/{});
 }
 
 absl::StatusOr<std::vector<Observation>>
 VerilogSimulator::SimulateCombinational(
-    absl::string_view text, const NameToBitCount& to_observe) const {
+    absl::string_view text, FileType file_type,
+    const NameToBitCount& to_observe) const {
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSIGN_OR_RETURN(stdout_stderr, Run(text));
+  XLS_ASSIGN_OR_RETURN(stdout_stderr, Run(text, file_type));
   return StdoutToObservations(stdout_stderr.first, to_observe);
 }
 
@@ -115,11 +117,10 @@ absl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
           absl::StrFormat("No simulator found named \"%s\". No "
                           "simulators are registered. Was InitXls called?",
                           name));
-    } else {
-      return absl::NotFoundError(absl::StrFormat(
-          "No simulator found named \"%s\". Available simulators: %s", name,
-          absl::StrJoin(simulator_names_, ", ")));
     }
+    return absl::NotFoundError(absl::StrFormat(
+        "No simulator found named \"%s\". Available simulators: %s", name,
+        absl::StrJoin(simulator_names_, ", ")));
   }
   return simulators_.at(name).get();
 }

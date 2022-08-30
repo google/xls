@@ -771,7 +771,8 @@ absl::StatusOr<std::string> GenerateVerilog(Block* top,
 
   XLS_ASSIGN_OR_RETURN(std::vector<Block*> blocks,
                        GatherInstantiatedBlocks(top));
-  VerilogFile file(options.use_system_verilog());
+  VerilogFile file(options.use_system_verilog() ? FileType::kSystemVerilog
+                                                : FileType::kVerilog);
   for (Block* block : blocks) {
     XLS_RETURN_IF_ERROR(BlockGenerator::Generate(block, &file, options));
     if (block != blocks.back()) {

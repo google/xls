@@ -67,7 +67,8 @@ TEST_P(TraceTest, CombinationalSimpleTrace) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                     GetSimulator());
 
   // The combinational module doesn't a connected clock, but the clock can still
   // be used to sequence events in time.
@@ -125,7 +126,8 @@ TEST_P(TraceTest, ClockedSimpleTraceTest) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                     GetSimulator());
 
   tb.NextCycle().Set("cond", 0);
   tb.ExpectTrace("This is a simple trace.");

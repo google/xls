@@ -53,6 +53,7 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
 
     # Codegen was not enabled so there should be no Verilog file.
     self.assertNotIn('sample.v', sample1_contents)
+    self.assertNotIn('sample.sv', sample1_contents)
 
     # Args file should have three lines in it.
     with open(os.path.join(samples_path, '1', 'args.txt')) as f:
@@ -94,6 +95,20 @@ class RunFuzzMultiprocessTest(test_base.TestCase):
     # Directory should have verilog and simulation results.
     self.assertIn('sample.v', sample1_contents)
     self.assertIn('sample.v.results', sample1_contents)
+
+  def test_codegen_systemverilog(self):
+    crasher_path = self.create_tempdir().full_path
+    samples_path = self.create_tempdir().full_path
+
+    subprocess.check_call([
+        RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
+        '--save_temps_path=' + samples_path, '--sample_count=2',
+        '--calls_per_sample=3', '--worker_count=1', '--codegen',
+        '--use_system_verilog'
+    ])
+    # Directory should a system verilog file.
+    sample1_contents = os.listdir(os.path.join(samples_path, '1'))
+    self.assertIn('sample.sv', sample1_contents)
 
 
 if __name__ == '__main__':

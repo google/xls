@@ -115,7 +115,7 @@ TEST_F(FlatteningTest, ExpressionFlattening) {
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
-  verilog::VerilogFile f(/*use_system_verilog=*/false);
+  verilog::VerilogFile f(verilog::FileType::kVerilog);
   verilog::Module* m = f.AddModule(TestName(), SourceInfo());
 
   EXPECT_EQ(
@@ -138,7 +138,7 @@ TEST_F(FlatteningTest, ExpressionUnflattening) {
   ArrayType* a_of_b5 = p.GetArrayType(3, b5);
   ArrayType* array_2d = p.GetArrayType(2, a_of_b5);
 
-  verilog::VerilogFile f(/*use_system_verilog=*/false);
+  verilog::VerilogFile f(verilog::FileType::kVerilog);
   verilog::Module* m = f.AddModule(TestName(), SourceInfo());
 
   EXPECT_EQ(UnflattenArray(m->AddReg("foo", f.BitVectorType(15, SourceInfo()),

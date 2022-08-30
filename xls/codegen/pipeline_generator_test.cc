@@ -108,7 +108,7 @@ TEST_P(PipelineGeneratorTest, ReturnLiteral) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(ModuleSimulator::BitsMap()),
               IsOkAndHolds(UBits(42, 32)));
 }
@@ -136,7 +136,7 @@ TEST_P(PipelineGeneratorTest, ReturnTupleLiteral) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(absl::flat_hash_map<std::string, Value>()),
       IsOkAndHolds(Value::Tuple({Value(UBits(0, 1)), Value(UBits(123, 32))})));
@@ -160,7 +160,7 @@ TEST_P(PipelineGeneratorTest, ReturnEmptyTuple) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({})));
 }
@@ -183,7 +183,7 @@ TEST_P(PipelineGeneratorTest, NestedEmptyTuple) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({Value::Tuple({})})));
 }
@@ -209,7 +209,7 @@ TEST_P(PipelineGeneratorTest, TakesEmptyTuple) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
                              {"b", Value::Tuple({})},
                              {"c", Value(UBits(100, 8))}}),
@@ -233,7 +233,7 @@ TEST_P(PipelineGeneratorTest, PassesEmptyTuple) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
               IsOkAndHolds(Value::Tuple({})));
 }
@@ -261,7 +261,7 @@ TEST_P(PipelineGeneratorTest, ReturnArrayLiteral) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(
                   Value::ArrayOrDie({Value(UBits(0, 1)), Value(UBits(1, 1))})));
@@ -310,7 +310,7 @@ TEST_P(PipelineGeneratorTest, PassThroughArray) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   Value array = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   EXPECT_THAT(simulator.Run({{"x", array}}), IsOkAndHolds(array));
@@ -342,7 +342,7 @@ TEST_P(PipelineGeneratorTest, TupleOfArrays) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   Value array_0 = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   Value array_1 = Value::ArrayOrDie({Value(UBits(4, 16)), Value(UBits(5, 16))});
@@ -375,7 +375,7 @@ TEST_P(PipelineGeneratorTest, MultidimensionalArray) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   Value inner_array_0 = Value::ArrayOrDie(
       {Value(UBits(123, 8)), Value(UBits(42, 8)), Value(UBits(33, 8))});
   Value inner_array_1 = Value::ArrayOrDie(
@@ -655,7 +655,8 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithSimulation) {
                                .valid_control("in_valid", "out_valid")
                                .use_system_verilog(UseSystemVerilog())));
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                     GetSimulator());
   tb.Set("in_valid", 0);
   tb.WaitForNotX("out_valid").ExpectEq("out_valid", 0);
 
@@ -742,7 +743,8 @@ TEST_P(PipelineGeneratorTest, ValidSignalWithReset) {
     EXPECT_EQ(result.signature.proto().reset().active_low(), active_low);
     EXPECT_FALSE(result.signature.proto().reset().reset_data_path());
 
-    ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+    ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                       GetSimulator());
     // One cycle after reset the output control signal should be zero.
     tb.Set(kResetSignal, kAssertReset);
     tb.NextCycle().ExpectEq("out_valid", 0);
@@ -830,7 +832,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsAndOutputs) {
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -862,7 +864,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopInputsNotOutputs) {
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -894,7 +896,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopOutputsNotInputs) {
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -926,7 +928,7 @@ TEST_P(PipelineGeneratorTest, AddNegateFlopNeitherInputsNorOutputs) {
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 1);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(123, 8)}, {"y", UBits(42, 8)}}),
               IsOkAndHolds(UBits(91, 8)));
@@ -996,7 +998,8 @@ TEST_P(PipelineGeneratorTest, ValidPipelineControlWithResetSimulation) {
                      reset_proto.active_low(), reset_proto.reset_data_path())
               .use_system_verilog(UseSystemVerilog())));
 
-  ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                     GetSimulator());
   tb.Set("in_valid", 0).Set("rst", 1).NextCycle();
   tb.Set("rst", 0).NextCycle();
 

@@ -126,7 +126,8 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenOneToNMux) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  xls::verilog::ModuleSimulator simulator(signature, verilog, GetSimulator());
+  xls::verilog::ModuleSimulator simulator(
+      signature, verilog, xls::verilog::FileType::kVerilog, GetSimulator());
 
   // Output out1 selected, input valid and output ready asserted.
   EXPECT_THAT(
@@ -259,7 +260,8 @@ TEST_P(TranslatorVerilogTest, IOProcComboGenNToOneMux) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  xls::verilog::ModuleSimulator simulator(signature, verilog, GetSimulator());
+  xls::verilog::ModuleSimulator simulator(
+      signature, verilog, xls::verilog::FileType::kVerilog, GetSimulator());
   // Input in1 selected, input valid and output ready asserted.
   EXPECT_THAT(
       simulator.Run({{"dir", xls::UBits(0, 32)},

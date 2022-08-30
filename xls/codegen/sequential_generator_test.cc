@@ -121,7 +121,7 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 
   // Check functionality.
   ModuleSimulator simulator(loop_body->signature, loop_body->verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"acc", Value(UBits(10, 32))},
                              {"index", Value(UBits(1, 32))}}),
               IsOkAndHolds(Value(UBits(18, 32))));
@@ -1632,7 +1632,7 @@ top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
 
     // Check functionality.
     ModuleSimulator simulator(result.signature, result.verilog_text,
-                              GetSimulator());
+                              GetFileType(), GetSimulator());
     EXPECT_THAT(simulator.Run({{"init_acc_in", Value(UBits(100, 32))}}),
                 IsOkAndHolds(Value(UBits(106, 32))));
   }
@@ -1682,7 +1682,7 @@ top fn __SequentialModuleInvariants__main(init_acc: bits[32], invara: bits[32], 
 
     // Check functionality.
     ModuleSimulator simulator(result.signature, result.verilog_text,
-                              GetSimulator());
+                              GetFileType(), GetSimulator());
     EXPECT_THAT(simulator.Run({{"init_acc_in", Value(UBits(100, 32))},
                                {"invara_in", Value(UBits(1000, 32))},
                                {"invarb_in", Value(UBits(10000, 32))}}),
@@ -1731,7 +1731,8 @@ top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
                              ToSequentialModuleText(sequential_options, loop));
 
     // Check functionality.
-    ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+    ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                       GetSimulator());
 
     // Reset.
     tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);
@@ -1844,7 +1845,8 @@ top fn __SequentialModuleSimple__main(init_acc: bits[32]) -> bits[32] {
                              ToSequentialModuleText(sequential_options, loop));
 
     // Check functionality.
-    ModuleTestbench tb(result.verilog_text, result.signature, GetSimulator());
+    ModuleTestbench tb(result.verilog_text, GetFileType(), result.signature,
+                       GetSimulator());
 
     // Reset.
     tb.ExpectEq("ready_in", 0).ExpectEq("valid_out", 0);

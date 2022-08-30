@@ -65,7 +65,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipeline) {
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
@@ -95,7 +95,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughPipelineBatched) {
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   // Run various size batches through the module.
   for (int64_t batch_size = 0; batch_size < 4; ++batch_size) {
@@ -136,7 +136,7 @@ TEST_P(ModuleSimulatorCodegenTest, SingleNegatePipeline) {
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 2);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
@@ -167,7 +167,7 @@ TEST_P(ModuleSimulatorCodegenTest, TripleNegatePipelineBatched) {
   ASSERT_EQ(result.signature.proto().pipeline().latency(), 4);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   // Run various size batches through the module up to and beyond the length of
   // the pipeline.
@@ -212,7 +212,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddsWithSharedResource) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 32);
@@ -249,7 +249,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAdds) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 32);
@@ -287,7 +287,7 @@ TEST_P(ModuleSimulatorCodegenTest, PipelinedAddWithValid) {
                                .use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 32);
@@ -322,7 +322,7 @@ TEST_P(ModuleSimulatorCodegenTest, AddTwoTupleElements) {
           BuildPipelineOptions().use_system_verilog(UseSystemVerilog())));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   // Run with flat inputs.
   EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"in", UBits(0x1234, 16)}}),
@@ -368,7 +368,7 @@ TEST_P(ModuleSimulatorCodegenTest, CombinationalModule) {
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   inputs["y"] = UBits(100, 8);
@@ -391,7 +391,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnLiteral) {
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Bits> outputs;
   XLS_ASSERT_OK_AND_ASSIGN(
       outputs, simulator.Run(absl::flat_hash_map<std::string, Bits>()));
@@ -412,7 +412,7 @@ TEST_P(ModuleSimulatorCodegenTest, ReturnParameter) {
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Bits> inputs;
   inputs["x"] = UBits(42, 8);
   absl::flat_hash_map<std::string, Bits> outputs;
@@ -439,7 +439,7 @@ TEST_P(ModuleSimulatorCodegenTest, Assert) {
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(options, block));
 
-  ModuleSimulator simulator(sig, verilog, GetSimulator());
+  ModuleSimulator simulator(sig, verilog, GetFileType(), GetSimulator());
 
   absl::flat_hash_map<std::string, Bits> outputs;
   XLS_ASSERT_OK(
@@ -468,7 +468,7 @@ TEST_P(ModuleSimulatorCodegenTest, PassThroughArrayCombinationalModule) {
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(Value input, Value::UBitsArray({1, 2, 3}, 8));
   XLS_ASSERT_OK_AND_ASSIGN(Value output, simulator.Run({input}));
 
@@ -486,7 +486,7 @@ TEST_P(ModuleSimulatorCodegenTest, ConstructArrayCombinationalModule) {
       GenerateCombinationalModule(func, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
       Value output, simulator.Run({Value(UBits(1, 8)), Value(UBits(2, 8)),
                                    Value(UBits(3, 8))}));

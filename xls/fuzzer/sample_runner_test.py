@@ -343,6 +343,7 @@ class SampleRunnerTest(test_base.TestCase):
                 ir_converter_args=['--top=main'],
                 codegen=True,
                 codegen_args=['--generator=combinational'],
+                use_system_verilog=False,
                 simulate=True), [[
                     interp_value_from_ir_string('bits[8]:42'),
                     interp_value_from_ir_string('bits[8]:100')
@@ -368,6 +369,7 @@ class SampleRunnerTest(test_base.TestCase):
                   ir_converter_args=['--top=main'],
                   codegen=True,
                   codegen_args=['--generator=combinational'],
+                  use_system_verilog=False,
                   simulate=True,
                   simulator='iverilog'), [[
                       interp_value_from_ir_string('bits[8]:42'),
@@ -390,14 +392,16 @@ class SampleRunnerTest(test_base.TestCase):
                 ir_converter_args=['--top=main'],
                 codegen=True,
                 codegen_args=('--generator=pipeline', '--pipeline_stages=2'),
+                use_system_verilog=True,
                 simulate=True), [[
                     interp_value_from_ir_string('bits[8]:42'),
                     interp_value_from_ir_string('bits[8]:100')
                 ]]))
     # A pipelined block should have a blocking assignment.
-    self.assertIn('<=', _read_file(sample_dir, 'sample.v'))
+    self.assertIn('<=', _read_file(sample_dir, 'sample.sv'))
     self.assertSequenceEqual(
-        _split_nonempty_lines(sample_dir, 'sample.v.results'), ['bits[8]:0x8e'])
+        _split_nonempty_lines(sample_dir, 'sample.sv.results'),
+        ['bits[8]:0x8e'])
 
   def test_ir_input(self):
     sample_dir = self._make_sample_dir()

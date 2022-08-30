@@ -20,9 +20,11 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "xls/codegen/name_to_bit_count.h"
+#include "xls/codegen/vast.h"
 #include "xls/ir/bits.h"
 #include "xls/tools/verilog_include.h"
 
@@ -42,17 +44,18 @@ class VerilogSimulator {
 
   // Runs the simulator with the given Verilog text as input and returns the
   // stdout/stderr as a string pair.
-  virtual absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text,
-      absl::Span<const VerilogInclude> includes) const = 0;
   absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text) const;
+      absl::string_view text, FileType file_type) const;
+  virtual absl::StatusOr<std::pair<std::string, std::string>> Run(
+      absl::string_view text, FileType file_type,
+      absl::Span<const VerilogInclude> includes) const = 0;
 
   // Runs the simulator to check the Verilog syntax. Does not run simulation.
   virtual absl::Status RunSyntaxChecking(
-      absl::string_view text,
+      absl::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const = 0;
-  absl::Status RunSyntaxChecking(absl::string_view text) const;
+  absl::Status RunSyntaxChecking(absl::string_view text,
+                                 FileType file_type) const;
 
   // Simulation runner harness: runs the given Verilog text using the verilog
   // simulator infrastructure and returns observations of data values that arose
@@ -66,7 +69,14 @@ class VerilogSimulator {
   // Which the routine turns into a sequence of the Observation structure shown
   // above.
   absl::StatusOr<std::vector<Observation>> SimulateCombinational(
-      absl::string_view text, const NameToBitCount& to_observe) const;
+      absl::string_view text, FileType file_type,
+      const NameToBitCount& to_observe) const;
+
+ protected:
+  std::string GetTopFileName(FileType file_type) const {
+    return absl::StrCat("top.",
+                        file_type == FileType::kSystemVerilog ? "sv" : "v");
+  }
 };
 
 // An abstraction which holds multiple VerilogSimulator objects organized by

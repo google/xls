@@ -101,7 +101,7 @@ TEST_P(BlockGeneratorTest, AandB) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.ExpectX("sum");
   // The combinational module doesn't a connected clock, but the clock can still
@@ -152,7 +152,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandB) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.ExpectX("sum");
   tb.Set("a", 0).Set("b", 0);
@@ -199,7 +199,7 @@ TEST_P(BlockGeneratorTest, PipelinedAandBNoReset) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.ExpectX("sum");
   tb.Set("a", 0).Set("b", 0);
@@ -240,7 +240,7 @@ TEST_P(BlockGeneratorTest, Accumulator) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.Set("in", 0).Set("rst_n", 0).NextCycle().Set("rst_n", 1);
 
@@ -505,7 +505,7 @@ TEST_P(BlockGeneratorTest, LoadEnables) {
                            GenerateVerilog(block, codegen_options()));
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature sig,
                            GenerateSignature(codegen_options("clk"), block));
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   // Set inputs to zero and disable load-enables.
   tb.Set("a", 100).Set("b", 200).Set("a_le", 0).Set("b_le", 0).Set("rst", 1);
@@ -574,7 +574,7 @@ TEST_P(BlockGeneratorTest, GatedBitsType) {
 }
 
 TEST_P(BlockGeneratorTest, SmulpWithFormat) {
-  VerilogFile file(UseSystemVerilog());
+  VerilogFile file(GetFileType());
   Package package(TestBaseName());
   BlockBuilder b(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -695,7 +695,7 @@ TEST_P(BlockGeneratorTest, InstantiatedBlock) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.ExpectX("out");
   // The module doesn't a connected clock, but the clock can still
@@ -753,7 +753,7 @@ TEST_P(BlockGeneratorTest, MultiplyInstantiatedBlock) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.ExpectX("x_minus_y").ExpectX("y_minus_x").ExpectX("x_minus_x");
 
@@ -821,7 +821,7 @@ TEST_P(BlockGeneratorTest, DiamondDependencyInstantiations) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  verilog);
 
-  ModuleTestbench tb(verilog, sig, GetSimulator());
+  ModuleTestbench tb(verilog, GetFileType(), sig, GetSimulator());
 
   tb.ExpectX("j_minus_k").ExpectX("k_minus_j");
 

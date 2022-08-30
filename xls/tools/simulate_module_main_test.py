@@ -47,7 +47,7 @@ class SimulateModuleMainTest(test_base.TestCase):
     ])
     result = subprocess.check_output([
         SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
-        '--alsologtostderr', '--v=1',
+        '--file_type=verilog', '--alsologtostderr', '--v=1',
         '--signature_file=' + signature_file.full_path,
         '--args=bits[32]:7; bits[32]:123', verilog_file.full_path
     ])
@@ -73,7 +73,7 @@ class SimulateModuleMainTest(test_base.TestCase):
     """)
     result = subprocess.check_output([
         SIMULATE_MODULE_MAIN_PATH, '--verilog_simulator=iverilog',
-        '--alsologtostderr', '--v=1',
+        '--file_type=verilog', '--alsologtostderr', '--v=1',
         '--signature_file=' + signature_file.full_path,
         '--args_file=' + args_file.full_path, verilog_file.full_path
     ])

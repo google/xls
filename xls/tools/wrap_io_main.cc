@@ -59,7 +59,7 @@ void RealMain() {
   XLS_QCHECK_OK(signature_status.status());
   verilog::ModuleSignature signature = signature_status.value();
 
-  verilog::VerilogFile f(/*use_system_verilog=*/true);
+  verilog::VerilogFile f(verilog::FileType::kVerilog);
   f.AddInclude(include, SourceInfo());
 
   absl::StatusOr<std::unique_ptr<verilog::IoStrategy>> io_strategy_status =

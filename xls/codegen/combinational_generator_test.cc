@@ -52,7 +52,7 @@ TEST_P(CombinationalGeneratorTest, RrotToCombinationalText) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"x", UBits(0x12345678ULL, 32)}, {"y", UBits(4, 32)}}),
               IsOkAndHolds(UBits(0x81234567, 32)));
@@ -77,7 +77,7 @@ TEST_P(CombinationalGeneratorTest, RandomExpression) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   // Value should be: (7-2)*(7-2) + 3*(7-2) = 40
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"a", UBits(7, 8)}, {"b", UBits(2, 8)}, {"c", UBits(3, 8)}}),
@@ -92,7 +92,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(ModuleSimulator::BitsMap()),
               IsOkAndHolds(UBits(123, 8)));
 }
@@ -105,7 +105,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsTupleLiteral) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(absl::flat_hash_map<std::string, Value>()),
       IsOkAndHolds(Value::Tuple({Value(UBits(123, 8)), Value(UBits(42, 32))})));
@@ -119,7 +119,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsEmptyTuple) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run(absl::flat_hash_map<std::string, Value>()),
               IsOkAndHolds(Value::Tuple({})));
 }
@@ -132,7 +132,7 @@ TEST_P(CombinationalGeneratorTest, PassesEmptyTuple) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"x", Value::Tuple({})}}),
               IsOkAndHolds(Value::Tuple({})));
 }
@@ -149,7 +149,7 @@ TEST_P(CombinationalGeneratorTest, TakesEmptyTuple) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
                              {"b", Value::Tuple({})},
                              {"c", Value(UBits(100, 8))}}),
@@ -165,7 +165,7 @@ TEST_P(CombinationalGeneratorTest, ReturnsParam) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput({{"a", UBits(0x42, 8)}}),
               IsOkAndHolds(UBits(0x42, 8)));
 }
@@ -187,7 +187,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionWhichRequiresNamedIntermediate) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"a", UBits(0x42, 8)}, {"b", UBits(0x33, 8)}}),
               IsOkAndHolds(UBits(14, 4)));
@@ -225,7 +225,7 @@ TEST_P(CombinationalGeneratorTest, ExpressionsOfTuples) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(42, 8))},
                              {"b", Value(UBits(123, 10))},
                              {"c", Value::Tuple({Value(UBits(333, 10)),
@@ -260,7 +260,7 @@ top fn main(x: bits[123]) -> bits[123] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"x", Value(UBits(0x40, 123))}}),
               IsOkAndHolds(Value(UBits(0x12340, 123))));
 }
@@ -287,7 +287,7 @@ top fn main(x: bits[32], y: bits[32]) -> bits[44] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run({{"x", Value(UBits(0, 32))}, {"y", Value(UBits(1, 32))}}),
       IsOkAndHolds(Value(UBits(2, 44))));
@@ -316,7 +316,7 @@ top fn main(x: bits[3]) -> bits[4] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b000, 3))}}),
               IsOkAndHolds(Value(UBits(0b1000, 4))));
   EXPECT_THAT(simulator.Run({{"x", Value(UBits(0b001, 3))}}),
@@ -355,7 +355,7 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b00, 2));
@@ -388,7 +388,7 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b00, 2));
@@ -424,7 +424,7 @@ top fn main(p: bits[2], x: bits[16], y: bits[16]) -> bits[16] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b00, 2));
@@ -458,7 +458,7 @@ top fn main(p: bits[1], x: bits[16], y: bits[16]) -> bits[16] {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   absl::flat_hash_map<std::string, Value> args = {
       {"x", Value(UBits(0x00ff, 16))}, {"y", Value(UBits(0xf0f0, 16))}};
   args["p"] = Value(UBits(0b0, 1));
@@ -499,7 +499,7 @@ top fn main(a: bits[32],
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   std::minstd_rand engine;
   ASSERT_TRUE(top.value()->IsFunction());
@@ -528,7 +528,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(1, 8))}}),
               IsOkAndHolds(Value(UBits(40, 8))));
@@ -540,7 +540,8 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithBoundsCheck) {
               IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return the highest index value.
-  ModuleTestbench mtb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench mtb(result.verilog_text, GetFileType(), result.signature,
+                      GetSimulator());
   mtb.Set("A", UBits(0xabcdef, 24));
   mtb.Set("index", UBits(42, 8));
   mtb.ExpectEq("out", 0xab);
@@ -566,7 +567,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"A", Value::UBitsArray({30, 40, 50}, 8).value()},
                              {"index", Value(UBits(1, 8))}}),
               IsOkAndHolds(Value(UBits(40, 8))));
@@ -575,7 +576,8 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithoutBoundsCheck) {
               IsOkAndHolds(Value(UBits(50, 8))));
 
   // The out of bounds value should return X.
-  ModuleTestbench mtb(result.verilog_text, result.signature, GetSimulator());
+  ModuleTestbench mtb(result.verilog_text, GetFileType(), result.signature,
+                      GetSimulator());
   mtb.Set("A", UBits(0xabcdef, 24));
   mtb.Set("index", UBits(3, 8));
   mtb.ExpectX("out");
@@ -603,7 +605,7 @@ TEST_P(CombinationalGeneratorTest, TwoDArray) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(123, 8))},
                              {"b", Value(UBits(42, 8))},
                              {"c", Value(UBits(100, 8))}}),
@@ -625,7 +627,7 @@ TEST_P(CombinationalGeneratorTest, ReturnTwoDArray) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run({{"a", Value(UBits(123, 8))}, {"b", Value(UBits(42, 8))}}),
       IsOkAndHolds(Value::ArrayOrDie({
@@ -653,7 +655,7 @@ top fn main(idx: bits[2]) -> bits[32][3] {
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
@@ -695,7 +697,7 @@ top fn main(idx: bits[2]) -> bits[32][2][3] {
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
@@ -755,7 +757,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[32])[3] {
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   auto make_tuple = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
@@ -815,7 +817,7 @@ top fn main(idx: bits[2]) -> (bits[32], bits[8][2])[2] {
       auto result, GenerateCombinationalModule(top.value(), codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   auto make_array = [](absl::Span<const int64_t> values) {
     std::vector<Value> elements;
@@ -873,7 +875,7 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value(UBits(0, 8))},
                              {"b", Value(UBits(42, 8))},
                              {"c", Value(UBits(1, 8))}}),
@@ -881,7 +883,9 @@ TEST_P(CombinationalGeneratorTest, BuildComplicatedType) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue p = fb.Param("p", package.GetBitsType(8));
@@ -895,7 +899,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
       Value x_in,
       Parser::ParseTypedValue("[bits[8]:0xa, bits[8]:0xb, bits[8]:0xc]"));
@@ -941,7 +945,9 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSel) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue p = fb.Param("p", package.GetBitsType(1));
@@ -953,7 +959,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
       Value x_in,
       Parser::ParseTypedValue("[bits[8]:0xa, bits[8]:0xb, bits[8]:0xc]"));
@@ -969,7 +975,9 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedSelNoDefault) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   BValue s = fb.Param("s", package.GetBitsType(2));
@@ -981,7 +989,7 @@ TEST_P(CombinationalGeneratorTest, ArrayShapedOneHotSelect) {
   XLS_ASSERT_OK_AND_ASSIGN(auto result,
                            GenerateCombinationalModule(f, codegen_options()));
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(
       Value x_in, Parser::ParseTypedValue("[bits[8]:0x0f, bits[8]:0xf0]"));
   XLS_ASSERT_OK_AND_ASSIGN(
@@ -1016,7 +1024,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBits) {
       auto result, GenerateCombinationalModule(function, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -1044,7 +1052,7 @@ TEST_P(CombinationalGeneratorTest, ArrayConcatArrayOfBitsMixedOperands) {
       auto result, GenerateCombinationalModule(function, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   XLS_ASSERT_OK_AND_ASSIGN(Value a0, Value::UBitsArray({1, 2}, 32));
   XLS_ASSERT_OK_AND_ASSIGN(Value a1, Value::UBitsArray({3, 4, 5}, 32));
@@ -1074,7 +1082,7 @@ TEST_P(CombinationalGeneratorTest, InterpretArrayConcatArraysOfArrays) {
       auto result, GenerateCombinationalModule(function, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
 
   XLS_ASSERT_OK_AND_ASSIGN(Value ret,
                            Value::SBits2DArray({{5, 6}, {1, 2}, {3, 4}}, 32));
@@ -1099,7 +1107,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexSimpleArray) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(2, 16))}}),
               IsOkAndHolds(Value(UBits(33, 8))));
@@ -1128,7 +1136,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithNarrowIndex) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run({{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()},
                      {"idx", Value(UBits(1, 2))}}),
@@ -1150,7 +1158,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexWithLiteralIndex) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run({{"a", Value::UBitsArray({11, 22, 33, 44}, 8).value()}}),
       IsOkAndHolds(Value(UBits(44, 8))));
@@ -1170,7 +1178,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndexNilIndex) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()}}),
       IsOkAndHolds(Value::UBitsArray({11, 22, 33}, 8).value()));
@@ -1193,7 +1201,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSingleElement) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1217,7 +1225,7 @@ TEST_P(CombinationalGeneratorTest, ArrayIndex2DArrayIndexSubArray) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1251,7 +1259,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateLiteralIndex) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"value", Value(UBits(123, 8))}}),
               IsOkAndHolds(Value::UBitsArray({11, 123, 33}, 8).value()));
@@ -1272,7 +1280,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateVariableIndex) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.Run({{"a", Value::UBitsArray({11, 22, 33}, 8).value()},
                              {"idx", Value(UBits(0, 32))},
                              {"value", Value(UBits(123, 8))}}),
@@ -1300,7 +1308,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralIndex) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1325,7 +1333,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DVariableIndex) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1367,7 +1375,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DLiteralAndVariableIndex) {
                            GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1400,7 +1408,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayLiteralIndex) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1424,7 +1432,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayVariableIndex) {
   ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
                                  result.verilog_text);
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1458,7 +1466,7 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdate2DUpdateArrayNilIndex) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(
       simulator.Run(
           {{"a", Value::UBits2DArray({{11, 22, 33}, {44, 55, 66}}, 8).value()},
@@ -1483,14 +1491,16 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateBitsNilIndex) {
                                  result.verilog_text);
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   EXPECT_THAT(simulator.RunAndReturnSingleOutput(
                   {{"a", UBits(11, 8)}, {"value", UBits(22, 8)}}),
               IsOkAndHolds(UBits(22, 8)));
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1510,7 +1520,9 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithDifferentTypesIndices) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1527,7 +1539,9 @@ TEST_P(CombinationalGeneratorTest, ArrayUpdateWithNarrowIndex) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1539,7 +1553,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
                            GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
                            Value::UBitsArray({1, 2, 3, 4, 5}, 32));
   EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 1))}}),
@@ -1552,7 +1566,9 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithNarrowStart) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1564,7 +1580,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
                            GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value,
                            Value::UBitsArray({1, 2, 3, 4, 5}, 32));
   EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(1, 100))}}),
@@ -1575,7 +1591,9 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWithWideStart) {
 }
 
 TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
-  VerilogFile file(codegen_options().use_system_verilog());
+  VerilogFile file(codegen_options().use_system_verilog()
+                       ? FileType::kSystemVerilog
+                       : FileType::kVerilog);
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);
   Type* u32 = package.GetBitsType(32);
@@ -1587,7 +1605,7 @@ TEST_P(CombinationalGeneratorTest, ArraySliceWiderThanInputArray) {
                            GenerateCombinationalModule(f, codegen_options()));
 
   ModuleSimulator simulator(result.signature, result.verilog_text,
-                            GetSimulator());
+                            GetFileType(), GetSimulator());
   XLS_ASSERT_OK_AND_ASSIGN(Value a_value, Value::UBitsArray({1, 2, 3}, 32));
   EXPECT_THAT(simulator.Run({{"a", a_value}, {"start", Value(UBits(0, 32))}}),
               IsOkAndHolds(Value::UBitsArray({1, 2, 3, 3, 3}, 32).value()));

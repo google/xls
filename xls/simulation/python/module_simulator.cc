@@ -18,6 +18,7 @@
 #include "absl/types/span.h"
 #include "pybind11/pybind11.h"
 #include "xls/common/python/absl_casters.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/ir/value.h"
 #include "xls/simulation/verilog_simulators.h"
@@ -33,9 +34,11 @@ namespace {
 class ModuleSimulatorWrapper : public ModuleSimulator {
  public:
   ModuleSimulatorWrapper(const ModuleSignature& signature,
-                         absl::string_view verilog_text)
-      : ModuleSimulator(signature, verilog_text,
-                        &GetDefaultVerilogSimulator()) {}
+                         absl::string_view verilog_text, bool is_system_verilog)
+      : ModuleSimulator(
+            signature, verilog_text,
+            is_system_verilog ? FileType::kSystemVerilog : FileType::kVerilog,
+            &GetDefaultVerilogSimulator()) {}
 };
 
 }  // namespace
@@ -53,8 +56,9 @@ PYBIND11_MODULE(module_simulator, m) {
       const = &ModuleSimulator::Run;
 
   py::class_<ModuleSimulatorWrapper>(m, "ModuleSimulator")
-      .def(py::init<const ModuleSignature&, absl::string_view>(),
-           py::arg("signature"), py::arg("verilog_text"))
+      .def(py::init<const ModuleSignature&, absl::string_view, bool>(),
+           py::arg("signature"), py::arg("verilog_text"),
+           py::arg("is_system_verilog"))
       .def("run_kwargs", run_kwargs, py::arg("args"))
       .def("run", run, py::arg("args"));
 }

@@ -19,6 +19,7 @@
 #include "absl/strings/str_split.h"
 #include "absl/strings/string_view.h"
 #include "xls/codegen/module_signature.h"
+#include "xls/codegen/vast.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -59,15 +60,20 @@ ABSL_FLAG(std::string, args, "",
 ABSL_FLAG(std::string, verilog_simulator, "",
           "The Verilog simulator to use. If not specified, the default "
           "simulator is used.");
+ABSL_FLAG(std::string, file_type, "",
+          "The type of input file, may be either 'verilog' or "
+          "'system_verilog'. If not specified the file type is determined by "
+          "the file extensoin of the input file");
 
 namespace xls {
 namespace {
 
 absl::Status RealMain(absl::string_view verilog_text,
+                      verilog::FileType file_type,
                       const verilog::ModuleSignature& signature,
                       absl::Span<const std::string> args_strings,
                       const verilog::VerilogSimulator* verilog_simulator) {
-  verilog::ModuleSimulator simulator(signature, verilog_text,
+  verilog::ModuleSimulator simulator(signature, verilog_text, file_type,
                                      verilog_simulator);
 
   std::vector<absl::flat_hash_map<std::string, Value>> args_sets;
@@ -114,9 +120,32 @@ int main(int argc, char** argv) {
   }
   XLS_QCHECK_EQ(positional_arguments.size(), 1)
       << "Expected single Verilog file argument.";
-  absl::StatusOr<std::string> verilog_text =
-      xls::GetFileContents(positional_arguments.at(0));
+  std::filesystem::path verilog_path(positional_arguments.at(0));
+  absl::StatusOr<std::string> verilog_text = xls::GetFileContents(verilog_path);
   XLS_QCHECK_OK(verilog_text.status());
+
+  xls::verilog::FileType file_type;
+  if (absl::GetFlag(FLAGS_file_type).empty()) {
+    if (verilog_path.extension() == ".v") {
+      file_type = xls::verilog::FileType::kVerilog;
+    } else if (verilog_path.extension() == ".sv") {
+      file_type = xls::verilog::FileType::kSystemVerilog;
+    } else {
+      XLS_LOG(QFATAL) << absl::StreamFormat(
+          "Unable to determine file type from filename `%s`. Expected `.v` or "
+          "`.sv` file extension.",
+          verilog_path);
+    }
+  } else {
+    if (absl::GetFlag(FLAGS_file_type) == "verilog") {
+      file_type = xls::verilog::FileType::kVerilog;
+    } else if (absl::GetFlag(FLAGS_file_type) == "system_verilog") {
+      file_type = xls::verilog::FileType::kSystemVerilog;
+    } else {
+      XLS_LOG(QFATAL) << "Invalid value for --file_type. Expected `verilog` or "
+                         "`system_verilog`.";
+    }
+  }
 
   std::vector<std::string> args_strings;
   XLS_QCHECK(!absl::GetFlag(FLAGS_args).empty() ^
@@ -141,8 +170,9 @@ int main(int argc, char** argv) {
       xls::verilog::ModuleSignature::FromProto(signature_proto);
   XLS_QCHECK_OK(signature_status.status());
 
-  XLS_QCHECK_OK(xls::RealMain(verilog_text.value(), signature_status.value(),
-                              args_strings, verilog_simulator));
+  XLS_QCHECK_OK(xls::RealMain(verilog_text.value(), file_type,
+                              signature_status.value(), args_strings,
+                              verilog_simulator));
 
   return EXIT_SUCCESS;
 }

@@ -119,7 +119,8 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
     return absl::InvalidArgumentError("Expected clock in signature");
   }
 
-  ModuleTestbench tb(verilog_text_, signature_, simulator_, includes_);
+  ModuleTestbench tb(verilog_text_, file_type_, signature_, simulator_,
+                     includes_);
 
   // Drive any control signals to an unasserted state so the all control inputs
   // are non-X when the device comes out of reset.

@@ -408,7 +408,8 @@ class SampleRunner:
     args.extend(codegen_args)
     args.append(ir_filename)
     verilog_text = self._run_command('Generating Verilog', args, options)
-    return self._write_file('sample.v', verilog_text)
+    return self._write_file(
+        'sample.sv' if options.use_system_verilog else 'sample.v', verilog_text)
 
   def _simulate(self, verilog_filename: Text, module_sig_filename: Text,
                 args_filename: Text,

@@ -293,6 +293,7 @@ void IrTestBase::RunAndExpectEq(
     }
     XLS_VLOG(3) << "Verilog text:\n" << result.verilog_text;
     verilog::ModuleSimulator simulator(result.signature, result.verilog_text,
+                                       verilog::FileType::kVerilog,
                                        &verilog::GetDefaultVerilogSimulator());
     XLS_ASSERT_OK_AND_ASSIGN(Value actual, simulator.Run(arg_set));
     ASSERT_TRUE(ValuesEqual(expected, actual)) << "(Verilog simulation)";

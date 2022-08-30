@@ -56,6 +56,8 @@ ModuleTestbench::ModuleTestbench(Module* module,
                                  absl::Span<const VerilogInclude> includes)
     // Emit the entire file because the module may instantiate other modules.
     : verilog_text_(module->file()->Emit()),
+      file_type_(module->file()->use_system_verilog() ? FileType::kSystemVerilog
+                                                      : FileType::kVerilog),
       module_name_(module->name()),
       simulator_(simulator),
       clk_name_(clk_name),
@@ -78,10 +80,12 @@ ModuleTestbench::ModuleTestbench(Module* module,
 }
 
 ModuleTestbench::ModuleTestbench(absl::string_view verilog_text,
+                                 FileType file_type,
                                  const ModuleSignature& signature,
                                  const VerilogSimulator* simulator,
                                  absl::Span<const VerilogInclude> includes)
     : verilog_text_(verilog_text),
+      file_type_(file_type),
       module_name_(signature.module_name()),
       simulator_(simulator),
       includes_(includes) {
@@ -355,7 +359,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
 }
 
 absl::Status ModuleTestbench::Run() {
-  VerilogFile file(/*use_system_verilog=*/false);
+  VerilogFile file(file_type_);
   Module* m = file.AddModule("testbench", SourceInfo());
 
   absl::flat_hash_map<std::string, LogicRef*> port_refs;
@@ -540,7 +544,8 @@ absl::Status ModuleTestbench::Run() {
   XLS_VLOG(2) << verilog_text;
 
   std::pair<std::string, std::string> stdout_stderr;
-  XLS_ASSIGN_OR_RETURN(stdout_stderr, simulator_->Run(verilog_text, includes_));
+  XLS_ASSIGN_OR_RETURN(stdout_stderr,
+                       simulator_->Run(verilog_text, file_type_, includes_));
 
   XLS_VLOG(2) << "Verilog simulator stdout:\n" << stdout_stderr.first;
   XLS_VLOG(2) << "Verilog simulator stderr:\n" << stdout_stderr.second;

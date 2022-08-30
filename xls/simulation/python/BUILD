@@ -28,6 +28,7 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:vast",
         "//xls/common/python:absl_casters",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/ir:value",
