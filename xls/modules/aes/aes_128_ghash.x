@@ -162,6 +162,7 @@ enum Step : u2 {
     IDLE = 0,
     RECV_INPUT = 1,
     HASH_LENGTHS = 2,
+    INVALID = 3,
 }
 
 // The carried state of the GHASH proc.
@@ -259,6 +260,7 @@ pub proc aes_128_ghash {
             (  Step::RECV_INPUT, false) => Step::RECV_INPUT,
             (  Step::RECV_INPUT,  true) => Step::HASH_LENGTHS,
             (Step::HASH_LENGTHS,     _) => Step::IDLE,
+            _ => fail!("invalid_state_transition", Step::INVALID),
         };
 
         State {

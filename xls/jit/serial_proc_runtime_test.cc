@@ -266,38 +266,6 @@ proc b(my_token: token, state: (bits[32]), init={()}) {
   }
 }
 
-// This test verifies that SerialProcRuntime can detect when a network has
-// deadlocked (when it's waiting on more data that's not coming).
-TEST(SerialProcRuntimeTest, DetectsDeadlock) {
-  // Proc A sends one pieces of data to B, but B expects two - the second will
-  // never arrive.
-  const std::string kIrText = R"(
-package p
-
-chan first(bits[32], id=1, kind=streaming, ops=send_receive, flow_control=none, metadata="")
-chan second(bits[32], id=2, kind=streaming, ops=send_receive, flow_control=none, metadata="")
-
-proc a(my_token: token, state: bits[1], init={0}) {
-  literal.1: bits[32] = literal(value=1)
-  send.3: token = send(my_token, literal.1, channel_id=1)
-  send.4: token = send(send.3, literal.1, predicate=state, channel_id=2)
-  next (send.4, state)
-}
-
-proc b(my_token: token, state: (), init={()}) {
-  receive.101: (token, bits[32]) = receive(my_token, channel_id=1)
-  tuple_index.102: token = tuple_index(receive.101, index=0)
-  receive.103: (token, bits[32]) = receive(tuple_index.102, channel_id=2)
-  tuple_index.104: token = tuple_index(receive.103, index=0)
-  next (tuple_index.104, state)
-}
-)";
-  XLS_ASSERT_OK_AND_ASSIGN(auto p, Parser::ParsePackage(kIrText));
-  XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(p.get()));
-  ASSERT_THAT(runtime->Tick(),
-              status_testing::StatusIs(absl::StatusCode::kAborted));
-}
-
 // Tests that a proc can be blocked (by missing recv data) and then become
 // unblocked when data is available.
 TEST(SerialProcRuntimeTest, FinishesDelayedCycle) {
@@ -334,12 +302,13 @@ proc b(my_token: token, state: (), init={()}) {
     int32_t data = 42;
     input_queue->Send(absl::bit_cast<uint8_t*>(&data), sizeof(data));
   });
-  XLS_ASSERT_OK(runtime->Tick());
   XLS_ASSERT_OK_AND_ASSIGN(auto output_queue,
                            runtime->queue_mgr()->GetQueueById(2));
 
   int32_t data;
-  output_queue->Recv(absl::bit_cast<uint8_t*>(&data), sizeof(data));
+  while (!output_queue->Recv(absl::bit_cast<uint8_t*>(&data), sizeof(data))) {
+    XLS_ASSERT_OK(runtime->Tick());
+  }
   EXPECT_EQ(data, 42);
   thread.Join();
 }
@@ -383,10 +352,11 @@ proc a(my_token: token, state: (), init={()}) {
   XLS_ASSERT_OK(runtime->Tick());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel, p->GetChannel(1));
-  XLS_ASSERT_OK_AND_ASSIGN(Value output,
+  XLS_ASSERT_OK_AND_ASSIGN(std::optional<Value> maybe_output,
                            runtime->DequeueValueFromChannel(output_channel));
+  ASSERT_TRUE(maybe_output.has_value());
 
-  EXPECT_EQ(output.ToString(),
+  EXPECT_EQ(maybe_output.value().ToString(),
             "(bits[132]:0xf_abcd_1234_9876_1010_aaaa_beeb_c12c_defe, "
             "bits[217]:0x1111_2222_3333_4444_abcd_4321_4444_2468_357b)");
 }
@@ -427,7 +397,7 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
     XLS_ASSERT_OK(runtime->Tick());
   }
 
-  auto get_output = [&]() -> absl::StatusOr<Value> {
+  auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {
     return runtime->DequeueValueFromChannel(output_channel);
   };
 
@@ -461,7 +431,7 @@ TEST(SerialProcRuntimeTest, StateReset) {
       ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
 
-  auto get_output = [&]() -> absl::StatusOr<Value> {
+  auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {
     return runtime->DequeueValueFromChannel(ch_out);
   };
 
@@ -526,7 +496,7 @@ TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
 
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
 
-  auto get_output = [&]() -> absl::StatusOr<Value> {
+  auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {
     return runtime->DequeueValueFromChannel(out0);
   };
 

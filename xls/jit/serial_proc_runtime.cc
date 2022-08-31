@@ -53,12 +53,21 @@ void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
     absl::StatusOr<InterpreterResult<std::vector<Value>>> next_state_or =
         thread_data->jit->Run(thread_data->proc_state, thread_data);
     XLS_CHECK_OK(next_state_or.status());
-    thread_data->proc_state = next_state_or.value().value;
 
     absl::MutexLock lock(&thread_data->mutex);
+    thread_data->proc_state = next_state_or.value().value;
     if (thread_data->thread_state == ThreadData::State::kCancelled) {
       break;
     }
+
+    if (!next_state_or.value().events.trace_msgs.empty()) {
+      XLS_LOG(INFO) << "Proc " << thread_data->jit->proc()->name()
+                    << " trace messages:";
+      for (const std::string& msg : next_state_or.value().events.trace_msgs) {
+        XLS_LOG(INFO) << " - " << msg;
+      }
+    }
+
     thread_data->thread_state = ThreadData::State::kDone;
     AwaitState(thread_data, await_states);
     if (thread_data->thread_state == ThreadData::State::kCancelled) {
@@ -87,11 +96,21 @@ bool SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
       return false;
     }
     thread_data->thread_state = ThreadData::State::kBlocked;
-    thread_data->blocking_channel = queue->channel_id();
     AwaitState(thread_data, await_states);
   }
 
-  return queue->Recv(data, data_bytes);
+  bool received_data = queue->Recv(data, data_bytes);
+  if (XLS_VLOG_IS_ON(3)) {
+    std::string data;
+    for (int i = 0; i < data_bytes; i++) {
+      absl::StrAppend(&data,
+                      absl::StrFormat("0x%2x", static_cast<uint32_t>(data[i])));
+    }
+    XLS_LOG(INFO) << thread_data->jit->proc()->name()
+                  << ": recv data: " << data;
+  }
+
+  return received_data;
 }
 
 void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send,
@@ -99,7 +118,15 @@ void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send,
                                void* user_data) {
   ThreadData* thread_data = absl::bit_cast<ThreadData*>(user_data);
   absl::MutexLock lock(&thread_data->mutex);
-  thread_data->sent_data = true;
+  if (XLS_VLOG_IS_ON(3)) {
+    std::string data;
+    for (int i = 0; i < data_bytes; i++) {
+      absl::StrAppend(&data,
+                      absl::StrFormat("0x%2x", static_cast<uint32_t>(data[i])));
+    }
+    XLS_LOG(INFO) << thread_data->jit->proc()->name()
+                  << ": send data: " << data;
+  }
   queue->Send(data, data_bytes);
 }
 
@@ -133,8 +160,8 @@ absl::Status SerialProcRuntime::Init() {
         thread->jit, ProcJit::Create(proc, queue_mgr_.get(), &RecvFn, &SendFn));
 
     absl::MutexLock lock(&thread->mutex);
-    thread->sent_data = false;
     thread->thread_state = ThreadData::State::kPending;
+    thread->print_traces = false;
     threads_.push_back(std::move(thread));
 
     // Start the thread - the first thing it does is wait until the state is
@@ -157,54 +184,16 @@ absl::Status SerialProcRuntime::Init() {
   return absl::OkStatus();
 }
 
-absl::Status SerialProcRuntime::Tick() {
+absl::Status SerialProcRuntime::Tick(bool print_traces) {
   absl::flat_hash_set<ThreadData::State> await_states(
       {ThreadData::State::kBlocked, ThreadData::State::kDone});
-  bool done = false;
-  while (!done) {
-    done = true;
-    // True if any proc sent data during this pass/activation/partial cycle.
-    bool data_sent = false;
-    // True if the proc network is blocked waiting on data from "outside".
-    bool blocked_by_external = false;
-    for (auto& thread : threads_) {
-      absl::MutexLock lock(&thread->mutex);
-      if (thread->thread_state == ThreadData::State::kDone) {
-        continue;
-      }
-
-      // Each blocked thread is stuck on a Condition waiting to be set to
-      // kRunning before starting/resuming (so we can ensure serial operation).
-      thread->sent_data = false;
-      thread->thread_state = ThreadData::State::kRunning;
-      AwaitState(thread.get(), await_states);
-      if (thread->thread_state != ThreadData::State::kDone) {
-        done = false;
-      }
-
-      if (thread->thread_state == ThreadData::State::kBlocked) {
-        XLS_ASSIGN_OR_RETURN(Channel * chan,
-                             package_->GetChannel(thread->blocking_channel));
-        if (chan->supported_ops() == ChannelOps::kReceiveOnly) {
-          blocked_by_external = true;
-        }
-      }
-
-      data_sent |= thread->sent_data;
-      thread->sent_data = false;
-    }
-
-    if (!done && !data_sent && !blocked_by_external) {
-      return absl::AbortedError(
-          "Deadlock detected; some procs were blocked with no data sent.");
-    }
-  }
-
   for (auto& thread : threads_) {
-    // Reset state for the next Tick().
     absl::MutexLock lock(&thread->mutex);
-    thread->sent_data = false;
-    thread->thread_state = ThreadData::State::kPending;
+    // Each blocked thread is stuck on a Condition waiting to be set to
+    // kRunning before starting/resuming (so we can ensure serial operation).
+    thread->thread_state = ThreadData::State::kRunning;
+    thread->print_traces = print_traces;
+    AwaitState(thread.get(), await_states);
   }
 
   return absl::OkStatus();
@@ -228,7 +217,7 @@ absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
   return absl::OkStatus();
 }
 
-absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
+absl::StatusOr<std::optional<Value>> SerialProcRuntime::DequeueValueFromChannel(
     Channel* channel) {
   Type* type = channel->type();
 
@@ -239,7 +228,10 @@ absl::StatusOr<Value> SerialProcRuntime::DequeueValueFromChannel(
 
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
                        queue_mgr()->GetQueueById(channel->id()));
-  queue->Recv(buffer.get(), size);
+  bool had_data = queue->Recv(buffer.get(), size);
+  if (!had_data) {
+    return absl::nullopt;
+  }
 
   return jit->runtime()->UnpackBuffer(buffer.get(), type);
 }
@@ -268,6 +260,7 @@ void SerialProcRuntime::ResetState() {
   for (int i = 0; i < package_->procs().size(); i++) {
     Proc* proc = package_->procs()[i].get();
     auto thread = threads_[i].get();
+    absl::MutexLock lock(&thread->mutex);
     thread->proc_state = std::vector<Value>(proc->InitValues().begin(),
                                             proc->InitValues().end());
   }

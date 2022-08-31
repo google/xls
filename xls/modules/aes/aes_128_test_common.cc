@@ -13,12 +13,18 @@
 // limitations under the License.
 #include "xls/modules/aes/aes_128_test_common.h"
 
+#include <arpa/inet.h>
+
+#include <filesystem>
+
 #include "absl/strings/str_join.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/bits.h"
+#include "xls/ir/bits_ops.h"
 
 namespace xls::aes {
 
-std::string FormatKey(const std::vector<uint8_t>& key) {
+std::string FormatKey(const std::array<uint8_t, kKeyBytes>& key) {
   return absl::StrFormat(
       "0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, "
       "0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x",
@@ -55,16 +61,18 @@ std::string FormatInitVector(const InitVector& iv) {
 }
 
 void PrintFailure(const Block& expected_block, const Block& actual_block,
-                  const std::vector<uint8_t>& key, int32_t index,
-                  bool ciphertext) {
+                  int32_t index, bool ciphertext) {
   std::string type_str = ciphertext ? "ciphertext" : "plaintext";
   std::cout << "Mismatch in " << type_str << " at byte " << index << ": "
             << std::hex << "expected: 0x"
             << static_cast<uint32_t>(expected_block[index]) << "; actual: 0x"
             << static_cast<uint32_t>(actual_block[index]) << std::endl;
+  std::cout << " - Expected block: " << FormatBlock(expected_block)
+            << std::endl;
+  std::cout << " - Actual block  : " << FormatBlock(actual_block) << std::endl;
 }
 
-absl::StatusOr<Value> KeyToValue(const std::vector<uint8_t>& key) {
+absl::StatusOr<Value> KeyToValue(const Key& key) {
   constexpr int32_t kKeyWords = kKeyBits / 32;
   std::vector<Value> key_values;
   key_values.reserve(kKeyWords);
@@ -78,6 +86,15 @@ absl::StatusOr<Value> KeyToValue(const std::vector<uint8_t>& key) {
     key_values.push_back(Value(UBits(key_word, /*bit_count=*/32)));
   }
   return Value::Array(key_values);
+}
+
+Value InitVectorToValue(const InitVector& iv) {
+  std::vector<Bits> iv_bits;
+  iv_bits.reserve(kInitVectorBytes);
+  for (int i = 0; i < kInitVectorBytes; i++) {
+    iv_bits.push_back(UBits(iv[i], 8));
+  }
+  return Value(bits_ops::Concat(iv_bits));
 }
 
 absl::StatusOr<Value> BlockToValue(const Block& block) {
@@ -106,6 +123,25 @@ absl::StatusOr<Block> ValueToBlock(const Value& value) {
   }
 
   return result;
+}
+
+// TODO(rspringer): Yes, this is ugly. This should really be done via
+// JitRuntime::BlitValueToBuffer() or some other llvm::DataLayout-aware call.
+// Such cleanups are doing to be done _en_masse_ once the AES implementation is
+// complete.
+void KeyToBuffer(const Key& key, std::array<uint32_t, 4>* buffer) {
+  for (int32_t i = 0; i < 4; i++) {
+    uint32_t key_word =
+        htonl(*reinterpret_cast<const uint32_t*>(key.data() + i * 4));
+    buffer->data()[i] = key_word;
+  }
+}
+
+void InitVectorToBuffer(const InitVector& iv,
+                        std::array<uint8_t, kInitVectorBytes>* buffer) {
+  for (int i = kInitVectorBytes - 1; i >= 0; i--) {
+    buffer->data()[i] = iv[kInitVectorBytes - 1 - i];
+  }
 }
 
 }  // namespace xls::aes

@@ -264,9 +264,9 @@ absl::Status ProcBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
   // pointer-referencable storage; that's what allocas are for).
   std::vector<Type*> tuple_elems;
   tuple_elems.push_back(send->data()->GetType());
-  TupleType tuple_type(tuple_elems);
-  llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(&tuple_type);
-  int64_t send_type_size = type_converter()->GetTypeByteSize(&tuple_type);
+  TupleType* tuple_type = proc()->package()->GetTupleType(tuple_elems);
+  llvm::Type* send_op_types = type_converter()->ConvertToLlvmType(tuple_type);
+  int64_t send_type_size = type_converter()->GetTypeByteSize(tuple_type);
   llvm::Value* tuple = CreateTypedZeroValue(send_op_types);
   tuple = builder->CreateInsertValue(tuple, llvm_data, {0u});
   llvm::AllocaInst* alloca = builder->CreateAlloca(send_op_types);

@@ -53,7 +53,7 @@ constexpr int32_t kIvBits = 96;
 constexpr int32_t kIvBytes = kIvBits / 8;
 
 struct SampleData {
-  std::vector<uint8_t> key;
+  Key key;
   // Held as a uN[96] in the DSLX.
   InitVector iv;
   std::vector<Block> input_blocks;
@@ -73,13 +73,8 @@ struct JitData {
 // JitRuntime::BlitValueToBuffer() or some other llvm::DataLayout-aware call.
 // Such cleanups are doing to be done _en_masse_ once the AES implementation is
 // complete.
-void KeyToBuffer(const std::vector<uint8_t>& key,
-                 std::array<uint32_t, 4>* buffer) {
-  for (int32_t i = 0; i < 4; i++) {
-    uint32_t key_word =
-        htonl(*reinterpret_cast<const uint32_t*>(key.data() + i * 4));
-    buffer->data()[i] = key_word;
-  }
+void KeyToBuffer(const Key& key, std::array<uint8_t, kKeyBytes>* buffer) {
+  memcpy(buffer, key.data(), kKeyBytes);
 }
 
 // In the DSLX, the IV is treated as a uN[96], so we potentially need to swap
@@ -265,7 +260,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
           xls_ciphertext[block_idx][byte_idx]) {
         std::cout << "Error comparing block " << block_idx << ":" << std::endl;
         PrintFailure(reference_ciphertext[block_idx], xls_ciphertext[block_idx],
-                     sample_data.key, byte_idx, /*ciphertext=*/true);
+                     byte_idx, /*ciphertext=*/true);
         return false;
       }
     }
@@ -297,7 +292,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
           xls_plaintext[block_idx][byte_idx]) {
         std::cout << "Error comparing block " << block_idx << ":" << std::endl;
         PrintFailure(sample_data.input_blocks[block_idx],
-                     xls_ciphertext[block_idx], sample_data.key, byte_idx,
+                     xls_ciphertext[block_idx], byte_idx,
                      /*ciphertext=*/false);
         return false;
       }
@@ -346,7 +341,6 @@ void EncoderJitSendFn(JitChannelQueue* queue, Send* send, uint8_t* buffer,
 
 absl::Status RealMain(int32_t num_samples) {
   SampleData sample_data;
-  sample_data.key.resize(kKeyBytes, 0);
   memset(sample_data.iv.data(), 0, sizeof(sample_data.iv));
 
   XLS_ASSIGN_OR_RETURN(

@@ -26,24 +26,23 @@
 namespace xls {
 
 // SerialProcRuntime is the "base case" for Proc runtimes. For each clock tick,
-// it iterates through the procs in its package and runs them once, all within a
-// single thread. While basic, this enables steady progression so that a
-// user can see how a Proc's internal state (or a proc network's internal state)
-// evolves over time.
-// To be able to block/suspect a Proc when waiting on input, we use a thread per
+// it iterates through the procs in its package and runs them once.
+// While basic, this enables steady progression so that a user can see how a
+// Proc's internal state (or a proc network's internal state) evolves over time.
+// To be able to block a Proc when waiting on input, we use a thread per
 // Proc. When a receive is done on an empty queue, that Proc thread will
 // conditional-wait until data becomes available, at which point it will
-// continue execution. In this way, a single Tick() may span multiple thread
-// activations and suspends, but will terminate once the cycle has completed or
-// when a deadlock is detected.
+// continue execution.
 class SerialProcRuntime {
  public:
   static absl::StatusOr<std::unique_ptr<SerialProcRuntime>> Create(
       Package* package);
   ~SerialProcRuntime();
 
-  // Execute one cycle of every proc in the network.
-  absl::Status Tick();
+  // Attempt to progress every proc in the network. Terminates when every
+  // block has either completed execution of its `next` function or is blocked
+  // on a recv operation.
+  absl::Status Tick(bool print_traces = false);
 
   Package* package() { return package_; }
   JitChannelQueueManager* queue_mgr() { return queue_mgr_.get(); }
@@ -54,8 +53,9 @@ class SerialProcRuntime {
 
   // Dequeues a set of values into the given channel. The number and type of the
   // returned values matches the number and type of the data elements of the
-  // channel.
-  absl::StatusOr<Value> DequeueValueFromChannel(Channel* channel);
+  // channel. If the queue is empty, absl::nullopt is returned.
+  absl::StatusOr<std::optional<Value>> DequeueValueFromChannel(
+      Channel* channel);
 
   // Returns the current number of procs in this runtime.
   int64_t NumProcs() const;
@@ -81,19 +81,12 @@ class SerialProcRuntime {
     std::unique_ptr<Thread> thread;
     std::unique_ptr<ProcJit> jit;
 
-    // The Proc's carried state.
-    std::vector<Value> proc_state;
 
     absl::Mutex mutex;
     State thread_state ABSL_GUARDED_BY(mutex);
-
-    // True if the proc sent out data during its last activation. Used to detect
-    // network deadlock.
-    bool sent_data ABSL_GUARDED_BY(mutex);
-
-    // True if this proc is blocked on data coming from "outside" the network,
-    // i.e., a receive_only channel. Stops network deadlock false positives.
-    int64_t blocking_channel ABSL_GUARDED_BY(mutex);
+    bool print_traces ABSL_GUARDED_BY(mutex);
+    // The Proc's carried state.
+    std::vector<Value> proc_state ABSL_GUARDED_BY(mutex);
   };
 
   SerialProcRuntime(Package* package);

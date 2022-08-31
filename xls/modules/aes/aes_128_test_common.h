@@ -25,24 +25,24 @@
 
 namespace xls::aes {
 
-// TODO(rspringer): Define "key" as a std::array of some sort.
-
 // The number of bits 'n' bytes in an AES-128 key and block.
 constexpr int32_t kKeyBits = 128;
 constexpr int32_t kKeyBytes = kKeyBits / std::numeric_limits<uint8_t>::digits;
 constexpr int32_t kBlockBits = 128;
 constexpr int32_t kBlockBytes =
     kBlockBits / std::numeric_limits<uint8_t>::digits;
-constexpr int32_t kInitialVectorBits = 96;
-constexpr int32_t kInitialVectorBytes =
-    kInitialVectorBits / std::numeric_limits<uint8_t>::digits;
+constexpr int32_t kInitVectorBits = 96;
+constexpr int32_t kInitVectorBytes =
+    kInitVectorBits / std::numeric_limits<uint8_t>::digits;
 
 using Block = std::array<uint8_t, kBlockBytes>;
-using InitVector = std::array<uint8_t, kInitialVectorBytes>;
+using Key = std::array<uint8_t, kKeyBytes>;
+using InitVector = std::array<uint8_t, kInitVectorBytes>;
+using AuthData = std::vector<Block>;
 
 // Returns a string representation of the given key in a format suitable for
 // printing/debugging.
-std::string FormatKey(const std::vector<uint8_t>& key);
+std::string FormatKey(const std::array<uint8_t, kKeyBytes>& key);
 
 // Returns a string representation of the given block in a format suitable for
 // printing/debugging.
@@ -55,17 +55,27 @@ std::string FormatInitVector(const InitVector& iv);
 
 // Prints an appropriate error message on a block value mismatch.
 void PrintFailure(const Block& expected_block, const Block& actual_block,
-                  const std::vector<uint8_t>& key, int32_t index,
-                  bool ciphertext);
+                  int32_t index, bool ciphertext);
 
 // Converts the given key (vector of 16 bytes) into an XLS value.
-absl::StatusOr<Value> KeyToValue(const std::vector<uint8_t>& key);
+absl::StatusOr<Value> KeyToValue(const Key& key);
+
+Value InitVectorToValue(const InitVector& iv);
 
 // Converts the given block into an XLS value.
 absl::StatusOr<Value> BlockToValue(const Block& block);
 
 // Converts the given value into a block.
 absl::StatusOr<Block> ValueToBlock(const Value& value);
+
+// Populates the given buffer with the value of "key". In DSLX land, a key is
+// four sequential u32s, but XLS is big-endian, so we need to re-lay out our
+// bits appropriately.
+void KeyToBuffer(const Key& key, std::array<uint32_t, 4>* buffer);
+
+// Populates the given buffer with the value of "iv".
+void InitVectorToBuffer(const InitVector& iv,
+                        std::array<uint8_t, kInitVectorBytes>* buffer);
 
 }  // namespace xls::aes
 

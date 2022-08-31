@@ -1,0 +1,362 @@
+// Copyright 2022 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Test of the XLS 128-bit AES-GCM implementation against a reference (in this
+// case, BoringSSL's implementation).
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include "absl/cleanup/cleanup.h"
+#include "absl/flags/flag.h"
+#include "absl/random/random.h"
+#include "absl/status/status.h"
+#include "absl/status/statusor.h"
+#include "absl/strings/string_view.h"
+#include "openssl/aead.h"
+#include "xls/common/file/filesystem.h"
+#include "xls/common/file/get_runfile_path.h"
+#include "xls/common/init_xls.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/status/status_macros.h"
+#include "xls/ir/ir_parser.h"
+#include "xls/jit/serial_proc_runtime.h"
+#include "xls/modules/aes/aes_128_test_common.h"
+
+// TODO(rspringer): This is a bit slow. Seems like we should be able to compute
+// 1k samples a lot faster than 2 minutes.
+
+ABSL_FLAG(int, num_samples, 250, "The number of samples to execute.");
+ABSL_FLAG(bool, print_traces, false,
+          "If true, print any trace! or trace_fmt! messages.");
+
+namespace xls::aes {
+
+constexpr int kMaxAadBlocks = 128;
+constexpr int kMaxPtxtBlocks = 128;
+constexpr int kTagBits = 128;
+constexpr int kTagBytes = kTagBits / 8;
+
+constexpr absl::string_view kIrPath = "xls/modules/aes/aes_128_gcm.ir";
+constexpr absl::string_view kCmdChannelName = "aes_128_gcm__command_in";
+constexpr absl::string_view kDataInChannelName = "aes_128_gcm__data_in";
+constexpr absl::string_view kDataOutChannelName = "aes_128_gcm__data_out";
+
+struct JitData {
+  std::unique_ptr<Package> package;
+  std::unique_ptr<SerialProcRuntime> runtime;
+};
+
+struct SampleData {
+  EVP_AEAD_CTX* openssl_ctxt;
+  Key key;
+  InitVector init_vector;
+  std::vector<Block> input_data;
+  AuthData aad;
+};
+
+struct Result {
+  std::vector<Block> output_data;
+  Block auth_tag;
+};
+
+absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
+                                  const SampleData& sample_data, bool encrypt) {
+  // Create (and send) the initial command.
+  Package* package = jit_data->package.get();
+  SerialProcRuntime* runtime = jit_data->runtime.get();
+  XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
+                       package->GetChannel(kCmdChannelName));
+  Value command;
+  std::vector<Value> command_elements;
+  // encrypt
+  command_elements.push_back(Value(UBits(static_cast<uint64_t>(encrypt), 1)));
+  // msg_blocks
+  command_elements.push_back(Value(UBits(sample_data.input_data.size(), 32)));
+  // aad_blocks
+  command_elements.push_back(Value(UBits(sample_data.aad.size(), 32)));
+  // Key
+  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(sample_data.key));
+  command_elements.push_back(key_value);
+  // IV
+  command_elements.push_back(InitVectorToValue(sample_data.init_vector));
+  command = Value::Tuple(command_elements);
+  XLS_RETURN_IF_ERROR(runtime->EnqueueValueToChannel(cmd_channel, command));
+
+  // Then send all input data: the AAD followed by the message body.
+  XLS_ASSIGN_OR_RETURN(Channel * data_in_channel,
+                       package->GetChannel(kDataInChannelName));
+  for (int i = 0; i < sample_data.aad.size(); i++) {
+    XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(sample_data.aad[i]));
+    XLS_RETURN_IF_ERROR(
+        runtime->EnqueueValueToChannel(data_in_channel, block_value));
+  }
+
+  for (int i = 0; i < sample_data.input_data.size(); i++) {
+    XLS_ASSIGN_OR_RETURN(Value block_value,
+                         BlockToValue(sample_data.input_data[i]));
+    XLS_RETURN_IF_ERROR(
+        runtime->EnqueueValueToChannel(data_in_channel, block_value));
+  }
+
+  // Tick the network until we have all results.
+  Result result;
+  XLS_ASSIGN_OR_RETURN(Channel * data_out_channel,
+                       package->GetChannel(kDataOutChannelName));
+  int msg_blocks_left = sample_data.input_data.size();
+  while (true) {
+    XLS_RETURN_IF_ERROR(runtime->Tick());
+    XLS_ASSIGN_OR_RETURN(std::optional<Value> maybe_value,
+                         runtime->DequeueValueFromChannel(data_out_channel));
+    if (!maybe_value.has_value()) {
+      continue;
+    }
+
+    XLS_ASSIGN_OR_RETURN(Block block, ValueToBlock(maybe_value.value()));
+    if (msg_blocks_left > 0) {
+      result.output_data.push_back(block);
+      msg_blocks_left--;
+    } else {
+      result.auth_tag = block;
+      break;
+    }
+  }
+
+  return result;
+}
+
+absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
+  int num_ptxt_blocks = sample.input_data.size();
+  int num_aad_blocks = sample.aad.size();
+  size_t max_result_size = num_ptxt_blocks * kBlockBytes +
+                           EVP_AEAD_max_overhead(EVP_aead_aes_128_gcm());
+
+  auto ptxt_buffer = std::make_unique<uint8_t[]>(num_ptxt_blocks * kBlockBytes);
+  for (int i = 0; i < num_ptxt_blocks; i++) {
+    memcpy(&ptxt_buffer[i * kBlockBytes], sample.input_data[i].data(),
+           kBlockBytes);
+  }
+
+  auto aad_buffer = std::make_unique<uint8_t[]>(num_aad_blocks * kBlockBytes);
+  for (int i = 0; i < num_aad_blocks; i++) {
+    memcpy(&aad_buffer[i * kBlockBytes], sample.aad[i].data(), kBlockBytes);
+  }
+
+  uint8_t local_init_vector[kInitVectorBytes];
+  memcpy(local_init_vector, sample.init_vector.data(), kInitVectorBytes);
+
+  auto result_buffer = std::make_unique<uint8_t[]>(max_result_size);
+  size_t actual_result_size;
+  int success = EVP_AEAD_CTX_seal(
+      sample.openssl_ctxt, result_buffer.get(), &actual_result_size,
+      max_result_size, local_init_vector, kInitVectorBytes, ptxt_buffer.get(),
+      sample.input_data.size() * kBlockBytes, aad_buffer.get(),
+      sample.aad.size() * kBlockBytes);
+  if (!static_cast<bool>(success)) {
+    return absl::UnknownError("Error reference-encrypting sample.");
+  }
+
+  Result result;
+  result.output_data.resize(sample.input_data.size());
+  for (int i = 0; i < sample.input_data.size(); i++) {
+    memcpy(result.output_data[i].data(), &result_buffer[i * kBlockBytes],
+           kBlockBytes);
+  }
+  memcpy(result.auth_tag.data(),
+         &result_buffer[sample.input_data.size() * kBlockBytes], kBlockBytes);
+
+  return result;
+}
+
+bool CompareBlock(const Block& expected, const Block& actual,
+                  absl::string_view failure_msg, bool is_ciphertext) {
+  for (int byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
+    if (expected[byte_idx] != actual[byte_idx]) {
+      std::cout << failure_msg << std::endl;
+      PrintFailure(expected, actual, byte_idx, is_ciphertext);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+absl::StatusOr<bool> RunSample(JitData* jit_data,
+                               const SampleData& sample_data) {
+  if (XLS_VLOG_IS_ON(1)) {
+    XLS_LOG(INFO) << "Input plaintext:\n"
+                  << FormatBlocks(sample_data.input_data, /*indent=*/4);
+    XLS_LOG(INFO) << "Input AAD:\n"
+                  << FormatBlocks(sample_data.aad, /*indent=*/4);
+  }
+
+  XLS_ASSIGN_OR_RETURN(Result reference_encrypted,
+                       ReferenceEncrypt(sample_data));
+  XLS_ASSIGN_OR_RETURN(Result xls_encrypted,
+                       XlsEncrypt(jit_data, sample_data, true));
+
+  if (XLS_VLOG_IS_ON(1)) {
+    XLS_LOG(INFO) << "Reference ciphertext:\n"
+                  << FormatBlocks(reference_encrypted.output_data,
+                                  /*indent=*/4);
+    XLS_LOG(INFO) << "Reference auth tag:\n    "
+                  << FormatBlock(reference_encrypted.auth_tag);
+    XLS_LOG(INFO) << "XLS ciphertext:\n"
+                  << FormatBlocks(xls_encrypted.output_data, /*indent=*/4);
+    XLS_LOG(INFO) << "XLS auth tag:\n    "
+                  << FormatBlock(xls_encrypted.auth_tag);
+  }
+
+  if (reference_encrypted.output_data.size() !=
+      xls_encrypted.output_data.size()) {
+    std::cout << "Reference & XLS ciphertext differed in sizes: "
+              << "reference: " << reference_encrypted.output_data.size()
+              << ", XLS: " << xls_encrypted.output_data.size() << std::endl;
+    return false;
+  }
+
+  for (int block_idx = 0; block_idx < reference_encrypted.output_data.size();
+       block_idx++) {
+    const Block& reference = reference_encrypted.output_data[block_idx];
+    const Block& xls = xls_encrypted.output_data[block_idx];
+    if (!CompareBlock(
+            reference, xls,
+            absl::StrCat("Error comparing to reference block ", block_idx, ":"),
+            /*is_ciphertext=*/true)) {
+      return false;
+    }
+  }
+
+  if (!CompareBlock(
+          reference_encrypted.auth_tag, xls_encrypted.auth_tag,
+          "Error comparing encryption auth tags:", /*is_ciphertext=*/true)) {
+    return false;
+  }
+
+  SampleData decrypt_sample{sample_data.openssl_ctxt, sample_data.key,
+                            sample_data.init_vector, xls_encrypted.output_data,
+                            sample_data.aad};
+  XLS_ASSIGN_OR_RETURN(Result xls_decrypted,
+                       XlsEncrypt(jit_data, decrypt_sample, false));
+  if (xls_decrypted.output_data.size() != xls_encrypted.output_data.size()) {
+    std::cout << "Input plaintext and XLS deciphered text differed in sizes: "
+              << "input: " << sample_data.input_data.size()
+              << ", decrypted: " << xls_decrypted.output_data.size()
+              << std::endl;
+    return false;
+  }
+
+  for (int block_idx = 0; block_idx < sample_data.input_data.size();
+       block_idx++) {
+    const Block& plaintext = sample_data.input_data[block_idx];
+    const Block& decrypted = xls_decrypted.output_data[block_idx];
+    if (!CompareBlock(
+            plaintext, decrypted,
+            absl::StrCat("Error comparing to plaintext block ", block_idx, ":"),
+            /*is_ciphertext=*/true)) {
+      return false;
+    }
+  }
+
+  if (!CompareBlock(
+          xls_encrypted.auth_tag, xls_decrypted.auth_tag,
+          "Error comparing decryption auth tags:", /*is_ciphertext=*/true)) {
+    return false;
+  }
+
+  return true;
+}
+
+absl::StatusOr<JitData> CreateJitData() {
+  XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
+                       GetXlsRunfilePath(kIrPath));
+  XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                       Parser::ParsePackage(ir_text));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> runtime,
+                       SerialProcRuntime::Create(package.get()));
+
+  JitData jit_data{std::move(package), std::move(runtime)};
+  return jit_data;
+}
+
+absl::Status RealMain(int num_samples) {
+  SampleData sample_data;
+  XLS_ASSIGN_OR_RETURN(JitData jit_data, CreateJitData());
+
+  absl::BitGen bitgen;
+  for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
+    for (int byte_idx = 0; byte_idx < kKeyBytes; byte_idx++) {
+      sample_data.key[byte_idx] = absl::Uniform(bitgen, 0, 256);
+    }
+
+    EVP_AEAD_CTX* ref_ctx =
+        EVP_AEAD_CTX_new(EVP_aead_aes_128_gcm(), sample_data.key.data(),
+                         sample_data.key.size(), kTagBytes);
+    if (ref_ctx == nullptr) {
+      return absl::InternalError("Unable to create reference context.");
+    }
+    auto cleanup = absl::Cleanup([&ref_ctx]() { EVP_AEAD_CTX_free(ref_ctx); });
+    sample_data.openssl_ctxt = ref_ctx;
+
+    int num_ptxt_blocks = absl::Uniform(bitgen, 1, kMaxPtxtBlocks + 1);
+    sample_data.input_data.resize(num_ptxt_blocks);
+    for (int block_idx = 0; block_idx < num_ptxt_blocks; block_idx++) {
+      for (int byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
+        sample_data.input_data[block_idx][byte_idx] =
+            absl::Uniform(bitgen, 0, 256);
+      }
+    }
+
+    int num_aad_blocks = absl::Uniform(bitgen, 1, kMaxAadBlocks + 1);
+    sample_data.aad.resize(num_aad_blocks);
+    for (int block_idx = 0; block_idx < num_aad_blocks; block_idx++) {
+      for (int byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
+        sample_data.aad[block_idx][byte_idx] = absl::Uniform(bitgen, 0, 256);
+      }
+    }
+
+    for (int byte_idx = 0; byte_idx < kInitVectorBytes; byte_idx++) {
+      sample_data.init_vector[byte_idx] = absl::Uniform(bitgen, 0, 256);
+    }
+
+    XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&jit_data, sample_data));
+    if (!proceed) {
+      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
+      std::cout << "IV       : " << FormatInitVector(sample_data.init_vector)
+                << std::endl;
+      std::cout << "Plaintext: " << std::endl
+                << FormatBlocks(sample_data.input_data, /*indent=*/4)
+                << std::endl;
+      return absl::InternalError(
+          absl::StrCat("Testing failed at sample ", sample_idx, "."));
+    }
+  }
+
+  std::cout << "AES-GCM: Successfully ran " << num_samples << " samples."
+            << std::endl;
+
+  return absl::OkStatus();
+}
+
+}  // namespace xls::aes
+
+int main(int argc, char** argv) {
+  std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
+  XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
+  return 0;
+}

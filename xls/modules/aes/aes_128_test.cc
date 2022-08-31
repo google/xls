@@ -37,17 +37,12 @@
 #include "xls/modules/aes/aes_128_encrypt_cc.h"
 #include "xls/modules/aes/aes_128_test_common.h"
 
-constexpr int32_t kKeyBits = 128;
-constexpr int32_t kKeyBytes = kKeyBits / 8;
-constexpr int32_t kBlockBytes = 16;
-
 ABSL_FLAG(int32_t, num_samples, 1000,
           "The number of (randomly-generated) blocks to test.");
 
 namespace xls::aes {
 
-absl::StatusOr<Block> XlsEncrypt(const std::vector<uint8_t>& key,
-                                 const Block& plaintext) {
+absl::StatusOr<Block> XlsEncrypt(const Key& key, const Block& plaintext) {
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(plaintext));
   XLS_ASSIGN_OR_RETURN(Value result_value,
@@ -55,8 +50,7 @@ absl::StatusOr<Block> XlsEncrypt(const std::vector<uint8_t>& key,
   return ValueToBlock(result_value);
 }
 
-absl::StatusOr<Block> XlsDecrypt(const std::vector<uint8_t>& key,
-                                 const Block& ciphertext) {
+absl::StatusOr<Block> XlsDecrypt(const Key& key, const Block& ciphertext) {
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(ciphertext));
   XLS_ASSIGN_OR_RETURN(Value result_value,
@@ -64,8 +58,7 @@ absl::StatusOr<Block> XlsDecrypt(const std::vector<uint8_t>& key,
   return ValueToBlock(result_value);
 }
 
-Block ReferenceEncrypt(const std::vector<uint8_t>& key,
-                       const Block& plaintext) {
+Block ReferenceEncrypt(const Key& key, const Block& plaintext) {
   Block ciphertext;
 
   // Needed because the key is modified during operation.
@@ -81,8 +74,7 @@ Block ReferenceEncrypt(const std::vector<uint8_t>& key,
 }
 
 // Returns false on error (will terminate further runs).
-absl::StatusOr<bool> RunSample(const Block& input,
-                               const std::vector<uint8_t>& key,
+absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
                                absl::Duration* xls_encrypt_dur,
                                absl::Duration* xls_decrypt_dur) {
   XLS_VLOG(2) << "Plaintext: " << FormatBlock(input) << std::endl;
@@ -101,7 +93,7 @@ absl::StatusOr<bool> RunSample(const Block& input,
   // properly.
   for (int32_t i = 0; i < kBlockBytes; i++) {
     if (reference_ciphertext[i] != xls_ciphertext[i]) {
-      PrintFailure(reference_ciphertext, xls_ciphertext, key, i,
+      PrintFailure(reference_ciphertext, xls_ciphertext, i,
                    /*ciphertext=*/true);
       return false;
     }
@@ -118,7 +110,7 @@ absl::StatusOr<bool> RunSample(const Block& input,
   // right.
   for (int32_t i = 0; i < kBlockBytes; i++) {
     if (reference_ciphertext[i] != xls_ciphertext[i]) {
-      PrintFailure(input, xls_decrypted, key, i, /*ciphertext=*/false);
+      PrintFailure(input, xls_decrypted, i, /*ciphertext=*/false);
       return false;
     }
   }
@@ -128,7 +120,7 @@ absl::StatusOr<bool> RunSample(const Block& input,
 
 absl::Status RealMain(int32_t num_samples) {
   Block input;
-  std::vector<uint8_t> key(kKeyBytes, 0);
+  Key key;
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
   absl::Duration xls_decrypt_dur;

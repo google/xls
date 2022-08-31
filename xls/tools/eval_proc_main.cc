@@ -219,12 +219,12 @@ absl::Status RunSerialJit(
                          << " expected values" << std::endl;
         break;
       }
-      XLS_ASSIGN_OR_RETURN(Value out_val,
+      XLS_ASSIGN_OR_RETURN(std::optional<Value> out_val,
                            runtime->DequeueValueFromChannel(out_ch));
-      if (value != out_val) {
-        XLS_RET_CHECK_EQ(value, out_val) << absl::StreamFormat(
-            "Mismatched after %d outputs", processed_count);
-      }
+      XLS_RET_CHECK(out_val.has_value())
+          << "No output value present on channel " << out_ch->name();
+      XLS_RET_CHECK_EQ(value, out_val.value())
+          << absl::StreamFormat("Mismatched after %d outputs", processed_count);
       checked_any_output = true;
       ++processed_count;
     }

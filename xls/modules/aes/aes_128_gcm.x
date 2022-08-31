@@ -33,6 +33,8 @@ type Key = aes_128_common::Key;
 
 // Describes an encryption operation to be performed.
 struct Command {
+    // True to encrypt, false to decrypt.
+    encrypt: bool,
     // The number of [complete] input message blocks to process.
     msg_blocks: u32,
     // The number of [complete] AAD blocks to process.
@@ -53,6 +55,8 @@ enum Step : u3 {
     READ_MSG = 2,
     // Finalizing the authentication tag.
     HASH_LENGTHS = 3,
+    // Invalid. Should never be used.
+    INVALID = 4,
 }
 
 // The full state of the proc.
@@ -75,6 +79,7 @@ fn initial_state() -> State {
     State {
         step: Step::IDLE,
         command: Command {
+            encrypt: false,
             msg_blocks: u32:0,
             aad_blocks: u32:0,
             key: Key:[u32:0, ...],
@@ -236,7 +241,9 @@ proc aes_128_gcm {
         // We could slightly better performance if we delayed reading from CTR by one "tick"
         // after sending it data, but it's unclear if it'd be worth the complexity.
         let (tok, ctr_block) = recv_if(tok, ctr_result_in, state.step == Step::READ_MSG);
-        let tok0 = send_if(tok, ghash_input_out, state.step == Step::READ_MSG, ctr_block);
+        // Ciphertext always goes to GHASH.
+        let ghash_block = if state.command.encrypt { ctr_block } else { input_block };
+        let tok0 = send_if(tok, ghash_input_out, state.step == Step::READ_MSG, ghash_block);
         let tok1 = send_if(tok, data_out, state.step == Step::READ_MSG, ctr_block);
         let tok = join(tok0, tok1);
 
@@ -258,6 +265,7 @@ proc aes_128_gcm {
             (Step::READ_MSG,     _,  true) => Step::READ_MSG,
             (Step::READ_MSG,     _, false) => Step::HASH_LENGTHS,
             (Step::HASH_LENGTHS, _,     _) => Step::IDLE,
+            _ => fail!("invalid_state_transition", Step::INVALID),
         };
 
         State {
@@ -287,6 +295,7 @@ proc aes_128_gcm_test_smoke {
 
     next(tok: token) {
         let command = Command {
+            encrypt: true,
             msg_blocks: u32:1,
             aad_blocks: u32:1,
             key: Key:[u32:0, ...],
@@ -353,6 +362,7 @@ proc aes_128_gcm_multi_block {
         let key = Key:[u32:0xfedc_ba98, u32:0x7654_3210, u32:0x0123_4567, u32:0x89ab_cdef];
         let iv = InitVector:0xdead_beef_cafe_f00d_abba_baab;
         let command = Command {
+            encrypt: true,
             aad_blocks: u32:2,
             msg_blocks: u32:3,
             key: key,
@@ -468,6 +478,7 @@ proc aes_128_gcm_zero_block_commands {
 
         // 1. Zero blocks of msg.
         let command = Command {
+            encrypt: true,
             aad_blocks: u32:1,
             msg_blocks: u32:0,
             key: key,
@@ -516,6 +527,7 @@ proc aes_128_gcm_zero_block_commands {
 
         // Now just make sure we can do a normal transaction.
         let command = Command {
+            encrypt: true,
             msg_blocks: u32:1,
             aad_blocks: u32:1,
             key: Key:[u32:0, ...],

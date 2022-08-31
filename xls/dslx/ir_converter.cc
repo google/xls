@@ -1962,6 +1962,7 @@ absl::Status FunctionConverter::HandleFailBuiltin(const Invocation* node,
         implicit_token_data_->entry_token,
         function_builder_->Not(control_predicate), message);
     implicit_token_data_->control_tokens.push_back(assert_result_token);
+    tokens_.push_back(assert_result_token);
   }
   // The result of the failure call is the argument given; e.g. if we were to
   // remove assertions this is the value that would flow in the case that the
