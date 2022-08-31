@@ -40,8 +40,9 @@ _USE_NONDETERMINISTIC_SEED = flags.DEFINE_bool(
 _SEED = flags.DEFINE_integer('seed', 0, 'Seed value for generation')
 _SAMPLE_COUNT = flags.DEFINE_integer('sample_count', 10,
                                      'Number of samples to generate')
-_DURATION = flags.DEFINE_string('duration', None,
-                                'Duration to run the fuzzer for.')
+_DURATION = flags.DEFINE_string(
+    'duration', None, 'Duration to run the fuzzer for. '
+    'Examples: 60s, 30m, 5h')
 _CALLS_PER_SAMPLE = flags.DEFINE_integer('calls_per_sample', 128,
                                          'Arguments to generate per sample')
 _SIMULATE = flags.DEFINE_boolean('simulate', False, 'Run Verilog simulation.')
@@ -60,6 +61,10 @@ _FORCE_FAILURE = flags.DEFINE_bool(
 _USE_SYSTEM_VERILOG = flags.DEFINE_bool(
     'use_system_verilog', False,
     'Whether to generate SystemVerilog or Verilog.')
+_SAMPLE_TIMEOUT = flags.DEFINE_string(
+    'sample_timeout', None,
+    'Maximum time to run each sample before timing out. '
+    'Examples: 10s, 2m, 1h')
 
 # The maximum number of failures before the test aborts.
 MAX_FAILURES = 10
@@ -116,6 +121,13 @@ class FuzzIntegrationTest(absltest.TestCase):
         max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value,
         generate_empty_tuples=True,
         emit_gate=not _SIMULATE.value)
+
+    if _SAMPLE_TIMEOUT.value is None:
+      timeout_seconds = None
+    else:
+      timeout_seconds = cli_helpers.parse_duration(
+          _SAMPLE_TIMEOUT.value).seconds
+
     default_sample_options = SampleOptions(
         input_is_dslx=True,
         ir_converter_args=['--top=main'],
@@ -126,7 +138,7 @@ class FuzzIntegrationTest(absltest.TestCase):
         simulate=_SIMULATE.value,
         simulator=_SIMULATOR.value,
         use_system_verilog=_USE_SYSTEM_VERILOG.value,
-        timeout_seconds=None)
+        timeout_seconds=timeout_seconds)
 
     crasher_count = 0
     sample_count = 0
