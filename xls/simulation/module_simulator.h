@@ -47,18 +47,6 @@ class ModuleSimulator {
         simulator_(simulator),
         includes_(includes) {}
 
-  // TODO(meheff): 2022/08/30 Remove after users of this constructor are
-  // migrated.
-  ModuleSimulator(const ModuleSignature& signature,
-                  absl::string_view verilog_text,
-                  const VerilogSimulator* simulator,
-                  absl::Span<const VerilogInclude> includes = {})
-      : signature_(signature),
-        verilog_text_(verilog_text),
-        file_type_(FileType::kVerilog),
-        simulator_(simulator),
-        includes_(includes) {}
-
   // Simulates the module with the given inputs as Bits types. Returns a
   // map containing the outputs by port name.
   absl::StatusOr<BitsMap> Run(const BitsMap& inputs) const;
