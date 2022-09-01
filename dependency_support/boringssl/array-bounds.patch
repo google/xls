@@ -1,0 +1,13 @@
+diff --git src/crypto/x509v3/v3_utl.c src/crypto/x509v3/v3_utl.c
+index 5d91aede7..0833cfcd8 100644
+--- src/crypto/x509v3/v3_utl.c
++++ src/crypto/x509v3/v3_utl.c
+@@ -1295,7 +1295,7 @@ static int ipv6_from_asc(unsigned char v6[16], const char *in)
+             return 0;
+     } else {
+         /* If '::' must have less than 16 bytes */
+-        if (v6stat.total == 16)
++        if (v6stat.total >= 16)
+             return 0;
+         /* More than three zeroes is an error */
+         if (v6stat.zero_cnt > 3)
