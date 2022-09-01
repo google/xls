@@ -71,12 +71,19 @@ absl::StatusOr<ReachedFixpoint> BddQueryEngine::Populate(FunctionBase* f) {
 
 bool BddQueryEngine::AtMostOneTrue(
     absl::Span<TreeBitLocation const> bits) const {
+  // Computing this property is quadratic (at least) so limit the width.
+  const int64_t kMaxWidth = 64;
+  if (bits.size() > kMaxWidth) {
+    return false;
+  }
+
   BddNodeIndex result = bdd().zero();
   for (const TreeBitLocation& loc : bits) {
     if (!IsTracked(loc.node())) {
       return false;
     }
   }
+
   // Compute the OR-reduction of a pairwise AND of all bits. If this value is
   // zero then no two bits can be simultaneously true. Equivalently: at most one
   // bit is true.

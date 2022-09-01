@@ -134,6 +134,11 @@ class SaturatingBddEvaluator
 
 // Returns whether the given op should be included in BDD computations.
 bool ShouldEvaluate(Node* node) {
+  const int64_t kMaxWidth = 64;
+  auto is_wide = [](Node* n) {
+    return n->GetType()->GetFlatBitCount() > kMaxWidth;
+  };
+
   if (!node->GetType()->IsBits()) {
     return false;
   }
@@ -157,14 +162,17 @@ bool ShouldEvaluate(Node* node) {
 
     // Bit moving ops.
     case Op::kBitSlice:
-    case Op::kDynamicBitSlice:
     case Op::kConcat:
     case Op::kReverse:
     case Op::kIdentity:
       return true;
+    case Op::kDynamicBitSlice:
+      return !is_wide(node);
+
+    case Op::kOneHot:
+      return !is_wide(node);
 
     // Select operations.
-    case Op::kOneHot:
     case Op::kOneHotSel:
     case Op::kPrioritySel:
     case Op::kSel:
@@ -278,7 +286,10 @@ bool ShouldEvaluate(Node* node) {
   XLS_VLOG(3) << "BDD expressions:";
   absl::flat_hash_map<Node*, SaturatingBddNodeVector> values;
   for (Node* node : TopoSort(f)) {
+    XLS_VLOG(3) << "node: " << node->ToString();
     if (!node->GetType()->IsBits()) {
+      XLS_VLOG(3) << "  skipping node, type is not bits: "
+                  << node->GetType()->ToString();
       continue;
     }
     // If we shouldn't evaluate this node, the node is to be modeled as
@@ -288,8 +299,10 @@ bool ShouldEvaluate(Node* node) {
         (node_filter.has_value() && !node_filter.value()(node)) ||
         std::any_of(node->operands().begin(), node->operands().end(),
                     [](Node* o) { return !o->GetType()->IsBits(); })) {
+      XLS_VLOG(2) << "  node filtered out.";
       values[node] = create_new_node_vector(node);
     } else {
+      XLS_VLOG(2) << "  computing BDD value...";
       std::vector<SaturatingBddNodeVector> operand_values;
       for (Node* operand : node->operands()) {
         operand_values.push_back(values.at(operand));
