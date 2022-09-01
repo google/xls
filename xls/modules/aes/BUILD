@@ -31,8 +31,19 @@ package(
 )
 
 xls_dslx_library(
+    name = "aes_common_dslx",
+    srcs = ["aes_common.x"],
+    deps = [
+        ":constants_dslx",
+    ],
+)
+
+xls_dslx_library(
     name = "aes_128_common_dslx",
     srcs = ["aes_128_common.x"],
+    deps = [
+        ":aes_common_dslx",
+    ],
 )
 
 xls_dslx_library(
@@ -40,6 +51,7 @@ xls_dslx_library(
     srcs = ["aes_128.x"],
     deps = [
         ":aes_128_common_dslx",
+        ":aes_common_dslx",
         ":constants_dslx",
     ],
 )
@@ -130,6 +142,7 @@ xls_dslx_library(
     deps = [
         ":aes_128_common_dslx",
         ":aes_128_dslx",
+        ":aes_common_dslx",
     ],
 )
 
@@ -185,6 +198,7 @@ xls_dslx_library(
     deps = [
         ":aes_128_common_dslx",
         ":aes_128_dslx",
+        ":aes_common_dslx",
     ],
 )
 
@@ -205,6 +219,7 @@ xls_dslx_library(
         ":aes_128_ctr_dslx",
         ":aes_128_dslx",
         ":aes_128_ghash_dslx",
+        ":aes_common_dslx",
     ],
 )
 

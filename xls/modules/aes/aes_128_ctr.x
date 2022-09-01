@@ -17,9 +17,10 @@
 import std
 import xls.modules.aes.aes_128
 import xls.modules.aes.aes_128_common
+import xls.modules.aes.aes_common
 
-type Block = aes_128_common::Block;
-type InitVector = aes_128_common::InitVector;
+type Block = aes_common::Block;
+type InitVector = aes_common::InitVector;
 type Key = aes_128_common::Key;
 
 // The command sent to the encrypting proc at the beginning of processing.

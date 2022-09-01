@@ -17,11 +17,12 @@
 // Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC".
 import xls.modules.aes.aes_128
 import xls.modules.aes.aes_128_common
+import xls.modules.aes.aes_common
 
-type Block = aes_128_common::Block;
+type Block = aes_common::Block;
 type Key = aes_128_common::Key;
 
-const ZERO_BLOCK = aes_128_common::ZERO_BLOCK;
+const ZERO_BLOCK = aes_common::ZERO_BLOCK;
 
 // Simply linearizes a block of data.
 fn block_to_u128(x: Block) -> uN[128] {
@@ -254,7 +255,7 @@ pub proc aes_128_ghash {
         // Will underflow when state.step == Step::HASH_LENGTHS, but it doesn't matter.
         let input_blocks_left = state.input_blocks_left - u32:1;
 
-        let last_tag = gf128_mul(aes_128_common::xor_block(state.last_tag, block), state.command.hash_key);
+        let last_tag = gf128_mul(aes_common::xor_block(state.last_tag, block), state.command.hash_key);
         let tok = send_if(tok, tag_out, state.step == Step::HASH_LENGTHS, last_tag);
 
         let new_step = match (state.step, input_blocks_left == u32:0) {

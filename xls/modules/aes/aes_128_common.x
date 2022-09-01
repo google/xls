@@ -13,43 +13,13 @@
 // limitations under the License.
 
 // Common constants and types for the AES-128 cipher.
+import xls.modules.aes.aes_common
+
 pub const KEY_BITS = u32:128;
 pub const KEY_WORD_BITS = u32:32;
 pub const KEY_WORDS = KEY_BITS / KEY_WORD_BITS;
 
-pub const BLOCK_BITS = u32:128;
-pub const BLOCK_BYTES = BLOCK_BITS >> 3;
-
-pub const NUM_ROUNDS = u32:10;
-
-pub type KeyWord = uN[KEY_WORD_BITS];
-pub type Key = KeyWord[KEY_WORDS];
-pub type KeySchedule = Key[NUM_ROUNDS + u32:1];
-pub type Block = u8[4][4];
-pub type InitVector = uN[96];
-
-pub const ZERO_BLOCK = Block:[
-    u32:0 as u8[4],
-    u32:0 as u8[4],
-    u32:0 as u8[4],
-    u32:0 as u8[4],
-];
-
-// Until GitHub issue #629 is resolved, this MUST NOT be called in AOT-compiled
-// code!
-pub fn trace_block(block: Block) {
-    let bytes0 = block[0];
-    let bytes1 = block[1];
-    let bytes2 = block[2];
-    let bytes3 = block[3];
-    let _ = trace_fmt!(
-        "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
-        bytes0[0], bytes0[1], bytes0[2], bytes0[3],
-        bytes1[0], bytes1[1], bytes1[2], bytes1[3],
-        bytes2[0], bytes2[1], bytes2[2], bytes2[3],
-        bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
-    ()
-}
+pub type Key = aes_common::KeyWord[KEY_WORDS];
 
 // Until GitHub issue #629 is resolved, this MUST NOT be called in AOT-compiled
 // code!
@@ -65,14 +35,4 @@ pub fn trace_key(key: Key) {
         bytes2[0], bytes2[1], bytes2[2], bytes2[3],
         bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
     ()
-}
-
-// Convenience function to XOR two blocks.
-pub fn xor_block(a: Block, b: Block) -> Block {
-    Block:[
-        (a[0] as u32 ^ b[0] as u32) as u8[4],
-        (a[1] as u32 ^ b[1] as u32) as u8[4],
-        (a[2] as u32 ^ b[2] as u32) as u8[4],
-        (a[3] as u32 ^ b[3] as u32) as u8[4],
-    ]
 }

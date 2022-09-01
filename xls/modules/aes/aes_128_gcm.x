@@ -26,9 +26,10 @@ import xls.modules.aes.aes_128
 import xls.modules.aes.aes_128_common
 import xls.modules.aes.aes_128_ctr
 import xls.modules.aes.aes_128_ghash
+import xls.modules.aes.aes_common
 
-type Block = aes_128_common::Block;
-type InitVector = aes_128_common::InitVector;
+type Block = aes_common::Block;
+type InitVector = aes_common::InitVector;
 type Key = aes_128_common::Key;
 
 // Describes an encryption operation to be performed.
@@ -123,7 +124,7 @@ fn get_current_state(state: State, command: Command) -> State {
 // Constructs the command to send to the CTR unit when a new command is received.
 fn get_ctr_command(gcm_command: Command) -> aes_128_ctr::Command {
     aes_128_ctr::Command {
-        msg_bytes: gcm_command.msg_blocks * aes_128_common::BLOCK_BYTES,
+        msg_bytes: gcm_command.msg_blocks * aes_common::BLOCK_BYTES,
         key: gcm_command.key,
         iv: gcm_command.iv,
 
@@ -139,7 +140,7 @@ fn get_ghash_command(gcm_command: Command) -> aes_128_ghash::Command {
     aes_128_ghash::Command {
         aad_blocks: gcm_command.aad_blocks,
         ctxt_blocks: gcm_command.msg_blocks,
-        hash_key: aes_128::aes_encrypt(gcm_command.key, aes_128_common::ZERO_BLOCK),
+        hash_key: aes_128::aes_encrypt(gcm_command.key, aes_common::ZERO_BLOCK),
     }
 }
 
@@ -252,7 +253,7 @@ proc aes_128_gcm {
 
         // Finally, XOR the GHASH'ed tag with counter 1.
         let ctr_block = create_ctr_block(state.command.iv);
-        let tag = aes_128_common::xor_block(
+        let tag = aes_common::xor_block(
             tag, aes_128::aes_encrypt(state.command.key, ctr_block));
         let tok = send_if(tok, data_out, state.step == Step::HASH_LENGTHS, tag);
 
