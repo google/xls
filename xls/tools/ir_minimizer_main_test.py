@@ -53,8 +53,8 @@ class IrMinimizerMainTest(absltest.TestCase):
         minimized_ir.decode('utf-8'), """package foo
 
 top fn foo(x: bits[32], y: bits[32]) -> bits[32] {
-  literal.11: bits[32] = literal(value=0, id=11)
-  ret add.2: bits[32] = add(literal.11, literal.11, id=2)
+  literal.9: bits[32] = literal(value=0, id=9)
+  ret add.2: bits[32] = add(literal.9, literal.9, id=2)
 }
 """)
 
@@ -127,7 +127,7 @@ top fn foo(x: bits[32], y: bits[32], z: bits[32]) -> (bits[32], (bits[32], bits[
         IR_MINIMIZER_MAIN_PATH, '--test_executable=' + test_sh_file.full_path,
         ir_file.full_path
     ])
-    self.assertIn('ret tuple.9: (bits[32]) = tuple(x, id=9)',
+    self.assertIn('ret tuple.7: (bits[32]) = tuple(x, id=7)',
                   minimized_ir.decode('utf-8'))
 
   def test_simplify_array(self):
@@ -150,6 +150,47 @@ top fn foo() -> bits[32][3] {
     self.assertRegex(
         minimized_ir,
         r'ret \w+.\d+: bits\[32\]\[1\] = literal\(value=\[0\], id=\d+\)')
+
+  def test_proc(self):
+    input_ir = '''package foo
+
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+top proc foo(tkn: token, foo: bits[32], bar: bits[32], baz: bits[32], init={1, 2, 3}) {
+  receive.1: (token, bits[32]) = receive(tkn, channel_id=0)
+  tuple_index.2: token = tuple_index(receive.1, index=0)
+  tuple_index.3: bits[32] = tuple_index(receive.1, index=1)
+  send.4: token = send(tkn, baz, channel_id=1)
+  after_all.5: token = after_all(tuple_index.2, send.4)
+  next (after_all.5, tuple_index.3, foo, bar)
+}
+'''
+    ir_file = self.create_tempfile(content=input_ir)
+    test_sh_file = self.create_tempfile()
+    self._write_sh_script(test_sh_file.full_path, [r'/bin/true'])
+    minimized_ir = subprocess.check_output([
+        IR_MINIMIZER_MAIN_PATH,
+        '--test_executable=' + test_sh_file.full_path,
+        '--can_remove_params',
+        ir_file.full_path,
+    ],
+                                           encoding='utf-8')
+    self.assertEqual(
+        minimized_ir, '''package foo
+
+chan input(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+chan output(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+top proc foo(tkn: token, init={}) {
+  receive.1: (token, bits[32]) = receive(tkn, channel_id=0, id=1)
+  literal.12: bits[32] = literal(value=0, id=12)
+  tuple_index.2: token = tuple_index(receive.1, index=0, id=2)
+  send.4: token = send(tkn, literal.12, channel_id=1, id=4)
+  after_all.5: token = after_all(tuple_index.2, send.4, id=5)
+  next (after_all.5)
+}
+''')
 
   def test_verify_return_code(self):
     # If the test script never successfully runs, then ir_minimizer_main should

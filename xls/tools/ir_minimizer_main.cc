@@ -118,10 +118,9 @@ ABSL_FLAG(
     "Also, because this option runs a single pass at a time it often results "
     "in more minimization than --use_optimization_pipeline which "
     "which might optimize away the problematic bit of IR entirely.");
-ABSL_FLAG(
-    std::string, top, "",
-    "The name of the top entity. Currently, only functions are supported. "
-    "Entry function to use during minimization.");
+ABSL_FLAG(std::string, top, "",
+          "The name of the top entity. Currently, only procs and functions are "
+          "supported. Entry function to use during minimization.");
 
 namespace xls {
 namespace {
@@ -251,14 +250,44 @@ absl::Status VerifyStillFails(
 }
 
 // Removes params with zero users from the function.
-absl::StatusOr<bool> RemoveDeadParameters(Function* f) {
-  std::vector<Param*> params(f->params().begin(), f->params().end());
-  for (Param* p : params) {
-    if (p->users().empty() && p != f->return_value()) {
-      XLS_RETURN_IF_ERROR(f->RemoveNode(p));
+absl::StatusOr<bool> RemoveDeadParameters(FunctionBase* f) {
+  if (f->IsProc()) {
+    Proc* p = f->AsProcOrDie();
+    absl::flat_hash_set<Node*> dead_state_params;
+    for (Param* state_param : p->StateParams()) {
+      if (state_param->IsDead()) {
+        dead_state_params.insert(state_param);
+      }
+      XLS_ASSIGN_OR_RETURN(int64_t index, p->GetStateParamIndex(state_param));
+      // Replace all uses of invariant state elements (i.e.: ones where
+      // next[i] = param[i]) with a literal of the initial value.
+      if (state_param == p->GetNextStateElement(index)) {
+        Value init_value = p->GetInitValueElement(index);
+        XLS_RETURN_IF_ERROR(
+            state_param->ReplaceUsesWithNew<Literal>(init_value).status());
+        dead_state_params.insert(state_param);
+      }
     }
+    bool changed = false;
+    for (Node* dead : dead_state_params) {
+      XLS_ASSIGN_OR_RETURN(int64_t index,
+                           p->GetStateParamIndex(dead->As<Param>()));
+      XLS_RETURN_IF_ERROR(p->RemoveStateElement(index));
+      changed = true;
+    }
+
+    return changed;
   }
-  return params.size() != f->params().size();
+  if (f->IsFunction()) {
+    std::vector<Param*> params(f->params().begin(), f->params().end());
+    for (Param* p : params) {
+      if (p->IsDead()) {
+        XLS_RETURN_IF_ERROR(f->RemoveNode(p));
+      }
+    }
+    return params.size() != f->params().size();
+  }
+  XLS_LOG(FATAL) << "RemoveDeadParameters only handles procs and functions";
 }
 
 enum class SimplificationResult {
@@ -284,12 +313,67 @@ std::vector<Node*> PickRandomSubset(absl::Span<Node* const> input,
   return result;
 }
 
+absl::StatusOr<SimplificationResult> ReplaceImplicitUse(Node* node,
+                                                        Node* replacement) {
+  FunctionBase* fb = node->function_base();
+  if (fb->IsFunction()) {
+    Function* f = fb->AsFunctionOrDie();
+    if (node != f->return_value()) {
+      return SimplificationResult::kDidNotChange;
+    }
+    XLS_RETURN_IF_ERROR(f->set_return_value(replacement));
+    return SimplificationResult::kDidChange;
+  }
+  if (fb->IsProc()) {
+    Proc* p = fb->AsProcOrDie();
+    SimplificationResult changed = SimplificationResult::kDidNotChange;
+    if (!node->GetType()->IsEqualTo(replacement->GetType())) {
+      return SimplificationResult::kDidNotChange;
+    }
+    if (p->NextToken() == node) {
+      XLS_RETURN_IF_ERROR(p->SetNextToken(replacement));
+      changed = SimplificationResult::kDidChange;
+    }
+    for (int64_t i = 0; i < p->GetStateElementCount(); ++i) {
+      if (p->GetNextStateElement(i) == node) {
+        XLS_RETURN_IF_ERROR(p->SetNextStateElement(i, replacement));
+        changed = SimplificationResult::kDidChange;
+      }
+    }
+    return changed;
+  }
+  return SimplificationResult::kDidNotChange;
+}
+
+std::vector<Node*> ImplicitlyUsed(FunctionBase* fb) {
+  if (fb->IsFunction()) {
+    Function* f = fb->AsFunctionOrDie();
+    return {f->return_value()};
+  }
+  if (fb->IsProc()) {
+    Proc* p = fb->AsProcOrDie();
+    std::vector<Node*> result(p->NextState().begin(), p->NextState().end());
+    result.push_back(p->NextToken());
+    return result;
+  }
+  XLS_LOG(FATAL) << "ImplicitlyUsed only supports functions and procs";
+}
+
 absl::StatusOr<SimplificationResult> SimplifyReturnValue(
-    Function* f, std::mt19937* rng, std::string* which_transform) {
-  Node* orig = f->return_value();
+    FunctionBase* f, std::mt19937* rng, std::string* which_transform) {
+  Node* orig = nullptr;
+  {
+    std::vector<Node*> implicitly_used = ImplicitlyUsed(f);
+    int64_t i = absl::Uniform<int64_t>(*rng, 0, implicitly_used.size());
+    orig = implicitly_used.at(i);
+  }
+
+  if (orig->GetType()->IsToken()) {
+    return SimplificationResult::kDidNotChange;
+  }
 
   // Try slicing array return values down to fewer elements.
-  if (orig->GetType()->IsArray() && Random0To1(rng) < 0.25 &&
+  if (f->IsFunction() && orig->GetType()->IsArray() && Random0To1(rng) < 0.25 &&
       orig->GetType()->AsArrayOrDie()->size() > 1) {
     int64_t original_size = orig->GetType()->AsArrayOrDie()->size();
     int64_t new_size = absl::Uniform<int64_t>(*rng, 1, original_size);
@@ -298,17 +382,19 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
         f->MakeNode<Literal>(orig->loc(),
                              ZeroOfType(f->package()->GetBitsType(1))));
     XLS_ASSIGN_OR_RETURN(
-        Node * new_return_value,
+        Node * replacement,
         f->MakeNode<ArraySlice>(orig->loc(), orig, zero, new_size));
-    XLS_RETURN_IF_ERROR(f->set_return_value(new_return_value));
+    XLS_ASSIGN_OR_RETURN(SimplificationResult changed,
+                         ReplaceImplicitUse(orig, replacement));
     *which_transform = absl::StrFormat("array slice reduction: %d => %d",
                                        original_size, new_size);
-    return SimplificationResult::kDidChange;
+    return changed;
   }
 
   // If the return value is a tuple, concat, or array, try to knock out some of
   // the operands which then become dead.
-  if ((orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&
+  if (f->IsFunction() &&
+      (orig->Is<Tuple>() || orig->Is<Concat>() || orig->Is<Array>()) &&
       Random0To1(rng) < 0.5) {
     std::vector<Node*> new_operands = PickRandomSubset(orig->operands(), rng);
     if (new_operands.size() < orig->operand_count()) {
@@ -334,18 +420,38 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
                              f->MakeNode<Concat>(orig->loc(), new_operands));
       }
 
-      XLS_RETURN_IF_ERROR(f->set_return_value(new_return_value));
-      return SimplificationResult::kDidChange;
+      return ReplaceImplicitUse(orig, new_return_value);
     }
   }
 
   // Try to replace the return value with an operand of the return value.
   if (orig->operand_count() > 0) {
-    int64_t which_operand = absl::Uniform<int>(*rng, 0, orig->operand_count());
-    XLS_RETURN_IF_ERROR(f->set_return_value(orig->operand(which_operand)));
-    *which_transform =
-        absl::StrFormat("return operand %d of return value", which_operand);
-    return SimplificationResult::kDidChange;
+    Node* replacement = nullptr;
+    if (f->IsProc()) {
+      std::vector<Node*> same_type_operands;
+      for (Node* operand : orig->operands()) {
+        if (operand->GetType()->IsEqualTo(orig->GetType())) {
+          same_type_operands.push_back(operand);
+        }
+      }
+      if (same_type_operands.empty()) {
+        return SimplificationResult::kDidNotChange;
+      }
+      int64_t which = absl::Uniform<int>(*rng, 0, same_type_operands.size());
+      replacement = same_type_operands.at(which);
+      *which_transform =
+          absl::StrFormat("replace next state node %s with operand %s",
+                          orig->GetName(), replacement->GetName());
+    }
+    if (f->IsFunction()) {
+      int64_t which_operand =
+          absl::Uniform<int>(*rng, 0, orig->operand_count());
+      replacement = orig->operand(which_operand);
+      *which_transform =
+          absl::StrFormat("return operand %d of return value", which_operand);
+    }
+    XLS_CHECK_NE(replacement, nullptr);
+    return ReplaceImplicitUse(orig, replacement);
   }
 
   XLS_VLOG(1) << "Unable to simplify return value node";
@@ -355,7 +461,7 @@ absl::StatusOr<SimplificationResult> SimplifyReturnValue(
 // Runs a randomly selected optimization pass and returns whether the graph
 // changed.
 absl::StatusOr<SimplificationResult> RunRandomPass(
-    Function* f, std::mt19937* rng, std::string* which_transform) {
+    FunctionBase* f, std::mt19937* rng, std::string* which_transform) {
   // All these passes have trivial construction costs.
   std::vector<std::unique_ptr<Pass>> passes;
   passes.push_back(std::make_unique<ArithSimplificationPass>());
@@ -383,8 +489,8 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
 }
 
 absl::StatusOr<SimplificationResult> Simplify(
-    Function* f, std::optional<std::vector<Value>> inputs, std::mt19937* rng,
-    std::string* which_transform) {
+    FunctionBase* f, std::optional<std::vector<Value>> inputs,
+    std::mt19937* rng, std::string* which_transform) {
   if (absl::GetFlag(FLAGS_use_optimization_passes) && Random0To1(rng) < 0.3) {
     XLS_ASSIGN_OR_RETURN(SimplificationResult pass_result,
                          RunRandomPass(f, rng, which_transform));
@@ -404,7 +510,7 @@ absl::StatusOr<SimplificationResult> Simplify(
   }
 
   if (Random0To1(rng) < 0.2) {
-    XLS_ASSIGN_OR_RETURN(auto result,
+    XLS_ASSIGN_OR_RETURN(SimplificationResult result,
                          SimplifyReturnValue(f, rng, which_transform));
     if (result == SimplificationResult::kDidChange) {
       return result;
@@ -416,7 +522,7 @@ absl::StatusOr<SimplificationResult> Simplify(
     // value.
     int64_t param_no = absl::Uniform<int64_t>(*rng, 0, f->params().size());
     Param* param = f->params()[param_no];
-    if (!param->IsDead()) {
+    if (!param->GetType()->IsToken()) {
       XLS_RETURN_IF_ERROR(
           param->ReplaceUsesWithNew<Literal>(inputs->at(param_no)).status());
       *which_transform = absl::StrFormat(
@@ -429,6 +535,10 @@ absl::StatusOr<SimplificationResult> Simplify(
   // Pick a random node and try to do something with it.
   int64_t i = absl::Uniform<int64_t>(*rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
+
+  if (TypeHasToken(n->GetType())) {
+    return SimplificationResult::kDidNotChange;
+  }
 
   if (!n->operands().empty() && Random0To1(rng) < 0.3) {
     // Try to replace a node with one of its (potentially truncated/extended)
@@ -503,7 +613,7 @@ absl::StatusOr<SimplificationResult> Simplify(
 // Runs removal of dead nodes (transitively), and then any dead parameters.
 //
 // Note removing dead parameters will not cause any additional nodes to be dead.
-absl::Status CleanUp(Function* f, bool can_remove_params) {
+absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   DeadCodeEliminationPass dce;
   DeadFunctionEliminationPass dfe;
   PassResults results;
@@ -549,7 +659,7 @@ absl::Status RealMain(absl::string_view path,
     XLS_LOG(INFO) << "=== Cleaning up initial garbage";
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                          ParsePackage(knownf_ir_text));
-    XLS_ASSIGN_OR_RETURN(Function * main, package->GetTopAsFunction());
+    FunctionBase* main = package->GetTop().value();
     XLS_RETURN_IF_ERROR(CleanUp(main, can_remove_params));
     XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
     knownf_ir_text = package->DumpIr();
@@ -582,8 +692,9 @@ absl::Status RealMain(absl::string_view path,
 
     XLS_VLOG(1) << "=== Simplification attempt " << total_attempts;
 
-    XLS_ASSIGN_OR_RETURN(auto package, ParsePackage(knownf_ir_text));
-    XLS_ASSIGN_OR_RETURN(Function * candidate, package->GetTopAsFunction());
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
+                         ParsePackage(knownf_ir_text));
+    FunctionBase* candidate = package->GetTop().value();
     XLS_VLOG_LINES(2,
                    "=== Candidate for simplification:\n" + candidate->DumpIr());
 
@@ -641,8 +752,8 @@ absl::Status RealMain(absl::string_view path,
     knownf_ir_text = candidate_ir_text;
 
     std::cerr << "---\ntransform: " << which_transform << "\n"
-              << candidate->DumpIr() << "(" << candidate->node_count()
-              << " nodes)" << std::endl;
+              << (candidate->node_count() > 50 ? "" : candidate->DumpIr())
+              << "(" << candidate->node_count() << " nodes)" << std::endl;
 
     failed_simplification_attempts = 0;
   }
