@@ -16,6 +16,7 @@
 # proto-message: xls.delay_model.DelayModel
 
 # Demonstrated generated delay model for Sky130 PDK.
+op_models { op: "kTrace" estimator { fixed: 0 } }
 op_models {
   op: "kIdentity"
   estimator {
@@ -340,7 +341,7 @@ op_models { op: "kSend" estimator { fixed: 0 } }
 # TODO(amfv): Add these to the characterization script and model them properly.
 op_models { op: "kSel" estimator { alias_op: "kOr" } }
 op_models { op: "kArrayUpdate" estimator { alias_op: "kXor" } }
-op_models { op: "kArrayIndex" estimator { alias_op: "kOr" }}
+op_models { op: "kArrayIndex" estimator { alias_op: "kOr" } }
 op_models { op: "kNor" estimator { alias_op: "kOr" } }
 op_models { op: "kNand" estimator { alias_op: "kAnd" } }
 op_models { op: "kOneHotSel" estimator { alias_op: "kOr" } }
