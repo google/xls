@@ -658,8 +658,8 @@ std::string ChannelDecl::ToString() const {
     }
   }
 
-  return absl::StrFormat("chan%s %s", absl::StrJoin(dims, ""),
-                         type_->ToString());
+  return absl::StrFormat("chan<%s>%s", type_->ToString(),
+                         absl::StrJoin(dims, ""));
 }
 
 // -- class Module
@@ -1729,9 +1729,9 @@ std::string ChannelTypeAnnotation::ToString() const {
       dims.push_back(absl::StrCat("[", dim->ToString(), "]"));
     }
   }
-  return absl::StrFormat("chan %s%s %s",
-                         direction_ == Direction::kIn ? "in" : "out",
-                         absl::StrJoin(dims, ""), payload_->ToString());
+  return absl::StrFormat("chan<%s>%s %s", payload_->ToString(),
+                         absl::StrJoin(dims, ""),
+                         direction_ == Direction::kIn ? "in" : "out");
 }
 
 TupleTypeAnnotation::TupleTypeAnnotation(Module* owner, Span span,

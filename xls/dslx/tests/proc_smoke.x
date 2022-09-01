@@ -14,9 +14,9 @@
 
 proc proc_under_test {
   a: u32;
-  input_c: chan in u32;
+  input_c: chan<u32> in;
 
-  config(c: chan in u32) {
+  config(c: chan<u32> in) {
     (u32:0, c)
   }
 
@@ -28,10 +28,10 @@ proc proc_under_test {
 
 #![test_proc(u32:0)]
 proc test_main {
-  input_p: chan out u32;
-  terminator_p: chan out bool;
-  config(terminator_p: chan out bool) {
-    let (p, c) = chan u32;
+  input_p: chan<u32> out;
+  terminator_p: chan<bool> out;
+  config(terminator_p: chan<bool> out) {
+    let (p, c) = chan<u32>;
     spawn proc_under_test(c)();
     (p, terminator_p)
   }

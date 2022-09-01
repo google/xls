@@ -15,13 +15,13 @@
 import std
 
 proc test_impl {
-  in0: chan in u32;
-  in1: chan in u32;
-  out0 : chan out u32;
+  in0: chan<u32> in;
+  in1: chan<u32> in;
+  out0 : chan<u32> out;
 
-  config(in0: chan in u32,
-         in1: chan in u32,
-         out0: chan out u32) {
+  config(in0: chan<u32> in,
+         in1: chan<u32> in,
+         out0: chan<u32> out) {
     (in0, in1, out0)
   }
 
@@ -43,9 +43,9 @@ proc test_impl {
 }
 
 pub proc proc_main {
-  config(in0: chan in u32,
-         in1: chan in u32,
-         out0: chan out u32) {
+  config(in0: chan<u32> in,
+         in1: chan<u32> in,
+         out0: chan<u32> out) {
     spawn test_impl(in0, in1, out0)
         (u32:0);
     ()
@@ -56,15 +56,15 @@ pub proc proc_main {
 
 #![test_proc()]
 proc test_main {
-  terminator: chan out bool;
-  in0: chan out u32;
-  in1: chan out u32;
-  out0: chan in u32;
+  terminator: chan<bool> out;
+  in0: chan<u32> out;
+  in1: chan<u32> out;
+  out0: chan<u32> in;
 
-  config(terminator: chan out bool) {
-    let (in0_p, in0_c) = chan u32;
-    let (in1_p, in1_c) = chan u32;
-    let (out0_p, out0_c) = chan u32;
+  config(terminator: chan<bool> out) {
+    let (in0_p, in0_c) = chan<u32>;
+    let (in1_p, in1_c) = chan<u32>;
+    let (out0_p, out0_c) = chan<u32>;
 
     spawn proc_main(in0_c, in1_c, out0_p)();
 

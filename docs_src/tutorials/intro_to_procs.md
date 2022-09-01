@@ -29,12 +29,12 @@ which computes `C = A * B + C`:
 import xls.modules.fp32_fma
 
 proc Fmac {
-  input_a_consumer: chan in F32;
-  input_b_consumer: chan in F32;
-  output_producer: chan out F32;
+  input_a_consumer: chan<F32> in;
+  input_b_consumer: chan<F32> in;
+  output_producer: chan<F32> out;
 
-  config(input_a_consumer: chan in F32, input_b_consumer: chan in F32,
-         output_producer: chan out F32) {
+  config(input_a_consumer: chan<F32> in, input_b_consumer: chan<F32> in,
+         output_producer: chan<F32> out) {
     (input_a_consumer, input_b_consumer, output_producer)
   }
 
@@ -103,22 +103,22 @@ As an example, spawning a couple of our procs above would look as follows:
 
 ```dslx
 proc Spawner {
-  fmac_1_a_producer = chan out F32;
-  fmac_1_b_producer = chan out F32;
-  fmac_1_output_consumer = chan in F32;
-  fmac_2_a_producer = chan out F32;
-  fmac_2_b_producer = chan out F32;
-  fmac_2_output_consumer = chan in F32;
+  fmac_1_a_producer = chan<F32> out;
+  fmac_1_b_producer = chan<F32> out;
+  fmac_1_output_consumer = chan<F32> in;
+  fmac_2_a_producer = chan<F32> out;
+  fmac_2_b_producer = chan<F32> out;
+  fmac_2_output_consumer = chan<F32> in;
 
   config() {
-    let (fmac_1_a_p, fmac_1_a_c) = chan F32;
-    let (fmac_1_b_p, fmac_1_b_c) = chan F32;
-    let (fmac_1_output_p, fmac_1_output_c) = chan F32;
+    let (fmac_1_a_p, fmac_1_a_c) = chan<F32>;
+    let (fmac_1_b_p, fmac_1_b_c) = chan<F32>;
+    let (fmac_1_output_p, fmac_1_output_c) = chan<F32>;
     spawn fmac(fmac_1_a_c, fmac_1_b_c, fmac_1_output_p)(float32::zero(false));
 
-    let (fmac_2_a_p, fmac_2_a_c) = chan F32;
-    let (fmac_2_b_p, fmac_2_b_c) = chan F32;
-    let (fmac_2_output_p, fmac_2_output_c) = chan F32;
+    let (fmac_2_a_p, fmac_2_a_c) = chan<F32>;
+    let (fmac_2_b_p, fmac_2_b_c) = chan<F32>;
+    let (fmac_2_output_p, fmac_2_output_c) = chan<F32>;
     spawn fmac(fmac_2_a_c, fmac_2_b_c, fmac_2_output_p)(float32::zero(false));
 
     (fmac_1_a_p, fmac_1_b_p, fmac_1_output_c,
@@ -146,8 +146,8 @@ inside `for` loops. This looks as follows:
 
 ```dslx-snippet
 proc Spawner4x4 {
-  input_producers: chan out[4][4] F32;
-  output_consumers: chan out[4][4] F32;
+  input_producers: chan<F32> out[4][4];
+  output_consumers: chan<F32> out[4][4];
 
   config() {
     let (input_producers, input_consumers) = chan[4][4] F32;
@@ -174,8 +174,8 @@ follows:
 
 ```dslx-snippet
 proc Parametric<N: u32, M: u32> {
-  input_producers: chan out[N][M] F32;
-  output_consumers: chan out[N][M] F32;
+  input_producers: chan<F32> out[N][M];
+  output_consumers: chan<F32> out[N][M];
 
   config() {
     let (input_producers, input_consumers) = chan[N][M] F32;
@@ -215,9 +215,9 @@ A skeletal example:
 ```dslx-snippet
 #![test_proc(u32:0)]
 proc Tester {
-  terminator: chan out bool;
+  terminator: chan<bool> out;
 
-  config(terminator: chan out bool) {
+  config(terminator: chan<bool> out) {
     spawn proc_under_test(...)(...);
     (terminator,)
   }

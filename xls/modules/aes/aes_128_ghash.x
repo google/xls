@@ -227,11 +227,12 @@ fn get_current_state(state: State, command: Command) -> State {
 // "tick" (read from the same channel). Once complete, the resulting tag will be
 // sent on the provided output channel.
 pub proc aes_128_ghash {
-    command_in: chan in Command;
-    input_in: chan in Block;
-    tag_out: chan out Block;
+    command_in: chan<Command> in;
+    input_in: chan<Block> in;
+    tag_out: chan<Block> out;
 
-    config(command_in: chan in Command, input_in: chan in Block, tag_out: chan out Block) {
+    config(command_in: chan<Command> in, input_in: chan<Block> in,
+           tag_out: chan<Block> out) {
         (command_in, input_in, tag_out)
     }
 
@@ -276,15 +277,15 @@ pub proc aes_128_ghash {
 // GCM implementation.
 #![test_proc()]
 proc aes_128_ghash_test {
-	command_out: chan out Command;
-    data_out: chan out Block;
-    tag_in: chan in Block;
-    terminator: chan out bool;
+	command_out: chan<Command> out;
+    data_out: chan<Block> out;
+    tag_in: chan<Block> in;
+    terminator: chan<bool> out;
 
-    config(terminator: chan out bool) {
-		let (command_in, command_out) = chan Command;
-        let (data_in, data_out) = chan Block;
-        let (tag_in, tag_out) = chan Block;
+    config(terminator: chan<bool> out) {
+		let (command_in, command_out) = chan<Command>;
+        let (data_in, data_out) = chan<Block>;
+        let (tag_in, tag_out) = chan<Block>;
 
         spawn aes_128_ghash(command_in, data_in, tag_out)(initial_state());
         (command_out, data_out, tag_in, terminator,)

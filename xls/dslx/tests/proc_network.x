@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 proc second_level_proc {
-  input_c: chan in u32;
-  output_p: chan out u32;
+  input_c: chan<u32> in;
+  output_p: chan<u32> out;
 
-  config(input_c: chan in u32, output_p: chan out u32) {
+  config(input_c: chan<u32> in, output_p: chan<u32> out) {
     (input_c, output_p)
   }
 
@@ -23,18 +23,18 @@ proc second_level_proc {
 }
 
 proc first_level_proc {
-  input_p0: chan out u32;
-  input_p1: chan out u32;
-  output_c0: chan in u32;
-  output_c1: chan in u32;
+  input_p0: chan<u32> out;
+  input_p1: chan<u32> out;
+  output_c0: chan<u32> in;
+  output_c1: chan<u32> in;
 
   config() {
-    let (input_p0, input_c0) = chan u32;
-    let (output_p0, output_c0) = chan u32;
+    let (input_p0, input_c0) = chan<u32>;
+    let (output_p0, output_c0) = chan<u32>;
     spawn second_level_proc(input_c0, output_p0)();
 
-    let (input_p1, input_c1) = chan u32;
-    let (output_p1, output_c1) = chan u32;
+    let (input_p1, input_c1) = chan<u32>;
+    let (output_p1, output_c1) = chan<u32>;
     spawn second_level_proc(input_c1, output_p1)();
 
     (input_p0, input_p1, output_p0, output_p1)
@@ -45,8 +45,8 @@ proc first_level_proc {
 
 #![test_proc()]
 proc main {
-  terminator: chan out bool;
-  config(terminator: chan out bool) {
+  terminator: chan<bool> out;
+  config(terminator: chan<bool> out) {
     spawn first_level_proc()();
     (terminator,)
   }

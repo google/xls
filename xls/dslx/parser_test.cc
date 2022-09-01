@@ -206,9 +206,9 @@ TEST_F(ParserTest, ParseSimpleProc) {
 // Parses the "iota" example.
 TEST_F(ParserTest, ParseProcNetwork) {
   const char* text = R"(proc producer {
-  c_: chan out u32;
+  c_: chan<u32> out;
   limit_: u32;
-  config(limit: u32, c: chan out u32) {
+  config(limit: u32, c: chan<u32> out) {
     (c, limit)
   }
   next(tok: token, i: u32) {
@@ -217,8 +217,8 @@ TEST_F(ParserTest, ParseProcNetwork) {
   }
 }
 proc consumer<N: u32> {
-  c_: chan in u32;
-  config(c: chan in u32) {
+  c_: chan<u32> in;
+  config(c: chan<u32> in) {
     (c,)
   }
   next(tok: token, i: u32) {
@@ -228,7 +228,7 @@ proc consumer<N: u32> {
 }
 proc main {
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn producer(u32:10, p)(0);
     spawn consumer(range(10), c)(0);
     ()
@@ -247,14 +247,14 @@ proc main {
 
 TEST_F(ParserTest, ChannelsNotAsNextArgs) {
   const char* text = R"(proc producer {
-  c_: chan out u32;
-  config(c: chan out u32) {
-    let c_ = (c);
-    ()
+  c: chan<u32> out;
+  config(c: chan<u32> out) {
+    (c,)
   }
-  next(tok: token, state: (chan out u32, u32)) {
-    send((c), (i));
-    (i) + (i)
+  //next(tok: token, (c: chan<u32> out, i: u32)) {
+  next(tok: token, i: (chan<u32> out, u32)) {
+    let tok = send(tok, c, i);
+    (c, (i) + (i))
   }
 })";
 
@@ -269,19 +269,19 @@ TEST_F(ParserTest, ChannelsNotAsNextArgs) {
 
 TEST_F(ParserTest, ChannelArraysOneD) {
   constexpr absl::string_view kModule = R"(proc consumer {
-  c: chan out u32;
-  config(c: chan out u32) {
+  c: chan<u32> out;
+  config(c: chan<u32> out) {
     (c,)
   }
   next(tok: token, i: u32) {
-    let tok = recv(tok, c);
+    let _ = recv(tok, c);
     (i) + (i)
   }
 }
 proc producer {
-  channels: chan out[32] u32;
+  channels: chan<u32>[32] out;
   config() {
-    let (ps, cs) = chan[32] u32;
+    let (ps, cs) = chan<u32>[32];
     spawn consumer((cs)[0])();
     (ps,)
   }
@@ -300,8 +300,8 @@ proc producer {
 
 TEST_F(ParserTest, ChannelArraysThreeD) {
   constexpr absl::string_view kModule = R"(proc consumer {
-  c: chan out u32;
-  config(c: chan out u32) {
+  c: chan<u32> out;
+  config(c: chan<u32> out) {
     (c,)
   }
   next(tok: token, i: u32) {
@@ -310,9 +310,9 @@ TEST_F(ParserTest, ChannelArraysThreeD) {
   }
 }
 proc producer {
-  channels: chan out[32][64][128] u32;
+  channels: chan<u32>[32][64][128] out;
   config() {
-    let (ps, cs) = chan[32][64][128] u32;
+    let (ps, cs) = chan<u32>[32][64][128];
     spawn consumer((cs)[0])();
     (ps,)
   }
@@ -331,8 +331,8 @@ proc producer {
 
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   constexpr absl::string_view kModule = R"(proc producer {
-  c: chan in u32;
-  config(c: chan in u32) {
+  c: chan<u32> in;
+  config(c: chan<u32> in) {
     (c,)
   }
   next(tok: token, do_send: bool) {
@@ -341,8 +341,8 @@ TEST_F(ParserTest, ParseSendIfAndRecvIf) {
   }
 }
 proc consumer {
-  c: chan in u32;
-  config(c: chan in u32) {
+  c: chan<u32> in;
+  config(c: chan<u32> in) {
     (c,)
   }
   next(tok: token, do_recv: bool) {
@@ -361,8 +361,8 @@ proc consumer {
 
 TEST_F(ParserTest, ParseSendIfAndRecvNb) {
   constexpr absl::string_view kModule = R"(proc producer {
-  c: chan in u32;
-  config(c: chan in u32) {
+  c: chan<u32> in;
+  config(c: chan<u32> in) {
     (c,)
   }
   next(tok: token, do_send: bool) {
@@ -371,8 +371,8 @@ TEST_F(ParserTest, ParseSendIfAndRecvNb) {
   }
 }
 proc consumer {
-  c: chan in u32;
-  config(c: chan in u32) {
+  c: chan<u32> in;
+  config(c: chan<u32> in) {
     (c,)
   }
   next(tok: token) {
@@ -391,11 +391,11 @@ proc consumer {
 
 TEST_F(ParserTest, ParseJoin) {
   constexpr absl::string_view kModule = R"(proc foo {
-  c0: chan out u32;
-  c1: chan out u32;
-  c2: chan out u32;
-  c3: chan in u32;
-  config(c0: chan out u32, c1: chan out u32, c2: chan out u32, c3: chan in u32) {
+  c0: chan<u32> out;
+  c1: chan<u32> out;
+  c2: chan<u32> out;
+  c3: chan<u32> in;
+  config(c0: chan<u32> out, c1: chan<u32> out, c2: chan<u32> out, c3: chan<u32> in) {
     (c0, c1, c2, c3)
   }
   next(tok: token, state: u32) {
@@ -418,9 +418,9 @@ TEST_F(ParserTest, ParseJoin) {
 
 TEST_F(ParserTest, ParseTestProc) {
   constexpr absl::string_view kModule = R"(proc testee {
-  input: chan in u32;
-  output: chan out u32;
-  config(input: chan in u32, output: chan out u32) {
+  input: chan<u32> in;
+  output: chan<u32> out;
+  config(input: chan<u32> in, output: chan<u32> out) {
     (input, output)
   }
   next(tok: token, x: u32) {
@@ -431,12 +431,12 @@ TEST_F(ParserTest, ParseTestProc) {
 }
 #![test_proc(u32:0)]
 proc tester {
-  p: chan out u32;
-  c: chan in u32;
-  terminator: chan out u32;
-  config(terminator: chan out u32) {
-    let (input_p, input_c) = chan u32;
-    let (output_p, output_c) = chan u32;
+  p: chan<u32> out;
+  c: chan<u32> in;
+  terminator: chan<u32> out;
+  config(terminator: chan<u32> out) {
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u32>;
     spawn testee(input_c, output_p)(u32:0);
     (input_p, output_c, terminator)
   }

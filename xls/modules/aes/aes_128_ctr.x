@@ -90,12 +90,12 @@ fn aes_128_ctr_encrypt(key: Key, ctr: uN[128], block: Block) -> Block {
 
 // Note that encryption and decryption are the _EXACT_SAME_PROCESS_!
 pub proc aes_128_ctr {
-    command_in: chan in Command;
-    ptxt_in: chan in Block;
-    ctxt_out: chan out Block;
+    command_in: chan<Command> in;
+    ptxt_in: chan<Block> in;
+    ctxt_out: chan<Block> out;
 
-    config(command_in: chan in Command,
-           ptxt_in: chan in Block, ctxt_out: chan out Block) {
+    config(command_in: chan<Command> in,
+           ptxt_in: chan<Block> in, ctxt_out: chan<Block> out) {
         (command_in, ptxt_in, ctxt_out)
     }
 
@@ -128,16 +128,16 @@ pub proc aes_128_ctr {
 
 #![test_proc()]
 proc aes_128_ctr_test {
-    terminator: chan out bool;
+    terminator: chan<bool> out;
 
-    command_out: chan out Command;
-    ptxt_out: chan out Block;
-    ctxt_in: chan in Block;
+    command_out: chan<Command> out;
+    ptxt_out: chan<Block>out;
+    ctxt_in: chan<Block> in;
 
-    config(terminator: chan out bool) {
-        let (command_in, command_out) = chan Command;
-        let (ptxt_in, ptxt_out) = chan Block;
-        let (ctxt_in, ctxt_out) = chan Block;
+    config(terminator: chan<bool> out) {
+        let (command_in, command_out) = chan<Command>;
+        let (ptxt_in, ptxt_out) = chan<Block>;
+        let (ctxt_in, ctxt_out) = chan<Block>;
 
         let init_state = State {
             step: Step::IDLE,

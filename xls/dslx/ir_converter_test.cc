@@ -1469,10 +1469,10 @@ TEST(IrConverterTest, HandlesChannelDecls) {
   const std::string kProgram = R"(
 proc main {
   config() {
-    let (p0, c0) : (chan out u32, chan in u32) = chan u32;
-    let (p1, c1) : (chan out u64, chan in u64) = chan u64;
-    let (p2, c2) : (chan out (u64, (u64, (u64))), chan in (u64, (u64, (u64)))) = chan (u64, (u64, (u64)));
-    let (p3, c3) = chan (u64, (u64, u64[4]));
+    let (p0, c0) : (chan<u32> out, chan<u32> in) = chan<u32>;
+    let (p1, c1) : (chan<u64> out, chan<u64> in) = chan<u64>;
+    let (p2, c2) : (chan<(u64, (u64, (u64)))> out, chan<(u64, (u64, (u64)))> in) = chan<(u64, (u64, (u64)))>;
+    let (p3, c3) = chan<(u64, (u64, u64[4]))>;
     ()
   }
 
@@ -1496,8 +1496,8 @@ proc main {
 TEST(IrConverterTest, HandlesBasicProc) {
   const std::string kProgram = R"(
 proc producer {
-  c: chan out u32;
-  config(input_c: chan out u32) {
+  c: chan<u32> out;
+  config(input_c: chan<u32> out) {
     (input_c,)
   }
   next(tok: token, i: u32) {
@@ -1507,8 +1507,8 @@ proc producer {
 }
 
 proc consumer {
-  c: chan in u32;
-  config(input_c: chan in u32) {
+  c: chan<u32> in;
+  config(input_c: chan<u32> in) {
     (input_c,)
   }
   next(tok: token, i: u32) {
@@ -1519,7 +1519,7 @@ proc consumer {
 
 proc main {
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn producer(p)(u32:0);
     spawn consumer(c)(u32:0);
     ()
@@ -1541,9 +1541,9 @@ proc main {
 
 TEST(IrConverterTest, SendIfRecvIf) {
   constexpr absl::string_view kProgram = R"(proc producer {
-  c: chan out u32;
+  c: chan<u32> out;
 
-  config(c: chan out u32) {
+  config(c: chan<u32> out) {
     (c,)
   }
 
@@ -1554,9 +1554,9 @@ TEST(IrConverterTest, SendIfRecvIf) {
 }
 
 proc consumer {
-  c: chan in u32;
+  c: chan<u32> in;
 
-  config(c: chan in u32) {
+  config(c: chan<u32> in) {
     (c,)
   }
 
@@ -1568,7 +1568,7 @@ proc consumer {
 
 proc main {
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn producer(p)(true);
     spawn consumer(c)(true);
     ()
@@ -1589,16 +1589,16 @@ proc main {
 
 TEST(IrConverterTest, Join) {
   constexpr absl::string_view kProgram = R"(proc foo {
-  p0: chan out u32;
-  p1: chan out u32;
-  p2: chan out u32;
-  c3: chan in u32;
+  p0: chan<u32> out;
+  p1: chan<u32> out;
+  p2: chan<u32> out;
+  c3: chan<u32> in;
 
   config() {
-    let (p0, c0) = chan u32;
-    let (p1, c1) = chan u32;
-    let (p2, c2) = chan u32;
-    let (p3, c3) = chan u32;
+    let (p0, c0) = chan<u32>;
+    let (p1, c1) = chan<u32>;
+    let (p2, c2) = chan<u32>;
+    let (p3, c3) = chan<u32>;
     (p0, p1, p2, c3)
   }
 
@@ -1615,7 +1615,7 @@ TEST(IrConverterTest, Join) {
 
 proc main {
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn foo()(u32: 0);
     ()
   }
@@ -1637,11 +1637,11 @@ proc main {
 
 TEST(IrConverterTest, BoundaryChannels) {
   constexpr absl::string_view kProgram = R"(proc foo {
-  in_0: chan in u32;
-  in_1: chan in u32;
-  output: chan out u32;
+  in_0: chan<u32> in;
+  in_1: chan<u32> in;
+  output: chan<u32> out;
 
-  config(in_0: chan in u32, in_1: chan in u32, output: chan out u32) {
+  config(in_0: chan<u32> in, in_1: chan<u32> in, output: chan<u32> out) {
     (in_0, in_1, output)
   }
 

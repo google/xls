@@ -171,32 +171,32 @@ fn create_ctr_block(iv: InitVector) -> Block {
 // Once all ciphertext blocks have been sent to GHASH, the auth tag is
 // read out and sent to the user, which completes processing of the command.
 proc aes_128_gcm {
-    command_in: chan in Command;
-    data_in: chan in Block;
-    data_out: chan out Block;
+    command_in: chan<Command> in;
+    data_in: chan<Block> in;
+    data_out: chan<Block> out;
 
     // CTR mode data.
-    ctr_cmd_out: chan out aes_128_ctr::Command;
-    ctr_input_out: chan out Block;
-    ctr_result_in: chan in Block;
+    ctr_cmd_out: chan<aes_128_ctr::Command> out;
+    ctr_input_out: chan<Block> out;
+    ctr_result_in: chan<Block> in;
 
     // GHASH data.
-    ghash_cmd_out: chan out aes_128_ghash::Command;
-    ghash_input_out: chan out Block;
-    ghash_tag_in: chan in Block;
+    ghash_cmd_out: chan<aes_128_ghash::Command> out;
+    ghash_input_out: chan<Block> out;
+    ghash_tag_in: chan<Block> in;
 
-    config(command_in: chan in Command,
-           data_in: chan in Block,
-           data_out: chan out Block) {
-        let (ctr_cmd_in, ctr_cmd_out) = chan aes_128_ctr::Command;
-        let (ctr_input_in, ctr_input_out) = chan Block;
-        let (ctr_result_in, ctr_result_out) = chan Block;
+    config(command_in: chan<Command> in,
+           data_in: chan<Block> in,
+           data_out: chan<Block> out) {
+        let (ctr_cmd_in, ctr_cmd_out) = chan<aes_128_ctr::Command>;
+        let (ctr_input_in, ctr_input_out) = chan<Block>;
+        let (ctr_result_in, ctr_result_out) = chan<Block>;
         let ctr_initial_state = aes_128_ctr::initial_state();
         spawn aes_128_ctr::aes_128_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out)(ctr_initial_state);
 
-        let (ghash_cmd_in, ghash_cmd_out) = chan aes_128_ghash::Command;
-        let (ghash_input_in, ghash_input_out) = chan Block;
-        let (ghash_tag_in, ghash_tag_out) = chan Block;
+        let (ghash_cmd_in, ghash_cmd_out) = chan<aes_128_ghash::Command>;
+        let (ghash_input_in, ghash_input_out) = chan<Block>;
+        let (ghash_tag_in, ghash_tag_out) = chan<Block>;
         let ghash_initial_state = aes_128_ghash::initial_state();
         spawn aes_128_ghash::aes_128_ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out)(ghash_initial_state);
 
@@ -280,15 +280,15 @@ proc aes_128_gcm {
 // Tests encryption of a single block of plaintext with a single block of AAD.
 #![test_proc()]
 proc aes_128_gcm_test_smoke {
-    command_out: chan out Command;
-    input_out: chan out Block;
-    result_out: chan in Block;
-    terminator: chan out bool;
+    command_out: chan<Command> out;
+    input_out: chan<Block> out;
+    result_out: chan<Block> in;
+    terminator: chan<bool> out;
 
-    config(terminator: chan out bool) {
-        let (command_in, command_out) = chan Command;
-        let (input_in, input_out) = chan Block;
-        let (result_in, result_out) = chan Block;
+    config(terminator: chan<bool> out) {
+        let (command_in, command_out) = chan<Command>;
+        let (input_in, input_out) = chan<Block>;
+        let (result_in, result_out) = chan<Block>;
         spawn aes_128_gcm(command_in, input_in, result_out)(initial_state());
         (command_out, input_out, result_in, terminator)
     }
@@ -345,15 +345,15 @@ proc aes_128_gcm_test_smoke {
 // Tests encryption with three blocks of plaintext and two blocks of AAD.
 #![test_proc()]
 proc aes_128_gcm_multi_block {
-    command_out: chan out Command;
-    input_out: chan out Block;
-    result_out: chan in Block;
-    terminator: chan out bool;
+    command_out: chan<Command> out;
+    input_out: chan<Block> out;
+    result_out: chan<Block> in;
+    terminator: chan<bool> out;
 
-    config(terminator: chan out bool) {
-        let (command_in, command_out) = chan Command;
-        let (input_in, input_out) = chan Block;
-        let (result_in, result_out) = chan Block;
+    config(terminator: chan<bool> out) {
+        let (command_in, command_out) = chan<Command>;
+        let (input_in, input_out) = chan<Block>;
+        let (result_in, result_out) = chan<Block>;
         spawn aes_128_gcm(command_in, input_in, result_out)(initial_state());
         (command_out, input_out, result_in, terminator)
     }
@@ -459,15 +459,15 @@ proc aes_128_gcm_multi_block {
 // normal encryption and verify the results.
 #![test_proc()]
 proc aes_128_gcm_zero_block_commands {
-    command_out: chan out Command;
-    input_out: chan out Block;
-    result_out: chan in Block;
-    terminator: chan out bool;
+    command_out: chan<Command> out;
+    input_out: chan<Block> out;
+    result_in: chan<Block> in;
+    terminator: chan<bool> out;
 
-    config(terminator: chan out bool) {
-        let (command_in, command_out) = chan Command;
-        let (input_in, input_out) = chan Block;
-        let (result_in, result_out) = chan Block;
+    config(terminator: chan<bool> out) {
+        let (command_in, command_out) = chan<Command>;
+        let (input_in, input_out) = chan<Block>;
+        let (result_in, result_out) = chan<Block>;
         spawn aes_128_gcm(command_in, input_in, result_out)(initial_state());
         (command_out, input_out, result_in, terminator)
     }
@@ -494,7 +494,7 @@ proc aes_128_gcm_zero_block_commands {
         ];
         let tok = send(tok, input_out, aad_block);
         // Receive one tag block.
-        let (tok, _) = recv(tok, result_out);
+        let (tok, _) = recv(tok, result_in);
 
         // 2. Zero blocks of AAD.
         let command = Command {
@@ -512,8 +512,8 @@ proc aes_128_gcm_zero_block_commands {
         ];
         let tok = send(tok, input_out, msg_block);
         // Receive one block of ciphertext and one auth tag block.
-        let (tok, _) = recv(tok, result_out);
-        let (tok, _) = recv(tok, result_out);
+        let (tok, _) = recv(tok, result_in);
+        let (tok, _) = recv(tok, result_in);
 
         // 3. Zero blocks of either.
         let command = Command {
@@ -523,7 +523,7 @@ proc aes_128_gcm_zero_block_commands {
         };
         let tok = send(tok, command_out, command);
         // Receive one auth tag block.
-        let (tok, _) = recv(tok, result_out);
+        let (tok, _) = recv(tok, result_in);
 
         // Now just make sure we can do a normal transaction.
         let command = Command {
@@ -551,7 +551,7 @@ proc aes_128_gcm_zero_block_commands {
         ];
         let tok = send(tok, input_out, msg_block);
 
-        let (tok, ctxt) = recv(tok, result_out);
+        let (tok, ctxt) = recv(tok, result_in);
         let expected_ctxt = Block:[
             [u8:0x03, u8:0x88, u8:0xda, u8:0xce],
             [u8:0x60, u8:0xb6, u8:0xa3, u8:0x92],
@@ -560,7 +560,7 @@ proc aes_128_gcm_zero_block_commands {
         ];
         let _ = assert_eq(ctxt, expected_ctxt);
 
-        let (tok, tag) = recv(tok, result_out);
+        let (tok, tag) = recv(tok, result_in);
         let expected_tag = Block:[
             [u8:0xd2, u8:0x4e, u8:0x50, u8:0x3a],
             [u8:0x1b, u8:0xb0, u8:0x37, u8:0x07],

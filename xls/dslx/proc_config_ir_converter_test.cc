@@ -32,9 +32,9 @@ using testing::HasSubstr;
 TEST(ProcConfigIrConverterTest, BasicConversion) {
   constexpr absl::string_view kModule = R"(
 proc test_proc {
-  c: chan in u32;
+  c: chan<u32> in;
   x: u32;
-  config(c: chan in u32, ham_sandwich: u32) {
+  config(c: chan<u32> in, ham_sandwich: u32) {
     (c, ham_sandwich)
   }
   next(tok: token, y: u32) {
@@ -44,9 +44,9 @@ proc test_proc {
 }
 
 proc main {
-  c: chan out u32;
+  c: chan<u32> out;
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn test_proc(c, u32:7)(u32:8);
     (p,)
   }
@@ -87,8 +87,8 @@ proc main {
 TEST(ProcConfigIrConverterTest, CatchesMissingArgMap) {
   constexpr absl::string_view kModule = R"(
 proc test_proc {
-  c: chan in u32;
-  config(c: chan in u32) {
+  c: chan<u32> in;
+  config(c: chan<u32> in) {
     (c,)
   }
   next(tok: token) {
@@ -97,9 +97,9 @@ proc test_proc {
 }
 
 proc main {
-  c: chan out u32;
+  c: chan<u32> out;
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn test_proc(c)();
     (p,)
   }

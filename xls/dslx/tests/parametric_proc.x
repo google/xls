@@ -13,10 +13,10 @@
 // limitations under the License.
 
 proc parametric<N: u32, M: u32> {
-  c: chan in uN[M];
-  p: chan out uN[M];
+  c: chan<uN[M]> in;
+  p: chan<uN[M]> out;
 
-  config(c: chan in uN[M], p: chan out uN[M]) {
+  config(c: chan<uN[M]> in, p: chan<uN[M]> out) {
     (c, p)
   }
 
@@ -30,13 +30,13 @@ proc parametric<N: u32, M: u32> {
 
 #![test_proc()]
 proc test_proc {
-  terminator: chan out bool;
-  output_c: chan in u37;
-  input_p: chan out u37;
+  terminator: chan<bool> out;
+  output_c: chan<u37> in;
+  input_p: chan<u37> out;
 
-  config(terminator: chan out bool) {
-    let (input_p, input_c) = chan u37;
-    let (output_p, output_c) = chan u37;
+  config(terminator: chan<bool> out) {
+    let (input_p, input_c) = chan<u37>;
+    let (output_p, output_c) = chan<u37>;
     spawn parametric<u32:32, u32:37>(input_c, output_p)();
     (terminator, output_c, input_p)
   }

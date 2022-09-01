@@ -681,7 +681,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
 
   // A ChannelTypeAnnotation needs to keep its own dims (rather than being
   // enclosed in an ArrayTypeAnnotation simply because it prints itself in a
-  // different manner than an array does - we want `chan in[32] u32` rather
+  // different manner than an array does - we want `chan<u32>[32] in` rather
   // than `chan in u32[32]` for a 32-channel declaration. The former declares 32
   // channels, each of which transmits a u32, whereas the latter declares a
   // single channel that transmits a 32-element array of u32s.
@@ -2756,8 +2756,8 @@ class ConstRef : public NameRef {
   }
 };
 
-// A channel declaration, e.g., let (p, c) = chan u32.
-//                                           ^^^^^^^^ this part.
+// A channel declaration, e.g., let (p, c) = chan<u32>.
+//                                           ^^^^^^^^^ this part.
 class ChannelDecl : public Expr {
  public:
   ChannelDecl(Module* owner, Span span, TypeAnnotation* type,

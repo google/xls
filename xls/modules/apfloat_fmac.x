@@ -21,15 +21,15 @@ import xls.modules.apfloat_fma
 type APFloat = apfloat::APFloat;
 
 pub proc fmac<EXP_SZ: u32, SFD_SZ: u32> {
-  input_a: chan in APFloat<EXP_SZ, SFD_SZ>;
-  input_b: chan in APFloat<EXP_SZ, SFD_SZ>;
-  reset: chan in bool;
-  output: chan out APFloat<EXP_SZ, SFD_SZ>;
+  input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in;
+  input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in;
+  reset: chan<bool> in;
+  output: chan<APFloat<EXP_SZ, SFD_SZ>> out;
 
-  config(input_a: chan in APFloat<EXP_SZ, SFD_SZ>,
-         input_b: chan in APFloat<EXP_SZ, SFD_SZ>,
-         reset: chan in bool,
-         output: chan out APFloat<EXP_SZ, SFD_SZ>) {
+  config(input_a: chan<APFloat<EXP_SZ, SFD_SZ>> in,
+         input_b: chan<APFloat<EXP_SZ, SFD_SZ>> in,
+         reset: chan<bool> in,
+         output: chan<APFloat<EXP_SZ, SFD_SZ>> out) {
     (input_a, input_b, reset, output)
   }
 

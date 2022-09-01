@@ -1206,10 +1206,10 @@ TEST(BytecodeEmitterTest, BasicProc) {
   // typechecked if spawned by a top-level (i.e., 0-arg) proc.
   constexpr absl::string_view kProgram = R"(
 proc Foo {
-  x: chan in u32;
+  x: chan<u32> in;
   y: u32;
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     (p, u32:100)
   }
 
@@ -1248,11 +1248,11 @@ proc Foo {
 TEST(BytecodeEmitterTest, SpawnedProc) {
   constexpr absl::string_view kProgram = R"(
 proc Child {
-  c: chan in u32;
+  c: chan<u32> in;
   x: u32;
   y: u64;
 
-  config(c: chan in u32, a: u64, b: uN[128]) {
+  config(c: chan<u32> in, a: u64, b: uN[128]) {
     (c, a as u32, (a + b as u64))
   }
 
@@ -1263,9 +1263,9 @@ proc Child {
 }
 
 proc Parent {
-  p: chan out u32;
+  p: chan<u32> out;
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn Child(c, u64:100, uN[128]:200)(u64:300);
     (p,)
   }

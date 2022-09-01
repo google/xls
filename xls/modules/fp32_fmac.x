@@ -20,8 +20,8 @@ const F32_ZERO = float32::zero(false);
 const F32_ONE = float32::one(false);
 
 proc fp32_fmac {
-  config(input_a: chan in F32, input_b: chan in F32,
-         reset: chan in bool, output: chan out F32) {
+  config(input_a: chan<F32> in, input_b: chan<F32> in,
+         reset: chan<bool> in, output: chan<F32> out) {
     spawn apfloat_fmac::fmac<u32:8, u32:23>(input_a, input_b, reset, output)
         (F32_ZERO);
     ()
@@ -33,17 +33,17 @@ proc fp32_fmac {
 
 #![test_proc()]
 proc smoke_test {
-  input_a_p: chan out F32;
-  input_b_p: chan out F32;
-  reset_p: chan out bool;
-  output_c: chan in F32;
-  terminator: chan out bool;
+  input_a_p: chan<F32> out;
+  input_b_p: chan<F32> out;
+  reset_p: chan<bool> out;
+  output_c: chan<F32> in;
+  terminator: chan<bool> out;
 
-  config(terminator: chan out bool) {
-    let (input_a_p, input_a_c) = chan F32;
-    let (input_b_p, input_b_c) = chan F32;
-    let (reset_p, reset_c) = chan bool;
-    let (output_p, output_c) = chan F32;
+  config(terminator: chan<bool> out) {
+    let (input_a_p, input_a_c) = chan<F32>;
+    let (input_b_p, input_b_c) = chan<F32>;
+    let (reset_p, reset_c) = chan<bool>;
+    let (output_p, output_c) = chan<F32>;
     spawn fp32_fmac(input_a_c, input_b_c, reset_c, output_p)();
     (input_a_p, input_b_p, reset_p, output_c, terminator)
   }

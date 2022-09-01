@@ -26,14 +26,14 @@ type F32 = float32::F32;
 // "node" performs the actual work of this systolic array, multiplying an input
 // activation by the baked-in weight.
 proc node {
-  from_west: chan in F32;
-  from_north: chan in F32;
-  to_east: chan out F32;
-  to_south: chan out F32;
+  from_west: chan<F32> in;
+  from_north: chan<F32> in;
+  to_east: chan<F32> out;
+  to_south: chan<F32> out;
   weight: F32;
 
-  config(from_west: chan in F32, from_north: chan in F32,
-         to_east: chan out F32, to_south: chan out F32, weight: F32) {
+  config(from_west: chan<F32> in, from_north: chan<F32> in,
+         to_east: chan<F32> out, to_south: chan<F32> out, weight: F32) {
     (from_west, from_north, to_east, to_south, weight)
   }
 
@@ -52,22 +52,22 @@ proc node {
 }
 
 proc matmul<ROWS: u32, COLS: u32> {
-  zeroes_out: chan out[COLS] F32;
+  zeroes_out: chan<F32>[COLS] out;
 
-  config(activations_in: chan in[ROWS] F32,
-         results_out: chan out[COLS] F32) {
+  config(activations_in: chan<F32>[ROWS] in,
+         results_out: chan<F32>[COLS] out) {
     // Declare the east-to-west channels.
     // Add one extra channel for easy indexing / going "off the edge".
     // TODO(rspringer): 2022-04-18: Maybe eliminate the need for this?
-    let (east_outputs, west_inputs) = chan[COLS + u32:1][ROWS] F32;
+    let (east_outputs, west_inputs) = chan<F32>[COLS + u32:1][ROWS];
 
     // Declare the north-to-south channels.
-    let (south_outputs, north_inputs) = chan[COLS][ROWS] F32;
+    let (south_outputs, north_inputs) = chan<F32>[COLS][ROWS];
 
     // TODO(rspringer): Zeros (as initial partial sums) would be best provided
     // by single-value channels.
     // Declare the zero-valued initial partial sum channels.
-    let (zeroes_out, zeroes_in) = chan[COLS] F32;
+    let (zeroes_out, zeroes_in) = chan<F32>[COLS];
 
     // Spawn all the procs. Specify weights to give a "mul-by-two" matrix.
     let f32_0 = float32::zero(false);
@@ -110,13 +110,13 @@ proc matmul<ROWS: u32, COLS: u32> {
 
 #![test_proc()]
 proc test_proc {
-  activations_out: chan out[4] F32;
-  results_in: chan in[4] F32;
-  terminator: chan out bool;
+  activations_out: chan<F32>[4] out;
+  results_in: chan<F32>[4] in;
+  terminator: chan<bool> out;
 
-  config(terminator: chan out bool) {
-    let (activations_out, activations_in) = chan[4] F32;
-    let (results_out, results_in) = chan[4] F32;
+  config(terminator: chan<bool> out) {
+    let (activations_out, activations_in) = chan<F32>[4];
+    let (results_out, results_in) = chan<F32>[4];
     spawn matmul<u32:4, u32:4>(activations_in, results_out)();
     (activations_out, results_in, terminator,)
   }

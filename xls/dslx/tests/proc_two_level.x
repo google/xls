@@ -15,10 +15,10 @@
 // Another proc "smoke test": this one just spawns two procs.
 
 proc doubler {
-  c: chan in u32;
-  p: chan out u32;
+  c: chan<u32> in;
+  p: chan<u32> out;
 
-  config(c: chan in u32, p: chan out u32) {
+  config(c: chan<u32> in, p: chan<u32> out) {
     (c, p)
   }
 
@@ -30,15 +30,15 @@ proc doubler {
 }
 
 proc strange_mather {
-  c: chan in u32;
-  p: chan out u32;
-  doubler_input_p: chan out u32;
-  doubler_output_c: chan in u32;
+  c: chan<u32> in;
+  p: chan<u32> out;
+  doubler_input_p: chan<u32> out;
+  doubler_output_c: chan<u32> in;
   factor: u32;
 
-  config(c: chan in u32, p: chan out u32, factor: u32) {
-    let (doubler_input_c, doubler_input_p) = chan u32;
-    let (doubler_output_c, doubler_output_p) = chan u32;
+  config(c: chan<u32> in, p: chan<u32> out, factor: u32) {
+    let (doubler_input_c, doubler_input_p) = chan<u32>;
+    let (doubler_output_c, doubler_output_p) = chan<u32>;
     spawn doubler(doubler_input_c, doubler_output_p)();
     (c, p, doubler_input_p, doubler_output_c, factor)
   }
@@ -56,13 +56,13 @@ proc strange_mather {
 
 #![test_proc()]
 proc test_proc {
-  terminator: chan out bool;
-  p: chan out u32;
-  c: chan in u32;
+  terminator: chan<bool> out;
+  p: chan<u32> out;
+  c: chan<u32> in;
 
-  config(terminator: chan out bool) {
-    let (input_p, input_c) = chan u32;
-    let (output_p, output_c) = chan u32;
+  config(terminator: chan<bool> out) {
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u32>;
     spawn strange_mather(input_c, output_p, u32:2)(u32:0);
     (terminator, input_p, output_c)
   }

@@ -1184,8 +1184,8 @@ proc foo {
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
   constexpr absl::string_view kProgram = R"(
 proc foo {
-  c : chan out u32;
-  config(c: chan out u32) {
+  c : chan<u32> out;
+  config(c: chan<u32> out) {
     (c,)
   }
 
@@ -1196,9 +1196,9 @@ proc foo {
 }
 
 proc entry {
-  c: chan in u32;
+  c: chan<u32> in;
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn foo(c)(u32:0);
     (p,)
   }
@@ -1213,10 +1213,10 @@ proc entry {
 TEST(TypecheckTest, CantSendOnOutputChannel) {
   constexpr absl::string_view kProgram = R"(
 proc entry {
-  p: chan out u32;
-  c: chan in u32;
+  p: chan<u32> out;
+  c: chan<u32> in;
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     (p, c)
   }
   next (tok: token) {

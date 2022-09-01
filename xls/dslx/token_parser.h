@@ -188,6 +188,9 @@ class TokenParser {
   // string, but ...\" will not.
   absl::StatusOr<std::string> PopString();
 
+  void DisableDoubleCAngle() { scanner_->DisableDoubleCAngle(); }
+  void EnableDoubleCAngle() { scanner_->EnableDoubleCAngle(); }
+
  private:
   Scanner* scanner_;
   int64_t index_;

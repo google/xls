@@ -98,10 +98,10 @@ fn __top__GetLatency() -> bits[64] {
 
 TEST(IrWrapperTest, DslxProcsToIrOk) {
   constexpr absl::string_view kTopDslx = R"(proc foo {
-  in_0: chan in u32;
-  in_1: chan in u32;
-  output: chan out u32;
-  config(in_0: chan in u32, in_1: chan in u32, output: chan out u32) {
+  in_0: chan<u32> in;
+  in_1: chan<u32> in;
+  output: chan<u32> out;
+  config(in_0: chan<u32> in, in_1: chan<u32> in, output: chan<u32> out) {
     (in_0, in_1, output)
   }
   next(tok: token) {

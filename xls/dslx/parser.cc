@@ -509,12 +509,13 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
   XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
 
   if (tok.IsTypeKeyword()) {  // Builtin types.
-    auto parse_channel = [this, bindings](
-                             Pos start_pos,
-                             ChannelTypeAnnotation::Direction direction)
-        -> absl::StatusOr<TypeAnnotation*> {
-      // Now get the type of the channels.
-      XLS_RETURN_IF_ERROR(DropToken());
+    Pos start_pos = tok.span().start();
+    if (tok.GetKeyword() == Keyword::kChannel) {
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
+      XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
+                           ParseTypeAnnotation(bindings));
+      XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCAngle));
+
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrack,
                            PeekTokenIs(TokenKind::kOBrack));
       std::optional<std::vector<Expr*>> dims;
@@ -522,31 +523,32 @@ absl::StatusOr<TypeAnnotation*> Parser::ParseTypeAnnotation(
         XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings));
       }
 
-      XLS_ASSIGN_OR_RETURN(TypeAnnotation * payload,
-                           ParseTypeAnnotation(bindings));
+      XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
+      if (tok.kind() != TokenKind::kKeyword) {
+        return ParseErrorStatus(
+            tok.span(),
+            absl::StrFormat(
+                "Expected channel direction (\"in\" or \"out\"); got %s.",
+                tok.ToString()));
+      }
+      if (tok.GetKeyword() != Keyword::kIn &&
+          tok.GetKeyword() != Keyword::kOut) {
+        return ParseErrorStatus(
+            tok.span(),
+            absl::StrFormat(
+                "Expected channel direction (\"in\" or \"out\"); got %s.",
+                tok.ToString()));
+      }
+      ChannelTypeAnnotation::Direction direction =
+          tok.GetKeyword() == Keyword::kIn
+              ? ChannelTypeAnnotation::Direction::kIn
+              : ChannelTypeAnnotation::Direction::kOut;
+
       Span span(start_pos, GetPos());
       TypeAnnotation* type =
           module_->Make<ChannelTypeAnnotation>(span, direction, payload, dims);
 
       return type;
-    };
-
-    Pos start_pos = tok.span().start();
-    if (tok.GetKeyword() == Keyword::kChannel) {
-      XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
-      if (peek->GetKeyword() == Keyword::kIn) {
-        return parse_channel(start_pos, ChannelTypeAnnotation::Direction::kIn);
-      }
-
-      if (peek->GetKeyword() == Keyword::kOut) {
-        return parse_channel(start_pos, ChannelTypeAnnotation::Direction::kOut);
-      }
-
-      return ParseErrorStatus(
-          peek->span(),
-          absl::StrFormat(
-              "Expected a channel direction (\"in\" or \"out\"; got %s.",
-              peek->ToString()));
     }
 
     Pos limit_pos = tok.span().limit();
@@ -1988,12 +1990,15 @@ absl::StatusOr<ChannelDecl*> Parser::ParseChannelDecl(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(Token channel, PopKeywordOrError(Keyword::kChannel));
 
   std::optional<std::vector<Expr*>> dims = absl::nullopt;
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
+  XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
+  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCAngle));
+
   XLS_ASSIGN_OR_RETURN(bool peek_is_obrack, PeekTokenIs(TokenKind::kOBrack));
   if (peek_is_obrack) {
     Pos limit_pos;
     XLS_ASSIGN_OR_RETURN(dims, ParseDims(bindings, &limit_pos));
   }
-  XLS_ASSIGN_OR_RETURN(auto* type, ParseTypeAnnotation(bindings));
   return module_->Make<ChannelDecl>(
       Span(channel.span().start(), type->span().limit()), type, dims);
 }
@@ -2370,6 +2375,10 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
   auto cleanup = absl::MakeCleanup([&txn]() { txn.Rollback(); });
 
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOAngle));
+
+  // <comment>
+  DisableDoubleCAngle();
+
   auto parse_parametric = [this, &txn]() -> absl::StatusOr<Expr*> {
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
     if (peek->kind() == TokenKind::kOBrace) {
@@ -2409,6 +2418,8 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
   if (status_or_exprs.ok()) {
     txn.CommitAndCancelCleanup(&cleanup);
   }
+
+  EnableDoubleCAngle();
   return status_or_exprs;
 }
 

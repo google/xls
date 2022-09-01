@@ -234,6 +234,9 @@ class Scanner {
   // Proceeds through the stream until an unescaped double quote is encountered.
   absl::StatusOr<std::string> ScanUntilDoubleQuote();
 
+  void EnableDoubleCAngle() { double_c_angle_enabled_ = true; }
+  void DisableDoubleCAngle() { double_c_angle_enabled_ = false; }
+
  private:
   // Helper routine that creates a canonically-formatted scan error (which uses
   // the status code for an InvalidArgumentError, on the assumption the invalid
@@ -375,6 +378,7 @@ class Scanner {
   int64_t index_ = 0;
   int64_t lineno_ = 0;
   int64_t colno_ = 0;
+  bool double_c_angle_enabled_ = true;
 };
 
 }  // namespace xls::dslx

@@ -15,9 +15,9 @@
 // Basic example showing how a proc network can be created and connected.
 
 proc producer {
-  c: chan out u32;
+  c: chan<u32> out;
 
-  config(input_c: chan out u32) {
+  config(input_c: chan<u32> out) {
     (input_c,)
   }
 
@@ -29,9 +29,9 @@ proc producer {
 }
 
 proc consumer<N:u32> {
-  c: chan in u32;
+  c: chan<u32> in;
 
-  config(input_c: chan in u32) {
+  config(input_c: chan<u32> in) {
     (input_c,)
   }
 
@@ -43,7 +43,7 @@ proc consumer<N:u32> {
 
 proc main {
   config() {
-    let (p, c) = chan u32;
+    let (p, c) = chan<u32>;
     spawn producer(p)(u32:0);
     spawn consumer<u32:2>(c)(u32:0);
     ()

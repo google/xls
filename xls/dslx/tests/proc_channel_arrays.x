@@ -14,9 +14,9 @@
 
 // Test demonstrating use (and correct implementation) of arrays of channels.
 proc consumer {
-  cs: chan in[128][64] u16;
-  ps: chan out[128] u16;
-  config(cs: chan out[128][64] u16, ps: chan out[128] u16) {
+  cs: chan<u16>[128][64] in;
+  ps: chan<u16>[128] out;
+  config(cs: chan<u16>[128][64] out, ps: chan<u16>[128] in) {
     (cs, ps)
   }
   next(tok: token) {
@@ -28,12 +28,12 @@ proc consumer {
 
 #![test_proc()]
 proc producer {
-  ps: chan out[128][64][32] u16;
-  cs: chan in[128][64][32] u16;
-  terminator: chan out bool;
+  ps: chan<u16>[128][64][32] out;
+  cs: chan<u16>[128][64][32] in;
+  terminator: chan<bool> out;
 
-  config(terminator: chan out bool) {
-    let (ps, cs) = chan[128][64][32] u16;
+  config(terminator: chan<bool> out) {
+    let (ps, cs) = chan<u16>[128][64][32];
     spawn consumer(cs[0], ps[0][1])();
     (ps, cs, terminator)
   }

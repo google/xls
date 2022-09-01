@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 proc producer {
-  p: chan out u32;
+  p: chan<u32> out;
 
-  config(p: chan out u32) {
+  config(p: chan<u32> out) {
     (p,)
   }
 
@@ -25,9 +25,9 @@ proc producer {
 }
 
 proc consumer {
-  c: chan in u32;
+  c: chan<u32> in;
 
-  config(c: chan in u32) {
+  config(c: chan<u32> in) {
     (c,)
   }
 
@@ -39,7 +39,7 @@ proc consumer {
 
 proc main {
     config() {
-        let (p, c) = chan u32;
+        let (p, c) = chan<u32>;
         spawn producer(p)(true);
         spawn consumer(c)(true);
         ()
@@ -49,13 +49,13 @@ proc main {
 
 #![test_proc()]
 proc test_main {
-  terminator: chan out bool;
-  data0: chan in u32;
-  data1: chan out u32;
+  terminator: chan<bool> out;
+  data0: chan<u32> in;
+  data1: chan<u32> out;
 
-  config(terminator: chan out bool) {
-    let (data0_p, data0_c) = chan u32;
-    let (data1_p, data1_c) = chan u32;
+  config(terminator: chan<bool> out) {
+    let (data0_p, data0_c) = chan<u32>;
+    let (data1_p, data1_c) = chan<u32>;
 
     spawn producer(data0_p)(true);
     spawn consumer(data1_c)(true);

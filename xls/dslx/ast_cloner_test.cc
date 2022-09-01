@@ -263,8 +263,8 @@ TEST(AstClonerTest, TestProcs) {
 proc my_test_proc {
   a: u32;
   b: uN[127];
-  terminator: chan out bool;
-  config(terminator: chan out bool) {
+  terminator: chan<bool> out;
+  config(terminator: chan<bool> out) {
     (u32:0, uN[127]:127, terminator)
   }
   next(tok: token, state: u64) {
@@ -515,11 +515,11 @@ TEST(AstClonerTest, TupleIndex) {
 TEST(AstClonerTest, SendsAndRecvsAndSpawns) {
   constexpr absl::string_view kProgram = R"(import other_module
 proc MyProc {
-  input_p: chan out u32;
-  output_c: chan out u64;
+  input_p: chan<u32> out;
+  output_c: chan<u64> out;
   config() {
-    let (input_p, input_c) = chan u32;
-    let (output_p, output_c) = chan u64;
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u64>;
     spawn other_module::OtherProc(input_c, output_p)();
     (input_p, output_c)
   }
@@ -533,9 +533,9 @@ proc MyProc {
   }
 })";
   constexpr absl::string_view kExpected = R"(import other_module
-fn MyProc.config() -> (chan out u32, chan out u64) {
-  let (input_p, input_c) = chan u32;
-  let (output_p, output_c) = chan u64;
+fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
+  let (input_p, input_c) = chan<u32>;
+  let (output_p, output_c) = chan<u64>;
   spawn other_module::OtherProc(input_c, output_p)();
   (input_p, output_c)
 }
@@ -548,11 +548,11 @@ fn MyProc.next(tok: token, state: u32) -> u32 {
   (state) + (foo)
 }
 proc MyProc {
-  input_p: chan out u32;
-  output_c: chan out u64;
+  input_p: chan<u32> out;
+  output_c: chan<u64> out;
   config() {
-    let (input_p, input_c) = chan u32;
-    let (output_p, output_c) = chan u64;
+    let (input_p, input_c) = chan<u32>;
+    let (output_p, output_c) = chan<u64>;
     spawn other_module::OtherProc(input_c, output_p)();
     (input_p, output_c)
   }
