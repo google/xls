@@ -92,7 +92,7 @@ def xls_ir_verilog_macro(
 
     # Append output files to arguments.
     use_system_verilog = ("use_system_verilog" in codegen_args and
-                          codegen_args["use_system_verilog"] == True)
+                          codegen_args["use_system_verilog"].lower() == "true")
     validate_verilog_filename(verilog_file, use_system_verilog)
     verilog_basename = split_filename(verilog_file)[0]
     kwargs = append_xls_ir_verilog_generated_files(
