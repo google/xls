@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/logging/log_lines.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ir_converter.h"
@@ -105,6 +106,24 @@ absl::Status JitChannelQueueWrapper::Dequeue(absl::Span<uint8_t> buffer) {
   return absl::OkStatus();
 }
 
+absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
+    absl::string_view module_name, absl::string_view file_path) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Module> module,
+                       dslx::ParseModuleFromFileAtPath(file_path, module_name));
+
+  return Create(std::move(module), file_path);
+}
+
+absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
+    std::unique_ptr<dslx::Module> module, absl::string_view file_path) {
+  DslxModuleAndPath module_and_path;
+
+  module_and_path.TakeDslxModule(std::move(module));
+  module_and_path.SetFilePath(file_path);
+
+  return module_and_path;
+}
+
 absl::StatusOr<dslx::Module*> IrWrapper::GetDslxModule(
     absl::string_view name) const {
   XLS_RET_CHECK(top_module_ != nullptr);
@@ -137,44 +156,29 @@ absl::StatusOr<Package*> IrWrapper::GetIrPackage() const {
 }
 
 absl::StatusOr<IrWrapper> IrWrapper::Create(
-    absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
-    absl::string_view top_module_path, std::unique_ptr<Module> other_module,
-    absl::string_view other_module_path) {
-  std::vector<std::unique_ptr<Module>> other_module_vec;
-  other_module_vec.push_back(std::move(other_module));
-
-  std::vector<absl::string_view> other_module_path_vec;
-  other_module_path_vec.push_back(other_module_path);
-
-  return Create(ir_package_name, std::move(top_module), top_module_path,
-                absl::MakeSpan(other_module_vec),
-                absl::MakeSpan(other_module_path_vec));
-}
-
-absl::StatusOr<IrWrapper> IrWrapper::Create(
-    absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
-    absl::string_view top_module_path,
-    absl::Span<std::unique_ptr<Module>> other_modules,
-    absl::Span<absl::string_view> other_modules_path) {
+    absl::string_view ir_package_name, DslxModuleAndPath top_module,
+    std::vector<DslxModuleAndPath> import_modules) {
   IrWrapper ir_wrapper(ir_package_name);
 
   // Compile DSLX
-  XLS_RET_CHECK(other_modules.size() == other_modules_path.size());
-  for (int64_t i = 0; i < other_modules.size(); ++i) {
-    XLS_RET_CHECK(other_modules[i] != nullptr);
+  for (DslxModuleAndPath& module_and_path : import_modules) {
+    XLS_RET_CHECK(module_and_path.GetDslxModule() != nullptr);
 
-    XLS_ASSIGN_OR_RETURN(
-        TypecheckedModule module_typechecked,
-        TypecheckModule(std::move(other_modules[i]), other_modules_path[i],
-                        &ir_wrapper.import_data_));
+    XLS_ASSIGN_OR_RETURN(TypecheckedModule module_typechecked,
+                         TypecheckModule(module_and_path.GiveUpDslxModule(),
+                                         module_and_path.GetFilePath(),
+                                         &ir_wrapper.import_data_));
+
     ir_wrapper.other_modules_.push_back(module_typechecked.module);
+
     XLS_VLOG_LINES(3, ir_wrapper.other_modules_.back()->ToString());
   }
 
-  XLS_RET_CHECK(top_module != nullptr);
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule top_typechecked,
-                       TypecheckModule(std::move(top_module), top_module_path,
-                                       &ir_wrapper.import_data_));
+  XLS_RET_CHECK(top_module.GetDslxModule() != nullptr);
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule top_typechecked,
+      TypecheckModule(top_module.GiveUpDslxModule(), top_module.GetFilePath(),
+                      &ir_wrapper.import_data_));
   ir_wrapper.top_module_ = top_typechecked.module;
   XLS_VLOG_LINES(3, ir_wrapper.top_module_->ToString());
 
@@ -186,11 +190,59 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
       ir_wrapper.top_module_, &ir_wrapper.import_data_, convert_options,
       /*traverse_tests=*/false, ir_wrapper.package_.get()));
 
+  XLS_VLOG(3) << "IrWrapper Package (pre-opt):";
+  XLS_VLOG_LINES(3, ir_wrapper.package_->DumpIr());
+
   // Optimize IR using default options
   XLS_RETURN_IF_ERROR(
       RunStandardPassPipeline(ir_wrapper.package_.get()).status());
 
   return std::move(ir_wrapper);
+}
+
+absl::StatusOr<IrWrapper> IrWrapper::Create(
+    absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
+    absl::string_view top_module_path, std::unique_ptr<Module> other_module,
+    absl::string_view other_module_path) {
+  XLS_ASSIGN_OR_RETURN(
+      DslxModuleAndPath top_module_and_path,
+      DslxModuleAndPath::Create(std::move(top_module), top_module_path));
+
+  XLS_ASSIGN_OR_RETURN(
+      DslxModuleAndPath other_module_and_path,
+      DslxModuleAndPath::Create(std::move(other_module), other_module_path));
+
+  std::vector<DslxModuleAndPath> other_module_and_path_vec;
+  other_module_and_path_vec.push_back(std::move(other_module_and_path));
+
+  return Create(ir_package_name, std::move(top_module_and_path),
+                std::move(other_module_and_path_vec));
+}
+
+absl::StatusOr<IrWrapper> IrWrapper::Create(
+    absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
+    absl::string_view top_module_path,
+    absl::Span<std::unique_ptr<Module>> other_modules,
+    absl::Span<absl::string_view> other_modules_path) {
+  XLS_ASSIGN_OR_RETURN(
+      DslxModuleAndPath top_module_and_path,
+      DslxModuleAndPath::Create(std::move(top_module), top_module_path));
+
+  std::vector<DslxModuleAndPath> other_modules_and_paths_vec;
+
+  XLS_RET_CHECK(other_modules.size() == other_modules_path.size());
+  for (int64_t i = 0; i < other_modules.size(); ++i) {
+    XLS_RET_CHECK(other_modules[i] != nullptr);
+
+    XLS_ASSIGN_OR_RETURN(DslxModuleAndPath other_module_and_path,
+                         DslxModuleAndPath::Create(std::move(other_modules[i]),
+                                                   other_modules_path[i]));
+
+    other_modules_and_paths_vec.push_back(std::move(other_module_and_path));
+  }
+
+  return Create(ir_package_name, std::move(top_module_and_path),
+                std::move(other_modules_and_paths_vec));
 }
 
 absl::StatusOr<Function*> IrWrapper::GetIrFunction(

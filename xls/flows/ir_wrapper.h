@@ -81,6 +81,48 @@ class JitChannelQueueWrapper {
   std::vector<uint8_t> buffer_;
 };
 
+// A class managing a dslx module and associated path.
+class DslxModuleAndPath {
+ public:
+  // Gives up ownership the dslx module.
+  std::unique_ptr<dslx::Module> GiveUpDslxModule() {
+    return std::move(module_);
+  }
+
+  // Take ownership of a dslx module.
+  void TakeDslxModule(std::unique_ptr<dslx::Module> module) {
+    module_ = std::move(module);
+    module_name_ = module_->name();
+  }
+
+  // Get Module.
+  dslx::Module* GetDslxModule() { return module_.get(); }
+
+  // Return module name.
+  std::string GetDslxModuleName() const { return module_name_; }
+
+  // Return path of the dslx module.
+  std::string GetFilePath() const { return file_path_; }
+
+  // Set new path of the dslx module.
+  void SetFilePath(absl::string_view path) { file_path_ = path; }
+
+  // Take ownership of the dslx module and create a new object.
+  static absl::StatusOr<DslxModuleAndPath> Create(
+      std::unique_ptr<dslx::Module> module, absl::string_view file_path);
+
+  // Parse dslx file from path and create a new object.
+  static absl::StatusOr<DslxModuleAndPath> Create(absl::string_view module_name,
+                                                  absl::string_view file_path);
+
+ private:
+  DslxModuleAndPath() = default;
+
+  std::unique_ptr<dslx::Module> module_;
+  std::string module_name_;
+  std::string file_path_;
+};
+
 // This class owns and is responsible for the flow to take ownership of a set
 // of DSLX modules, compile/typecheck them, and convert them into an
 // IR package.
@@ -121,6 +163,10 @@ class IrWrapper {
 
   // Takes ownership of a set of DSLX modules, converts to IR and creates
   // an IrWrapper object.
+  static absl::StatusOr<IrWrapper> Create(
+      absl::string_view ir_package_name, DslxModuleAndPath top_module,
+      std::vector<DslxModuleAndPath> import_modules);
+
   static absl::StatusOr<IrWrapper> Create(
       absl::string_view ir_package_name,
       std::unique_ptr<dslx::Module> top_module,
