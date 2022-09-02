@@ -21,6 +21,7 @@
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/node_hash_map.h"
 #include "absl/container/node_hash_set.h"
+#include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/scanner.h"
 
@@ -521,6 +522,32 @@ class AstGenerator {
     XLS_CHECK(!choices.empty());
     int64_t index = RandRange(choices.size());
     return choices[index];
+  }
+
+  // Returns a recoverable status error with the given message. A recoverable
+  // error may be raised to indicate that the generation of an individual
+  // expression failed but that generation should continue.
+  absl::Status RecoverableError(absl::string_view message) {
+    return absl::AbortedError(absl::StrFormat("RecoverableError: %s", message));
+  }
+  bool IsRecoverableError(const absl::Status& status) {
+    return !status.ok() && status.code() == absl::StatusCode::kAborted &&
+           absl::StartsWith(status.message(), "RecoverableError");
+  }
+
+  // Returns a recoverable error if the given width is too large for the limits
+  // set in the generator options.
+  absl::Status VerifyBitsWidth(int64_t width) {
+    if (width > options_.max_width_bits_types) {
+      return RecoverableError("bits type too wide.");
+    }
+    return absl::OkStatus();
+  }
+  absl::Status VerifyAggregateWidth(int64_t width) {
+    if (width > options_.max_width_aggregate_types) {
+      return RecoverableError("aggregate type too wide.");
+    }
+    return absl::OkStatus();
   }
 
   std::mt19937& rng_;

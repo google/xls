@@ -397,7 +397,10 @@ py_test(
     python_version = "PY3",
     shard_count = 3,
     srcs_version = "PY3",
-    tags = ["optonly"],
+    tags = [
+        "manual",
+        "notap",
+    ],
     deps = [
         ":sample_summary_py_pb2",
         "//xls/common:runfiles",

@@ -121,21 +121,24 @@ class FuzzCoverageTest(test_base.TestCase):
         '--max_width_bits_types=256', '--max_width_aggregate_types=1024'
     ])
     summary = self._read_summaries(summaries_path)
-    # Verify that at least some bits types are greater than 64.
+    # Verify the type widths are within limits and some large types are
+    # generated.
+    self.assertLessEqual(summary.max_bits_type_width, 256)
     self.assertGreater(summary.max_bits_type_width, 64)
 
-    # TODO(meheff): The aggregate limit doesn't work perhaps because map can
-    # generate map generates wide arrays. Enable these assertions when fixed.
-    # self.assertLessEqual(summary.max_aggregate_type_width, 10240)
-    # self.assertGreater(summary.max_aggregate_type_width, 5120)
+    self.assertLessEqual(summary.max_aggregate_type_width, 1024)
+    self.assertGreater(summary.max_aggregate_type_width, 512)
 
   def test_op_coverage(self):
+    # This is a probabilistic test which verifies that all expected op codes are
+    # covered. To ensure coverage with near certain probability this test runs
+    # for a long time.
     crasher_path = self.create_tempdir().full_path
     summaries_path = self.create_tempdir().full_path
 
     subprocess.check_call([
         RUN_FUZZ_MULTIPROCESS_PATH, '--seed=42', '--crash_path=' + crasher_path,
-        '--sample_count=500', '--summary_path=' + summaries_path,
+        '--sample_count=2000', '--summary_path=' + summaries_path,
         '--calls_per_sample=1', '--worker_count=4'
     ])
 

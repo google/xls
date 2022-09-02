@@ -658,6 +658,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
     cases.push_back(e.expr);
   }
 
+  XLS_RETURN_IF_ERROR(
+      VerifyAggregateWidth(cases.size() * GetTypeBitCount(rhs.type)));
+
   auto* cases_array =
       module_->Make<Array>(fake_span_, cases, /*has_ellipsis=*/false);
   auto* invocation =
@@ -681,6 +684,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GeneratePrioritySelectBuiltin(
     cases.push_back(e.expr);
   }
 
+  XLS_RETURN_IF_ERROR(
+      VerifyAggregateWidth(cases.size() * GetTypeBitCount(rhs.type)));
+
   auto* cases_array =
       module_->Make<Array>(fake_span_, cases, /*has_ellipsis=*/false);
   auto* invocation =
@@ -697,14 +703,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArrayConcat(Env* env) {
   auto array_compatible = [&](const TypedExpr& e) -> bool {
     TypeAnnotation* t = e.type;
     if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
-      return array->element_type() == lhs_array_type->element_type() &&
-             GetTypeBitCount(lhs.type) + GetTypeBitCount(t) <
-                 options_.max_width_aggregate_types;
+      return array->element_type() == lhs_array_type->element_type();
     }
     return false;
   };
 
   XLS_ASSIGN_OR_RETURN(TypedExpr rhs, ChooseEnvValue(env, array_compatible));
+
+  XLS_RETURN_IF_ERROR(VerifyAggregateWidth(GetTypeBitCount(lhs.type) +
+                                           GetTypeBitCount(rhs.type)));
+
   auto* rhs_array_type = dynamic_cast<ArrayTypeAnnotation*>(rhs.type);
   XLS_RET_CHECK(rhs_array_type != nullptr);
   Binop* result =
@@ -737,10 +745,14 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArray(Env* env) {
     }
   }
   std::vector<Expr*> value_exprs;
+  int64_t total_width = 0;
   value_exprs.reserve(values.size());
   for (TypedExpr t : values) {
     value_exprs.push_back(t.expr);
+    total_width += GetTypeBitCount(t.type);
   }
+
+  XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_width));
 
   // Create a type alias for the return type because arrays of tuples do not
   // parse. For example, the following is a parse error:
@@ -822,29 +834,29 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateConcat(Env* env) {
   // Pick the number of operands of the concat. We need at least one value.
   int64_t count = GenerateNaryOperandCount(env, /*lower_limit=*/1);
   std::vector<TypedExpr> operands;
+  int64_t total_width = 0;
   for (int64_t i = 0; i < count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValueUBits(env));
     operands.push_back(e);
+    total_width += GetTypeBitCount(e.type);
   }
 
+  XLS_RETURN_IF_ERROR(VerifyBitsWidth(total_width));
+
   TypedExpr e = operands[0];
-  int64_t result_bits = GetTypeBitCount(e.type);
   Expr* result = e.expr;
   for (int64_t i = 1; i < count; ++i) {
-    int64_t this_bits = GetTypeBitCount(operands[i].type);
-    if (result_bits + this_bits > options_.max_width_bits_types) {
-      break;
-    }
     result = module_->Make<Binop>(fake_span_, BinopKind::kConcat, result,
                                   operands[i].expr);
-    result_bits += this_bits;
   }
-  TypeAnnotation* return_type = MakeTypeAnnotation(false, result_bits);
+
+  TypeAnnotation* return_type = MakeTypeAnnotation(false, total_width);
   return TypedExpr{result, return_type};
 }
 
 BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
-  int64_t integral = RandRange(kConcreteBuiltinTypeLimit);
+  int64_t integral = RandRange(
+      std::min(kConcreteBuiltinTypeLimit, options_.max_width_bits_types + 1));
   auto type = static_cast<BuiltinType>(integral);
   return module_->Make<BuiltinTypeAnnotation>(fake_span_, type);
 }
@@ -984,14 +996,11 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
       env, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
   for (int64_t i = 0; i < element_count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
-    if (options_.generate_empty_tuples &&
-        (total_bit_count + GetTypeBitCount(e.type) >
-         options_.max_width_aggregate_types)) {
-      continue;
-    }
     members.push_back(e);
     total_bit_count += GetTypeBitCount(e.type);
   }
+
+  XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_bit_count));
 
   auto [exprs, types] = Unzip(members);
   if (!options_.generate_empty_tuples) {
@@ -1006,11 +1015,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
   std::string map_fn_name = GenSym();
 
   // GenerateFunction(), in turn, can call GenerateMap(), so we need some way of
-  // bounding the recursion. To limit explosion, return an EmptyEnvError (which
-  // bails on creation of the map but continues with fuzzing) with exponentially
-  // increasing probability depending on the call depth.
+  // bounding the recursion. To limit explosion, return an recoverable error
+  // with exponentially increasing probability depending on the call depth.
   if (RandomFloat() > pow(10.0, -call_depth)) {
-    return absl::FailedPreconditionError("EmptyEnvError: Call depth too deep.");
+    return RecoverableError("Call depth too deep.");
   }
 
   // Choose a random array from the environment and create a single-argument
@@ -1023,6 +1031,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateMap(int64_t call_depth,
                                         std::vector<TypeAnnotation*>(
                                             {array_type->element_type()})));
   functions_.push_back(map_fn);
+
+  XLS_RETURN_IF_ERROR(VerifyAggregateWidth(
+      GetTypeBitCount(map_fn->return_type()) * GetArraySize(array_type)));
 
   TypeAnnotation* return_type =
       MakeArrayType(map_fn->return_type(), GetArraySize(array_type));
@@ -1054,19 +1065,32 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
   if (r < 0.1 * std::pow(2.0, -nesting)) {
     // Generate tuple type. Use a mean value of 3 elements so the tuple isn't
     // too big.
+    int64_t total_width = 0;
     std::vector<TypeAnnotation*> element_types;
     for (int64_t i = 0;
          i < RandomIntWithExpectedValue(
                  3, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
          ++i) {
-      element_types.push_back(GenerateType(nesting + 1));
+      TypeAnnotation* element_type = GenerateType(nesting + 1);
+      int64_t element_width = GetTypeBitCount(element_type);
+      if (total_width + element_width > options_.max_width_aggregate_types) {
+        break;
+      }
+      element_types.push_back(element_type);
+      total_width += element_width;
     }
     return MakeTupleType(element_types);
   }
   if (r < 0.2 * std::pow(2.0, -nesting)) {
     // Generate array type.
-    return MakeArrayType(GenerateType(nesting + 1),
-                         RandomIntWithExpectedValue(10, /*lower_limit=*/1));
+    TypeAnnotation* element_type = GenerateType(nesting + 1);
+    int64_t element_width = GetTypeBitCount(element_type);
+    int64_t element_count = RandomIntWithExpectedValue(10, /*lower_limit=*/1);
+    if (element_count * element_width > options_.max_width_aggregate_types) {
+      element_count = std::max<int64_t>(
+          1, options_.max_width_aggregate_types / element_width);
+    }
+    return MakeArrayType(element_type, element_count);
   }
   return GenerateBitsType();
 }
@@ -1099,8 +1123,8 @@ absl::StatusOr<TypedExpr> AstGenerator::ChooseEnvValue(
     Env* env, std::function<bool(const TypedExpr&)> take) {
   auto result = ChooseEnvValueOptional(env, take);
   if (!result.has_value()) {
-    return absl::FailedPreconditionError(
-        "EmptyEnvError: No elements in the environment satisfy the predicate.");
+    return RecoverableError(
+        "No elements in the environment satisfy the predicate.");
   }
   return result.value();
 }
@@ -1284,13 +1308,13 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateArraySlice(Env* env) {
   int64_t slice_width;
 
   if (RandomBool()) {
-    slice_width = RandomIntWithExpectedValue(1.0);
+    slice_width = RandomIntWithExpectedValue(1.0, /*lower_limit=*/1);
   } else {
-    slice_width = RandomIntWithExpectedValue(10.0);
+    slice_width = RandomIntWithExpectedValue(10.0, /*lower_limit=*/1);
   }
 
-  slice_width = std::max(int64_t{1}, slice_width);
-  slice_width = std::min(int64_t{1000}, slice_width);
+  XLS_RETURN_IF_ERROR(VerifyAggregateWidth(
+      slice_width * GetTypeBitCount(arg_type->element_type())));
 
   std::vector<Expr*> width_array_elements = {module_->Make<Index>(
       fake_span_, arg.expr, MakeNumber(0, MakeTypeAnnotation(false, 32)))};
@@ -1441,9 +1465,6 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   while (true) {
     absl::StatusOr<TypedExpr> generated;
 
-    // With particularly low probability we generate a map -- if maps recurse
-    // with equal probability then the output will grow exponentially with
-    // level, so we need to scale inversely.
     int choice = GetOpDistribution(options_.generate_proc)(rng_);
     switch (static_cast<OpChoice>(choice)) {
       case kArray:
@@ -1541,12 +1562,23 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
 
     if (generated.ok()) {
       rhs = generated.value();
+      if (IsBits(rhs.type)) {
+        XLS_RET_CHECK_LE(GetTypeBitCount(rhs.type),
+                         options_.max_width_bits_types)
+            << absl::StreamFormat("Bits-typed expression is too wide: %s",
+                                  rhs.expr->ToString());
+      } else if (IsArray(rhs.type) || IsTuple(rhs.type)) {
+        XLS_RET_CHECK_LE(GetTypeBitCount(rhs.type),
+                         options_.max_width_aggregate_types)
+            << absl::StreamFormat("Aggregate-typed expression is too wide: %s",
+                                  rhs.expr->ToString());
+      }
       break;
     }
 
     // We expect the Generate* routines might try to sample things that don't
     // exist in the envs, so we keep going if we see one of those errors.
-    if (absl::StartsWith(generated.status().message(), "EmptyEnvError")) {
+    if (IsRecoverableError(generated.status())) {
       continue;
     }
 
