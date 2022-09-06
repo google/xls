@@ -201,5 +201,26 @@ TEST_F(ProcStateOptimizationPassTest, ProcWithPartiallyDeadStateElement) {
   EXPECT_EQ(proc->GetStateParam(0)->GetName(), "not_dead");
 }
 
+TEST_F(ProcStateOptimizationPassTest, LiteralChainOfSize1) {
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * out, p->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                               p->GetBitsType(32)));
+
+  TokenlessProcBuilder pb("p", "tkn", p.get());
+  BValue x = pb.StateElement("x", Value(UBits(100, 32)));
+  BValue lit = pb.Literal(Value(UBits(200, 32)));
+
+  // Ensure x is observable
+  pb.Send(out, x);
+
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({lit}));
+
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_EQ(proc->GetStateElementCount(), 1);
+  EXPECT_EQ(proc->GetStateParam(0)->GetType()->GetFlatBitCount(), 1);
+}
+
 }  // namespace
 }  // namespace xls

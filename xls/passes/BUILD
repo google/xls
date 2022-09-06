@@ -1050,6 +1050,7 @@ cc_library(
         ":passes",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
+        "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
         "//xls/data_structures:inline_bitmap",

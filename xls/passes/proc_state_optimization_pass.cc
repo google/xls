@@ -16,6 +16,7 @@
 
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/data_structures/inline_bitmap.h"
 #include "xls/data_structures/union_find.h"
@@ -248,21 +249,122 @@ absl::StatusOr<bool> RemoveUnobservableStateElements(Proc* proc) {
   return true;
 }
 
+// If there's a sequence of state elements `c` with length `k` such that
+//     next[c[i + 1]] ≡ param[c[i]] and next[c[0]] is a literal
+// where `≡` denotes semantic equivalence, then this function will convert all
+// of those state elements into a single state element of size ⌈log₂(k)⌉ bits,
+// unless the literal value is equal to init_value[c[0]], in which case the
+// state will be eliminated entirely.
+//
+// The reason this takes a chain as input rather than a single state element
+// with literal input (and then run to fixed point) is because the latter would
+// result in a one-hot encoding of the state rather than binary.
+//
+// TODO: 2022-08-31 this could be modified to handle arbitrary DAGs where each
+// included next function doesn't have any receives (i.e.: a DAG consisting of
+// arithmetic/logic operations, literals, and registers).
+absl::Status LiteralChainToStateMachine(Proc* proc,
+                                        absl::Span<const int64_t> chain) {
+  XLS_CHECK(!chain.empty());
+
+  std::string state_machine_name = "state_machine";
+  for (int64_t param_index : chain) {
+    absl::StrAppend(&state_machine_name, "_",
+                    proc->GetStateParam(param_index)->GetName());
+  }
+
+  int64_t state_machine_width = CeilOfLog2(chain.size()) + 1;
+  Type* state_machine_type = proc->package()->GetBitsType(state_machine_width);
+  XLS_ASSIGN_OR_RETURN(Param * state_machine_param,
+                       proc->AppendStateElement(
+                           state_machine_name, ZeroOfType(state_machine_type)));
+  XLS_ASSIGN_OR_RETURN(int64_t state_machine_index,
+                       proc->GetStateParamIndex(state_machine_param));
+
+  {
+    XLS_ASSIGN_OR_RETURN(
+        Node * one, proc->MakeNode<Literal>(
+                        SourceInfo(), Value(UBits(1, state_machine_width))));
+    XLS_ASSIGN_OR_RETURN(
+        Node * max,
+        proc->MakeNode<Literal>(
+            SourceInfo(), Value(UBits(chain.size() - 1, state_machine_width))));
+    XLS_ASSIGN_OR_RETURN(Node * machine_plus_one,
+                         proc->MakeNode<BinOp>(
+                             SourceInfo(), state_machine_param, one, Op::kAdd));
+    XLS_ASSIGN_OR_RETURN(Node * machine_too_large,
+                         proc->MakeNode<CompareOp>(
+                             SourceInfo(), state_machine_param, max, Op::kUGe));
+    XLS_ASSIGN_OR_RETURN(
+        Node * sel,
+        proc->MakeNode<Select>(
+            SourceInfo(), machine_too_large,
+            std::vector<Node*>({machine_plus_one, state_machine_param}),
+            std::nullopt));
+    XLS_RETURN_IF_ERROR(proc->SetNextStateElement(state_machine_index, sel));
+  }
+
+  std::vector<Node*> initial_state_literals;
+  initial_state_literals.reserve(chain.size());
+  for (int64_t param_index : chain) {
+    XLS_ASSIGN_OR_RETURN(
+        Node * init, proc->MakeNode<Literal>(
+                         SourceInfo(), proc->GetInitValueElement(param_index)));
+    initial_state_literals.push_back(init);
+  }
+
+  Node* chain_literal = proc->GetNextStateElement(chain.at(0));
+  XLS_CHECK(chain_literal->Is<Literal>());
+
+  for (int64_t chain_index = 0; chain_index < chain.size(); ++chain_index) {
+    int64_t param_index = chain.at(chain_index);
+    std::vector<Node*> cases = initial_state_literals;
+    XLS_CHECK_GE(cases.size(), chain_index);
+    cases.resize(chain_index + 1);
+    std::reverse(cases.begin(), cases.end());
+    XLS_RETURN_IF_ERROR(proc->GetStateParam(param_index)
+                            ->ReplaceUsesWithNew<Select>(state_machine_param,
+                                                         cases, chain_literal)
+                            .status());
+  }
+
+  return absl::OkStatus();
+}
+
+// Convert all chains in the state element graph (as described in the docs for
+// `LiteralChainToStateMachine`) into state machines with `⌈log₂(k)⌉` bits of
+// state where `k` is the length of the chain.
+//
+// TODO: 2022-08-31 this currently only handles chains of length 1 with
+// syntactic equivalence
+absl::StatusOr<bool> ConvertLiteralChainsToStateMachines(Proc* proc) {
+  bool changed = false;
+  for (int64_t i = 0; i < proc->GetStateElementCount(); ++i) {
+    if (proc->GetNextStateElement(i)->Is<Literal>()) {
+      XLS_RETURN_IF_ERROR(LiteralChainToStateMachine(proc, {i}));
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 }  // namespace
 
 absl::StatusOr<bool> ProcStateOptimizationPass::RunOnProcInternal(
     Proc* proc, const PassOptions& options, PassResults* results) const {
   bool changed = false;
+
   XLS_ASSIGN_OR_RETURN(bool zero_width_changed,
                        RemoveZeroWidthStateElements(proc));
   changed |= zero_width_changed;
 
+  XLS_ASSIGN_OR_RETURN(bool literal_chains_changed,
+                       ConvertLiteralChainsToStateMachines(proc));
+  changed |= literal_chains_changed;
+
   XLS_ASSIGN_OR_RETURN(bool unobservable_changed,
                        RemoveUnobservableStateElements(proc));
   changed |= unobservable_changed;
-
-  // TODO(meheff): 4/7/2022 Remove elements which are static (i.e, never change
-  // from their initial value).
 
   return changed;
 }
