@@ -16,31 +16,21 @@
 
 #include <cstdio>
 #include <memory>
+#include <ostream>
 #include <vector>
 
 #include "google/protobuf/message.h"
 #include "google/protobuf/text_format.h"
-#include "google/protobuf/util/message_differencer.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/block_conversion.h"
-#include "xls/codegen/block_generator.h"
-#include "xls/codegen/codegen_options.h"
-#include "xls/codegen/combinational_generator.h"
 #include "xls/common/file/temp_file.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/unit_test.h"
-#include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/ir_interpreter.h"
-#include "xls/interpreter/proc_interpreter.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/block.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
@@ -387,6 +377,18 @@ TEST_F(TranslatorTest, ArrayInitListWrongSize) {
          return a;
        })";
   ASSERT_FALSE(SourceToIr(content).ok());
+}
+
+TEST_F(TranslatorTest, ArrayTooManyInitListValues) {
+  const std::string content = R"(
+       long long my_package() {
+         long long arr[1] = {4, 5};
+         return arr[0];
+       })";
+  ASSERT_THAT(SourceToIr(content).status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kFailedPrecondition,
+                  testing::HasSubstr("Unable to parse text")));
 }
 
 TEST_F(TranslatorTest, ArrayInitListMismatchedSizeZeros) {
@@ -6738,19 +6740,31 @@ TEST_F(TranslatorTest, FunctionEnum) {
 
 TEST_F(TranslatorTest, UnusedTemplate) {
   const std::string content = R"(
-      template <typename T, unsigned N>
-      struct Array { T data[N]; };
+      template<typename T, int N>
+      struct StructVal { T data[N]; };
 
       #pragma hls_top
-      int DoSomething(const Array<int, 3>& a) {
+      int my_package(StructVal<long, 2> a) {
         return 0;
       }
     )";
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src, SourceToIr(content));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::Package> package,
+                           ParsePackage(ir_src));
+  XLS_ASSERT_OK(package->SetTopByName("my_package"));
+  std::vector<uint64_t> in_vals = {55, 20};
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Value in_arr,
+                           xls::Value::UBitsArray(in_vals, 64));
+  xls::Value in_tuple = xls::Value::Tuple({in_arr});
+  absl::flat_hash_map<std::string, xls::Value> args;
+  args["a"] = in_tuple;
+  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry,
+                           package->GetTopAsFunction());
 
-  ASSERT_THAT(SourceToIr(content).status(),
-              xls::status_testing::StatusIs(
-                  absl::StatusCode::kUnavailable,
-                  testing::HasSubstr("Definition for CXXRecord")));
+  auto x = DropInterpreterEvents(xls::InterpretFunctionKwargs(
+      entry, {{"a", in_tuple}}));
+
+  ASSERT_THAT(x, IsOkAndHolds(xls::Value(xls::UBits(0, 32))));
 }
 
 TEST_F(TranslatorTest, BinaryOpComma) {
@@ -6853,6 +6867,58 @@ TEST_F(TranslatorTest, EnumArrayInitializer) {
          return x[2] == VAL_2;
        })";
   Run({{"a", 2}}, static_cast<int64_t>(true), content);
+}
+
+TEST_F(TranslatorTest, NonparameterIOOps) {
+  const std::string content = R"(
+      #pragma hls_top
+      void my_package(__xls_channel<int>& in) {
+         __xls_channel<int> out;
+         out.write(3*in.read());
+       })";
+
+  ASSERT_THAT(
+      SourceToIr(content).status(),
+      xls::status_testing::StatusIs(
+          absl::StatusCode::kUnimplemented,
+          testing::HasSubstr("IO ops should be on channel parameters")));
+}
+
+TEST_F(TranslatorTest, ChannelTemplateType) {
+  const std::string content = R"(
+      #include "/xls_builtin.h"
+      #pragma hls_top
+      void test(int& in, int& out) {
+        const int ctrl = in;
+        out = ctrl;
+      })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out1 = block_spec.add_channels();
+    ch_out1->set_name("out");
+    ch_out1->set_is_input(false);
+    ch_out1->set_type(FIFO);
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(xls::TempFile temp,
+                           xls::TempFile::CreateWithContent(content, ".cc"));
+  XLS_ASSERT_OK(ScanFile(temp));
+  package_.reset(new xls::Package("my_package"));
+  ASSERT_THAT(translator_
+                  ->GenerateIR_Block(package_.get(), block_spec,
+                                     /*top_level_init_interval=*/1)
+                  .status(),
+              xls::status_testing::StatusIs(
+                  absl::StatusCode::kUnimplemented,
+                  testing::HasSubstr(
+                      "Channel type should be a template specialization")));
 }
 
 }  // namespace

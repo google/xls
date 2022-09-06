@@ -15,6 +15,7 @@
 #include "xls/contrib/xlscc/translator.h"
 
 #include <cstdint>
+#include <exception>
 #include <memory>
 #include <regex>  // NOLINT
 #include <sstream>
@@ -23,17 +24,12 @@
 
 #include "absl/base/casts.h"
 #include "absl/container/flat_hash_set.h"
-#include "absl/memory/memory.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_replace.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 #include "clang/include/clang/AST/APValue.h"
-#include "clang/include/clang/AST/AST.h"
-#include "clang/include/clang/AST/ASTConsumer.h"
 #include "clang/include/clang/AST/ASTContext.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "clang/include/clang/AST/DeclCXX.h"
@@ -42,19 +38,16 @@
 #include "clang/include/clang/AST/ExprCXX.h"
 #include "clang/include/clang/AST/Mangle.h"
 #include "clang/include/clang/AST/OperationKinds.h"
-#include "clang/include/clang/AST/RecursiveASTVisitor.h"
 #include "clang/include/clang/AST/Stmt.h"
 #include "clang/include/clang/AST/TemplateBase.h"
 #include "clang/include/clang/AST/Type.h"
 #include "clang/include/clang/Basic/ABI.h"
-#include "clang/include/clang/Basic/FileManager.h"
+#include "clang/include/clang/Basic/LLVM.h"
 #include "clang/include/clang/Basic/OperatorKinds.h"
 #include "clang/include/clang/Basic/SourceLocation.h"
 #include "clang/include/clang/Basic/SourceManager.h"
-#include "clang/include/clang/Basic/Specifiers.h"
 #include "clang/include/clang/Basic/TypeTraits.h"
 #include "llvm/include/llvm/ADT/StringRef.h"
-#include "llvm/include/llvm/Support/VirtualFileSystem.h"
 #include "llvm/include/llvm/Support/raw_ostream.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -73,13 +66,7 @@
 #include "xls/ir/source_location.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/passes/dce_pass.h"
-#include "xls/passes/dfe_pass.h"
-#include "xls/passes/identity_removal_pass.h"
-#include "xls/passes/inlining_pass.h"
 #include "xls/passes/standard_pipeline.h"
-#include "xls/passes/tuple_simplification_pass.h"
-#include "xls/passes/verifier_checker.h"
 #include "xls/solvers/z3_ir_translator.h"
 #include "../z3/src/api/z3_api.h"
 #include "re2/re2.h"
@@ -91,16 +78,6 @@ using std::string;
 using std::vector;
 
 namespace {
-
-// Clang has a complex multiple inheritance hierarchy, but it's not polymorphic,
-// so we can't use down_cast which uses dynamic_cast.
-template <typename To, typename From>  // use like this: down_cast<T*>(foo);
-inline To clang_down_cast(From* f) {   // so we only accept pointers
-  static_assert((std::is_base_of<From, std::remove_pointer_t<To>>::value),
-                "target type not derived from source type");
-
-  return static_cast<To>(f);
-}
 
 // Returns monotonically increasing time in seconds
 double doubletime() {
@@ -305,9 +282,8 @@ absl::Status CInstantiableTypeAlias::GetMetadata(
   output->mutable_as_inst()->mutable_name()->set_id(
       reinterpret_cast<uint64_t>(base_));
 
-  if (base_->getKind() == clang::Decl::ClassTemplateSpecialization) {
-    auto special =
-        clang_down_cast<const clang::ClassTemplateSpecializationDecl*>(base_);
+  if (auto special =
+        clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(base_)) {
     const clang::TemplateArgumentList& arguments = special->getTemplateArgs();
     for (int argi = 0; argi < arguments.size(); ++argi) {
       const clang::TemplateArgument& arg = arguments.get(argi);
@@ -984,24 +960,17 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
     const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                        StripTypeQualifiers(channel_param->getType()));
-
-  if (stripped.base->getTypeClass() !=
-      clang::Type::TypeClass::TemplateSpecialization) {
+  auto template_spec = clang::dyn_cast<const clang::TemplateSpecializationType>(
+      stripped.base.getTypePtr());
+  if (template_spec == nullptr) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel type should be a template specialization"));
   }
-
-  auto template_spec =
-      clang_down_cast<const clang::TemplateSpecializationType*>(
-          stripped.base.getTypePtr());
-
   if (template_spec->getNumArgs() != 1) {
     return absl::UnimplementedError(
         ErrorMessage(loc, "Channel should have 1 template args"));
   }
-
   const clang::TemplateArgument& arg = template_spec->getArg(0);
-
   return TranslateTypeFromClang(arg.getAsType(), loc);
 }
 
@@ -1030,27 +999,26 @@ absl::Status Translator::CreateChannelParam(
 
 absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
     const clang::Expr* expr, const xls::SourceInfo& loc) {
-  if (expr->getStmtClass() == clang::Stmt::CXXMemberCallExprClass) {
-    auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(expr);
+  if (auto member_call =
+          clang::dyn_cast<const clang::CXXMemberCallExpr>(expr)) {
     const clang::Expr* object = member_call->getImplicitObjectArgument();
 
     XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, loc));
     if (is_channel) {
       // Duplicated code in GenerateIR_Call()?
-      if (object->getStmtClass() != clang::Stmt::DeclRefExprClass) {
+      if (!clang::isa<clang::DeclRefExpr>(object)) {
         return absl::UnimplementedError(
             ErrorMessage(loc, "IO ops should be on direct DeclRefs"));
       }
-      auto object_ref = clang_down_cast<const clang::DeclRefExpr*>(object);
-      if (object_ref->getDecl()->getKind() != clang::Decl::ParmVar) {
+      auto object_ref = clang::dyn_cast<const clang::DeclRefExpr>(object);
+      auto channel_param =
+          clang::dyn_cast<const clang::ParmVarDecl>(object_ref->getDecl());
+      if (channel_param == nullptr) {
         return absl::UnimplementedError(
             ErrorMessage(loc, "IO ops should be on channel parameters"));
       }
-
       const clang::FunctionDecl* funcdecl = member_call->getDirectCallee();
       const std::string op_name = funcdecl->getNameAsString();
-      auto channel_param =
-          clang_down_cast<const clang::ParmVarDecl*>(object_ref->getDecl());
 
       IOChannel* channel = context().sf->io_channels_by_param.at(channel_param);
       xls::BValue op_condition = context().full_condition_bval(loc);
@@ -1073,7 +1041,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         }
       }
 
-      auto call = clang_down_cast<const clang::CallExpr*>(expr);
+      auto call = clang::dyn_cast<const clang::CallExpr>(expr);
 
       IOOpReturn ret;
       ret.generate_expr = false;
@@ -1136,10 +1104,9 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     xls_name = name_override;
   } else {
     clang::GlobalDecl global_decl;
-    if (funcdecl->getKind() == clang::Decl::CXXConstructor) {
-      global_decl = clang::GlobalDecl(
-          clang_down_cast<const clang::CXXConstructorDecl*>(funcdecl),
-          clang::Ctor_Complete);
+    if (auto c_decl =
+            clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
+      global_decl = clang::GlobalDecl(c_decl, clang::Ctor_Complete);
     } else {
       global_decl = clang::GlobalDecl(funcdecl);
     }
@@ -1191,20 +1158,16 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   xls::SourceInfo body_loc = GetLoc(*funcdecl);
 
   // "this" input for methods
-  if ((funcdecl->getKind() == clang::FunctionDecl::Kind::CXXMethod) ||
-      (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXConversion) ||
-      (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXDestructor) ||
-      (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXConstructor)) {
-    auto method = clang_down_cast<const clang::CXXMethodDecl*>(funcdecl);
+  if (auto method = clang::dyn_cast<const clang::CXXMethodDecl>(funcdecl)) {
     if (!method->isStatic() && !force_static) {
       // "This" is a PointerType, ignore and treat as reference
-      const clang::QualType& thisQual = method->getThisType();
+      clang::QualType thisQual = method->getThisType();
       XLS_CHECK(thisQual->isPointerType());
 
       add_this_return = !thisQual->getPointeeType().isConstQualified();
 
-      const clang::QualType& q = thisQual->getPointeeOrArrayElementType()
-                                     ->getCanonicalTypeUnqualified();
+      clang::QualType q = thisQual->getPointeeOrArrayElementType()
+                              ->getCanonicalTypeUnqualified();
 
       XLS_ASSIGN_OR_RETURN(
           auto thisctype,
@@ -1253,7 +1216,9 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     }
 
     std::string safe_param_name = namedecl->getNameAsString();
-    if (safe_param_name.empty()) safe_param_name = "implicit";
+    if (safe_param_name.empty()) {
+      safe_param_name = "implicit";
+    }
 
     for (int iter = 0; used_parameter_names.contains(safe_param_name); ++iter) {
       safe_param_name += absl::StrFormat("%i", used_parameter_names.size());
@@ -1276,9 +1241,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
   }
 
   // Generate constructor initializers
-  if (funcdecl->getKind() == clang::FunctionDecl::Kind::CXXConstructor) {
-    auto constructor =
-        clang_down_cast<const clang::CXXConstructorDecl*>(funcdecl);
+  if (auto constructor =
+        clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
     XLS_CHECK(add_this_return);
     XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
                          GetThisDecl(GetLoc(*constructor)));
@@ -1413,14 +1377,14 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::InterceptBuiltInStruct(
   // The number of bits, or width, is specified as a single integer-type
   //  template parameter.
   if (sd->getNameAsString() == "__xls_bits") {
+    auto temp_spec =
+        clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(sd);
     // __xls_bits must always have a template parameter
-    if (sd->getDeclKind() != clang::Decl::Kind::ClassTemplateSpecialization) {
+    if (temp_spec == nullptr) {
       return absl::UnimplementedError(absl::StrFormat(
           "__xls_bits should be used in template specialization %s",
           LocString(GetLoc(*sd))));
     }
-    auto temp_spec =
-        clang_down_cast<const clang::ClassTemplateSpecializationDecl*>(sd);
     const clang::TemplateArgumentList& temp_args = temp_spec->getTemplateArgs();
     if ((temp_args.size() != 1) ||
         (temp_args.get(0).getKind() !=
@@ -1444,80 +1408,62 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
 
   // Check for built-in XLS[cc] types
   XLS_ASSIGN_OR_RETURN(new_type, InterceptBuiltInStruct(sd));
-
+  if (new_type != nullptr) {
+    inst_types_[signature] = new_type;
+    return absl::OkStatus();
+  }
   // If no built-in type was found, interpret as a normal C++ struct
-  if (new_type == nullptr) {
-    std::vector<std::shared_ptr<CField>> fields;
-
-    const clang::CXXRecordDecl* cxx_record = nullptr;
-
-    // Clang may express a concrete class/struct type in two different ways:
-    // A CXXRecord if it's not templatized, or a ClassTemplateSpecialization
-    //  if it is.
-    if (absl::implicit_cast<const clang::Decl*>(sd)->getKind() ==
-        clang::Decl::Kind::CXXRecord) {
-      cxx_record = clang_down_cast<const clang::CXXRecordDecl*>(sd);
-    } else if (absl::implicit_cast<const clang::Decl*>(sd)->getKind() ==
-               clang::Decl::Kind::ClassTemplateSpecialization) {
-      auto specialization =
-          clang_down_cast<const clang::ClassTemplateSpecializationDecl*>(sd);
-
-      cxx_record = clang_down_cast<const clang::CXXRecordDecl*>(
-          specialization->getDefinition());
-    }
-
-    if (cxx_record == nullptr) {
-      return absl::UnavailableError(ErrorMessage(
-          GetLoc(*sd),
-          "Definition for CXXRecord '%s' isn't available from Clang. A "
-          "possible work-around is to declare an instance of this class.",
-          signature->base()->getNameAsString()));
-    }
-
-    // Interpret forward declarations as empty structs
-    if (cxx_record->hasDefinition()) {
-      for (auto base : cxx_record->bases()) {
-        const clang::RecordDecl* base_struct =
-            base.getType()->getAsRecordDecl();
-        XLS_ASSIGN_OR_RETURN(
-            auto field_type,
-            TranslateTypeFromClang(
-                base_struct->getTypeForDecl()->getCanonicalTypeInternal(),
-                GetLoc(*base_struct)));
-
-        fields.push_back(std::shared_ptr<CField>(new CField(
-            absl::implicit_cast<const clang::NamedDecl*>(base_struct),
-            fields.size(), field_type)));
-      }
-
-      for (const clang::FieldDecl* it : sd->fields()) {
-        XLS_ASSIGN_OR_RETURN(
-            std::shared_ptr<CType> field_type,
-            TranslateTypeFromClang(it->getType(),
-                                   GetLoc(*it->getCanonicalDecl())));
-
-        // Up cast FieldDecl to NamedDecl because NamedDecl pointers are used to
-        //  track identifiers by XLS[cc], no matter the type of object being
-        //  identified
-        fields.push_back(std::shared_ptr<CField>(
-            new CField(absl::implicit_cast<const clang::NamedDecl*>(it),
-                       fields.size(), field_type)));
-      }
-    } else {
-      XLS_LOG(WARNING) << ErrorMessage(
-          GetLoc(*cxx_record),
-          "Warning: interpreting definition-less struct '%s' as empty",
-          signature->base()->getNameAsString());
-    }
-    XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
-    const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
-    const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
-    new_type.reset(new CStructType(
-        fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma));
+  std::vector<std::shared_ptr<CField>> fields;
+  const clang::CXXRecordDecl* cxx_record = nullptr;
+  cxx_record = clang::dyn_cast<const clang::CXXRecordDecl>(sd);
+  if (cxx_record == nullptr) {
+    return absl::UnavailableError(ErrorMessage(
+        GetLoc(*sd),
+        "Definition for CXXRecord '%s' isn't available from Clang. A "
+        "possible work-around is to declare an instance of this class.",
+        signature->base()->getNameAsString()));
   }
 
-  inst_types_[signature] = new_type;
+  // Interpret forward declarations as empty structs
+  if (cxx_record->hasDefinition()) {
+    for (auto base : cxx_record->bases()) {
+      const clang::RecordDecl* base_struct = base.getType()->getAsRecordDecl();
+      XLS_ASSIGN_OR_RETURN(
+          auto field_type,
+          TranslateTypeFromClang(
+              base_struct->getTypeForDecl()->getCanonicalTypeInternal(),
+              GetLoc(*base_struct)));
 
+      fields.push_back(std::shared_ptr<CField>(
+          new CField(absl::implicit_cast<const clang::NamedDecl*>(base_struct),
+                     fields.size(), field_type)));
+    }
+
+    for (const clang::FieldDecl* it : sd->fields()) {
+      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> field_type,
+                           TranslateTypeFromClang(
+                               it->getType(), GetLoc(*it->getCanonicalDecl())));
+
+      // Up cast FieldDecl to NamedDecl because NamedDecl pointers are used to
+      //  track identifiers by XLS[cc], no matter the type of object being
+      //  identified
+      fields.push_back(std::shared_ptr<CField>(
+          new CField(absl::implicit_cast<const clang::NamedDecl*>(it),
+                     fields.size(), field_type)));
+    }
+  } else {
+    XLS_LOG(WARNING) << ErrorMessage(
+        GetLoc(*cxx_record),
+        "Warning: interpreting definition-less struct '%s' as empty",
+        signature->base()->getNameAsString());
+  }
+  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
+  const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
+  const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+  new_type.reset(new CStructType(
+      fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma));
+
+  inst_types_[signature] = new_type;
   return absl::OkStatus();
 }
 
@@ -1988,215 +1934,188 @@ absl::Status Translator::Assign(std::shared_ptr<LValue> lvalue,
 
 absl::Status Translator::Assign(const clang::Expr* lvalue, const CValue& rvalue,
                                 const xls::SourceInfo& loc) {
-  switch (lvalue->getStmtClass()) {
-    // Assign to a variable using the identifier it was declared with
-    // foo = rvalue
-    case clang::Stmt::DeclRefExprClass: {
-      auto cast = clang_down_cast<const clang::DeclRefExpr*>(lvalue);
-      const clang::NamedDecl* named = cast->getFoundDecl();
-      return Assign(named, rvalue, loc);
-    }
+  // Assign to a variable using the identifier it was declared with
+  // foo = rvalue
+  if (auto cast = clang::dyn_cast<const clang::DeclRefExpr>(lvalue)) {
+    const clang::NamedDecl* named = cast->getFoundDecl();
+    return Assign(named, rvalue, loc);
+  }
+  if (auto cast = clang::dyn_cast<const clang::ParenExpr>(lvalue)) {
     // Assignment to a parenthetical expression
     // (...) = rvalue
-    case clang::Stmt::ParenExprClass:
-      return Assign(
-          clang_down_cast<const clang::ParenExpr*>(lvalue)->getSubExpr(),
-          rvalue, loc);
+    return Assign(cast->getSubExpr(), rvalue, loc);
     // cast<type>(...) = rvalue
-    case clang::Stmt::CXXStaticCastExprClass:
-    case clang::Stmt::ImplicitCastExprClass: {
-      auto cast = clang_down_cast<const clang::CastExpr*>(lvalue);
-
-      // Don't generate pointer errors for C++ "this" keyword
-      IgnorePointersGuard ignore_pointers(*this);
-      if (cast->getSubExpr()->getStmtClass() == clang::Stmt::CXXThisExprClass) {
-        ignore_pointers.enable();
-      }
-
-      XLS_ASSIGN_OR_RETURN(CValue sub,
-                           GenerateIR_Expr(cast->getSubExpr(), loc));
-
-      auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
-
-      // Inheritance
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
-                           TranslateTypeFromClang(cast->getType(), loc));
-
-      XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
-                           ResolveInheritance(sub.type(), to_type));
-
-      CValue adjusted_rvalue = rvalue;
-
-      // Are we casting to a derived class?
-      if (inheritance.base_field != nullptr) {
-        XLS_CHECK(inheritance.resolved_struct != nullptr);
-        XLS_CHECK((*rvalue.type()) == *inheritance.base_field->type());
-        XLS_ASSIGN_OR_RETURN(
-            xls::BValue updated_derived,
-            StructUpdate(sub.rvalue(), rvalue, inheritance.base_field_name,
-                         *inheritance.resolved_struct, loc));
-        adjusted_rvalue = CValue(updated_derived, sub.type());
-      }
-
-      return Assign(cast->getSubExpr(), adjusted_rvalue, loc);
+  }
+  if (auto cast = clang::dyn_cast<const clang::CastExpr>(lvalue)) {
+    // Don't generate pointer errors for C++ "this" keyword
+    IgnorePointersGuard ignore_pointers(*this);
+    if (clang::isa<clang::CXXThisExpr>(cast->getSubExpr())) {
+      ignore_pointers.enable();
     }
+
+    XLS_ASSIGN_OR_RETURN(CValue sub, GenerateIR_Expr(cast->getSubExpr(), loc));
+
+    auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
+
+    // Inheritance
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
+                         TranslateTypeFromClang(cast->getType(), loc));
+
+    XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
+                         ResolveInheritance(sub.type(), to_type));
+
+    CValue adjusted_rvalue = rvalue;
+
+    // Are we casting to a derived class?
+    if (inheritance.base_field != nullptr) {
+      XLS_CHECK(inheritance.resolved_struct != nullptr);
+      XLS_CHECK((*rvalue.type()) == *inheritance.base_field->type());
+      XLS_ASSIGN_OR_RETURN(
+          xls::BValue updated_derived,
+          StructUpdate(sub.rvalue(), rvalue, inheritance.base_field_name,
+                       *inheritance.resolved_struct, loc));
+      adjusted_rvalue = CValue(updated_derived, sub.type());
+    }
+
+    return Assign(cast->getSubExpr(), adjusted_rvalue, loc);
+  }
+  if (clang::isa<clang::MaterializeTemporaryExpr>(lvalue)) {
     // This happens when copy constructors with non-const reference inputs are
     // invoked. class Temporary { Temporary() { } }; class Blah { Blah(Temporary
     // &in) { } }; Blah x(Temporary());
-    case clang::Stmt::MaterializeTemporaryExprClass: {
-      // Ignore assignment to temporaries.
-      return absl::OkStatus();
-    }
-
+    // Ignore assignment to temporaries.
+    return absl::OkStatus();
+  }
+  if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(lvalue)) {
     // Assign to an array element
     // (...)[index] = rvalue
-    case clang::Stmt::ArraySubscriptExprClass: {
-      auto* cast = clang_down_cast<const clang::ArraySubscriptExpr*>(lvalue);
-      XLS_ASSIGN_OR_RETURN(CValue arr_val,
-                           GenerateIR_Expr(cast->getBase(), loc));
-      if (!arr_val.type()->Is<CArrayType>()) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc,
-                         "Only array subscript assignments directly to "
-                         "arrays supported (not pointers, yet)"));
-      }
-      auto arr_type = arr_val.type()->As<CArrayType>();
-      XLS_ASSIGN_OR_RETURN(CValue idx_val,
-                           GenerateIR_Expr(cast->getIdx(), loc));
-      if (*rvalue.type() != *arr_type->GetElementType()) {
-        return absl::InvalidArgumentError(ErrorMessage(
-            loc,
-            "Cannot assign rvalue of type %s to element of array of type %s",
-            std::string(*rvalue.type()),
-            std::string(*arr_type->GetElementType())));
-      }
-      auto arr_rvalue =
-          CValue(context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
-                                           {idx_val.rvalue()}, loc),
-                 arr_val.type());
-      return Assign(cast->getBase(), arr_rvalue, loc);
+    XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
+    if (!arr_val.type()->Is<CArrayType>()) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Only array subscript assignments directly to "
+                       "arrays supported (not pointers, yet)"));
     }
+    auto arr_type = arr_val.type()->As<CArrayType>();
+    XLS_ASSIGN_OR_RETURN(CValue idx_val, GenerateIR_Expr(cast->getIdx(), loc));
+    if (*rvalue.type() != *arr_type->GetElementType()) {
+      return absl::InvalidArgumentError(ErrorMessage(
+          loc, "Cannot assign rvalue of type %s to element of array of type %s",
+          std::string(*rvalue.type()),
+          std::string(*arr_type->GetElementType())));
+    }
+    auto arr_rvalue =
+        CValue(context().fb->ArrayUpdate(arr_val.rvalue(), rvalue.rvalue(),
+                                         {idx_val.rvalue()}, loc),
+               arr_val.type());
+    return Assign(cast->getBase(), arr_rvalue, loc);
+  }
+  if (auto cast = clang::dyn_cast<const clang::MemberExpr>(lvalue)) {
     // Assign to a struct element
     // (...).member = rvalue
-    case clang::Stmt::MemberExprClass: {
-      const clang::MemberExpr* cast =
-          clang_down_cast<const clang::MemberExpr*>(lvalue);
-      clang::ValueDecl* member = cast->getMemberDecl();
+    clang::ValueDecl* member = cast->getMemberDecl();
 
-      if (member->getKind() != clang::ValueDecl::Kind::Field) {
+    if (member->getKind() != clang::ValueDecl::Kind::Field) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Unimplemented assignment to lvalue member kind %s",
+                       member->getDeclKindName()));
+    }
+
+    CValue struct_prev_val;
+
+    XLS_ASSIGN_OR_RETURN(struct_prev_val,
+                         GenerateIR_Expr(cast->getBase(), loc));
+
+    XLS_ASSIGN_OR_RETURN(auto resolved_type,
+                         ResolveTypeInstance(struct_prev_val.type()));
+
+    if (auto sitype = std::dynamic_pointer_cast<CStructType>(resolved_type)) {
+      auto field = clang::dyn_cast<clang::FieldDecl>(member);
+
+      XLS_ASSIGN_OR_RETURN(
+          xls::BValue new_tuple,
+          StructUpdate(struct_prev_val.rvalue(), rvalue,
+                       // Up cast to NamedDecl because NamedDecl pointers
+                       //  are used to track identifiers
+                       absl::implicit_cast<const clang::NamedDecl*>(field),
+                       *sitype, loc));
+
+      auto newval = CValue(new_tuple, struct_prev_val.type());
+      return Assign(cast->getBase(), newval, loc);
+    }
+    return absl::UnimplementedError(
+        ErrorMessage(loc,
+                     "Unimplemented fielddecl assignment to "
+                     "non-struct typed lvalue of type %s",
+                     string(*struct_prev_val.type())));
+  }
+  if (auto uop = clang::dyn_cast<const clang::UnaryOperator>(lvalue)) {
+    if (uop->getOpcode() == clang::UnaryOperatorKind::UO_AddrOf) {
+      const clang::ArraySubscriptExpr* subscript_sub_expr =
+          clang::dyn_cast<const clang::ArraySubscriptExpr>(uop->getSubExpr());
+      if (subscript_sub_expr == nullptr) {
         return absl::UnimplementedError(ErrorMessage(
-            loc, "Unimplemented assignment to lvalue member kind %s",
-            member->getDeclKindName()));
+            loc, "Only assignment to array slices supported via pointers"));
       }
+      XLS_ASSIGN_OR_RETURN(CValue base_cv,
+                           GenerateIR_Expr(subscript_sub_expr->getBase(), loc));
+      XLS_CHECK(base_cv.type()->Is<CArrayType>());
+      XLS_ASSIGN_OR_RETURN(CValue index_cv,
+                           GenerateIR_Expr(subscript_sub_expr->getIdx(), loc));
+      XLS_CHECK(index_cv.type()->Is<CIntType>());
 
-      CValue struct_prev_val;
+      XLS_ASSIGN_OR_RETURN(xls::BValue updated_array,
+                           UpdateArraySlice(base_cv.rvalue(), index_cv.rvalue(),
+                                            rvalue.rvalue(), loc));
 
-      XLS_ASSIGN_OR_RETURN(struct_prev_val,
-                           GenerateIR_Expr(cast->getBase(), loc));
-
-      XLS_ASSIGN_OR_RETURN(auto resolved_type,
-                           ResolveTypeInstance(struct_prev_val.type()));
-
-      if (auto sitype = std::dynamic_pointer_cast<CStructType>(resolved_type)) {
-        auto field = clang_down_cast<clang::FieldDecl*>(member);
-
-        XLS_ASSIGN_OR_RETURN(
-            xls::BValue new_tuple,
-            StructUpdate(struct_prev_val.rvalue(), rvalue,
-                         // Up cast to NamedDecl because NamedDecl pointers
-                         //  are used to track identifiers
-                         absl::implicit_cast<const clang::NamedDecl*>(field),
-                         *sitype, loc));
-
-        auto newval = CValue(new_tuple, struct_prev_val.type());
-        return Assign(cast->getBase(), newval, loc);
-      } else {
-        return absl::UnimplementedError(
-            ErrorMessage(loc,
-                         "Unimplemented fielddecl assignment to "
-                         "non-struct typed lvalue of type %s",
-                         string(*struct_prev_val.type())));
-      }
+      return Assign(subscript_sub_expr->getBase(),
+                    CValue(updated_array, base_cv.type()), loc);
     }
-    case clang::Stmt::UnaryOperatorClass: {
-      auto uop = clang_down_cast<const clang::UnaryOperator*>(lvalue);
-      if (uop->getOpcode() == clang::UnaryOperatorKind::UO_AddrOf) {
-        if (uop->getSubExpr()->getStmtClass() !=
-            clang::Stmt::ArraySubscriptExprClass) {
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "Only assignment to array slices supported via pointers"));
-        }
-        const clang::ArraySubscriptExpr* subscript_sub_expr =
-            clang_down_cast<const clang::ArraySubscriptExpr*>(
-                uop->getSubExpr());
-
-        XLS_ASSIGN_OR_RETURN(
-            CValue base_cv,
-            GenerateIR_Expr(subscript_sub_expr->getBase(), loc));
-        XLS_CHECK(base_cv.type()->Is<CArrayType>());
-        XLS_ASSIGN_OR_RETURN(
-            CValue index_cv,
-            GenerateIR_Expr(subscript_sub_expr->getIdx(), loc));
-        XLS_CHECK(index_cv.type()->Is<CIntType>());
-
-        XLS_ASSIGN_OR_RETURN(
-            xls::BValue updated_array,
-            UpdateArraySlice(base_cv.rvalue(), index_cv.rvalue(),
-                             rvalue.rvalue(), loc));
-
-        return Assign(subscript_sub_expr->getBase(),
-                      CValue(updated_array, base_cv.type()), loc);
-      }
-      if (uop->getOpcode() != clang::UnaryOperatorKind::UO_Deref) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc,
-                         "Unimplemented assignment to unary operator lvalue "
-                         "with opcode %i",
-                         uop->getOpcode()));
-      }
-
-      // Deref is the pointer dereferencing operator: *ptr
-      // We simply ignore this for "this", so *this just evaluates to the
-      //  "this" BValue from the TranslationContext
-      if (uop->getSubExpr()->getStmtClass() == clang::Stmt::CXXThisExprClass) {
-        XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
-                             GetThisDecl(loc));
-        return Assign(this_decl, rvalue, loc);
-      }
-
-      return absl::UnimplementedError(absl::StrFormat(
-          "Unsupported assignment to dereference of statement of class %i at "
-          "%s",
-          (int)uop->getSubExpr()->getStmtClass(), LocString(loc)));
+    if (uop->getOpcode() != clang::UnaryOperatorKind::UO_Deref) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc,
+                       "Unimplemented assignment to unary operator lvalue "
+                       "with opcode %i",
+                       uop->getOpcode()));
     }
-    case clang::Stmt::CXXThisExprClass: {
+
+    // Deref is the pointer dereferencing operator: *ptr
+    // We simply ignore this for "this", so *this just evaluates to the
+    //  "this" BValue from the TranslationContext
+    if (clang::isa<clang::CXXThisExpr>(uop->getSubExpr())) {
       XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
       return Assign(this_decl, rvalue, loc);
     }
-    case clang::Stmt::ConditionalOperatorClass: {
-      auto cond = clang_down_cast<const clang::ConditionalOperator*>(lvalue);
-      XLS_ASSIGN_OR_RETURN(
-          shared_ptr<CType> result_type,
-          TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
-      if (!result_type->Is<CPointerType>()) {
-        return absl::UnimplementedError(ErrorMessage(
-            loc,
-            "Ternaries in lvalues only supported for pointers, type used is %s",
-            (std::string)*result_type));
-      }
-      XLS_ASSIGN_OR_RETURN(
-          CValue lcv,
-          Generate_TernaryOp(result_type, cond->getCond(), cond->getTrueExpr(),
-                             cond->getFalseExpr(), loc));
-      XLS_CHECK_NE(lcv.lvalue().get(), nullptr);
-      return Assign(lcv.lvalue(), rvalue, loc);
-    }
-    default: {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Unimplemented assignment to lvalue of type %s",
-                       lvalue->getStmtClassName()));
-    }
+
+    return absl::UnimplementedError(absl::StrFormat(
+        "Unsupported assignment to dereference of statement of class %i at "
+        "%s",
+        (int)uop->getSubExpr()->getStmtClass(), LocString(loc)));
   }
+  if (clang::isa<clang::CXXThisExpr>(lvalue)) {
+    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
+    return Assign(this_decl, rvalue, loc);
+  }
+  if (auto cond = clang::dyn_cast<const clang::ConditionalOperator>(lvalue)) {
+    XLS_ASSIGN_OR_RETURN(
+        shared_ptr<CType> result_type,
+        TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
+    if (!result_type->Is<CPointerType>()) {
+      return absl::UnimplementedError(ErrorMessage(
+          loc,
+          "Ternaries in lvalues only supported for pointers, type used is %s",
+          (std::string)*result_type));
+    }
+    XLS_ASSIGN_OR_RETURN(
+        CValue lcv,
+        Generate_TernaryOp(result_type, cond->getCond(), cond->getTrueExpr(),
+                           cond->getFalseExpr(), loc));
+    XLS_CHECK_NE(lcv.lvalue().get(), nullptr);
+    return Assign(lcv.lvalue(), rvalue, loc);
+  }
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "Unimplemented assignment to lvalue of type %s",
+                   lvalue->getStmtClassName()));
 }
 
 absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
@@ -2209,13 +2128,13 @@ absl::Status Translator::DeclareVariable(const clang::NamedDecl* lvalue,
   }
 
   if (check_unique_ids) {
-    if (check_unique_ids_.contains(lvalue)) {
+    if (unique_decl_ids_.contains(lvalue)) {
       return absl::InternalError(
           ErrorMessage(loc, "Code assumes NamedDecls are unique, but %s isn't",
                        lvalue->getNameAsString()));
     }
   }
-  check_unique_ids_.insert(lvalue);
+  unique_decl_ids_.insert(lvalue);
 
   context().sf->declaration_order_by_name_[lvalue] =
       ++context().sf->declaration_count;
@@ -2297,13 +2216,13 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
     }
 
     const clang::Expr* sub_expr = uop->getSubExpr();
-    if (sub_expr->getStmtClass() != clang::Stmt::ArraySubscriptExprClass) {
+    auto array_subscript_expr =
+        clang::dyn_cast<const clang::ArraySubscriptExpr>(sub_expr);
+    if (array_subscript_expr == nullptr) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "Address of sub expression of class %i",
                        static_cast<int>(sub_expr->getStmtClass())));
     }
-    auto array_subscript_expr =
-        clang_down_cast<const clang::ArraySubscriptExpr*>(sub_expr);
 
     const clang::Expr* base_expr = array_subscript_expr->getBase();
     XLS_ASSIGN_OR_RETURN(CValue base_cv, GenerateIR_Expr(base_expr, loc));
@@ -2386,8 +2305,7 @@ absl::StatusOr<CValue> Translator::Generate_UnaryOp(
               std::dynamic_pointer_cast<CBitsType>(resolved_type))) {
     // We don't support pointers so we don't care about this.
     // It's needed for *this
-    XLS_CHECK(uop->getSubExpr()->getStmtClass() ==
-              clang::Stmt::CXXThisExprClass);
+    XLS_CHECK(clang::isa<clang::CXXThisExpr>(uop->getSubExpr()));
     return lhs_cvcv;
   } else if (auto result_int_type =
                  std::dynamic_pointer_cast<CBoolType>(result_type)) {
@@ -2481,7 +2399,6 @@ absl::StatusOr<CValue> Translator::Generate_BinaryOp(
   if (is_assignment) {
     XLS_RETURN_IF_ERROR(Assign(lhs, result, loc));
   }
-
   return result;
 }
 
@@ -2544,7 +2461,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::ResolveTypeInstance(
 
   // Needs to be scanned from AST
   XLS_RETURN_IF_ERROR(
-      ScanStruct(clang_down_cast<const clang::RecordDecl*>(inst->base())));
+      ScanStruct(clang::dyn_cast<const clang::RecordDecl>(inst->base())));
 
   auto found = inst_types_.find(inst);
   XLS_CHECK(found != inst_types_.end());
@@ -2594,9 +2511,8 @@ absl::StatusOr<GeneratedFunction*> Translator::TranslateFunctionToXLS(
       inst_functions_.find(absl::implicit_cast<const clang::NamedDecl*>(decl));
   if (found != inst_functions_.end()) {
     return found->second.get();
-  } else {
-    return GenerateIR_Function(decl);
   }
+  return GenerateIR_Function(decl);
 }
 
 absl::StatusOr<bool> Translator::FunctionIsInSyntheticInt(
@@ -2647,23 +2563,22 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
   bool sequencing_safe = false;
 
   // Evaluate if "this" argument is necessary (eg for method calls)
-  if (call->getStmtClass() == clang::Stmt::StmtClass::CXXMemberCallExprClass) {
-    auto member_call = clang_down_cast<const clang::CXXMemberCallExpr*>(call);
+  if (auto member_call =
+          clang::dyn_cast<const clang::CXXMemberCallExpr>(call)) {
     this_expr = member_call->getImplicitObjectArgument();
     pthisval = &thisval;
 
-    const clang::QualType& thisQual =
-        member_call->getMethodDecl()->getThisType();
+    clang::QualType thisQual = member_call->getMethodDecl()->getThisType();
     XLS_CHECK(thisQual->isPointerType());
     add_this_return = !thisQual->getPointeeType().isConstQualified();
-  } else if (call->getStmtClass() ==
-             clang::Stmt::StmtClass::CXXOperatorCallExprClass) {
-    auto op_call = clang_down_cast<const clang::CXXOperatorCallExpr*>(call);
-
-    if (op_call->isAssignmentOp()) sequencing_safe = true;
-
-    const clang::FunctionDecl* callee = op_call->getDirectCallee();
-    if (callee->getKind() == clang::Decl::CXXMethod) {
+  } else if (auto op_call =
+                 clang::dyn_cast<const clang::CXXOperatorCallExpr>(call)) {
+    if (op_call->isAssignmentOp()) {
+      sequencing_safe = true;
+    }
+    if (const clang::CXXMethodDecl* cxx_method =
+            clang::dyn_cast<const clang::CXXMethodDecl>(
+                op_call->getDirectCallee())) {
       CValue ret;
 
       // There is a special case here for a certain expression form
@@ -2676,17 +2591,14 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(const clang::CallExpr* call,
       // this comes as first argument for operators
       this_expr = call->getArg(0);
 
-      const clang::QualType& thisQual =
-          clang_down_cast<const clang::CXXMethodDecl*>(
-              op_call->getDirectCallee())
-              ->getThisType();
+      clang::QualType thisQual = cxx_method->getThisType();
       XLS_CHECK(thisQual->isPointerType());
       add_this_return = !thisQual->getPointeeType().isConstQualified();
       ++skip_args;
     }
   }
 
-  if (this_expr) {
+  if (this_expr != nullptr) {
     {
       // The Assign() statement below will take care of any assignments
       //  in the expression for "this". Don't do these twice, as it can cause
@@ -2729,18 +2641,17 @@ absl::StatusOr<bool> Translator::ApplyArrayAssignHack(
   if (!op_call->isAssignmentOp()) {
     return false;
   }
-  if (op_call->getArg(0)->getStmtClass() !=
-      clang::Stmt::MaterializeTemporaryExprClass) {
-    return false;
-  }
-  auto materialize = clang_down_cast<const clang::MaterializeTemporaryExpr*>(
+  auto materialize = clang::dyn_cast<const clang::MaterializeTemporaryExpr>(
       op_call->getArg(0));
-  if (materialize->getSubExpr()->getStmtClass() !=
-      clang::Stmt::CXXOperatorCallExprClass) {
+  if (materialize == nullptr) {
     return false;
   }
-  auto sub_op_call = clang_down_cast<const clang::CXXOperatorCallExpr*>(
+  auto sub_op_call = clang::dyn_cast<const clang::CXXOperatorCallExpr>(
       materialize->getSubExpr());
+  if (sub_op_call == nullptr) {
+    return false;
+  }
+
   if (sub_op_call->getOperator() !=
       clang::OverloadedOperatorKind::OO_Subscript) {
     return false;
@@ -2820,19 +2731,19 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     const clang::Expr* call_arg = expr_args[pi];
-    if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
+    auto call_decl_ref_arg =
+        clang::dyn_cast<const clang::DeclRefExpr>(call_arg);
+    if (call_decl_ref_arg == nullptr) {
       return absl::UnimplementedError(ErrorMessage(
           GetLoc(*callee_param), "IO operations should be DeclRefs"));
     }
-    auto call_decl_ref_arg =
-        clang_down_cast<const clang::DeclRefExpr*>(call_arg);
-    if (call_decl_ref_arg->getDecl()->getKind() != clang::Decl::ParmVar) {
+
+    auto caller_channel_param =
+        clang::dyn_cast<const clang::ParmVarDecl>(call_decl_ref_arg->getDecl());
+    if (caller_channel_param == nullptr) {
       return absl::UnimplementedError(ErrorMessage(
           GetLoc(*callee_param), "IO operations should be on parameters"));
     }
-
-    auto caller_channel_param = clang_down_cast<const clang::ParmVarDecl*>(
-        call_decl_ref_arg->getDecl());
 
     if (!external_channels_by_param_.contains(caller_channel_param)) {
       XLS_CHECK(io_test_mode_)
@@ -2871,12 +2782,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Add this if needed
   bool add_this_return = false;
-  if (this_inout) {
+  if (this_inout != nullptr) {
     args.push_back(*this_inout);
 
     // "This" is a PointerType, ignore and treat as reference
-    auto method = clang_down_cast<const clang::CXXMethodDecl*>(funcdecl);
-    const clang::QualType& thisQual = method->getThisType();
+    auto method = clang::dyn_cast<const clang::CXXMethodDecl>(funcdecl);
+    clang::QualType thisQual = method->getThisType();
     XLS_CHECK(thisQual->isPointerType());
 
     add_this_return = !thisQual->getPointeeType().isConstQualified();
@@ -2987,20 +2898,20 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
     const clang::Expr* call_arg = expr_args[pi];
 
+    auto call_decl_ref_arg =
+        clang::dyn_cast<const clang::DeclRefExpr>(call_arg);
     // Duplicated code in InterceptIOOp()?
-    if (call_arg->getStmtClass() != clang::Stmt::DeclRefExprClass) {
+    if (call_decl_ref_arg == nullptr) {
       return absl::UnimplementedError(
           absl::StrFormat("IO operations should be DeclRefs"));
     }
-    auto call_decl_ref_arg =
-        clang_down_cast<const clang::DeclRefExpr*>(call_arg);
-    if (call_decl_ref_arg->getDecl()->getKind() != clang::Decl::ParmVar) {
+
+    auto caller_channel_param =
+        clang::dyn_cast<const clang::ParmVarDecl>(call_decl_ref_arg->getDecl());
+    if (caller_channel_param == nullptr) {
       return absl::UnimplementedError(
           absl::StrFormat("IO operations should be on parameters"));
     }
-
-    auto caller_channel_param = clang_down_cast<const clang::ParmVarDecl*>(
-        call_decl_ref_arg->getDecl());
 
     IOChannel* caller_channel =
         context().sf->io_channels_by_param.at(caller_channel_param);
@@ -3232,392 +3143,342 @@ absl::StatusOr<Translator::ResolvedInheritance> Translator::ResolveInheritance(
 
 absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                                                    const xls::SourceInfo& loc) {
-  switch (expr->getStmtClass()) {
-    case clang::Stmt::UnaryOperatorClass: {
-      auto uop = clang_down_cast<const clang::UnaryOperator*>(expr);
-      return Generate_UnaryOp(uop, loc);
-    }
-    // Compound assignment is like a += b
-    case clang::Stmt::CompoundAssignOperatorClass:
-    case clang::Stmt::BinaryOperatorClass: {
-      auto bop = clang_down_cast<const clang::BinaryOperator*>(expr);
-      auto clang_op = bop->getOpcode();
-      XLS_ASSIGN_OR_RETURN(
-          shared_ptr<CType> result_type,
-          TranslateTypeFromClang(bop->getType().getCanonicalType(), loc));
-      return Generate_BinaryOp(clang_op, bop->isAssignmentOp(), result_type,
-                               bop->getLHS(), bop->getRHS(), loc);
-    }
-    // Ternary: a ? b : c
-    case clang::Stmt::ConditionalOperatorClass: {
-      auto cond = clang_down_cast<const clang::ConditionalOperator*>(expr);
-      XLS_ASSIGN_OR_RETURN(
-          shared_ptr<CType> result_type,
-          TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
-      return Generate_TernaryOp(result_type, cond->getCond(),
-                                cond->getTrueExpr(), cond->getFalseExpr(), loc);
-    }
-    case clang::Stmt::CXXMemberCallExprClass:
-    case clang::Stmt::CXXOperatorCallExprClass:
-    case clang::Stmt::CallExprClass: {
-      auto call = clang_down_cast<const clang::CallExpr*>(expr);
-
-      XLS_ASSIGN_OR_RETURN(IOOpReturn ret, InterceptIOOp(call, GetLoc(*call)));
-
-      // If this call is an IO op, then return the IO value, rather than
-      //  generating the call.
-      if (!ret.generate_expr) {
-        return ret.value;
-      }
-
-      return GenerateIR_Call(call, loc);
-    }
-    case clang::Stmt::IntegerLiteralClass: {
-      auto ilit = clang_down_cast<const clang::IntegerLiteral*>(expr);
-      llvm::APInt api = ilit->getValue();
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
-                           TranslateTypeFromClang(ilit->getType(), loc));
-      // Raw data is in little endian format
-      auto api_raw = reinterpret_cast<const uint8_t*>(api.getRawData());
-      vector<uint8_t> truncated;
-      const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
-      truncated.reserve(truncated_n);
-      for (int i = 0; i < truncated_n; ++i) {
-        truncated.emplace_back(api_raw[i]);
-      }
-      // Convert to big endian
-      std::reverse(truncated.begin(), truncated.end());
-      // FromBytes() accepts big endian format
-      auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
-      return CValue(context().fb->Literal(lbits, loc), ctype);
-    }
-    case clang::Stmt::CharacterLiteralClass: {
-      auto charlit = clang_down_cast<const clang::CharacterLiteral*>(expr);
-      if (charlit->getKind() != clang::CharacterLiteral::CharacterKind::Ascii) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Unimplemented character literaly type %i",
-                         static_cast<int>(charlit->getKind())));
-      }
-      shared_ptr<CType> ctype(new CIntType(8, true, true));
-      return CValue(
-          context().fb->Literal(xls::UBits(charlit->getValue(), 8), loc),
-          ctype);
-    }
-    case clang::Stmt::CXXBoolLiteralExprClass: {
-      auto bl = clang_down_cast<const clang::CXXBoolLiteralExpr*>(expr);
-      xls::BValue val =
-          context().fb->Literal(xls::UBits(bl->getValue() ? 1 : 0, 1), loc);
-      return CValue(val, shared_ptr<CType>(new CBoolType()));
-    }
-    // This is just a marker Clang places in the AST to show that a template
-    //  parameter was substituted. It wraps the substituted value, like:
-    // SubstNonTypeTemplateParmExprClass { replacement = IntegerLiteral }
-    case clang::Stmt::SubstNonTypeTemplateParmExprClass: {
-      auto subst =
-          clang_down_cast<const clang::SubstNonTypeTemplateParmExpr*>(expr);
-      return GenerateIR_Expr(subst->getReplacement(), loc);
-    }
-    // Similar behavior for all cast styles. Clang already enforced the C++
-    //  static type-checking rules by this point.
-    case clang::Stmt::CXXFunctionalCastExprClass:
-    case clang::Stmt::CStyleCastExprClass:
-    case clang::Stmt::CXXStaticCastExprClass:
-    case clang::Stmt::ImplicitCastExprClass: {
-      // For converting this pointer from base to derived
-      auto cast = clang_down_cast<const clang::CastExpr*>(expr);
-      // Don't generate pointer errors for C++ "this" keyword
-      IgnorePointersGuard ignore_pointers(*this);
-      if (cast->getSubExpr()->getStmtClass() == clang::Stmt::CXXThisExprClass) {
-        ignore_pointers.enable();
-      }
-
-      XLS_ASSIGN_OR_RETURN(CValue sub,
-                           GenerateIR_Expr(cast->getSubExpr(), loc));
-
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
-                           TranslateTypeFromClang(cast->getType(), loc));
-
-      if (to_type->Is<CVoidType>()) {
-        return CValue(xls::BValue(), to_type);
-      }
-
-      // Sometimes array types are converted to pointer types via ImplicitCast,
-      // even nested as in mutable array -> mutable pointer -> const pointer.
-      // Since we don't generally support pointers (except for array slicing),
-      // this case is short-circuited, and the nested expression is evaluated
-      // directly, ignoring the casts.
-      {
-        // Ignore nested ImplicitCastExprs. This case breaks the logic below.
-        auto nested_implicit = cast;
-
-        while (nested_implicit->getSubExpr()->getStmtClass() ==
-               clang::Stmt::ImplicitCastExprClass) {
-          nested_implicit = clang_down_cast<const clang::CastExpr*>(
-              nested_implicit->getSubExpr());
-        }
-
-        auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
-
-        // Avoid decay of array to pointer, pointers are unsupported
-        if (from_arr_type && nested_implicit->getType()->isPointerType()) {
-          XLS_ASSIGN_OR_RETURN(
-              CValue sub, GenerateIR_Expr(nested_implicit->getSubExpr(), loc));
-
-          return sub;
-        }
-      }
-
-      XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
-                           ResolveInheritance(sub.type(), to_type));
-
-      // Are we casting to a derived class?
-      if (inheritance.base_field != nullptr) {
-        XLS_CHECK(inheritance.resolved_struct != nullptr);
-
-        xls::BValue val =
-            GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
-                              *inheritance.resolved_struct, loc);
-
-        return CValue(val, to_type);
-      }
-
-      // Pointer conversions
-      if (sub.type()->Is<CPointerType>()) {
-        if (to_type->Is<CPointerType>()) {
-          return sub;
-        }
-        if (to_type->Is<CArrayType>()) {
-          return GenerateIR_Expr(sub.lvalue(), loc);
-        }
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Don't know how to convert %s to pointer type",
-                         std::string(*sub.type())));
-      }
-
-      XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
-
-      return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
-    }
-    case clang::Stmt::CXXThisExprClass: {
-      XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
-      XLS_ASSIGN_OR_RETURN(CValue this_val, GetIdentifier(this_decl, loc));
-      return this_val;
-    }
-    // ExprWithCleanups preserves some metadata from Clang's parsing process,
-    //  which I think is meant to be used for IDE editing tools. It is
-    //  irrelevant to XLS[cc].
-    case clang::Stmt::ExprWithCleanupsClass: {
-      auto cast = clang_down_cast<const clang::ExprWithCleanups*>(expr);
-      return GenerateIR_Expr(cast->getSubExpr(), loc);
-    }
-    // MaterializeTemporaryExpr wraps instantiation of temporary objects
-    // We don't support memory management, so this is irrelevant to us.
-    case clang::Stmt::MaterializeTemporaryExprClass: {
-      auto cast = clang_down_cast<const clang::MaterializeTemporaryExpr*>(expr);
-      return GenerateIR_Expr(cast->getSubExpr(), loc);
-    }
-    // Occurs in the AST for explicit constructor calls. "Foo a = Foo();"
-    case clang::Stmt::CXXTemporaryObjectExprClass:
-    // Constructor call
-    case clang::Stmt::CXXConstructExprClass: {
-      auto cast = clang_down_cast<const clang::CXXConstructExpr*>(expr);
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> octype,
-                           TranslateTypeFromClang(cast->getType(), loc));
-
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
-                           ResolveTypeInstance(octype));
-
-      // A struct/class is being constructed
-      if (ctype->Is<CStructType>()) {
-        XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
-        std::vector<const clang::Expr*> args;
-        args.reserve(cast->getNumArgs());
-        for (int pi = 0; pi < cast->getNumArgs(); ++pi) {
-          args.push_back(cast->getArg(pi));
-        }
-        XLS_ASSIGN_OR_RETURN(CValue ret, GenerateIR_Call(cast->getConstructor(),
-                                                         args, &dv, loc));
-        XLS_CHECK(ret.type()->Is<CVoidType>());
-        return CValue(dv, octype);
-      }
-
-      // A built-in type is being constructed. Create default value if there's
-      //  no constructor parameter
-      if (cast->getNumArgs() == 0) {
-        XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
-        return CValue(dv, octype);
-      } else if (cast->getNumArgs() == 1) {
-        XLS_ASSIGN_OR_RETURN(CValue pv, GenerateIR_Expr(cast->getArg(0), loc));
-        XLS_ASSIGN_OR_RETURN(xls::BValue converted,
-                             GenTypeConvert(pv, octype, loc));
-        return CValue(converted, octype);
-      } else {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Unsupported constructor argument count %i",
-                         cast->getNumArgs()));
-      }
-    }
-    case clang::Stmt::ArraySubscriptExprClass: {
-      auto* cast = clang_down_cast<const clang::ArraySubscriptExpr*>(expr);
-      XLS_ASSIGN_OR_RETURN(CValue arr_val,
-                           GenerateIR_Expr(cast->getBase(), loc));
-      // Implicit dereference
-      if (arr_val.type()->Is<CPointerType>()) {
-        XLS_CHECK_NE(arr_val.lvalue(), nullptr);
-        XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
-      }
-      auto arr_type = arr_val.type()->As<CArrayType>();
-      XLS_ASSIGN_OR_RETURN(CValue idx_val,
-                           GenerateIR_Expr(cast->getIdx(), loc));
-      return CValue(
-          context().fb->ArrayIndex(arr_val.rvalue(), {idx_val.rvalue()}, loc),
-          arr_type->GetElementType());
-    }
-    // Access to a struct member, for example: x.foo
-    case clang::Stmt::MemberExprClass: {
-      auto* cast = clang_down_cast<const clang::MemberExpr*>(expr);
-      return GenerateIR_MemberExpr(cast, loc);
-    }
-    // Wraps another expression in parenthesis: (sub_expr).
-    // This is irrelevant to XLS[cc], as the parenthesis already affected
-    //  Clang's AST ordering.
-    case clang::Stmt::ParenExprClass: {
-      auto* cast = clang_down_cast<const clang::ParenExpr*>(expr);
-      return GenerateIR_Expr(cast->getSubExpr(), loc);
-    }
-    // A reference to a declaration using its identifier
-    case clang::Stmt::DeclRefExprClass: {
-      const auto* cast = clang_down_cast<const clang::DeclRefExpr*>(expr);
-      const clang::NamedDecl* named = cast->getFoundDecl();
-      XLS_ASSIGN_OR_RETURN(CValue cval, GetIdentifier(named, loc));
-      return cval;
-    }
-    // Wraps the value of an argument default
-    case clang::Stmt::CXXDefaultArgExprClass: {
-      auto* arg_expr = clang_down_cast<const clang::CXXDefaultArgExpr*>(expr);
-      return GenerateIR_Expr(arg_expr->getExpr(), loc);
-    }
-    // Wraps certain expressions evaluatable in a constant context
-    // I am not sure when exactly Clang chooses to do this.
-    case clang::Stmt::ConstantExprClass: {
-      auto* const_expr = clang_down_cast<const clang::ConstantExpr*>(expr);
-      return GenerateIR_Expr(const_expr->getSubExpr(), loc);
-    }
-    // This occurs inside of an ArrayInitLoopExpr, and wraps a value
-    //  that is created by implication, rather than explicitly.
-    case clang::Stmt::OpaqueValueExprClass: {
-      auto* const_expr = clang_down_cast<const clang::OpaqueValueExpr*>(expr);
-      return GenerateIR_Expr(const_expr->getSourceExpr(), loc);
-    }
-    // The case in which I've seen Clang generate this is when a struct is
-    //  initialized with an array inside.
-    // struct ts { tss vv[4]; };
-    case clang::Stmt::ArrayInitLoopExprClass: {
-      auto* loop_expr = clang_down_cast<const clang::ArrayInitLoopExpr*>(expr);
-
-      XLS_ASSIGN_OR_RETURN(CValue expr,
-                           GenerateIR_Expr(loop_expr->getCommonExpr(), loc));
-
-      auto arr_type = std::dynamic_pointer_cast<CArrayType>(expr.type());
-      XLS_CHECK(arr_type && (arr_type->GetSize() ==
-                             loop_expr->getArraySize().getLimitedValue()));
-
-      return expr;
-    }
-    // An expression "T()" which creates a value-initialized rvalue of type T,
-    // which is a non-class type. For example: return int();
-    case clang::Stmt::CXXScalarValueInitExprClass: {
-      auto* scalar_init_expr =
-          clang_down_cast<const clang::CXXScalarValueInitExpr*>(expr);
-      XLS_ASSIGN_OR_RETURN(
-          shared_ptr<CType> ctype,
-          TranslateTypeFromClang(scalar_init_expr->getType(), loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
-      return CValue(def, ctype);
-    }
-    // Implicitly generated value, as in an incomplete initializer list
-    case clang::Stmt::ImplicitValueInitExprClass: {
-      auto* implicit_value_init_expr =
-          clang_down_cast<const clang::ImplicitValueInitExpr*>(expr);
-      XLS_ASSIGN_OR_RETURN(
-          shared_ptr<CType> ctype,
-          TranslateTypeFromClang(implicit_value_init_expr->getType(), loc));
-      XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
-      return CValue(def, ctype);
-    }
-    case clang::Stmt::CXXDefaultInitExprClass: {
-      auto* default_init_expr =
-          clang_down_cast<const clang::CXXDefaultInitExpr*>(expr);
-      return GenerateIR_Expr(default_init_expr->getExpr(), loc);
-    }
-    case clang::Stmt::StringLiteralClass: {
-      auto* string_literal_expr =
-          clang_down_cast<const clang::StringLiteral*>(expr);
-      if (!(string_literal_expr->isOrdinary() ||
-            string_literal_expr->isUTF8())) {
-        return absl::UnimplementedError(
-            "Only 8 bit character strings supported");
-      }
-      llvm::StringRef strref = string_literal_expr->getString();
-      std::string str = strref.str();
-
-      std::shared_ptr<CType> element_type(new CIntType(8, true, true));
-      std::shared_ptr<CType> type(new CArrayType(element_type, str.size()));
-
-      std::vector<xls::Value> elements;
-
-      for (char c : str) {
-        elements.push_back(xls::Value(xls::SBits(c, 8)));
-      }
-
-      XLS_ASSIGN_OR_RETURN(xls::Value arrval, xls::Value::Array(elements));
-
-      return CValue(context().fb->Literal(arrval, loc), type);
-    }
-    case clang::Stmt::InitListExprClass: {
-      XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
-                           TranslateTypeFromClang(expr->getType(), loc));
-      XLS_ASSIGN_OR_RETURN(
-          xls::BValue init_val,
-          CreateInitListValue(
-              ctype, clang_down_cast<const clang::InitListExpr*>(expr), loc));
-      return CValue(init_val, ctype);
-    }
-    case clang::Stmt::UnaryExprOrTypeTraitExprClass: {
-      auto* unary_or_type_expr =
-          clang_down_cast<const clang::UnaryExprOrTypeTraitExpr*>(expr);
-      if (unary_or_type_expr->getKind() != clang::UETT_SizeOf) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Unimplemented UnaryExprOrTypeTraitExpr kind %i",
-                         unary_or_type_expr->getKind()));
-      }
-
-      XLS_ASSIGN_OR_RETURN(
-          std::shared_ptr<CType> ret_ctype,
-          TranslateTypeFromClang(unary_or_type_expr->getType(), loc));
-      XLS_ASSIGN_OR_RETURN(
-          std::shared_ptr<CType> arg_ctype,
-          TranslateTypeFromClang(unary_or_type_expr->getTypeOfArgument(), loc));
-      // Remove CInstantiableTypeAliases since CType::BitWidth() cannot resolve
-      // them
-      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved_arg_ctype,
-                           ResolveTypeInstanceDeeply(arg_ctype));
-
-      XLS_LOG(WARNING) << ErrorMessage(
-          loc, "Warning: sizeof evaluating to size in BITS");
-
-      const int64_t ret_width = ret_ctype->GetBitWidth();
-      return CValue(
-          context().fb->Literal(
-              xls::SBits(resolved_arg_ctype->GetBitWidth(), ret_width), loc),
-          std::make_shared<CIntType>(ret_width, true));
-    }
-    default: {
-      expr->dump();
-      return absl::UnimplementedError(ErrorMessage(
-          loc, "Unimplemented expression %s", expr->getStmtClassName()));
-    }
+  if (auto uop = clang::dyn_cast<const clang::UnaryOperator>(expr)) {
+    return Generate_UnaryOp(uop, loc);
   }
+  if (auto bop = clang::dyn_cast<const clang::BinaryOperator>(expr)) {
+    auto clang_op = bop->getOpcode();
+    XLS_ASSIGN_OR_RETURN(
+        shared_ptr<CType> result_type,
+        TranslateTypeFromClang(bop->getType().getCanonicalType(), loc));
+    return Generate_BinaryOp(clang_op, bop->isAssignmentOp(), result_type,
+                             bop->getLHS(), bop->getRHS(), loc);
+  }
+  // Ternary: a ? b : c
+  if (auto cond = clang::dyn_cast<const clang::ConditionalOperator>(expr)) {
+    XLS_ASSIGN_OR_RETURN(
+        shared_ptr<CType> result_type,
+        TranslateTypeFromClang(cond->getType().getCanonicalType(), loc));
+    return Generate_TernaryOp(result_type, cond->getCond(), cond->getTrueExpr(),
+                              cond->getFalseExpr(), loc);
+  }
+  if (auto call = clang::dyn_cast<const clang::CallExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(IOOpReturn ret, InterceptIOOp(call, GetLoc(*call)));
+    // If this call is an IO op, then return the IO value, rather than
+    //  generating the call.
+    if (!ret.generate_expr) {
+      return ret.value;
+    }
+    return GenerateIR_Call(call, loc);
+  }
+  if (auto ilit = clang::dyn_cast<const clang::IntegerLiteral>(expr)) {
+    llvm::APInt api = ilit->getValue();
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
+                         TranslateTypeFromClang(ilit->getType(), loc));
+    // Raw data is in little endian format
+    auto api_raw = reinterpret_cast<const uint8_t*>(api.getRawData());
+    vector<uint8_t> truncated;
+    const int truncated_n = ((ctype->GetBitWidth() + 7) / 8);
+    truncated.reserve(truncated_n);
+    for (int i = 0; i < truncated_n; ++i) {
+      truncated.emplace_back(api_raw[i]);
+    }
+    // Convert to big endian
+    std::reverse(truncated.begin(), truncated.end());
+    // FromBytes() accepts big endian format
+    auto lbits = xls::Bits::FromBytes(truncated, ctype->GetBitWidth());
+    return CValue(context().fb->Literal(lbits, loc), ctype);
+  }
+  if (auto charlit = clang::dyn_cast<const clang::CharacterLiteral>(expr)) {
+    if (charlit->getKind() != clang::CharacterLiteral::CharacterKind::Ascii) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Unimplemented character literaly type %i",
+                       static_cast<int>(charlit->getKind())));
+    }
+    shared_ptr<CType> ctype(new CIntType(8, true, true));
+    return CValue(
+        context().fb->Literal(xls::UBits(charlit->getValue(), 8), loc), ctype);
+  }
+  if (auto bl = clang::dyn_cast<const clang::CXXBoolLiteralExpr>(expr)) {
+    xls::BValue val =
+        context().fb->Literal(xls::UBits(bl->getValue() ? 1 : 0, 1), loc);
+    return CValue(val, shared_ptr<CType>(new CBoolType()));
+  }
+  // This is just a marker Clang places in the AST to show that a template
+  //  parameter was substituted. It wraps the substituted value, like:
+  // SubstNonTypeTemplateParmExprClass { replacement = IntegerLiteral }
+  if (auto subst =
+          clang::dyn_cast<const clang::SubstNonTypeTemplateParmExpr>(expr)) {
+    return GenerateIR_Expr(subst->getReplacement(), loc);
+  }
+  // Similar behavior for all cast styles. Clang already enforced the C++
+  //  static type-checking rules by this point.
+  if (auto cast = clang::dyn_cast<const clang::CastExpr>(expr)) {
+    // For converting this pointer from base to derived
+    // Don't generate pointer errors for C++ "this" keyword
+    IgnorePointersGuard ignore_pointers(*this);
+    if (clang::isa<clang::CXXThisExpr>(cast->getSubExpr())) {
+      ignore_pointers.enable();
+    }
+
+    XLS_ASSIGN_OR_RETURN(CValue sub, GenerateIR_Expr(cast->getSubExpr(), loc));
+
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> to_type,
+                         TranslateTypeFromClang(cast->getType(), loc));
+
+    if (to_type->Is<CVoidType>()) {
+      return CValue(xls::BValue(), to_type);
+    }
+
+    // Sometimes array types are converted to pointer types via ImplicitCast,
+    // even nested as in mutable array -> mutable pointer -> const pointer.
+    // Since we don't generally support pointers (except for array slicing),
+    // this case is short-circuited, and the nested expression is evaluated
+    // directly, ignoring the casts.
+    {
+      // Ignore nested ImplicitCastExprs. This case breaks the logic below.
+      auto nested_implicit = cast;
+
+      while (
+          clang::isa<clang::ImplicitCastExpr>(nested_implicit->getSubExpr())) {
+        nested_implicit =
+            clang::cast<const clang::CastExpr>(nested_implicit->getSubExpr());
+      }
+
+      auto from_arr_type = std::dynamic_pointer_cast<CArrayType>(sub.type());
+
+      // Avoid decay of array to pointer, pointers are unsupported
+      if (from_arr_type && nested_implicit->getType()->isPointerType()) {
+        XLS_ASSIGN_OR_RETURN(
+            CValue sub, GenerateIR_Expr(nested_implicit->getSubExpr(), loc));
+
+        return sub;
+      }
+    }
+
+    XLS_ASSIGN_OR_RETURN(ResolvedInheritance inheritance,
+                         ResolveInheritance(sub.type(), to_type));
+
+    // Are we casting to a derived class?
+    if (inheritance.base_field != nullptr) {
+      XLS_CHECK(inheritance.resolved_struct != nullptr);
+
+      xls::BValue val =
+          GetStructFieldXLS(sub.rvalue(), inheritance.base_field->index(),
+                            *inheritance.resolved_struct, loc);
+
+      return CValue(val, to_type);
+    }
+
+    // Pointer conversions
+    if (sub.type()->Is<CPointerType>()) {
+      if (to_type->Is<CPointerType>()) {
+        return sub;
+      }
+      if (to_type->Is<CArrayType>()) {
+        return GenerateIR_Expr(sub.lvalue(), loc);
+      }
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Don't know how to convert %s to pointer type",
+                       std::string(*sub.type())));
+    }
+
+    XLS_ASSIGN_OR_RETURN(xls::BValue subc, GenTypeConvert(sub, to_type, loc));
+
+    return CValue(subc, to_type, /*disable_type_check=*/true, sub.lvalue());
+  }
+  if (clang::isa<clang::CXXThisExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl, GetThisDecl(loc));
+    XLS_ASSIGN_OR_RETURN(CValue this_val, GetIdentifier(this_decl, loc));
+    return this_val;
+  }
+  // ExprWithCleanups preserves some metadata from Clang's parsing process,
+  //  which I think is meant to be used for IDE editing tools. It is
+  //  irrelevant to XLS[cc].
+  if (auto cast = clang::dyn_cast<const clang::ExprWithCleanups>(expr)) {
+    return GenerateIR_Expr(cast->getSubExpr(), loc);
+  }
+  // MaterializeTemporaryExpr wraps instantiation of temporary objects
+  // We don't support memory management, so this is irrelevant to us.
+  if (auto cast =
+          clang::dyn_cast<const clang::MaterializeTemporaryExpr>(expr)) {
+    return GenerateIR_Expr(cast->getSubExpr(), loc);
+  }
+  // Occurs in the AST for explicit constructor calls. "Foo a = Foo();"
+  if (auto cast = clang::dyn_cast<const clang::CXXConstructExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> octype,
+                         TranslateTypeFromClang(cast->getType(), loc));
+
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype, ResolveTypeInstance(octype));
+
+    // A struct/class is being constructed
+    if (ctype->Is<CStructType>()) {
+      XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
+      std::vector<const clang::Expr*> args;
+      args.reserve(cast->getNumArgs());
+      for (int pi = 0; pi < cast->getNumArgs(); ++pi) {
+        args.push_back(cast->getArg(pi));
+      }
+      XLS_ASSIGN_OR_RETURN(
+          CValue ret, GenerateIR_Call(cast->getConstructor(), args, &dv, loc));
+      XLS_CHECK(ret.type()->Is<CVoidType>());
+      return CValue(dv, octype);
+    }
+
+    // A built-in type is being constructed. Create default value if there's
+    //  no constructor parameter
+    if (cast->getNumArgs() == 0) {
+      XLS_ASSIGN_OR_RETURN(xls::BValue dv, CreateDefaultValue(octype, loc));
+      return CValue(dv, octype);
+    }
+    if (cast->getNumArgs() == 1) {
+      XLS_ASSIGN_OR_RETURN(CValue pv, GenerateIR_Expr(cast->getArg(0), loc));
+      XLS_ASSIGN_OR_RETURN(xls::BValue converted,
+                           GenTypeConvert(pv, octype, loc));
+      return CValue(converted, octype);
+    }
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "Unsupported constructor argument count %i",
+                      cast->getNumArgs()));
+  }
+  if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
+    // Implicit dereference
+    if (arr_val.type()->Is<CPointerType>()) {
+      XLS_CHECK_NE(arr_val.lvalue(), nullptr);
+      XLS_ASSIGN_OR_RETURN(arr_val, GenerateIR_Expr(arr_val.lvalue(), loc));
+    }
+    auto arr_type = arr_val.type()->As<CArrayType>();
+    XLS_ASSIGN_OR_RETURN(CValue idx_val, GenerateIR_Expr(cast->getIdx(), loc));
+    return CValue(
+        context().fb->ArrayIndex(arr_val.rvalue(), {idx_val.rvalue()}, loc),
+        arr_type->GetElementType());
+  }
+  // Access to a struct member, for example: x.foo
+  if (auto* cast = clang::dyn_cast<const clang::MemberExpr>(expr)) {
+    return GenerateIR_MemberExpr(cast, loc);
+  }
+  // Wraps another expression in parenthesis: (sub_expr).
+  // This is irrelevant to XLS[cc], as the parenthesis already affected
+  //  Clang's AST ordering.
+  if (auto* cast = clang::dyn_cast<const clang::ParenExpr>(expr)) {
+    return GenerateIR_Expr(cast->getSubExpr(), loc);
+  }
+  // A reference to a declaration using its identifier
+  if (const auto* cast = clang::dyn_cast<const clang::DeclRefExpr>(expr)) {
+    const clang::NamedDecl* named = cast->getFoundDecl();
+    XLS_ASSIGN_OR_RETURN(CValue cval, GetIdentifier(named, loc));
+    return cval;
+  }
+  // Wraps the value of an argument default
+  if (auto* arg_expr = clang::dyn_cast<const clang::CXXDefaultArgExpr>(expr)) {
+    return GenerateIR_Expr(arg_expr->getExpr(), loc);
+  }
+  // Wraps certain expressions evaluatable in a constant context
+  // I am not sure when exactly Clang chooses to do this.
+  if (auto* const_expr = clang::dyn_cast<const clang::ConstantExpr>(expr)) {
+    return GenerateIR_Expr(const_expr->getSubExpr(), loc);
+  }
+  // This occurs inside of an ArrayInitLoopExpr, and wraps a value
+  //  that is created by implication, rather than explicitly.
+  if (auto* const_expr = clang::dyn_cast<const clang::OpaqueValueExpr>(expr)) {
+    return GenerateIR_Expr(const_expr->getSourceExpr(), loc);
+  }
+  // The case in which I've seen Clang generate this is when a struct is
+  //  initialized with an array inside.
+  // struct ts { tss vv[4]; };
+  if (auto* loop_expr = clang::dyn_cast<const clang::ArrayInitLoopExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(CValue expr,
+                         GenerateIR_Expr(loop_expr->getCommonExpr(), loc));
+
+    auto arr_type = std::dynamic_pointer_cast<CArrayType>(expr.type());
+    XLS_CHECK(arr_type && (arr_type->GetSize() ==
+                           loop_expr->getArraySize().getLimitedValue()));
+
+    return expr;
+  }
+  // An expression "T()" which creates a value-initialized rvalue of type T,
+  // which is a non-class type. For example: return int();
+  if (auto* scalar_init_expr =
+          clang::dyn_cast<const clang::CXXScalarValueInitExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(
+        shared_ptr<CType> ctype,
+        TranslateTypeFromClang(scalar_init_expr->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
+    return CValue(def, ctype);
+  }
+  // Implicitly generated value, as in an incomplete initializer list
+  if (auto* implicit_value_init_expr =
+          clang::dyn_cast<const clang::ImplicitValueInitExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(
+        shared_ptr<CType> ctype,
+        TranslateTypeFromClang(implicit_value_init_expr->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(xls::BValue def, CreateDefaultValue(ctype, loc));
+    return CValue(def, ctype);
+  }
+  if (auto* default_init_expr =
+          clang::dyn_cast<const clang::CXXDefaultInitExpr>(expr)) {
+    return GenerateIR_Expr(default_init_expr->getExpr(), loc);
+  }
+  if (auto* string_literal_expr =
+          clang::dyn_cast<const clang::StringLiteral>(expr)) {
+    if (!(string_literal_expr->isOrdinary() || string_literal_expr->isUTF8())) {
+      return absl::UnimplementedError("Only 8 bit character strings supported");
+    }
+    llvm::StringRef strref = string_literal_expr->getString();
+    std::string str = strref.str();
+
+    std::shared_ptr<CType> element_type(new CIntType(8, true, true));
+    std::shared_ptr<CType> type(new CArrayType(element_type, str.size()));
+
+    std::vector<xls::Value> elements;
+
+    for (char c : str) {
+      elements.push_back(xls::Value(xls::SBits(c, 8)));
+    }
+
+    XLS_ASSIGN_OR_RETURN(xls::Value arrval, xls::Value::Array(elements));
+
+    return CValue(context().fb->Literal(arrval, loc), type);
+  }
+  if (auto* init_list = clang::dyn_cast<const clang::InitListExpr>(expr)) {
+    XLS_ASSIGN_OR_RETURN(shared_ptr<CType> ctype,
+                         TranslateTypeFromClang(expr->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(xls::BValue init_val,
+                         CreateInitListValue(ctype, init_list, loc));
+    return CValue(init_val, ctype);
+  }
+  if (auto* unary_or_type_expr =
+          clang::dyn_cast<const clang::UnaryExprOrTypeTraitExpr>(expr)) {
+    if (unary_or_type_expr->getKind() != clang::UETT_SizeOf) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Unimplemented UnaryExprOrTypeTraitExpr kind %i",
+                       unary_or_type_expr->getKind()));
+    }
+
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<CType> ret_ctype,
+        TranslateTypeFromClang(unary_or_type_expr->getType(), loc));
+    XLS_ASSIGN_OR_RETURN(
+        std::shared_ptr<CType> arg_ctype,
+        TranslateTypeFromClang(unary_or_type_expr->getTypeOfArgument(), loc));
+    // Remove CInstantiableTypeAliases since CType::BitWidth() cannot resolve
+    // them
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved_arg_ctype,
+                         ResolveTypeInstanceDeeply(arg_ctype));
+
+    XLS_LOG(WARNING) << ErrorMessage(
+        loc, "Warning: sizeof evaluating to size in BITS");
+
+    const int64_t ret_width = ret_ctype->GetBitWidth();
+    return CValue(
+        context().fb->Literal(
+            xls::SBits(resolved_arg_ctype->GetBitWidth(), ret_width), loc),
+        std::make_shared<CIntType>(ret_width, true));
+  }
+  expr->dump();
+  return absl::UnimplementedError(ErrorMessage(
+      loc, "Unimplemented expression %s", expr->getStmtClassName()));
 }
 
 absl::Status Translator::MinSizeArraySlices(CValue& true_cv, CValue& false_cv,
@@ -3689,14 +3550,14 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
   if (member->getKind() == clang::ValueDecl::Kind::Var) {
     XLS_ASSIGN_OR_RETURN(
         CValue val,
-        TranslateVarDecl(clang_down_cast<const clang::VarDecl*>(member), loc));
+        TranslateVarDecl(clang::dyn_cast<const clang::VarDecl>(member), loc));
     return val;
   }
   if (member->getKind() == clang::ValueDecl::Kind::EnumConstant) {
     XLS_ASSIGN_OR_RETURN(
         CValue val,
         TranslateEnumConstantDecl(
-            clang_down_cast<const clang::EnumConstantDecl*>(member), loc));
+            clang::dyn_cast<const clang::EnumConstantDecl>(member), loc));
     return val;
   }
   if (member->getKind() != clang::ValueDecl::Kind::Field) {
@@ -3706,7 +3567,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_MemberExpr(
         loc, "Unimplemented member expression %s", member->getDeclKindName()));
   }
 
-  auto field = clang_down_cast<clang::FieldDecl*>(member);
+  auto field = clang::dyn_cast<clang::FieldDecl>(member);
   const auto& fields_by_name = sitype->fields_by_name();
   auto found_field =
       // Upcast to NamedDecl because we track unique identifiers
@@ -3800,12 +3661,11 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
         this_init = init_list->getArrayFiller();
       }
       xls::BValue this_val;
-      if (this_init->getStmtClass() == clang::Stmt::InitListExprClass) {
-        XLS_ASSIGN_OR_RETURN(
-            this_val,
-            CreateInitListValue(
-                array_t->GetElementType(),
-                clang_down_cast<const clang::InitListExpr*>(this_init), loc));
+      if (auto init_list_expr =
+              clang::dyn_cast<const clang::InitListExpr>(this_init)) {
+        XLS_ASSIGN_OR_RETURN(this_val,
+                             CreateInitListValue(array_t->GetElementType(),
+                                                 init_list_expr, loc));
       } else {
         XLS_ASSIGN_OR_RETURN(CValue expr_val, GenerateIR_Expr(this_init, loc));
         if (*expr_val.type() != *array_t->GetElementType()) {
@@ -3965,7 +3825,7 @@ absl::Status Translator::GenerateIR_Compound(const clang::Stmt* body,
     return absl::OkStatus();
   }
 
-  if (body->getStmtClass() == clang::Stmt::CompoundStmtClass) {
+  if (clang::isa<clang::CompoundStmt>(body)) {
     for (const clang::Stmt* body_st : body->children()) {
       XLS_RETURN_IF_ERROR(GenerateIR_Stmt(body_st, ctx));
     }
@@ -4054,266 +3914,220 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
                                          clang::ASTContext& ctx) {
   const xls::SourceInfo loc = GetLoc(*stmt);
 
-  // TODO(seanhaskell): A cleaner way to check if it's any kind of Expr?
-  if (absl::StrContains(stmt->getStmtClassName(), "Literal") ||
-      absl::StrContains(stmt->getStmtClassName(), "Expr") ||
-      absl::StrContains(stmt->getStmtClassName(), "Operator")) {
-    XLS_ASSIGN_OR_RETURN(
-        absl::StatusOr<CValue> rv,
-        GenerateIR_Expr(clang_down_cast<const clang::Expr*>(stmt), loc));
+  if (const clang::Expr* expr = clang::dyn_cast<const clang::Expr>(stmt)) {
+    XLS_ASSIGN_OR_RETURN(absl::StatusOr<CValue> rv, GenerateIR_Expr(expr, loc));
     return rv.status();
   }
-  switch (stmt->getStmtClass()) {
-    case clang::Stmt::ReturnStmtClass: {
-      if (context().in_pipelined_for_body) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Returns in pipelined loop body unimplemented"));
-      }
-      auto rts = clang_down_cast<const clang::ReturnStmt*>(stmt);
-      const clang::Expr* rvalue = rts->getRetValue();
-      if (rvalue != nullptr) {
-        XLS_ASSIGN_OR_RETURN(CValue rv, GenerateIR_Expr(rvalue, loc));
-        XLS_ASSIGN_OR_RETURN(xls::BValue crv,
-                             GenTypeConvert(rv, context().return_type, loc));
+  if (auto rts = clang::dyn_cast<const clang::ReturnStmt>(stmt)) {
+    if (context().in_pipelined_for_body) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Returns in pipelined loop body unimplemented"));
+    }
+    const clang::Expr* rvalue = rts->getRetValue();
+    if (rvalue != nullptr) {
+      XLS_ASSIGN_OR_RETURN(CValue rv, GenerateIR_Expr(rvalue, loc));
+      XLS_ASSIGN_OR_RETURN(xls::BValue crv,
+                           GenTypeConvert(rv, context().return_type, loc));
 
-        if (!context().return_val.valid()) {
-          context().return_val = crv;
-        } else {
-          // This is the normal case, where the last return was conditional
-          if (context().last_return_condition.valid()) {
-            // If there are multiple returns with the same condition, this will
-            // take the first one
-            xls::BValue this_cond =
-                context().full_condition.valid()
-                    ? context().full_condition
-                    : context().fb->Literal(xls::UBits(1, 1));
-
-            // Select the previous return instead of this one if
-            //  the last return condition is true or this one is false
-            // Scenario A (sel_prev_ret_cond = true):
-            //  if(something true) return last;  // take this return value
-            //  if(something true) return this;
-            // Scenario B (sel_prev_ret_cond = false):
-            //  if(something false) return last;
-            //  if(something true) return this;  // take this return value
-            // Scenario C  (sel_prev_ret_cond = true):
-            //  if(something true) return last;  // take this return value
-            //  if(something false) return this;
-            // Scenario D  (sel_prev_ret_cond = false):
-            //  if(something false) return last;
-            //  if(something false) return this;
-            //  return later_on;                 // take this return value
-            // Scenario E  (sel_prev_ret_cond = true):
-            //  return earnier_on;               // take this return value
-            //  if(something true) return last;
-            xls::BValue sel_prev_ret_cond = context().fb->Or(
-                context().last_return_condition, context().fb->Not(this_cond));
-            context().return_val = context().fb->Select(
-                sel_prev_ret_cond, context().return_val, crv, loc);
-          } else {
-            // In the case of multiple unconditional returns, take the first one
-            // (no-op)
-          }
-        }
-
-        if (context().full_condition.valid()) {
-          context().last_return_condition = context().full_condition;
-        } else {
-          context().last_return_condition =
-              context().fb->Literal(xls::UBits(1, 1));
-        }
-      }
-
-      xls::BValue reach_here_cond = context().full_condition_bval(loc);
-
-      if (!context().have_returned_condition.valid()) {
-        context().have_returned_condition = reach_here_cond;
+      if (!context().return_val.valid()) {
+        context().return_val = crv;
       } else {
-        context().have_returned_condition = context().fb->Or(
-            reach_here_cond, context().have_returned_condition);
-      }
-      XLS_RETURN_IF_ERROR(and_condition(
-          context().fb->Not(context().have_returned_condition, loc), loc));
-      break;
-    }
-    case clang::Stmt::DeclStmtClass: {
-      auto declstmt = clang_down_cast<const clang::DeclStmt*>(stmt);
+        // This is the normal case, where the last return was conditional
+        if (context().last_return_condition.valid()) {
+          // If there are multiple returns with the same condition, this will
+          // take the first one
+          xls::BValue this_cond = context().full_condition.valid()
+                                      ? context().full_condition
+                                      : context().fb->Literal(xls::UBits(1, 1));
 
-      for (auto decl : declstmt->decls()) {
-        if (decl->getKind() == clang::Decl::Kind::Typedef) break;
-        if (decl->getKind() == clang::Decl::Kind::StaticAssert) break;
-        if (decl->getKind() == clang::Decl::Kind::Enum) break;
-
-        if (decl->getKind() != clang::Decl::Kind::Var) {
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "DeclStmt other than Var (%s)", decl->getDeclKindName()));
-        }
-
-        auto namedecl = clang_down_cast<const clang::NamedDecl*>(decl);
-        auto vard = clang_down_cast<const clang::VarDecl*>(decl);
-
-        if (vard->isStaticLocal() || vard->isStaticDataMember()) {
-          XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, namedecl, loc));
+          // Select the previous return instead of this one if
+          //  the last return condition is true or this one is false
+          // Scenario A (sel_prev_ret_cond = true):
+          //  if(something true) return last;  // take this return value
+          //  if(something true) return this;
+          // Scenario B (sel_prev_ret_cond = false):
+          //  if(something false) return last;
+          //  if(something true) return this;  // take this return value
+          // Scenario C  (sel_prev_ret_cond = true):
+          //  if(something true) return last;  // take this return value
+          //  if(something false) return this;
+          // Scenario D  (sel_prev_ret_cond = false):
+          //  if(something false) return last;
+          //  if(something false) return this;
+          //  return later_on;                 // take this return value
+          // Scenario E  (sel_prev_ret_cond = true):
+          //  return earnier_on;               // take this return value
+          //  if(something true) return last;
+          xls::BValue sel_prev_ret_cond = context().fb->Or(
+              context().last_return_condition, context().fb->Not(this_cond));
+          context().return_val = context().fb->Select(
+              sel_prev_ret_cond, context().return_val, crv, loc);
         } else {
-          XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
-          XLS_RETURN_IF_ERROR(DeclareVariable(namedecl, translated, loc));
-        }
-      }
-      break;
-    }
-    case clang::Stmt::GCCAsmStmtClass: {
-      const auto* pasm = clang_down_cast<const clang::GCCAsmStmt*>(stmt);
-      std::string sasm = pasm->getAsmString()->getString().str();
-
-      vector<xls::BValue> args;
-
-      for (int i = 0; i < pasm->getNumInputs(); ++i) {
-        const clang::Expr* expr = pasm->getInputExpr(i);
-        if (expr->isIntegerConstantExpr(ctx)) {
-          const std::string name = pasm->getInputConstraint(i).str();
-          XLS_ASSIGN_OR_RETURN(auto val, EvaluateInt64(*expr, ctx, loc));
-          sasm = std::regex_replace(
-              sasm, std::regex(absl::StrFormat(R"(\b%s\b)", name)),
-              absl::StrCat(val));
-        } else {
-          XLS_ASSIGN_OR_RETURN(CValue ret, GenerateIR_Expr(expr, loc));
-          args.emplace_back(ret.rvalue());
+          // In the case of multiple unconditional returns, take the first one
+          // (no-op)
         }
       }
 
-      // Unique function name
-      RE2::GlobalReplace(&sasm, "\\(fid\\)",
-                         absl::StrFormat("fid%i", next_asm_number_++));
-      // Unique IR instruction name
-      RE2::GlobalReplace(&sasm, "\\(aid\\)",
-                         absl::StrFormat("aid%i", next_asm_number_++));
-      // File location
-      RE2::GlobalReplace(&sasm, "\\(loc\\)", loc.ToString());
-
-      if (pasm->getNumOutputs() != 1) {
-        return absl::UnimplementedError(
-            absl::StrFormat("asm must have exactly 1 output"));
+      if (context().full_condition.valid()) {
+        context().last_return_condition = context().full_condition;
+      } else {
+        context().last_return_condition =
+            context().fb->Literal(xls::UBits(1, 1));
       }
-
-      XLS_ASSIGN_OR_RETURN(CValue out_val,
-                           GenerateIR_Expr(pasm->getOutputExpr(0), loc));
-
-      // verify_function_only because external channels are defined up-front,
-      //  which generates "No receive/send node" errors
-      XLS_ASSIGN_OR_RETURN(
-          xls::Function * af,
-          xls::Parser::ParseFunction(sasm, package_,
-                                     /*verify_function_only=*/true));
-
-      // No type conversion in or out: inline IR can do whatever it wants.
-      // If you use inline IR, you should know exactly what you're doing.
-      xls::BValue fret = context().fb->Invoke(args, af, loc);
-
-      XLS_RETURN_IF_ERROR(
-          Assign(pasm->getOutputExpr(0), CValue(fret, out_val.type()), loc));
-
-      break;
     }
-    case clang::Stmt::IfStmtClass: {
-      const auto* ifst = clang_down_cast<const clang::IfStmt*>(stmt);
-      XLS_ASSIGN_OR_RETURN(CValue cond, GenerateIR_Expr(ifst->getCond(), loc));
-      XLS_CHECK(cond.type()->Is<CBoolType>());
-      if (ifst->getInit()) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Unimplemented C++17 if initializers"));
+
+    xls::BValue reach_here_cond = context().full_condition_bval(loc);
+
+    if (!context().have_returned_condition.valid()) {
+      context().have_returned_condition = reach_here_cond;
+    } else {
+      context().have_returned_condition =
+          context().fb->Or(reach_here_cond, context().have_returned_condition);
+    }
+    XLS_RETURN_IF_ERROR(and_condition(
+        context().fb->Not(context().have_returned_condition, loc), loc));
+  } else if (auto declstmt = clang::dyn_cast<const clang::DeclStmt>(stmt)) {
+    for (auto decl : declstmt->decls()) {
+      if (clang::isa<clang::TypedefDecl>(decl)) break;
+      if (clang::isa<clang::StaticAssertDecl>(decl)) break;
+      if (clang::isa<clang::EnumDecl>(decl)) break;
+
+      auto vard = clang::dyn_cast<const clang::VarDecl>(decl);
+      if (vard == nullptr) {
+        return absl::UnimplementedError(ErrorMessage(
+            loc, "DeclStmt other than Var (%s)", decl->getDeclKindName()));
       }
-      if (ifst->getThen()) {
-        PushContextGuard context_guard(*this, cond.rvalue(), loc);
-        XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getThen(), ctx));
+      if (vard->isStaticLocal() || vard->isStaticDataMember()) {
+        XLS_RETURN_IF_ERROR(GenerateIR_StaticDecl(vard, vard, loc));
+      } else {
+        XLS_ASSIGN_OR_RETURN(CValue translated, TranslateVarDecl(vard, loc));
+        XLS_RETURN_IF_ERROR(DeclareVariable(vard, translated, loc));
       }
-      if (ifst->getElse()) {
-        PushContextGuard context_guard(*this, context().fb->Not(cond.rvalue()),
-                                       loc);
-        XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getElse(), ctx));
-      }
+    }
+  } else if (const auto* pasm =
+                 clang::dyn_cast<const clang::GCCAsmStmt>(stmt)) {
+    std::string sasm = pasm->getAsmString()->getString().str();
+    vector<xls::BValue> args;
 
-      break;
+    for (int i = 0; i < pasm->getNumInputs(); ++i) {
+      const clang::Expr* expr = pasm->getInputExpr(i);
+      if (expr->isIntegerConstantExpr(ctx)) {
+        const std::string name = pasm->getInputConstraint(i).str();
+        XLS_ASSIGN_OR_RETURN(auto val, EvaluateInt64(*expr, ctx, loc));
+        sasm = std::regex_replace(
+            sasm, std::regex(absl::StrFormat(R"(\b%s\b)", name)),
+            absl::StrCat(val));
+      } else {
+        XLS_ASSIGN_OR_RETURN(CValue ret, GenerateIR_Expr(expr, loc));
+        args.emplace_back(ret.rvalue());
+      }
     }
-    case clang::Stmt::ForStmtClass: {
-      auto forst = clang_down_cast<const clang::ForStmt*>(stmt);
-      XLS_RETURN_IF_ERROR(GenerateIR_Loop(
-          /*always_first_iter=*/false, forst->getInit(), forst->getCond(),
-          forst->getInc(), forst->getBody(), GetPresumedLoc(*forst), loc, ctx));
-      break;
+
+    // Unique function name
+    RE2::GlobalReplace(&sasm, "\\(fid\\)",
+                       absl::StrFormat("fid%i", next_asm_number_++));
+    // Unique IR instruction name
+    RE2::GlobalReplace(&sasm, "\\(aid\\)",
+                       absl::StrFormat("aid%i", next_asm_number_++));
+    // File location
+    RE2::GlobalReplace(&sasm, "\\(loc\\)", loc.ToString());
+
+    if (pasm->getNumOutputs() != 1) {
+      return absl::UnimplementedError(
+          absl::StrFormat("asm must have exactly 1 output"));
     }
-    case clang::Stmt::WhileStmtClass: {
-      auto forst = clang_down_cast<const clang::WhileStmt*>(stmt);
-      XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/false,
-                                          /*init=*/nullptr, forst->getCond(),
-                                          /*inc=*/nullptr, forst->getBody(),
-                                          GetPresumedLoc(*forst), loc, ctx));
-      break;
+
+    XLS_ASSIGN_OR_RETURN(CValue out_val,
+                         GenerateIR_Expr(pasm->getOutputExpr(0), loc));
+
+    // verify_function_only because external channels are defined up-front,
+    //  which generates "No receive/send node" errors
+    XLS_ASSIGN_OR_RETURN(
+        xls::Function * af,
+        xls::Parser::ParseFunction(sasm, package_,
+                                   /*verify_function_only=*/true));
+
+    // No type conversion in or out: inline IR can do whatever it wants.
+    // If you use inline IR, you should know exactly what you're doing.
+    xls::BValue fret = context().fb->Invoke(args, af, loc);
+
+    XLS_RETURN_IF_ERROR(
+        Assign(pasm->getOutputExpr(0), CValue(fret, out_val.type()), loc));
+  } else if (const auto* ifst = clang::dyn_cast<const clang::IfStmt>(stmt)) {
+    XLS_ASSIGN_OR_RETURN(CValue cond, GenerateIR_Expr(ifst->getCond(), loc));
+    XLS_CHECK(cond.type()->Is<CBoolType>());
+    if (ifst->getInit() != nullptr) {
+      return absl::UnimplementedError(
+          ErrorMessage(loc, "Unimplemented C++17 if initializers"));
     }
-    case clang::Stmt::DoStmtClass: {
-      auto dost = clang_down_cast<const clang::DoStmt*>(stmt);
-      XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/true,
-                                          /*init=*/nullptr, dost->getCond(),
-                                          /*inc=*/nullptr, dost->getBody(),
-                                          GetPresumedLoc(*dost), loc, ctx));
-      break;
+    if (ifst->getThen() != nullptr) {
+      PushContextGuard context_guard(*this, cond.rvalue(), loc);
+      XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getThen(), ctx));
     }
-    case clang::Stmt::SwitchStmtClass: {
-      auto switchst = clang_down_cast<const clang::SwitchStmt*>(stmt);
-      return GenerateIR_Switch(switchst, ctx, loc);
+    if (ifst->getElse() != nullptr) {
+      PushContextGuard context_guard(*this, context().fb->Not(cond.rvalue()),
+                                     loc);
+      XLS_RETURN_IF_ERROR(GenerateIR_Compound(ifst->getElse(), ctx));
     }
-    case clang::Stmt::ContinueStmtClass: {
-      // Continue should be used inside of for loop bodies only
-      XLS_CHECK(context().in_for_body);
-      context().relative_continue_condition =
+  } else if (auto forst = clang::dyn_cast<const clang::ForStmt>(stmt)) {
+    XLS_RETURN_IF_ERROR(GenerateIR_Loop(
+        /*always_first_iter=*/false, forst->getInit(), forst->getCond(),
+        forst->getInc(), forst->getBody(), GetPresumedLoc(*forst), loc, ctx));
+  } else if (auto forst = clang::dyn_cast<const clang::WhileStmt>(stmt)) {
+    XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/false,
+                                        /*init=*/nullptr, forst->getCond(),
+                                        /*inc=*/nullptr, forst->getBody(),
+                                        GetPresumedLoc(*forst), loc, ctx));
+  } else if (auto dost = clang::dyn_cast<const clang::DoStmt>(stmt)) {
+    XLS_RETURN_IF_ERROR(GenerateIR_Loop(/*always_first_iter=*/true,
+                                        /*init=*/nullptr, dost->getCond(),
+                                        /*inc=*/nullptr, dost->getBody(),
+                                        GetPresumedLoc(*dost), loc, ctx));
+  } else if (auto switchst = clang::dyn_cast<const clang::SwitchStmt>(stmt)) {
+    return GenerateIR_Switch(switchst, ctx, loc);
+  } else if (clang::isa<clang::ContinueStmt>(stmt)) {
+    // Continue should be used inside of for loop bodies only
+    XLS_CHECK(context().in_for_body);
+    context().relative_continue_condition =
+        context().relative_condition_bval(loc);
+    // Make the rest of the block no-op
+    XLS_RETURN_IF_ERROR(
+        and_condition(context().fb->Literal(xls::UBits(0, 1), loc), loc));
+  } else if (clang::isa<clang::BreakStmt>(stmt)) {
+    if (context().in_for_body) {
+      // We are in a for body
+      XLS_CHECK(!context().in_switch_body);
+      context().relative_break_condition =
           context().relative_condition_bval(loc);
+
       // Make the rest of the block no-op
       XLS_RETURN_IF_ERROR(
           and_condition(context().fb->Literal(xls::UBits(0, 1), loc), loc));
-      break;
-    }
-    case clang::Stmt::BreakStmtClass: {
-      if (context().in_for_body) {
-        // We are in a for body
-        XLS_CHECK(!context().in_switch_body);
-        context().relative_break_condition =
-            context().relative_condition_bval(loc);
-
-        // Make the rest of the block no-op
-        XLS_RETURN_IF_ERROR(
-            and_condition(context().fb->Literal(xls::UBits(0, 1), loc), loc));
-      } else {
-        // We are in a switch body
-        XLS_CHECK(context().in_switch_body);
-        // We use the original condition because we only care about
-        //  enclosing conditions, such as if(...) { break; }
-        //  Not if(...) {return;} break;
-        if (context().full_condition_on_enter_block.node() !=
-            context().full_switch_cond.node()) {
-          return absl::UnimplementedError(
-              ErrorMessage(loc, "Conditional breaks are not supported"));
-        }
-        context().hit_break = true;
+    } else {
+      // We are in a switch body
+      XLS_CHECK(context().in_switch_body);
+      // We use the original condition because we only care about
+      //  enclosing conditions, such as if(...) { break; }
+      //  Not if(...) {return;} break;
+      if (context().full_condition_on_enter_block.node() !=
+          context().full_switch_cond.node()) {
+        return absl::UnimplementedError(
+            ErrorMessage(loc, "Conditional breaks are not supported"));
       }
-      break;
+      context().hit_break = true;
     }
-    case clang::Stmt::CompoundStmtClass: {
-      PushContextGuard context_guard(*this, loc);
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt, ctx));
-      break;
-    }
+  } else if (clang::isa<clang::CompoundStmt>(stmt)) {
+    PushContextGuard context_guard(*this, loc);
+    XLS_RETURN_IF_ERROR(GenerateIR_Compound(stmt, ctx));
+  } else if (clang::isa<clang::NullStmt>(stmt)) {
     // Empty line (just ;)
-    case clang::Stmt::NullStmtClass: {
-      break;
-    }
+  } else if (auto label_stmt = clang::dyn_cast<const clang::LabelStmt>(stmt)) {
     // Just ignore labels for now
-    case clang::Stmt::LabelStmtClass: {
-      auto label_stmt = clang_down_cast<const clang::LabelStmt*>(stmt);
-      return GenerateIR_Stmt(label_stmt->getSubStmt(), ctx);
-    }
-    default:
-      stmt->dump();
-      return absl::UnimplementedError(ErrorMessage(
-          loc, "Unimplemented construct %s", stmt->getStmtClassName()));
+    return GenerateIR_Stmt(label_stmt->getSubStmt(), ctx);
+  } else {
+    stmt->dump();
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unimplemented construct %s", stmt->getStmtClassName()));
   }
   return absl::OkStatus();
 }
@@ -4508,7 +4322,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
 
   // Loop unrolling causes duplicate NamedDecls which fail the soundness
   // check. Reset the known set before each iteration.
-  auto saved_check_ids = check_unique_ids_;
+  auto saved_check_ids = unique_decl_ids_;
 
   double slowest_iter = 0;
 
@@ -4518,7 +4332,7 @@ absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
 
     const double iter_start = doubletime();
 
-    check_unique_ids_ = saved_check_ids;
+    unique_decl_ids_ = saved_check_ids;
 
     if (nIters >= max_unroll_iters_) {
       return absl::ResourceExhaustedError(
@@ -5086,11 +4900,10 @@ static void FlattenCaseOrDefault(
     const clang::Stmt* stmt, clang::ASTContext& ctx,
     std::vector<const clang::Stmt*>& flat_statements) {
   flat_statements.push_back(stmt);
-  if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
-    auto case_it = clang_down_cast<const clang::CaseStmt*>(stmt);
+  if (auto case_it = clang::dyn_cast<const clang::CaseStmt>(stmt)) {
     FlattenCaseOrDefault(case_it->getSubStmt(), ctx, flat_statements);
-  } else if (stmt->getStmtClass() == clang::Stmt::DefaultStmtClass) {
-    auto default_it = clang_down_cast<const clang::DefaultStmt*>(stmt);
+  } else if (auto default_it =
+                 clang::dyn_cast<const clang::DefaultStmt>(stmt)) {
     FlattenCaseOrDefault(default_it->getSubStmt(), ctx, flat_statements);
   }
 }
@@ -5122,8 +4935,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   // Scan all cases to create default condition
   std::vector<xls::BValue> case_conds;
   for (const clang::Stmt* stmt : flat_statements) {
-    if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
-      auto case_it = clang_down_cast<const clang::CaseStmt*>(stmt);
+    if (auto case_it = clang::dyn_cast<const clang::CaseStmt>(stmt)) {
       const xls::SourceInfo loc = GetLoc(*case_it);
       XLS_ASSIGN_OR_RETURN(CValue case_val,
                            GenerateIR_Expr(case_it->getLHS(), loc));
@@ -5149,9 +4961,9 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
     const xls::SourceInfo loc = GetLoc(*stmt);
     xls::BValue cond;
 
-    if (stmt->getStmtClass() == clang::Stmt::CaseStmtClass) {
+    if (clang::isa<clang::CaseStmt>(stmt)) {
       cond = case_conds[case_idx++];
-    } else if (stmt->getStmtClass() == clang::Stmt::DefaultStmtClass) {
+    } else if (clang::isa<clang::DefaultStmt>(stmt)) {
       cond = (case_conds.empty())
                  ? context().fb->Literal(xls::UBits(1, 1), loc)
                  : context().fb->Not(context().fb->Or(case_conds, loc), loc);
@@ -5218,12 +5030,10 @@ absl::StatusOr<bool> Translator::EvaluateBool(
 }
 
 absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
-    const clang::QualType& t, const xls::SourceInfo& loc,
-    bool allow_references) {
+    clang::QualType t, const xls::SourceInfo& loc, bool allow_references) {
   const clang::Type* type = t.getTypePtr();
 
-  if (type->getTypeClass() == clang::Type::TypeClass::Builtin) {
-    auto builtin = clang_down_cast<const clang::BuiltinType*>(type);
+  if (auto builtin = clang::dyn_cast<const clang::BuiltinType>(type)) {
     if (builtin->isVoidType()) {
       return shared_ptr<CType>(new CVoidType());
     }
@@ -5265,70 +5075,52 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::TranslateTypeFromClang(
   } else if (type->getTypeClass() ==
              clang::Type::TypeClass::TemplateSpecialization) {
     // Up-cast to avoid multiple inheritance of getAsRecordDecl()
-    std::shared_ptr<CInstantiableTypeAlias> ret(new CInstantiableTypeAlias(
-        absl::implicit_cast<const clang::NamedDecl*>(type->getAsRecordDecl())));
+    std::shared_ptr<CInstantiableTypeAlias> ret(
+        new CInstantiableTypeAlias(type->getAsRecordDecl()));
     return ret;
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Record) {
-    auto record = clang_down_cast<const clang::RecordType*>(type);
+  } else if (auto record = clang::dyn_cast<const clang::RecordType>(type)) {
     clang::RecordDecl* decl = record->getDecl();
-
-    switch (decl->getDeclKind()) {
-      case clang::Decl::Kind::CXXRecord: {
-        return std::shared_ptr<CType>(new CInstantiableTypeAlias(
-            absl::implicit_cast<const clang::NamedDecl*>(
-                decl->getTypeForDecl()->getAsRecordDecl())));
-      }
-      case clang::Decl::Kind::ClassTemplateSpecialization: {
-        return std::shared_ptr<CType>(new CInstantiableTypeAlias(
-            absl::implicit_cast<const clang::NamedDecl*>(
-                decl->getTypeForDecl()->getAsRecordDecl())));
-      }
-      default:
-        return absl::UnimplementedError(ErrorMessage(
-            loc, "Unsupported recordtype kind %s in translate: %s",
-            // getDeclKindName() is inherited from multiple base classes, so
-            //  it is necessary to up-cast before calling it to avoid an error.
-            absl::implicit_cast<const clang::Decl*>(decl)->getDeclKindName(),
-            decl->getNameAsString()));
+    if (clang::isa<clang::RecordDecl>(decl)) {
+      return std::shared_ptr<CType>(new CInstantiableTypeAlias(
+          decl->getTypeForDecl()->getAsRecordDecl()));
     }
-
-  } else if (type->getTypeClass() == clang::Type::TypeClass::ConstantArray) {
-    auto array = clang_down_cast<const clang::ConstantArrayType*>(type);
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unsupported recordtype kind %s in translate: %s",
+        // getDeclKindName() is inherited from multiple base classes, so
+        //  it is necessary to up-cast before calling it to avoid an error.
+        absl::implicit_cast<const clang::Decl*>(decl)->getDeclKindName(),
+        decl->getNameAsString()));
+  } else if (auto array =
+                 clang::dyn_cast<const clang::ConstantArrayType>(type)) {
     XLS_ASSIGN_OR_RETURN(shared_ptr<CType> type,
                          TranslateTypeFromClang(array->getElementType(), loc));
     return std::shared_ptr<CType>(
         new CArrayType(type, array->getSize().getZExtValue()));
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Typedef) {
-    auto td = clang_down_cast<const clang::TypedefType*>(type);
+  } else if (auto td = clang::dyn_cast<const clang::TypedefType>(type)) {
     return TranslateTypeFromClang(td->getDecl()->getUnderlyingType(), loc);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Elaborated) {
-    auto elab = clang_down_cast<const clang::ElaboratedType*>(type);
+  } else if (auto elab = clang::dyn_cast<const clang::ElaboratedType>(type)) {
     return TranslateTypeFromClang(elab->getCanonicalTypeInternal(), loc);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Auto) {
-    auto aut = clang_down_cast<const clang::AutoType*>(type);
+  } else if (auto aut = clang::dyn_cast<const clang::AutoType>(type)) {
     return TranslateTypeFromClang(
         aut->getContainedDeducedType()->getDeducedType(), loc);
-  } else if (type->getTypeClass() ==
-             clang::Type::TypeClass::SubstTemplateTypeParm) {
-    auto subst = clang_down_cast<const clang::SubstTemplateTypeParmType*>(type);
+  } else if (auto subst =
+                 clang::dyn_cast<const clang::SubstTemplateTypeParmType>(
+                     type)) {
     return TranslateTypeFromClang(subst->getReplacementType(), loc);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Decayed) {
+  } else if (auto dec = clang::dyn_cast<const clang::DecayedType>(type)) {
     // No pointer support
-    auto dec = clang_down_cast<const clang::DecayedType*>(type);
     return TranslateTypeFromClang(dec->getOriginalType(), loc);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::LValueReference) {
+  } else if (auto lval =
+                 clang::dyn_cast<const clang::LValueReferenceType>(type)) {
     if (!allow_references && !t.isConstQualified()) {
       return absl::UnimplementedError(
           ErrorMessage(loc, "References not supported in this context"));
     }
     // No pointer support
-    auto lval = clang_down_cast<const clang::LValueReferenceType*>(type);
     return TranslateTypeFromClang(lval->getPointeeType(), loc);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Paren) {
-    auto lval = clang_down_cast<const clang::ParenType*>(type);
+  } else if (auto lval = clang::dyn_cast<const clang::ParenType>(type)) {
     return TranslateTypeFromClang(lval->desugar(), loc);
-  } else if (type->getTypeClass() == clang::Type::TypeClass::Pointer) {
-    auto lval = clang_down_cast<const clang::PointerType*>(type);
+  } else if (auto lval = clang::dyn_cast<const clang::PointerType>(type)) {
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> pointee_type,
                          TranslateTypeFromClang(lval->getPointeeType(), loc));
     if (context().ignore_pointers) {
@@ -5380,17 +5172,14 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
 }
 
 absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
-    const clang::QualType& t) {
+    clang::QualType t) {
   StrippedType ret = StrippedType(t, false);
 
-  // TODO(seanhaskell): Idiomatize this b/240570750
   {
     const clang::Type* type = ret.base.getTypePtr();
-    if ((type->getTypeClass() == clang::Type::TypeClass::RValueReference) ||
-        (type->getTypeClass() == clang::Type::TypeClass::LValueReference)) {
+    if (clang::isa<clang::ReferenceType>(type)) {
       ret = StrippedType(type->getPointeeType(), true);
-    } else if (type->getTypeClass() == clang::Type::TypeClass::Decayed) {
-      auto dec = clang_down_cast<const clang::DecayedType*>(type);
+    } else if (auto dec = clang::dyn_cast<const clang::DecayedType>(type)) {
       ret = StrippedType(dec->getOriginalType(), true);
     }
   }
@@ -5398,8 +5187,7 @@ absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
   const bool wasConst = ret.base.isConstQualified();
 
   const clang::Type* type = ret.base.getTypePtr();
-  if (type->getTypeClass() == clang::Type::TypeClass::Elaborated) {
-    auto dec = clang_down_cast<const clang::ElaboratedType*>(type);
+  if (auto dec = clang::dyn_cast<const clang::ElaboratedType>(type)) {
     ret = StrippedType(dec->desugar(), ret.is_ref);
   }
 
@@ -5793,19 +5581,18 @@ absl::Status Translator::GenerateIRBlockPrepare(
 absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
                                                const xls::SourceInfo& loc) {
   // Avoid "this", as it's a pointer
-  if (object->getStmtClass() == clang::Expr::ImplicitCastExprClass &&
-      clang_down_cast<const clang::CastExpr*>(object)
-              ->getSubExpr()
-              ->getStmtClass() == clang::Expr::CXXThisExprClass) {
-    return false;
+  if (auto cast = clang::dyn_cast<const clang::CastExpr>(object)) {
+    if (clang::isa<clang::CXXThisExpr>(cast->getSubExpr())) {
+      return false;
+    }
   }
-  if (object->getStmtClass() == clang::Expr::CXXThisExprClass) {
+  if (clang::isa<clang::CXXThisExpr>(object)) {
     return false;
   }
   return TypeIsChannel(object->getType(), loc);
 }
 
-absl::StatusOr<bool> Translator::TypeIsChannel(const clang::QualType& param,
+absl::StatusOr<bool> Translator::TypeIsChannel(clang::QualType param,
                                                const xls::SourceInfo& loc) {
   XLS_ASSIGN_OR_RETURN(StrippedType stripped, StripTypeQualifiers(param));
   absl::StatusOr<std::shared_ptr<CType>> obj_type_ret =
@@ -5887,7 +5674,7 @@ absl::Status Translator::GenerateFunctionMetadata(
   for (const clang::NamedDecl* namedecl :
        found->second->GetDeterministicallyOrderedStaticValues()) {
     const ConstValue& initval = found->second->static_values.at(namedecl);
-    auto p = clang_down_cast<const clang::ValueDecl*>(namedecl);
+    auto p = clang::cast<const clang::ValueDecl>(namedecl);
     xlscc_metadata::FunctionValue* proto_static_value =
         output->add_static_values();
     XLS_RETURN_IF_ERROR(
@@ -5928,8 +5715,7 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
   for (std::pair<std::shared_ptr<CInstantiableTypeAlias>,
                  std::shared_ptr<CType>>
            type : inst_types_) {
-    auto ctype_as_struct =
-        clang_down_cast<const CStructType*>(type.second.get());
+    auto ctype_as_struct = static_cast<const CStructType*>(type.second.get());
     if (ctype_as_struct == nullptr) {
       continue;
     }
@@ -5972,7 +5758,7 @@ absl::Status Translator::GenerateMetadataCPPName(
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateMetadataType(const clang::QualType& type_in,
+absl::Status Translator::GenerateMetadataType(clang::QualType type_in,
                                               xlscc_metadata::Type* type_out) {
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
                        TranslateTypeFromClang(type_in, xls::SourceInfo(),

@@ -887,7 +887,7 @@ class Translator {
 
   // The translator assumes NamedDecls are unique. This set is used to
   //  generate an error if that assumption is violated.
-  absl::flat_hash_set<const clang::NamedDecl*> check_unique_ids_;
+  absl::flat_hash_set<const clang::NamedDecl*> unique_decl_ids_;
 
   // Scans for top-level function candidates
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
@@ -1026,7 +1026,7 @@ class Translator {
       const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceInfo& loc);
-  absl::StatusOr<bool> TypeIsChannel(const clang::QualType& param,
+  absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
                                      const xls::SourceInfo& loc);
 
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
@@ -1143,14 +1143,14 @@ class Translator {
     bool is_ref;
   };
 
-  absl::StatusOr<StrippedType> StripTypeQualifiers(const clang::QualType& t);
+  absl::StatusOr<StrippedType> StripTypeQualifiers(clang::QualType t);
   absl::Status ScanStruct(const clang::RecordDecl* sd);
 
   absl::StatusOr<std::shared_ptr<CType>> InterceptBuiltInStruct(
       const clang::RecordDecl* sd);
 
   absl::StatusOr<std::shared_ptr<CType>> TranslateTypeFromClang(
-      const clang::QualType& t, const xls::SourceInfo& loc,
+      clang::QualType t, const xls::SourceInfo& loc,
       bool allow_references = false);
   absl::StatusOr<xls::Type*> TranslateTypeToXLS(std::shared_ptr<CType> t,
                                                 const xls::SourceInfo& loc);
@@ -1208,7 +1208,7 @@ class Translator {
   absl::Status GenerateMetadataCPPName(const clang::NamedDecl* decl_in,
                                        xlscc_metadata::CPPName* name_out);
 
-  absl::Status GenerateMetadataType(const clang::QualType& type_in,
+  absl::Status GenerateMetadataType(clang::QualType type_in,
                                     xlscc_metadata::Type* type_out);
 
   // StructUpdate builds and returns a new BValue for a struct with the
