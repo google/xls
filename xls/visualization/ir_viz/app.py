@@ -30,7 +30,7 @@ from absl import flags
 
 import flask
 import werkzeug.exceptions
-import werkzeug.utils
+import werkzeug.security
 
 from xls.common import runfiles
 from xls.common.python import init_xls
@@ -200,7 +200,7 @@ def static_handler(filename):
 
   try:
     content = runfiles.get_contents_as_text(
-        werkzeug.utils.safe_join('xls/visualization/ir_viz', filename))
+        werkzeug.security.safe_join('xls/visualization/ir_viz', filename))
   except FileNotFoundError:
     flask.abort(404)
   if filename.endswith('.js'):
