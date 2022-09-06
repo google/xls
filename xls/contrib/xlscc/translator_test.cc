@@ -23,6 +23,7 @@
 #include "google/protobuf/text_format.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
@@ -30,6 +31,7 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/unit_test.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/nodes.h"
@@ -143,8 +145,8 @@ TEST_F(TranslatorTest, SignedChar) {
         return a < 1;
       })";
 
-  Run({{"a", 0xff}}, true, content);
-  Run({{"a", 2}}, false, content);
+  Run({{"a", 0xff}}, static_cast<int64_t>(true), content);
+  Run({{"a", 2}}, static_cast<int64_t>(false), content);
 }
 
 TEST_F(TranslatorTest, Bool) {
@@ -1860,7 +1862,7 @@ TEST_F(TranslatorTest, CapitalizeFirstLetter) {
 
   const char* input = "hello world";
   std::string output = "";
-  for (; *input; ++input) {
+  for (; *input != 0u; ++input) {
     const char inc = *input;
     XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry,
                              package->GetTopAsFunction());
@@ -6613,8 +6615,8 @@ TEST_F(TranslatorTest, BooleanOrAssign) {
     b |= false;
     return b;
   })";
-  Run({{"b", false}}, false, content);
-  Run({{"b", true}}, true, content);
+  Run({{"b", false}}, static_cast<int64_t>(false), content);
+  Run({{"b", true}}, static_cast<int64_t>(true), content);
 }
 
 TEST_F(TranslatorTest, BooleanAndAssign) {
@@ -6624,8 +6626,8 @@ TEST_F(TranslatorTest, BooleanAndAssign) {
     b &= true;
     return b;
   })";
-  Run({{"b", true}}, true, content);
-  Run({{"b", false}}, false, content);
+  Run({{"b", true}}, static_cast<int64_t>(true), content);
+  Run({{"b", false}}, static_cast<int64_t>(false), content);
 }
 
 TEST_F(TranslatorTest, EnumConstant) {

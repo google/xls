@@ -18,12 +18,14 @@
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
+#include "absl/strings/match.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "clang/include/clang/AST/Decl.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/interpreter/proc_network_interpreter.h"
 #include "xls/ir/value_helpers.h"
 
@@ -201,7 +203,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     XLS_ASSIGN_OR_RETURN(xlscc::GeneratedFunction * func,
                          translator_->GenerateIR_Top_Function(package_.get()));
     XLS_RETURN_IF_ERROR(package_->SetTopByName(func->xls_func->name()));
-    if (pfunc) {
+    if (pfunc != nullptr) {
       *pfunc = func;
     }
     translator_->AddSourceInfoToPackage(*package_);
@@ -308,7 +310,7 @@ void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
       XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
       ASSERT_EQ(val1, test_op.condition ? 1 : 0);
       // Don't check data if it wasn't sent
-      if (val1) {
+      if (val1 != 0u) {
         ASSERT_EQ(elements[0], test_op.value);
       }
     } else {

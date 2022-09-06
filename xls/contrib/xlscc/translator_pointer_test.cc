@@ -19,23 +19,10 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/block_conversion.h"
-#include "xls/codegen/block_generator.h"
-#include "xls/codegen/codegen_options.h"
-#include "xls/codegen/combinational_generator.h"
-#include "xls/common/file/temp_file.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 #include "xls/contrib/xlscc/unit_test.h"
-#include "xls/interpreter/channel_queue.h"
-#include "xls/ir/bits.h"
-#include "xls/ir/block.h"
-#include "xls/ir/ir_test_base.h"
-#include "xls/ir/nodes.h"
-#include "xls/ir/value.h"
 
 namespace xlscc {
 namespace {
@@ -555,11 +542,11 @@ TEST_F(TranslatorPointerTest, ArraySliceAssignNestedTernary) {
         for (int r2 = 0; r2 <= 1; ++r2) {
           int brr[4] = {10, 20, 30, 40};
           int arr[4] = {1, 2, 3, 4};
-          int* const p = w1 ? &brr[1] : (w2 ? &arr[2] : &arr[0]);
+          int* const p = w1 != 0 ? &brr[1] : (w2 != 0 ? &arr[2] : &arr[0]);
           for (int i = 0; i < 2; ++i) {
             p[i] += 3;
           }
-          const int read = r1 ? brr[1] : (r2 ? arr[2] : arr[0]);
+          const int read = r1 != 0 ? brr[1] : (r2 != 0 ? arr[2] : arr[0]);
           Run({{"w1", w1}, {"w2", w2}, {"r1", r1}, {"r2", r2}}, read, content);
         }
       }

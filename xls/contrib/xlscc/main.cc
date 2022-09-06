@@ -24,11 +24,6 @@
 #include "absl/status/status.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_split.h"
-#include "clang/include/clang/AST/Attr.h"
-#include "clang/include/clang/AST/Decl.h"
-#include "clang/include/clang/AST/DeclCXX.h"
-#include "clang/include/clang/AST/Expr.h"
-#include "clang/include/clang/AST/Stmt.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/log_flags.h"
@@ -37,7 +32,6 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/contrib/xlscc/translator.h"
-#include "xls/ir/block.h"
 
 const char kUsage[] = R"(
 Generates XLS IR from a given C++ file, or generates Verilog in the special

@@ -200,18 +200,21 @@ CIntType::operator std::string() const {
   const std::string pre = is_signed_ ? "" : "unsigned_";
   if (width_ == 32) {
     return pre + "int";
-  } else if (width_ == 1) {
-    return pre + "pseudobool";
-  } else if (width_ == 64) {
-    return pre + "int64_t";
-  } else if (width_ == 16) {
-    return pre + "short";
-  } else if (width_ == 8) {
-    return pre + (is_declared_as_char() ? "char" : "int8_t");
-  } else {
-    XLS_CHECK(0);
-    return "Unsupported";
   }
+  if (width_ == 1) {
+    return pre + "pseudobool";
+  }
+  if (width_ == 64) {
+    return pre + "int64_t";
+  }
+  if (width_ == 16) {
+    return pre + "short";
+  }
+  if (width_ == 8) {
+    return pre + (is_declared_as_char() ? "char" : "int8_t");
+  }
+  XLS_CHECK(0);
+  return "Unsupported";
 }
 
 absl::Status CIntType::GetMetadata(Translator& translator,
@@ -283,7 +286,8 @@ absl::Status CInstantiableTypeAlias::GetMetadata(
       reinterpret_cast<uint64_t>(base_));
 
   if (auto special =
-        clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(base_)) {
+          clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
+              base_)) {
     const clang::TemplateArgumentList& arguments = special->getTemplateArgs();
     for (int argi = 0; argi < arguments.size(); ++argi) {
       const clang::TemplateArgument& arg = arguments.get(argi);
@@ -433,8 +437,8 @@ CStructType::operator std::string() const {
   }
   for (const std::shared_ptr<CField>& it : fields_) {
     ostr << "[" << it->index() << "] "
-         << (it->name() ? it->name()->getNameAsString()
-                        : std::string("nullptr"))
+         << (it->name() != nullptr ? it->name()->getNameAsString()
+                                   : std::string("nullptr"))
          << ": " << string(*it->type());
   }
   ostr << "}";
@@ -882,8 +886,9 @@ xls::BValue Translator::GetFunctionReturn(xls::BValue val, int index,
 std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
   std::string res;
   llvm::raw_string_ostream os(res);
-  if (!mangler_)
+  if (!mangler_) {
     mangler_.reset(decl.getDecl()->getASTContext().createMangleContext());
+  }
   mangler_->mangleCXXName(decl, os);
   return res;
 }
@@ -1242,7 +1247,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
   // Generate constructor initializers
   if (auto constructor =
-        clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
+          clang::dyn_cast<const clang::CXXConstructorDecl>(funcdecl)) {
     XLS_CHECK(add_this_return);
     XLS_ASSIGN_OR_RETURN(const clang::NamedDecl* this_decl,
                          GetThisDecl(GetLoc(*constructor)));
@@ -1263,7 +1268,7 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
 
       // Base class constructors don't have member names
       const clang::NamedDecl* member_name = nullptr;
-      if (init->getMember()) {
+      if (init->getMember() != nullptr) {
         member_name =
             absl::implicit_cast<const clang::NamedDecl*>(init->getMember());
       } else {
@@ -1575,7 +1580,7 @@ absl::StatusOr<CValue> Translator::TranslateVarDecl(
   const clang::Expr* initializer = decl->getAnyInitializer();
   std::shared_ptr<LValue> lvalue = nullptr;
   xls::BValue init_val;
-  if (initializer) {
+  if (initializer != nullptr) {
     LValueModeGuard lvalue_mode(*this);
     XLS_ASSIGN_OR_RETURN(CValue cv, GenerateIR_Expr(initializer, loc));
     XLS_ASSIGN_OR_RETURN(init_val, GenTypeConvert(cv, ctype, loc));
@@ -3337,9 +3342,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Expr(const clang::Expr* expr,
                            GenTypeConvert(pv, octype, loc));
       return CValue(converted, octype);
     }
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Unsupported constructor argument count %i",
-                      cast->getNumArgs()));
+    return absl::UnimplementedError(ErrorMessage(
+        loc, "Unsupported constructor argument count %i", cast->getNumArgs()));
   }
   if (auto* cast = clang::dyn_cast<const clang::ArraySubscriptExpr>(expr)) {
     XLS_ASSIGN_OR_RETURN(CValue arr_val, GenerateIR_Expr(cast->getBase(), loc));
@@ -3602,19 +3606,23 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
     std::shared_ptr<CType> t, const xls::SourceInfo& loc) {
   if (t->Is<CIntType>()) {
     return xls::Value(xls::UBits(0, t->As<CIntType>()->width()));
-  } else if (t->Is<CBitsType>()) {
+  }
+  if (t->Is<CBitsType>()) {
     auto it = t->As<CBitsType>();
     return xls::Value(xls::UBits(0, it->GetBitWidth()));
-  } else if (t->Is<CBoolType>()) {
+  }
+  if (t->Is<CBoolType>()) {
     return xls::Value(xls::UBits(0, 1));
-  } else if (t->Is<CArrayType>()) {
+  }
+  if (t->Is<CArrayType>()) {
     auto it = t->As<CArrayType>();
     std::vector<xls::Value> element_vals;
     XLS_ASSIGN_OR_RETURN(xls::Value default_elem_val,
                          CreateDefaultRawValue(it->GetElementType(), loc));
     element_vals.resize(it->GetSize(), default_elem_val);
     return xls::Value::ArrayOrDie(element_vals);
-  } else if (t->Is<CStructType>()) {
+  }
+  if (t->Is<CStructType>()) {
     auto it = t->As<CStructType>();
     vector<xls::Value> args;
     for (const std::shared_ptr<CField>& field : it->fields()) {
@@ -3623,16 +3631,17 @@ absl::StatusOr<xls::Value> Translator::CreateDefaultRawValue(
       args.push_back(fval);
     }
     return MakeStructXLS(args, *it);
-  } else if (t->Is<CInstantiableTypeAlias>()) {
+  }
+  if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto resolved, ResolveTypeInstance(t));
     return CreateDefaultRawValue(resolved, loc);
-  } else if (t->Is<CPointerType>()) {
+  }
+  if (t->Is<CPointerType>()) {
     const CPointerType* pointer_type = t->As<CPointerType>();
     return CreateDefaultRawValue(pointer_type->GetPointeeType(), loc);
-  } else {
-    return absl::UnimplementedError(ErrorMessage(
-        loc, "Don't know how to make default for type %s", std::string(*t)));
   }
+  return absl::UnimplementedError(ErrorMessage(
+      loc, "Don't know how to make default for type %s", std::string(*t)));
 }
 
 absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
@@ -3700,11 +3709,10 @@ absl::StatusOr<xls::BValue> Translator::CreateInitListValue(
       field_vals.push_back(value.rvalue());
     }
     return MakeStructXLS(field_vals, *struct_type_ptr, loc);
-  } else {
-    return absl::UnimplementedError(ErrorMessage(
-        loc, "Don't know how to interpret initializer list for type %s",
-        string(*t)));
   }
+  return absl::UnimplementedError(ErrorMessage(
+      loc, "Don't know how to interpret initializer list for type %s",
+      string(*t)));
 }
 
 absl::StatusOr<xls::Value> Translator::EvaluateNode(xls::Node* node,
@@ -4915,7 +4923,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
   context().in_switch_body = true;
   context().in_for_body = false;
 
-  if (switchst->getInit()) {
+  if (switchst->getInit() != nullptr) {
     return absl::UnimplementedError(ErrorMessage(loc, "Switch init"));
   }
   XLS_ASSIGN_OR_RETURN(CValue switch_val,
@@ -4944,7 +4952,7 @@ absl::Status Translator::GenerateIR_Switch(const clang::SwitchStmt* switchst,
       if (*switch_val.type() != *case_int_type) {
         return absl::UnimplementedError(ErrorMessage(loc, ""));
       }
-      if (case_it->getRHS()) {
+      if (case_it->getRHS() != nullptr) {
         return absl::UnimplementedError(ErrorMessage(loc, "Case RHS"));
       }
       xls::BValue case_condition =
@@ -5140,15 +5148,19 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
   if (t->Is<CIntType>()) {
     auto it = t->As<CIntType>();
     return package_->GetBitsType(it->width());
-  } else if (t->Is<CBitsType>()) {
+  }
+  if (t->Is<CBitsType>()) {
     auto it = t->As<CBitsType>();
     return package_->GetBitsType(it->GetBitWidth());
-  } else if (t->Is<CBoolType>()) {
+  }
+  if (t->Is<CBoolType>()) {
     return package_->GetBitsType(1);
-  } else if (t->Is<CInstantiableTypeAlias>()) {
+  }
+  if (t->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto ctype, ResolveTypeInstance(t));
     return TranslateTypeToXLS(ctype, loc);
-  } else if (t->Is<CStructType>()) {
+  }
+  if (t->Is<CStructType>()) {
     auto it = t->As<CStructType>();
     std::vector<xls::Type*> members;
     for (auto it2 = it->fields().rbegin(); it2 != it->fields().rend(); it2++) {
@@ -5158,17 +5170,17 @@ absl::StatusOr<xls::Type*> Translator::TranslateTypeToXLS(
       members.push_back(ft);
     }
     return GetStructXLSType(members, *it, loc);
-  } else if (t->Is<CArrayType>()) {
+  }
+  if (t->Is<CArrayType>()) {
     auto it = t->As<CArrayType>();
     XLS_ASSIGN_OR_RETURN(auto xls_elem_type,
                          TranslateTypeToXLS(it->GetElementType(), loc));
     return package_->GetArrayType(it->GetSize(), xls_elem_type);
-  } else {
-    auto& r = *t;
-    return absl::UnimplementedError(ErrorMessage(
-        loc, "Unsupported CType subclass in TranslateTypeToXLS: %s",
-        typeid(r).name()));
   }
+  auto& r = *t;
+  return absl::UnimplementedError(
+      ErrorMessage(loc, "Unsupported CType subclass in TranslateTypeToXLS: %s",
+                   typeid(r).name()));
 }
 
 absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
@@ -5776,11 +5788,14 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
   }
   if (out_type->Is<CStructType>()) {
     return in.rvalue();
-  } else if (out_type->Is<CVoidType>()) {
+  }
+  if (out_type->Is<CVoidType>()) {
     return xls::BValue();
-  } else if (out_type->Is<CArrayType>()) {
+  }
+  if (out_type->Is<CArrayType>()) {
     return in.rvalue();
-  } else if (out_type->Is<CBitsType>()) {
+  }
+  if (out_type->Is<CBitsType>()) {
     auto out_bits_type = out_type->As<CBitsType>();
     XLS_ASSIGN_OR_RETURN(auto conv_type, ResolveTypeInstance(in.type()));
     if (!conv_type->Is<CBitsType>()) {
@@ -5794,9 +5809,11 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
           std::string(*in.type()), std::string(*out_type), LocString(loc)));
     }
     return in.rvalue();
-  } else if (out_type->Is<CBoolType>()) {
+  }
+  if (out_type->Is<CBoolType>()) {
     return GenBoolConvert(in, loc);
-  } else if (out_type->Is<CIntType>()) {
+  }
+  if (out_type->Is<CIntType>()) {
     if (!(in.type()->Is<CBoolType>() || in.type()->Is<CIntType>())) {
       return absl::UnimplementedError(ErrorMessage(
           loc, "Cannot convert type %s to int", std::string(*in.type())));
@@ -5805,21 +5822,20 @@ absl::StatusOr<xls::BValue> Translator::GenTypeConvert(
     const int expr_width = in.type()->GetBitWidth();
     if (expr_width == out_type->GetBitWidth()) {
       return in.rvalue();
-    } else if (expr_width < out_type->GetBitWidth()) {
+    }
+    if (expr_width < out_type->GetBitWidth()) {
       auto p_in_int = std::dynamic_pointer_cast<const CIntType>(in.type());
       if ((!in.type()->Is<CBoolType>()) &&
           (p_in_int != nullptr && p_in_int->is_signed())) {
         return context().fb->SignExtend(in.rvalue(), out_type->GetBitWidth(),
                                         loc);
-      } else {
-        return context().fb->ZeroExtend(in.rvalue(), out_type->GetBitWidth(),
-                                        loc);
       }
-    } else {
-      return context().fb->BitSlice(in.rvalue(), 0, out_type->GetBitWidth(),
-                                    loc);
+      return context().fb->ZeroExtend(in.rvalue(), out_type->GetBitWidth(),
+                                      loc);
     }
-  } else if (out_type->Is<CInstantiableTypeAlias>()) {
+    return context().fb->BitSlice(in.rvalue(), 0, out_type->GetBitWidth(), loc);
+  }
+  if (out_type->Is<CInstantiableTypeAlias>()) {
     XLS_ASSIGN_OR_RETURN(auto t, ResolveTypeInstance(out_type));
     return GenTypeConvert(in, t, loc);
   }

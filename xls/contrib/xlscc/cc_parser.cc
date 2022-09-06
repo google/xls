@@ -21,16 +21,14 @@
 #include "absl/status/status.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "clang/include/clang/AST/Decl.h"
+#include "clang/include/clang/AST/RecursiveASTVisitor.h"
 #include "clang/include/clang/Frontend/CompilerInstance.h"
-#include "clang/include/clang/Frontend/FrontendActions.h"
 #include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
-#include "clang/include/clang/Tooling/CommonOptionsParser.h"
 #include "clang/include/clang/Tooling/Tooling.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
-#include "xls/ir/block.h"
 #include "re2/re2.h"
 
 namespace xlscc {
@@ -333,7 +331,7 @@ bool CCParser::LibToolVisitVarDecl(clang::VarDecl* func) {
 
 // Scans for top-level function candidates
 absl::Status CCParser::VisitFunction(const clang::FunctionDecl* funcdecl) {
-  if (!sm_) {
+  if (sm_ == nullptr) {
     sm_ = &funcdecl->getASTContext().getSourceManager();
   }
   const std::string fname = funcdecl->getNameAsString();
@@ -501,7 +499,7 @@ void LibToolFrontendAction::EndSourceFileAction() {
 }
 
 absl::StatusOr<std::string> CCParser::GetEntryFunctionName() const {
-  if (!top_function_) {
+  if (top_function_ == nullptr) {
     return absl::NotFoundError("No top function found");
   }
   return top_function_->getNameAsString();

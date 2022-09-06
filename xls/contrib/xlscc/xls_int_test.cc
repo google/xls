@@ -16,13 +16,9 @@
 #include <memory>
 #include <vector>
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
-#include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "xls/common/file/get_runfile_path.h"
 #include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/unit_test.h"
 

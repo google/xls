@@ -20,23 +20,14 @@
 #include <memory>
 #include <vector>
 
-#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/strings/str_format.h"
-#include "xls/codegen/combinational_generator.h"
 #include "xls/common/file/temp_file.h"
-#include "xls/common/status/matchers.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
 #include "xls/contrib/xlscc/translator.h"
-#include "xls/contrib/xlscc/unit_test.h"
-#include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/function_interpreter.h"
-#include "xls/interpreter/proc_interpreter.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/ir_test_base.h"
-#include "xls/ir/nodes.h"
 #include "xls/ir/value.h"
 
 // Support for XLS[cc] related tests, such as invoking XLS[cc]

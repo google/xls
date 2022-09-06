@@ -21,15 +21,9 @@
 #include "absl/status/statusor.h"
 #include "absl/synchronization/blocking_counter.h"
 #include "clang/include/clang/AST/Decl.h"
-#include "clang/include/clang/AST/RecursiveASTVisitor.h"
-#include "clang/include/clang/Frontend/CompilerInstance.h"
-#include "clang/include/clang/Frontend/FrontendActions.h"
-#include "clang/include/clang/Frontend/TextDiagnosticPrinter.h"
-#include "clang/include/clang/Tooling/CommonOptionsParser.h"
-#include "clang/include/clang/Tooling/Tooling.h"
 #include "xls/common/thread.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
-#include "xls/ir/block.h"
+#include "xls/ir/package.h"
 #include "xls/ir/source_location.h"
 
 namespace xlscc {
