@@ -1319,7 +1319,7 @@ import std
 pub const MY_CONST = u32:5;
 pub enum ImportEnum : u16 {
   SINGLE_MY_CONST = MY_CONST as u16,
-  SOMETHING_MY_CONST = std::clog2(MY_CONST) as u16 * u16:2,
+  DOUBLE_MY_CONST = std::clog2(MY_CONST) as u16 * u16:2,
   TRIPLE_MY_CONST = (MY_CONST * u32:3) as u16,
 }
 )";
@@ -1336,7 +1336,7 @@ type ImportedEnum = stuff::ImportEnum;
 
 fn main(x: u32) -> u32 {
   stuff::ImportEnum::TRIPLE_MY_CONST as u32 +
-      (ImportedEnum::SOMETHING_MY_CONST as u32) +
+      (ImportedEnum::DOUBLE_MY_CONST as u32) +
       (stuff::ImportEnum::SINGLE_MY_CONST as u32)
 })";
 

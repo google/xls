@@ -2,37 +2,13 @@ package test_module
 
 file_number 0 "fake_file.x"
 
-fn __std__clog2__32(x: bits[32]) -> bits[32] {
-  literal.6: bits[32] = literal(value=1, id=6)
-  sub.7: bits[32] = sub(x, literal.6, id=7)
-  reverse.8: bits[32] = reverse(sub.7, id=8)
-  one_hot.9: bits[33] = one_hot(reverse.8, lsb_prio=true, id=9)
-  N: bits[32] = literal(value=32, id=2)
-  encode.10: bits[6] = encode(one_hot.9, id=10)
-  literal.3: bits[32] = literal(value=1, id=3)
-  zero_ext.5: bits[32] = zero_ext(N, new_bit_count=32, id=5)
-  zero_ext.11: bits[32] = zero_ext(encode.10, new_bit_count=32, id=11)
-  uge.4: bits[1] = uge(x, literal.3, id=4)
-  literal.13: bits[32] = literal(value=0, id=13)
-  sub.12: bits[32] = sub(zero_ext.5, zero_ext.11, id=12)
-  ret sel.14: bits[32] = sel(uge.4, cases=[literal.13, sub.12], id=14)
-}
-
 fn __test_module__main(x: bits[32]) -> bits[32] {
-  MY_CONST__1: bits[32] = literal(value=5, id=21)
-  MY_CONST: bits[32] = literal(value=5, id=16)
-  literal.17: bits[32] = literal(value=3, id=17)
-  invoke.22: bits[32] = invoke(MY_CONST__1, to_apply=__std__clog2__32, id=22)
-  umul.18: bits[32] = umul(MY_CONST, literal.17, id=18)
-  bit_slice.23: bits[16] = bit_slice(invoke.22, start=0, width=16, id=23)
-  literal.24: bits[16] = literal(value=2, id=24)
-  bit_slice.19: bits[16] = bit_slice(umul.18, start=0, width=16, id=19)
-  umul.25: bits[16] = umul(bit_slice.23, literal.24, id=25)
-  MY_CONST__2: bits[32] = literal(value=5, id=28)
-  zero_ext.20: bits[32] = zero_ext(bit_slice.19, new_bit_count=32, id=20)
-  zero_ext.26: bits[32] = zero_ext(umul.25, new_bit_count=32, id=26)
-  bit_slice.29: bits[16] = bit_slice(MY_CONST__2, start=0, width=16, id=29)
-  add.27: bits[32] = add(zero_ext.20, zero_ext.26, id=27)
-  zero_ext.30: bits[32] = zero_ext(bit_slice.29, new_bit_count=32, id=30)
-  ret add.31: bits[32] = add(add.27, zero_ext.30, id=31)
+  literal.2: bits[16] = literal(value=15, id=2)
+  literal.4: bits[16] = literal(value=6, id=4)
+  zero_ext.3: bits[32] = zero_ext(literal.2, new_bit_count=32, id=3)
+  zero_ext.5: bits[32] = zero_ext(literal.4, new_bit_count=32, id=5)
+  literal.7: bits[16] = literal(value=5, id=7)
+  add.6: bits[32] = add(zero_ext.3, zero_ext.5, id=6)
+  zero_ext.8: bits[32] = zero_ext(literal.7, new_bit_count=32, id=8)
+  ret add.9: bits[32] = add(add.6, zero_ext.8, id=9)
 }

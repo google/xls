@@ -826,7 +826,7 @@ xls_dslx_ir(
 xls_ir_opt_ir(
     name = "non_blocking_receives_opt_ir",
     src = ":non_blocking_receives_ir.ir",
-    top = "__non_blocking_receives__proc_main__test_impl_0_next",
+    top = "__non_blocking_receives__proc_main_0_next",
 )
 
 exports_files([

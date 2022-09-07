@@ -3,17 +3,13 @@ package test_module
 file_number 0 "fake_file.x"
 
 fn __test_module__f() -> bits[8] {
-  literal.1: bits[8] = literal(value=1, id=1)
-  literal.2: bits[8] = literal(value=2, id=2)
-  FOO: bits[8][2] = array(literal.1, literal.2, id=3)
-  literal.4: bits[32] = literal(value=0, id=4)
-  ret array_index.5: bits[8] = array_index(FOO, indices=[literal.4], id=5)
+  FOO: bits[8][2] = literal(value=[1, 2], id=1)
+  literal.2: bits[32] = literal(value=0, id=2)
+  ret array_index.3: bits[8] = array_index(FOO, indices=[literal.2], id=3)
 }
 
 fn __test_module__g() -> bits[8] {
-  literal.6: bits[8] = literal(value=1, id=6)
-  literal.7: bits[8] = literal(value=2, id=7)
-  FOO: bits[8][2] = array(literal.6, literal.7, id=8)
-  literal.9: bits[32] = literal(value=1, id=9)
-  ret array_index.10: bits[8] = array_index(FOO, indices=[literal.9], id=10)
+  FOO: bits[8][2] = literal(value=[1, 2], id=4)
+  literal.5: bits[32] = literal(value=1, id=5)
+  ret array_index.6: bits[8] = array_index(FOO, indices=[literal.5], id=6)
 }

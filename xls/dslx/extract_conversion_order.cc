@@ -264,7 +264,8 @@ bool operator==(const CalleeCollectorVisitor::CalleeInfo& lhs,
   return lhs.module == rhs.module && lhs.function == rhs.function;
 }
 
-class InvocationVisitor : public AstNodeVisitorWithDefault {
+// Collects all Invocation nodes below the visited node.
+class InvocationVisitor : public ExprVisitor {
  public:
   InvocationVisitor(Module* module, TypeInfo* type_info,
                     const SymbolicBindings& bindings,
@@ -286,8 +287,63 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     TypeInfo* type_info = nullptr;
   };
 
+  absl::Status HandleArray(const Array* expr) override {
+    for (const Expr* element : expr->members()) {
+      XLS_RETURN_IF_ERROR(element->AcceptExpr(this));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleAttr(const Attr* expr) override {
+    return expr->lhs()->AcceptExpr(this);
+  }
+
+  absl::Status HandleBinop(const Binop* expr) override {
+    XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
+    return expr->rhs()->AcceptExpr(this);
+  }
+
+  absl::Status HandleBlock(const Block* expr) override {
+    return expr->body()->AcceptExpr(this);
+  }
+
+  absl::Status HandleCast(const Cast* expr) override {
+    return expr->expr()->AcceptExpr(this);
+  }
+
+  absl::Status HandleConstantArray(const ConstantArray* expr) override {
+    return HandleArray(expr);
+  }
+
+  absl::Status HandleFor(const For* expr) override {
+    XLS_RETURN_IF_ERROR(expr->init()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->iterable()->AcceptExpr(this));
+    return expr->body()->AcceptExpr(this);
+  }
+
+  absl::Status HandleFormatMacro(const FormatMacro* expr) override {
+    for (const Expr* arg : expr->args()) {
+      XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
+    }
+    return absl::OkStatus();
+  }
+
+  absl::Status HandleIndex(const Index* expr) override {
+    XLS_RETURN_IF_ERROR(expr->lhs()->AcceptExpr(this));
+    // WidthSlice and Slice alternatives only contain constant values and so
+    // don't need to be traversed.
+    if (std::holds_alternative<Expr*>(expr->rhs())) {
+      XLS_RETURN_IF_ERROR(std::get<Expr*>(expr->rhs())->AcceptExpr(this));
+    }
+    return absl::OkStatus();
+  }
+
   absl::Status HandleInvocation(const Invocation* node) override {
     std::optional<CalleeInfo> callee_info;
+    for (const Expr* arg : node->args()) {
+      XLS_RETURN_IF_ERROR(arg->AcceptExpr(this));
+    }
+
     if (auto* colon_ref = dynamic_cast<ColonRef*>(node->callee())) {
       XLS_ASSIGN_OR_RETURN(callee_info, HandleColonRefInvocation(colon_ref));
     } else if (auto* name_ref = dynamic_cast<NameRef*>(node->callee())) {
@@ -358,94 +414,102 @@ class InvocationVisitor : public AstNodeVisitorWithDefault {
     return absl::OkStatus();
   }
 
-  absl::Status HandleColonRef(const ColonRef* node) override {
-    // Aside from direct function invocations (handled above), ColonRefs may
-    // themselves be defined by arbitrary expressions, which may themselves
-    // contain invocations, e.g.,
-    // pub const MY_EXPORTED_CONSTANT = foo(u32:5);
-    // so we need to traverse them.
-    std::optional<Import*> import = node->ResolveImportSubject();
-    if (!import.has_value()) {
-      return absl::OkStatus();
+  absl::Status HandleLet(const Let* expr) override {
+    XLS_RETURN_IF_ERROR(expr->rhs()->AcceptExpr(this));
+    return expr->body()->AcceptExpr(this);
+  }
+
+  absl::Status HandleMatch(const Match* expr) override {
+    XLS_RETURN_IF_ERROR(expr->matched()->AcceptExpr(this));
+    for (const MatchArm* arm : expr->arms()) {
+      XLS_RETURN_IF_ERROR(arm->expr()->AcceptExpr(this));
     }
-
-    std::optional<const ImportedInfo*> info = type_info_->GetImported(*import);
-    XLS_RET_CHECK(info.has_value());
-    Module* import_mod = (*info)->module;
-    TypeInfo* import_type_info = (*info)->type_info;
-    auto member_or = import_mod->FindMemberWithName(node->attr());
-    XLS_RET_CHECK(member_or.has_value());
-    ModuleMember* mm = member_or.value();
-
-    // Constants or enum values could be defined in terms of constant
-    // invocations, so we need to traverse values each sort.
-    // Other ModuleMembers (Function, TestFunction, QuickCheck, StructDef,
-    // Import) can't be defined in terms of constants, so they can be skipped.
-    // TODO(rspringer): 2021-03-10 Currently, type aliases of the form:
-    //   pub const MY_CONST = u32:1024;
-    //   pub type MyType = u32[std::clog2(MY_CONST)];
-    // can't be deduced. Once they can, then TypeDefs will need to be added
-    // here. Check StructDefs then, as well (e.g.,
-    //   struct Foo {
-    //     a: bits[std::clog2(MY_CONST)],
-    //   }
-    if (absl::holds_alternative<ConstantDef*>(*mm)) {
-      ConstantDef* member = absl::get<ConstantDef*>(*mm);
-      XLS_VLOG(5) << absl::StreamFormat("ColonRef %s @ %s is to ConstantDef",
-                                        node->ToString(),
-                                        node->span().ToString());
-      // Note that constant definitions may be local -- we /only/ pass our
-      // bindings if it is a local constant definition. Otherwise it's at the
-      // top level and we use fresh bindings.
-      // We need a new visitor since it's acting on a different module.
-      InvocationVisitor sub_visitor(import_mod, import_type_info, bindings_,
-                                    proc_id_);
-      XLS_RETURN_IF_ERROR(
-          WalkPostOrder(member, &sub_visitor, /*want_types=*/true));
-      callees_.insert(callees_.end(), sub_visitor.callees().begin(),
-                      sub_visitor.callees().end());
-    } else if (absl::holds_alternative<EnumDef*>(*mm)) {
-      EnumDef* member = absl::get<EnumDef*>(*mm);
-      SymbolicBindings empty_bindings;
-      InvocationVisitor sub_visitor(import_mod, import_type_info,
-                                    empty_bindings, proc_id_);
-      XLS_RETURN_IF_ERROR(
-          WalkPostOrder(member, &sub_visitor, /*want_types=*/true));
-      callees_.insert(callees_.end(), sub_visitor.callees().begin(),
-                      sub_visitor.callees().end());
-    }
-
     return absl::OkStatus();
   }
 
-  absl::Status HandleConstRef(const ConstRef* node) override {
-    XLS_RET_CHECK(node->name_def() != nullptr);
-    AstNode* definer = node->name_def()->definer();
-    if (definer == nullptr) {
-      XLS_VLOG(3) << "NULL ConstRef definer: " << node->ToString();
-      return absl::OkStatus();
-    }
+  absl::Status HandleRange(const Range* expr) override {
+    XLS_RETURN_IF_ERROR(expr->start()->AcceptExpr(this));
+    return expr->end()->AcceptExpr(this);
+  }
 
-    if (dynamic_cast<Let*>(definer) != nullptr) {
-      // We've already walked any local constant definitions.
-      return absl::OkStatus();
-    }
+  absl::Status HandleRecvIf(const RecvIf* expr) override {
+    return expr->condition()->AcceptExpr(this);
+  }
 
-    SymbolicBindings empty_bindings;
-    InvocationVisitor sub_visitor(module_, type_info_, empty_bindings,
-                                  proc_id_);
-    XLS_RETURN_IF_ERROR(WalkPostOrder(definer, this, /*want_types=*/true));
+  absl::Status HandleSend(const Send* expr) override {
+    return expr->payload()->AcceptExpr(this);
+  }
+
+  absl::Status HandleSendIf(const SendIf* expr) override {
+    XLS_RETURN_IF_ERROR(expr->condition()->AcceptExpr(this));
+    return expr->payload()->AcceptExpr(this);
+  }
+
+  absl::Status HandleSpawn(const Spawn* expr) override {
+    XLS_RETURN_IF_ERROR(expr->callee()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->config()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->next()->AcceptExpr(this));
+    return expr->body()->AcceptExpr(this);
+  }
+
+  absl::Status HandleSplatStructInstance(
+      const SplatStructInstance* expr) override {
+    XLS_RETURN_IF_ERROR(expr->splatted()->AcceptExpr(this));
+    for (const auto& member : expr->members()) {
+      XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
+    }
     return absl::OkStatus();
   }
 
-  absl::Status HandleTypeRef(const TypeRef* n) {
-    SymbolicBindings empty_bindings;
-    InvocationVisitor sub_visitor(module_, type_info_, empty_bindings,
-                                  proc_id_);
-    XLS_RETURN_IF_ERROR(WalkPostOrder(ToAstNode(n->type_definition()), this,
-                                      /*want_types=*/false));
+  absl::Status HandleStructInstance(const StructInstance* expr) override {
+    for (const auto& member : expr->GetUnorderedMembers()) {
+      XLS_RETURN_IF_ERROR(member.second->AcceptExpr(this));
+    }
     return absl::OkStatus();
   }
+
+  absl::Status HandleTernary(const Ternary* expr) override {
+    XLS_RETURN_IF_ERROR(expr->test()->AcceptExpr(this));
+    XLS_RETURN_IF_ERROR(expr->consequent()->AcceptExpr(this));
+    return expr->alternate()->AcceptExpr(this);
+  }
+
+  absl::Status HandleTupleIndex(const TupleIndex* expr) override {
+    return expr->lhs()->AcceptExpr(this);
+  }
+
+  absl::Status HandleUnop(const Unop* expr) override {
+    return expr->operand()->AcceptExpr(this);
+  }
+
+  absl::Status HandleXlsTuple(const XlsTuple* expr) override {
+    for (const Expr* member : expr->members()) {
+      XLS_RETURN_IF_ERROR(member->AcceptExpr(this));
+    }
+    return absl::OkStatus();
+  }
+
+  // Null handlers (we're not using ExprVisitorWithDefault to guard against
+  // accidental omissions).
+#define DEFAULT_HANDLE(TYPE) \
+  absl::Status Handle##TYPE(const TYPE*) override { return absl::OkStatus(); }
+
+  // No ColonRef handling (ColonRef invocations are handled in HandleInvocation;
+  // all other ColonRefs are to constant values, which don't need their deriving
+  // exprs converted to IR.
+  // No ConstRef handling: constants don't need their defiving exprs converted
+  // to IR.
+  DEFAULT_HANDLE(ChannelDecl)
+  DEFAULT_HANDLE(ColonRef)
+  DEFAULT_HANDLE(ConstRef)
+  DEFAULT_HANDLE(Join)
+  DEFAULT_HANDLE(NameRef)
+  DEFAULT_HANDLE(Number)
+  DEFAULT_HANDLE(Recv)
+  DEFAULT_HANDLE(RecvNonBlocking)
+  DEFAULT_HANDLE(String)
+  DEFAULT_HANDLE(UnrollFor)
+#undef DEFAULT_HANDLE
 
   std::vector<Callee>& callees() { return callees_; }
 
@@ -590,13 +654,12 @@ static void RemoveFunctionDuplicates(std::vector<ConversionRecord>* ready) {
 //   Callee functions invoked by "node", and the parametric bindings used in
 //   each of those invocations.
 static absl::StatusOr<std::vector<Callee>> GetCallees(
-    AstNode* node, Module* m, TypeInfo* type_info,
+    Expr* node, Module* m, TypeInfo* type_info,
     const SymbolicBindings& bindings, std::optional<ProcId> proc_id) {
   XLS_VLOG(5) << "Getting callees of " << node->ToString();
   XLS_CHECK_EQ(type_info->module(), m);
   InvocationVisitor visitor(m, type_info, bindings, proc_id);
-  XLS_RETURN_IF_ERROR(
-      WalkPostOrder(ToAstNode(node), &visitor, /*want_types=*/true));
+  XLS_RETURN_IF_ERROR(node->AcceptExpr(&visitor));
   return std::move(visitor.callees());
 }
 
@@ -667,9 +730,14 @@ static absl::Status AddToReady(absl::variant<Function*, TestFunction*> f,
     return absl::OkStatus();
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      const std::vector<Callee> orig_callees,
-      GetCallees(ToAstNode(f), m, type_info, bindings, proc_id));
+  Expr* body;
+  if (std::holds_alternative<Function*>(f)) {
+    body = std::get<Function*>(f)->body();
+  } else {
+    body = std::get<TestFunction*>(f)->body();
+  }
+  XLS_ASSIGN_OR_RETURN(const std::vector<Callee> orig_callees,
+                       GetCallees(body, m, type_info, bindings, proc_id));
   XLS_VLOG(5) << "Original callees of " << absl::get<Function*>(f)->identifier()
               << ": " << CalleesToString(orig_callees);
   XLS_RETURN_IF_ERROR(ProcessCallees(orig_callees, ready));
@@ -764,9 +832,9 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(Module* module,
                                      {}));
     } else if (absl::holds_alternative<ConstantDef*>(member)) {
       auto* constant_def = absl::get<ConstantDef*>(member);
-      XLS_ASSIGN_OR_RETURN(
-          const std::vector<Callee> callees,
-          GetCallees(constant_def, module, type_info, SymbolicBindings(), {}));
+      XLS_ASSIGN_OR_RETURN(const std::vector<Callee> callees,
+                           GetCallees(constant_def->value(), module, type_info,
+                                      SymbolicBindings(), {}));
       XLS_RETURN_IF_ERROR(ProcessCallees(callees, &ready));
     }
   }

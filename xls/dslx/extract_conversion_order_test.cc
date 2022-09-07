@@ -148,11 +148,9 @@ fn entry() -> u32 { MY_VALUE }
                            tm.module->GetMemberOrError<Function>("entry"));
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<ConversionRecord> order,
                            GetOrderForEntry(f, tm.type_info));
-  ASSERT_EQ(2, order.size());
-  EXPECT_EQ(order[0].f()->identifier(), "id");
-  EXPECT_FALSE(order[0].IsTop());
-  EXPECT_EQ(order[1].f()->identifier(), "entry");
-  EXPECT_TRUE(order[1].IsTop());
+  ASSERT_EQ(1, order.size());
+  EXPECT_EQ(order[0].f()->identifier(), "entry");
+  EXPECT_TRUE(order[0].IsTop());
 }
 
 TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionSingleFunction) {

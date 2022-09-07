@@ -25,7 +25,6 @@
 #include "xls/dslx/ir_converter.h"
 
 #include "absl/status/status.h"
-#include "absl/strings/str_replace.h"
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
 #include "xls/dslx/ast.h"
@@ -1152,8 +1151,15 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
 }
 
 absl::Status FunctionConverter::HandleConstantDef(const ConstantDef* node) {
+  // We've already evaluated constants to their values; we don't need to dive
+  // into them for [useless] IR conversion.
   XLS_VLOG(5) << "Visiting ConstantDef expr: " << node->value()->ToString();
-  XLS_RETURN_IF_ERROR(Visit(node->value()));
+  XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                       current_type_info_->GetConstExpr(node->value()));
+  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+  Def(node->value(), [this, &value](const SourceInfo& loc) {
+    return function_builder_->Literal(value, loc);
+  });
   XLS_VLOG(5) << "Aliasing NameDef for constant: "
               << node->name_def()->ToString();
   return DefAlias(node->value(), /*to=*/node->name_def());
@@ -2676,16 +2682,16 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data_->GetRootTypeInfo(enum_def->owner()));
   ScopedTypeInfoSwap stis(this, type_info);
-  XLS_ASSIGN_OR_RETURN(Expr * value, enum_def->GetValue(node->attr()));
+  XLS_ASSIGN_OR_RETURN(Expr * attr_value, enum_def->GetValue(node->attr()));
 
-  // Find and visit transitive dependencies as above.
-  XLS_ASSIGN_OR_RETURN(auto constant_deps, GetConstantDepFreevars(value));
-  for (const auto& dep : constant_deps) {
-    XLS_RETURN_IF_ERROR(Visit(dep));
-  }
-
-  XLS_RETURN_IF_ERROR(Visit(value));
-  return DefAlias(/*from=*/value, /*to=*/node);
+  // We've already computed enum member values during constexpr eval.
+  XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                       current_type_info_->GetConstExpr(attr_value));
+  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+  Def(node, [this, &value](const SourceInfo& loc) {
+    return function_builder_->Literal(value, loc);
+  });
+  return absl::OkStatus();
 }
 
 absl::Status FunctionConverter::HandleSplatStructInstance(
