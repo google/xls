@@ -34,7 +34,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/jit/serial_proc_runtime.h"
-#include "xls/modules/aes/aes_128_test_common.h"
+#include "xls/modules/aes/aes_test_common.h"
 
 // TODO(rspringer): This is a bit slow. Seems like we should be able to compute
 // 1k samples a lot faster than 2 minutes.
@@ -54,6 +54,10 @@ constexpr absl::string_view kIrPath = "xls/modules/aes/aes_128_gcm.ir";
 constexpr absl::string_view kCmdChannelName = "aes_128_gcm__command_in";
 constexpr absl::string_view kDataInChannelName = "aes_128_gcm__data_in";
 constexpr absl::string_view kDataOutChannelName = "aes_128_gcm__data_out";
+
+constexpr int kKeyBits = 128;
+constexpr int kKeyBytes = kKeyBits / 8;
+using Key = std::array<uint8_t, kKeyBytes>;
 
 struct JitData {
   std::unique_ptr<Package> package;
@@ -89,7 +93,7 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   // aad_blocks
   command_elements.push_back(Value(UBits(sample_data.aad.size(), 32)));
   // Key
-  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(sample_data.key));
+  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue<kKeyBytes>(sample_data.key));
   command_elements.push_back(key_value);
   // IV
   command_elements.push_back(InitVectorToValue(sample_data.init_vector));
@@ -336,7 +340,8 @@ absl::Status RealMain(int num_samples) {
 
     XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&jit_data, sample_data));
     if (!proceed) {
-      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
+      std::cout << "Key      : " << FormatKey<kKeyBytes>(sample_data.key)
+                << std::endl;
       std::cout << "IV       : " << FormatInitVector(sample_data.init_vector)
                 << std::endl;
       std::cout << "Plaintext: " << std::endl

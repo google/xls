@@ -11,7 +11,7 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#include "xls/modules/aes/aes_128_test_common.h"
+#include "xls/modules/aes/aes_test_common.h"
 
 #include <arpa/inet.h>
 
@@ -23,14 +23,6 @@
 #include "xls/ir/bits_ops.h"
 
 namespace xls::aes {
-
-std::string FormatKey(const std::array<uint8_t, kKeyBytes>& key) {
-  return absl::StrFormat(
-      "0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, "
-      "0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x, 0x%02x",
-      key[0], key[1], key[2], key[3], key[4], key[5], key[6], key[7], key[8],
-      key[9], key[10], key[11], key[12], key[13], key[14], key[15]);
-}
 
 std::string FormatBlock(const Block& block) {
   return absl::StrFormat(
@@ -72,22 +64,6 @@ void PrintFailure(const Block& expected_block, const Block& actual_block,
   std::cout << " - Actual block  : " << FormatBlock(actual_block) << std::endl;
 }
 
-absl::StatusOr<Value> KeyToValue(const Key& key) {
-  constexpr int32_t kKeyWords = kKeyBits / 32;
-  std::vector<Value> key_values;
-  key_values.reserve(kKeyWords);
-  for (int32_t i = 0; i < kKeyWords; i++) {
-    uint32_t q = i * kKeyWords;
-    // XLS is big-endian, so we have to populate the key in "reverse" order.
-    uint32_t key_word = static_cast<uint32_t>(key[q + 3]) |
-                        static_cast<uint32_t>(key[q + 2]) << 8 |
-                        static_cast<uint32_t>(key[q + 1]) << 16 |
-                        static_cast<uint32_t>(key[q]) << 24;
-    key_values.push_back(Value(UBits(key_word, /*bit_count=*/32)));
-  }
-  return Value::Array(key_values);
-}
-
 Value InitVectorToValue(const InitVector& iv) {
   std::vector<Bits> iv_bits;
   iv_bits.reserve(kInitVectorBytes);
@@ -123,18 +99,6 @@ absl::StatusOr<Block> ValueToBlock(const Value& value) {
   }
 
   return result;
-}
-
-// TODO(rspringer): Yes, this is ugly. This should really be done via
-// JitRuntime::BlitValueToBuffer() or some other llvm::DataLayout-aware call.
-// Such cleanups are doing to be done _en_masse_ once the AES implementation is
-// complete.
-void KeyToBuffer(const Key& key, std::array<uint32_t, 4>* buffer) {
-  for (int32_t i = 0; i < 4; i++) {
-    uint32_t key_word =
-        htonl(*reinterpret_cast<const uint32_t*>(key.data() + i * 4));
-    buffer->data()[i] = key_word;
-  }
 }
 
 }  // namespace xls::aes

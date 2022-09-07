@@ -21,22 +21,13 @@ import xls.modules.aes.aes_128_common
 import xls.modules.aes.aes_common
 import xls.modules.aes.constants
 
-pub const NUM_ROUNDS = u32:10;
+const NUM_ROUNDS = u32:10;
 
+type Block = aes_common::Block;
 type KeyWord = aes_common::KeyWord;
 type Key = aes_128_common::Key;
 type KeySchedule = aes_common::RoundKey[NUM_ROUNDS + u32:1];
-type Block = aes_common::Block;
-
-// Produces a key whose bytes are in the same order as the incoming byte stream,
-// e.g.,
-// "abcd..." (i.e., 0x61, 0x62, 0x63, 0x64...) -> [0x61626364, ...]
-pub fn bytes_to_key(bytes: u8[16]) -> Key {
-    Key:[bytes[0] ++ bytes[1] ++ bytes[2] ++ bytes[3],
-         bytes[4] ++ bytes[5] ++ bytes[6] ++ bytes[7],
-         bytes[8] ++ bytes[9] ++ bytes[10] ++ bytes[11],
-         bytes[12] ++ bytes[13] ++ bytes[14] ++ bytes[15]]
-}
+type RoundKey = aes_common::RoundKey;
 
 // Creates the set of keys used for each [of the 9] rounds of encryption.
 pub fn create_key_schedule(key : Key) -> KeySchedule {
@@ -49,7 +40,7 @@ pub fn create_key_schedule(key : Key) -> KeySchedule {
         let word1 = sched[round - u32:1][1] ^ word0;
         let word2 = sched[round - u32:1][2] ^ word1;
         let word3 = sched[round - u32:1][3] ^ word2;
-        let sched = update(sched, round, Key:[word0, word1, word2, word3]);
+        let sched = update(sched, round, RoundKey:[word0, word1, word2, word3]);
         (sched, word3)
     }((sched, sched[0][3]));
     sched
@@ -139,12 +130,12 @@ fn test_aes_encrypt() {
 pub fn aes_decrypt(key: Key, block: Block) -> Block {
     let round_keys = create_key_schedule(key);
 
-    let block = aes_common::add_round_key(block, round_keys[10]);
+    let block = aes_common::add_round_key(block, round_keys[NUM_ROUNDS]);
     let block = aes_common::inv_shift_rows(block);
     let block = aes_common::inv_sub_bytes(block);
 
-    let block = for (i, block): (u32, Block) in range(u32:1, u32:10) {
-        let block = aes_common::add_round_key(block, round_keys[u32:10 - i]);
+    let block = for (i, block): (u32, Block) in range(u32:1, NUM_ROUNDS) {
+        let block = aes_common::add_round_key(block, round_keys[NUM_ROUNDS - i]);
         let block = aes_common::inv_mix_columns(block);
         let block = aes_common::inv_shift_rows(block);
         let block = aes_common::inv_sub_bytes(block);

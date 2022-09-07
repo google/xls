@@ -38,7 +38,7 @@
 #include "xls/ir/ir_parser.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/proc_jit.h"
-#include "xls/modules/aes/aes_128_test_common.h"
+#include "xls/modules/aes/aes_test_common.h"
 
 constexpr absl::string_view kEncrypterIrPath = "xls/modules/aes/aes_128_ctr.ir";
 
@@ -49,8 +49,9 @@ ABSL_FLAG(bool, print_traces, false,
 
 namespace xls::aes {
 
-constexpr int32_t kIvBits = 96;
-constexpr int32_t kIvBytes = kIvBits / 8;
+constexpr int kKeyBits = 128;
+constexpr int kKeyBytes = kKeyBits / 8;
+using Key = std::array<uint8_t, kKeyBytes>;
 
 struct SampleData {
   Key key;
@@ -66,22 +67,12 @@ struct JitData {
   std::unique_ptr<JitChannelQueueManager> queue_mgr;
 };
 
-// Populates the given buffer with the value of "key". In DSLX land, a key is
-// four sequential u32s, but XLS is big-endian, so we need to re-lay out our
-// bits appropriately.
-// TODO(rspringer): Yes, this is ugly. This should really be done via
-// JitRuntime::BlitValueToBuffer() or some other llvm::DataLayout-aware call.
-// Such cleanups are doing to be done _en_masse_ once the AES implementation is
-// complete.
-void KeyToBuffer(const Key& key, std::array<uint8_t, kKeyBytes>* buffer) {
-  memcpy(buffer, key.data(), kKeyBytes);
-}
-
 // In the DSLX, the IV is treated as a uN[96], so we potentially need to swap
 // its byte ordering as well.
-void IvToBuffer(const InitVector& iv, std::array<uint8_t, kIvBytes>* buffer) {
-  for (int i = kIvBytes - 1; i >= 0; i--) {
-    buffer->data()[i] = iv[kIvBytes - 1 - i];
+void IvToBuffer(const InitVector& iv,
+                std::array<uint8_t, kInitVectorBytes>* buffer) {
+  for (int i = kInitVectorBytes - 1; i >= 0; i--) {
+    buffer->data()[i] = iv[kInitVectorBytes - 1 - i];
   }
 }
 
@@ -132,7 +123,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
     uint32_t msg_bytes;
     std::array<uint32_t, 4> key;
     uint32_t padding;
-    std::array<uint8_t, kIvBytes> init_vector;
+    std::array<uint8_t, kInitVectorBytes> init_vector;
     uint32_t padding_2;
     uint32_t initial_ctr;
     uint32_t padding_3;
@@ -141,7 +132,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   uint32_t num_bytes = num_blocks * kBlockBytes;
   CtrCommand command;
   command.msg_bytes = num_bytes;
-  KeyToBuffer(sample_data.key, &command.key);
+  KeyToBuffer<kKeyBytes, 4>(sample_data.key, &command.key);
   IvToBuffer(sample_data.iv, &command.init_vector);
   command.initial_ctr = 0;
 
@@ -197,11 +188,11 @@ std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
   uint8_t local_key[kKeyBytes];
   memcpy(local_key, sample_data.key.data(), kKeyBytes);
   uint8_t local_iv[kKeyBytes];
-  memcpy(local_iv, sample_data.iv.data(), kIvBytes);
+  memcpy(local_iv, sample_data.iv.data(), kInitVectorBytes);
   // The BoringSSL implementation expects a 128-bit IV, instead of the 96-bit
   // one that XLS uses, so we pad it out with zeroes.
   for (int i = 0; i < 4; i++) {
-    local_iv[kIvBytes + i] = 0;
+    local_iv[kInitVectorBytes + i] = 0;
   }
 
   uint8_t ecount[kKeyBytes] = {0};
@@ -363,14 +354,15 @@ absl::Status RealMain(int32_t num_samples) {
             absl::Uniform(bitgen, 0, 256);
       }
     }
-    for (int32_t j = 0; j < kIvBytes; j++) {
+    for (int32_t j = 0; j < kInitVectorBytes; j++) {
       sample_data.iv[j] = absl::Uniform(bitgen, 0, 256);
     }
 
     XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&encrypt_jit_data, sample_data,
                                                  &xls_encrypt_dur));
     if (!proceed) {
-      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
+      std::cout << "Key      : " << FormatKey<kKeyBytes>(sample_data.key)
+                << std::endl;
       std::cout << "IV       : " << FormatInitVector(sample_data.iv)
                 << std::endl;
       std::cout << "Plaintext: " << std::endl

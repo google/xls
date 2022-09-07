@@ -13,11 +13,6 @@
 // limitations under the License.
 
 // Test to compare the outputs of a reference vs. XLS AES implementation.
-// Currently only supports AES-128 in CBC mode, but that may be expanded in the
-// future.
-//
-// The code is unique_ptr heavy, but that'll change once templated over
-// various key lengths.
 #include <cstdint>
 #include <vector>
 
@@ -33,8 +28,8 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value.h"
-#include "xls/modules/aes/aes_128_decrypt_cc.h"
-#include "xls/modules/aes/aes_128_encrypt_cc.h"
+#include "xls/modules/aes/aes_256_decrypt_cc.h"
+#include "xls/modules/aes/aes_256_encrypt_cc.h"
 #include "xls/modules/aes/aes_test_common.h"
 
 ABSL_FLAG(int32_t, num_samples, 1000,
@@ -42,16 +37,16 @@ ABSL_FLAG(int32_t, num_samples, 1000,
 
 namespace xls::aes {
 
-constexpr int kKeyBits = 128;
+constexpr int kKeyBits = 256;
 constexpr int kKeyBytes = kKeyBits / 8;
 using Key = std::array<uint8_t, kKeyBytes>;
 
 absl::StatusOr<Block> XlsEncrypt(const Key& key, const Block& plaintext) {
-  // Not sure why Clang isn't able to infer the "16" correctly, but w/e.
+  // Not sure why Clang isn't able to infer the "32" correctly, but w/e.
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue<kKeyBytes>(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(plaintext));
   XLS_ASSIGN_OR_RETURN(Value result_value,
-                       xls::aes::aes_encrypt(key_value, block_value));
+                       xls::aes_256::encrypt(key_value, block_value));
   return ValueToBlock(result_value);
 }
 
@@ -59,7 +54,7 @@ absl::StatusOr<Block> XlsDecrypt(const Key& key, const Block& ciphertext) {
   XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue<kKeyBytes>(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(ciphertext));
   XLS_ASSIGN_OR_RETURN(Value result_value,
-                       xls::aes::aes_decrypt(key_value, block_value));
+                       xls::aes_256::decrypt(key_value, block_value));
   return ValueToBlock(result_value);
 }
 
@@ -82,7 +77,8 @@ Block ReferenceEncrypt(const Key& key, const Block& plaintext) {
 absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
                                absl::Duration* xls_encrypt_dur,
                                absl::Duration* xls_decrypt_dur) {
-  XLS_VLOG(2) << "Plaintext: " << FormatBlock(input) << std::endl;
+  XLS_LOG(INFO) << "Key: " << FormatKey<kKeyBytes>(key) << std::endl;
+  XLS_LOG(INFO) << "Plaintext: " << FormatBlock(input) << std::endl;
 
   Block reference_ciphertext = ReferenceEncrypt(key, input);
 
@@ -92,7 +88,11 @@ absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
 
   XLS_VLOG(2) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
               << std::endl;
+  XLS_LOG(INFO) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
+                << std::endl;
   XLS_VLOG(2) << "XLS ciphertext: " << FormatBlock(xls_ciphertext) << std::endl;
+  XLS_LOG(INFO) << "XLS ciphertext: " << FormatBlock(xls_ciphertext)
+                << std::endl;
 
   // Verify the ciphertexts match, to ensure we're actually doing the encryption
   // properly.

@@ -99,7 +99,7 @@ cc_test(
     deps = [
         ":aes_128_decrypt_cc",
         ":aes_128_encrypt_cc",
-        ":aes_128_test_common",
+        ":aes_test_common",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -116,9 +116,9 @@ cc_test(
 )
 
 cc_library(
-    name = "aes_128_test_common",
-    srcs = ["aes_128_test_common.cc"],
-    hdrs = ["aes_128_test_common.h"],
+    name = "aes_test_common",
+    srcs = ["aes_test_common.cc"],
+    hdrs = ["aes_test_common.h"],
     deps = [
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -128,6 +128,72 @@ cc_library(
         "//xls/ir:bits",
         "//xls/ir:bits_ops",
         "//xls/ir:value",
+    ],
+)
+
+xls_dslx_library(
+    name = "aes_256_common_dslx",
+    srcs = ["aes_256_common.x"],
+    deps = [
+        ":aes_common_dslx",
+        ":constants_dslx",
+    ],
+)
+
+xls_dslx_library(
+    name = "aes_256_dslx",
+    srcs = ["aes_256.x"],
+    deps = [
+        ":aes_256_common_dslx",
+        ":aes_common_dslx",
+    ],
+)
+
+xls_dslx_ir(
+    name = "aes_256_encrypt",
+    dslx_top = "encrypt",
+    library = ":aes_256_dslx",
+)
+
+xls_ir_cc_library_macro(
+    name = "aes_256_encrypt_cc",
+    src = ":aes_256_encrypt.ir",
+    namespaces = "xls,aes_256",
+    top = "aes_256_encrypt",
+)
+
+xls_dslx_ir(
+    name = "aes_256_decrypt",
+    dslx_top = "decrypt",
+    library = ":aes_256_dslx",
+)
+
+xls_ir_cc_library_macro(
+    name = "aes_256_decrypt_cc",
+    src = ":aes_256_decrypt.ir",
+    namespaces = "xls,aes_256",
+    top = "aes_256_decrypt",
+)
+
+cc_test(
+    name = "aes_256_test",
+    srcs = ["aes_256_test.cc"],
+    deps = [
+        ":aes_256_decrypt_cc",
+        ":aes_256_encrypt_cc",
+        ":aes_test_common",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/time",
+        "//xls/common:init_xls",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "//xls/ir:value",
+        "@boringssl//:crypto",
     ],
 )
 
@@ -170,7 +236,7 @@ cc_test(
         ":aes_128_ctr.ir",
     ],
     deps = [
-        ":aes_128_test_common",
+        ":aes_test_common",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
         "@com_google_absl//absl/status",
@@ -248,7 +314,7 @@ cc_test(
         ":aes_128_gcm.ir",
     ],
     deps = [
-        ":aes_128_test_common",
+        ":aes_test_common",
         "@com_google_absl//absl/cleanup",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/random",
