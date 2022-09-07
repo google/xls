@@ -70,6 +70,9 @@ class Package {
   absl::StatusOr<Proc*> GetTopAsProc() const;
   absl::StatusOr<Block*> GetTopAsBlock() const;
 
+  // Returns a FunctionBase with the given name if a single instance exists.
+  absl::StatusOr<FunctionBase*> GetFunctionBaseByName(absl::string_view name);
+
   // Returns whether the given type is one of the types owned by this package.
   bool IsOwnedType(const Type* type) {
     return owned_types_.find(type) != owned_types_.end();

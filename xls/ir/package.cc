@@ -53,29 +53,8 @@ absl::Status Package::SetTop(std::optional<FunctionBase*> top) {
 }
 
 absl::Status Package::SetTopByName(absl::string_view top_name) {
-  std::vector<FunctionBase*> fbs = GetFunctionBases();
-  int64_t count = std::count_if(
-      fbs.begin(), fbs.end(),
-      [top_name](const FunctionBase* fb) { return fb->name() == top_name; });
-  if (count == 0) {
-    std::string available =
-        absl::StrJoin(fbs.begin(), fbs.end(), ", ",
-                      [](std::string* out, const FunctionBase* fb) {
-                        absl::StrAppend(out, "\"", fb->name(), "\"");
-                      });
-    return absl::NotFoundError(
-        absl::StrFormat("Could not find top for this package; "
-                        "tried: [\"%s\"]; available: %s",
-                        top_name, available));
-  }
-  if (count == 1) {
-    auto fb_iter = std::find_if(
-        fbs.begin(), fbs.end(),
-        [top_name](const FunctionBase* fb) { return fb->name() == top_name; });
-    return SetTop(*fb_iter);
-  }
-  return absl::NotFoundError(
-      absl::StrFormat("More than one instance with name: %s", top_name));
+  XLS_ASSIGN_OR_RETURN(FunctionBase * top, GetFunctionBaseByName(top_name));
+  return SetTop(top);
 }
 
 absl::StatusOr<Function*> Package::GetTopAsFunction() const {
@@ -115,6 +94,33 @@ absl::StatusOr<Block*> Package::GetTopAsBlock() const {
         absl::StrFormat("Top entity is not a block for package: %s.", name_));
   }
   return top.value()->AsBlockOrDie();
+}
+
+absl::StatusOr<FunctionBase*> Package::GetFunctionBaseByName(
+    absl::string_view name) {
+  std::vector<FunctionBase*> fbs = GetFunctionBases();
+  int64_t count = std::count_if(
+      fbs.begin(), fbs.end(),
+      [name](const FunctionBase* fb) { return fb->name() == name; });
+  if (count == 0) {
+    std::string available =
+        absl::StrJoin(fbs.begin(), fbs.end(), ", ",
+                      [](std::string* out, const FunctionBase* fb) {
+                        absl::StrAppend(out, "\"", fb->name(), "\"");
+                      });
+    return absl::NotFoundError(
+        absl::StrFormat("Could not find top for this package; "
+                        "tried: [\"%s\"]; available: %s",
+                        name, available));
+  }
+  if (count == 1) {
+    auto fb_iter = std::find_if(
+        fbs.begin(), fbs.end(),
+        [name](const FunctionBase* fb) { return fb->name() == name; });
+    return *fb_iter;
+  }
+  return absl::NotFoundError(
+      absl::StrFormat("More than one instance with name: %s", name));
 }
 
 Function* Package::AddFunction(std::unique_ptr<Function> f) {

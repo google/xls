@@ -66,11 +66,16 @@ absl::Status RealMain(absl::string_view input_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir, GetFileContents(input_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> p,
                        Parser::ParsePackage(ir, input_path));
-  Function* function;
+  FunctionBase* top;
   if (absl::GetFlag(FLAGS_top).empty()) {
-    XLS_ASSIGN_OR_RETURN(function, p->GetTopAsFunction());
+    if (!p->HasTop()) {
+      return absl::InternalError(
+          absl::StrFormat("Top entity not set for package: %s.", p->name()));
+    }
+    top = p->GetTop().value();
   } else {
-    XLS_ASSIGN_OR_RETURN(function, p->GetFunction(absl::GetFlag(FLAGS_top)));
+    XLS_ASSIGN_OR_RETURN(top,
+                         p->GetFunctionBaseByName(absl::GetFlag(FLAGS_top)));
   }
 
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
@@ -79,7 +84,7 @@ absl::Status RealMain(absl::string_view input_path) {
   if (absl::GetFlag(FLAGS_schedule_path).empty()) {
     XLS_ASSIGN_OR_RETURN(
         std::vector<CriticalPathEntry> critical_path,
-        AnalyzeCriticalPath(function, /*clock_period_ps=*/absl::nullopt,
+        AnalyzeCriticalPath(top, /*clock_period_ps=*/absl::nullopt,
                             *delay_estimator));
     std::cout << "# Critical path:\n";
     std::cout << CriticalPathToString(critical_path);
@@ -89,11 +94,11 @@ absl::Status RealMain(absl::string_view input_path) {
                          ParseTextProtoFile<PipelineScheduleProto>(
                              absl::GetFlag(FLAGS_schedule_path)));
     XLS_ASSIGN_OR_RETURN(PipelineSchedule schedule,
-                         PipelineSchedule::FromProto(function, proto));
+                         PipelineSchedule::FromProto(top, proto));
     XLS_RETURN_IF_ERROR(schedule.Verify());
     for (int64_t i = 0; i < schedule.length(); ++i) {
       XLS_ASSIGN_OR_RETURN(Function * stage_function,
-                           ExtractStage(function, schedule, i));
+                           ExtractStage(top, schedule, i));
       XLS_ASSIGN_OR_RETURN(
           std::vector<CriticalPathEntry> critical_path,
           AnalyzeCriticalPath(stage_function, /*clock_period_ps=*/absl::nullopt,
@@ -105,7 +110,7 @@ absl::Status RealMain(absl::string_view input_path) {
   }
 
   std::cout << "# Delay of all nodes:\n";
-  for (Node* node : TopoSort(function)) {
+  for (Node* node : TopoSort(top)) {
     absl::StatusOr<int64_t> delay_status =
         delay_estimator->GetOperationDelayInPs(node);
     if (delay_status.ok()) {
