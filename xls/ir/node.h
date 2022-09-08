@@ -168,6 +168,9 @@ class Node {
   // false.
   void ClearName();
 
+  // Set source location.
+  void SetLoc(const SourceInfo& loc);
+
   // Returns the name of the node and any concise supplementary information.
   std::string ToString() const { return ToStringInternal(false); }
 

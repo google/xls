@@ -98,6 +98,9 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
     XLS_ASSIGN_OR_RETURN(
         Node * new_node,
         node->CloneInNewFunction(new_operands, invoke->function_base()));
+    if (new_node->loc().Empty()) {
+      new_node->SetLoc(invoke->loc());
+    }
     invoked_node_to_replacement[node] = new_node;
   }
 

@@ -402,6 +402,8 @@ void Node::ClearName() {
   name_ = "";
 }
 
+void Node::SetLoc(const SourceInfo& loc) { loc_ = loc; }
+
 std::string Node::ToStringInternal(bool include_operand_types) const {
   std::string ret = absl::StrCat(GetName(), ": ", GetType()->ToString(), " = ",
                                  OpToString(op_));
