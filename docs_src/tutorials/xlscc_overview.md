@@ -19,7 +19,7 @@ Create a file called `test.cc` with the following contents.
 
 ```c++
 #pragma hls_top
-int add3(int input) { return input + 2; }
+int add3(int input) { return input + 3; }
 ```
 
 Note that `#pragma hls_top` denotes the top-level function for the module. The
