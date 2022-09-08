@@ -33,21 +33,19 @@ class XlsIntTest : public XlsccTestBase {
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::string ac_int_path,
-        xls::GetXlsRunfilePath("ac_datatypes/include/ac_int.h"));
+        xls::GetXlsRunfilePath("external/com_github_hlslibs_ac_types/include/ac_int.h"));
     XLS_ASSERT_OK_AND_ASSIGN(
         std::string xls_int_path,
         xls::GetXlsRunfilePath("xls/contrib/xlscc/synth_only/xls_int.h"));
 
     // Get the path that includes the ac_datatypes folder, so that the
     //  ac_datatypes headers can be included with the form:
-    // #include "ac_datatypes/include/foo.h"
-    std::string ac_int_dir = std::filesystem::path(ac_int_path)
-                                 .parent_path()
-                                 .parent_path()
-                                 .parent_path();
-    std::string xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
+    // #include "external/com_github_hlslibs_ac_types/include/foo.h"
+    auto ac_int_dir = std::filesystem::path(ac_int_path);
+    ac_int_dir = ac_int_dir.parent_path().parent_path();
+    std::string ac_include = std::string("-I") + ac_int_dir.string().data();
 
-    std::string ac_include = std::string("-I") + ac_int_dir.data();
+    std::string xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
     std::string xls_include = std::string("-I") + xls_int_dir.data();
 
     std::vector<absl::string_view> argv;
