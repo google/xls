@@ -19,7 +19,7 @@ namespace {
 {{ delay_model.op_model(op).cpp_delay_function() }}
 {% endfor %}
 
-}
+}  // namespace
 
 class DelayEstimatorModel{{camel_case_name}} : public DelayEstimator {
  public:
