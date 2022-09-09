@@ -249,7 +249,7 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessProtoSchema(
   // Our proto might have other dependencies, so we have to let the proto
   // compiler know about the layout of our source tree.
   source_tree.MapPath("/", "/");
-  source_tree.MapPath("", source_root);
+  source_tree.MapPath("", source_root.string());
 
   SourceTreeDescriptorDatabase db(&source_tree);
   FileDescriptorProto descriptor_proto;
@@ -1002,7 +1002,7 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessStringProtoSchema(
 
   // Our proto might have other dependencies, so we have to let the proto
   // compiler know about the layout of our source tree.
-  source_tree.MapPath("", tempdir.path());
+  source_tree.MapPath("", tempdir.path().string());
 
   SourceTreeDescriptorDatabase db(&source_tree);
   FileDescriptorProto descriptor_proto;
