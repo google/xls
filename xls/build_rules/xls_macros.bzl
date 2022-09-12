@@ -42,6 +42,13 @@ load(
     "xls_dslx_opt_ir",
     "xls_dslx_verilog",
 )
+load(
+    "//xls/build_rules:xls_type_check_helpers.bzl",
+    "bool_type_check",
+    "dictionary_type_check",
+    "list_type_check",
+    "string_type_check",
+)
 
 def xls_dslx_verilog_macro(
         name,
@@ -116,29 +123,17 @@ def xls_dslx_verilog_macro(
     """
 
     # Type check input
-    if type(name) != type(""):
-        fail("Argument 'name' must be of string type.")
-    if srcs and type(srcs) != type([]):
-        fail("Argument 'srcs' must be of list type.")
-    if deps and type(deps) != type([]):
-        fail("Argument 'deps' must be of list type.")
-    if library and type(library) != type(""):
-        fail("Argument 'library' must be of string type.")
-    if type(dslx_top) != type(""):
-        fail("Argument 'dslx_top' must be of string type.")
-    if type(verilog_file) != type(""):
-        fail("Argument 'verilog_file' must be of string type.")
-    if type(ir_conv_args) != type({}):
-        fail("Argument 'ir_conv_args' must be of dictionary type.")
-    if type(opt_ir_args) != type({}):
-        fail("Argument 'opt_ir_args' must be of dictionary type.")
-    if type(codegen_args) != type({}):
-        fail("Argument 'codegen_args' must be of dictionary type.")
-    if type(enable_generated_file) != type(True):
-        fail("Argument 'enable_generated_file' must be of boolean type.")
-    if type(enable_presubmit_generated_file) != type(True):
-        fail("Argument 'enable_presubmit_generated_file' must be " +
-             "of boolean type.")
+    string_type_check("name", name)
+    list_type_check("srcs", srcs, True)
+    list_type_check("deps", deps, True)
+    string_type_check("library", library, True)
+    string_type_check("dslx_top", dslx_top)
+    string_type_check("verilog_file", verilog_file)
+    dictionary_type_check("ir_conv_args", ir_conv_args)
+    dictionary_type_check("opt_ir_args", opt_ir_args)
+    dictionary_type_check("codegen_args", codegen_args)
+    bool_type_check("enable_generated_file", enable_generated_file)
+    bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
     # Append output files to arguments.
     kwargs = append_xls_dslx_ir_generated_files(kwargs, name)
@@ -238,25 +233,15 @@ def xls_dslx_opt_ir_macro(
     """
 
     # Type check input
-    if type(name) != type(""):
-        fail("Argument 'name' must be of string type.")
-    if srcs and type(srcs) != type([]):
-        fail("Argument 'srcs' must be of list type.")
-    if deps and type(deps) != type([]):
-        fail("Argument 'deps' must be of list type.")
-    if library and type(library) != type(""):
-        fail("Argument 'library' must be of string type.")
-    if type(dslx_top) != type(""):
-        fail("Argument 'dslx_top' must be of string type.")
-    if type(ir_conv_args) != type({}):
-        fail("Argument 'ir_conv_args' must be of dictionary type.")
-    if type(opt_ir_args) != type({}):
-        fail("Argument 'opt_ir_args' must be of dictionary type.")
-    if type(enable_generated_file) != type(True):
-        fail("Argument 'enable_generated_file' must be of boolean type.")
-    if type(enable_presubmit_generated_file) != type(True):
-        fail("Argument 'enable_presubmit_generated_file' must be " +
-             "of boolean type.")
+    string_type_check("name", name)
+    list_type_check("srcs", srcs, True)
+    list_type_check("deps", deps, True)
+    string_type_check("library", library, True)
+    string_type_check("dslx_top", dslx_top)
+    dictionary_type_check("ir_conv_args", ir_conv_args)
+    dictionary_type_check("opt_ir_args", opt_ir_args)
+    bool_type_check("enable_generated_file", enable_generated_file)
+    bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
     # Append output files to arguments.
     kwargs = append_xls_dslx_ir_generated_files(kwargs, name)

@@ -44,6 +44,11 @@ load(
     "get_xls_toolchain_info",
     "xls_toolchain_attr",
 )
+load(
+    "//xls/build_rules:xls_type_check_helpers.bzl",
+    "bool_type_check",
+    "tuple_type_check",
+)
 
 _DEFAULT_IR_EVAL_TEST_ARGS = {
     "random_inputs": "100",
@@ -451,12 +456,9 @@ def get_mangled_ir_symbol(
     """
 
     # Type validation for optional inputs.
-    if parametric_values and type(parametric_values) != "tuple":
-        fail("Argument 'parametric_values' must be of tuple type.")
-    if is_implicit_token and type(is_implicit_token) != type(True):
-        fail("Argument 'is_implicit_token' must be of boolean type.")
-    if is_proc_next and type(is_proc_next) != type(True):
-        fail("Argument 'is_proc_next' must be of boolean type.")
+    tuple_type_check("parametric_values", parametric_values, True)
+    bool_type_check("is_implicit_token", is_implicit_token, True)
+    bool_type_check("is_proc_next", is_proc_next, True)
 
     # Presence validation for optional inputs.
     if is_proc_next and (parametric_values or is_implicit_token):

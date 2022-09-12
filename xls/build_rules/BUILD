@@ -47,6 +47,11 @@ exports_files(
 )
 
 bzl_library(
+    name = "xls_type_check_helpers_bzl",
+    srcs = ["xls_type_check_helpers.bzl"],
+)
+
+bzl_library(
     name = "xls_utilities_bzl",
     srcs = ["xls_utilities.bzl"],
     deps = ["xls_common_rules_bzl"],
@@ -97,6 +102,7 @@ bzl_library(
         ":xls_dslx_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
+        ":xls_type_check_helpers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -107,6 +113,7 @@ bzl_library(
     deps = [
         ":xls_config_rules_bzl",
         ":xls_ir_rules_bzl",
+        ":xls_type_check_helpers_bzl",
     ],
 )
 
@@ -133,6 +140,7 @@ bzl_library(
         ":xls_ir_rules_bzl",
         ":xls_providers_bzl",
         ":xls_toolchains_bzl",
+        ":xls_type_check_helpers_bzl",
         "@bazel_skylib//lib:dicts",
     ],
 )
@@ -144,6 +152,7 @@ bzl_library(
     deps = [
         ":xls_codegen_rules_bzl",
         ":xls_config_rules_bzl",
+        ":xls_type_check_helpers_bzl",
     ],
 )
 
@@ -172,6 +181,7 @@ bzl_library(
         ":xls_config_rules_bzl",
         ":xls_ir_rules_bzl",
         ":xls_rules_bzl",
+        ":xls_type_check_helpers_bzl",
     ],
 )
 

@@ -43,6 +43,13 @@ load(
     "xls_ir_verilog_impl",
 )
 load("//xls/build_rules:xls_toolchains.bzl", "xls_toolchain_attr")
+load(
+    "//xls/build_rules:xls_type_check_helpers.bzl",
+    "bool_type_check",
+    "dictionary_type_check",
+    "list_type_check",
+    "string_type_check",
+)
 
 _CC_FILE_EXTENSION = ".cc"
 _H_FILE_EXTENSION = ".h"
@@ -356,21 +363,13 @@ def xls_cc_ir_macro(
     """
 
     # Type check input
-    if type(name) != type(""):
-        fail("Argument 'name' must be of string type.")
-    if type(src) != type(""):
-        fail("Argument 'src' must be of string type.")
-    if type(block) != type(""):
-        fail("Argument 'block' must be of string type.")
-    if type(src_deps) != type([]):
-        fail("Argument 'src_deps' must be of list type.")
-    if type(xlscc_args) != type({}):
-        fail("Argument 'xlscc_args' must be of dictionary type.")
-    if type(enable_generated_file) != type(True):
-        fail("Argument 'enable_generated_file' must be of boolean type.")
-    if type(enable_presubmit_generated_file) != type(True):
-        fail("Argument 'enable_presubmit_generated_file' must be " +
-             "of boolean type.")
+    string_type_check("name", name)
+    string_type_check("src", src)
+    string_type_check("block", block)
+    list_type_check("src_deps", src_deps)
+    dictionary_type_check("xlscc_args", xlscc_args)
+    bool_type_check("enable_generated_file", enable_generated_file)
+    bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
     # Append output files to arguments.
     kwargs = _append_xls_cc_ir_generated_files(kwargs, name)
@@ -527,27 +526,16 @@ def xls_cc_verilog_macro(
     """
 
     # Type check input
-    if type(name) != type(""):
-        fail("Argument 'name' must be of string type.")
-    if type(src) != type(""):
-        fail("Argument 'src' must be of string type.")
-    if type(block) != type(""):
-        fail("Argument 'block' must be of string type.")
-    if type(verilog_file) != type(""):
-        fail("Argument 'verilog_file' must be of string type.")
-    if type(src_deps) != type([]):
-        fail("Argument 'src_deps' must be of list type.")
-    if type(xlscc_args) != type({}):
-        fail("Argument 'xlscc_args' must be of dictionary type.")
-    if type(opt_ir_args) != type({}):
-        fail("Argument 'opt_ir_args' must be of dictionary type.")
-    if type(codegen_args) != type({}):
-        fail("Argument 'codegen_args' must be of dictionary type.")
-    if type(enable_generated_file) != type(True):
-        fail("Argument 'enable_generated_file' must be of boolean type.")
-    if type(enable_presubmit_generated_file) != type(True):
-        fail("Argument 'enable_presubmit_generated_file' must be " +
-             "of boolean type.")
+    string_type_check("name", name)
+    string_type_check("src", src)
+    string_type_check("block", block)
+    string_type_check("verilog_file", verilog_file)
+    list_type_check("src_deps", src_deps)
+    dictionary_type_check("xlscc_args", xlscc_args)
+    dictionary_type_check("opt_ir_args", opt_ir_args)
+    dictionary_type_check("codegen_args", codegen_args)
+    bool_type_check("enable_generated_file", enable_generated_file)
+    bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
     # Append output files to arguments.
     kwargs = _append_xls_cc_ir_generated_files(kwargs, name)

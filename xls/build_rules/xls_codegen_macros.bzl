@@ -31,6 +31,12 @@ load(
     "//xls/build_rules:xls_config_rules.bzl",
     "enable_generated_file_wrapper",
 )
+load(
+    "//xls/build_rules:xls_type_check_helpers.bzl",
+    "bool_type_check",
+    "dictionary_type_check",
+    "string_type_check",
+)
 
 def xls_ir_verilog_macro(
         name,
@@ -76,19 +82,12 @@ def xls_ir_verilog_macro(
     """
 
     # Type check input
-    if type(name) != type(""):
-        fail("Argument 'name' must be of string type.")
-    if type(src) != type(""):
-        fail("Argument 'src' must be of string type.")
-    if type(verilog_file) != type(""):
-        fail("Argument 'verilog_file' must be of string type.")
-    if type(codegen_args) != type({}):
-        fail("Argument 'codegen_args' must be of dictionary type.")
-    if type(enable_generated_file) != type(True):
-        fail("Argument 'enable_generated_file' must be of boolean type.")
-    if type(enable_presubmit_generated_file) != type(True):
-        fail("Argument 'enable_presubmit_generated_file' must be " +
-             "of boolean type.")
+    string_type_check("name", name)
+    string_type_check("src", src)
+    string_type_check("verilog_file", verilog_file)
+    dictionary_type_check("codegen_args", codegen_args)
+    bool_type_check("enable_generated_file", enable_generated_file)
+    bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
     # Append output files to arguments.
     use_system_verilog = ("use_system_verilog" in codegen_args and

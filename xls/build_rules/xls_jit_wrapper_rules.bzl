@@ -36,6 +36,12 @@ load(
     "get_xls_toolchain_info",
     "xls_toolchain_attr",
 )
+load(
+    "//xls/build_rules:xls_type_check_helpers.bzl",
+    "bool_type_check",
+    "dictionary_type_check",
+    "string_type_check",
+)
 
 _H_FILE_EXTENSION = ".h"
 
@@ -221,21 +227,13 @@ def xls_ir_jit_wrapper_macro(
     """
 
     # Type check input
-    if type(name) != type(""):
-        fail("Argument 'name' must be of string type.")
-    if type(src) != type(""):
-        fail("Argument 'src' must be of string type.")
-    if type(source_file) != type(""):
-        fail("Argument 'source_file' must be of string type.")
-    if type(header_file) != type(""):
-        fail("Argument 'header_file' must be of string type.")
-    if type(jit_wrapper_args) != type({}):
-        fail("Argument 'jit_wrapper_args' must be of dictionary type.")
-    if type(enable_generated_file) != type(True):
-        fail("Argument 'enable_generated_file' must be of boolean type.")
-    if type(enable_presubmit_generated_file) != type(True):
-        fail("Argument 'enable_presubmit_generated_file' must be " +
-             "of boolean type.")
+    string_type_check("name", name)
+    string_type_check("src", src)
+    string_type_check("source_file", source_file)
+    string_type_check("header_file", header_file)
+    dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
+    bool_type_check("enable_generated_file", enable_generated_file)
+    bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)
 
     xls_ir_jit_wrapper(
         name = name,
@@ -272,10 +270,8 @@ def cc_xls_ir_jit_wrapper(
                         'output_name' cannot be defined.
       **kwargs: Keyword arguments. Named arguments.
     """
-    if type(jit_wrapper_args) != type({}):
-        fail("JIT Wrapper arguments must be a dictionary.")
-    if type(src) != type(""):
-        fail("The source must be a string.")
+    dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
+    string_type_check("src", src)
 
     # Validate arguments of macro
     if kwargs.get("source_file"):
