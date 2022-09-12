@@ -17,8 +17,8 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
-#include "absl/strings/str_replace.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/ir/call_graph.h"
 #include "xls/ir/node_iterator.h"
 
 namespace xls {
@@ -169,64 +169,6 @@ absl::Status InlineInvoke(Invoke* invoke, int inline_count) {
   XLS_RETURN_IF_ERROR(invoke->ReplaceUsesWith(
       invoked_node_to_replacement.at(invoked->return_value())));
   return invoke->function_base()->RemoveNode(invoke);
-}
-
-// Returns the functions invoked by the given function via Invoke instructions.
-std::vector<FunctionBase*> InvokedFunctions(FunctionBase* f) {
-  absl::flat_hash_set<FunctionBase*> invoked_set;
-  std::vector<FunctionBase*> invoked;
-  for (Node* node : f->nodes()) {
-    if (node->Is<Invoke>()) {
-      FunctionBase* to_apply = node->As<Invoke>()->to_apply();
-      auto [_, inserted] = invoked_set.insert(to_apply);
-      if (inserted) {
-        invoked.push_back(to_apply);
-      }
-    }
-  }
-  return invoked;
-}
-
-// Returns the functions (and procs) which are roots in the call graph, that is,
-// the functions which are not called by any other functions.
-std::vector<FunctionBase*> GetRootFunctions(Package* p) {
-  absl::flat_hash_set<FunctionBase*> invoked_functions;
-  for (FunctionBase* f : p->GetFunctionBases()) {
-    for (FunctionBase* invoked : InvokedFunctions(f)) {
-      invoked_functions.insert(invoked);
-    }
-  }
-  std::vector<FunctionBase*> roots;
-  for (FunctionBase* f : p->GetFunctionBases()) {
-    if (!invoked_functions.contains(f)) {
-      roots.push_back(f);
-    }
-  }
-  return roots;
-}
-
-// Recursive DFS visitor of the call graph induced by invoke
-// instructions. Builds a post order of functions in the post_order vector.
-void DfsVisit(FunctionBase* f, absl::flat_hash_set<FunctionBase*>* visited,
-              std::vector<FunctionBase*>* post_order) {
-  visited->insert(f);
-  for (FunctionBase* invoked : InvokedFunctions(f)) {
-    if (!visited->contains(invoked)) {
-      DfsVisit(invoked, visited, post_order);
-    }
-  }
-  post_order->push_back(f);
-}
-
-// Returns the functions and procs in package 'p' in a DFS post order traversal
-// of the call graph induced by invoke nodes.
-std::vector<FunctionBase*> FunctionsInPostOrder(Package* p) {
-  absl::flat_hash_set<FunctionBase*> visited;
-  std::vector<FunctionBase*> post_order;
-  for (FunctionBase* f : GetRootFunctions(p)) {
-    DfsVisit(f, &visited, &post_order);
-  }
-  return post_order;
 }
 
 }  // namespace

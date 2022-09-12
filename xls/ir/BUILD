@@ -1241,6 +1241,31 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "call_graph",
+    srcs = ["call_graph.cc"],
+    hdrs = ["call_graph.h"],
+    deps = [
+        ":ir",
+        ":op",
+        "@com_google_absl//absl/container:flat_hash_set",
+    ],
+)
+
+cc_test(
+    name = "call_graph_test",
+    srcs = ["call_graph_test.cc"],
+    deps = [
+        ":call_graph",
+        ":function_builder",
+        ":ir",
+        ":ir_test_base",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
 cc_test(
     name = "value_conversion_utils_test",
     srcs = ["value_conversion_utils_test.cc"],
