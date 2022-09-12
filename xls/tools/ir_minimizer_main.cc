@@ -29,6 +29,7 @@
 #include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/node_util.h"
 #include "xls/ir/number_parser.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
@@ -44,6 +45,8 @@
 #include "xls/passes/dfe_pass.h"
 #include "xls/passes/inlining_pass.h"
 #include "xls/passes/passes.h"
+#include "xls/passes/proc_state_flattening_pass.h"
+#include "xls/passes/proc_state_optimization_pass.h"
 #include "xls/passes/standard_pipeline.h"
 #include "xls/passes/tuple_simplification_pass.h"
 #include "xls/passes/unroll_pass.h"
@@ -118,6 +121,14 @@ ABSL_FLAG(
     "Also, because this option runs a single pass at a time it often results "
     "in more minimization than --use_optimization_pipeline which "
     "which might optimize away the problematic bit of IR entirely.");
+ABSL_FLAG(bool, can_remove_sends, false,
+          "If true, then the minimizer may remove sends.");
+ABSL_FLAG(bool, can_remove_receives, false,
+          "If true, then the minimizer may remove receives.");
+ABSL_FLAG(std::vector<std::string>, preserve_channels, {},
+          "Preserve IO ops on the given channel names during minimization. "
+          "This is useful when minimizing with a script that runs the "
+          "scheduler with IO constraints.");
 ABSL_FLAG(std::string, top, "",
           "The name of the top entity. Currently, only procs and functions are "
           "supported. Entry function to use during minimization.");
@@ -473,6 +484,8 @@ absl::StatusOr<SimplificationResult> RunRandomPass(
   passes.push_back(std::make_unique<TupleSimplificationPass>());
   passes.push_back(std::make_unique<UnrollPass>());
   passes.push_back(std::make_unique<InliningPass>());
+  passes.push_back(std::make_unique<ProcStateFlatteningPass>());
+  passes.push_back(std::make_unique<ProcStateOptimizationPass>());
 
   int64_t pass_no = absl::Uniform<int64_t>(*rng, 0, passes.size());
   PassResults results;
@@ -532,15 +545,59 @@ absl::StatusOr<SimplificationResult> Simplify(
     }
   }
 
+  absl::flat_hash_set<std::string> preserved_channels;
+  for (const std::string& chan : absl::GetFlag(FLAGS_preserve_channels)) {
+    preserved_channels.insert(chan);
+  }
+
+  absl::flat_hash_map<Channel*, absl::flat_hash_set<Node*>> channel_to_nodes;
+  for (Node* node : f->nodes()) {
+    if (node->Is<Receive>() || node->Is<Send>()) {
+      XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(node));
+      channel_to_nodes[c].insert(node);
+    }
+  }
+
   // Pick a random node and try to do something with it.
   int64_t i = absl::Uniform<int64_t>(*rng, 0, f->node_count());
   Node* n = *std::next(f->nodes().begin(), i);
 
-  if (TypeHasToken(n->GetType())) {
-    return SimplificationResult::kDidNotChange;
-  }
-
   if (!n->operands().empty() && Random0To1(rng) < 0.3) {
+    if ((n->Is<Receive>() && absl::GetFlag(FLAGS_can_remove_receives)) ||
+        (n->Is<Send>() && absl::GetFlag(FLAGS_can_remove_sends))) {
+      XLS_ASSIGN_OR_RETURN(Channel * c, GetChannelUsedByNode(n));
+      if ((c->supported_ops() != ChannelOps::kSendReceive) &&
+          !preserved_channels.contains(c->name())) {
+        if (n->Is<Send>() && channel_to_nodes.at(c).size() == 1) {
+          XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+          *which_transform = "remove send: %s" + n->GetName();
+          XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+          XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
+          return SimplificationResult::kDidChange;
+        }
+        if (n->Is<Receive>() && channel_to_nodes.at(c).size() == 1) {
+          XLS_ASSIGN_OR_RETURN(
+              Node * zero,
+              f->MakeNode<Literal>(
+                  SourceInfo(),
+                  ZeroOfType(n->GetType()->AsTupleOrDie()->element_type(1))));
+          XLS_ASSIGN_OR_RETURN(
+              Node * tuple,
+              f->MakeNode<Tuple>(SourceInfo(),
+                                 std::vector<Node*>{n->operand(0), zero}));
+          XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(tuple));
+          *which_transform = "remove receive: %s" + n->GetName();
+          XLS_RETURN_IF_ERROR(f->RemoveNode(n));
+          XLS_RETURN_IF_ERROR(f->package()->RemoveChannel(c));
+          return SimplificationResult::kDidChange;
+        }
+      }
+    }
+
+    if (TypeHasToken(n->GetType())) {
+      return SimplificationResult::kDidNotChange;
+    }
+
     // Try to replace a node with one of its (potentially truncated/extended)
     // operands.
     int64_t operand_no = absl::Uniform<int64_t>(*rng, 0, n->operand_count());
@@ -581,6 +638,10 @@ absl::StatusOr<SimplificationResult> Simplify(
         return SimplificationResult::kDidChange;
       }
     }
+  }
+
+  if (TypeHasToken(n->GetType())) {
+    return SimplificationResult::kDidNotChange;
   }
 
   // Replace node with a constant (all zeros or all ones).
