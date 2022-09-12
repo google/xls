@@ -226,6 +226,14 @@ cc_library(
 )
 
 cc_library(
+    name = "strongly_connected_components",
+    hdrs = ["strongly_connected_components.h"],
+    deps = [
+        "@com_google_absl//absl/container:btree",
+    ],
+)
+
+cc_library(
     name = "submodular",
     hdrs = ["submodular.h"],
     deps = [
@@ -341,6 +349,16 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_test(
+    name = "strongly_connected_components_test",
+    srcs = ["strongly_connected_components_test.cc"],
+    deps = [
+        ":strongly_connected_components",
+        "//xls/common:xls_gunit_main",
         "@com_google_googletest//:gtest",
     ],
 )
