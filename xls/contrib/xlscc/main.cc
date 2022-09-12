@@ -51,6 +51,8 @@ ABSL_FLAG(std::string, out, "",
 ABSL_FLAG(std::string, block_pb, "",
           "HLSBlock protobuf for generating as HLS block / XLS proc");
 
+ABSL_FLAG(bool, block_pb_text, false, "Input HLSBlock protobuf as textproto?");
+
 ABSL_FLAG(std::string, top, "", "Top function name");
 
 ABSL_FLAG(std::string, package, "", "Package name to generate");
@@ -99,9 +101,13 @@ absl::Status Run(absl::string_view cpp_path) {
 
   HLSBlock block;
   if (!block_pb_name.empty()) {
-    std::ifstream file_in(block_pb_name);
-    if (!block.ParseFromIstream(&file_in)) {
-      return absl::InvalidArgumentError("Couldn't parse protobuf");
+    if (!absl::GetFlag(FLAGS_block_pb_text)) {
+      std::ifstream file_in(block_pb_name);
+      if (!block.ParseFromIstream(&file_in)) {
+        return absl::InvalidArgumentError("Couldn't parse protobuf");
+      }
+    } else {
+      XLS_RETURN_IF_ERROR(xls::ParseTextProtoFile(block_pb_name, &block));
     }
   }
 
