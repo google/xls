@@ -1263,11 +1263,16 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCastBitsToArray(Env* env) {
   // Get a random bits-typed element from the environment.
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
 
+  // Casts to arrays result in O(N) IR nodes for N-element arrays, so limit the
+  // number of elements in the array to avoid explosion in the number of IR
+  // nodes.
+  constexpr int64_t kMaxArraySize = 64;
+
   // Next, find factors of the bit count and select one pair.
   int64_t bit_count = GetTypeBitCount(arg.type);
   std::vector<std::pair<int64_t, int64_t>> factors;
   for (int64_t i = 1; i < bit_count + 1; ++i) {
-    if (bit_count % i == 0) {
+    if (bit_count % i == 0 && bit_count / i <= kMaxArraySize) {
       factors.push_back({i, bit_count / i});
     }
   }
