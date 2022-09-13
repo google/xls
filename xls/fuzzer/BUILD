@@ -199,6 +199,9 @@ generate_crasher_regression_tests(
         "crashers/crasher_2021-03-27_2259.x": [
             "optonly",
         ],
+        "crashers/crasher_2022-09-03_4d43.x": [
+            "optonly",
+        ],
     },
 )
 

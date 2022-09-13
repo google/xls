@@ -612,6 +612,13 @@ absl::StatusOr<Expression*> NodeToExpression(
           GetFlatBitIndexOfElement(node->operand(0)->GetType()->AsTupleOrDie(),
                                    node->As<TupleIndex>()->index());
       const int64_t width = node->GetType()->GetFlatBitCount();
+      if (start == 0 && width == 1 &&
+          node->operand(0)->GetType()->GetFlatBitCount() == 1) {
+        // The operand is a single-bit type. Single-bit types are represented as
+        // scalars in VAST and scalars cannot be indexed so just return the
+        // operand.
+        return inputs[0];
+      }
       return file->Slice(inputs[0]->AsIndexableExpressionOrDie(),
                          start + width - 1, start, node->loc());
     }

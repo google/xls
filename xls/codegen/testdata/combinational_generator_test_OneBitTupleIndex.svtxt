@@ -1,0 +1,9 @@
+module OneBitTupleIndex(
+  input wire x,
+  output wire out
+);
+  wire x_unflattened[1];
+  assign x_unflattened[0] = x;
+
+  assign out = x_unflattened[32'h0000_0000];
+endmodule

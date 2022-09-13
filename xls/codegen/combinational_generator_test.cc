@@ -1635,6 +1635,28 @@ TEST_P(CombinationalGeneratorTest, TwoDArraySlice) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, OneBitTupleIndex) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param(
+      "x",
+      package.GetArrayType(1, package.GetTupleType({package.GetBitsType(1)})));
+  fb.TupleIndex(fb.ArrayIndex(x, {fb.Literal(UBits(0, 32))}), 0);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  XLS_ASSERT_OK_AND_ASSIGN(Value x_value,
+                           Value::Array({Value::Tuple({Value(UBits(1, 1))})}));
+  EXPECT_THAT(simulator.Run({{"x", x_value}}),
+              IsOkAndHolds(Value(UBits(1, 1))));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),
