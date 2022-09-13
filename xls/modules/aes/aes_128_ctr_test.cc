@@ -294,8 +294,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
 }
 
 absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path,
-                                      ProcJit::RecvFnT recv_fn,
-                                      ProcJit::SendFnT send_fn) {
+                                      RecvFnT recv_fn, SendFnT send_fn) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
                        GetXlsRunfilePath(ir_path));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));

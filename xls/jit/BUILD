@@ -24,7 +24,6 @@ cc_binary(
     srcs = ["aot_compiler.cc"],
     deps = [
         ":function_jit",
-        ":llvm_type_converter",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -35,8 +34,6 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "@com_google_protobuf//:protobuf",
-        "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:OrcJIT",
     ],
 )
 
@@ -75,15 +72,17 @@ cc_library(
     srcs = ["ir_builder_visitor.cc"],
     hdrs = ["ir_builder_visitor.h"],
     deps = [
+        ":jit_channel_queue",
         ":jit_runtime",
         ":llvm_type_converter",
         ":orc_jit",
+        "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "//xls/codegen:vast",
+        "//xls/common:math_util",
         "//xls/common/logging",
-        "//xls/common/logging:log_lines",
         "//xls/ir",
         "//xls/ir:bits_ops",
         "//xls/ir:value_helpers",
@@ -140,7 +139,7 @@ cc_library(
     hdrs = ["function_jit.h"],
     visibility = ["//xls:xls_users"],
     deps = [
-        ":ir_builder_visitor",
+        ":function_base_jit",
         ":jit_runtime",
         ":llvm_type_converter",
         ":orc_jit",
@@ -150,9 +149,6 @@ cc_library(
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
-        "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:format_preference",
@@ -161,7 +157,6 @@ cc_library(
         "//xls/ir:value",
         "//xls/ir:value_helpers",
         "//xls/ir:value_view",
-        "@llvm-project//llvm:Core",
     ],
 )
 
@@ -293,7 +288,6 @@ cc_library(
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Analysis",
-        "@llvm-project//llvm:Core",
         "@llvm-project//llvm:ExecutionEngine",
         "@llvm-project//llvm:JITLink",  # build_cleaner: keep
         "@llvm-project//llvm:OrcJIT",
@@ -311,27 +305,39 @@ cc_library(
     srcs = ["proc_jit.cc"],
     hdrs = ["proc_jit.h"],
     deps = [
-        ":function_jit",
-        ":ir_builder_visitor",
+        ":function_base_jit",
         ":jit_channel_queue",
         ":jit_runtime",
-        ":llvm_type_converter",
         ":orc_jit",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/common/logging",
-        "//xls/common/logging:log_lines",
-        "//xls/common/logging:vlog_is_on",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:format_preference",
         "//xls/ir:type",
         "//xls/ir:value",
         "//xls/ir:value_helpers",
+    ],
+)
+
+cc_library(
+    name = "function_base_jit",
+    srcs = ["function_base_jit.cc"],
+    hdrs = ["function_base_jit.h"],
+    deps = [
+        ":ir_builder_visitor",
+        ":jit_channel_queue",
+        ":jit_runtime",
+        ":llvm_type_converter",
+        ":orc_jit",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "//xls/common/logging",
+        "//xls/common/logging:log_lines",
+        "//xls/ir",
+        "//xls/ir:call_graph",
         "@llvm-project//llvm:ir_headers",
     ],
 )

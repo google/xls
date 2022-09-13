@@ -17,7 +17,6 @@
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "xls/common/logging/logging.h"
-#include "xls/ir/ir_parser.h"
 
 namespace xls {
 
@@ -115,6 +114,27 @@ absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(
         elements);
   }
   XLS_LOG(FATAL) << "Unknown value kind: " << value.kind();
+}
+
+llvm::Constant* LlvmTypeConverter::ZeroOfType(llvm::Type* type) {
+  if (type->isIntegerTy()) {
+    return llvm::ConstantInt::get(type, 0);
+  }
+  if (type->isArrayTy()) {
+    std::vector<llvm::Constant*> elements(
+        type->getArrayNumElements(), ZeroOfType(type->getArrayElementType()));
+    return llvm::ConstantArray::get(llvm::cast<llvm::ArrayType>(type),
+                                    elements);
+  }
+
+  // Must be a tuple/struct, then.
+  std::vector<llvm::Constant*> elements(type->getStructNumElements());
+  for (int i = 0; i < type->getStructNumElements(); ++i) {
+    elements[i] = ZeroOfType(type->getStructElementType(i));
+  }
+
+  return llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
+                                   elements);
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToIntegralConstant(

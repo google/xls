@@ -107,7 +107,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   llvm::Module* bare_module = module.getModuleUnlocked();
 
   XLS_VLOG(2) << "Unoptimized module IR:";
-  XLS_VLOG(2).NoPrefix() << DumpLlvmModuleToString(bare_module);
+  XLS_VLOG_LINES(2, DumpLlvmModuleToString(bare_module));
 
   llvm::CGSCCAnalysisManager cgam;
   llvm::FunctionAnalysisManager fam;
@@ -148,7 +148,7 @@ llvm::Expected<llvm::orc::ThreadSafeModule> OrcJit::Optimizer(
   mpm.run(*bare_module, mam);
 
   XLS_VLOG(2) << "Optimized module IR:";
-  XLS_VLOG(2).NoPrefix() << DumpLlvmModuleToString(bare_module);
+  XLS_VLOG_LINES(2, DumpLlvmModuleToString(bare_module));
 
   if (XLS_VLOG_IS_ON(3)) {
     // The ostream and its buffer must be declared before the
@@ -228,7 +228,7 @@ absl::Status OrcJit::Init() {
           mpm.run(*module.getModuleUnlocked());
 
           object_code_ =
-              std::vector<char>(stream_buffer.begin(), stream_buffer.end());
+              std::vector<uint8_t>(stream_buffer.begin(), stream_buffer.end());
           return module;
         });
   }
@@ -260,6 +260,7 @@ namespace {
 // instruction itself. This is a very common error which is not checked by the
 // LLVM verifier(!).
 absl::Status VerifyModule(const llvm::Module& module) {
+  XLS_VLOG(4) << DumpLlvmModuleToString(&module);
   for (const llvm::Function& function : module.functions()) {
     for (const llvm::BasicBlock& basic_block : function) {
       for (const llvm::Instruction& inst : basic_block) {

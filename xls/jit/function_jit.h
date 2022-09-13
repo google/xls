@@ -23,14 +23,32 @@
 #include "xls/ir/function.h"
 #include "xls/ir/value.h"
 #include "xls/ir/value_view.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
 
+// Data structure containing jitted object code and metadata about how to call
+// it.
+struct JitObjectCode {
+  // Name of the top-level jitted function in the object code.
+  std::string function_name;
+  std::vector<uint8_t> object_code;
+
+  // Size of the buffers for the parameters and result.
+  std::vector<int64_t> parameter_buffer_sizes;
+  int64_t return_buffer_size;
+
+  // Minimum size of the temporary buffer passed to the jitted function.
+  int64_t temp_buffer_size;
+};
+
 // This class provides a facility to execute XLS functions (on the host) by
-// converting it to LLVM IR, compiling it, and finally executing it.
+// converting it to LLVM IR, compiling it, and finally executing it. Not
+// thread-safe due to sharing of result and temporary buffers between
+// invocations of Run.
 class FunctionJit {
  public:
   // Returns an object containing a host-compiled version of the specified XLS
@@ -39,8 +57,8 @@ class FunctionJit {
       Function* xls_function, int64_t opt_level = 3);
 
   // Returns the bytes of an object file containing the compiled XLS function.
-  static absl::StatusOr<std::vector<char>> CreateObjectFile(
-      Function* xls_function, int64_t opt_level = 3);
+  static absl::StatusOr<JitObjectCode> CreateObjectCode(Function* xls_function,
+                                                        int64_t opt_level = 3);
 
   // Executes the compiled function with the specified arguments.
   absl::StatusOr<InterpreterResult<Value>> Run(absl::Span<const Value> args);
@@ -63,7 +81,7 @@ class FunctionJit {
   // TODO(https://github.com/google/xls/issues/506): 2021-10-13 Figure out
   // if we want a way to return events in the view and packed view interfaces
   // (or if their performance-focused execution means events are unimportant).
-  absl::Status RunWithViews(absl::Span<uint8_t*> args,
+  absl::Status RunWithViews(absl::Span<uint8_t* const> args,
                             absl::Span<uint8_t> result_buffer);
 
   // Similar to RunWithViews(), except the arguments here are _packed_views_ -
@@ -93,29 +111,48 @@ class FunctionJit {
     PackArgBuffers(arg_buffers, &result_buffer, args...);
 
     InterpreterEvents events;
-    packed_invoker_(arg_buffers, result_buffer, &events,
-                    /*user_data=*/nullptr, runtime());
+    uint8_t* output_buffers[1] = {result_buffer};
+    jitted_function_base_.packed_function(arg_buffers, output_buffers,
+                                          temp_buffer_.data(), &events,
+                                          /*user_data=*/nullptr, runtime());
 
     return InterpreterEventsToStatus(events);
   }
 
   // Returns the function that the JIT executes.
-  FunctionBase* function() { return xls_function_; }
+  Function* function() { return xls_function_; }
 
-  // Gets the size of the compiled function's args or return type in bytes.
-  // These values only correspond to view buffers, and not *PACKED* view
-  // buffers.
-  int64_t GetArgTypeSize(int arg_index) { return arg_type_bytes_[arg_index]; }
-  int64_t GetReturnTypeSize() { return return_type_bytes_; }
+  // Gets the size of the compiled function's arguments (or return value) in the
+  // native LLVM data layout (not the packed layout).
+  int64_t GetArgTypeSize(int arg_index) const {
+    return jitted_function_base_.input_buffer_sizes[arg_index];
+  }
+  int64_t GetReturnTypeSize() const {
+    return jitted_function_base_.output_buffer_sizes[0];
+  }
 
-  JitRuntime* runtime() { return ir_runtime_.get(); }
+  // Returns the size of the temporary buffer which must be passed to the jitted
+  // function. The buffer is used to hold temporary node values inside the
+  // jitted function.
+  int64_t GetTempBufferSize() const {
+    return jitted_function_base_.temp_buffer_size;
+  }
 
-  LlvmTypeConverter* type_converter() { return &orc_jit_->GetTypeConverter(); }
+  // Returns the name of the jitted function.
+  absl::string_view GetJittedFunctionName() const {
+    return jitted_function_base_.function_name;
+  }
+
+  JitRuntime* runtime() const { return jit_runtime_.get(); }
+
+  LlvmTypeConverter* type_converter() const {
+    return &orc_jit_->GetTypeConverter();
+  }
 
   OrcJit& GetOrcJit() const { return *orc_jit_; }
 
  private:
-  explicit FunctionJit(Function* xls_function);
+  explicit FunctionJit(Function* xls_function) : xls_function_(xls_function) {}
 
   static absl::StatusOr<std::unique_ptr<FunctionJit>> CreateInternal(
       Function* xls_function, int64_t opt_level, bool emit_object_code);
@@ -157,56 +194,26 @@ class FunctionJit {
     *result_buffer = front.buffer();
   }
 
+  // Invokes the jitted function with the given argument and outputs.
+  void InvokeJitFunction(absl::Span<uint8_t* const> arg_buffers,
+                         uint8_t* output_buffer, InterpreterEvents* events);
+
   std::unique_ptr<OrcJit> orc_jit_;
 
   Function* xls_function_;
 
-  // Size of the function's args or return type as flat bytes.
-  std::vector<int64_t> arg_type_bytes_;
-  int64_t return_type_bytes_;
+  // Buffers to hold the arguments, result, temporary storage. This is allocated
+  // once and then re-used with each invocation of Run. Not thread-safe.
+  std::vector<std::vector<uint8_t>> arg_buffers_;
+  std::vector<uint8_t> result_buffer_;
+  std::vector<uint8_t> temp_buffer_;
 
-  std::unique_ptr<JitRuntime> ir_runtime_;
+  // Raw pointers to the buffers held in `arg_buffers_`.
+  std::vector<uint8_t*> arg_buffer_ptrs_;
 
-  // When initialized, this points to the compiled output.
-  using JitFunctionType = void (*)(const uint8_t* const* inputs,
-                                   uint8_t* output, InterpreterEvents* events,
-                                   void* user_data, JitRuntime* jit_runtime);
-  JitFunctionType invoker_;
-
-  // Packed types for above.
-  using PackedJitFunctionType = void (*)(const uint8_t* const* inputs,
-                                         uint8_t* output,
-                                         InterpreterEvents* events,
-                                         void* user_data,
-                                         JitRuntime* jit_runtime);
-  PackedJitFunctionType packed_invoker_;
+  JittedFunctionBase jitted_function_base_;
+  std::unique_ptr<JitRuntime> jit_runtime_;
 };
-
-// Builds and returns an LLVM IR function constructed from the given XLS
-// function. The function accepts arguments by value in their native LLVM
-// representation and returns the result in the same representation. The
-// signature of the function is:
-//
-//   retT f(arg_0_T arg_0, ..., arg_n_T arg_n,
-//          void* events, void* user_data, void* jit_runtime)
-//
-// Where:
-//   retT        : native type of the return value
-//   arg_i_T     : native type of the `i`-th argument
-//   arg_i       : the `i`-th argument
-//   events      : a pointer to an InterpreterEvents object
-//   user_data   : unused
-//   jit_runtime : a pointer to a JitRuntime
-absl::StatusOr<llvm::Function*> BuildFunction(Function* xls_function,
-                                              llvm::Module* module,
-                                              OrcJit& jit);
-
-// JIT-compiles the given xls_function and invokes it with args, returning the
-// resulting return value. Note that this will cause the overhead of creating a
-// FunctionJit object each time, so external caching strategies are generally
-// preferred.
-absl::StatusOr<InterpreterResult<Value>> CreateAndRun(
-    Function* xls_function, absl::Span<const Value> args);
 
 }  // namespace xls
 

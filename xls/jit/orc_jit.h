@@ -58,7 +58,7 @@ class OrcJit {
 
   // Returns the object code which was created in the previous CompileModule
   // call (if `emit_object_code` is true).
-  const std::vector<char>& GetObjectCode() { return object_code_; }
+  const std::vector<uint8_t>& GetObjectCode() { return object_code_; }
 
  private:
   OrcJit(int64_t opt_level, bool emit_object_code);
@@ -91,7 +91,7 @@ class OrcJit {
 
   // When `CompileModule` is called and `emit_object_code` is true, this vector
   // will be allocated and filled with the object code of the compiled module.
-  std::vector<char> object_code_;
+  std::vector<uint8_t> object_code_;
 };
 
 // Calls the dump method on the given LLVM object and returns the string.

@@ -38,6 +38,9 @@ class LlvmTypeConverter {
                     const llvm::DataLayout& data_layout);
 
   llvm::Type* ConvertToLlvmType(const Type* type) const;
+  llvm::Type* ConvertToPointerToLlvmType(const Type* type) const {
+    return llvm::PointerType::get(ConvertToLlvmType(type), 0);
+  }
 
   // Returns the LLVM type for the packed representation of the given XLS
   // type. A packed representation has all bits flattened into a bit vector
@@ -49,6 +52,9 @@ class LlvmTypeConverter {
                                                  const Value& value) const;
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(const Type* type,
                                                  const Value& value) const;
+
+  // Returns a constant zero of the given type.
+  static llvm::Constant* ZeroOfType(llvm::Type* type);
 
   // Returns the number of bytes that LLVM will internally use to store the
   // given element. This is not simply the flat bit count of the type (rounded

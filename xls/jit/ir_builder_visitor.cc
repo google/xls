@@ -13,24 +13,28 @@
 // limitations under the License.
 #include "xls/jit/ir_builder_visitor.h"
 
-#include "llvm/include/llvm/IR/DerivedTypes.h"
-#include "llvm/include/llvm/IR/Instructions.h"
-#include "xls/common/logging/log_lines.h"
-#include "xls/common/logging/logging.h"
-#include "xls/ir/bits_ops.h"
-#include "xls/ir/events.h"
-#include "xls/ir/value_helpers.h"
-#include "xls/jit/orc_jit.h"
-
-#ifdef ABSL_HAVE_MEMORY_SANITIZER
-#include <sanitizer/msan_interface.h>
-#endif
-
+#include "absl/base/config.h"  // IWYU pragma: keep
+#include "absl/status/status.h"
+#include "absl/types/span.h"
 #include "llvm/include/llvm/IR/Constants.h"
-#include "xls/codegen/vast.h"
+#include "llvm/include/llvm/IR/DerivedTypes.h"
+#include "llvm/include/llvm/IR/IRBuilder.h"
+#include "llvm/include/llvm/IR/Instructions.h"
+#include "llvm/include/llvm/IR/LLVMContext.h"
+#include "llvm/include/llvm/IR/Module.h"
+#include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
+#include "xls/ir/bits_ops.h"
+#include "xls/ir/dfs_visitor.h"
+#include "xls/ir/events.h"
 #include "xls/ir/function.h"
-#include "xls/ir/proc.h"
+#include "xls/ir/function_base.h"
+#include "xls/ir/nodes.h"
+#include "xls/ir/value_helpers.h"
+#include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
+#include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 namespace {
@@ -178,7 +182,7 @@ llvm::Value* CreateAggregateOr(llvm::Value* lhs, llvm::Value* rhs,
     return builder->CreateOr(lhs, rhs);
   }
 
-  llvm::Value* result = IrBuilderVisitor::CreateTypedZeroValue(arg_type);
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(arg_type);
   int num_elements = arg_type->isArrayTy() ? arg_type->getArrayNumElements()
                                            : arg_type->getNumContainedTypes();
   for (uint32_t i = 0; i < num_elements; ++i) {
@@ -287,7 +291,7 @@ absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
   // Our IR does not use negative indices, so we add a
   // zero MSb to prevent LLVM from interpreting this as such.
   std::vector<llvm::Value*> gep_indices = {
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(builder->getContext()), 0),
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder->getContext()), 0),
       builder->CreateZExt(inbounds_index,
                           type_converter->GetLlvmBitsType(index_width + 1))};
 
@@ -468,96 +472,392 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
   return absl::OkStatus();
 }
 
-}  // namespace
-
-llvm::Function* NodeIrContext::CreateFunction(
-    Node* node, LlvmTypeConverter* type_converter, llvm::Module* module,
-    std::optional<Environment> environment) {
-  std::vector<llvm::Type*> param_types;
-  for (Node* operand : node->operands()) {
-    param_types.push_back(
-        type_converter->ConvertToLlvmType(operand->GetType()));
-  }
-  if (environment.has_value()) {
-    // Add parameters for events, runtime, and user_data.
-    llvm::PointerType* ptr_type =
-        llvm::PointerType::get(module->getContext(), 0);
-    param_types.push_back(ptr_type);
-    param_types.push_back(ptr_type);
-    param_types.push_back(ptr_type);
-  }
-  llvm::Type* result_type = type_converter->ConvertToLlvmType(node->GetType());
-  llvm::FunctionType* function_type = llvm::FunctionType::get(
-      result_type,
-      llvm::ArrayRef<llvm::Type*>(param_types.data(), param_types.size()),
-      /*isVarArg=*/false);
-
-  // To avoid name collisions between nodes from other functions append the
-  // unique ID to the function name.
-  std::string function_name =
-      absl::StrFormat("__%s_%d", node->GetName(), node->id());
-  llvm::Function* llvm_function = llvm::cast<llvm::Function>(
-      module->getOrInsertFunction(function_name, function_type).getCallee());
-
-  // Mark as private so function can be deleted after inlining.
-  llvm_function->setLinkage(llvm::GlobalValue::PrivateLinkage);
-
-  return llvm_function;
+absl::StatusOr<llvm::Function*> CreateLlvmFunction(
+    absl::string_view name, llvm::FunctionType* function_type,
+    llvm::Module* module) {
+  XLS_RET_CHECK_EQ(module->getFunction(name), nullptr) << absl::StreamFormat(
+      "Function named `%s` already exists in LLVM module", name);
+  return llvm::cast<llvm::Function>(
+      module->getOrInsertFunction(std::string{name}, function_type)
+          .getCallee());
 }
+
+// Abstraction gathering together the necessary context for emitting the LLVM IR
+// for a given node. This data structure decouples IR generation for the
+// top-level function from the IR generation of each node. This enables, for
+// example, emitting a node as a separate function.
+class NodeIrContext {
+ public:
+  // Possible node function signatures:
+  //
+  // void f(operand_ptr_0, ..., operand_ptr_n,
+  //        output_ptr_0, ..., output_ptr_m)
+  //
+  // void f(void* operand_ptr_0, ... , void* operand_ptr_n,
+  //        void* output_ptr_0,  ... , void* output_ptr_m,
+  //        void* global_inputs, void* global_outputs, void* tmp_buffer,
+  //        void* events, void* user_data, void* runtime)
+  //
+  // Args:
+  //   node : The XLS node the LLVM IR is being generated for.
+  //   operand_names : the names of the operand of `node`. If possible, these
+  //     will be used to name the LLVM values of the operands.
+  //   output_arg_count: The number of output pointer arguments in the generated
+  //     function. Each argument points to a buffer which must be filled with
+  //     the computed result.
+  //   include_wrapper_args: whether to include top-level arguments (such as
+  //     InterpreterEvents*, JitRuntime*, etc) in the node function. This is
+  //     required when the node calls a top-level function (e.g, map, invoke,
+  //     etc).
+  static absl::StatusOr<NodeIrContext> Create(
+      Node* node, absl::Span<const std::string> operand_names,
+      int64_t output_arg_count, bool include_wrapper_args,
+      JitBuilderContext& jit_context);
+
+  // Completes the LLVM function by adding a return statement with the given
+  // result (or pointer to result). If `exit_builder` is specified then it is
+  // used to build the return statement. Otherwise `entry_builder()` is used.
+  void FinalizeWithValue(llvm::Value* result,
+                         std::optional<llvm::IRBuilder<>*> exit_builder);
+  void FinalizeWithPointerToValue(
+      llvm::Value* result_buffer,
+      std::optional<llvm::IRBuilder<>*> exit_builder);
+
+  Node* node() const { return node_; }
+  LlvmTypeConverter& type_converter() const {
+    return orc_jit_.GetTypeConverter();
+  }
+
+  // Returns true if the underlying llvm::Function takes the top-level metadata
+  // arguments (inputs, outputs, temp buffer, events, etc).
+  bool has_metadata_args() const { return has_metadata_args_; }
+
+  // The LLVM function that the generated code for the node is placed into,
+  llvm::Function* llvm_function() const { return llvm_function_; }
+
+  // Returns the IR builder to use for building code for this XLS node.
+  llvm::IRBuilder<>& entry_builder() const { return *entry_builder_; }
+
+  // Loads the given operand value from the pointer passed in as the respective
+  // operand.
+  llvm::Value* LoadOperand(int64_t i) const;
+
+  // Returns the operand pointer arguments.
+  absl::Span<llvm::Value* const> GetOperandPtrs() const {
+    return operand_ptrs_;
+  }
+
+  // Returns the `i-th` operand pointer argument.
+  llvm::Value* GetOperandPtr(int64_t i) const { return operand_ptrs_.at(i); }
+
+  // Returns the output pointer arguments.
+  absl::Span<llvm::Value* const> GetOutputPtrs() const { return output_ptrs_; }
+
+  // Returns the `i-th` operand pointer argument.
+  llvm::Value* GetOutputPtr(int64_t i) const { return output_ptrs_.at(i); }
+
+  // Get one of the metadata arguments. CHECK fails the function was created
+  // without metadata arguments.
+  llvm::Value* GetInputPtrsArg() const {
+    XLS_CHECK(has_metadata_args_);
+    return llvm_function_->getArg(llvm_function_->arg_size() - 6);
+  }
+  llvm::Value* GetOutputPtrsArg() const {
+    XLS_CHECK(has_metadata_args_);
+    return llvm_function_->getArg(llvm_function_->arg_size() - 5);
+  }
+  llvm::Value* GetTempBufferArg() const {
+    XLS_CHECK(has_metadata_args_);
+    return llvm_function_->getArg(llvm_function_->arg_size() - 4);
+  }
+  llvm::Value* GetInterpreterEventsArg() const {
+    XLS_CHECK(has_metadata_args_);
+    return llvm_function_->getArg(llvm_function_->arg_size() - 3);
+  }
+  llvm::Value* GetUserDataArg() const {
+    XLS_CHECK(has_metadata_args_);
+    return llvm_function_->getArg(llvm_function_->arg_size() - 2);
+  }
+  llvm::Value* GetJitRuntimeArg() const {
+    XLS_CHECK(has_metadata_args_);
+    return llvm_function_->getArg(llvm_function_->arg_size() - 1);
+  }
+
+ private:
+  NodeIrContext(Node* node, bool has_metadata_args, OrcJit& orc_jit)
+      : node_(node), has_metadata_args_(has_metadata_args), orc_jit_(orc_jit) {}
+
+  Node* node_;
+  bool has_metadata_args_;
+  OrcJit& orc_jit_;
+
+  llvm::Function* llvm_function_;
+  std::unique_ptr<llvm::IRBuilder<>> entry_builder_;
+  std::vector<llvm::Value*> operand_ptrs_;
+  std::vector<llvm::Value*> output_ptrs_;
+};
 
 absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     Node* node, absl::Span<const std::string> operand_names,
-    LlvmTypeConverter* type_converter, llvm::Module* module,
-    std::optional<Environment> environment) {
-  NodeIrContext nc;
+    int64_t output_arg_count, bool include_wrapper_args,
+    JitBuilderContext& jit_context) {
+  XLS_RET_CHECK_GT(output_arg_count, 0);
+  NodeIrContext nc(node, include_wrapper_args, jit_context.orc_jit());
   nc.node_ = node;
-  nc.llvm_function_ = CreateFunction(node, type_converter, module, environment);
-  nc.type_converter_ = type_converter;
+  int64_t param_count = node->operand_count() + output_arg_count;
+  if (include_wrapper_args) {
+    param_count += 6;
+  }
+  std::vector<llvm::Type*> param_types(
+      param_count,
+      llvm::PointerType::get(jit_context.module()->getContext(), 0));
+  llvm::FunctionType* function_type = llvm::FunctionType::get(
+      llvm::Type::getVoidTy(jit_context.module()->getContext()), param_types,
+      /*isVarArg=*/false);
+  std::string function_name = absl::StrFormat(
+      "__%s_%s_%d", node->function_base()->name(), node->GetName(), node->id());
+  XLS_ASSIGN_OR_RETURN(
+      nc.llvm_function_,
+      CreateLlvmFunction(function_name, function_type, jit_context.module()));
 
-  nc.builder_ = std::make_unique<llvm::IRBuilder<>>(
-      llvm::BasicBlock::Create(module->getContext(), "entry", nc.llvm_function_,
-                               /*InsertBefore=*/nullptr));
+  // Mark as private so function can be deleted after inlining.
+  nc.llvm_function_->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
-  XLS_RET_CHECK_EQ(operand_names.size(), node->operands().size());
+  XLS_RET_CHECK_EQ(operand_names.size(), node->operand_count());
+  int64_t arg_no = 0;
+  for (const std::string& name : operand_names) {
+    nc.llvm_function_->getArg(arg_no++)->setName(absl::StrCat(name, "_ptr"));
+  }
+  for (int64_t i = 0; i < output_arg_count; ++i) {
+    nc.llvm_function_->getArg(arg_no++)->setName(
+        absl::StrFormat("output_%d_ptr", i));
+  }
+  if (include_wrapper_args) {
+    nc.llvm_function_->getArg(arg_no++)->setName("inputs");
+    nc.llvm_function_->getArg(arg_no++)->setName("outputs");
+    nc.llvm_function_->getArg(arg_no++)->setName("temp_buffer");
+    nc.llvm_function_->getArg(arg_no++)->setName("events");
+    nc.llvm_function_->getArg(arg_no++)->setName("user_data");
+    nc.llvm_function_->getArg(arg_no++)->setName("jit_runtime");
+  }
+
+  nc.entry_builder_ =
+      std::make_unique<llvm::IRBuilder<>>(llvm::BasicBlock::Create(
+          jit_context.module()->getContext(), "entry", nc.llvm_function_,
+          /*InsertBefore=*/nullptr));
+
   for (int64_t i = 0; i < node->operand_count(); ++i) {
-    nc.operands_.push_back(nc.llvm_function_->getArg(i));
-    nc.operands_.back()->setName(operand_names[i]);
+    llvm::Value* operand_ptr = nc.llvm_function_->getArg(i);
+    nc.operand_ptrs_.push_back(operand_ptr);
   }
-
-  if (environment.has_value()) {
-    nc.environment_ = Environment();
-    nc.environment_->events = nc.llvm_function_->getArg(node->operand_count());
-    nc.environment_->events->setName("events");
-    nc.environment_->user_data =
-        nc.llvm_function_->getArg(node->operand_count() + 1);
-    nc.environment_->user_data->setName("user_data");
-    nc.environment_->jit_runtime =
-        nc.llvm_function_->getArg(node->operand_count() + 2);
-    nc.environment_->jit_runtime->setName("jit_runtime");
+  for (int64_t i = 0; i < output_arg_count; ++i) {
+    nc.output_ptrs_.push_back(
+        nc.llvm_function_->getArg(node->operand_count() + i));
   }
-
   return nc;
 }
 
-void NodeIrContext::Finalize(llvm::Value* result,
-                             std::optional<llvm::IRBuilder<>*> exit_builder) {
-  llvm::IRBuilder<>* b =
-      exit_builder.has_value() ? exit_builder.value() : &builder();
-  result = type_converter()->ClearPaddingBits(result, node()->GetType(), *b);
-  b->CreateRet(result);
+llvm::Value* NodeIrContext::LoadOperand(int64_t i) const {
+  Node* operand = node()->operand(i);
+  llvm::Type* operand_type =
+      type_converter().ConvertToLlvmType(operand->GetType());
+  llvm::Value* operand_ptr = llvm_function_->getArg(i);
+  return entry_builder().CreateLoad(operand_type, operand_ptr);
 }
 
-IrBuilderVisitor::IrBuilderVisitor(
-    llvm::Function* llvm_fn, FunctionBase* xls_fn,
-    LlvmTypeConverter* type_converter,
-    std::function<absl::StatusOr<llvm::Function*>(Function*)> function_builder)
-    : dispatch_fn_(llvm_fn),
-      xls_fn_(xls_fn),
-      dispatch_builder_(std::make_unique<llvm::IRBuilder<>>(
-          llvm::BasicBlock::Create(llvm_fn->getContext(), "entry", llvm_fn,
-                                   /*InsertBefore=*/nullptr))),
-      type_converter_(type_converter),
-      function_builder_(function_builder) {}
+void NodeIrContext::FinalizeWithValue(
+    llvm::Value* result, std::optional<llvm::IRBuilder<>*> exit_builder) {
+  llvm::IRBuilder<>* b =
+      exit_builder.has_value() ? exit_builder.value() : &entry_builder();
+  result = type_converter().ClearPaddingBits(result, node()->GetType(), *b);
+  if (GetOutputPtrs().empty()) {
+    b->CreateRetVoid();
+    return;
+  }
+  b->CreateStore(result, GetOutputPtr(0));
+  return FinalizeWithPointerToValue(GetOutputPtr(0), exit_builder);
+}
+
+void NodeIrContext::FinalizeWithPointerToValue(
+    llvm::Value* result_buffer,
+    std::optional<llvm::IRBuilder<>*> exit_builder) {
+  llvm::IRBuilder<>* b =
+      exit_builder.has_value() ? exit_builder.value() : &entry_builder();
+  for (int64_t i = 0; i < output_ptrs_.size(); ++i) {
+    if (output_ptrs_[i] != result_buffer) {
+      LlvmMemcpy(output_ptrs_[i], result_buffer,
+                 type_converter().GetTypeByteSize(node()->GetType()), *b);
+    }
+  }
+  b->CreateRetVoid();
+}
+
+// Visitor to construct and LLVM function implementing an XLS IR node.
+class IrBuilderVisitor : public DfsVisitorWithDefault {
+ public:
+  //  `output_arg_count` is the number of output arguments for the LLVM function
+  IrBuilderVisitor(int64_t output_arg_count, JitBuilderContext& jit_context)
+      : output_arg_count_(output_arg_count), jit_context_(jit_context) {}
+
+  NodeIrContext ConsumeNodeIrContext() { return std::move(*node_context_); }
+
+  absl::Status DefaultHandler(Node* node) override;
+
+  absl::Status HandleAdd(BinOp* binop) override;
+  absl::Status HandleAndReduce(BitwiseReductionOp* op) override;
+  absl::Status HandleAfterAll(AfterAll* after_all) override;
+  absl::Status HandleArray(Array* array) override;
+  absl::Status HandleArrayIndex(ArrayIndex* index) override;
+  absl::Status HandleArraySlice(ArraySlice* slice) override;
+  absl::Status HandleArrayUpdate(ArrayUpdate* update) override;
+  absl::Status HandleArrayConcat(ArrayConcat* concat) override;
+  absl::Status HandleAssert(Assert* assert_op) override;
+  absl::Status HandleBitSlice(BitSlice* bit_slice) override;
+  absl::Status HandleBitSliceUpdate(BitSliceUpdate* update) override;
+  absl::Status HandleDynamicBitSlice(
+      DynamicBitSlice* dynamic_bit_slice) override;
+  absl::Status HandleConcat(Concat* concat) override;
+  absl::Status HandleCountedFor(CountedFor* counted_for) override;
+  absl::Status HandleCover(Cover* cover) override;
+  absl::Status HandleDecode(Decode* decode) override;
+  absl::Status HandleDynamicCountedFor(
+      DynamicCountedFor* dynamic_counted_for) override;
+  absl::Status HandleEncode(Encode* encode) override;
+  absl::Status HandleEq(CompareOp* eq) override;
+  absl::Status HandleGate(Gate* gate) override;
+  absl::Status HandleIdentity(UnOp* identity) override;
+  absl::Status HandleInvoke(Invoke* invoke) override;
+  absl::Status HandleLiteral(Literal* literal) override;
+  absl::Status HandleMap(Map* map) override;
+  absl::Status HandleNaryAnd(NaryOp* and_op) override;
+  absl::Status HandleNaryNand(NaryOp* nand_op) override;
+  absl::Status HandleNaryNor(NaryOp* nor_op) override;
+  absl::Status HandleNaryOr(NaryOp* or_op) override;
+  absl::Status HandleNaryXor(NaryOp* xor_op) override;
+  absl::Status HandleNe(CompareOp* ne) override;
+  absl::Status HandleNeg(UnOp* neg) override;
+  absl::Status HandleNot(UnOp* not_op) override;
+  absl::Status HandleOneHot(OneHot* one_hot) override;
+  absl::Status HandleOneHotSel(OneHotSelect* sel) override;
+  absl::Status HandleOrReduce(BitwiseReductionOp* op) override;
+  absl::Status HandlePrioritySel(PrioritySelect* sel) override;
+  absl::Status HandleReceive(Receive* recv) override;
+  absl::Status HandleReverse(UnOp* reverse) override;
+  absl::Status HandleSDiv(BinOp* binop) override;
+  absl::Status HandleSGe(CompareOp* ge) override;
+  absl::Status HandleSGt(CompareOp* gt) override;
+  absl::Status HandleSLe(CompareOp* le) override;
+  absl::Status HandleSLt(CompareOp* lt) override;
+  absl::Status HandleSMod(BinOp* binop) override;
+  absl::Status HandleSMul(ArithOp* mul) override;
+  absl::Status HandleSMulp(PartialProductOp* mul) override;
+  absl::Status HandleSel(Select* sel) override;
+  absl::Status HandleSend(Send* send) override;
+  absl::Status HandleShll(BinOp* binop) override;
+  absl::Status HandleShra(BinOp* binop) override;
+  absl::Status HandleShrl(BinOp* binop) override;
+  absl::Status HandleSignExtend(ExtendOp* sign_ext) override;
+  absl::Status HandleSub(BinOp* binop) override;
+  absl::Status HandleTrace(Trace* trace_op) override;
+  absl::Status HandleTuple(Tuple* tuple) override;
+  absl::Status HandleTupleIndex(TupleIndex* index) override;
+  absl::Status HandleUDiv(BinOp* binop) override;
+  absl::Status HandleUGe(CompareOp* ge) override;
+  absl::Status HandleUGt(CompareOp* gt) override;
+  absl::Status HandleULe(CompareOp* le) override;
+  absl::Status HandleULt(CompareOp* lt) override;
+  absl::Status HandleUMod(BinOp* binop) override;
+  absl::Status HandleUMul(ArithOp* mul) override;
+  absl::Status HandleUMulp(PartialProductOp* mul) override;
+  absl::Status HandleXorReduce(BitwiseReductionOp* op) override;
+  absl::Status HandleZeroExtend(ExtendOp* zero_ext) override;
+
+ protected:
+  llvm::LLVMContext& ctx() { return jit_context_.context(); }
+  llvm::Module* module() { return jit_context_.module(); }
+
+  // Returns the top-level builder for the function. This builder is initialized
+  // to the entry block of `dispatch_function()`.
+  //  llvm::IRBuilder<>* dispatch_builder() { return dispatch_builder_.get(); }
+  LlvmTypeConverter* type_converter() {
+    return &jit_context_.orc_jit().GetTypeConverter();
+  }
+
+  // Common handler for binary, unary, and nary nodes. `build_results` produces
+  // the llvm Value to use as the result.
+  absl::Status HandleUnaryOp(
+      Node* node, std::function<llvm::Value*(llvm::Value*, llvm::IRBuilder<>&)>,
+      bool is_signed = false);
+  absl::Status HandleBinaryOp(
+      Node* node,
+      std::function<llvm::Value*(llvm::Value*, llvm::Value*,
+                                 llvm::IRBuilder<>&)>,
+      bool is_signed = false);
+  absl::Status HandleNaryOp(
+      Node* node, std::function<llvm::Value*(absl::Span<llvm::Value* const>,
+                                             llvm::IRBuilder<>&)>);
+
+  // HandleBinaryOp variant which converts the operands to result type prior to
+  // calling `build_result`.
+  absl::Status HandleBinaryOpWithOperandConversion(
+      Node* node,
+      std::function<llvm::Value*(llvm::Value*, llvm::Value*,
+                                 llvm::IRBuilder<>&)>
+          build_result,
+      bool is_signed);
+
+  // Gets the built function representing the given XLS function.
+  absl::StatusOr<llvm::Function*> GetFunction(Function* function) {
+    return jit_context_.GetLlvmFunction(function);
+  }
+
+  // Creates and returns a new NodeIrContext for the given XLS node.
+  absl::StatusOr<NodeIrContext> NewNodeIrContext(
+      Node* node, absl::Span<const std::string> operand_names,
+      bool include_wrapper_args = false);
+
+  // Finalizes the given NodeIrContext (adds a return statement with the given
+  // result) and adds a call in the top-level LLVM function to the node
+  // function.
+  absl::Status FinalizeNodeIrContextWithValue(
+      NodeIrContext&& node_context, llvm::Value* result,
+      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt);
+  absl::Status FinalizeNodeIrContextWithPointerToValue(
+      NodeIrContext&& node_context, llvm::Value* result_buffer,
+      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt);
+
+  llvm::Value* MaybeAsSigned(llvm::Value* v, Type* xls_type,
+                             llvm::IRBuilder<>& builder, bool is_signed) {
+    if (is_signed) {
+      return type_converter()->AsSignedValue(v, xls_type, builder);
+    }
+    return v;
+  }
+
+  // Calls the given function `f`. `f` must have the same signature as top-level
+  // jitted function (i.e., `JitFunctionType`) corrresponding to XLS functions,
+  // procs, etc.
+  absl::StatusOr<llvm::Value*> CallFunction(
+      llvm::Function* f, absl::Span<llvm::Value* const> inputs,
+      absl::Span<llvm::Value* const> outputs, llvm::Value* temp_buffer,
+      llvm::Value* events, llvm::Value* user_data, llvm::Value* runtime,
+      llvm::IRBuilder<>& builder);
+
+  absl::StatusOr<llvm::Value*> InvokeRecvCallback(llvm::IRBuilder<>* builder,
+                                                  JitChannelQueue* queue,
+                                                  Receive* receive,
+                                                  llvm::Value* output_ptr,
+                                                  llvm::Value* user_data);
+
+  absl::Status InvokeSendCallback(llvm::IRBuilder<>* builder,
+                                  JitChannelQueue* queue, Send* send,
+                                  llvm::Value* send_data_ptr,
+                                  llvm::Value* user_data);
+
+  int64_t output_arg_count_;
+  JitBuilderContext& jit_context_;
+  std::optional<NodeIrContext> node_context_;
+};
 
 absl::Status IrBuilderVisitor::DefaultHandler(Node* node) {
   return absl::UnimplementedError(
@@ -585,16 +885,16 @@ absl::Status IrBuilderVisitor::HandleAfterAll(AfterAll* after_all) {
   // any computation.
   return HandleNaryOp(after_all, [&](absl::Span<llvm::Value* const> operands,
                                      llvm::IRBuilder<>& b) {
-    return type_converter_->GetToken();
+    return type_converter()->GetToken();
   });
 }
 
 absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(assert_op, {"tkn", "condition"},
-                                        /*include_environment=*/true));
+                                        /*include_wrapper_args=*/true));
 
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Function* function = node_context.llvm_function();
 
   std::string assert_label = assert_op->label().value_or("assert");
@@ -614,15 +914,16 @@ absl::Status IrBuilderVisitor::HandleAssert(Assert* assert_op) {
   llvm::IRBuilder<> fail_builder(fail_block);
   XLS_RETURN_IF_ERROR(
       InvokeAssertCallback(&fail_builder, assert_op->message(),
-                           node_context.GetInterpreterEvents()));
+                           node_context.GetInterpreterEventsArg()));
 
   fail_builder.CreateBr(after_block);
 
-  b.CreateCondBr(node_context.operand(1), ok_block, fail_block);
+  b.CreateCondBr(node_context.LoadOperand(1), ok_block, fail_block);
 
   auto after_builder = std::make_unique<llvm::IRBuilder<>>(after_block);
-  llvm::Value* token = type_converter_->GetToken();
-  return FinalizeNodeIrContext(node_context, token, std::move(after_builder));
+  llvm::Value* token = type_converter()->GetToken();
+  return FinalizeNodeIrContextWithValue(std::move(node_context), token,
+                                        after_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleArray(Array* array) {
@@ -630,16 +931,19 @@ absl::Status IrBuilderVisitor::HandleArray(Array* array) {
       NodeIrContext node_context,
       NewNodeIrContext(array,
                        NumberedStrings("operand", array->operand_count())));
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Type* array_type = type_converter_->ConvertToLlvmType(array->GetType());
+  llvm::Type* array_type =
+      type_converter()->ConvertToLlvmType(array->GetType());
 
-  llvm::Value* result = CreateTypedZeroValue(array_type);
+  // TODO(meheff): 2022/09/09 Rather than using insertvalue memcpy the
+  // elements into place in the output buffer.
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(array_type);
   for (uint32_t i = 0; i < array->size(); ++i) {
-    result = b.CreateInsertValue(result, node_context.operand(i), {i});
+    result = b.CreateInsertValue(result, node_context.LoadOperand(i), {i});
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
@@ -649,12 +953,12 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
           trace_op,
           ConcatVectors({"tkn", "condition"},
                         NumberedStrings("arg", trace_op->args().size())),
-          /*include_environment=*/true));
+          /*include_wrapper_args=*/true));
 
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* condition = node_context.operand(1);
-  llvm::Value* events_ptr = node_context.GetInterpreterEvents();
-  llvm::Value* jit_runtime_ptr = node_context.GetJitRuntime();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* condition = node_context.LoadOperand(1);
+  llvm::Value* events_ptr = node_context.GetInterpreterEventsArg();
+  llvm::Value* jit_runtime_ptr = node_context.GetJitRuntimeArg();
 
   std::string trace_name = trace_op->GetName();
 
@@ -688,7 +992,7 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
           &print_builder, absl::get<std::string>(step), buffer_ptr));
     } else {
       xls::Node* o = trace_op->operand(operand_index);
-      llvm::Value* operand = node_context.operand(operand_index);
+      llvm::Value* operand = node_context.LoadOperand(operand_index);
       llvm::AllocaInst* alloca = print_builder.CreateAlloca(operand->getType());
       print_builder.CreateStore(operand, alloca);
       // The way our format strings are currently formed we implicitly refer to
@@ -708,8 +1012,9 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
   b.CreateCondBr(condition, print_block, skip_block);
 
   auto after_builder = std::make_unique<llvm::IRBuilder<>>(after_block);
-  llvm::Value* token = type_converter_->GetToken();
-  return FinalizeNodeIrContext(node_context, token, std::move(after_builder));
+  llvm::Value* token = type_converter()->GetToken();
+  return FinalizeNodeIrContextWithValue(std::move(node_context), token,
+                                        after_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
@@ -719,29 +1024,31 @@ absl::Status IrBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
           index,
           ConcatVectors({"array"},
                         NumberedStrings("index", index->indices().size()))));
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
   Type* element_type = index->array()->GetType();
-  llvm::Value* element = node_context.operand(0);
+
+  // TODO(meheff): 2022/09/09 Replace this with a single memcpy.
+  llvm::Value* element = node_context.LoadOperand(0);
   // Index operands start at 1.
   for (int64_t i = 1; i < index->operand_count(); ++i) {
-    llvm::Value* index_value = node_context.operand(i);
+    llvm::Value* index_value = node_context.LoadOperand(i);
     XLS_ASSIGN_OR_RETURN(element,
                          IndexIntoArray(element, index_value,
                                         element_type->AsArrayOrDie()->size(),
                                         type_converter(), &b));
     element_type = element_type->AsArrayOrDie()->element_type();
   }
-  return FinalizeNodeIrContext(node_context, element);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), element);
 }
 
 absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(slice, {"array", "start"}));
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Value* array = node_context.operand(0);
-  llvm::Value* start = node_context.operand(1);
+  llvm::Value* array = node_context.LoadOperand(0);
+  llvm::Value* start = node_context.LoadOperand(1);
   int64_t width = slice->width();
 
   // This overestimates the number of bits needed but in all practical
@@ -753,8 +1060,8 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   llvm::Type* index_type = type_converter()->ConvertToLlvmType(
       slice->package()->GetBitsType(index_bits));
   llvm::Type* result_type =
-      type_converter_->ConvertToLlvmType(slice->GetType());
-  llvm::Type* result_element_type = type_converter_->ConvertToLlvmType(
+      type_converter()->ConvertToLlvmType(slice->GetType());
+  llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
       slice->GetType()->AsArrayOrDie()->element_type());
   llvm::Value* alloca = b.CreateAlloca(result_type, 0, "alloca");
   llvm::Value* start_big = b.CreateZExt(start, index_type, "start_big");
@@ -762,20 +1069,21 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   for (int64_t i = 0; i < width; i++) {
     llvm::Value* index =
         b.CreateAdd(start_big, llvm::ConstantInt::get(index_type, i), "index");
+    // TODO(meheff): 2022/09/09 Replace with memcpys.
     XLS_ASSIGN_OR_RETURN(
         llvm::Value * value,
         IndexIntoArray(array, index,
                        slice->array()->GetType()->AsArrayOrDie()->size(),
                        type_converter(), &b));
     std::vector<llvm::Value*> gep_indices = {
-        llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), i)};
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), i)};
     llvm::Value* gep = b.CreateGEP(result_element_type, alloca, gep_indices);
     b.CreateStore(value, gep);
   }
 
   llvm::Value* sliced_array = b.CreateLoad(result_type, alloca);
 
-  return FinalizeNodeIrContext(node_context, sliced_array);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), sliced_array);
 }
 
 absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
@@ -785,14 +1093,21 @@ absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
           update,
           ConcatVectors({"array", "update_value"},
                         NumberedStrings("index", update->indices().size()))));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* original_array = node_context.operand(0);
-  llvm::Value* update_value = node_context.operand(1);
-  auto indices = node_context.operands().subspan(2);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+
+  // TODO(meheff): 2022/09/09 Replace with memcpy of whole array, followed by
+  // memcpy of new element.
+  llvm::Value* original_array = node_context.LoadOperand(0);
+  llvm::Value* update_value = node_context.LoadOperand(1);
+  std::vector<llvm::Value*> indices;
+  for (int64_t i = 2; i < update->operand_count(); ++i) {
+    indices.push_back(node_context.LoadOperand(i));
+  }
 
   if (indices.empty()) {
     // An empty index replaces the entire array value.
-    return FinalizeNodeIrContext(node_context, update_value);
+    return FinalizeNodeIrContextWithValue(std::move(node_context),
+                                          update_value);
   }
 
   llvm::Type* array_type = original_array->getType();
@@ -801,7 +1116,7 @@ absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
 
   Type* element_type = update->array_to_update()->GetType();
   std::vector<llvm::Value*> gep_indices = {
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()), 0)};
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0)};
   llvm::Value* is_inbounds = b.getTrue();
   for (llvm::Value* index : indices) {
     int64_t index_bitwidth = index->getType()->getIntegerBitWidth();
@@ -845,8 +1160,8 @@ absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
   auto exit_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
   llvm::Value* update_array = exit_builder->CreateLoad(array_type, alloca);
 
-  return FinalizeNodeIrContext(node_context, update_array,
-                               std::move(exit_builder));
+  return FinalizeNodeIrContextWithValue(std::move(node_context), update_array,
+                                        exit_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
@@ -854,16 +1169,19 @@ absl::Status IrBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
       NodeIrContext node_context,
       NewNodeIrContext(concat,
                        NumberedStrings("operand", concat->operand_count())));
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
   llvm::Type* array_type =
-      type_converter_->ConvertToLlvmType(concat->GetType());
+      type_converter()->ConvertToLlvmType(concat->GetType());
 
-  llvm::Value* result = CreateTypedZeroValue(array_type);
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(array_type);
 
+  // TODO(meheff): 2022/09/09 Replace with memcpys of the operand arrays into
+  // there location in the output array.
   int64_t result_index = 0;
   int64_t result_elements = array_type->getArrayNumElements();
-  for (llvm::Value* array : node_context.operands()) {
+  for (int64_t i = 0; i < concat->operand_count(); ++i) {
+    llvm::Value* array = node_context.LoadOperand(i);
     llvm::Type* array_type = array->getType();
 
     int64_t element_count = array_type->getArrayNumElements();
@@ -884,36 +1202,37 @@ absl::Status IrBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
     }
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(bit_slice, {"operand"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* value = node_context.operand(0);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* value = node_context.LoadOperand(0);
   Value shift_amount(
       UBits(bit_slice->start(), value->getType()->getIntegerBitWidth()));
   XLS_ASSIGN_OR_RETURN(
       llvm::Constant * start,
-      type_converter_->ToLlvmConstant(value->getType(), shift_amount));
+      type_converter()->ToLlvmConstant(value->getType(), shift_amount));
 
   // Then shift and "mask" (by casting) the input value.
   llvm::Value* shifted_value = b.CreateLShr(value, start);
   llvm::Value* truncated_value = b.CreateTrunc(
       shifted_value, type_converter()->ConvertToLlvmType(bit_slice->GetType()));
 
-  return FinalizeNodeIrContext(node_context, truncated_value);
+  return FinalizeNodeIrContextWithValue(std::move(node_context),
+                                        truncated_value);
 }
 
 absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(update, {"to_update", "start", "update_value"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* to_update = node_context.operand(0);
-  llvm::Value* start = node_context.operand(1);
-  llvm::Value* update_value = node_context.operand(2);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* to_update = node_context.LoadOperand(0);
+  llvm::Value* start = node_context.LoadOperand(1);
+  llvm::Value* update_value = node_context.LoadOperand(2);
 
   llvm::Type* result_type =
       type_converter()->ConvertToLlvmType(update->GetType());
@@ -947,7 +1266,7 @@ absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   // guarded by a compare against the width lhs of the shift (max_width).
   XLS_ASSIGN_OR_RETURN(
       llvm::Value * mask,
-      type_converter_->ToLlvmConstant(
+      type_converter()->ToLlvmConstant(
           max_width_type,
           Value(bits_ops::ZeroExtend(
               Bits::AllOnes(update->update_value()->BitCountOrDie()),
@@ -969,7 +1288,7 @@ absl::Status IrBuilderVisitor::HandleBitSliceUpdate(BitSliceUpdate* update) {
   llvm::Value* result =
       b.CreateSelect(in_bounds, updated_slice, to_update, "result");
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleDynamicBitSlice(
@@ -977,9 +1296,9 @@ absl::Status IrBuilderVisitor::HandleDynamicBitSlice(
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(dynamic_bit_slice, {"operand", "start"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* value = node_context.operand(0);
-  llvm::Value* start = node_context.operand(1);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* value = node_context.LoadOperand(0);
+  llvm::Value* start = node_context.LoadOperand(1);
 
   int64_t value_width = value->getType()->getIntegerBitWidth();
   int64_t start_width = start->getType()->getIntegerBitWidth();
@@ -994,16 +1313,16 @@ absl::Status IrBuilderVisitor::HandleDynamicBitSlice(
   Value operand_width(UBits(value_width, max_width));
   XLS_ASSIGN_OR_RETURN(
       llvm::Constant * bit_width,
-      type_converter_->ToLlvmConstant(max_width_type, operand_width));
+      type_converter()->ToLlvmConstant(max_width_type, operand_width));
 
   // "out_of_bounds" indicates whether slice is completely out of bounds.
   llvm::Value* out_of_bounds = b.CreateICmpUGE(start_ext, bit_width);
   llvm::Type* return_type =
-      type_converter_->ConvertToLlvmType(dynamic_bit_slice->GetType());
+      type_converter()->ConvertToLlvmType(dynamic_bit_slice->GetType());
   XLS_ASSIGN_OR_RETURN(
       llvm::Constant * zeros,
-      type_converter_->ToLlvmConstant(return_type,
-                                      Value(Bits(dynamic_bit_slice->width()))));
+      type_converter()->ToLlvmConstant(
+          return_type, Value(Bits(dynamic_bit_slice->width()))));
   // Then shift and truncate the input value. Set the shift amount to the 0 in
   // the case of overshift to avoid creating a poisonous shift value which can
   // run afoul of LLVM optimization bugs. The shifted value is not even used in
@@ -1014,7 +1333,7 @@ absl::Status IrBuilderVisitor::HandleDynamicBitSlice(
   llvm::Value* truncated_value = b.CreateTrunc(shifted_value, return_type);
   llvm::Value* result = b.CreateSelect(out_of_bounds, zeros, truncated_value);
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
@@ -1022,15 +1341,16 @@ absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
       NodeIrContext node_context,
       NewNodeIrContext(concat,
                        NumberedStrings("operand", concat->operand_count())));
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Type* dest_type = type_converter_->ConvertToLlvmType(concat->GetType());
+  llvm::Type* dest_type =
+      type_converter()->ConvertToLlvmType(concat->GetType());
   llvm::Value* base = llvm::ConstantInt::get(dest_type, 0);
 
   int current_shift = concat->BitCountOrDie();
   for (int64_t i = 0; i < concat->operand_count(); ++i) {
     Node* xls_operand = concat->operand(i);
-    llvm::Value* operand = node_context.operand(i);
+    llvm::Value* operand = node_context.LoadOperand(i);
 
     // Widen each operand to the full size, shift to the right location, and
     // bitwise or into the result value.
@@ -1043,7 +1363,7 @@ absl::Status IrBuilderVisitor::HandleConcat(Concat* concat) {
     current_shift -= operand_width;
   }
 
-  return FinalizeNodeIrContext(node_context, base);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), base);
 }
 
 absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
@@ -1054,34 +1374,56 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
           ConcatVectors({"initial_value"},
                         NumberedStrings("invariant_arg",
                                         counted_for->invariant_args().size())),
-          /*include_environment=*/true));
-  llvm::IRBuilder<>& b = node_context.builder();
+          /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  XLS_ASSIGN_OR_RETURN(llvm::Function * function,
-                       GetOrBuildFunction(counted_for->body()));
-  // Add the loop carry and the index to the invariant arguments.
-  std::vector<llvm::Value*> args(counted_for->invariant_args().size() + 2);
-  for (int i = 0; i < counted_for->invariant_args().size(); i++) {
-    // Invariant args start at operand 1 of the counted-for.
-    args[i + 2] = node_context.operand(i + 1);
+  XLS_ASSIGN_OR_RETURN(llvm::Function * body, GetFunction(counted_for->body()));
+
+  llvm::Type* index_type = type_converter()->ConvertToLlvmType(
+      counted_for->body()->param(0)->GetType());
+  llvm::Type* state_type = type_converter()->ConvertToLlvmType(
+      counted_for->initial_value()->GetType());
+
+  llvm::Value* index_buffer = b.CreateAlloca(index_type);
+  llvm::Value* loop_state_buffer = b.CreateAlloca(state_type);
+  std::vector<llvm::Value*> invariant_arg_buffers;
+  for (int64_t i = 1; i < counted_for->operand_count(); ++i) {
+    invariant_arg_buffers.push_back(node_context.GetOperandPtr(i));
   }
 
-  // Initial value is the zero-th operand of the counted-for.
-  args[1] = node_context.operand(0);
+  // Signature of body function is:
+  //
+  //    f(bits[x] index,
+  //      StateT loop_state,
+  //      InvT_0 invariant_arg_0, ... , InvT_n invariant_arg_n)
+  std::vector<llvm::Value*> input_arg_ptrs;
+  input_arg_ptrs.push_back(index_buffer);
+  input_arg_ptrs.push_back(loop_state_buffer);
+  input_arg_ptrs.insert(input_arg_ptrs.end(), invariant_arg_buffers.begin(),
+                        invariant_arg_buffers.end());
 
-  // Pass in the events, user_data, and runtime pointer to the loop body.
-  args.push_back(node_context.GetInterpreterEvents());
-  args.push_back(node_context.GetUserData());
-  args.push_back(node_context.GetJitRuntime());
+  llvm::Value* next_state_buffer = b.CreateAlloca(state_type);
 
-  llvm::Type* function_type = function->getFunctionType();
+  llvm::Value* next_state = node_context.LoadOperand(0);
+  b.CreateStore(next_state, loop_state_buffer);
+  // TODO(meheff): 2022/09/09 Generate an LLVM loop rather than unrolling.
   for (int i = 0; i < counted_for->trip_count(); ++i) {
-    args[0] = llvm::ConstantInt::get(function_type->getFunctionParamType(0),
-                                     i * counted_for->stride());
-    args[1] = b.CreateCall(function, args);
+    b.CreateStore(llvm::ConstantInt::get(index_type, i * counted_for->stride()),
+                  index_buffer);
+    XLS_RETURN_IF_ERROR(CallFunction(body, input_arg_ptrs, {next_state_buffer},
+                                     node_context.GetTempBufferArg(),
+                                     node_context.GetInterpreterEventsArg(),
+                                     node_context.GetUserDataArg(),
+                                     node_context.GetJitRuntimeArg(), b)
+                            .status());
+    // TODO(meheff): 2022/09/09 Rather than loading the state and storing it in
+    // the state buffer for the next iteration, simply swap the state and
+    // next-state buffer pointers passed to the loop body function.
+    next_state = b.CreateLoad(state_type, next_state_buffer);
+    b.CreateStore(next_state, loop_state_buffer);
   }
 
-  return FinalizeNodeIrContext(node_context, args[1]);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), next_state);
 }
 
 absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
@@ -1089,18 +1431,18 @@ absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
   // support to the JIT.
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(cover, {"tkn", "condition"}));
-  llvm::Value* token = type_converter_->GetToken();
-  return FinalizeNodeIrContext(node_context, token);
+  llvm::Value* token = type_converter()->GetToken();
+  return FinalizeNodeIrContextWithValue(std::move(node_context), token);
 }
 
 absl::Status IrBuilderVisitor::HandleDecode(Decode* decode) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(decode, {"operand"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* input = node_context.operand(0);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* input = node_context.LoadOperand(0);
 
   llvm::Type* result_type =
-      type_converter_->ConvertToLlvmType(decode->GetType());
+      type_converter()->ConvertToLlvmType(decode->GetType());
   // If the input value is greater than this op's width, then return 0.
   // In that case, the shl will produce a poison value, but it'll be unused.
   llvm::Value* cast_input = b.CreateZExt(input, result_type);
@@ -1110,7 +1452,7 @@ absl::Status IrBuilderVisitor::HandleDecode(Decode* decode) {
       overflow, llvm::ConstantInt::get(result_type, 0),
       b.CreateShl(llvm::ConstantInt::get(result_type, 1), cast_input));
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
@@ -1123,30 +1465,44 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
               {"initial_value", "trip_count", "stride"},
               NumberedStrings("invariant_arg",
                               dynamic_counted_for->invariant_args().size())),
-          /*include_environment=*/true));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* initial_value = node_context.operand(0);
-  llvm::Value* trip_count = node_context.operand(1);
-  llvm::Value* stride = node_context.operand(2);
-  auto invariant_args = node_context.operands().subspan(3);
+          /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* initial_value = node_context.LoadOperand(0);
+  llvm::Value* trip_count = node_context.LoadOperand(1);
+  llvm::Value* stride = node_context.LoadOperand(2);
+  //  auto invariant_args = node_context.LoadOperands().subspan(3);
 
   // Grab loop body.
   XLS_ASSIGN_OR_RETURN(llvm::Function * loop_body_function,
-                       GetOrBuildFunction(dynamic_counted_for->body()));
-  llvm::Type* loop_body_function_type = loop_body_function->getFunctionType();
+                       GetFunction(dynamic_counted_for->body()));
 
-  // The loop body arguments are the invariant arguments plus the loop carry and
-  // index.
-  std::vector<llvm::Value*> args(dynamic_counted_for->invariant_args().size() +
-                                 2);
-  for (int i = 0; i < invariant_args.size(); i++) {
-    args[i + 2] = invariant_args[i];
+  llvm::Type* index_type = type_converter()->ConvertToLlvmType(
+      dynamic_counted_for->body()->param(0)->GetType());
+  llvm::Type* state_type = type_converter()->ConvertToLlvmType(
+      dynamic_counted_for->initial_value()->GetType());
+
+  llvm::Value* index_buffer = b.CreateAlloca(index_type);
+  index_buffer->setName("index_buffer");
+  llvm::Value* loop_state_buffer = b.CreateAlloca(state_type);
+  loop_state_buffer->setName("loop_state_buffer");
+  std::vector<llvm::Value*> invariant_arg_buffers;
+  for (int64_t i = 0; i < dynamic_counted_for->invariant_args().size(); ++i) {
+    invariant_arg_buffers.push_back(node_context.GetOperandPtr(i + 3));
   }
 
-  // Pass in the events, user_data, and runtime pointer to the loop body.
-  args.push_back(node_context.GetInterpreterEvents());
-  args.push_back(node_context.GetUserData());
-  args.push_back(node_context.GetJitRuntime());
+  // Signature of body function is:
+  //
+  //    f(bits[x] index,
+  //      StateT loop_state,
+  //      InvT_0 invariant_arg_0, ... , InvT_n invariant_arg_n)
+  std::vector<llvm::Value*> input_arg_ptrs;
+  input_arg_ptrs.push_back(index_buffer);
+  input_arg_ptrs.push_back(loop_state_buffer);
+  input_arg_ptrs.insert(input_arg_ptrs.end(), invariant_arg_buffers.begin(),
+                        invariant_arg_buffers.end());
+
+  llvm::Value* next_state_buffer = b.CreateAlloca(state_type);
+  next_state_buffer->setName("next_state_buffer");
 
   // Create basic blocks and corresponding builders. We have 4 blocks:
   // Entry     - the code executed before the loop.
@@ -1176,7 +1532,6 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
       std::make_unique<llvm::IRBuilder<>>(exit_block);
 
   // Get initial index, loop carry.
-  llvm::Type* index_type = loop_body_function_type->getFunctionParamType(0);
   llvm::Value* init_index = llvm::ConstantInt::get(index_type, 0);
   llvm::Value* init_loop_carry = initial_value;
 
@@ -1184,21 +1539,24 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
   // trip_count is zero-extended because the input trip_count is treated as
   // to be unsigned while stride is treated as signed.
   llvm::Value* trip_count_ext = b.CreateZExt(trip_count, index_type);
+  trip_count_ext->setName("trip_count_ext");
   llvm::Value* stride_ext = type_converter()->AsSignedValue(
       stride, dynamic_counted_for->stride()->GetType(), b, index_type);
+  stride_ext->setName("stride_ext");
 
   // Calculate index limit and jump entry loop predheader.
   llvm::Value* index_limit = b.CreateMul(trip_count_ext, stride_ext);
+  index_limit->setName("index_limit");
   b.CreateBr(preheader_block);
 
   // Preheader
   // Check if trip_count interations completed.
   // If so, exit loop. Otherwise, keep looping.
   llvm::PHINode* index_phi = preheader_builder->CreatePHI(index_type, 2);
-  args[0] = index_phi;
   llvm::PHINode* loop_carry_phi =
       preheader_builder->CreatePHI(init_loop_carry->getType(), 2);
-  args[1] = loop_carry_phi;
+  preheader_builder->CreateStore(index_phi, index_buffer);
+  preheader_builder->CreateStore(loop_carry_phi, loop_state_buffer);
   llvm::Value* index_limit_reached =
       preheader_builder->CreateICmpEQ(index_phi, index_limit);
   preheader_builder->CreateCondBr(index_limit_reached, exit_block, loop_block);
@@ -1206,9 +1564,19 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
   // Loop
   // Call loop body function and increment index before returning to
   // preheader_builder.
+  XLS_RETURN_IF_ERROR(
+      CallFunction(loop_body_function, input_arg_ptrs, {next_state_buffer},
+                   node_context.GetTempBufferArg(),
+                   node_context.GetInterpreterEventsArg(),
+                   node_context.GetUserDataArg(),
+                   node_context.GetJitRuntimeArg(), *loop_builder)
+          .status());
   llvm::Value* loop_carry =
-      loop_builder->CreateCall(loop_body_function, {args});
+      loop_builder->CreateLoad(state_type, next_state_buffer);
+  loop_carry->setName("next_state");
+  loop_builder->CreateStore(loop_carry, loop_state_buffer);
   llvm::Value* inc_index = loop_builder->CreateAdd(index_phi, stride_ext);
+  inc_index->setName("inc_index");
   loop_builder->CreateBr(preheader_block);
 
   // Set predheader Phi node inputs.
@@ -1227,19 +1595,23 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
       exit_builder->CreatePHI(init_loop_carry->getType(), 1);
   loop_carry_out->addIncoming(loop_carry_phi, preheader_block);
 
-  return FinalizeNodeIrContext(node_context, args[1], std::move(exit_builder));
+  llvm::Value* final_state =
+      exit_builder->CreateLoad(state_type, loop_state_buffer);
+  final_state->setName("final_state");
+  return FinalizeNodeIrContextWithValue(std::move(node_context), final_state,
+                                        exit_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleEncode(Encode* encode) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(encode, {"operand"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* input = node_context.operand(0);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* input = node_context.LoadOperand(0);
   llvm::Type* input_type = input->getType();
   llvm::Value* input_one = llvm::ConstantInt::get(input_type, 1);
 
   llvm::Type* result_type =
-      type_converter_->ConvertToLlvmType(encode->GetType());
+      type_converter()->ConvertToLlvmType(encode->GetType());
   llvm::Value* result = llvm::ConstantInt::get(result_type, 0);
 
   llvm::Value* result_zero = llvm::ConstantInt::get(result_type, 0);
@@ -1258,19 +1630,21 @@ absl::Status IrBuilderVisitor::HandleEncode(Encode* encode) {
     input = b.CreateLShr(input, input_one);
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleEq(CompareOp* eq) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(eq, {"lhs", "rhs"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* llvm_lhs = node_context.operand(0);
-  llvm::Value* llvm_rhs = node_context.operand(1);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* llvm_lhs = node_context.LoadOperand(0);
+  llvm::Value* llvm_rhs = node_context.LoadOperand(1);
 
   Node* lhs = eq->operand(0);
   Node* rhs = eq->operand(1);
 
+  // TODO(meheff): 2022/09/09 Rather than loading each element and comparing
+  // individually, do a memcmp of the buffers.
   XLS_ASSIGN_OR_RETURN(std::vector<CompareTerm> eq_terms,
                        ExpandTerms(lhs, llvm_lhs, rhs, llvm_rhs, eq, &b));
 
@@ -1281,92 +1655,116 @@ absl::Status IrBuilderVisitor::HandleEq(CompareOp* eq) {
     result = b.CreateAnd(result, term_test);
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleGate(Gate* gate) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(gate, {"condition", "data"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* condition = node_context.operand(0);
-  llvm::Value* data = node_context.operand(1);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* condition = node_context.LoadOperand(0);
+  llvm::Value* data = node_context.LoadOperand(1);
 
+  // TODO(meheff): 2022/09/09 Replace with a if/then/else block which does a
+  // memcpy or writing zero to the output buffer.
   XLS_ASSIGN_OR_RETURN(llvm::Constant * zero,
-                       type_converter_->ToLlvmConstant(
+                       type_converter()->ToLlvmConstant(
                            gate->GetType(), ZeroOfType(gate->GetType())));
   llvm::Value* result = b.CreateSelect(condition, data, zero);
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleIdentity(UnOp* identity) {
-  return HandleUnaryOp(identity, [](llvm::Value* operand,
-                                    llvm::IRBuilder<>& b) { return operand; });
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(identity, {"operand"}));
+  llvm::Value* operand_ptr = node_context.GetOperandPtr(0);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 operand_ptr);
 }
 
 absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(invoke, NumberedStrings("arg", invoke->operand_count()),
-                       /*include_environment=*/true));
-  llvm::IRBuilder<>& b = node_context.builder();
+                       /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
   XLS_ASSIGN_OR_RETURN(llvm::Function * function,
-                       GetOrBuildFunction(invoke->to_apply()));
+                       GetFunction(invoke->to_apply()));
 
-  std::vector<llvm::Value*> args(node_context.operands().begin(),
-                                 node_context.operands().end());
-
-  // Pass in the events, user_data, and runtime pointer to the loop body.
-  args.push_back(node_context.GetInterpreterEvents());
-  args.push_back(node_context.GetUserData());
-  args.push_back(node_context.GetJitRuntime());
-
-  llvm::Value* invoke_inst = b.CreateCall(function, args);
-  return FinalizeNodeIrContext(node_context, invoke_inst);
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+  XLS_RETURN_IF_ERROR(CallFunction(function, node_context.GetOperandPtrs(),
+                                   {output_buffer},
+                                   node_context.GetTempBufferArg(),
+                                   node_context.GetInterpreterEventsArg(),
+                                   node_context.GetUserDataArg(),
+                                   node_context.GetJitRuntimeArg(), b)
+                          .status());
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::HandleLiteral(Literal* literal) {
+  // TODO(meheff): 2022/09/09 Avoid generating separate functions for
+  // literals. Simply materialize the literals as constants at their uses.
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(literal, {}));
   Type* xls_type = literal->GetType();
   XLS_ASSIGN_OR_RETURN(
       llvm::Value * llvm_literal,
-      type_converter_->ToLlvmConstant(xls_type, literal->value()));
-  return FinalizeNodeIrContext(node_context, llvm_literal);
+      type_converter()->ToLlvmConstant(xls_type, literal->value()));
+  return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_literal);
 }
 
 absl::Status IrBuilderVisitor::HandleMap(Map* map) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
-      NewNodeIrContext(map, {"array"}, /*include_environment=*/true));
-  llvm::IRBuilder<>& b = node_context.builder();
+      NewNodeIrContext(map, {"array"}, /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  XLS_ASSIGN_OR_RETURN(llvm::Function * to_apply,
-                       GetOrBuildFunction(map->to_apply()));
+  XLS_ASSIGN_OR_RETURN(llvm::Function * to_apply, GetFunction(map->to_apply()));
 
-  llvm::Value* input = node_context.operand(0);
-  llvm::Type* input_type = input->getType();
-  llvm::FunctionType* function_type = to_apply->getFunctionType();
+  llvm::Value* input = node_context.LoadOperand(0);
+  llvm::Type* input_array_type = input->getType();
+  llvm::Type* input_element_type = type_converter()->ConvertToLlvmType(
+      map->operand(0)->GetType()->AsArrayOrDie()->element_type());
 
-  llvm::Value* result = CreateTypedZeroValue(llvm::ArrayType::get(
-      function_type->getReturnType(), input_type->getArrayNumElements()));
+  llvm::Type* output_array_type =
+      type_converter()->ConvertToLlvmType(map->GetType());
+  llvm::Type* output_element_type = type_converter()->ConvertToLlvmType(
+      map->to_apply()->return_value()->GetType());
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(output_array_type);
+  result->setName("init_result");
 
-  // Construct the arguments to pass to the map function.
-  std::vector<llvm::Value*> args;
-  args.push_back(nullptr);  // This is filled in each iteration of the loop.
-  // Pass in the events, user_data, and runtime pointer to the loop body.
-  args.push_back(node_context.GetInterpreterEvents());
-  args.push_back(node_context.GetUserData());
-  args.push_back(node_context.GetJitRuntime());
+  // TODO(meheff): 2022/09/09 Avoid allocas and loading any values here. Map
+  // should be possible to do simply by passing pointers on to the to-apply
+  // function.
+  llvm::Value* output_buffer =
+      b.CreateAlloca(output_element_type,
+                     /*ArraySize=*/nullptr, "output_buffer");
+  llvm::Value* input_buffer =
+      b.CreateAlloca(input_element_type, /*ArraySize=*/nullptr, "input_buffer");
 
-  for (uint32_t i = 0; i < input_type->getArrayNumElements(); ++i) {
-    args[0] = b.CreateExtractValue(input, {i});
-    llvm::Value* iter_result = b.CreateCall(to_apply, args);
+  // TODO(meheff): 2022/09/09 Use an LLVM loop.
+  for (uint32_t i = 0; i < input_array_type->getArrayNumElements(); ++i) {
+    llvm::Value* input_element = b.CreateExtractValue(input, {i});
+    input_element->setName(absl::StrFormat("input_element_%d", i));
+    b.CreateStore(input_element, input_buffer);
+    std::vector<llvm::Value*> inputs = {input_buffer};
+    std::vector<llvm::Value*> outputs = {output_buffer};
+    XLS_RETURN_IF_ERROR(CallFunction(to_apply, inputs, outputs,
+                                     node_context.GetTempBufferArg(),
+                                     node_context.GetInterpreterEventsArg(),
+                                     node_context.GetUserDataArg(),
+                                     node_context.GetJitRuntimeArg(), b)
+                            .status());
+    llvm::Value* iter_result = b.CreateLoad(output_element_type, output_buffer);
     result = b.CreateInsertValue(result, iter_result, {i});
+    result->setName(absl::StrFormat("result_%d", i));
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleSMul(ArithOp* mul) {
@@ -1392,19 +1790,19 @@ absl::Status IrBuilderVisitor::HandleSMulp(PartialProductOp* mul) {
       NodeIrContext node_context,
       NewNodeIrContext(mul, NumberedStrings("operand", mul->operand_count())));
 
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
   llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
       mul->GetType()->AsTupleOrDie()->element_type(0));
-  llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(mul->GetType());
-  llvm::Value* result = CreateTypedZeroValue(tuple_type);
+  llvm::Type* tuple_type = type_converter()->ConvertToLlvmType(mul->GetType());
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(tuple_type);
 
-  llvm::Value* lhs = type_converter()->AsSignedValue(node_context.operand(0),
-                                                     mul->operand(0)->GetType(),
-                                                     node_context.builder());
-  llvm::Value* rhs = type_converter()->AsSignedValue(node_context.operand(1),
-                                                     mul->operand(1)->GetType(),
-                                                     node_context.builder());
+  llvm::Value* lhs = type_converter()->AsSignedValue(
+      node_context.LoadOperand(0), mul->operand(0)->GetType(),
+      node_context.entry_builder());
+  llvm::Value* rhs = type_converter()->AsSignedValue(
+      node_context.LoadOperand(1), mul->operand(1)->GetType(),
+      node_context.entry_builder());
 
   result = b.CreateInsertValue(
       result,
@@ -1412,7 +1810,7 @@ absl::Status IrBuilderVisitor::HandleSMulp(PartialProductOp* mul) {
                   b.CreateIntCast(rhs, result_element_type, /*isSigned=*/true)),
       {1});
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleUMulp(PartialProductOp* mul) {
@@ -1420,22 +1818,23 @@ absl::Status IrBuilderVisitor::HandleUMulp(PartialProductOp* mul) {
       NodeIrContext node_context,
       NewNodeIrContext(mul, NumberedStrings("operand", mul->operand_count())));
 
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
   llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
       mul->GetType()->AsTupleOrDie()->element_type(0));
-  llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(mul->GetType());
-  llvm::Value* result = CreateTypedZeroValue(tuple_type);
+  llvm::Type* tuple_type = type_converter()->ConvertToLlvmType(mul->GetType());
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(tuple_type);
 
   result = b.CreateInsertValue(
       result,
-      b.CreateMul(b.CreateIntCast(node_context.operand(0), result_element_type,
-                                  /*isSigned=*/false),
-                  b.CreateIntCast(node_context.operand(1), result_element_type,
-                                  /*isSigned=*/false)),
+      b.CreateMul(
+          b.CreateIntCast(node_context.LoadOperand(0), result_element_type,
+                          /*isSigned=*/false),
+          b.CreateIntCast(node_context.LoadOperand(1), result_element_type,
+                          /*isSigned=*/false)),
       {1});
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleNaryAnd(NaryOp* and_op) {
@@ -1496,13 +1895,14 @@ absl::Status IrBuilderVisitor::HandleNaryXor(NaryOp* xor_op) {
 absl::Status IrBuilderVisitor::HandleNe(CompareOp* ne) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(ne, {"lhs", "rhs"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* llvm_lhs = node_context.operand(0);
-  llvm::Value* llvm_rhs = node_context.operand(1);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* llvm_lhs = node_context.LoadOperand(0);
+  llvm::Value* llvm_rhs = node_context.LoadOperand(1);
 
   Node* lhs = ne->operand(0);
   Node* rhs = ne->operand(1);
 
+  // TODO(meheff): 2022/09/09 Use memcmp.
   XLS_ASSIGN_OR_RETURN(std::vector<CompareTerm> ne_terms,
                        ExpandTerms(lhs, llvm_lhs, rhs, llvm_rhs, ne, &b));
 
@@ -1513,7 +1913,7 @@ absl::Status IrBuilderVisitor::HandleNe(CompareOp* ne) {
     result = b.CreateOr(result, term_test);
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleNeg(UnOp* neg) {
@@ -1531,8 +1931,8 @@ absl::Status IrBuilderVisitor::HandleNot(UnOp* not_op) {
 absl::Status IrBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(one_hot, {"operand"}));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* input = node_context.operand(0);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* input = node_context.LoadOperand(0);
 
   llvm::Type* input_type = input->getType();
   int input_width = input_type->getIntegerBitWidth();
@@ -1572,7 +1972,7 @@ absl::Status IrBuilderVisitor::HandleOneHot(OneHot* one_hot) {
     result = llvm_true;
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
@@ -1581,15 +1981,19 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
       NewNodeIrContext(
           sel, ConcatVectors({"selector"},
                              NumberedStrings("case", sel->cases().size()))));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* selector = node_context.operand(0);
-  absl::Span<llvm::Value* const> cases = node_context.operands().subspan(1);
+  // TODO(meheff): 2022/09/09 Only load operands which are actually selected.
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* selector = node_context.LoadOperand(0);
+  std::vector<llvm::Value*> cases;
+  for (int64_t i = 1; i < sel->operand_count(); ++i) {
+    cases.push_back(node_context.LoadOperand(i));
+  }
   llvm::Type* input_type = cases.front()->getType();
 
   llvm::Value* result;
-  result = CreateTypedZeroValue(input_type);
+  result = LlvmTypeConverter::ZeroOfType(input_type);
 
-  llvm::Value* typed_zero = CreateTypedZeroValue(input_type);
+  llvm::Value* typed_zero = LlvmTypeConverter::ZeroOfType(input_type);
   llvm::Value* llvm_one = llvm::ConstantInt::get(selector->getType(), 1);
 
   for (llvm::Value* cse : cases) {
@@ -1605,7 +2009,7 @@ absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
     selector = b.CreateLShr(selector, llvm_one);
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
@@ -1614,12 +2018,20 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
       NewNodeIrContext(
           sel, ConcatVectors({"selector"},
                              NumberedStrings("case", sel->cases().size()))));
-  llvm::IRBuilder<>& b = node_context.builder();
-  llvm::Value* selector = node_context.operand(0);
-  absl::Span<llvm::Value* const> cases = node_context.operands().subspan(1);
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* selector = node_context.LoadOperand(0);
+
+  // TODO(meheff): 2022/09/09 Avoid loading cases and selecting among them.
+  // Instead select the appropriate case pointer and call
+  // FinalizeNodeIrContextWithPointer.
+
+  std::vector<llvm::Value*> cases;
+  for (int64_t i = 1; i < sel->operand_count(); ++i) {
+    cases.push_back(node_context.LoadOperand(i));
+  }
   llvm::Type* input_type = cases.front()->getType();
 
-  llvm::Value* typed_zero = CreateTypedZeroValue(input_type);
+  llvm::Value* typed_zero = LlvmTypeConverter::ZeroOfType(input_type);
   llvm::Value* llvm_false = b.getFalse();
 
   // Get index to select by counting trailing zeros
@@ -1639,7 +2051,7 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
   llvm::Value* selector_is_zero =
       b.CreateICmpEQ(selector, llvm::ConstantInt::get(selector->getType(), 0));
   llvm_sel = b.CreateSelect(selector_is_zero, typed_zero, llvm_sel);
-  return FinalizeNodeIrContext(node_context, llvm_sel);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_sel);
 }
 
 absl::Status IrBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
@@ -1694,15 +2106,20 @@ absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(sel, operand_names));
 
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+
+  // TODO(meheff): 2022/09/09 Avoid loading cases and selecting among them.
+  // Instead select the appropriate case pointer and call
+  // FinalizeNodeIrContextWithPointer.
 
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
-  llvm::Value* selector = node_context.operand(0);
+  llvm::Value* selector = node_context.LoadOperand(0);
   llvm::Value* llvm_sel =
-      sel->default_value() ? node_context.operands().back() : nullptr;
+      sel->default_value() ? node_context.LoadOperand(sel->operand_count() - 1)
+                           : nullptr;
   for (int i = sel->cases().size() - 1; i >= 0; i--) {
-    llvm::Value* llvm_case = node_context.operand(i + 1);
+    llvm::Value* llvm_case = node_context.LoadOperand(i + 1);
     if (llvm_sel == nullptr) {
       // The last element in the select tree isn't a sel, but an actual value.
       llvm_sel = llvm_case;
@@ -1712,7 +2129,7 @@ absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
       llvm_sel = b.CreateSelect(cmp, llvm_case, llvm_sel);
     }
   }
-  return FinalizeNodeIrContext(node_context, llvm_sel);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_sel);
 }
 
 absl::Status IrBuilderVisitor::HandleSGe(CompareOp* ge) {
@@ -1738,7 +2155,7 @@ absl::Status IrBuilderVisitor::HandleSignExtend(ExtendOp* sign_ext) {
       sign_ext,
       [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
         llvm::Type* new_type =
-            type_converter_->ConvertToLlvmType(sign_ext->GetType());
+            type_converter()->ConvertToLlvmType(sign_ext->GetType());
         return b.CreateSExt(operand, new_type);
       },
       /*is_signed=*/true);
@@ -1799,25 +2216,37 @@ absl::Status IrBuilderVisitor::HandleTuple(Tuple* tuple) {
       NodeIrContext node_context,
       NewNodeIrContext(tuple,
                        NumberedStrings("operand", tuple->operand_count())));
-  llvm::IRBuilder<>& b = node_context.builder();
+  llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Type* tuple_type = type_converter_->ConvertToLlvmType(tuple->GetType());
+  llvm::Type* tuple_type =
+      type_converter()->ConvertToLlvmType(tuple->GetType());
 
-  llvm::Value* result = CreateTypedZeroValue(tuple_type);
+  // TODO(meheff): 2022/09/09 Avoid loading elements and using
+  // insertvalue. Instead memcpy each element into place.
+  llvm::Value* result = LlvmTypeConverter::ZeroOfType(tuple_type);
   for (uint32_t i = 0; i < tuple->operand_count(); ++i) {
     if (tuple->operand(i)->GetType()->GetFlatBitCount() == 0) {
       continue;
     }
-    result = b.CreateInsertValue(result, node_context.operand(i), {i});
+    result = b.CreateInsertValue(result, node_context.LoadOperand(i), {i});
   }
 
-  return FinalizeNodeIrContext(node_context, result);
+  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
 absl::Status IrBuilderVisitor::HandleTupleIndex(TupleIndex* index) {
-  return HandleUnaryOp(index, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
-    return b.CreateExtractValue(operand, index->index());
-  });
+  XLS_ASSIGN_OR_RETURN(
+      NodeIrContext node_context,
+      NewNodeIrContext(index, {"operand"}, index->operand_count()));
+
+  llvm::Value* gep = node_context.entry_builder().CreateGEP(
+      type_converter()->ConvertToLlvmType(index->operand(0)->GetType()),
+      node_context.GetOperandPtr(0),
+      {
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+          llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), index->index()),
+      });
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context), gep);
 }
 
 absl::Status IrBuilderVisitor::HandleUDiv(BinOp* binop) {
@@ -1879,7 +2308,7 @@ absl::Status IrBuilderVisitor::HandleZeroExtend(ExtendOp* zero_ext) {
   return HandleUnaryOp(
       zero_ext, [&](llvm::Value* operand, llvm::IRBuilder<>& b) {
         llvm::Type* new_type =
-            type_converter_->ConvertToLlvmType(zero_ext->GetType());
+            type_converter()->ConvertToLlvmType(zero_ext->GetType());
         return b.CreateZExt(operand, new_type);
       });
 }
@@ -1891,12 +2320,12 @@ absl::Status IrBuilderVisitor::HandleUnaryOp(
   XLS_RET_CHECK_EQ(node->operand_count(), 1);
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(node, {"operand"}));
-  return FinalizeNodeIrContext(
-      node_context,
-      build_result(
-          MaybeAsSigned(node_context.operand(0), node->operand(0)->GetType(),
-                        node_context.builder(), is_signed),
-          node_context.builder()));
+  return FinalizeNodeIrContextWithValue(
+      std::move(node_context),
+      build_result(MaybeAsSigned(node_context.LoadOperand(0),
+                                 node->operand(0)->GetType(),
+                                 node_context.entry_builder(), is_signed),
+                   node_context.entry_builder()));
 }
 
 absl::Status IrBuilderVisitor::HandleBinaryOp(
@@ -1908,13 +2337,14 @@ absl::Status IrBuilderVisitor::HandleBinaryOp(
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(node, {"lhs", "rhs"}));
   llvm::Value* lhs =
-      MaybeAsSigned(node_context.operand(0), node->operand(0)->GetType(),
-                    node_context.builder(), is_signed);
+      MaybeAsSigned(node_context.LoadOperand(0), node->operand(0)->GetType(),
+                    node_context.entry_builder(), is_signed);
   llvm::Value* rhs =
-      MaybeAsSigned(node_context.operand(1), node->operand(1)->GetType(),
-                    node_context.builder(), is_signed);
-  return FinalizeNodeIrContext(node_context,
-                               build_result(lhs, rhs, node_context.builder()));
+      MaybeAsSigned(node_context.LoadOperand(1), node->operand(1)->GetType(),
+                    node_context.entry_builder(), is_signed);
+  return FinalizeNodeIrContextWithValue(
+      std::move(node_context),
+      build_result(lhs, rhs, node_context.entry_builder()));
 }
 
 absl::Status IrBuilderVisitor::HandleNaryOp(
@@ -1925,9 +2355,13 @@ absl::Status IrBuilderVisitor::HandleNaryOp(
       NodeIrContext node_context,
       NewNodeIrContext(node,
                        NumberedStrings("operand", node->operand_count())));
-  return FinalizeNodeIrContext(
-      node_context,
-      build_result(node_context.operands(), node_context.builder()));
+  std::vector<llvm::Value*> args;
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
+    args.push_back(node_context.LoadOperand(i));
+  }
+  return FinalizeNodeIrContextWithValue(
+      std::move(node_context),
+      build_result(args, node_context.entry_builder()));
 }
 
 absl::Status IrBuilderVisitor::HandleBinaryOpWithOperandConversion(
@@ -1936,7 +2370,8 @@ absl::Status IrBuilderVisitor::HandleBinaryOpWithOperandConversion(
         build_result,
     bool is_signed) {
   XLS_RET_CHECK_EQ(node->operand_count(), 2);
-  llvm::Type* result_type = type_converter_->ConvertToLlvmType(node->GetType());
+  llvm::Type* result_type =
+      type_converter()->ConvertToLlvmType(node->GetType());
   return HandleBinaryOp(
       node, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
         llvm::Value* converted_lhs =
@@ -1949,129 +2384,303 @@ absl::Status IrBuilderVisitor::HandleBinaryOpWithOperandConversion(
       });
 }
 
-llvm::Constant* IrBuilderVisitor::CreateTypedZeroValue(llvm::Type* type) {
-  if (type->isIntegerTy()) {
-    return llvm::ConstantInt::get(type, 0);
-  }
-  if (type->isArrayTy()) {
-    std::vector<llvm::Constant*> elements(
-        type->getArrayNumElements(),
-        CreateTypedZeroValue(type->getArrayElementType()));
-    return llvm::ConstantArray::get(llvm::cast<llvm::ArrayType>(type),
-                                    elements);
-  }
-
-  // Must be a tuple/struct, then.
-  std::vector<llvm::Constant*> elements(type->getStructNumElements());
-  for (int i = 0; i < type->getStructNumElements(); ++i) {
-    elements[i] = CreateTypedZeroValue(type->getStructElementType(i));
-  }
-
-  return llvm::ConstantStruct::get(llvm::cast<llvm::StructType>(type),
-                                   elements);
+absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewNodeIrContext(
+    Node* node, absl::Span<const std::string> operand_names,
+    bool include_wrapper_args) {
+  return NodeIrContext::Create(node, operand_names, output_arg_count_,
+                               include_wrapper_args, jit_context_);
 }
 
-llvm::Value* IrBuilderVisitor::LoadFromPointerArray(
-    int64_t index, llvm::Type* data_type, llvm::Value* pointer_array,
-    int64_t pointer_array_size, llvm::IRBuilder<>* builder) {
-  llvm::Value* data_ptr = LoadPointerFromPointerArray(
-      index, data_type, pointer_array, pointer_array_size, builder);
-  return builder->CreateLoad(data_type, data_ptr);
-}
-
-llvm::Value* IrBuilderVisitor::LoadPointerFromPointerArray(
-    int64_t index, llvm::Type* data_type, llvm::Value* pointer_array,
-    int64_t pointer_array_size, llvm::IRBuilder<>* builder) {
-  llvm::LLVMContext& context = builder->getContext();
-  llvm::Type* pointer_array_type = llvm::ArrayType::get(
-      llvm::Type::getInt8PtrTy(context), pointer_array_size);
-  llvm::Value* gep = builder->CreateGEP(
-      pointer_array_type, pointer_array,
-      {
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), 0),
-          llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), index),
-      });
-
-  return builder->CreateLoad(llvm::PointerType::get(context, 0), gep);
-}
-
-absl::Status IrBuilderVisitor::StoreResult(Node* node, llvm::Value* value) {
-  XLS_RET_CHECK(!node_map_.contains(node));
-  value->setName(verilog::SanitizeIdentifier(node->GetName()));
-  node_map_[node] = value;
-
+absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(
+    NodeIrContext&& node_context, llvm::Value* result,
+    std::optional<llvm::IRBuilder<>*> exit_builder) {
+  node_context.FinalizeWithValue(result, exit_builder);
+  node_context_.emplace(std::move(node_context));
   return absl::OkStatus();
 }
 
-void IrBuilderVisitor::UnpoisonBuffer(llvm::Value* buffer, int64_t size,
-                                      llvm::IRBuilder<>* builder) {
-#ifdef ABSL_HAVE_MEMORY_SANITIZER
-  llvm::LLVMContext& context = builder->getContext();
-  llvm::ConstantInt* fn_addr =
-      llvm::ConstantInt::get(llvm::Type::getInt64Ty(context),
-                             absl::bit_cast<uint64_t>(&__msan_unpoison));
-  llvm::Type* void_type = llvm::Type::getVoidTy(context);
-  llvm::Type* ptr_type = llvm::PointerType::get(builder->getContext(), 0);
-  llvm::Type* size_t_type =
-      llvm::Type::getIntNTy(context, sizeof(size_t) * CHAR_BIT);
+absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithPointerToValue(
+    NodeIrContext&& node_context, llvm::Value* result_buffer,
+    std::optional<llvm::IRBuilder<>*> exit_builder) {
+  node_context.FinalizeWithPointerToValue(result_buffer, exit_builder);
+  node_context_.emplace(std::move(node_context));
+  return absl::OkStatus();
+}
+
+absl::StatusOr<llvm::Value*> IrBuilderVisitor::CallFunction(
+    llvm::Function* f, absl::Span<llvm::Value* const> inputs,
+    absl::Span<llvm::Value* const> outputs, llvm::Value* temp_buffer,
+    llvm::Value* events, llvm::Value* user_data, llvm::Value* runtime,
+    llvm::IRBuilder<>& builder) {
+  llvm::Type* input_pointer_array_type =
+      llvm::ArrayType::get(llvm::PointerType::get(ctx(), 0), inputs.size());
+  llvm::Value* input_arg_array = builder.CreateAlloca(input_pointer_array_type);
+  input_arg_array->setName("input_arg_array");
+  for (int64_t i = 0; i < inputs.size(); ++i) {
+    llvm::Value* input_buffer = inputs[i];
+    llvm::Value* gep = builder.CreateGEP(
+        input_pointer_array_type, input_arg_array,
+        {
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), i),
+        });
+    builder.CreateStore(input_buffer, gep);
+  }
+
+  llvm::Type* output_pointer_array_type =
+      llvm::ArrayType::get(llvm::PointerType::get(ctx(), 0), outputs.size());
+  llvm::Value* output_arg_array =
+      builder.CreateAlloca(output_pointer_array_type);
+  output_arg_array->setName("output_arg_array");
+  for (int64_t i = 0; i < outputs.size(); ++i) {
+    llvm::Value* output_buffer = outputs[i];
+    llvm::Value* gep = builder.CreateGEP(
+        output_pointer_array_type, output_arg_array,
+        {
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), i),
+        });
+    builder.CreateStore(output_buffer, gep);
+  }
+
+  std::vector<llvm::Value*> args = {input_arg_array, output_arg_array,
+                                    temp_buffer,     events,
+                                    user_data,       runtime};
+  return builder.CreateCall(f, args);
+}
+
+absl::StatusOr<llvm::Value*> IrBuilderVisitor::InvokeRecvCallback(
+    llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive,
+    llvm::Value* output_ptr, llvm::Value* user_data) {
+  llvm::Type* bool_type = llvm::Type::getInt1Ty(ctx());
+  llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
+  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
+
+  llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
+
+  // Call the user-provided function of type ProcJit::RecvFnT to receive the
+  // value.
+  std::vector<llvm::Type*> params = {int64_type, int64_type, int8_ptr_type,
+                                     int64_type, ptr_type};
   llvm::FunctionType* fn_type =
-      llvm::FunctionType::get(void_type, {ptr_type, size_t_type}, false);
+      llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
+
+  // recv_type is the full type of the receive.
+  //   1. If blocking, then it is a tuple of (token, payload).
+  //   2. If non-blocking, then it is a tuple of (token, payload, bool).
+  llvm::Type* recv_type =
+      type_converter()->ConvertToLlvmType(receive->GetType());
+
+  // recv_payload_bytes is just the size of the payload.
+  //
+  // As token is zero size, it can also be considered the size of the
+  // token + payload.
+  int64_t recv_payload_bytes =
+      type_converter()->GetTypeByteSize(receive->GetPayloadType());
+
+  // Call the user-provided receive function.
+  std::vector<llvm::Value*> args = {
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(receive)),
+      output_ptr,
+      llvm::ConstantInt::get(int64_type, recv_payload_bytes),
+      user_data,
+  };
+
+  XLS_RET_CHECK(jit_context_.recv_fn().has_value());
+  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(ctx()),
+      absl::bit_cast<uint64_t>(jit_context_.recv_fn().value()));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
+  llvm::Value* data_valid = builder->CreateCall(fn_type, fn_ptr, args);
 
-  std::vector<llvm::Value*> args = {buffer,
-                                    llvm::ConstantInt::get(size_t_type, size)};
+  // Load the reveive data from the bounce buffer.
+  llvm::Value* data = builder->CreateLoad(recv_type, output_ptr);
 
+  if (receive->is_blocking()) {
+    return data;
+  }
+
+  // For non-blocking receives, add data_valid as the last entry in the
+  // return tuple.
+  return builder->CreateInsertValue(data, data_valid, {2});
+}
+
+absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
+  std::vector<std::string> operand_names = {"tkn"};
+  if (recv->predicate().has_value()) {
+    operand_names.push_back("predicate");
+  }
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(recv, operand_names,
+                                        /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* user_data = node_context.GetUserDataArg();
+
+  XLS_RET_CHECK(jit_context_.queue_manager().has_value());
+  XLS_ASSIGN_OR_RETURN(
+      JitChannelQueue * queue,
+      jit_context_.queue_manager().value()->GetQueueById(recv->channel_id()));
+  if (recv->predicate().has_value()) {
+    llvm::Value* predicate = node_context.LoadOperand(1);
+
+    // First, declare the join block (so the case blocks can refer to it).
+    llvm::BasicBlock* join_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_join"),
+                                 node_context.llvm_function());
+
+    // Create a block/branch for the true predicate case.
+    llvm::BasicBlock* true_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_true"),
+                                 node_context.llvm_function(), join_block);
+    llvm::IRBuilder<> true_builder(true_block);
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Value * true_result,
+        InvokeRecvCallback(&true_builder, queue, recv,
+                           node_context.GetOutputPtr(0), user_data));
+    true_builder.CreateBr(join_block);
+
+    // And the same for a false predicate - this will return an empty/zero
+    // value. Creating an empty struct emits ops, so it needs a builder.
+    llvm::BasicBlock* false_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_false"),
+                                 node_context.llvm_function(), join_block);
+    llvm::IRBuilder<> false_builder(false_block);
+    llvm::Type* result_type =
+        type_converter()->ConvertToLlvmType(recv->GetType());
+    llvm::Value* false_result = LlvmTypeConverter::ZeroOfType(result_type);
+    false_builder.CreateBr(join_block);
+
+    // Next, create a branch op w/the original builder,
+    b.CreateCondBr(predicate, true_block, false_block);
+
+    // then join the two branches back together.
+    auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+
+    llvm::PHINode* phi =
+        join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
+    phi->addIncoming(true_result, true_block);
+    phi->addIncoming(false_result, false_block);
+    return FinalizeNodeIrContextWithValue(std::move(node_context), phi,
+                                          /*exit_builder=*/join_builder.get());
+  }
+  XLS_ASSIGN_OR_RETURN(
+      llvm::Value * invoke,
+      InvokeRecvCallback(&b, queue, recv, node_context.GetOutputPtr(0),
+                         user_data));
+  return FinalizeNodeIrContextWithValue(std::move(node_context), invoke);
+}
+
+absl::Status IrBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
+                                                  JitChannelQueue* queue,
+                                                  Send* send,
+                                                  llvm::Value* send_data_ptr,
+                                                  llvm::Value* user_data) {
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
+  llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
+  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
+
+  llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
+
+  // We do the same for sending/enqueuing as we do for receiving/dequeueing
+  // above (set up and call an external function).
+  std::vector<llvm::Type*> params = {
+      int64_type, int64_type, int8_ptr_type, int64_type, ptr_type,
+  };
+  llvm::FunctionType* fn_type =
+      llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
+
+  int64_t send_type_size =
+      type_converter()->GetTypeByteSize(send->data()->GetType());
+
+  std::vector<llvm::Value*> args = {
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
+      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(send)),
+      send_data_ptr,
+      llvm::ConstantInt::get(int64_type, send_type_size),
+      user_data,
+  };
+
+  XLS_RET_CHECK(jit_context_.send_fn().has_value());
+  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(ctx()),
+      absl::bit_cast<uint64_t>(jit_context_.send_fn().value()));
+  llvm::Value* fn_ptr =
+      builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   builder->CreateCall(fn_type, fn_ptr, args);
-#endif
+  return absl::OkStatus();
 }
 
-absl::StatusOr<llvm::Function*> IrBuilderVisitor::GetOrBuildFunction(
-    Function* function) {
-  // If we've not processed this function yet, then do so.
-  llvm::Function* found_function =
-      module()->getFunction(function->qualified_name());
-  if (found_function != nullptr) {
-    return found_function;
+absl::Status IrBuilderVisitor::HandleSend(Send* send) {
+  std::vector<std::string> operand_names = {"tkn", "data"};
+  if (send->predicate().has_value()) {
+    operand_names.push_back("predicate");
   }
+  XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
+                       NewNodeIrContext(send, operand_names,
+                                        /*include_wrapper_args=*/true));
+  llvm::IRBuilder<>& b = node_context.entry_builder();
+  llvm::Value* data_ptr = node_context.GetOperandPtr(1);
+  llvm::Value* user_data = node_context.GetUserDataArg();
 
-  // Build the LLVM function for this XLS function and return it.
-  return function_builder_(function);
+  XLS_RET_CHECK(jit_context_.queue_manager().has_value());
+  XLS_ASSIGN_OR_RETURN(
+      JitChannelQueue * queue,
+      jit_context_.queue_manager().value()->GetQueueById(send->channel_id()));
+  if (send->predicate().has_value()) {
+    llvm::Value* predicate = node_context.LoadOperand(2);
+
+    // First, declare the join block (so the case blocks can refer to it).
+    llvm::BasicBlock* join_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_join"),
+                                 node_context.llvm_function());
+
+    llvm::BasicBlock* true_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_true"),
+                                 node_context.llvm_function(), join_block);
+    llvm::IRBuilder<> true_builder(true_block);
+    XLS_RETURN_IF_ERROR(
+        InvokeSendCallback(&true_builder, queue, send, data_ptr, user_data));
+    true_builder.CreateBr(join_block);
+
+    llvm::BasicBlock* false_block =
+        llvm::BasicBlock::Create(ctx(), absl::StrCat(send->GetName(), "_false"),
+                                 node_context.llvm_function(), join_block);
+    llvm::IRBuilder<> false_builder(false_block);
+    false_builder.CreateBr(join_block);
+
+    b.CreateCondBr(predicate, true_block, false_block);
+
+    auto exit_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+    return FinalizeNodeIrContextWithValue(std::move(node_context),
+                                          type_converter()->GetToken(),
+                                          exit_builder.get());
+  }
+  // Unconditional send.
+  XLS_RETURN_IF_ERROR(InvokeSendCallback(&b, queue, send, data_ptr, user_data));
+
+  return FinalizeNodeIrContextWithValue(std::move(node_context),
+                                        type_converter()->GetToken());
 }
 
-absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewNodeIrContext(
-    Node* node, absl::Span<const std::string> operand_names,
-    bool include_environment) {
-  std::optional<NodeIrContext::Environment> environment;
-  if (include_environment) {
-    environment = {GetInterpreterEventsPtr(), GetUserDataPtr(),
-                   GetJitRuntimePtr()};
-  }
-  return NodeIrContext::Create(node, operand_names, type_converter(), module(),
-                               environment);
+}  // namespace
+
+llvm::Value* LlvmMemcpy(llvm::Value* tgt, llvm::Value* src, int64_t size,
+                        llvm::IRBuilder<>& builder) {
+  return builder.CreateMemCpy(tgt, llvm::MaybeAlign(1), src,
+                              llvm::MaybeAlign(1), size);
 }
 
-absl::Status IrBuilderVisitor::FinalizeNodeIrContext(
-    NodeIrContext& node_context, llvm::Value* result,
-    std::optional<std::unique_ptr<llvm::IRBuilder<>>> exit_builder) {
-  node_context.Finalize(
-      result, exit_builder.has_value()
-                  ? std::optional<llvm::IRBuilder<>*>(exit_builder->get())
-                  : std::nullopt);
-
-  std::vector<llvm::Value*> args;
-  for (Node* operand : node_context.node()->operands()) {
-    args.push_back(node_map_.at(operand));
-  }
-  if (node_context.HasEnvironment()) {
-    args.push_back(GetInterpreterEventsPtr());
-    args.push_back(GetUserDataPtr());
-    args.push_back(GetJitRuntimePtr());
-  }
-
-  return StoreResult(
-      node_context.node(),
-      dispatch_builder()->CreateCall(node_context.llvm_function(), args));
+absl::StatusOr<NodeFunction> CreateNodeFunction(
+    Node* node, int64_t output_arg_count, JitBuilderContext& jit_context) {
+  IrBuilderVisitor visitor(output_arg_count, jit_context);
+  XLS_RETURN_IF_ERROR(node->VisitSingleNode(&visitor));
+  NodeIrContext node_context = visitor.ConsumeNodeIrContext();
+  return NodeFunction{.node = node,
+                      .function = node_context.llvm_function(),
+                      .output_arg_count = output_arg_count,
+                      .has_metadata_args = node_context.has_metadata_args()};
 }
 
 }  // namespace xls

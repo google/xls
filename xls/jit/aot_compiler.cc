@@ -20,13 +20,11 @@
 #include "google/protobuf/text_format.h"
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_replace.h"
 #include "absl/strings/strip.h"
 #include "absl/strings/substitute.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
-#include "llvm/include/llvm/IR/DataLayout.h"
-#include "llvm/include/llvm/IR/LLVMContext.h"
 #include "xls/common/file/filesystem.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
@@ -34,7 +32,6 @@
 #include "xls/ir/function.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/llvm_type_converter.h"
 
 ABSL_FLAG(std::string, input, "", "Path to the IR to compile.");
 ABSL_FLAG(std::string, top, "",
@@ -105,7 +102,8 @@ absl::StatusOr<xls::Value> {{wrapper_fn_name}}({{wrapper_params}});
 // On that note, we do as much work as we can in one-time initialization to
 // reduce the tax paid during normal execution.
 absl::StatusOr<std::string> GenerateWrapperSource(
-    Package* p, Function* f, const std::string& header_path,
+    Function* f, const JitObjectCode& object_code,
+    const std::string& header_path,
     const std::vector<std::string>& namespaces) {
   constexpr absl::string_view kTemplate =
       R"~(// AUTO-GENERATED FILE! DO NOT EDIT!
@@ -124,8 +122,11 @@ absl::StatusOr<std::string> GenerateWrapperSource(
 #include "xls/jit/jit_runtime.h"
 
 extern "C" {
-void {{extern_fn}}(const uint8_t* const*, uint8_t*, ::xls::InterpreterEvents*,
-                   void*, ::xls::JitRuntime*);
+void {{extern_fn}}(const uint8_t* const* inputs,
+                   uint8_t* const* outputs,
+                   uint8_t* temp_buffer,
+                   ::xls::InterpreterEvents* events,
+                   ::xls::JitRuntime* runtime);
 }
 {{open_ns}}
 constexpr absl::string_view kFnTypeProto = R"({{type_textproto}})";
@@ -156,8 +157,12 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
           {{{param_names}}},
           {{private_ns}}::global_data->borrowed_param_types,
           absl::MakeSpan(arg_buffers)));
+
+  uint8_t* output_buffers[1] = {result_buffer};
+  std::vector<uint8_t> temp_buffers({{temp_buffer_size}});
   ::xls::InterpreterEvents events;
-  {{extern_fn}}(arg_buffers, result_buffer, &events, nullptr, &runtime);
+  {{extern_fn}}(arg_buffers, output_buffers, temp_buffers.data(),
+                &events, &runtime);
 
   ::xls::Value result = runtime.UnpackBuffer(
       result_buffer, {{private_ns}}::global_data->fn_type->return_type());
@@ -169,7 +174,9 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
 
   absl::flat_hash_map<std::string, std::string> substitution_map;
   substitution_map["{{header_path}}"] = header_path;
-  substitution_map["{{extern_fn}}"] = f->name();
+  substitution_map["{{extern_fn}}"] = object_code.function_name;
+  substitution_map["{{temp_buffer_size}}"] =
+      absl::StrCat(object_code.temp_buffer_size);
 
   if (namespaces.empty()) {
     substitution_map["{{open_ns}}"] = "";
@@ -181,38 +188,19 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
         absl::StrFormat("}  // namespace %s", absl::StrJoin(namespaces, "::"));
   }
 
-  llvm::LLVMContext ctx;
-  auto error_or_target_builder =
-      llvm::orc::JITTargetMachineBuilder::detectHost();
-  if (!error_or_target_builder) {
-    return absl::InternalError(
-        absl::StrCat("Unable to detect host: ",
-                     llvm::toString(error_or_target_builder.takeError())));
-  }
-
-  auto error_or_target_machine = error_or_target_builder->createTargetMachine();
-  if (!error_or_target_machine) {
-    return absl::InternalError(
-        absl::StrCat("Unable to create target machine: ",
-                     llvm::toString(error_or_target_machine.takeError())));
-  }
-  std::unique_ptr<llvm::TargetMachine> target_machine =
-      std::move(error_or_target_machine.get());
-  llvm::DataLayout data_layout = target_machine->createDataLayout();
-  LlvmTypeConverter type_converter(&ctx, data_layout);
-  int64_t return_type_bytes =
-      type_converter.GetTypeByteSize(f->GetType()->return_type());
+  int64_t return_type_bytes = object_code.return_buffer_size;
 
   std::vector<std::string> params;
   std::vector<std::string> param_names;
   std::vector<std::string> arg_buffer_decls;
   std::vector<std::string> arg_buffer_names;
-  for (Param* param : f->params()) {
+  for (int64_t i = 0; i < f->params().size(); ++i) {
+    Param* param = f->param(i);
     params.push_back(absl::StrCat("const ::xls::Value& ", param->name()));
     param_names.push_back(std::string(param->name()));
     arg_buffer_decls.push_back(
         absl::StrFormat("  uint8_t %s_buffer[%d];", param->name(),
-                        type_converter.GetTypeByteSize(param->GetType())));
+                        object_code.parameter_buffer_sizes[i]));
     arg_buffer_names.push_back(absl::StrCat(param->name(), "_buffer"));
   }
   substitution_map["{{wrapper_params}}"] = absl::StrJoin(params, ", ");
@@ -229,7 +217,7 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
 
   substitution_map["{{private_ns}}"] = absl::StrCat(f->name(), "__once_ns_");
 
-  std::string package_prefix = absl::StrCat("__", p->name(), "__");
+  std::string package_prefix = absl::StrCat("__", f->package()->name(), "__");
   substitution_map["{{wrapper_fn_name}}"] =
       absl::StripPrefix(f->name(), package_prefix);
   return absl::StrReplaceAll(kTemplate, substitution_map);
@@ -251,10 +239,11 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
   } else {
     XLS_ASSIGN_OR_RETURN(f, package->GetFunction(top));
   }
-  XLS_ASSIGN_OR_RETURN(std::vector<char> object_code,
-                       FunctionJit::CreateObjectFile(f));
+  XLS_ASSIGN_OR_RETURN(JitObjectCode object_code,
+                       FunctionJit::CreateObjectCode(f));
   XLS_RETURN_IF_ERROR(SetFileContents(
-      output_object_path, std::string(object_code.begin(), object_code.end())));
+      output_object_path, std::string(object_code.object_code.begin(),
+                                      object_code.object_code.end())));
 
   XLS_ASSIGN_OR_RETURN(std::string header_text,
                        GenerateHeader(package.get(), f, namespaces));
@@ -262,7 +251,7 @@ absl::Status RealMain(const std::string& input_ir_path, std::string top,
 
   XLS_ASSIGN_OR_RETURN(
       std::string source_text,
-      GenerateWrapperSource(package.get(), f, output_header_path, namespaces));
+      GenerateWrapperSource(f, object_code, output_header_path, namespaces));
   XLS_RETURN_IF_ERROR(SetFileContents(output_source_path, source_text));
 
   return absl::OkStatus();

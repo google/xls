@@ -22,9 +22,9 @@
 #include "xls/ir/events.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/value.h"
+#include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -33,35 +33,6 @@ namespace xls {
 // converting them to LLVM IR, compiling it, and finally executing it.
 class ProcJit {
  public:
-  // Function types for send and receive actions. The caller should provide
-  // callables of this type.
-  //
-  // The receive function has the following prototype:
-  //
-  // void recv_fn(JitChannelQueue* queue, uint64_t recv, uint8_t* buffer,
-  //              int64_t data_sz, void* user_data);
-  // where:
-  //  - queue is a pointer to a JitChannelQueue,
-  //  - recv is a pointer to a Receive node,
-  //  - buffer is a pointer to the data to fill (with incoming data), and
-  //  - data_sz is the size of the receive buffer.
-  //  - user_data is an opaque pointer to user-provided data needed for
-  //    processing, e.g., thread/queue info.
-  //
-  // The send function has the following prototype:
-  // void send_fn(uint64_t queue_ptr, uint64_t send_ptr, uint8_t* buffer,
-  //              int64_t data_sz, void* user_data);
-  // where:
-  //  - queue_ptr is a pointer to a JitChannelQueue,
-  //  - send_ptr is a pointer to a Send node,
-  //  - buffer is a pointer to the data to fill (with incoming data), and
-  //  - data_sz is the size of the receive buffer.
-  //  - user_data is an opaque pointer to user-provided data needed for
-  //    processing, e.g., thread/queue info.
-  using RecvFnT = bool (*)(JitChannelQueue*, Receive*, uint8_t*, int64_t,
-                           void*);
-  using SendFnT = void (*)(JitChannelQueue*, Send*, uint8_t*, int64_t, void*);
-
   // Returns an object containing a host-compiled version of the specified XLS
   // proc.
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
@@ -81,7 +52,7 @@ class ProcJit {
   //
   // "views" - flat buffers onto which structures layouts can be applied (see
   // value_view.h).
-  absl::Status RunWithViews(absl::Span<uint8_t const* const> state,
+  absl::Status RunWithViews(absl::Span<const uint8_t* const> state,
                             absl::Span<uint8_t* const> next_state,
                             void* user_data = nullptr);
 
@@ -101,41 +72,32 @@ class ProcJit {
 
   JitRuntime* runtime() { return ir_runtime_.get(); }
 
-  LlvmTypeConverter* type_converter() { return &orc_jit_->GetTypeConverter(); }
-
   OrcJit& GetOrcJit() { return *orc_jit_; }
 
+  LlvmTypeConverter* type_converter() const {
+    return &orc_jit_->GetTypeConverter();
+  }
+
  private:
-  explicit ProcJit(Proc* proc);
-
-  // Builds a function which wraps the natively compiled XLS proc `callee` with
-  // another function which accepts the input arguments as an array of pointers
-  // to buffers and the output as a pointer to a buffer. The input/output values
-  // are in the native LLVM data layout. The function signature is:
-  //
-  //   void f(uint8_t*[] state, uint8_t* next_state,
-  //          void* events, void* user_data, void* jit_runtime)
-  //
-  // `state` is an array containing a pointer for each state element argument.
-  // The pointer points to a buffer containing the respective argument in the
-  // native LLVM data layout.
-  //
-  // `next_state` points to an empty buffer appropriately sized to accept the
-  // next_state value in the native LLVM data layout.
-  absl::StatusOr<llvm::Function*> BuildWrapper(llvm::Function* callee);
-
-  std::unique_ptr<OrcJit> orc_jit_;
+  explicit ProcJit(Proc* proc) : proc_(proc) {}
 
   Proc* proc_;
 
-  std::unique_ptr<JitRuntime> ir_runtime_;
+  std::unique_ptr<OrcJit> orc_jit_;
 
-  // When initialized, this points to the compiled output.
-  using JitFunctionType = void (*)(const uint8_t* const* state,
-                                   uint8_t* const* next_state,
-                                   InterpreterEvents* events, void* user_data,
-                                   JitRuntime* jit_runtime);
-  JitFunctionType invoker_;
+  JittedFunctionBase jitted_function_base_;
+
+  // Buffers to hold inputs, outputs, and temporary storage. This is allocated
+  // once and then re-used with each invocation of Run. Not thread-safe.
+  std::vector<std::vector<uint8_t>> input_buffers_;
+  std::vector<std::vector<uint8_t>> output_buffers_;
+  std::vector<uint8_t> temp_buffer_;
+
+  // Raw pointers to the buffers held in `input_buffers_` and `output_buffers_`.
+  std::vector<uint8_t*> input_ptrs_;
+  std::vector<uint8_t*> output_ptrs_;
+
+  std::unique_ptr<JitRuntime> ir_runtime_;
 };
 
 }  // namespace xls

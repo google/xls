@@ -60,6 +60,47 @@ void CanCompileProcs_send(JitChannelQueue* queue_ptr, Send* send_ptr,
   queue->Send(data_ptr, data_sz);
 }
 
+TEST_F(ProcJitTest, SendOnly) {
+  auto package = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * channel_out,
+      package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
+                                      package->GetBitsType(32)));
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
+                           JitChannelQueueManager::Create(package.get()));
+
+  TokenlessProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
+  pb.Send(channel_out, pb.Literal(UBits(42, 32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
+                      CanCompileProcs_send));
+
+  auto* out_queue = queue_mgr->GetQueueById(0).value();
+  EXPECT_TRUE(out_queue->Empty());
+
+  std::vector<Value> state;
+  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
+                           jit->Run(state));
+  EXPECT_FALSE(out_queue->Empty());
+  EXPECT_EQ(DequeueData(out_queue), 42);
+  EXPECT_TRUE(out_queue->Empty());
+
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
+  EXPECT_FALSE(out_queue->Empty());
+  EXPECT_EQ(DequeueData(out_queue), 42);
+  EXPECT_EQ(DequeueData(out_queue), 42);
+  EXPECT_EQ(DequeueData(out_queue), 42);
+  EXPECT_EQ(DequeueData(out_queue), 42);
+  EXPECT_TRUE(out_queue->Empty());
+}
+
 TEST_F(ProcJitTest, CanCompileProcs) {
   const std::string kIrText = R"(
 package p
@@ -353,7 +394,7 @@ TEST_F(ProcJitTest, StatelessProc) {
 
   EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
   XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                           jit->Run({Value::Tuple({})}));
+                           jit->Run({}));
   EXPECT_TRUE(result.value.empty());
   EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 49);
 }
