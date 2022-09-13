@@ -28,6 +28,7 @@ from xls.common import revision
 from xls.common import runfiles
 from xls.common.xls_error import XlsError
 from xls.dslx.python import interpreter
+from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_sample as sample
@@ -366,7 +367,7 @@ class SampleRunner:
     """
 
     return tuple(
-        interpreter.ir_value_text_to_interp_value(line.strip())
+        interp_value_from_ir_string(line.strip())
         for line in s.split('\n')
         if line.strip())
 

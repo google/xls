@@ -91,6 +91,7 @@ xls_pybind_extension(
         "//xls/dslx:import_data",
         "//xls/dslx:import_routines",
         "//xls/dslx:interp_bindings",
+        "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",

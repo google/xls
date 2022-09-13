@@ -19,12 +19,14 @@
 #include "pybind11/stl.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
+#include "xls/dslx/ast.h"
 #include "xls/dslx/bytecode.h"
 #include "xls/dslx/bytecode_emitter.h"
 #include "xls/dslx/bytecode_interpreter.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/import_routines.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parse_and_typecheck.h"
@@ -39,19 +41,9 @@ namespace py = pybind11;
 
 namespace xls::dslx {
 
-template <typename K, typename V>
-absl::flat_hash_map<K, V> ToAbsl(const std::unordered_map<K, V>& m) {
-  return absl::flat_hash_map<K, V>(m.begin(), m.end());
-}
-
 PYBIND11_MODULE(interpreter, m) {
   ImportStatusModule();
 
-  m.def("ir_value_text_to_interp_value",
-        [](absl::string_view text) -> absl::StatusOr<InterpValue> {
-          XLS_ASSIGN_OR_RETURN(Value v, xls::Parser::ParseTypedValue(text));
-          return ValueToInterpValue(v);
-        });
   m.def(
       "run_batched",
       [](absl::string_view text, absl::string_view function_name,

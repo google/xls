@@ -59,10 +59,6 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * ti,
                        type_info->GetTopLevelProcTypeInfo(tp->proc()));
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<BytecodeFunction> bf,
-      BytecodeEmitter::Emit(import_data, ti, tp->proc()->config(),
-                            absl::nullopt));
 
   std::vector<ProcInstance> proc_instances;
   XLS_ASSIGN_OR_RETURN(InterpValue terminator,

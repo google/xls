@@ -33,13 +33,6 @@ flags.DEFINE_boolean('codegen', True,
                      'Whether to generate Verilog for generated samples.')
 FLAGS = flags.FLAGS
 
-X_SUB_Y_IR = """package x_sub_y
-
-top fn main(x: bits[8], y: bits[8]) -> bits[8] {
-  ret sub.1: bits[8] = sub(x, y)
-}
-"""
-
 # IR parser binary. Reads in a IR file and parses it. Raises an error on
 # failure.
 PARSE_IR = runfiles.get_path('xls/tools/parse_ir')
