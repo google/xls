@@ -2892,6 +2892,51 @@ TEST_F(ProcInliningPassTest, MultipleSends) {
                 {{"out", {1, 12, 3, 52, 123}}});
 }
 
+TEST_F(ProcInliningPassTest, MultipleSendsInDifferentOrder) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in,
+      p->CreateStreamingChannel("in", ChannelOps::kReceiveOnly, u32));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * a_to_b,
+      p->CreateStreamingChannel("a_to_b", ChannelOps::kSendReceive, u32,
+                                /*initial_values=*/{}, /*fifo_depth=*/1));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_out,
+      p->CreateStreamingChannel("out", ChannelOps::kSendOnly, u32));
+
+  {
+    // u1 st = 0
+    // while true:
+    //   input = rcv(in)
+    //   if !st
+    //     send(a_to_b, input)
+    //   else:
+    //     send(a_to_b, input + 10)
+    //   st = !st
+    TokenlessProcBuilder ab("A", "tkn", p.get());
+    BValue st = ab.StateElement("st", Value(UBits(0, 1)));
+    BValue input = ab.Receive(ch_in);
+    ab.SendIf(a_to_b, ab.Not(st), input);
+    ab.SendIf(a_to_b, st, ab.Add(input, ab.Literal(UBits(10, 32))));
+    XLS_ASSERT_OK(ab.Build({ab.Not(st)}));
+  }
+
+  XLS_ASSERT_OK(MakeLoopbackProc("B", a_to_b, ch_out, p.get()).status());
+
+  EXPECT_EQ(p->procs().size(), 2);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3, 42, 123}}},
+                {{"out", {1, 12, 3, 52, 123}}});
+
+  ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
+
+  EXPECT_EQ(p->procs().size(), 1);
+  EvalAndExpect(p.get(), {{"in", {1, 2, 3, 42, 123}}},
+                {{"out", {1, 12, 3, 52, 123}}});
+}
+
 TEST_F(ProcInliningPassTest, MultipleReceivesFifoDepth0) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);

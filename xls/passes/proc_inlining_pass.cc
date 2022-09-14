@@ -347,10 +347,15 @@ class VirtualChannel {
   // (activated and predicate (if any) is true).
   absl::Status AttachSend(Node* data, Node* send_fired) {
     if (!is_send_attached_) {
+      // Create a identity node for data_in. Then when later sends are attached,
+      // they can call ReplaceUsesWith on data_in_ without perturbing the rest
+      // of the graph.
+      XLS_ASSIGN_OR_RETURN(Node * data_clone, Identity(data));
+
       // No send has been attached to the virtual channel. Connect the send data
       // to the data input.
-      XLS_RETURN_IF_ERROR(data_in_->ReplaceUsesWith(data));
-      data_in_ = data;
+      XLS_RETURN_IF_ERROR(data_in_->ReplaceUsesWith(data_clone));
+      data_in_ = data_clone;
 
       XLS_RETURN_IF_ERROR(any_send_fired_->ReplaceUsesWith(send_fired));
       any_send_fired_ = send_fired;
