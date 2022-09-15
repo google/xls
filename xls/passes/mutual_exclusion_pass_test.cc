@@ -89,7 +89,7 @@ TEST_F(MutualExclusionPassTest, TwoParallelSends) {
      package test_module
 
      chan test_channel(
-       bits[32], id=0, kind=streaming, ops=send_receive,
+       bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[1], init={0}) {
@@ -113,7 +113,7 @@ TEST_F(MutualExclusionPassTest, ThreeParallelSends) {
      package test_module
 
      chan test_channel(
-       bits[32], id=0, kind=streaming, ops=send_receive,
+       bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[2], init={0}) {
@@ -154,7 +154,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSends) {
      package test_module
 
      chan test_channel(
-       bits[32], id=0, kind=streaming, ops=send_receive,
+       bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[1], init={0}) {
@@ -176,11 +176,11 @@ TEST_F(MutualExclusionPassTest, TwoSequentialSendsWithInterveningIO) {
      package test_module
 
      chan test_channel(
-       bits[32], id=0, kind=streaming, ops=send_receive,
+       bits[32], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      chan other_channel(
-       bits[32], id=1, kind=streaming, ops=send_receive,
+       bits[32], id=1, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[1], init={0}) {
@@ -203,11 +203,11 @@ TEST_F(MutualExclusionPassTest, Complex) {
      package test_module
 
      chan test_channel(
-       bits[2], id=0, kind=streaming, ops=send_receive,
+       bits[2], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      chan other_channel(
-       bits[2], id=1, kind=streaming, ops=send_receive,
+       bits[2], id=1, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[2], init={0}) {
@@ -296,7 +296,7 @@ TEST_F(MutualExclusionPassTest, TwoSequentialReceivesWithInterveningIO) {
        flow_control=ready_valid, metadata="""""")
 
      chan other_channel(
-       bits[32], id=1, kind=streaming, ops=send_receive,
+       bits[32], id=1, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[1], init={0}) {
@@ -328,7 +328,7 @@ TEST_F(MutualExclusionPassTest, TwoReceivesDependingOnReceive) {
        flow_control=ready_valid, metadata="""""")
 
      chan other_channel(
-       bits[32], id=1, kind=streaming, ops=send_receive,
+       bits[32], id=1, kind=streaming, ops=receive_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[1], init={0}) {

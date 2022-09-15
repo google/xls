@@ -1575,83 +1575,20 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
     channels_by_name[channel->name()] = channel;
   }
 
-  if (!codegen) {
-    return absl::OkStatus();
-  }
-
   // Verify each channel has the appropriate send/receive node.
 
-  absl::flat_hash_map<Channel*, std::vector<Node*>> send_nodes_unverified;
-  absl::flat_hash_map<Channel*, std::vector<Node*>> receive_nodes_unverified;
+  absl::flat_hash_map<Channel*, std::vector<Node*>> send_nodes;
+  absl::flat_hash_map<Channel*, std::vector<Node*>> receive_nodes;
   for (auto& proc : package->procs()) {
     for (Node* node : TopoSort(proc.get())) {
       if (node->Is<Send>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
-        send_nodes_unverified[channel].push_back(node);
+        send_nodes[channel].push_back(node);
       }
       if (node->Is<Receive>()) {
         XLS_ASSIGN_OR_RETURN(Channel * channel, GetSendOrReceiveChannel(node));
-        receive_nodes_unverified[channel].push_back(node);
+        receive_nodes[channel].push_back(node);
       }
-    }
-  }
-
-  absl::flat_hash_map<Channel*, Node*> send_nodes;
-  absl::flat_hash_map<Channel*, Node*> receive_nodes;
-
-  for (const auto& [channel, sends] : send_nodes_unverified) {
-    XLS_CHECK(!sends.empty());
-    if (sends.size() == 1) {
-      send_nodes[channel] = sends.at(0);
-    } else {
-      std::string error_message = absl::StrFormat(
-          "Multiple sends associated with the same channel '%s':\n\n",
-          channel->name());
-      for (Node* send : sends) {
-        if (send->loc().locations.empty()) {
-          absl::StrAppend(
-              &error_message,
-              "Send node with no known provenance: ", send->ToString(), "\n\n");
-          continue;
-        }
-        for (const SourceLocation& loc : send->loc().locations) {
-          absl::StrAppend(
-              &error_message,
-              PrintCaret(
-                  [&](Fileno fileno) { return package->GetFilename(fileno); },
-                  loc),
-              "\n");
-        }
-      }
-      return absl::InternalError(error_message);
-    }
-  }
-
-  for (const auto& [channel, receives] : receive_nodes_unverified) {
-    XLS_CHECK(!receives.empty());
-    if (receives.size() == 1) {
-      receive_nodes[channel] = receives.at(0);
-    } else {
-      std::string error_message = absl::StrFormat(
-          "Multiple receives associated with the same channel '%s':\n\n",
-          channel->name());
-      for (Node* receive : receives) {
-        if (receive->loc().locations.empty()) {
-          absl::StrAppend(&error_message,
-                          "Receive node with no known provenance: ",
-                          receive->ToString(), "\n\n");
-          continue;
-        }
-        for (const SourceLocation& loc : receive->loc().locations) {
-          absl::StrAppend(
-              &error_message,
-              PrintCaret(
-                  [&](Fileno fileno) { return package->GetFilename(fileno); },
-                  loc),
-              "\n");
-        }
-      }
-      return absl::InternalError(error_message);
     }
   }
 
@@ -1662,19 +1599,65 @@ absl::Status VerifyChannels(Package* package, bool codegen) {
       XLS_RET_CHECK(send_nodes.contains(channel)) << absl::StreamFormat(
           "Channel '%s' (id %d) has no associated send node", channel->name(),
           channel->id());
+      if (codegen && send_nodes.at(channel).size() > 1) {
+        std::string error_message = absl::StrFormat(
+            "Multiple sends associated with the same channel '%s':\n\n",
+            channel->name());
+        for (Node* send : send_nodes.at(channel)) {
+          if (send->loc().locations.empty()) {
+            absl::StrAppend(&error_message,
+                            "Send node with no known provenance: ",
+                            send->ToString(), "\n\n");
+            continue;
+          }
+          for (const SourceLocation& loc : send->loc().locations) {
+            absl::StrAppend(
+                &error_message,
+                PrintCaret(
+                    [&](Fileno fileno) { return package->GetFilename(fileno); },
+                    loc),
+                "\n");
+          }
+        }
+        return absl::InternalError(error_message);
+      }
     } else {
       XLS_RET_CHECK(!send_nodes.contains(channel)) << absl::StreamFormat(
-          "Channel '%s' (id %d) cannot send but has a send node %s",
-          channel->name(), channel->id(), send_nodes.at(channel)->GetName());
+          "Channel '%s' (id %d) cannot send but has send node(s): %s",
+          channel->name(), channel->id(),
+          absl::StrJoin(send_nodes.at(channel), ", ", NodeFormatter));
     }
     if (channel->CanReceive()) {
       XLS_RET_CHECK(receive_nodes.contains(channel)) << absl::StreamFormat(
           "Channel '%s' (id %d) has no associated receive node",
           channel->name(), channel->id());
+      if (codegen && receive_nodes.at(channel).size() > 1) {
+        std::string error_message = absl::StrFormat(
+            "Multiple receives associated with the same channel '%s':\n\n",
+            channel->name());
+        for (Node* receive : receive_nodes.at(channel)) {
+          if (receive->loc().locations.empty()) {
+            absl::StrAppend(&error_message,
+                            "Receive node with no known provenance: ",
+                            receive->ToString(), "\n\n");
+            continue;
+          }
+          for (const SourceLocation& loc : receive->loc().locations) {
+            absl::StrAppend(
+                &error_message,
+                PrintCaret(
+                    [&](Fileno fileno) { return package->GetFilename(fileno); },
+                    loc),
+                "\n");
+          }
+        }
+        return absl::InternalError(error_message);
+      }
     } else {
       XLS_RET_CHECK(!receive_nodes.contains(channel)) << absl::StreamFormat(
-          "Channel '%s' (id %d) cannot receive but has a receive node %s",
-          channel->name(), channel->id(), receive_nodes.at(channel)->GetName());
+          "Channel '%s' (id %d) cannot receive but has a receive node(s): %s",
+          channel->name(), channel->id(),
+          absl::StrJoin(receive_nodes.at(channel), ", ", NodeFormatter));
     }
 
     // Verify type-specific invariants of each channel.

@@ -71,7 +71,7 @@ TEST_F(UnrollProcTest, UnrollWithIO) {
      package test_module
 
      chan test_channel(
-       bits[10], id=0, kind=streaming, ops=send_receive,
+       bits[10], id=0, kind=streaming, ops=send_only,
        flow_control=ready_valid, metadata="""""")
 
      top proc main(__token: token, __state: bits[10], init={0}) {
