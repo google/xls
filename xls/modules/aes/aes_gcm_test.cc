@@ -311,7 +311,7 @@ absl::StatusOr<JitData> CreateJitData() {
 absl::Status RunTest(int num_samples, int key_bits) {
   int key_bytes = key_bits / 8;
   SampleData sample_data;
-  sample_data.key = { 0 };
+  sample_data.key.fill(0);
   sample_data.key_bits = key_bits;
   XLS_ASSIGN_OR_RETURN(JitData jit_data, CreateJitData());
 

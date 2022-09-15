@@ -40,6 +40,10 @@ pub struct Command {
     // when used as part of GCM, we start encrypting the plaintext with a
     // counter value of 2.
     initial_ctr: u32,
+
+    // The amount by which to increment ctr every cycle. Usually 1, but can be
+    // non-unit when part of a parallel GCM implementation.
+    ctr_stride: u32,
 }
 
 // The current FSM state of the encoding block.
@@ -65,6 +69,7 @@ pub fn initial_state() -> State {
             key_width: aes_common::KeyWidth::KEY_128,
             iv: InitVector:uN[96]:0,
             initial_ctr: u32:0,
+            ctr_stride: u32:0,
         },
         ctr: uN[32]:0,
         blocks_left: uN[32]:0,
@@ -125,7 +130,7 @@ pub proc aes_ctr {
         // We don't have to worry about ctr overflowing (which would result in an
         // invalid encryption, since ctr starts at zero, and the maximum possible
         // number of blocks per command is 2^32 - 1.
-        State { step: step, command: cmd, ctr: ctr + u32:1, blocks_left: blocks_left }
+        State { step: step, command: cmd, ctr: ctr + cmd.ctr_stride, blocks_left: blocks_left }
     }
 }
 
@@ -141,21 +146,7 @@ proc aes_ctr_test_128 {
         let (command_in, command_out) = chan<Command>;
         let (ptxt_in, ptxt_out) = chan<Block>;
         let (ctxt_in, ctxt_out) = chan<Block>;
-
-        let init_state = State {
-            step: Step::IDLE,
-            command: Command {
-                msg_bytes: u32:0,
-                key: Key:[ u8:0, ... ],
-                key_width: aes_common::KeyWidth::KEY_128,
-                iv: InitVector:0,
-                initial_ctr: u32:0,
-            },
-            ctr: uN[32]:0,
-            blocks_left: u32:0,
-        };
-
-        spawn aes_ctr(command_in, ptxt_in, ctxt_out)(init_state);
+        spawn aes_ctr(command_in, ptxt_in, ctxt_out)(initial_state());
         (terminator, command_out, ptxt_out, ctxt_in)
     }
 
@@ -178,6 +169,7 @@ proc aes_ctr_test_128 {
             key_width: aes_common::KeyWidth::KEY_128,
             iv: iv,
             initial_ctr: u32:0,
+            ctr_stride: u32:1,
         };
         let tok = send(tok, command_out, cmd);
 
@@ -220,6 +212,7 @@ proc aes_ctr_test_128 {
             key_width: aes_common::KeyWidth::KEY_128,
             iv: iv,
             initial_ctr: u32:0,
+            ctr_stride: u32:1,
         };
 
         let tok = send(tok, command_out, cmd);
@@ -246,6 +239,7 @@ proc aes_ctr_test_128 {
             key_width: aes_common::KeyWidth::KEY_128,
             iv: iv,
             initial_ctr: u32:0,
+            ctr_stride: u32:1,
         };
         let tok = send(tok, command_out, cmd);
         let ciphertext_0 = Block:[

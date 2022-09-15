@@ -59,7 +59,7 @@ xls_dslx_ir(
     name = "aes_ctr",
     dslx_top = "aes_ctr",
     ir_conv_args = {
-        "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0), 0, 0)'",
+        "top_proc_initial_state": "'(0, (0, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 0, 0, 0, 0), 0, 0)'",
     },
     library = ":aes_ctr_dslx",
 )
@@ -163,6 +163,7 @@ cc_test(
     data = [
         ":aes_gcm.ir",
     ],
+    tags = ["optonly"],
     deps = [
         ":aes_test_common",
         "@com_google_absl//absl/cleanup",

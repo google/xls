@@ -96,13 +96,14 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   // Command.
   std::vector<Value> initial_command_elements;
   {
-    // msg_bytes, key, key_width, and init_vector.
+    // msg_bytes, key, key_width, init_vector, initial_ctr, and ctr_stride.
     initial_command_elements.push_back(Value(UBits(0, 32)));
     std::vector<Value> key_elements(32, Value(UBits(0, 8)));
     XLS_ASSIGN_OR_RETURN(Value key_value, Value::Array(key_elements));
     initial_command_elements.push_back(key_value);
     initial_command_elements.push_back(Value(UBits(0, 2)));
     initial_command_elements.push_back(Value(UBits(0, 96)));
+    initial_command_elements.push_back(Value(UBits(0, 32)));
     initial_command_elements.push_back(Value(UBits(0, 32)));
   }
   state.push_back(Value::Tuple(initial_command_elements));
@@ -123,7 +124,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
     InitVector init_vector;
     uint32_t padding_2;
     uint32_t initial_ctr;
-    uint32_t padding_3;
+    uint32_t ctr_stride;
   };
   uint32_t num_blocks = sample_data.input_blocks.size();
   uint32_t num_bytes = num_blocks * kBlockBytes;
@@ -133,6 +134,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   command.key_width = sample_data.key_bytes == 16 ? 0 : 2;
   IvToBuffer(sample_data.iv, &command.init_vector);
   command.initial_ctr = 0;
+  command.ctr_stride = 1;
 
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));

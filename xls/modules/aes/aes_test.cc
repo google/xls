@@ -118,7 +118,8 @@ absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
 absl::Status RunTest(int32_t key_bits, int32_t num_samples) {
   int key_bytes = key_bits / 8;
   Block input;
-  Key key = { 0 };
+  Key key;
+  key.fill(0);
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
   absl::Duration xls_decrypt_dur;

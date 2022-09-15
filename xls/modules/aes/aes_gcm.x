@@ -134,6 +134,8 @@ fn get_ctr_command(gcm_command: Command) -> aes_ctr::Command {
         // the hash key and counter value 1 is used as the final XOR of the
         // auth tag.
         initial_ctr: u32:2,
+
+        ctr_stride: u32:1,
     }
 }
 
@@ -268,7 +270,9 @@ proc aes_gcm {
             (Step::READ_MSG,     _,  true) => Step::READ_MSG,
             (Step::READ_MSG,     _, false) => Step::HASH_LENGTHS,
             (Step::HASH_LENGTHS, _,     _) => Step::IDLE,
-            _ => fail!("invalid_state_transition", Step::INVALID),
+            // TODO(rspringer): Turn this info a fail!() when we can pass that
+            // through IR optimization.
+            _ => Step::INVALID,
         };
 
         State {

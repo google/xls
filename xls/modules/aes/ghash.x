@@ -48,7 +48,7 @@ fn u128_to_block(x: uN[128]) -> Block {
 // A better implementation would use a pre-programmed lookup table for product
 // components, e.g., a 4-bit lookup table for each 4-bit chunk of A * B, where B
 // is a pre-set "hash key", referred to as "H" in the literature.
-fn gf128_mul(x: Block, y: Block) -> Block {
+pub fn gf128_mul(x: Block, y: Block) -> Block {
     let x = block_to_u128(x);
     let y = block_to_u128(y);
 
@@ -260,7 +260,9 @@ pub proc ghash {
             (  Step::RECV_INPUT, false) => Step::RECV_INPUT,
             (  Step::RECV_INPUT,  true) => Step::HASH_LENGTHS,
             (Step::HASH_LENGTHS,     _) => Step::IDLE,
-            _ => fail!("invalid_state_transition", Step::INVALID),
+            // TODO(rspringer): Turn this info a fail!() when we can pass that
+            // through IR optimization.
+            _ => Step::INVALID,
         };
 
         State {
