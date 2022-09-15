@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test to compare the outputs of a reference vs. XLS AES implementation.
-// Currently only supports AES-128 in CBC mode, but that may be expanded in the
-// future.
+// Test to compare the outputs of a reference vs. XLS implementation of CTR
+// mode using the AES block cipher.
 #include <arpa/inet.h>
 
 #include <array>
@@ -40,7 +39,7 @@
 #include "xls/jit/proc_jit.h"
 #include "xls/modules/aes/aes_test_common.h"
 
-constexpr absl::string_view kEncrypterIrPath = "xls/modules/aes/aes_128_ctr.ir";
+constexpr absl::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
 
 ABSL_FLAG(int32_t, num_samples, 1000,
           "The number of (randomly-generated) blocks to test.");
@@ -49,12 +48,9 @@ ABSL_FLAG(bool, print_traces, false,
 
 namespace xls::aes {
 
-constexpr int kKeyBits = 128;
-constexpr int kKeyBytes = kKeyBits / 8;
-using Key = std::array<uint8_t, kKeyBytes>;
-
 struct SampleData {
   Key key;
+  int key_bytes;
   // Held as a uN[96] in the DSLX.
   InitVector iv;
   std::vector<Block> input_blocks;
@@ -87,9 +83,9 @@ void PrintTraceMessages(const InterpreterEvents& events) {
 
 absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
                                               JitData* jit_data) {
-  const absl::string_view kCmdChannel = "aes_128_ctr__command_in";
-  const absl::string_view kInputDataChannel = "aes_128_ctr__ptxt_in";
-  const absl::string_view kOutputDataChannel = "aes_128_ctr__ctxt_out";
+  const absl::string_view kCmdChannel = "aes_ctr__command_in";
+  const absl::string_view kInputDataChannel = "aes_ctr__ptxt_in";
+  const absl::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
 
   // Set initial state: step, command, ctr, and blocks_left.
   // TODO(rspringer): Get these sizes from the DSLX C++ type transpiler, then
@@ -100,11 +96,12 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   // Command.
   std::vector<Value> initial_command_elements;
   {
-    // msg_bytes, key, and init_vector.
+    // msg_bytes, key, key_width, and init_vector.
     initial_command_elements.push_back(Value(UBits(0, 32)));
-    std::vector<Value> key_elements(4, Value(UBits(0, 32)));
+    std::vector<Value> key_elements(32, Value(UBits(0, 8)));
     XLS_ASSIGN_OR_RETURN(Value key_value, Value::Array(key_elements));
     initial_command_elements.push_back(key_value);
+    initial_command_elements.push_back(Value(UBits(0, 2)));
     initial_command_elements.push_back(Value(UBits(0, 96)));
     initial_command_elements.push_back(Value(UBits(0, 32)));
   }
@@ -121,9 +118,9 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   // anticipate Clang/LLVM data layout! Bad!
   struct CtrCommand {
     uint32_t msg_bytes;
-    std::array<uint32_t, 4> key;
-    uint32_t padding;
-    std::array<uint8_t, kInitVectorBytes> init_vector;
+    Key key;
+    uint32_t key_width;
+    InitVector init_vector;
     uint32_t padding_2;
     uint32_t initial_ctr;
     uint32_t padding_3;
@@ -132,7 +129,8 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   uint32_t num_bytes = num_blocks * kBlockBytes;
   CtrCommand command;
   command.msg_bytes = num_bytes;
-  KeyToBuffer<kKeyBytes, 4>(sample_data.key, &command.key);
+  memcpy(command.key.data(), sample_data.key.data(), sample_data.key_bytes);
+  command.key_width = sample_data.key_bytes == 16 ? 0 : 2;
   IvToBuffer(sample_data.iv, &command.init_vector);
   command.initial_ctr = 0;
 
@@ -185,21 +183,21 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
 
 std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
   // Needed because the key and iv are modified during operation.
-  uint8_t local_key[kKeyBytes];
-  memcpy(local_key, sample_data.key.data(), kKeyBytes);
-  uint8_t local_iv[kKeyBytes];
+  uint8_t local_key[kMaxKeyBytes];
+  memcpy(local_key, sample_data.key.data(), kMaxKeyBytes);
+
+  uint8_t local_iv[kMaxKeyBytes];
   memcpy(local_iv, sample_data.iv.data(), kInitVectorBytes);
+
   // The BoringSSL implementation expects a 128-bit IV, instead of the 96-bit
   // one that XLS uses, so we pad it out with zeroes.
   for (int i = 0; i < 4; i++) {
     local_iv[kInitVectorBytes + i] = 0;
   }
 
-  uint8_t ecount[kKeyBytes] = {0};
-
   AES_KEY aes_key;
-  uint32_t num = 0;
-  XLS_QCHECK_EQ(AES_set_encrypt_key(local_key, kKeyBits, &aes_key), 0);
+  XLS_QCHECK_EQ(
+      AES_set_encrypt_key(local_key, sample_data.key_bytes * 8, &aes_key), 0);
 
   int num_blocks = sample_data.input_blocks.size();
   auto input_buffer = std::make_unique<uint8_t[]>(num_blocks * kBlockBytes);
@@ -209,6 +207,8 @@ std::vector<Block> ReferenceEncrypt(const SampleData& sample_data) {
   }
 
   auto output_buffer = std::make_unique<uint8_t[]>(num_blocks * kBlockBytes);
+  uint8_t ecount[kMaxKeyBytes] = {0};
+  uint32_t num = 0;
   AES_ctr128_encrypt(input_buffer.get(), output_buffer.get(),
                      sample_data.input_blocks.size() * kBlockBytes, &aes_key,
                      local_iv, ecount, &num);
@@ -260,6 +260,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
   // Now decryption!
   SampleData decryption_data;
   decryption_data.key = sample_data.key;
+  decryption_data.key_bytes = sample_data.key_bytes;
   decryption_data.iv = sample_data.iv;
   decryption_data.input_blocks = xls_ciphertext;
   start_time = absl::Now();
@@ -302,7 +303,7 @@ absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
   XLS_ASSIGN_OR_RETURN(Proc * proc,
-                       package->GetProc("__aes_128_ctr__aes_128_ctr_0_next"));
+                       package->GetProc("__aes_ctr__aes_ctr_0_next"));
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_mgr,
                        JitChannelQueueManager::Create(package.get()));
@@ -329,8 +330,10 @@ void EncoderJitSendFn(JitChannelQueue* queue, Send* send, uint8_t* buffer,
   return queue->Send(buffer, buf_sz);
 }
 
-absl::Status RealMain(int32_t num_samples) {
+absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
+  int key_bytes = key_bits / 8;
   SampleData sample_data;
+  sample_data.key_bytes = key_bytes;
   memset(sample_data.iv.data(), 0, sizeof(sample_data.iv));
 
   XLS_ASSIGN_OR_RETURN(
@@ -340,12 +343,13 @@ absl::Status RealMain(int32_t num_samples) {
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
   for (int32_t i = 0; i < num_samples; i++) {
-    for (int32_t j = 0; j < kKeyBytes; j++) {
+    for (int32_t j = 0; j < key_bytes; j++) {
       sample_data.key[j] = absl::Uniform(bitgen, 0, 256);
     }
 
     // TODO(rspringer): Support zero blocks!
-    int num_blocks = absl::Uniform(bitgen, 1, 16);
+    // int num_blocks = absl::Uniform(bitgen, 1, 16);
+    int num_blocks = 1;
     sample_data.input_blocks.resize(num_blocks);
     for (int32_t block_idx = 0; block_idx < num_blocks; block_idx++) {
       for (int32_t byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
@@ -360,8 +364,7 @@ absl::Status RealMain(int32_t num_samples) {
     XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&encrypt_jit_data, sample_data,
                                                  &xls_encrypt_dur));
     if (!proceed) {
-      std::cout << "Key      : " << FormatKey<kKeyBytes>(sample_data.key)
-                << std::endl;
+      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
       std::cout << "IV       : " << FormatInitVector(sample_data.iv)
                 << std::endl;
       std::cout << "Plaintext: " << std::endl
@@ -378,6 +381,11 @@ absl::Status RealMain(int32_t num_samples) {
             << xls_encrypt_dur / num_samples << std::endl;
 
   return absl::OkStatus();
+}
+
+absl::Status RealMain(int num_samples) {
+  XLS_RETURN_IF_ERROR(RunTest(num_samples, /*key_bits=*/128));
+  return RunTest(num_samples, /*key_bits=*/256);
 }
 
 }  // namespace xls::aes

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Test of the XLS 128-bit AES-GCM implementation against a reference (in this
+// Test of the XLS GCM mode implementation against a reference (in this
 // case, BoringSSL's implementation).
 #include <filesystem>
 #include <memory>
@@ -39,7 +39,7 @@
 // TODO(rspringer): This is a bit slow. Seems like we should be able to compute
 // 1k samples a lot faster than 2 minutes.
 
-ABSL_FLAG(int, num_samples, 250, "The number of samples to execute.");
+ABSL_FLAG(int, num_samples, 100, "The number of samples to execute.");
 ABSL_FLAG(bool, print_traces, false,
           "If true, print any trace! or trace_fmt! messages.");
 
@@ -50,14 +50,10 @@ constexpr int kMaxPtxtBlocks = 128;
 constexpr int kTagBits = 128;
 constexpr int kTagBytes = kTagBits / 8;
 
-constexpr absl::string_view kIrPath = "xls/modules/aes/aes_128_gcm.ir";
-constexpr absl::string_view kCmdChannelName = "aes_128_gcm__command_in";
-constexpr absl::string_view kDataInChannelName = "aes_128_gcm__data_in";
-constexpr absl::string_view kDataOutChannelName = "aes_128_gcm__data_out";
-
-constexpr int kKeyBits = 128;
-constexpr int kKeyBytes = kKeyBits / 8;
-using Key = std::array<uint8_t, kKeyBytes>;
+constexpr absl::string_view kIrPath = "xls/modules/aes/aes_gcm.ir";
+constexpr absl::string_view kCmdChannelName = "aes_gcm__command_in";
+constexpr absl::string_view kDataInChannelName = "aes_gcm__data_in";
+constexpr absl::string_view kDataOutChannelName = "aes_gcm__data_out";
 
 struct JitData {
   std::unique_ptr<Package> package;
@@ -67,6 +63,7 @@ struct JitData {
 struct SampleData {
   EVP_AEAD_CTX* openssl_ctxt;
   Key key;
+  int key_bits;
   InitVector init_vector;
   std::vector<Block> input_data;
   AuthData aad;
@@ -77,14 +74,8 @@ struct Result {
   Block auth_tag;
 };
 
-absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
-                                  const SampleData& sample_data, bool encrypt) {
-  // Create (and send) the initial command.
-  Package* package = jit_data->package.get();
-  SerialProcRuntime* runtime = jit_data->runtime.get();
-  XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
-                       package->GetChannel(kCmdChannelName));
-  Value command;
+absl::StatusOr<Value> CreateCommandValue(const SampleData& sample_data,
+                                         bool encrypt) {
   std::vector<Value> command_elements;
   // encrypt
   command_elements.push_back(Value(UBits(static_cast<uint64_t>(encrypt), 1)));
@@ -93,11 +84,24 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   // aad_blocks
   command_elements.push_back(Value(UBits(sample_data.aad.size(), 32)));
   // Key
-  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue<kKeyBytes>(sample_data.key));
+  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(sample_data.key));
   command_elements.push_back(key_value);
+  // Key width
+  command_elements.push_back(
+      Value(UBits(sample_data.key_bits == 128 ? 0 : 2, /*bit_count=*/2)));
   // IV
   command_elements.push_back(InitVectorToValue(sample_data.init_vector));
-  command = Value::Tuple(command_elements);
+  return Value::Tuple(command_elements);
+}
+
+absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
+                                  const SampleData& sample_data, bool encrypt) {
+  // Create (and send) the initial command.
+  Package* package = jit_data->package.get();
+  SerialProcRuntime* runtime = jit_data->runtime.get();
+  XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
+                       package->GetChannel(kCmdChannelName));
+  XLS_ASSIGN_OR_RETURN(Value command, CreateCommandValue(sample_data, encrypt));
   XLS_RETURN_IF_ERROR(runtime->EnqueueValueToChannel(cmd_channel, command));
 
   // Then send all input data: the AAD followed by the message body.
@@ -145,8 +149,14 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
 absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
   int num_ptxt_blocks = sample.input_data.size();
   int num_aad_blocks = sample.aad.size();
-  size_t max_result_size = num_ptxt_blocks * kBlockBytes +
+  size_t max_result_size;
+  if (sample.key_bits == 128) {
+      max_result_size = num_ptxt_blocks * kBlockBytes +
                            EVP_AEAD_max_overhead(EVP_aead_aes_128_gcm());
+  } else {
+      max_result_size = num_ptxt_blocks * kBlockBytes +
+                           EVP_AEAD_max_overhead(EVP_aead_aes_256_gcm());
+  }
 
   auto ptxt_buffer = std::make_unique<uint8_t[]>(num_ptxt_blocks * kBlockBytes);
   for (int i = 0; i < num_ptxt_blocks; i++) {
@@ -250,9 +260,9 @@ absl::StatusOr<bool> RunSample(JitData* jit_data,
     return false;
   }
 
-  SampleData decrypt_sample{sample_data.openssl_ctxt, sample_data.key,
-                            sample_data.init_vector, xls_encrypted.output_data,
-                            sample_data.aad};
+  SampleData decrypt_sample{sample_data.openssl_ctxt,  sample_data.key,
+                            sample_data.key_bits,      sample_data.init_vector,
+                            xls_encrypted.output_data, sample_data.aad};
   XLS_ASSIGN_OR_RETURN(Result xls_decrypted,
                        XlsEncrypt(jit_data, decrypt_sample, false));
   if (xls_decrypted.output_data.size() != xls_encrypted.output_data.size()) {
@@ -298,19 +308,27 @@ absl::StatusOr<JitData> CreateJitData() {
   return jit_data;
 }
 
-absl::Status RealMain(int num_samples) {
+absl::Status RunTest(int num_samples, int key_bits) {
+  int key_bytes = key_bits / 8;
   SampleData sample_data;
+  sample_data.key = { 0 };
+  sample_data.key_bits = key_bits;
   XLS_ASSIGN_OR_RETURN(JitData jit_data, CreateJitData());
 
   absl::BitGen bitgen;
   for (int sample_idx = 0; sample_idx < num_samples; sample_idx++) {
-    for (int byte_idx = 0; byte_idx < kKeyBytes; byte_idx++) {
+    for (int byte_idx = 0; byte_idx < key_bytes; byte_idx++) {
       sample_data.key[byte_idx] = absl::Uniform(bitgen, 0, 256);
     }
 
-    EVP_AEAD_CTX* ref_ctx =
-        EVP_AEAD_CTX_new(EVP_aead_aes_128_gcm(), sample_data.key.data(),
-                         sample_data.key.size(), kTagBytes);
+    EVP_AEAD_CTX* ref_ctx;
+    if (key_bits == 128) {
+      ref_ctx = EVP_AEAD_CTX_new(EVP_aead_aes_128_gcm(), sample_data.key.data(),
+                                 key_bytes, kTagBytes);
+    } else {
+      ref_ctx = EVP_AEAD_CTX_new(EVP_aead_aes_256_gcm(), sample_data.key.data(),
+                                 key_bytes, kTagBytes);
+    }
     if (ref_ctx == nullptr) {
       return absl::InternalError("Unable to create reference context.");
     }
@@ -340,22 +358,28 @@ absl::Status RealMain(int num_samples) {
 
     XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(&jit_data, sample_data));
     if (!proceed) {
-      std::cout << "Key      : " << FormatKey<kKeyBytes>(sample_data.key)
-                << std::endl;
+      std::cout << "Key      : " << FormatKey(sample_data.key) << std::endl;
       std::cout << "IV       : " << FormatInitVector(sample_data.init_vector)
                 << std::endl;
       std::cout << "Plaintext: " << std::endl
                 << FormatBlocks(sample_data.input_data, /*indent=*/4)
                 << std::endl;
+      std::cout << "AAD: " << std::endl
+                << FormatBlocks(sample_data.aad, /*indent=*/4) << std::endl;
       return absl::InternalError(
           absl::StrCat("Testing failed at sample ", sample_idx, "."));
     }
   }
 
-  std::cout << "AES-GCM: Successfully ran " << num_samples << " samples."
-            << std::endl;
+  std::cout << "AES-GCM: Successfully ran " << num_samples << " " << key_bits
+            << "-bit samples." << std::endl;
 
   return absl::OkStatus();
+}
+
+absl::Status RealMain(int num_samples) {
+  XLS_RETURN_IF_ERROR(RunTest(num_samples, /*key_bits=*/128));
+  return RunTest(num_samples, /*key_bits=*/256);
 }
 
 }  // namespace xls::aes

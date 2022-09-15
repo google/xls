@@ -19,14 +19,26 @@
 // manner.
 import xls.modules.aes.constants
 
+pub const MAX_KEY_BITS = u32:256;
+pub const MAX_KEY_BYTES = MAX_KEY_BITS >> 3;
+pub const MAX_KEY_WORDS = MAX_KEY_BYTES >> 2;
+
 pub const KEY_WORD_BITS = u32:32;
 pub const BLOCK_BITS = u32:128;
 pub const BLOCK_BYTES = BLOCK_BITS >> 3;
 
 pub type Block = u8[4][4];
+pub type InitVector = uN[96];
+pub type Key = u8[MAX_KEY_BYTES];
 pub type KeyWord = uN[KEY_WORD_BITS];
 pub type RoundKey = u32[4];
-pub type InitVector = uN[96];
+
+// 192 bit keys aren't currently supported, due to the complexity of the
+// mod operation (needed in create_key_schedule).
+pub enum KeyWidth : u2 {
+    KEY_128 = 0,
+    KEY_256 = 2,
+}
 
 pub const ZERO_BLOCK = Block:[
     u32:0 as u8[4],
@@ -329,6 +341,17 @@ pub fn trace_block(block: Block) {
         bytes1[0], bytes1[1], bytes1[2], bytes1[3],
         bytes2[0], bytes2[1], bytes2[2], bytes2[3],
         bytes3[0], bytes3[1], bytes3[2], bytes3[3]);
+    ()
+}
+
+// Until GitHub issue #629 is resolved, this MUST NOT be called in AOT-compiled
+// code!
+pub fn trace_key(key: Key) {
+    let key = key as uN[256] as u32[8];
+    let _ = trace_fmt!(
+        "0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x} 0x{:x}",
+        key[0], key[1], key[2], key[3],
+        key[4], key[5], key[6], key[7]);
     ()
 }
 

@@ -15,12 +15,11 @@
 // XLS implementation of the GHASH subroutine of the Galois counter mode of operation for
 // block ciphers, as described in NIST Special Publication 800-38D: "Recommendation for Block
 // Cipher Modes of Operation: Galois/Counter Mode (GCM) and GMAC".
-import xls.modules.aes.aes_128
-import xls.modules.aes.aes_128_common
+import xls.modules.aes.aes
 import xls.modules.aes.aes_common
 
 type Block = aes_common::Block;
-type Key = aes_128_common::Key;
+type Key = aes_common::Key;
 
 const ZERO_BLOCK = aes_common::ZERO_BLOCK;
 
@@ -84,8 +83,8 @@ fn gf128_mul_test() {
     let _ = assert_eq(gf128_mul(a, b), b);
 
     // By the identity.
-    let key = Key:[u32:0, u32:0, u32:0, u32:0];
-    let a = aes_128::aes_encrypt(key, ZERO_BLOCK);
+    let key = aes_common::Key:[u8:0, ...];
+    let a = aes::encrypt(key, aes_common::KeyWidth::KEY_128, ZERO_BLOCK);
     let b = Block:[
         [u8:0x80, u8:0x00, u8:0x00, u8:0x00],
         [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
@@ -96,8 +95,7 @@ fn gf128_mul_test() {
     let _ = assert_eq(z, a);
 
     // By two.
-    let key = Key:[u32:0, u32:0, u32:0, u32:0];
-    let a = aes_128::aes_encrypt(key, ZERO_BLOCK);
+    let a = aes::encrypt(key, aes_common::KeyWidth::KEY_128, ZERO_BLOCK);
     let a = Block:[
         [u8:0x66, u8:0xe9, u8:0x4b, u8:0xd4],
         [u8:0xef, u8:0x8a, u8:0x2c, u8:0x3b],
@@ -227,7 +225,7 @@ fn get_current_state(state: State, command: Command) -> State {
 // command and will consume a block of input, either AAD or ciphertext, per
 // "tick" (read from the same channel). Once complete, the resulting tag will be
 // sent on the provided output channel.
-pub proc aes_128_ghash {
+pub proc ghash {
     command_in: chan<Command> in;
     input_in: chan<Block> in;
     tag_out: chan<Block> out;
@@ -277,7 +275,7 @@ pub proc aes_128_ghash {
 // General test of GHASH operation. Verified against the Go cipher package's
 // GCM implementation.
 #![test_proc()]
-proc aes_128_ghash_test {
+proc ghash_test {
 	command_out: chan<Command> out;
     data_out: chan<Block> out;
     tag_in: chan<Block> in;
@@ -288,14 +286,15 @@ proc aes_128_ghash_test {
         let (data_in, data_out) = chan<Block>;
         let (tag_in, tag_out) = chan<Block>;
 
-        spawn aes_128_ghash(command_in, data_in, tag_out)(initial_state());
+        spawn ghash(command_in, data_in, tag_out)(initial_state());
         (command_out, data_out, tag_in, terminator,)
     }
 
     next(tok: token) {
         // Test 1: single AAD block, single ctxt block.
-        let key = Key:[u32:0, u32:0, u32:0, u32:0];
-        let hash_key = aes_128::aes_encrypt(key, ZERO_BLOCK);
+        let key = Key:[u8:0, ...];
+        // No real need to use AES here, but no reason to _remove_ it, either.
+        let hash_key = aes::encrypt(key, aes_common::KeyWidth::KEY_128, ZERO_BLOCK);
 
         let aad = Block:[
             [u8:0x00, u8:0x00, u8:0x00, u8:0x00],
@@ -328,8 +327,12 @@ proc aes_128_ghash_test {
         let _ = assert_eq(tag, expected);
 
         // Test 2: two AAD blocks, three ctxt blocks. Random data.
-        let key = Key:[u32:0xdf388b6d, u32:0x4b9952d6, u32:0x42407bea, u32:0xb37a01c9];
-        let hash_key = aes_128::aes_encrypt(key, ZERO_BLOCK);
+        let key = Key:[
+            u8:0xdf, u8:0x38, u8:0x8b, u8:0x6d, u8:0x4b, u8:0x99, u8:0x52, u8:0xd6,
+            u8:0x42, u8:0x40, u8:0x7b, u8:0xea, u8:0xb3, u8:0x7a, u8:0x01, u8:0xc9,
+            ...
+        ];
+        let hash_key = aes::encrypt(key, aes_common::KeyWidth::KEY_128, ZERO_BLOCK);
 
         let command = Command {
             aad_blocks: u32:2,

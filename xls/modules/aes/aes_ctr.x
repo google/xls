@@ -12,16 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Implements the AES-128 CTR mode cipher.
-// TODO(rspringer): Allow wider msg interface (parameterizable?).
+// Implements the CTR mode of operation, using AES as the block cipher.
 import std
-import xls.modules.aes.aes_128
-import xls.modules.aes.aes_128_common
+import xls.modules.aes.aes
 import xls.modules.aes.aes_common
 
 type Block = aes_common::Block;
 type InitVector = aes_common::InitVector;
-type Key = aes_128_common::Key;
+type Key = aes_common::Key;
 
 // The command sent to the encrypting proc at the beginning of processing.
 pub struct Command {
@@ -31,6 +29,9 @@ pub struct Command {
 
     // The encryption key.
     key: Key,
+
+    // The width of the encryption key.
+    key_width: aes_common::KeyWidth,
 
     // The initialization vector for the operation.
     iv: InitVector,
@@ -60,7 +61,8 @@ pub fn initial_state() -> State {
         step: Step::IDLE,
         command: Command {
             msg_bytes: u32:0,
-            key: Key:[u32:0, ...],
+            key: Key:[u8:0, ...],
+            key_width: aes_common::KeyWidth::KEY_128,
             iv: InitVector:uN[96]:0,
             initial_ctr: u32:0,
         },
@@ -70,11 +72,11 @@ pub fn initial_state() -> State {
 }
 
 // Performs the actual work of encrypting (or decrypting!) a block in CTR mode.
-fn aes_128_ctr_encrypt(key: Key, ctr: uN[128], block: Block) -> Block {
+fn aes_ctr_encrypt(key: Key, key_width: aes_common::KeyWidth, ctr: uN[128], block: Block) -> Block {
     // TODO(rspringer): Avoid the need for this two-step type conversion.
     let ctr_array = ctr as u32[4];
-    let ctr_enc = aes_128::aes_encrypt(
-        key,
+    let ctr_enc = aes::encrypt(
+        key, key_width,
         Block:[
             ctr_array[0] as u8[4],
             ctr_array[1] as u8[4],
@@ -90,7 +92,7 @@ fn aes_128_ctr_encrypt(key: Key, ctr: uN[128], block: Block) -> Block {
 }
 
 // Note that encryption and decryption are the _EXACT_SAME_PROCESS_!
-pub proc aes_128_ctr {
+pub proc aes_ctr {
     command_in: chan<Command> in;
     ptxt_in: chan<Block> in;
     ctxt_out: chan<Block> out;
@@ -114,7 +116,7 @@ pub proc aes_128_ctr {
         let full_ctr = cmd.iv ++ ctr;
 
         let (tok, block) = recv_if(tok, ptxt_in, blocks_left != u32:0);
-        let ctxt = aes_128_ctr_encrypt(cmd.key, full_ctr, block);
+        let ctxt = aes_ctr_encrypt(cmd.key, cmd.key_width, full_ctr, block);
         let tok = send(tok, ctxt_out, ctxt);
 
         let blocks_left = blocks_left - u32:1;
@@ -128,7 +130,7 @@ pub proc aes_128_ctr {
 }
 
 #![test_proc()]
-proc aes_128_ctr_test {
+proc aes_ctr_test_128 {
     terminator: chan<bool> out;
 
     command_out: chan<Command> out;
@@ -144,7 +146,8 @@ proc aes_128_ctr_test {
             step: Step::IDLE,
             command: Command {
                 msg_bytes: u32:0,
-                key: Key:[ u32:0, u32:0, u32:0, u32:0 ],
+                key: Key:[ u8:0, ... ],
+                key_width: aes_common::KeyWidth::KEY_128,
                 iv: InitVector:0,
                 initial_ctr: u32:0,
             },
@@ -152,16 +155,17 @@ proc aes_128_ctr_test {
             blocks_left: u32:0,
         };
 
-        spawn aes_128_ctr(command_in, ptxt_in, ctxt_out)(init_state);
+        spawn aes_ctr(command_in, ptxt_in, ctxt_out)(init_state);
         (terminator, command_out, ptxt_out, ctxt_in)
     }
 
     next(tok: token) {
         let key = Key:[
-            u8:0x00 ++ u8:0x01 ++ u8:0x02 ++ u8:0x03,
-            u8:0x04 ++ u8:0x05 ++ u8:0x06 ++ u8:0x07,
-            u8:0x08 ++ u8:0x09 ++ u8:0x0a ++ u8:0x0b,
-            u8:0x0c ++ u8:0x0d ++ u8:0x0e ++ u8:0x0f,
+            u8:0x00, u8:0x01, u8:0x02, u8:0x03,
+            u8:0x04, u8:0x05, u8:0x06, u8:0x07,
+            u8:0x08, u8:0x09, u8:0x0a, u8:0x0b,
+            u8:0x0c, u8:0x0d, u8:0x0e, u8:0x0f,
+            ...
         ];
         let iv = u8[12]:[
             u8:0x10, u8:0x11, u8:0x12, u8:0x13,
@@ -171,6 +175,7 @@ proc aes_128_ctr_test {
         let cmd = Command {
             msg_bytes: u32:32,
             key: key,
+            key_width: aes_common::KeyWidth::KEY_128,
             iv: iv,
             initial_ctr: u32:0,
         };
@@ -212,6 +217,7 @@ proc aes_128_ctr_test {
         let cmd = Command {
             msg_bytes: u32:16,
             key: key,
+            key_width: aes_common::KeyWidth::KEY_128,
             iv: iv,
             initial_ctr: u32:0,
         };
@@ -237,6 +243,7 @@ proc aes_128_ctr_test {
         let cmd = Command {
             msg_bytes: u32:16,
             key: key,
+            key_width: aes_common::KeyWidth::KEY_128,
             iv: iv,
             initial_ctr: u32:0,
         };

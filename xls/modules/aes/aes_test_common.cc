@@ -101,4 +101,26 @@ absl::StatusOr<Block> ValueToBlock(const Value& value) {
   return result;
 }
 
+void InitVectorToBuffer(const InitVector& iv,
+                        std::array<uint8_t, kInitVectorBytes>* buffer) {
+  for (int i = kInitVectorBytes - 1; i >= 0; i--) {
+    buffer->data()[i] = iv[kInitVectorBytes - 1 - i];
+  }
+}
+
+absl::StatusOr<Value> KeyToValue(const Key& key) {
+  std::vector<Value> key_elements;
+  key_elements.reserve(kMaxKeyBytes);
+  for (int i = 0; i < kMaxKeyBytes; i++) {
+    key_elements.push_back(Value(UBits(key[i], /*bit_count=*/8)));
+  }
+  return Value::Array(key_elements);
+}
+
+std::string FormatKey(const Key& key) {
+  return absl::StrJoin(key, ", ", [](std::string* out, uint8_t key_byte) {
+    absl::StrAppend(out, absl::StrFormat("0x%02x", key_byte));
+  });
+}
+
 }  // namespace xls::aes

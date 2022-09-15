@@ -13,6 +13,8 @@
 // limitations under the License.
 
 // Test to compare the outputs of a reference vs. XLS AES implementation.
+#include "openssl/aes.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -23,13 +25,12 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/string_view.h"
 #include "absl/time/time.h"
-#include "openssl/aes.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value.h"
-#include "xls/modules/aes/aes_256_decrypt_cc.h"
-#include "xls/modules/aes/aes_256_encrypt_cc.h"
+#include "xls/modules/aes/aes_decrypt_cc.h"
+#include "xls/modules/aes/aes_encrypt_cc.h"
 #include "xls/modules/aes/aes_test_common.h"
 
 ABSL_FLAG(int32_t, num_samples, 1000,
@@ -37,62 +38,53 @@ ABSL_FLAG(int32_t, num_samples, 1000,
 
 namespace xls::aes {
 
-constexpr int kKeyBits = 256;
-constexpr int kKeyBytes = kKeyBits / 8;
-using Key = std::array<uint8_t, kKeyBytes>;
-
-absl::StatusOr<Block> XlsEncrypt(const Key& key, const Block& plaintext) {
+absl::StatusOr<Block> XlsEncrypt(const Key& key, int key_bytes,
+                                 const Block& plaintext) {
   // Not sure why Clang isn't able to infer the "32" correctly, but w/e.
-  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue<kKeyBytes>(key));
+  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(plaintext));
+  Value width_value(UBits(key_bytes == 16 ? 0 : 2, /*bit_count=*/2));
   XLS_ASSIGN_OR_RETURN(Value result_value,
-                       xls::aes_256::encrypt(key_value, block_value));
+                       xls::aes::encrypt(key_value, width_value, block_value));
   return ValueToBlock(result_value);
 }
 
-absl::StatusOr<Block> XlsDecrypt(const Key& key, const Block& ciphertext) {
-  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue<kKeyBytes>(key));
+absl::StatusOr<Block> XlsDecrypt(const Key& key, int key_bytes,
+                                 const Block& ciphertext) {
+  XLS_ASSIGN_OR_RETURN(Value key_value, KeyToValue(key));
   XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(ciphertext));
+  Value width_value(UBits(key_bytes == 128 ? 0 : 2, /*bit_count=*/2));
   XLS_ASSIGN_OR_RETURN(Value result_value,
-                       xls::aes_256::decrypt(key_value, block_value));
+                       xls::aes::decrypt(key_value, width_value, block_value));
   return ValueToBlock(result_value);
 }
 
-Block ReferenceEncrypt(const Key& key, const Block& plaintext) {
+Block ReferenceEncrypt(const Key& key, int key_bytes, const Block& plaintext) {
   Block ciphertext;
 
   // Needed because the key is modified during operation.
-  uint8_t local_key[kKeyBytes];
-  memcpy(local_key, key.data(), kKeyBytes);
+  uint8_t local_key[kMaxKeyBytes];
+  memcpy(local_key, key.data(), key_bytes);
 
-  // OpenSSL doesn't have a GCM implementation, so we'll have to use something
-  // else once we get there.
   AES_KEY aes_key;
-  XLS_QCHECK_EQ(AES_set_encrypt_key(local_key, kKeyBits, &aes_key), 0);
+  XLS_QCHECK_EQ(AES_set_encrypt_key(local_key, key_bytes * 8, &aes_key), 0);
   AES_encrypt(plaintext.data(), ciphertext.data(), &aes_key);
   return ciphertext;
 }
 
 // Returns false on error (will terminate further runs).
 absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
-                               absl::Duration* xls_encrypt_dur,
+                               int key_bytes, absl::Duration* xls_encrypt_dur,
                                absl::Duration* xls_decrypt_dur) {
-  XLS_LOG(INFO) << "Key: " << FormatKey<kKeyBytes>(key) << std::endl;
-  XLS_LOG(INFO) << "Plaintext: " << FormatBlock(input) << std::endl;
-
-  Block reference_ciphertext = ReferenceEncrypt(key, input);
+  Block reference_ciphertext = ReferenceEncrypt(key, key_bytes, input);
 
   absl::Time start_time = absl::Now();
-  XLS_ASSIGN_OR_RETURN(Block xls_ciphertext, XlsEncrypt(key, input));
+  XLS_ASSIGN_OR_RETURN(Block xls_ciphertext, XlsEncrypt(key, key_bytes, input));
   *xls_encrypt_dur += absl::Now() - start_time;
 
   XLS_VLOG(2) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
               << std::endl;
-  XLS_LOG(INFO) << "Reference ciphertext: " << FormatBlock(reference_ciphertext)
-                << std::endl;
   XLS_VLOG(2) << "XLS ciphertext: " << FormatBlock(xls_ciphertext) << std::endl;
-  XLS_LOG(INFO) << "XLS ciphertext: " << FormatBlock(xls_ciphertext)
-                << std::endl;
 
   // Verify the ciphertexts match, to ensure we're actually doing the encryption
   // properly.
@@ -105,7 +97,7 @@ absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   }
 
   start_time = absl::Now();
-  XLS_ASSIGN_OR_RETURN(Block xls_decrypted, XlsDecrypt(key, input));
+  XLS_ASSIGN_OR_RETURN(Block xls_decrypted, XlsDecrypt(key, key_bytes, input));
   *xls_decrypt_dur += absl::Now() - start_time;
 
   XLS_VLOG(2) << "Decrypted plaintext: " << FormatBlock(xls_decrypted)
@@ -123,36 +115,45 @@ absl::StatusOr<bool> RunSample(const Block& input, const Key& key,
   return true;
 }
 
-absl::Status RealMain(int32_t num_samples) {
+absl::Status RunTest(int32_t key_bits, int32_t num_samples) {
+  int key_bytes = key_bits / 8;
   Block input;
-  Key key;
+  Key key = { 0 };
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
   absl::Duration xls_decrypt_dur;
   for (int32_t i = 0; i < num_samples; i++) {
-    for (int32_t j = 0; j < kKeyBytes; j++) {
+    for (int32_t j = 0; j < key_bytes; j++) {
       key[j] = absl::Uniform(bitgen, 0, 256);
     }
     for (int32_t j = 0; j < kBlockBytes; j++) {
       input[j] = absl::Uniform(bitgen, 0, 256);
     }
 
-    XLS_ASSIGN_OR_RETURN(bool proceed, RunSample(input, key, &xls_encrypt_dur,
-                                                 &xls_decrypt_dur));
+    XLS_ASSIGN_OR_RETURN(
+        bool proceed,
+        RunSample(input, key, key_bytes, &xls_encrypt_dur, &xls_decrypt_dur));
     if (!proceed) {
       std::cout << "Plaintext: " << FormatBlock(input) << std::endl;
-      std::cout << "Key: " << FormatKey<kKeyBytes>(key) << std::endl;
-      break;
+      std::cout << "Key: " << FormatKey(key) << std::endl;
+      return absl::InternalError(
+          absl::StrCat(key_bits, "-bit validation failed."));
     }
   }
 
-  std::cout << "Successfully ran " << num_samples << " samples." << std::endl;
+  std::cout << "Successfully ran " << num_samples << " " << key_bits
+            << "-bit samples." << std::endl;
   std::cout << "Avg. XLS encryption time: " << xls_encrypt_dur / num_samples
             << std::endl;
   std::cout << "Avg. XLS decryption time: " << xls_decrypt_dur / num_samples
             << std::endl;
 
   return absl::OkStatus();
+}
+
+absl::Status RealMain(int32_t num_samples) {
+  XLS_RETURN_IF_ERROR(RunTest(/*key_bits=*/128, num_samples));
+  return RunTest(/*key_bits=*/256, num_samples);
 }
 
 }  // namespace xls::aes

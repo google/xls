@@ -20,17 +20,16 @@
 // TODOs:
 //  - Support partial blocks of plaintext and AAD (additional authenticated data).
 //  - Parameterize the proc in terms of number of CTR units.
-//  - Generalize this code to support alternate key sizes.
 import std
-import xls.modules.aes.aes_128
-import xls.modules.aes.aes_128_common
-import xls.modules.aes.aes_128_ctr
-import xls.modules.aes.aes_128_ghash
+import xls.modules.aes.aes
 import xls.modules.aes.aes_common
+import xls.modules.aes.aes_ctr
+import xls.modules.aes.ghash
 
 type Block = aes_common::Block;
 type InitVector = aes_common::InitVector;
-type Key = aes_128_common::Key;
+type Key = aes_common::Key;
+type KeyWidth = aes_common::KeyWidth;
 
 // Describes an encryption operation to be performed.
 struct Command {
@@ -42,6 +41,8 @@ struct Command {
     aad_blocks: u32,
     // The AES encryption key.
     key: Key,
+    // The key width.
+    key_width: aes_common::KeyWidth,
     // The CTR mode initialization vector.
     iv: InitVector,
 }
@@ -83,7 +84,8 @@ fn initial_state() -> State {
             encrypt: false,
             msg_blocks: u32:0,
             aad_blocks: u32:0,
-            key: Key:[u32:0, ...],
+            key: Key:[u8:0, ...],
+            key_width: KeyWidth::KEY_128,
             iv: InitVector:0,
         },
         msg_blocks_left: u32:0,
@@ -100,7 +102,6 @@ fn get_current_state(state: State, command: Command) -> State {
     let msg_blocks_left = if state.step == Step::IDLE { command.msg_blocks }
         else { state.msg_blocks_left };
 
-    // TODO(rspringer): Need a means of reporting status/errors, such as a zero-chunk command.
     let step =
         if state.step == Step::IDLE {
             if command.aad_blocks != u32:0 {
@@ -122,10 +123,11 @@ fn get_current_state(state: State, command: Command) -> State {
 }
 
 // Constructs the command to send to the CTR unit when a new command is received.
-fn get_ctr_command(gcm_command: Command) -> aes_128_ctr::Command {
-    aes_128_ctr::Command {
+fn get_ctr_command(gcm_command: Command) -> aes_ctr::Command {
+    aes_ctr::Command {
         msg_bytes: gcm_command.msg_blocks * aes_common::BLOCK_BYTES,
         key: gcm_command.key,
+        key_width: gcm_command.key_width,
         iv: gcm_command.iv,
 
         // The initial counter is 2 because counter value 0 is used to create
@@ -136,11 +138,11 @@ fn get_ctr_command(gcm_command: Command) -> aes_128_ctr::Command {
 }
 
 // Constructs the command to send to the GHASH unit when a new command is received.
-fn get_ghash_command(gcm_command: Command) -> aes_128_ghash::Command {
-    aes_128_ghash::Command {
+fn get_ghash_command(gcm_command: Command) -> ghash::Command {
+    ghash::Command {
         aad_blocks: gcm_command.aad_blocks,
         ctxt_blocks: gcm_command.msg_blocks,
-        hash_key: aes_128::aes_encrypt(gcm_command.key, aes_common::ZERO_BLOCK),
+        hash_key: aes::encrypt(gcm_command.key, gcm_command.key_width, aes_common::ZERO_BLOCK),
     }
 }
 
@@ -171,35 +173,35 @@ fn create_ctr_block(iv: InitVector) -> Block {
 // into GHASH to finish computing the auth tag.
 // Once all ciphertext blocks have been sent to GHASH, the auth tag is
 // read out and sent to the user, which completes processing of the command.
-proc aes_128_gcm {
+proc aes_gcm {
     command_in: chan<Command> in;
     data_in: chan<Block> in;
     data_out: chan<Block> out;
 
     // CTR mode data.
-    ctr_cmd_out: chan<aes_128_ctr::Command> out;
+    ctr_cmd_out: chan<aes_ctr::Command> out;
     ctr_input_out: chan<Block> out;
     ctr_result_in: chan<Block> in;
 
     // GHASH data.
-    ghash_cmd_out: chan<aes_128_ghash::Command> out;
+    ghash_cmd_out: chan<ghash::Command> out;
     ghash_input_out: chan<Block> out;
     ghash_tag_in: chan<Block> in;
 
     config(command_in: chan<Command> in,
            data_in: chan<Block> in,
            data_out: chan<Block> out) {
-        let (ctr_cmd_in, ctr_cmd_out) = chan<aes_128_ctr::Command>;
+        let (ctr_cmd_in, ctr_cmd_out) = chan<aes_ctr::Command>;
         let (ctr_input_in, ctr_input_out) = chan<Block>;
         let (ctr_result_in, ctr_result_out) = chan<Block>;
-        let ctr_initial_state = aes_128_ctr::initial_state();
-        spawn aes_128_ctr::aes_128_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out)(ctr_initial_state);
+        let ctr_initial_state = aes_ctr::initial_state();
+        spawn aes_ctr::aes_ctr(ctr_cmd_in, ctr_input_in, ctr_result_out)(ctr_initial_state);
 
-        let (ghash_cmd_in, ghash_cmd_out) = chan<aes_128_ghash::Command>;
+        let (ghash_cmd_in, ghash_cmd_out) = chan<ghash::Command>;
         let (ghash_input_in, ghash_input_out) = chan<Block>;
         let (ghash_tag_in, ghash_tag_out) = chan<Block>;
-        let ghash_initial_state = aes_128_ghash::initial_state();
-        spawn aes_128_ghash::aes_128_ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out)(ghash_initial_state);
+        let ghash_initial_state = ghash::initial_state();
+        spawn ghash::ghash(ghash_cmd_out, ghash_input_in, ghash_tag_out)(ghash_initial_state);
 
         (command_in, data_in, data_out,
          ctr_cmd_out, ctr_input_out, ctr_result_in,
@@ -254,7 +256,7 @@ proc aes_128_gcm {
         // Finally, XOR the GHASH'ed tag with counter 1.
         let ctr_block = create_ctr_block(state.command.iv);
         let tag = aes_common::xor_block(
-            tag, aes_128::aes_encrypt(state.command.key, ctr_block));
+            tag, aes::encrypt(state.command.key, state.command.key_width, ctr_block));
         let tok = send_if(tok, data_out, state.step == Step::HASH_LENGTHS, tag);
 
         let aad_remaining = aad_blocks_left != u32:0;
@@ -279,8 +281,9 @@ proc aes_128_gcm {
 }
 
 // Tests encryption of a single block of plaintext with a single block of AAD.
+// 256-bit testing is run via the cc_test.
 #![test_proc()]
-proc aes_128_gcm_test_smoke {
+proc aes_gcm_test_smoke_128 {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
     result_out: chan<Block> in;
@@ -290,7 +293,7 @@ proc aes_128_gcm_test_smoke {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_128_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
         (command_out, input_out, result_in, terminator)
     }
 
@@ -299,7 +302,8 @@ proc aes_128_gcm_test_smoke {
             encrypt: true,
             msg_blocks: u32:1,
             aad_blocks: u32:1,
-            key: Key:[u32:0, ...],
+            key: Key:[u8:0, ...],
+            key_width: KeyWidth::KEY_128,
             iv: InitVector:0,
         };
         let tok = send(tok, command_out, command);
@@ -345,7 +349,7 @@ proc aes_128_gcm_test_smoke {
 
 // Tests encryption with three blocks of plaintext and two blocks of AAD.
 #![test_proc()]
-proc aes_128_gcm_multi_block {
+proc aes_gcm_multi_block_gcm {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
     result_out: chan<Block> in;
@@ -355,18 +359,24 @@ proc aes_128_gcm_multi_block {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_128_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
         (command_out, input_out, result_in, terminator)
     }
 
     next(tok: token) {
-        let key = Key:[u32:0xfedc_ba98, u32:0x7654_3210, u32:0x0123_4567, u32:0x89ab_cdef];
+        let key = Key:[
+            u8:0xfe, u8:0xdc, u8:0xba, u8:0x98,
+            u8:0x76, u8:0x54, u8:0x32, u8:0x10,
+            u8:0x01, u8:0x23, u8:0x45, u8:0x67,
+            u8:0x89, u8:0xab, u8:0xcd, u8:0xef,
+            ...];
         let iv = InitVector:0xdead_beef_cafe_f00d_abba_baab;
         let command = Command {
             encrypt: true,
             aad_blocks: u32:2,
             msg_blocks: u32:3,
             key: key,
+            key_width: KeyWidth::KEY_128,
             iv: iv,
         };
         let tok = send(tok, command_out, command);
@@ -469,12 +479,17 @@ proc aes_128_gcm_zero_block_commands {
         let (command_in, command_out) = chan<Command>;
         let (input_in, input_out) = chan<Block>;
         let (result_in, result_out) = chan<Block>;
-        spawn aes_128_gcm(command_in, input_in, result_out)(initial_state());
+        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
         (command_out, input_out, result_in, terminator)
     }
 
     next(tok: token) {
-        let key = Key:[u32:0xfedc_ba98, u32:0x7654_3210, u32:0x0123_4567, u32:0x89ab_cdef];
+        let key = Key:[
+            u8:0xfe, u8:0xdc, u8:0xba, u8:0x98,
+            u8:0x76, u8:0x54, u8:0x32, u8:0x10,
+            u8:0x01, u8:0x23, u8:0x45, u8:0x67,
+            u8:0x89, u8:0xab, u8:0xcd, u8:0xef,
+            ...];
         let iv = InitVector:0xdead_beef_cafe_f00d_abba_baab;
 
         // 1. Zero blocks of msg.
@@ -483,6 +498,7 @@ proc aes_128_gcm_zero_block_commands {
             aad_blocks: u32:1,
             msg_blocks: u32:0,
             key: key,
+            key_width: KeyWidth::KEY_128,
             iv: iv,
         };
         let tok = send(tok, command_out, command);
@@ -531,7 +547,8 @@ proc aes_128_gcm_zero_block_commands {
             encrypt: true,
             msg_blocks: u32:1,
             aad_blocks: u32:1,
-            key: Key:[u32:0, ...],
+            key: Key:[u8:0, ...],
+            key_width: KeyWidth::KEY_128,
             iv: InitVector:0,
         };
         let tok = send(tok, command_out, command);

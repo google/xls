@@ -22,10 +22,12 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
-#include "absl/strings/str_join.h"
 #include "xls/ir/value.h"
 
 namespace xls::aes {
+
+constexpr int32_t kMaxKeyBits = 256;
+constexpr int32_t kMaxKeyBytes = kMaxKeyBits / 8;
 
 constexpr int32_t kBlockBits = 128;
 constexpr int32_t kBlockBytes =
@@ -35,8 +37,9 @@ constexpr int32_t kInitVectorBytes =
     kInitVectorBits / std::numeric_limits<uint8_t>::digits;
 
 using Block = std::array<uint8_t, kBlockBytes>;
-using InitVector = std::array<uint8_t, kInitVectorBytes>;
 using AuthData = std::vector<Block>;
+using InitVector = std::array<uint8_t, kInitVectorBytes>;
+using Key = std::array<uint8_t, kMaxKeyBytes>;
 
 // Returns a string representation of the given block in a format suitable for
 // printing/debugging.
@@ -60,47 +63,11 @@ absl::StatusOr<Value> BlockToValue(const Block& block);
 absl::StatusOr<Block> ValueToBlock(const Value& value);
 
 // Converts the given key into an XLS value.
-// TODO(rspringer): A user should never have to do this - any transformations of
-// this sort should be handled "internally", by some operation that combines
-// data from an llvm::DataLayout and a call to JitRuntime::BlitValueToBuffer().
-template <int kKeyBytes>
-absl::StatusOr<Value> KeyToValue(const std::array<uint8_t, kKeyBytes>& key) {
-  constexpr int32_t kKeyWords = kKeyBytes / 4;
-  std::vector<Value> key_values;
-  key_values.reserve(kKeyWords);
-  for (int32_t i = 0; i < kKeyWords; i++) {
-    uint32_t q = i * 4;
-    // XLS is big-endian, so we have to populate the key in "reverse" order.
-    uint32_t key_word = static_cast<uint32_t>(key[q + 3]) |
-                        static_cast<uint32_t>(key[q + 2]) << 8 |
-                        static_cast<uint32_t>(key[q + 1]) << 16 |
-                        static_cast<uint32_t>(key[q]) << 24;
-    key_values.push_back(Value(UBits(key_word, /*bit_count=*/32)));
-  }
-  return Value::Array(key_values);
-}
-
-// Populates the given buffer with the value of "key". In DSLX land, a key is
-// four sequential u32s, but XLS is big-endian, so we need to re-lay out our
-// bits appropriately.
-template <int kKeyBytes, int kKeyWords = kKeyBytes / 4>
-void KeyToBuffer(const std::array<uint8_t, kKeyBytes>& key,
-                 std::array<uint32_t, kKeyWords>* buffer) {
-  for (int32_t i = 0; i < 4; i++) {
-    uint32_t key_word =
-        htonl(*reinterpret_cast<const uint32_t*>(key.data() + i * 4));
-    buffer->data()[i] = key_word;
-  }
-}
+absl::StatusOr<Value> KeyToValue(const Key& key);
 
 // Returns a string representation of the given key in a format suitable for
 // printing/debugging.
-template <int kKeyBytes>
-std::string FormatKey(const std::array<uint8_t, kKeyBytes>& key) {
-  return absl::StrJoin(key, ", ", [](std::string* out, uint8_t key_byte) {
-    absl::StrAppend(out, absl::StrFormat("0x%02x", key_byte));
-  });
-}
+std::string FormatKey(const Key& key);
 
 }  // namespace xls::aes
 
