@@ -64,7 +64,11 @@ dslx_lang_test(name = "fallible_constexpr")
 
 dslx_lang_test(name = "comments")
 
-dslx_lang_test(name = "compound_eq")
+dslx_lang_test(
+    name = "compound_eq",
+    # Compound eq not supported yet in z3.
+    test_ir_equivalence = False,
+)
 
 dslx_lang_test(name = "constexpr_clog2")
 

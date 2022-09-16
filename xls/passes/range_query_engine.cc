@@ -762,6 +762,12 @@ absl::Status RangeQueryVisitor::HandleEncode(Encode* encode) {
 
 absl::Status RangeQueryVisitor::HandleEq(CompareOp* eq) {
   engine_->InitializeNode(eq);
+
+  if (!eq->operand(0)->GetType()->IsBits()) {
+    // TODO(meheff): 2022/09/06 Add support for non-bits types.
+    return absl::OkStatus();
+  }
+
   IntervalSet lhs_intervals = GetIntervalSetTree(eq->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(eq->operand(1)).Get({});
 
@@ -967,6 +973,12 @@ absl::Status RangeQueryVisitor::HandleNaryXor(NaryOp* xor_op) {
 
 absl::Status RangeQueryVisitor::HandleNe(CompareOp* ne) {
   engine_->InitializeNode(ne);
+
+  if (!ne->operand(0)->GetType()->IsBits()) {
+    // TODO(meheff): 2022/09/06 Add support for non-bits types.
+    return absl::OkStatus();
+  }
+
   IntervalSet lhs_intervals = GetIntervalSetTree(ne->operand(0)).Get({});
   IntervalSet rhs_intervals = GetIntervalSetTree(ne->operand(1)).Get({});
 

@@ -351,9 +351,9 @@ absl::Status IrInterpreter::HandleSMod(BinOp* mod) {
 }
 
 absl::Status IrInterpreter::HandleEq(CompareOp* eq) {
-  XLS_RETURN_IF_ERROR(VerifyAllBitsTypes(eq));
-  return SetUint64Result(
-      eq, ResolveAsBits(eq->operand(0)) == ResolveAsBits(eq->operand(1)));
+  return SetUint64Result(eq,
+                         static_cast<int64_t>(ResolveAsValue(eq->operand(0)) ==
+                                              ResolveAsValue(eq->operand(1))));
 }
 
 absl::Status IrInterpreter::HandleSGe(CompareOp* ge) {
@@ -662,9 +662,9 @@ absl::Status IrInterpreter::HandleUMulp(PartialProductOp* mul) {
 }
 
 absl::Status IrInterpreter::HandleNe(CompareOp* ne) {
-  XLS_RETURN_IF_ERROR(VerifyAllBitsTypes(ne));
-  return SetUint64Result(
-      ne, ResolveAsBits(ne->operand(0)) != ResolveAsBits(ne->operand(1)));
+  return SetUint64Result(ne,
+                         static_cast<int64_t>(ResolveAsValue(ne->operand(0)) !=
+                                              ResolveAsValue(ne->operand(1))));
 }
 
 absl::Status IrInterpreter::HandleNeg(UnOp* neg) {

@@ -936,5 +936,51 @@ TEST_F(ArithSimplificationPassTest, GuardedShiftOperationLowLimit) {
   EXPECT_THAT(f->return_value(), m::Shll(m::Param("x"), m::Select()));
 }
 
+TEST_F(ArithSimplificationPassTest, EqAggregateType) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", p->GetTupleType({u32, u32}));
+  BValue y = fb.Param("y", p->GetTupleType({u32, u32}));
+  BValue x_eq_x = fb.Eq(x, x);
+  BValue x_eq_y = fb.Eq(x, y);
+  fb.Tuple({x_eq_x, x_eq_y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Literal(1), m::Eq(m::Param("x"), m::Param("y"))));
+}
+
+TEST_F(ArithSimplificationPassTest, NeAggregateType) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  Type* u32 = p->GetBitsType(32);
+  BValue x = fb.Param("x", p->GetTupleType({u32, u32}));
+  BValue y = fb.Param("y", p->GetTupleType({u32, u32}));
+  BValue x_eq_x = fb.Ne(x, x);
+  BValue x_eq_y = fb.Ne(x, y);
+  fb.Tuple({x_eq_x, x_eq_y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(),
+              m::Tuple(m::Literal(0), m::Ne(m::Param("x"), m::Param("y"))));
+}
+
+TEST_F(ArithSimplificationPassTest, EqNeZeroWidthTypes) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetTupleType({}));
+  BValue y = fb.Param("y", p->GetTupleType({}));
+  BValue x_eq_y = fb.Eq(x, y);
+  BValue x_ne_y = fb.Ne(x, y);
+  fb.Tuple({x_eq_y, x_ne_y});
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Tuple(m::Literal(1), m::Literal(0)));
+}
+
 }  // namespace
 }  // namespace xls

@@ -57,6 +57,11 @@ Op CompareOpInverse(Op op) {
   }
 }
 
+// Returns true if `node` is a comparison between bits-typed values.
+bool IsBitsCompare(Node* node) {
+  return OpIsCompare(node->op()) && node->operand(0)->GetType()->IsBits();
+}
+
 // Matches the given node to the following expression:
 //
 //  Select(UGt(x, LIMIT), cases=[x, LIMIT])
@@ -542,8 +547,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //
   // Because eq is commutative, we can rely on the literal being on the right
   // because of canonicalization.
-  if (n->op() == Op::kEq && n->operand(0)->BitCountOrDie() == 1 &&
-      n->operand(1)->Is<Literal>()) {
+  if (n->op() == Op::kEq && n->operand(0)->GetType()->IsBits() &&
+      n->operand(0)->BitCountOrDie() == 1 && n->operand(1)->Is<Literal>()) {
     if (IsLiteralZero(n->operand(1))) {
       XLS_RETURN_IF_ERROR(
           n->ReplaceUsesWithNew<UnOp>(n->operand(0), Op::kNot).status());
@@ -621,12 +626,39 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     }
   }
 
+  // eq(x, x) => 1
+  // ne(x, x) => 0
+  if (n->op() == Op::kEq && n->operand(0) == n->operand(1)) {
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1))).status());
+    return true;
+  }
+  if (n->op() == Op::kNe && n->operand(0) == n->operand(1)) {
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
+    return true;
+  }
+
+  // If x and y are zero-width values:
+  //    eq(x, y) => 1
+  //    ne(x, y) => 0
+  if (n->op() == Op::kEq && n->operand(0)->GetType()->GetFlatBitCount() == 0) {
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(UBits(1, 1))).status());
+    return true;
+  }
+  if (n->op() == Op::kNe && n->operand(0)->GetType()->GetFlatBitCount() == 0) {
+    XLS_RETURN_IF_ERROR(
+        n->ReplaceUsesWithNew<Literal>(Value(UBits(0, 1))).status());
+    return true;
+  }
+
   // Slt(x, 0) -> msb(x)
   // SGe(x, 0) -> not(msb(x))
   //
   // Canonicalization puts the literal on the right for comparisons.
   //
-  if (NarrowingEnabled(opt_level) && OpIsCompare(n->op()) &&
+  if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
       IsLiteralZero(n->operand(1))) {
     if (n->op() == Op::kSLt) {
       XLS_VLOG(2) << "FOUND: SLt(x, 0)";
@@ -667,7 +699,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
   //   x < 0b0001111  =>  or_reduce(msb_slice(x)) NOR and_reduce(lsb_slice(x))
   //   x > 0b0001111  =>  or_reduce(msb_slice(x))
   int64_t leading_zeros, trailing_ones;
-  if (NarrowingEnabled(opt_level) && OpIsCompare(n->op()) &&
+  if (NarrowingEnabled(opt_level) && IsBitsCompare(n) &&
       IsLiteralMask(n->operand(1), &leading_zeros, &trailing_ones)) {
     XLS_VLOG(2) << "Found comparison to literal mask; leading zeros: "
                 << leading_zeros << " trailing ones: " << trailing_ones

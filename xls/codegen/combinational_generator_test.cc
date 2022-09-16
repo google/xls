@@ -1657,6 +1657,55 @@ TEST_P(CombinationalGeneratorTest, OneBitTupleIndex) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, ArrayEq) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* array_type = package.GetArrayType(5, package.GetBitsType(32));
+  BValue x = fb.Param("x", array_type);
+  BValue y = fb.Param("y", array_type);
+  fb.Eq(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  Value a = Value::UBitsArray({1, 2, 3, 4, 5}, 32).value();
+  Value b = Value::UBitsArray({1, 20, 3, 4, 5}, 32).value();
+  EXPECT_THAT(simulator.Run({{"x", a}, {"y", b}}),
+              IsOkAndHolds(Value(UBits(0, 1))));
+  EXPECT_THAT(simulator.Run({{"x", a}, {"y", a}}),
+              IsOkAndHolds(Value(UBits(1, 1))));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, TwoDArrayNe) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  Type* array_type =
+      package.GetArrayType(2, package.GetArrayType(3, package.GetBitsType(1)));
+  BValue x = fb.Param("x", array_type);
+  BValue y = fb.Param("y", array_type);
+  fb.Ne(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  Value a = Value::UBits2DArray({{1, 0, 1}, {1, 1, 0}}, 1).value();
+  Value b = Value::UBits2DArray({{1, 1, 1}, {1, 1, 0}}, 1).value();
+  EXPECT_THAT(simulator.Run({{"x", a}, {"y", b}}),
+              IsOkAndHolds(Value(UBits(1, 1))));
+  EXPECT_THAT(simulator.Run({{"x", a}, {"y", a}}),
+              IsOkAndHolds(Value(UBits(0, 1))));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 INSTANTIATE_TEST_SUITE_P(CombinationalGeneratorTestInstantiation,
                          CombinationalGeneratorTest,
                          testing::ValuesIn(kDefaultSimulationTargets),

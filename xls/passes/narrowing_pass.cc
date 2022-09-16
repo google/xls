@@ -64,6 +64,9 @@ int64_t CountLeadingKnownOnes(Node* node, const QueryEngine& query_engine) {
 // given compare operation was narrowed.
 absl::StatusOr<bool> MaybeNarrowCompare(CompareOp* compare,
                                         const QueryEngine& query_engine) {
+  if (!compare->operand(0)->GetType()->IsBits()) {
+    return false;
+  }
   // Returns the number of consecutive leading/trailing bits that are known to
   // be equal between the LHS and RHS of the given compare operation.
   auto matched_leading_operand_bits = [&](CompareOp* c) -> int64_t {

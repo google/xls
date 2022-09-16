@@ -1,0 +1,22 @@
+module TwoDArrayNe(
+  input wire [5:0] x,
+  input wire [5:0] y,
+  output wire out
+);
+  wire x_unflattened[0:1][0:2];
+  assign x_unflattened[0][0] = x[0:0];
+  assign x_unflattened[0][1] = x[1:1];
+  assign x_unflattened[0][2] = x[2:2];
+  assign x_unflattened[1][0] = x[3:3];
+  assign x_unflattened[1][1] = x[4:4];
+  assign x_unflattened[1][2] = x[5:5];
+  wire y_unflattened[0:1][0:2];
+  assign y_unflattened[0][0] = y[0:0];
+  assign y_unflattened[0][1] = y[1:1];
+  assign y_unflattened[0][2] = y[2:2];
+  assign y_unflattened[1][0] = y[3:3];
+  assign y_unflattened[1][1] = y[4:4];
+  assign y_unflattened[1][2] = y[5:5];
+
+  assign out = x_unflattened[0][0] != y_unflattened[0][0] || x_unflattened[0][1] != y_unflattened[0][1] || x_unflattened[0][2] != y_unflattened[0][2] || x_unflattened[1][0] != y_unflattened[1][0] || x_unflattened[1][1] != y_unflattened[1][1] || x_unflattened[1][2] != y_unflattened[1][2];
+endmodule

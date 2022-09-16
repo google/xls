@@ -204,7 +204,8 @@ absl::StatusOr<bool> CanonicalizeNode(Node* n) {
   // equals" form). Literal operand should be on the right according to the
   // above canonicalization.
   // TODO(meheff): 2020-01-22 Handle the signed variants.
-  if (OpIsCompare(n->op()) && n->operand(1)->Is<Literal>()) {
+  if (OpIsCompare(n->op()) && n->operand(1)->Is<Literal>() &&
+      n->operand(1)->GetType()->IsBits()) {
     const Bits& literal = n->operand(1)->As<Literal>()->value().bits();
     if (n->op() == Op::kUGe && !literal.IsZero()) {
       XLS_VLOG(2) << "Replaced Uge(x, K) with Ugt(x, K - 1)";

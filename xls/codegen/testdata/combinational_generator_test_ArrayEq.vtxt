@@ -1,0 +1,20 @@
+module ArrayEq(
+  input wire [159:0] x,
+  input wire [159:0] y,
+  output wire out
+);
+  wire [31:0] x_unflattened[0:4];
+  assign x_unflattened[0] = x[31:0];
+  assign x_unflattened[1] = x[63:32];
+  assign x_unflattened[2] = x[95:64];
+  assign x_unflattened[3] = x[127:96];
+  assign x_unflattened[4] = x[159:128];
+  wire [31:0] y_unflattened[0:4];
+  assign y_unflattened[0] = y[31:0];
+  assign y_unflattened[1] = y[63:32];
+  assign y_unflattened[2] = y[95:64];
+  assign y_unflattened[3] = y[127:96];
+  assign y_unflattened[4] = y[159:128];
+
+  assign out = x_unflattened[0] == y_unflattened[0] && x_unflattened[1] == y_unflattened[1] && x_unflattened[2] == y_unflattened[2] && x_unflattened[3] == y_unflattened[3] && x_unflattened[4] == y_unflattened[4];
+endmodule

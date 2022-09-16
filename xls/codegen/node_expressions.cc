@@ -375,6 +375,56 @@ absl::StatusOr<Expression*> EmitMultiply(Node* mul, Expression* lhs,
     return file->Mul(lhs, rhs, mul->loc());
   }
 }
+
+// Decomposes `e` into its constituent array elements and adds the elements to
+// `decomposition`. If `e` is not an array then `e` alone is added to the
+// vector. For example, if `e` is a 3x2 array, then `decomposition` will
+// contain:
+//
+//    {e[0][0], e[0][1], e[1][0], e[1][1], e[2][0], e[2][1]}
+void DecomposeExpression(Expression* e, Type* type, VerilogFile* file,
+                         const SourceInfo& loc,
+                         std::vector<Expression*>* decomposition) {
+  if (!type->IsArray()) {
+    decomposition->push_back(e);
+    return;
+  }
+  ArrayType* array_type = type->AsArrayOrDie();
+  std::vector<Expression*> result;
+  for (int64_t i = 0; i < array_type->size(); ++i) {
+    DecomposeExpression(file->Index(e->AsIndexableExpressionOrDie(),
+                                    file->PlainLiteral(i, loc), loc),
+                        array_type->element_type(), file, loc, decomposition);
+  }
+}
+
+// Emits a Eq/Ne operation of arbitrary type.
+absl::StatusOr<Expression*> EmitEqOrNe(Node* node,
+                                       absl::Span<Expression* const> inputs,
+                                       VerilogFile* file) {
+  XLS_RET_CHECK(node->op() == Op::kEq || node->op() == Op::kNe);
+  std::vector<Expression*> lhs_parts;
+  DecomposeExpression(inputs[0], node->operand(0)->GetType(), file, node->loc(),
+                      &lhs_parts);
+  std::vector<Expression*> rhs_parts;
+  DecomposeExpression(inputs[1], node->operand(1)->GetType(), file, node->loc(),
+                      &rhs_parts);
+  std::vector<Expression*> comparisons;
+  for (int64_t i = 0; i < lhs_parts.size(); ++i) {
+    comparisons.push_back(
+        node->op() == Op::kEq
+            ? file->Equals(lhs_parts[i], rhs_parts[i], node->loc())
+            : file->NotEquals(lhs_parts[i], rhs_parts[i], node->loc()));
+  }
+  Expression* result = comparisons[0];
+  for (int64_t i = 1; i < comparisons.size(); ++i) {
+    result = node->op() == Op::kEq
+                 ? file->LogicalAnd(result, comparisons[i], node->loc())
+                 : file->LogicalOr(result, comparisons[i], node->loc());
+  }
+  return result;
+}
+
 }  // namespace
 
 absl::StatusOr<Expression*> NodeToExpression(
@@ -475,7 +525,8 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kUMod:
       return file->Mod(inputs[0], inputs[1], node->loc());
     case Op::kEq:
-      return file->Equals(inputs[0], inputs[1], node->loc());
+    case Op::kNe:
+      return EmitEqOrNe(node, inputs, file);
     case Op::kUGe:
       return file->GreaterThanEquals(inputs[0], inputs[1], node->loc());
     case Op::kUGt:
@@ -511,8 +562,6 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kSMulp:
     case Op::kUMulp:
       return unimplemented();
-    case Op::kNe:
-      return file->NotEquals(inputs[0], inputs[1], node->loc());
     case Op::kNeg:
       return file->Negate(inputs[0], node->loc());
     case Op::kNot:

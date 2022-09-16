@@ -94,7 +94,8 @@ IntervalSet MakeUGtRange(const Bits& limit) {
 std::optional<RangeEquivalence> ComputeRangeEquivalence(
     Node* node,
     const absl::flat_hash_map<Node*, RangeEquivalence>& equivalences) {
-  if (!node->GetType()->IsBits() || node->BitCountOrDie() != 1) {
+  if (!node->GetType()->IsBits() || node->BitCountOrDie() != 1 ||
+      (OpIsCompare(node->op()) && !node->operand(0)->GetType()->IsBits())) {
     return absl::nullopt;
   }
 

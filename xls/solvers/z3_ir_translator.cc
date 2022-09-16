@@ -423,6 +423,10 @@ absl::Status IrTranslator::HandleSGe(CompareOp* sge) {
 }
 
 absl::Status IrTranslator::HandleEq(CompareOp* eq) {
+  if (!eq->operand(0)->GetType()->IsBits()) {
+    // TODO(meheff): 2022/09/15 Support non-bits types.
+    return DefaultHandler(eq);
+  }
   auto f = [](Z3_context ctx, Z3_ast lhs, Z3_ast rhs) {
     Z3OpTranslator t(ctx);
     return t.Not(t.ReduceOr(t.Xor(lhs, rhs)));
@@ -431,6 +435,11 @@ absl::Status IrTranslator::HandleEq(CompareOp* eq) {
 }
 
 absl::Status IrTranslator::HandleNe(CompareOp* ne) {
+  if (!ne->operand(0)->GetType()->IsBits()) {
+    // TODO(meheff): 2022/09/15 Support non-bits types.
+    return DefaultHandler(ne);
+  }
+
   auto f = [](Z3_context ctx, Z3_ast a, Z3_ast b) {
     Z3OpTranslator t(ctx);
     return t.ReduceOr(t.Xor(a, b));

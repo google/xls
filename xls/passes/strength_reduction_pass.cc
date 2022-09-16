@@ -62,6 +62,12 @@ absl::StatusOr<absl::flat_hash_set<Node*>> FindReducibleAdds(
 absl::StatusOr<bool> StrengthReduceNode(
     Node* node, const absl::flat_hash_set<Node*>& reducible_adds,
     const QueryEngine& query_engine, int64_t opt_level) {
+  if (!std::all_of(node->operands().begin(), node->operands().end(),
+                   [](Node* n) { return n->GetType()->IsBits(); }) ||
+      !node->GetType()->IsBits()) {
+    return false;
+  }
+
   if (NarrowingEnabled(opt_level) && !node->Is<Literal>() &&
       node->GetType()->IsBits() && query_engine.AllBitsKnown(node)) {
     XLS_VLOG(2) << "Replacing node with its (entirely known) bits: " << node
