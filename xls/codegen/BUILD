@@ -483,6 +483,7 @@ cc_library(
         ":signature_generation_pass",
         "@com_google_absl//absl/status:statusor",
         "//xls/passes:dce_pass",
+        "//xls/passes:identity_removal_pass",
     ],
 )
 

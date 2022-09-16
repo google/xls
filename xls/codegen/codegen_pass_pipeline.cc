@@ -25,6 +25,7 @@
 #include "xls/codegen/register_legalization_pass.h"
 #include "xls/codegen/signature_generation_pass.h"
 #include "xls/passes/dce_pass.h"
+#include "xls/passes/identity_removal_pass.h"
 
 namespace xls::verilog {
 
@@ -53,6 +54,10 @@ std::unique_ptr<CodegenCompoundPass> CreateCodegenPassPipeline() {
   // Eliminate no-longer-needed partial product operations by turning them into
   // normal multiplies.
   top->Add<MulpCombiningPass>();
+
+  // Remove any identity ops which might have been added earlier in the
+  // pipeline.
+  top->Add<CodegenWrapperPass>(std::make_unique<IdentityRemovalPass>());
 
   // Final dead-code elimination pass to remove cruft left from earlier passes.
   top->Add<CodegenWrapperPass>(std::make_unique<DeadCodeEliminationPass>());
