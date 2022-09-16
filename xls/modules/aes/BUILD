@@ -16,6 +16,7 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "xls_benchmark_ir",
     "xls_dslx_ir",
     "xls_dslx_library",
     "xls_dslx_test",
@@ -213,6 +214,15 @@ xls_dslx_test(
     library = ":ghash_dslx",
 )
 
+xls_dslx_ir(
+    name = "aes_ghash",
+    dslx_top = "ghash",
+    ir_conv_args = {
+        "top_proc_initial_state": "'(0, (0, 0, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]), 0, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])'",
+    },
+    library = ":ghash_dslx",
+)
+
 cc_test(
     name = "aes_test",
     srcs = ["aes_test.cc"],
@@ -249,4 +259,14 @@ cc_library(
         "//xls/ir:bits_ops",
         "//xls/ir:value",
     ],
+)
+
+xls_benchmark_ir(
+    name = "aes_ctr_benchmark_ir",
+    src = ":aes_ctr.ir",
+)
+
+xls_benchmark_ir(
+    name = "aes_ghash_benchmark_ir",
+    src = ":aes_ghash.ir",
 )
