@@ -59,9 +59,9 @@ ABSL_FLAG(std::vector<std::string>, ticks, {},
           "resetting per run.");
 ABSL_FLAG(std::string, backend, "serial_jit",
           "Backend to use for evaluation. Valid options are:\n"
-          " - serial_jit : JIT-backed single-stepping runtime.\n"
-          " - ir_interpreter     : Interpreter at the IR level."
-          " - block_interpreter  : Interpret a block generated from a proc.");
+          " * serial_jit: JIT-backed single-stepping runtime.\n"
+          " * ir_interpreter: Interpreter at the IR level.\n"
+          " * block_interpreter: Interpret a block generated from a proc.");
 ABSL_FLAG(std::string, block_signature_proto, "",
           "Path to textproto file containing signature from codegen");
 ABSL_FLAG(int64_t, max_cycles_no_output, 100,
@@ -84,6 +84,7 @@ ABSL_FLAG(std::string, idle_channel_name, "idle", "Name of idle channel.");
 ABSL_FLAG(int64_t, random_seed, 42, "Random seed");
 ABSL_FLAG(double, prob_input_valid_assert, 1.0,
           "Single-cycle probability of asserting valid with more input ready.");
+ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
 
 namespace xls {
 
@@ -117,6 +118,14 @@ absl::Status RunIrInterpreter(
       std::vector<Proc*> sorted_procs;
       for (const auto& [k, v] : states) {
         sorted_procs.push_back(k);
+      }
+
+      if (absl::GetFlag(FLAGS_show_trace)) {
+        for (const auto& [proc, events] : interpreter->GetInterpreterEvents()) {
+          for (const auto& msg : events.trace_msgs) {
+            std::cerr << "Proc " << proc->name() << " trace: " << msg << "\n";
+          }
+        }
       }
 
       std::sort(sorted_procs.begin(), sorted_procs.end(),

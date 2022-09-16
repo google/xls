@@ -21,6 +21,7 @@
 #include "absl/status/statusor.h"
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/proc_interpreter.h"
+#include "xls/ir/events.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -74,6 +75,15 @@ class ProcNetworkInterpreter {
       const;
 
   void ResetState();
+
+  // Returns the events for each proc in the network.
+  absl::flat_hash_map<Proc*, InterpreterEvents> GetInterpreterEvents() const {
+    absl::flat_hash_map<Proc*, InterpreterEvents> result;
+    for (const auto& interp : proc_interpreters_) {
+      result[interp->proc()] = interp->GetInterpreterEvents();
+    }
+    return result;
+  }
 
  private:
   ProcNetworkInterpreter(Package* package,

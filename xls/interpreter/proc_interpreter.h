@@ -27,6 +27,7 @@
 #include "xls/interpreter/channel_queue.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/channel.h"
+#include "xls/ir/events.h"
 #include "xls/ir/node_iterator.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value.h"
@@ -88,6 +89,11 @@ class ProcInterpreter {
 
   // Resets the proc state elements to their initial values.
   void ResetState();
+
+  // Get events that happened in the underlying `IrInterpreter`.
+  const InterpreterEvents& GetInterpreterEvents() const {
+    return visitor_->GetInterpreterEvents();
+  }
 
  private:
   Proc* proc_;
