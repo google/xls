@@ -39,6 +39,69 @@
 namespace xls {
 namespace {
 
+// Abstraction representing a simple loop in LLVM.
+struct LlvmIrLoop {
+  // Index value ranging from 0 ... N-1. Type is i64.
+  llvm::Value* index;
+
+  // IRBuilder for the loop body basic block. Insertion point is right before
+  // the back edge branch.
+  std::unique_ptr<llvm::IRBuilder<>> body_builder;
+
+  // IRBuilder for the exit basic block of the loop.
+  std::unique_ptr<llvm::IRBuilder<>> exit_builder;
+};
+
+// Creates a simple loop in LLVM IR which counts from 0 to `loop_count` - 1.
+LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder) {
+  llvm::Function* function = builder.GetInsertBlock()->getParent();
+  llvm::LLVMContext& context = builder.getContext();
+  llvm::BasicBlock* entry_block = builder.GetInsertBlock();
+
+  LlvmIrLoop ir_loop;
+  llvm::BasicBlock* preheader_block =
+      llvm::BasicBlock::Create(context, "preheader", function);
+  auto preheader_builder = std::make_unique<llvm::IRBuilder<>>(preheader_block);
+  llvm::BasicBlock* loop_block =
+      llvm::BasicBlock::Create(context, "loop", function);
+  ir_loop.body_builder = std::make_unique<llvm::IRBuilder<>>(loop_block);
+  llvm::BasicBlock* exit_block =
+      llvm::BasicBlock::Create(context, "exit", function);
+  ir_loop.exit_builder = std::make_unique<llvm::IRBuilder<>>(exit_block);
+
+  builder.CreateBr(preheader_block);
+
+  // preheader:
+  //   index = phi(0, next_index)
+  //   cond = eq(index, loop_count)
+  //   br(cond, exit, body)
+  llvm::Type* i64 = llvm::Type::getInt64Ty(context);
+  llvm::Value* init_index = llvm::ConstantInt::get(i64, 0);
+  llvm::Value* index_limit = llvm::ConstantInt::get(i64, loop_count);
+
+  llvm::PHINode* index_phi = preheader_builder->CreatePHI(i64, 2);
+  index_phi->setName("index");
+  ir_loop.index = index_phi;
+  llvm::Value* loop_done =
+      preheader_builder->CreateICmpEQ(index_phi, index_limit);
+  loop_done->setName("loop_done");
+  preheader_builder->CreateCondBr(loop_done, exit_block, loop_block);
+
+  // body:
+  //   next_index = add(index, 1)
+  //   ===> body insertion point
+  //   br(preheader)
+  llvm::Value* next_index = ir_loop.body_builder->CreateAdd(
+      index_phi, llvm::ConstantInt::get(i64, 1));
+  next_index->setName("next_index");
+  llvm::Instruction* br = ir_loop.body_builder->CreateBr(preheader_block);
+  ir_loop.body_builder->SetInsertPoint(br);
+
+  index_phi->addIncoming(init_index, entry_block);
+  index_phi->addIncoming(next_index, loop_block);
+  return ir_loop;
+}
+
 // Returns a sequence of numbered strings. Example: NumberedStrings("foo", 3)
 // returns: {"foo_0", "foo_1", "foo_2"}
 std::vector<std::string> NumberedStrings(absl::string_view s, int64_t count) {
@@ -264,48 +327,36 @@ absl::StatusOr<std::vector<CompareTerm>> ExpandTerms(
   return terms;
 }
 
-// Returns the result of indexing into 'array' using the scalar index value
-// 'index'. 'array_size' is the number of elements in the array.
-absl::StatusOr<llvm::Value*> IndexIntoArray(llvm::Value* array,
-                                            llvm::Value* index,
-                                            int64_t array_size,
-                                            LlvmTypeConverter* type_converter,
-                                            llvm::IRBuilder<>* builder) {
-  int64_t index_width = index->getType()->getIntegerBitWidth();
-
-  // Check for out-of-bounds access. If the index is out of bounds it is set to
-  // the maximum index value.
+// Returns an llvm::Value (i1 type) indicating whether `index` is an in-bounds
+// index into an array of type `array_type`.
+llvm::Value* IsIndexInBounds(llvm::Value* index, ArrayType* array_type,
+                             llvm::IRBuilder<>& builder) {
+  llvm::LLVMContext& context = builder.getContext();
+  int64_t array_size = array_type->size();
   int64_t index_bitwidth = index->getType()->getIntegerBitWidth();
   int64_t comparison_bitwidth = std::max(index_bitwidth, int64_t{64});
-  llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
-      llvm::Type::getIntNTy(builder->getContext(), comparison_bitwidth),
-      array_size);
-  llvm::Value* index_value_comparison_bitwidth = builder->CreateZExt(
-      index, llvm::Type::getIntNTy(builder->getContext(), comparison_bitwidth));
-  llvm::Value* is_index_inbounds = builder->CreateICmpULT(
-      index_value_comparison_bitwidth, array_size_comparison_bitwidth);
-  llvm::Value* inbounds_index = builder->CreateSelect(
-      is_index_inbounds, index,
-      llvm::ConstantInt::get(index->getType(), array_size - 1));
+  llvm::Type* comparison_type =
+      llvm::Type::getIntNTy(context, comparison_bitwidth);
+  llvm::Value* is_inbounds = builder.CreateICmpULT(
+      builder.CreateZExt(index, comparison_type),
+      llvm::ConstantInt::get(comparison_type, array_size));
+  is_inbounds->setName("is_inbounds");
+  return is_inbounds;
+}
 
-  // Our IR does not use negative indices, so we add a
-  // zero MSb to prevent LLVM from interpreting this as such.
-  std::vector<llvm::Value*> gep_indices = {
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(builder->getContext()), 0),
-      builder->CreateZExt(inbounds_index,
-                          type_converter->GetLlvmBitsType(index_width + 1))};
-
-  llvm::Type* array_type = array->getType();
-  // Ideally, we'd use IRBuilder::CreateExtractValue here, but that requires
-  // constant indices. Since there's no other way to extract a value from an
-  // aggregate, we're left with storing the value in a temporary alloca and
-  // using that pointer to extract the value.
-  llvm::Value* alloca = builder->CreateAlloca(array_type);
-  builder->CreateStore(array, alloca);
-
-  llvm::Type* element_type = array_type->getArrayElementType();
-  llvm::Value* gep = builder->CreateGEP(array_type, alloca, gep_indices);
-  return builder->CreateLoad(element_type, gep);
+// Returns the `index` clamped to the maximum element index of array type
+// `array_type`. Return value is of type i64.
+llvm::Value* ClampIndexInBounds(llvm::Value* index, ArrayType* array_type,
+                                llvm::IRBuilder<>& builder) {
+  llvm::LLVMContext& context = builder.getContext();
+  llvm::Type* i64 = llvm::Type::getInt64Ty(context);
+  int64_t array_size = array_type->size();
+  llvm::Value* is_inbounds = IsIndexInBounds(index, array_type, builder);
+  llvm::Value* inbounds_index = builder.CreateSelect(
+      is_inbounds, builder.CreateIntCast(index, i64, /*isSigned=*/false),
+      llvm::ConstantInt::get(i64, array_size - 1));
+  inbounds_index->setName("clamped_index");
+  return inbounds_index;
 }
 
 // This is a shim to let JIT code add a new trace fragment to an existing trace
@@ -659,10 +710,21 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
 
 llvm::Value* NodeIrContext::LoadOperand(int64_t i) const {
   Node* operand = node()->operand(i);
+
+  if (operand->Is<Literal>() && operand->GetType()->IsBits()) {
+    // If the operand is a bits constant, just return the constant as an
+    // optimization.
+    return type_converter()
+        .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
+        .value();
+  }
+
   llvm::Type* operand_type =
       type_converter().ConvertToLlvmType(operand->GetType());
   llvm::Value* operand_ptr = llvm_function_->getArg(i);
-  return entry_builder().CreateLoad(operand_type, operand_ptr);
+  llvm::Value* load = entry_builder().CreateLoad(operand_type, operand_ptr);
+  load->setName(operand->GetName());
+  return load;
 }
 
 void NodeIrContext::FinalizeWithValue(
@@ -843,6 +905,9 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
       llvm::Value* events, llvm::Value* user_data, llvm::Value* runtime,
       llvm::IRBuilder<>& builder);
 
+  // Invokes the receive callback function. The received data is written into
+  // the buffer pointer to be `output_ptr`. Returns an i1 value indicating
+  // whether the receive fired.
   absl::StatusOr<llvm::Value*> InvokeRecvCallback(llvm::IRBuilder<>* builder,
                                                   JitChannelQueue* queue,
                                                   Receive* receive,
@@ -935,15 +1000,22 @@ absl::Status IrBuilderVisitor::HandleArray(Array* array) {
 
   llvm::Type* array_type =
       type_converter()->ConvertToLlvmType(array->GetType());
-
-  // TODO(meheff): 2022/09/09 Rather than using insertvalue memcpy the
-  // elements into place in the output buffer.
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(array_type);
+  int64_t element_size = type_converter()->GetTypeByteSize(
+      array->GetType()->AsArrayOrDie()->element_type());
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   for (uint32_t i = 0; i < array->size(); ++i) {
-    result = b.CreateInsertValue(result, node_context.LoadOperand(i), {i});
+    llvm::Value* output_element = b.CreateGEP(
+        array_type, output_buffer,
+        {
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+            llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), i),
+        });
+    output_element->setName(absl::StrFormat("output_element_%d", i));
+    LlvmMemcpy(output_element, node_context.GetOperandPtr(i), element_size, b);
   }
 
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
@@ -1026,20 +1098,22 @@ absl::Status IrBuilderVisitor::HandleArrayIndex(ArrayIndex* index) {
                         NumberedStrings("index", index->indices().size()))));
   llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  Type* element_type = index->array()->GetType();
+  std::vector<llvm::Value*> gep_indices = {
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+  };
 
-  // TODO(meheff): 2022/09/09 Replace this with a single memcpy.
-  llvm::Value* element = node_context.LoadOperand(0);
-  // Index operands start at 1.
+  Type* array_type = index->array()->GetType();
   for (int64_t i = 1; i < index->operand_count(); ++i) {
     llvm::Value* index_value = node_context.LoadOperand(i);
-    XLS_ASSIGN_OR_RETURN(element,
-                         IndexIntoArray(element, index_value,
-                                        element_type->AsArrayOrDie()->size(),
-                                        type_converter(), &b));
-    element_type = element_type->AsArrayOrDie()->element_type();
+    gep_indices.push_back(
+        ClampIndexInBounds(index_value, array_type->AsArrayOrDie(), b));
+    array_type = array_type->AsArrayOrDie()->element_type();
   }
-  return FinalizeNodeIrContextWithValue(std::move(node_context), element);
+  llvm::Value* indexed_element = b.CreateGEP(
+      type_converter()->ConvertToLlvmType(index->array()->GetType()),
+      node_context.GetOperandPtr(0), gep_indices);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 indexed_element);
 }
 
 absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
@@ -1047,43 +1121,63 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
                        NewNodeIrContext(slice, {"array", "start"}));
   llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Value* array = node_context.LoadOperand(0);
-  llvm::Value* start = node_context.LoadOperand(1);
   int64_t width = slice->width();
+  llvm::Type* i64 = llvm::Type::getInt64Ty(ctx());
+  llvm::Type* i32 = llvm::Type::getInt32Ty(ctx());
+  ArrayType* input_array_type = slice->array()->GetType()->AsArrayOrDie();
+  int64_t input_array_size = input_array_type->size();
 
-  // This overestimates the number of bits needed but in all practical
-  // situations it should be fine. The only exception to that is if some code
-  // uses a 64 bit index but doesn't actually make full use of that range, then
-  // this will possibly push us over a performance cliff.
-  int64_t index_bits = start->getType()->getIntegerBitWidth() +
-                       Bits::MinBitCountSigned(width) + 1;
-  llvm::Type* index_type = type_converter()->ConvertToLlvmType(
-      slice->package()->GetBitsType(index_bits));
-  llvm::Type* result_type =
+  // An i64 is certainly large enough to hold the array size but may not be
+  // large enough to hold the starting index which can be arbitrarily large. To
+  // avoid having to work with arbitrarily large types for the index
+  // calculations, clamp the start to the array size and cast to i64:
+  //
+  //   clamped_start = is_inbounds(start_operand) ?
+  //                      i64{start} :
+  //                      i64{input_array_size}
+  llvm::Value* start = node_context.LoadOperand(1);
+  llvm::Value* clamped_start =
+      b.CreateSelect(IsIndexInBounds(start, input_array_type, b),
+                     b.CreateIntCast(start, i64, /*isSigned=*/false),
+                     llvm::ConstantInt::get(i64, input_array_size));
+  clamped_start->setName("clamped_start");
+
+  // Create a loop which copies one array element at a time.
+  LlvmIrLoop loop = CreateLoop(width, node_context.entry_builder());
+
+  // Compute the index of the element in the operand array. The index should be
+  // clamped to the maximum index value.
+  llvm::Value* index = loop.body_builder->CreateAdd(clamped_start, loop.index);
+  llvm::Value* max_index = llvm::ConstantInt::get(i64, input_array_size - 1);
+  llvm::Value* clamped_index = loop.body_builder->CreateSelect(
+      loop.body_builder->CreateICmpULE(index, max_index), index, max_index);
+  clamped_index->setName("clamped_index");
+
+  // Compute the address of the element in the operand array.
+  llvm::Value* operand_buffer = node_context.GetOperandPtr(0);
+  llvm::Type* src_array_type =
+      type_converter()->ConvertToLlvmType(input_array_type);
+  llvm::Value* src_element = loop.body_builder->CreateGEP(
+      src_array_type, operand_buffer,
+      {llvm::ConstantInt::get(i32, 0), clamped_index});
+  src_element->setName("src_element");
+
+  // Compute the address of the element in the result array.
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+  llvm::Type* tgt_array_type =
       type_converter()->ConvertToLlvmType(slice->GetType());
-  llvm::Type* result_element_type = type_converter()->ConvertToLlvmType(
-      slice->GetType()->AsArrayOrDie()->element_type());
-  llvm::Value* alloca = b.CreateAlloca(result_type, 0, "alloca");
-  llvm::Value* start_big = b.CreateZExt(start, index_type, "start_big");
+  llvm::Value* tgt_element = loop.body_builder->CreateGEP(
+      tgt_array_type, output_buffer,
+      {llvm::ConstantInt::get(i32, 0), loop.index});
+  tgt_element->setName("tgt_element");
 
-  for (int64_t i = 0; i < width; i++) {
-    llvm::Value* index =
-        b.CreateAdd(start_big, llvm::ConstantInt::get(index_type, i), "index");
-    // TODO(meheff): 2022/09/09 Replace with memcpys.
-    XLS_ASSIGN_OR_RETURN(
-        llvm::Value * value,
-        IndexIntoArray(array, index,
-                       slice->array()->GetType()->AsArrayOrDie()->size(),
-                       type_converter(), &b));
-    std::vector<llvm::Value*> gep_indices = {
-        llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), i)};
-    llvm::Value* gep = b.CreateGEP(result_element_type, alloca, gep_indices);
-    b.CreateStore(value, gep);
-  }
+  // Copy the element from the operand buffer to the result buffer.
+  int64_t element_size = type_converter()->GetTypeByteSize(
+      slice->array()->GetType()->AsArrayOrDie()->element_type());
+  LlvmMemcpy(tgt_element, src_element, element_size, *loop.body_builder);
 
-  llvm::Value* sliced_array = b.CreateLoad(result_type, alloca);
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), sliced_array);
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), output_buffer, loop.exit_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
@@ -1095,73 +1189,59 @@ absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
                         NumberedStrings("index", update->indices().size()))));
   llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  // TODO(meheff): 2022/09/09 Replace with memcpy of whole array, followed by
-  // memcpy of new element.
-  llvm::Value* original_array = node_context.LoadOperand(0);
-  llvm::Value* update_value = node_context.LoadOperand(1);
-  std::vector<llvm::Value*> indices;
-  for (int64_t i = 2; i < update->operand_count(); ++i) {
-    indices.push_back(node_context.LoadOperand(i));
-  }
+  // First, copy the entire array to update (operand 0) to the output buffer.
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+  LlvmMemcpy(output_buffer, node_context.GetOperandPtr(0),
+             type_converter()->GetTypeByteSize(update->GetType()), b);
 
-  if (indices.empty()) {
-    // An empty index replaces the entire array value.
-    return FinalizeNodeIrContextWithValue(std::move(node_context),
-                                          update_value);
-  }
-
-  llvm::Type* array_type = original_array->getType();
-  llvm::AllocaInst* alloca = b.CreateAlloca(array_type);
-  b.CreateStore(original_array, alloca);
-
-  Type* element_type = update->array_to_update()->GetType();
+  // Determine whether the indices are all inbounds. If any are out of bounds
+  // then the array update operation is a NOP. Also, gather the GEP indices for
+  // computing the address of the element to update if necessary.
+  llvm::Value* is_inbounds =
+      llvm::ConstantInt::get(llvm::Type::getInt1Ty(ctx()), 1);
+  Type* array_type = update->array_to_update()->GetType();
   std::vector<llvm::Value*> gep_indices = {
-      llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0)};
-  llvm::Value* is_inbounds = b.getTrue();
-  for (llvm::Value* index : indices) {
-    int64_t index_bitwidth = index->getType()->getIntegerBitWidth();
-    int64_t comparison_bitwidth = std::max(index_bitwidth, int64_t{64});
-    llvm::Value* array_size_comparison_bitwidth = llvm::ConstantInt::get(
-        b.getIntNTy(comparison_bitwidth), element_type->AsArrayOrDie()->size());
-    llvm::Value* index_value_comparison_bitwidth =
-        b.CreateZExt(index, llvm::Type::getIntNTy(ctx(), comparison_bitwidth));
-    llvm::Value* is_index_inbounds =
-        b.CreateICmpULT(index_value_comparison_bitwidth,
-                        array_size_comparison_bitwidth, "idx_is_inbounds");
-
-    gep_indices.push_back(index_value_comparison_bitwidth);
-    is_inbounds = b.CreateAnd(is_inbounds, is_index_inbounds, "inbounds");
-
-    element_type = element_type->AsArrayOrDie()->element_type();
+      llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+  };
+  llvm::Type* i64 = llvm::Type::getInt64Ty(ctx());
+  for (int64_t i = 2; i < update->operand_count(); ++i) {
+    llvm::Value* index_value = node_context.LoadOperand(i);
+    is_inbounds = b.CreateAnd(
+        is_inbounds,
+        IsIndexInBounds(index_value, array_type->AsArrayOrDie(), b));
+    // Cast the index to i64 for use as a gep index. LLVM does not like GEP
+    // indices of unusual widths. This is safe because if the cast to i64 ends
+    // up truncating the value, the gep is unused because the index is
+    // necessarily out of bounds.
+    gep_indices.push_back(
+        b.CreateIntCast(index_value, i64, /*isSigned=*/false));
+    array_type = array_type->AsArrayOrDie()->element_type();
   }
 
-  // Create the join block which occurs after the conditional block (conditioned
-  // on whether the index is inbounds).
-  llvm::BasicBlock* join_block =
-      llvm::BasicBlock::Create(ctx(), absl::StrCat(update->GetName(), "_join"),
-                               node_context.llvm_function());
-
-  // Create the inbounds block and fill with a store to the array elemnt.
-  llvm::BasicBlock* inbounds_block = llvm::BasicBlock::Create(
-      ctx(), absl::StrCat(update->GetName(), "_inbounds"),
-      node_context.llvm_function(),
-      /*InsertBefore=*/join_block);
+  llvm::BasicBlock* inbounds_block =
+      llvm::BasicBlock::Create(ctx(), "inbounds", node_context.llvm_function());
   llvm::IRBuilder<> inbounds_builder(inbounds_block);
-  llvm::Value* gep =
-      inbounds_builder.CreateGEP(array_type, alloca, gep_indices);
-  inbounds_builder.CreateStore(update_value, gep);
-  inbounds_builder.CreateBr(join_block);
 
-  // Create a conditional branch using the original builder (end of the BB
-  // before the if/then).
-  b.CreateCondBr(is_inbounds, inbounds_block, join_block);
+  llvm::BasicBlock* exit_block =
+      llvm::BasicBlock::Create(ctx(), "exit", node_context.llvm_function());
+  llvm::IRBuilder<> exit_builder = llvm::IRBuilder<>(exit_block);
 
-  // Create a new BB at the join point.
-  auto exit_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
-  llvm::Value* update_array = exit_builder->CreateLoad(array_type, alloca);
+  // In the inbounds block, compute the address of the element to update in the
+  // output buffer using a GEP.
+  llvm::Value* output_element = inbounds_builder.CreateGEP(
+      type_converter()->ConvertToLlvmType(update->GetType()), output_buffer,
+      gep_indices);
+  LlvmMemcpy(output_element, node_context.GetOperandPtr(1),
+             type_converter()->GetTypeByteSize(update->operand(1)->GetType()),
+             inbounds_builder);
+  inbounds_builder.CreateBr(exit_block);
 
-  return FinalizeNodeIrContextWithValue(std::move(node_context), update_array,
-                                        exit_builder.get());
+  // From the entry block, branch to the inbounds block if the index is
+  // inbounds. Otherwise branch to the exit block.
+  b.CreateCondBr(is_inbounds, inbounds_block, exit_block);
+
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer, &exit_builder);
 }
 
 absl::Status IrBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
@@ -1171,38 +1251,27 @@ absl::Status IrBuilderVisitor::HandleArrayConcat(ArrayConcat* concat) {
                        NumberedStrings("operand", concat->operand_count())));
   llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  llvm::Type* array_type =
+  llvm::Type* result_array_type =
       type_converter()->ConvertToLlvmType(concat->GetType());
 
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(array_type);
-
-  // TODO(meheff): 2022/09/09 Replace with memcpys of the operand arrays into
-  // there location in the output array.
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   int64_t result_index = 0;
-  int64_t result_elements = array_type->getArrayNumElements();
   for (int64_t i = 0; i < concat->operand_count(); ++i) {
-    llvm::Value* array = node_context.LoadOperand(i);
-    llvm::Type* array_type = array->getType();
+    ArrayType* operand_array_type =
+        concat->operand(i)->GetType()->AsArrayOrDie();
 
-    int64_t element_count = array_type->getArrayNumElements();
-    for (int64_t j = 0; j < element_count; ++j) {
-      llvm::Value* element =
-          b.CreateExtractValue(array, {static_cast<uint32_t>(j)});
+    llvm::Value* output_slice = b.CreateGEP(
+        result_array_type, output_buffer,
+        {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+         llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), result_index)});
 
-      if (result_index >= result_elements) {
-        return absl::InternalError(absl::StrFormat(
-            "array-concat %s result and source have mismatched number of "
-            "elements - expected %d",
-            concat->ToString(), result_elements));
-      }
-
-      result = b.CreateInsertValue(result, element,
-                                   {static_cast<uint32_t>(result_index)});
-      ++result_index;
-    }
+    LlvmMemcpy(output_slice, node_context.GetOperandPtr(i),
+               type_converter()->GetTypeByteSize(operand_array_type), b);
+    result_index += operand_array_type->size();
   }
 
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::HandleBitSlice(BitSlice* bit_slice) {
@@ -1721,50 +1790,40 @@ absl::Status IrBuilderVisitor::HandleMap(Map* map) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(map, {"array"}, /*include_wrapper_args=*/true));
-  llvm::IRBuilder<>& b = node_context.entry_builder();
+  ArrayType* input_array_type = map->operand(0)->GetType()->AsArrayOrDie();
+  ArrayType* result_array_type = map->GetType()->AsArrayOrDie();
 
+  llvm::Type* input_type =
+      type_converter()->ConvertToLlvmType(input_array_type);
+  llvm::Type* output_type =
+      type_converter()->ConvertToLlvmType(result_array_type);
+
+  llvm::Value* input_buffer = node_context.GetOperandPtr(0);
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+
+  // Loop through each index of the arrays.
+  LlvmIrLoop loop =
+      CreateLoop(result_array_type->size(), node_context.entry_builder());
+
+  // Compute address of input and output elements.
+  llvm::Type* i32 = llvm::Type::getInt32Ty(ctx());
+  llvm::Value* input_element = loop.body_builder->CreateGEP(
+      input_type, input_buffer, {llvm::ConstantInt::get(i32, 0), loop.index});
+  llvm::Value* output_element = loop.body_builder->CreateGEP(
+      output_type, output_buffer, {llvm::ConstantInt::get(i32, 0), loop.index});
+
+  // Call map function to compute the output element in situ.
   XLS_ASSIGN_OR_RETURN(llvm::Function * to_apply, GetFunction(map->to_apply()));
+  XLS_RETURN_IF_ERROR(CallFunction(to_apply, {input_element}, {output_element},
+                                   node_context.GetTempBufferArg(),
+                                   node_context.GetInterpreterEventsArg(),
+                                   node_context.GetUserDataArg(),
+                                   node_context.GetJitRuntimeArg(),
+                                   *loop.body_builder)
+                          .status());
 
-  llvm::Value* input = node_context.LoadOperand(0);
-  llvm::Type* input_array_type = input->getType();
-  llvm::Type* input_element_type = type_converter()->ConvertToLlvmType(
-      map->operand(0)->GetType()->AsArrayOrDie()->element_type());
-
-  llvm::Type* output_array_type =
-      type_converter()->ConvertToLlvmType(map->GetType());
-  llvm::Type* output_element_type = type_converter()->ConvertToLlvmType(
-      map->to_apply()->return_value()->GetType());
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(output_array_type);
-  result->setName("init_result");
-
-  // TODO(meheff): 2022/09/09 Avoid allocas and loading any values here. Map
-  // should be possible to do simply by passing pointers on to the to-apply
-  // function.
-  llvm::Value* output_buffer =
-      b.CreateAlloca(output_element_type,
-                     /*ArraySize=*/nullptr, "output_buffer");
-  llvm::Value* input_buffer =
-      b.CreateAlloca(input_element_type, /*ArraySize=*/nullptr, "input_buffer");
-
-  // TODO(meheff): 2022/09/09 Use an LLVM loop.
-  for (uint32_t i = 0; i < input_array_type->getArrayNumElements(); ++i) {
-    llvm::Value* input_element = b.CreateExtractValue(input, {i});
-    input_element->setName(absl::StrFormat("input_element_%d", i));
-    b.CreateStore(input_element, input_buffer);
-    std::vector<llvm::Value*> inputs = {input_buffer};
-    std::vector<llvm::Value*> outputs = {output_buffer};
-    XLS_RETURN_IF_ERROR(CallFunction(to_apply, inputs, outputs,
-                                     node_context.GetTempBufferArg(),
-                                     node_context.GetInterpreterEventsArg(),
-                                     node_context.GetUserDataArg(),
-                                     node_context.GetJitRuntimeArg(), b)
-                            .status());
-    llvm::Value* iter_result = b.CreateLoad(output_element_type, output_buffer);
-    result = b.CreateInsertValue(result, iter_result, {i});
-    result->setName(absl::StrFormat("result_%d", i));
-  }
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), output_buffer, loop.exit_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleSMul(ArithOp* mul) {
@@ -2021,17 +2080,15 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
   llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Value* selector = node_context.LoadOperand(0);
 
-  // TODO(meheff): 2022/09/09 Avoid loading cases and selecting among them.
-  // Instead select the appropriate case pointer and call
-  // FinalizeNodeIrContextWithPointer.
-
   std::vector<llvm::Value*> cases;
   for (int64_t i = 1; i < sel->operand_count(); ++i) {
-    cases.push_back(node_context.LoadOperand(i));
+    cases.push_back(node_context.GetOperandPtr(i));
   }
-  llvm::Type* input_type = cases.front()->getType();
+  llvm::Type* sel_type = type_converter()->ConvertToLlvmType(sel->GetType());
 
-  llvm::Value* typed_zero = LlvmTypeConverter::ZeroOfType(input_type);
+  // Create a base case of a buffer containing all zeros.
+  llvm::Value* typed_zero = b.CreateAlloca(sel_type);
+  b.CreateStore(LlvmTypeConverter::ZeroOfType(sel_type), typed_zero);
   llvm::Value* llvm_false = b.getFalse();
 
   // Get index to select by counting trailing zeros
@@ -2051,7 +2108,8 @@ absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
   llvm::Value* selector_is_zero =
       b.CreateICmpEQ(selector, llvm::ConstantInt::get(selector->getType(), 0));
   llvm_sel = b.CreateSelect(selector_is_zero, typed_zero, llvm_sel);
-  return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_sel);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 llvm_sel);
 }
 
 absl::Status IrBuilderVisitor::HandleOrReduce(BitwiseReductionOp* op) {
@@ -2108,18 +2166,15 @@ absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
 
   llvm::IRBuilder<>& b = node_context.entry_builder();
 
-  // TODO(meheff): 2022/09/09 Avoid loading cases and selecting among them.
-  // Instead select the appropriate case pointer and call
-  // FinalizeNodeIrContextWithPointer.
-
   // Sel is implemented by a cascading series of select ops, e.g.,
   // selector == 0 ? cases[0] : selector == 1 ? cases[1] : selector == 2 ? ...
   llvm::Value* selector = node_context.LoadOperand(0);
   llvm::Value* llvm_sel =
-      sel->default_value() ? node_context.LoadOperand(sel->operand_count() - 1)
-                           : nullptr;
+      sel->default_value()
+          ? node_context.GetOperandPtr(sel->operand_count() - 1)
+          : nullptr;
   for (int i = sel->cases().size() - 1; i >= 0; i--) {
-    llvm::Value* llvm_case = node_context.LoadOperand(i + 1);
+    llvm::Value* llvm_case = node_context.GetOperandPtr(i + 1);
     if (llvm_sel == nullptr) {
       // The last element in the select tree isn't a sel, but an actual value.
       llvm_sel = llvm_case;
@@ -2129,7 +2184,8 @@ absl::Status IrBuilderVisitor::HandleSel(Select* sel) {
       llvm_sel = b.CreateSelect(cmp, llvm_case, llvm_sel);
     }
   }
-  return FinalizeNodeIrContextWithValue(std::move(node_context), llvm_sel);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 llvm_sel);
 }
 
 absl::Status IrBuilderVisitor::HandleSGe(CompareOp* ge) {
@@ -2221,17 +2277,20 @@ absl::Status IrBuilderVisitor::HandleTuple(Tuple* tuple) {
   llvm::Type* tuple_type =
       type_converter()->ConvertToLlvmType(tuple->GetType());
 
-  // TODO(meheff): 2022/09/09 Avoid loading elements and using
-  // insertvalue. Instead memcpy each element into place.
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(tuple_type);
-  for (uint32_t i = 0; i < tuple->operand_count(); ++i) {
-    if (tuple->operand(i)->GetType()->GetFlatBitCount() == 0) {
-      continue;
-    }
-    result = b.CreateInsertValue(result, node_context.LoadOperand(i), {i});
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+  for (int64_t i = 0; i < tuple->operand_count(); ++i) {
+    std::vector<llvm::Value*> gep_indices = {
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+        llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), i)};
+    llvm::Value* output_element =
+        b.CreateGEP(tuple_type, output_buffer, gep_indices);
+    int64_t element_size =
+        type_converter()->GetTypeByteSize(tuple->operand(i)->GetType());
+    LlvmMemcpy(output_element, node_context.GetOperandPtr(i), element_size, b);
   }
 
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::HandleTupleIndex(TupleIndex* index) {
@@ -2465,12 +2524,6 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::InvokeRecvCallback(
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
 
-  // recv_type is the full type of the receive.
-  //   1. If blocking, then it is a tuple of (token, payload).
-  //   2. If non-blocking, then it is a tuple of (token, payload, bool).
-  llvm::Type* recv_type =
-      type_converter()->ConvertToLlvmType(receive->GetType());
-
   // recv_payload_bytes is just the size of the payload.
   //
   // As token is zero size, it can also be considered the size of the
@@ -2493,18 +2546,8 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::InvokeRecvCallback(
       absl::bit_cast<uint64_t>(jit_context_.recv_fn().value()));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
-  llvm::Value* data_valid = builder->CreateCall(fn_type, fn_ptr, args);
-
-  // Load the reveive data from the bounce buffer.
-  llvm::Value* data = builder->CreateLoad(recv_type, output_ptr);
-
-  if (receive->is_blocking()) {
-    return data;
-  }
-
-  // For non-blocking receives, add data_valid as the last entry in the
-  // return tuple.
-  return builder->CreateInsertValue(data, data_valid, {2});
+  llvm::Value* receive_fired = builder->CreateCall(fn_type, fn_ptr, args);
+  return receive_fired;
 }
 
 absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
@@ -2515,13 +2558,23 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
   XLS_ASSIGN_OR_RETURN(NodeIrContext node_context,
                        NewNodeIrContext(recv, operand_names,
                                         /*include_wrapper_args=*/true));
-  llvm::IRBuilder<>& b = node_context.entry_builder();
   llvm::Value* user_data = node_context.GetUserDataArg();
 
   XLS_RET_CHECK(jit_context_.queue_manager().has_value());
   XLS_ASSIGN_OR_RETURN(
       JitChannelQueue * queue,
       jit_context_.queue_manager().value()->GetQueueById(recv->channel_id()));
+
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
+  // The data buffer is element 1 of the output tuple.
+  llvm::Type* receive_type =
+      type_converter()->ConvertToLlvmType(recv->GetType());
+  llvm::Value* data_buffer = node_context.entry_builder().CreateGEP(
+      receive_type, output_buffer,
+      {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+       llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 1)});
+  data_buffer->setName("data_buffer");
+
   if (recv->predicate().has_value()) {
     llvm::Value* predicate = node_context.LoadOperand(1);
 
@@ -2536,40 +2589,64 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
     XLS_ASSIGN_OR_RETURN(
-        llvm::Value * true_result,
-        InvokeRecvCallback(&true_builder, queue, recv,
-                           node_context.GetOutputPtr(0), user_data));
+        llvm::Value * true_receive_fired,
+        InvokeRecvCallback(&true_builder, queue, recv, data_buffer, user_data));
     true_builder.CreateBr(join_block);
 
-    // And the same for a false predicate - this will return an empty/zero
-    // value. Creating an empty struct emits ops, so it needs a builder.
+    // And the same for a false predicate - this will store a zero
+    // value into the data buffer.
     llvm::BasicBlock* false_block =
         llvm::BasicBlock::Create(ctx(), absl::StrCat(recv->GetName(), "_false"),
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> false_builder(false_block);
-    llvm::Type* result_type =
-        type_converter()->ConvertToLlvmType(recv->GetType());
-    llvm::Value* false_result = LlvmTypeConverter::ZeroOfType(result_type);
+    llvm::Type* data_type =
+        type_converter()->ConvertToLlvmType(recv->GetPayloadType());
+    false_builder.CreateStore(LlvmTypeConverter::ZeroOfType(data_type),
+                              data_buffer);
     false_builder.CreateBr(join_block);
 
     // Next, create a branch op w/the original builder,
-    b.CreateCondBr(predicate, true_block, false_block);
+    node_context.entry_builder().CreateCondBr(predicate, true_block,
+                                              false_block);
 
     // then join the two branches back together.
-    auto join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+    llvm::IRBuilder<> join_builder(join_block);
 
-    llvm::PHINode* phi =
-        join_builder->CreatePHI(result_type, /*NumReservedValues=*/2);
-    phi->addIncoming(true_result, true_block);
-    phi->addIncoming(false_result, false_block);
-    return FinalizeNodeIrContextWithValue(std::move(node_context), phi,
-                                          /*exit_builder=*/join_builder.get());
+    if (!recv->is_blocking()) {
+      // If the receive is non-blocking, the output of the receive has an
+      // additional element (index 2) which indicates whether the receive fired.
+      llvm::PHINode* receive_fired = join_builder.CreatePHI(
+          llvm::Type::getInt1Ty(ctx()), /*NumReservedValues=*/2);
+      receive_fired->addIncoming(true_receive_fired, true_block);
+      receive_fired->addIncoming(llvm::ConstantInt::getFalse(ctx()),
+                                 false_block);
+      receive_fired->setName("receive_fired");
+      llvm::Value* receive_fired_buffer = join_builder.CreateGEP(
+          receive_type, output_buffer,
+          {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+           llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 2)});
+      join_builder.CreateStore(receive_fired, receive_fired_buffer);
+    }
+    return FinalizeNodeIrContextWithPointerToValue(
+        std::move(node_context), output_buffer,
+        /*exit_builder=*/&join_builder);
   }
-  XLS_ASSIGN_OR_RETURN(
-      llvm::Value * invoke,
-      InvokeRecvCallback(&b, queue, recv, node_context.GetOutputPtr(0),
-                         user_data));
-  return FinalizeNodeIrContextWithValue(std::move(node_context), invoke);
+  XLS_ASSIGN_OR_RETURN(llvm::Value * receive_fired,
+                       InvokeRecvCallback(&node_context.entry_builder(), queue,
+                                          recv, data_buffer, user_data));
+  receive_fired->setName("receive_fired");
+  if (!recv->is_blocking()) {
+    // If the receive is non-blocking, the output of the receive has an
+    // additional element (index 2) which indicates whether the receive fired.
+    llvm::Value* receive_fired_buffer = node_context.entry_builder().CreateGEP(
+        receive_type, output_buffer,
+        {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
+         llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 2)});
+    node_context.entry_builder().CreateStore(receive_fired,
+                                             receive_fired_buffer);
+  }
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer);
 }
 
 absl::Status IrBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
