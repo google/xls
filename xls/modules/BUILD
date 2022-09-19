@@ -480,6 +480,26 @@ xls_benchmark_ir(
     src = ":bf16_add_2.ir",
 )
 
+xls_dslx_library(
+    name = "bf16_mul_2_dslx",
+    srcs = ["bf16_mul_2.x"],
+    deps = [
+        ":apfloat_mul_2_dslx",
+    ],
+)
+
+xls_dslx_opt_ir(
+    name = "bf16_mul_2",
+    dslx_top = "bf16_mul_2",
+    ir_file = "bf16_mul_2.ir",
+    library = "bf16_mul_2_dslx",
+)
+
+xls_dslx_test(
+    name = "bf16_mul_2_dslx_test",
+    library = "bf16_mul_2_dslx",
+)
+
 xls_dslx_opt_ir(
     name = "fp32_ldexp",
     srcs = ["fp32_ldexp.x"],
