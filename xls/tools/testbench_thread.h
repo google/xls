@@ -21,10 +21,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
 #include "absl/synchronization/mutex.h"
-#include "absl/time/time.h"
-#include "xls/common/logging/logging.h"
 #include "xls/common/thread.h"
-#include "xls/ir/ir_parser.h"
 #include "xls/ir/package.h"
 
 namespace xls {
@@ -67,7 +64,7 @@ class TestbenchThread
       : TestbenchThreadBase<InputT, ResultT, ShardDataT>(
             wake_parent_mutex, wake_parent, start_index, end_index,
             max_failures, index_to_input, compare_results, log_errors),
-        shard_data_(create_shard()),
+        create_shard_fn_(create_shard),
         generate_expected_(generate_expected),
         generate_actual_(generate_actual) {
     this->generate_expected_fn_ = [this](InputT& input) {
@@ -79,8 +76,11 @@ class TestbenchThread
     };
   }
 
+  void Init() override { shard_data_ = create_shard_fn_(); }
+
  private:
   std::unique_ptr<ShardDataT> shard_data_;
+  std::function<std::unique_ptr<ShardDataT>()> create_shard_fn_;
   std::function<ResultT(ShardDataT*, InputT)> generate_expected_;
   std::function<ResultT(ShardDataT*, InputT)> generate_actual_;
 };
@@ -135,6 +135,8 @@ class TestbenchThreadBase {
         wake_parent_(wake_parent),
         cancelled_(false),
         running_(false),
+        ready_(false),
+        start_(false),
         start_index_(start_index),
         end_index_(end_index),
         max_failures_(max_failures),
@@ -158,6 +160,14 @@ class TestbenchThreadBase {
     absl::Status return_status;
     if (cancelled_.load()) {
       return;
+    }
+
+    Init();
+    ready_.store(true);
+    this->WakeParent();
+
+    // After initialization, wait for the "go" signal from the parent.
+    while (!cancelled_.load() && !start_.load()) {
     }
 
     running_.store(true);
@@ -191,6 +201,10 @@ class TestbenchThreadBase {
     this->WakeParent();
   }
 
+  // Do any one-time initialization. In practice, this is initializing shard
+  // data.
+  virtual void Init() {}
+
   void Join() {
     if (thread_) {
       thread_->Join();
@@ -200,7 +214,11 @@ class TestbenchThreadBase {
 
   void Cancel() { cancelled_.store(true); }
 
+  void SignalStart() { start_.store(true); }
+
   bool running() { return running_.load(); }
+
+  bool ready() { return ready_.load(); }
 
   uint64_t num_failures() { return num_failures_.load(); }
 
@@ -230,6 +248,8 @@ class TestbenchThreadBase {
   absl::Status status_ ABSL_GUARDED_BY(mutex_);
   std::atomic<bool> cancelled_;
   std::atomic<bool> running_;
+  std::atomic<bool> ready_;
+  std::atomic<bool> start_;
 
   uint64_t start_index_;
   uint64_t end_index_;
@@ -248,7 +268,6 @@ class TestbenchThreadBase {
   std::string ir_text_;
   std::string entry_fn_;
   std::unique_ptr<Package> package_;
-  // std::unique_ptr<JitWrapperT> jit_wrapper_;
 
   std::unique_ptr<Thread> thread_;
 };

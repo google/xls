@@ -177,7 +177,6 @@ class TestbenchBase {
     // here.
     mutex_.Lock();
     started_ = true;
-    start_time_ = absl::Now();
 
     // Set up all the workers.
     uint64_t chunk_size = (end_ - start_) / num_threads_;
@@ -197,6 +196,27 @@ class TestbenchBase {
       threads_.back()->Run();
 
       first = last + 1;
+    }
+
+    // Wait for all to be ready.
+    bool all_ready = false;
+    while (!all_ready) {
+      int num_ready = 0;
+      wake_me_.Wait(&mutex_);
+
+      for (int i = 0; i < threads_.size(); i++) {
+        if (threads_[i]->ready()) {
+          num_ready++;
+        }
+      }
+      all_ready = num_ready == threads_.size();
+    }
+
+    // Don't include startup time.
+    start_time_ = absl::Now();
+
+    for (int i = 0; i < threads_.size(); i++) {
+      threads_[i]->SignalStart();
     }
 
     // Now monitor them.
