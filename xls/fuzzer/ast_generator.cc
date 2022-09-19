@@ -451,7 +451,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
   XLS_ASSIGN_OR_RETURN(auto pair, ChooseEnvValueBitsPair(env));
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
-  BinopKind op = RandomSetChoice(binops_);
+  absl::btree_set<BinopKind> bin_ops = GetBinopSameTypeKinds();
+  bin_ops.erase(BinopKind::kDiv);
+  BinopKind op = RandomSetChoice(bin_ops);
   if (GetBinopShifts().contains(op)) {
     return GenerateShift(env);
   }
@@ -874,8 +876,7 @@ TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
-  int64_t retval_count = GenerateNaryOperandCount(
-      env, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
+  int64_t retval_count = GenerateNaryOperandCount(env, 0);
 
   std::vector<TypedExpr> env_params;
   std::vector<TypedExpr> env_non_params;
@@ -905,17 +906,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
     // width" limit.
     if ((total_bit_count + GetTypeBitCount(expr.type) >
          options_.max_width_aggregate_types)) {
-      if (options_.generate_empty_tuples) {
-        // If it's ok to generate empty tuples, we just try again. Note we'll
-        // end up with < retval_count elements by doing this, potentially 0.
-        continue;
-      }
-      // Make sure we have at least one value, since
-      // `!options._generate_empty_tuples`.
-      if (typed_exprs.empty()) {
-        typed_exprs.push_back(expr);
-      }
-      break;
+      continue;
     }
 
     typed_exprs.push_back(expr);
@@ -929,11 +920,6 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateRetval(Env* env) {
   }
 
   auto [exprs, types] = Unzip(typed_exprs);
-  if (!options_.generate_empty_tuples) {
-    XLS_RET_CHECK(!exprs.empty())
-        << "retval_count was: " << retval_count
-        << " typed_exprs size: " << typed_exprs.size();
-  }
   auto* tuple = module_->Make<XlsTuple>(fake_span_, exprs);
   return TypedExpr{tuple, MakeTupleType(types)};
 }
@@ -992,8 +978,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
 
   std::vector<TypedExpr> members;
   int64_t total_bit_count = 0;
-  int64_t element_count = GenerateNaryOperandCount(
-      env, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
+  int64_t element_count = GenerateNaryOperandCount(env, 0);
   for (int64_t i = 0; i < element_count; ++i) {
     XLS_ASSIGN_OR_RETURN(TypedExpr e, ChooseEnvValue(env));
     members.push_back(e);
@@ -1003,9 +988,6 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateTupleOrIndex(Env* env) {
   XLS_RETURN_IF_ERROR(VerifyAggregateWidth(total_bit_count));
 
   auto [exprs, types] = Unzip(members);
-  if (!options_.generate_empty_tuples) {
-    XLS_RET_CHECK(!exprs.empty());
-  }
   return TypedExpr{module_->Make<XlsTuple>(fake_span_, exprs),
                    MakeTupleType(types)};
 }
@@ -1067,10 +1049,7 @@ TypeAnnotation* AstGenerator::GenerateType(int64_t nesting) {
     // too big.
     int64_t total_width = 0;
     std::vector<TypeAnnotation*> element_types;
-    for (int64_t i = 0;
-         i < RandomIntWithExpectedValue(
-                 3, /*lower_limit=*/options_.generate_empty_tuples ? 0 : 1);
-         ++i) {
+    for (int64_t i = 0; i < RandomIntWithExpectedValue(3, 0); ++i) {
       TypeAnnotation* element_type = GenerateType(nesting + 1);
       int64_t element_width = GetTypeBitCount(element_type);
       if (total_width + element_width > options_.max_width_aggregate_types) {
@@ -1760,9 +1739,6 @@ absl::StatusOr<Function*> AstGenerator::GenerateFunction(
 
   XLS_ASSIGN_OR_RETURN(TypedExpr retval,
                        GenerateBody(call_depth, params, &env));
-  if (!options_.generate_empty_tuples) {
-    XLS_RET_CHECK(!IsNil(retval.type));
-  }
   NameDef* name_def =
       module_->Make<NameDef>(fake_span_, name, /*definer=*/nullptr);
   Block* block = module_->Make<Block>(fake_span_, retval.expr);
@@ -1903,11 +1879,6 @@ AstGenerator::AstGenerator(AstGeneratorOptions options, std::mt19937* rng)
     : rng_(*XLS_DIE_IF_NULL(rng)),
       options_(options),
       fake_pos_("<fake>", 0, 0),
-      fake_span_(fake_pos_, fake_pos_),
-      binops_(options.binop_allowlist.has_value()
-                  ? options.binop_allowlist.value()
-                  : GetBinopSameTypeKinds()) {
-  binops_.erase(BinopKind::kDiv);
-}
+      fake_span_(fake_pos_, fake_pos_) {}
 
 }  // namespace xls::dslx

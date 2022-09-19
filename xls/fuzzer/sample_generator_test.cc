@@ -166,10 +166,10 @@ TEST(SampleGeneratorTest, GenerateArrayArgument) {
 TEST(SampleGeneratorTest, GenerateBasicSample) {
   xls::RngState rng(std::mt19937{});
   SampleOptions sample_options;
+  sample_options.set_calls_per_sample(3);
   XLS_ASSERT_OK_AND_ASSIGN(
       Sample sample,
-      GenerateSample(dslx::AstGeneratorOptions{}, /*calls_per_sample=*/3,
-                     sample_options, &rng));
+      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, &rng));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());
@@ -185,9 +185,10 @@ TEST(SampleGeneratorTest, GenerateCodegenSample) {
   sample_options.set_codegen(true);
   sample_options.set_simulate(true);
   constexpr int64_t kCallsPerSample = 0;
+  sample_options.set_calls_per_sample(kCallsPerSample);
   XLS_ASSERT_OK_AND_ASSIGN(
-      Sample sample, GenerateSample(dslx::AstGeneratorOptions{},
-                                    kCallsPerSample, sample_options, &rng));
+      Sample sample,
+      GenerateSample(dslx::AstGeneratorOptions{}, sample_options, &rng));
   EXPECT_TRUE(sample.options().input_is_dslx());
   EXPECT_TRUE(sample.options().convert_to_ir());
   EXPECT_TRUE(sample.options().optimize_ir());

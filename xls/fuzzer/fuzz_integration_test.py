@@ -15,7 +15,6 @@
 """Tests for xls.fuzzer.run_fuzz."""
 
 import datetime
-import hashlib
 import os
 import random
 import sys
@@ -25,12 +24,10 @@ from absl import flags
 from absl import logging
 
 from absl.testing import absltest
-from xls.common import gfile
 from xls.fuzzer import cli_helpers
 from xls.fuzzer import run_fuzz
 from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
-from xls.fuzzer.python.cpp_sample import Sample
 from xls.fuzzer.python.cpp_sample import SampleOptions
 
 _USE_NONDETERMINISTIC_SEED = flags.DEFINE_bool(
@@ -85,24 +82,6 @@ def _get_crasher_directory() -> str:
     return tempfile.mkdtemp(prefix='run_fuzz_crashers')
 
 
-def _save_crasher(run_dir: str, sample: Sample,
-                  exception: sample_runner.SampleError, crasher_dir: str):
-  """Saves the sample into a new directory in the crasher directory."""
-  digest = hashlib.sha256(sample.input_text.encode('utf-8')).hexdigest()[:8]
-  sample_crasher_dir = os.path.join(crasher_dir, digest)
-  logging.info('Saving crasher to %s', sample_crasher_dir)
-  gfile.recursively_copy_dir(
-      run_dir, sample_crasher_dir, preserve_file_mask=True)
-  with gfile.open(os.path.join(sample_crasher_dir, 'exception.txt'), 'w') as f:
-    f.write(str(exception))
-  crasher_path = os.path.join(
-      sample_crasher_dir,
-      'crasher_{}_{}.x'.format(datetime.date.today().strftime('%Y-%m-%d'),
-                               digest[:4]))
-  with gfile.open(crasher_path, 'w') as f:
-    f.write(sample.to_crasher(str(exception)))
-
-
 class FuzzIntegrationTest(absltest.TestCase):
 
   def test(self):
@@ -119,7 +98,6 @@ class FuzzIntegrationTest(absltest.TestCase):
     generator_options = ast_generator.AstGeneratorOptions(
         max_width_bits_types=_MAX_WIDTH_BITS_TYPES.value,
         max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value,
-        generate_empty_tuples=True,
         emit_gate=not _SIMULATE.value)
 
     if _SAMPLE_TIMEOUT.value is None:
@@ -128,11 +106,11 @@ class FuzzIntegrationTest(absltest.TestCase):
       timeout_seconds = cli_helpers.parse_duration(
           _SAMPLE_TIMEOUT.value).seconds
 
-    default_sample_options = SampleOptions(
+    sample_options = SampleOptions(
         input_is_dslx=True,
         ir_converter_args=['--top=main'],
         convert_to_ir=True,
-        optimize_ir=True,
+        calls_per_sample=_CALLS_PER_SAMPLE.value,
         use_jit=True,
         codegen=_SIMULATE.value,
         simulate=_SIMULATE.value,
@@ -160,26 +138,19 @@ class FuzzIntegrationTest(absltest.TestCase):
     while keep_going():
       logging.info('Running sample %d', sample_count)
       sample_count += 1
-      sample = ast_generator.generate_sample(generator_options,
-                                             _CALLS_PER_SAMPLE.value,
-                                             default_sample_options, rng)
       with tempfile.TemporaryDirectory(prefix='run_fuzz_') as run_dir:
         try:
-          run_fuzz.run_sample(sample, run_dir)
-          if _FORCE_FAILURE.value:
-            raise sample_runner.SampleError('Forced sample failure.')
+          run_fuzz.generate_sample_and_run(
+              rng,
+              generator_options,
+              sample_options,
+              run_dir,
+              crasher_dir=crasher_dir,
+              force_failure=_FORCE_FAILURE.value)
 
         except sample_runner.SampleError as e:
           logging.error('Sample failed: %s', str(e))
           crasher_count += 1
-          if not e.is_timeout:
-            logging.info('Attempting to minimize IR...')
-            ir_minimized = run_fuzz.minimize_ir(sample, run_dir)
-            if ir_minimized:
-              logging.info('...minimization successful.')
-            else:
-              logging.info('...minimization failed.')
-          _save_crasher(run_dir, sample, e, crasher_dir)
 
       if crasher_count >= MAX_FAILURES:
         break

@@ -17,9 +17,7 @@
 
 import os
 import subprocess
-import sys
-
-from absl import flags
+from typing import Optional
 
 from absl.testing import parameterized
 from xls.common import runfiles
@@ -29,46 +27,86 @@ from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_ast_generator as ast_generator
 from xls.fuzzer.python import cpp_sample as sample
 
-flags.DEFINE_boolean('codegen', True,
-                     'Whether to generate Verilog for generated samples.')
-FLAGS = flags.FLAGS
-
 # IR parser binary. Reads in a IR file and parses it. Raises an error on
 # failure.
 PARSE_IR = runfiles.get_path('xls/tools/parse_ir')
 
+_CALLS_PER_SAMPLE = 8
+_SAMPLE_COUNT = 96
+
+
+def _get_crasher_dir() -> Optional[str]:
+  """Returns the directory in which to write crashers.
+
+  Crashers are written to the undeclared outputs directory, if it is
+  available. Otherwise a temporary directory is created.
+  """
+  if 'TEST_UNDECLARED_OUTPUTS_DIR' in os.environ:
+    crasher_dir = os.path.join(os.environ['TEST_UNDECLARED_OUTPUTS_DIR'],
+                               'crashers')
+    os.mkdir(crasher_dir)
+    return crasher_dir
+  return None
+
 
 class RunFuzzTest(parameterized.TestCase):
 
-  KWARGS = {
-      'calls_per_sample': 8,
-      'save_temps': False,
-      'sample_count': 96,
-      'return_samples': True,
-      'codegen': True
-  }
-
   def setUp(self):
     super(RunFuzzTest, self).setUp()
-    self.KWARGS['codegen'] = FLAGS.codegen
+    self._crasher_dir = _get_crasher_dir()
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(
-        disallow_divide=True, emit_gate=not FLAGS.codegen)
+    return ast_generator.AstGeneratorOptions()
+
+  def _get_sample_options(self) -> sample.SampleOptions:
+    return sample.SampleOptions(
+        input_is_dslx=True,
+        ir_converter_args=['--top=main'],
+        calls_per_sample=_CALLS_PER_SAMPLE,
+        convert_to_ir=True,
+        optimize_ir=True,
+        codegen=False,
+        simulate=False)
+
+  def _run_fuzz(self, seed: int) -> sample.Sample:
+    return run_fuzz.generate_sample_and_run(
+        ast_generator.RngState(seed),
+        self._get_ast_options(),
+        self._get_sample_options(),
+        run_dir=self.create_tempdir().full_path,
+        crasher_dir=self._crasher_dir)
 
   def test_repeatable_within_process(self):
-    samples0 = run_fuzz.run_fuzz(
-        ast_generator.RngState(7), self._get_ast_options(), **self.KWARGS)
-    samples1 = run_fuzz.run_fuzz(
-        ast_generator.RngState(7), self._get_ast_options(), **self.KWARGS)
-    self.assertEqual(samples0, samples1)
+    sample0 = self._run_fuzz(7)
+    sample1 = self._run_fuzz(7)
+    self.assertEqual(sample0, sample1)
+
+  def test_different_seeds_produces_different_samples(self):
+    sample0 = self._run_fuzz(10)
+    sample1 = self._run_fuzz(11)
+    self.assertNotEqual(sample0, sample1)
+
+  def test_sequential_samples_are_different(self):
+    rng = ast_generator.RngState(42)
+    sample0 = run_fuzz.generate_sample_and_run(
+        rng,
+        self._get_ast_options(),
+        self._get_sample_options(),
+        run_dir=self.create_tempdir().full_path,
+        crasher_dir=self._crasher_dir)
+    sample1 = run_fuzz.generate_sample_and_run(
+        rng,
+        self._get_ast_options(),
+        self._get_sample_options(),
+        run_dir=self.create_tempdir().full_path,
+        crasher_dir=self._crasher_dir)
+    self.assertNotEqual(sample0, sample1)
 
   @parameterized.named_parameters(*tuple(
-      dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(50)))
+      dict(testcase_name='seed_{}'.format(x), seed=x) for x in range(40)))
   def test_first_n_seeds(self, seed):
-    run_fuzz.run_fuzz(
-        ast_generator.RngState(seed), self._get_ast_options(), **self.KWARGS)
-    sys.stdout.flush()
+    for _ in range(_SAMPLE_COUNT):
+      self._run_fuzz(seed)
 
   def test_minimize_ir_minimization_possible(self):
     # Add an invalid codegen flag to inject an error into the running of the

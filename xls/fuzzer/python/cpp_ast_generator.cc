@@ -45,35 +45,18 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
            &RngState::RandRangeBiasedTowardsZero);
 
   py::class_<AstGeneratorOptions>(m, "AstGeneratorOptions")
-      .def(py::init([](std::optional<bool> disallow_divide,
-                       std::optional<bool> emit_loops,
-                       std::optional<bool> short_samples,
+      .def(py::init([](std::optional<bool> emit_loops,
                        std::optional<int64_t> max_width_bits_types,
                        std::optional<int64_t> max_width_aggregate_types,
-                       std::optional<std::vector<BinopKind>> binop_allowlist,
-                       std::optional<bool> generate_empty_tuples,
                        std::optional<bool> emit_gate,
                        std::optional<bool> generate_proc) {
              AstGeneratorOptions options;
-             if (disallow_divide.has_value()) {
-               options.disallow_divide = disallow_divide.value();
-             }
-             if (short_samples.has_value()) {
-               options.short_samples = short_samples.value();
-             }
              if (max_width_bits_types.has_value()) {
                options.max_width_bits_types = max_width_bits_types.value();
              }
              if (max_width_aggregate_types.has_value()) {
                options.max_width_aggregate_types =
                    max_width_aggregate_types.value();
-             }
-             if (binop_allowlist.has_value()) {
-               options.binop_allowlist = absl::btree_set<BinopKind>(
-                   binop_allowlist->begin(), binop_allowlist->end());
-             }
-             if (generate_empty_tuples.has_value()) {
-               options.generate_empty_tuples = generate_empty_tuples.value();
              }
              if (emit_gate.has_value()) {
                options.emit_gate = emit_gate.value();
@@ -83,15 +66,28 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
              }
              return options;
            }),
-           py::arg("disallow_divide") = absl::nullopt,
            py::arg("emit_loops") = absl::nullopt,
-           py::arg("short_samples") = absl::nullopt,
            py::arg("max_width_bits_types") = absl::nullopt,
            py::arg("max_width_aggregate_types") = absl::nullopt,
-           py::arg("binop_allowlist") = absl::nullopt,
-           py::arg("generate_empty_tuples") = absl::nullopt,
            py::arg("emit_gate") = absl::nullopt,
-           py::arg("generate_proc") = absl::nullopt);
+           py::arg("generate_proc") = absl::nullopt)
+      // Pickling is required by the multiprocess fuzzer which pickles options
+      // to send to the separate worker process.
+      .def(py::pickle(
+          [](const AstGeneratorOptions& o) {
+            return py::make_tuple(o.emit_signed_types, o.max_width_bits_types,
+                                  o.max_width_aggregate_types, o.emit_loops,
+                                  o.emit_gate, o.generate_proc);
+          },
+          [](py::tuple t) {
+            return AstGeneratorOptions{
+                .emit_signed_types = t[0].cast<bool>(),
+                .max_width_bits_types = t[1].cast<int64_t>(),
+                .max_width_aggregate_types = t[2].cast<int64_t>(),
+                .emit_loops = t[3].cast<bool>(),
+                .emit_gate = t[4].cast<bool>(),
+                .generate_proc = t[5].cast<bool>()};
+          }));
 
   m.def("generate",
         [](const AstGeneratorOptions& options,
@@ -119,8 +115,7 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
           return result;
         });
   m.def("generate_sample", GenerateSample, py::arg("options"),
-        py::arg("calls_per_sample"), py::arg("default_options"),
-        py::arg("rng"));
+        py::arg("default_options"), py::arg("rng"));
 }
 
 }  // namespace xls::dslx

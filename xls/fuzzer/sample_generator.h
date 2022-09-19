@@ -50,10 +50,9 @@ absl::StatusOr<std::vector<dslx::InterpValue>> GenerateArguments(
     absl::Span<const dslx::ConcreteType* const> arg_types, RngState* rng);
 
 // Generates and returns a random Sample with the given options.
-absl::StatusOr<Sample> GenerateSample(const dslx::AstGeneratorOptions& options,
-                                      int64_t calls_per_sample,
-                                      const SampleOptions& default_options,
-                                      RngState* rng);
+absl::StatusOr<Sample> GenerateSample(
+    const dslx::AstGeneratorOptions& generator_options,
+    const SampleOptions& sample_options, RngState* rng);
 
 }  // namespace xls
 

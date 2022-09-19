@@ -52,10 +52,6 @@ struct AstGeneratorOptions {
   // generated).
   bool emit_signed_types = true;
 
-  // Don't emit divide operations (currently not connected, divides are never
-  // generated).
-  bool disallow_divide = false;
-
   // The maximum (inclusive) width for bits types.
   int64_t max_width_bits_types = 64;
 
@@ -64,19 +60,6 @@ struct AstGeneratorOptions {
 
   // Emit loops (currently not connected, loops are always generated).
   bool emit_loops = true;
-
-  // The set of binary ops (arithmetic and bitwise ops excepting shifts) to
-  // generate. For example: add, and, mul, etc.
-  std::optional<absl::btree_set<BinopKind>> binop_allowlist = absl::nullopt;
-
-  // If true, then generated samples that have fewer operations.
-  bool short_samples = false;
-
-  // If true, generate empty tuples potentially as the return value, parameters,
-  // or intermediate values.
-  // TODO(https://github.com/google/xls/issues/346): 2021-03-19 Remove this
-  // option when pipeline generator handles empty tuples properly.
-  bool generate_empty_tuples = true;
 
   // Whether to emit `gate!()` builtin calls.
   bool emit_gate = true;
@@ -487,7 +470,7 @@ class AstGenerator {
   // stack (if any) calling this function to be generated.
   bool ShouldNest(int64_t expr_size, int64_t call_depth) {
     // Make non-top level functions smaller.
-    double alpha = (options_.short_samples || call_depth > 0) ? 1.0 : 7.0;
+    double alpha = (call_depth > 0) ? 1.0 : 7.0;
     std::gamma_distribution<float> g(alpha, 5.0);
     return g(rng_) >= expr_size;
   }

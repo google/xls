@@ -86,6 +86,9 @@ std::string ArgsBatchToText(
   if (!parsed["timeout_seconds"].is_null()) {
     options.timeout_seconds_ = parsed["timeout_seconds"].int_value();
   }
+  if (!parsed["calls_per_sample"].is_null()) {
+    options.calls_per_sample_ = parsed["calls_per_sample"].int_value();
+  }
   return options;
 }
 
@@ -127,6 +130,9 @@ json11::Json SampleOptions::ToJson() const {
   } else {
     json["timeout_seconds"] = nullptr;
   }
+
+  json["calls_per_sample"] = static_cast<int>(calls_per_sample_);
+
   return json11::Json(json);
 }
 

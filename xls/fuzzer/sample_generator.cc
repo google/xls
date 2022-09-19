@@ -211,41 +211,28 @@ static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(
   return absl::WrapUnique(down_cast<FunctionType*>(cloned.release()));
 }
 
-absl::StatusOr<Sample> GenerateSample(const AstGeneratorOptions& options,
-                                      int64_t calls_per_sample,
-                                      const SampleOptions& default_options,
-                                      RngState* rng) {
-  // To workaround a bug in pipeline generator we modify the ast generator
-  // options if pipeline generator is used.
-  // TODO(https://github.com/google/xls/issues/346): 2021-03-19 Remove this
-  // option when pipeline generator handles empty tuples properly.
-  AstGeneratorOptions modified_options = options;
-
+absl::StatusOr<Sample> GenerateSample(
+    const AstGeneratorOptions& generator_options,
+    const SampleOptions& sample_options, RngState* rng) {
   // Generate the sample options which is how to *run* the generated
   // sample. AstGeneratorOptions 'options' is how to *generate* the sample.
-  SampleOptions sample_options = default_options;
+  SampleOptions sample_options_copy = sample_options;
   // The generated sample is DSLX so input_is_dslx must be true.
-  sample_options.set_input_is_dslx(true);
-  XLS_RET_CHECK(!sample_options.codegen_args().has_value())
+  sample_options_copy.set_input_is_dslx(true);
+  XLS_RET_CHECK(!sample_options_copy.codegen_args().has_value())
       << "Setting codegen arguments is not supported, they are randomly "
          "generated";
-  if (sample_options.codegen()) {
+  if (sample_options_copy.codegen()) {
     // Generate codegen args if codegen is given but no codegen args are
     // specified.
-    sample_options.set_codegen_args(
-        GenerateCodegenArgs(sample_options.use_system_verilog(), rng));
-    for (const std::string& arg : sample_options.codegen_args().value()) {
-      if (arg == "--generator=pipeline") {
-        modified_options.generate_empty_tuples = false;
-        break;
-      }
-    }
+    sample_options_copy.set_codegen_args(
+        GenerateCodegenArgs(sample_options_copy.use_system_verilog(), rng));
   }
-  XLS_ASSIGN_OR_RETURN(std::string dslx_text, Generate(modified_options, rng));
+  XLS_ASSIGN_OR_RETURN(std::string dslx_text, Generate(generator_options, rng));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionType> fn_type,
                        GetFunctionType(dslx_text, "main"));
   std::vector<std::vector<InterpValue>> args_batch;
-  for (int64_t i = 0; i < calls_per_sample; ++i) {
+  for (int64_t i = 0; i < sample_options_copy.calls_per_sample(); ++i) {
     std::vector<const ConcreteType*> params;
     for (const auto& param : fn_type->params()) {
       params.push_back(param.get());
@@ -254,7 +241,7 @@ absl::StatusOr<Sample> GenerateSample(const AstGeneratorOptions& options,
                          GenerateArguments(params, rng));
     args_batch.push_back(std::move(args));
   }
-  return Sample(std::move(dslx_text), std::move(sample_options),
+  return Sample(std::move(dslx_text), std::move(sample_options_copy),
                 std::move(args_batch));
 }
 

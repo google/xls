@@ -14,18 +14,17 @@
 
 """Fuzzer generate-and-compare loop."""
 
+import datetime
+import hashlib
 import os
-import shutil
 import stat
 import subprocess
-import sys
-import tempfile
 import time
-from typing import Tuple, Text, Optional
+from typing import Text, Optional
 
 from absl import logging
-import termcolor
 
+from xls.common import gfile
 from xls.common import runfiles
 from xls.fuzzer import sample_runner
 from xls.fuzzer import sample_summary_pb2
@@ -225,45 +224,55 @@ def minimize_ir(smp: sample.Sample,
   return None
 
 
-def run_fuzz(
+def _save_crasher(run_dir: str, smp: sample.Sample,
+                  exception: sample_runner.SampleError, crasher_dir: str):
+  """Saves the sample into a new directory in the crasher directory."""
+  digest = hashlib.sha256(smp.input_text.encode('utf-8')).hexdigest()[:8]
+  sample_crasher_dir = os.path.join(crasher_dir, digest)
+  logging.info('Saving crasher to %s', sample_crasher_dir)
+  gfile.recursively_copy_dir(
+      run_dir, sample_crasher_dir, preserve_file_mask=True)
+  with gfile.open(os.path.join(sample_crasher_dir, 'exception.txt'), 'w') as f:
+    f.write(str(exception))
+  crasher_path = os.path.join(
+      sample_crasher_dir,
+      'crasher_{}_{}.x'.format(datetime.date.today().strftime('%Y-%m-%d'),
+                               digest[:4]))
+  with gfile.open(crasher_path, 'w') as f:
+    f.write(smp.to_crasher(str(exception)))
+
+
+def generate_sample_and_run(
     rng: ast_generator.RngState,
     ast_generator_options: ast_generator.AstGeneratorOptions,
-    calls_per_sample: int,
-    save_temps: bool,
-    sample_count: int,
-    codegen: bool,
-    simulate: bool = False,
-    return_samples: bool = False) -> Optional[Tuple[sample.Sample, ...]]:
-  """Runs a fuzzing loop for "sample_count" samples."""
-  samples = []
-  for i in range(sample_count):
-    smp = ast_generator.generate_sample(
-        ast_generator_options, calls_per_sample,
-        sample.SampleOptions(
-            input_is_dslx=True,
-            ir_converter_args=['--top=main'],
-            convert_to_ir=True,
-            optimize_ir=True,
-            codegen=codegen,
-            simulate=simulate), rng)
+    sample_options: sample.SampleOptions,
+    run_dir: str,
+    crasher_dir: Optional[str] = None,
+    summary_file: Optional[str] = None,
+    force_failure: bool = False) -> sample.Sample:
+  """Generates and runs a fuzzing sample."""
+  with sample_runner.Timer() as t:
+    smp = ast_generator.generate_sample(ast_generator_options, sample_options,
+                                        rng)
+  try:
+    run_sample(
+        smp,
+        run_dir,
+        summary_file=summary_file,
+        generate_sample_ns=t.elapsed_ns)
+    if force_failure:
+      raise sample_runner.SampleError('Forced sample failure.')
+  except sample_runner.SampleError as e:
+    logging.error('Sample failed: %s', str(e))
+    if crasher_dir is not None:
+      if not e.is_timeout:
+        logging.info('Attempting to minimize IR...')
+        ir_minimized = minimize_ir(smp, run_dir)
+        if ir_minimized:
+          logging.info('...minimization successful.')
+        else:
+          logging.info('...minimization failed.')
+      _save_crasher(run_dir, smp, e, crasher_dir)
+      raise e
 
-    if return_samples:
-      samples.append(smp)
-
-    termcolor.cprint('=== Sample {}'.format(i), color='yellow', file=sys.stderr)
-    for lineno, line in enumerate(smp.input_text.splitlines(), 1):
-      print('{:03d}: {}'.format(lineno, line))
-    print(smp.to_crasher('<sample {}>'.format(i)), file=sys.stderr)
-
-    sample_dir = tempfile.mkdtemp('run_fuzz_')
-    try:
-      run_sample(smp, sample_dir)
-    except Exception as e:
-      print(smp.to_crasher(str(e)), file=sys.stderr)
-      raise
-
-    if not save_temps:
-      shutil.rmtree(sample_dir)
-
-  if return_samples:
-    return tuple(samples)
+  return smp

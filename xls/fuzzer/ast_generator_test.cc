@@ -60,7 +60,6 @@ absl::Status ParseAndTypecheck(absl::string_view text,
 TEST(AstGeneratorTest, GeneratesValidFunctions) {
   std::mt19937 rng(0);
   AstGeneratorOptions options;
-  options.short_samples = true;
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, &rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
@@ -79,7 +78,6 @@ TEST(AstGeneratorTest, GeneratesValidProcs) {
   std::mt19937 rng(0);
   AstGeneratorOptions options;
   options.generate_proc = true;
-  options.short_samples = true;
   for (int64_t i = 0; i < 32; ++i) {
     AstGenerator g(options, &rng);
     XLS_LOG(INFO) << "Generating sample: " << i;
@@ -111,7 +109,6 @@ TEST(AstGeneratorTest, GeneratesParametricBindings) {
 // Helper function that is used in a TEST_P so we can shard the work.
 static void TestRepeatable(int64_t seed) {
   AstGeneratorOptions options;
-  options.short_samples = true;
   // Capture first output at a given seed for comparison.
   std::optional<std::string> first;
   // Try 32 generations at a given seed.

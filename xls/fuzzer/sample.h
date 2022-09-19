@@ -66,6 +66,7 @@ class SampleOptions {
   }
   bool use_system_verilog() const { return use_system_verilog_; }
   std::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
+  int64_t calls_per_sample() const { return calls_per_sample_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
   void set_ir_converter_args(const std::vector<std::string>& value) {
@@ -78,6 +79,7 @@ class SampleOptions {
   }
   void set_use_system_verilog(bool value) { use_system_verilog_ = value; }
   void set_timeout_seconds(int64_t value) { timeout_seconds_ = value; }
+  void set_calls_per_sample(int64_t value) { calls_per_sample_ = value; }
 
   bool operator==(const SampleOptions& other) const {
     return ToJson() == other.ToJson();
@@ -117,6 +119,8 @@ class SampleOptions {
   // opt_main). This is a per-subcommand invocation timeout *NOT* a timeout
   // value for the entire sample run.
   std::optional<int64_t> timeout_seconds_;
+  // Number of times to invoke the generated function.
+  int64_t calls_per_sample_ = 1;
 };
 
 // Abstraction describing a fuzzer code sample and how to run it.

@@ -387,7 +387,8 @@ class SampleRunner:
                   options: sample.SampleOptions) -> Text:
     """Converts the DSLX file to an IR file whose filename is returned."""
     args = [IR_CONVERTER_MAIN_PATH]
-    args.extend(options.ir_converter_args)
+    if options.ir_converter_args:
+      args.extend(options.ir_converter_args)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)

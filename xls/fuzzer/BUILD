@@ -44,7 +44,7 @@ py_library(
     deps = [
         ":sample_runner",
         ":sample_summary_py_pb2",
-        requirement("termcolor"),
+        "//xls/common:gfile",
         "//xls/common:runfiles",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
@@ -53,22 +53,9 @@ py_library(
 )
 
 py_test(
-    name = "run_fuzz_smoke_test",
-    srcs = ["run_fuzz_smoke_test.py"],
-    data = glob(["testdata/run_fuzz_test*.x"]),
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":run_fuzz",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "@com_google_absl_py//absl/testing:absltest",
-    ],
-)
-
-py_test(
     name = "run_fuzz_test",
     srcs = ["run_fuzz_test.py"],
-    data = glob(["testdata/run_fuzz_test.*.x"]) + [
+    data = [
         "//xls/tools:parse_ir",
     ],
     python_version = "PY3",
@@ -82,48 +69,22 @@ py_test(
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
 
 py_test(
-    name = "run_fuzz_test_no_codegen",
-    srcs = ["run_fuzz_test.py"],
-    args = ["--codegen=false"],
-    data = glob(["testdata/run_fuzz_test_no_codegen*.x"]) + [
-        "//xls/tools:parse_ir",
-    ],
-    main = "run_fuzz_test.py",
+    name = "run_fuzz_codegen_test",
+    srcs = ["run_fuzz_codegen_test.py"],
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
     tags = ["optonly"],  # Times out in fastbuild TAP 2020-10-20.
     deps = [
         ":run_fuzz",
-        ":sample_runner",
-        "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/flags",
-        "@com_google_absl_py//absl/testing:parameterized",
-    ],
-)
-
-py_test(
-    name = "run_fuzz_shll_test",
-    srcs = ["run_fuzz_shll_test.py"],
-    data = glob(["testdata/run_fuzz_shll_test*.x"]),
-    python_version = "PY3",
-    shard_count = 50,
-    srcs_version = "PY3",
-    tags = ["optonly"],
-    deps = [
-        ":run_fuzz",
-        "//xls/dslx/python:ast",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
@@ -269,21 +230,6 @@ py_binary(
     ],
 )
 
-py_binary(
-    name = "run_fuzz_multiprocess_benchmark",
-    srcs = ["run_fuzz_multiprocess_benchmark.py"],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        ":run_fuzz",
-        ":run_fuzz_multiprocess_lib",
-        "//xls/fuzzer/python:cpp_ast_generator",
-        "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl:app",
-        "@com_google_absl_py//absl/flags",
-    ],
-)
-
 py_test(
     name = "sample_test",
     srcs = ["sample_test.py"],
@@ -292,7 +238,6 @@ py_test(
     deps = [
         "//xls/dslx/python:interp_value",
         "//xls/fuzzer/python:cpp_sample",
-        "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
     ],
 )
@@ -499,7 +444,6 @@ py_test(
         ":cli_helpers",
         ":run_fuzz",
         ":sample_runner",
-        "//xls/common:gfile",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
         "@com_google_absl_py//absl/flags",
