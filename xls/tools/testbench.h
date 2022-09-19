@@ -287,7 +287,7 @@ class TestbenchBase {
         static_cast<double>(total_done - num_samples_processed_) /
         ToInt64Seconds(kPrintInterval);
     std::cout << absl::StreamFormat(
-                     "--- ^ after %s elapsed; %.2f Misamples/s; estimate %s "
+                     "--- ^ after %s elapsed; %f Misamples/s; estimate %s "
                      "remaining ...",
                      absl::FormatDuration(delta),
                      throughput_this_print / std::pow(2, 20),

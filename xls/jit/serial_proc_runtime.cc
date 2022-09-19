@@ -156,8 +156,8 @@ absl::Status SerialProcRuntime::Init() {
   for (int i = 0; i < package_->procs().size(); i++) {
     auto thread = std::make_unique<ThreadData>();
     Proc* proc = package_->procs()[i].get();
-    XLS_ASSIGN_OR_RETURN(
-        thread->jit, ProcJit::Create(proc, queue_mgr_.get(), &RecvFn, &SendFn));
+    XLS_ASSIGN_OR_RETURN(thread->jit, ProcJit::Create(proc, queue_mgr_.get(),
+                                                      &RecvFn, &SendFn, 0));
 
     absl::MutexLock lock(&thread->mutex);
     thread->thread_state = ThreadData::State::kPending;

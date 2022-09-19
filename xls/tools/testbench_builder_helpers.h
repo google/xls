@@ -44,7 +44,7 @@ namespace internal {
 ////////////////////////////////////////////////////
 template <typename ValueT>
 void GenerateRandomValue(absl::BitGen& gen, int64_t index, ValueT* value) {
-  *value = absl::Uniform<ValueT>(gen);
+  // Fallback case - unknown ValueT. Do nothing.
 }
 
 template <>
