@@ -201,10 +201,10 @@ class TestbenchBase {
     // Wait for all to be ready.
     bool all_ready = false;
     while (!all_ready) {
-      int num_ready = 0;
+      int64_t num_ready = 0;
       wake_me_.Wait(&mutex_);
 
-      for (int i = 0; i < threads_.size(); i++) {
+      for (int64_t i = 0; i < threads_.size(); i++) {
         if (threads_[i]->ready()) {
           num_ready++;
         }
@@ -222,13 +222,13 @@ class TestbenchBase {
     // Now monitor them.
     bool done = false;
     while (!done) {
-      int num_done = 0;
+      int64_t num_done = 0;
       wake_me_.WaitWithTimeout(&mutex_, kPrintInterval);
 
       PrintStatus();
 
       // See if everyone's done or if someone blew up.
-      for (int i = 0; i < threads_.size(); i++) {
+      for (int64_t i = 0; i < threads_.size(); i++) {
         if (!threads_[i]->running()) {
           num_done++;
           absl::Status status = threads_[i]->status();

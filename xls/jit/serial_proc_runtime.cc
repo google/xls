@@ -217,6 +217,17 @@ absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
   return absl::OkStatus();
 }
 
+absl::Status SerialProcRuntime::EnqueueBufferToChannel(
+    Channel* channel, absl::Span<uint8_t const> buffer) {
+  ProcJit* jit = threads_.front()->jit.get();
+  int64_t size = jit->type_converter()->GetTypeByteSize(channel->type());
+  XLS_RET_CHECK_GE(buffer.size(), size);
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr()->GetQueueById(channel->id()));
+  queue->Send(buffer.data(), size);
+  return absl::OkStatus();
+}
+
 absl::StatusOr<std::optional<Value>> SerialProcRuntime::DequeueValueFromChannel(
     Channel* channel) {
   Type* type = channel->type();
@@ -234,6 +245,24 @@ absl::StatusOr<std::optional<Value>> SerialProcRuntime::DequeueValueFromChannel(
   }
 
   return jit->runtime()->UnpackBuffer(buffer.get(), type);
+}
+
+absl::StatusOr<bool> SerialProcRuntime::DequeueBufferFromChannel(
+    Channel* channel, absl::Span<uint8_t> buffer) {
+  Type* type = channel->type();
+
+  XLS_RET_CHECK(!threads_.empty());
+  ProcJit* jit = threads_.front()->jit.get();
+  int64_t size = jit->type_converter()->GetTypeByteSize(type);
+  XLS_RET_CHECK_GE(buffer.size(), size);
+
+  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
+                       queue_mgr()->GetQueueById(channel->id()));
+  bool had_data = queue->Recv(buffer.data(), size);
+  if (!had_data) {
+    return false;
+  }
+  return true;
 }
 
 int64_t SerialProcRuntime::NumProcs() const { return threads_.size(); }

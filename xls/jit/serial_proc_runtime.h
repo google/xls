@@ -50,12 +50,16 @@ class SerialProcRuntime {
   // Enqueues the given set of values into the given channel. 'values' must
   // match the number and type of the data elements of the channel.
   absl::Status EnqueueValueToChannel(Channel* channel, const Value& value);
+  absl::Status EnqueueBufferToChannel(Channel* channel,
+                                      absl::Span<uint8_t const> buffer);
 
   // Dequeues a set of values into the given channel. The number and type of the
   // returned values matches the number and type of the data elements of the
   // channel. If the queue is empty, absl::nullopt is returned.
   absl::StatusOr<std::optional<Value>> DequeueValueFromChannel(
       Channel* channel);
+  absl::StatusOr<bool> DequeueBufferFromChannel(Channel* channel,
+                                                absl::Span<uint8_t> buffer);
 
   // Returns the current number of procs in this runtime.
   int64_t NumProcs() const;
