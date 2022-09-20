@@ -62,9 +62,10 @@ bool IsBitsCompare(Node* node) {
   return OpIsCompare(node->op()) && node->operand(0)->GetType()->IsBits();
 }
 
-// Matches the given node to the following expression:
+// Matches the given node to the following expressions:
 //
 //  Select(UGt(x, LIMIT), cases=[x, LIMIT])
+//  Select(UGt(x, LIMIT), cases=[x], default=LIMIT)
 //
 // Where LIMIT is a literal. Returns a ClampExpr containing 'x' and 'LIMIT'
 // values.
@@ -78,13 +79,24 @@ std::optional<ClampExpr> MatchClampUpperLimit(Node* n) {
   }
   Select* select = n->As<Select>();
   Node* cmp = select->selector();
-  if (select->selector()->op() == Op::kUGt && cmp->operand(1)->Is<Literal>() &&
-      cmp->operand(1) == select->get_case(1) &&
-      cmp->operand(0) == select->get_case(0)) {
-    return ClampExpr{cmp->operand(0),
-                     select->get_case(1)->As<Literal>()->value().bits()};
+  int total_cases =
+      select->cases().size() + (select->default_value().has_value() ? 1 : 0);
+  if (total_cases != 2) {
+    return std::nullopt;
   }
-  return absl::nullopt;
+  Node* consequent = select->get_case(0);
+  Node* alternative;
+  if (select->default_value().has_value()) {
+    alternative = *select->default_value();
+  } else {
+    alternative = select->get_case(1);
+  }
+  if (select->selector()->op() == Op::kUGt && alternative->Is<Literal>() &&
+      cmp->operand(1) == alternative && cmp->operand(0) == consequent) {
+    return ClampExpr{cmp->operand(0),
+                     alternative->As<Literal>()->value().bits()};
+  }
+  return std::nullopt;
 }
 
 // MatchArithPatterns matches simple tree patterns to find opportunities
