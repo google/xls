@@ -39,7 +39,7 @@ jobs:
         # TODO(leary): 2020-08-28 Can remove some of these "lighter weight"
         # options as we understand why GitHub action jobs are getting killed.
         run: |
-          "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=1024 --codegen=false --simulate=false --short_samples=false --emit_loops=False --summary_path "${GITHUB_WORKSPACE}/crashers"
+          "${GITHUB_WORKSPACE}/bin/bazel" run -c opt xls/fuzzer:run_fuzz_multiprocess -- --crash_path "${GITHUB_WORKSPACE}/crashers" --sample_count=1024 --codegen=false --simulate=false --emit_loops=False --summary_path "${GITHUB_WORKSPACE}/crashers"
       - name: Upload Fuzz Crashers
         uses: actions/upload-artifact@v2
         with:
