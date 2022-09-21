@@ -158,6 +158,9 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
       .verify_ir = verify_ir,
   };
   for (absl::string_view path : paths) {
+    if (path == "-") {
+      path = "/dev/stdin";
+    }
     XLS_RETURN_IF_ERROR(AddPathToPackage(
         path, top, top_proc_initial_state, convert_options, stdlib_path,
         dslx_paths, &package.value(), printed_error));
