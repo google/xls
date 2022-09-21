@@ -817,7 +817,7 @@ Examples:
         name = "a_opt_ir",
         src = "a.ir",
         opt_ir_args = {
-            "top" : "a",
+            "inline_procs" : "true",
         },
     )
     ```
