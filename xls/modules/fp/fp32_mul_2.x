@@ -12,12 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file implements most of bfloat16 single-precision addition.
-import xls.modules.apfloat_add_2
-import bfloat16
+// This file implements [most of] IEEE 754 single-precision
+// floating point multiplication, with the following exceptions:
+//  - Both input and output denormals are treated as/flushed to 0.
+//  - Only round-to-nearest mode is supported.
+//  - No exception flags are raised/reported.
+// In all other cases, results should be identical to other
+// conforming implementations (modulo exact fraction values in the NaN case).
+import float32
+import xls.modules.fp.apfloat_mul_2
 
-type BF16 = bfloat16::BF16;
+type F32 = float32::F32;
 
-pub fn bf16_add_2(x: BF16, y: BF16) -> BF16 {
-  apfloat_add_2::add<u32:8, u32:7>(x, y)
+pub fn fp32_mul_2(x: F32, y: F32) -> F32 {
+  apfloat_mul_2::apfloat_mul_2<u32:8, u32:23>(x, y)
 }

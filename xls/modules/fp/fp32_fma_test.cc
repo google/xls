@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Random-sampling test for the 64-bit FMA (fused multiply-add) module.
+// Random-sampling test for the 32-bit FMA (fused multiply-add) module.
 #include <cmath>
 
 #include "absl/flags/flag.h"
@@ -21,7 +21,7 @@
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/math_util.h"
-#include "xls/modules/fp64_fma_jit_wrapper.h"
+#include "xls/modules/fp/fp32_fma_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -32,72 +32,72 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-using Float3x64 = std::tuple<double, double, double>;
+using Float3x32 = std::tuple<float, float, float>;
 
-uint64_t fp_sign(uint64_t f) { return f >> 63; }
+uint32_t fp_sign(uint32_t f) { return f >> 31; }
 
-uint64_t fp_exp(uint64_t f) { return (f >> 52) & 0x7ff; }
+uint32_t fp_exp(uint32_t f) { return (f >> 23) & 0xff; }
 
-uint64_t fp_fraction(uint64_t f) { return f & 0xfffffffffffffull; }
+uint32_t fp_fraction(uint32_t f) { return f & 0x7fffff; }
 
-Float3x64 IndexToInput(uint64_t index) {
+Float3x32 IndexToInput(uint64_t index) {
   // Skip subnormal inputs - we currently don't handle them.
   thread_local absl::BitGen bitgen;
   auto generate_non_subnormal = []() {
-    uint64_t value = 0;
+    uint32_t value = 0;
     while (fp_exp(value) == 0) {
-      value = absl::Uniform(bitgen, 0u, std::numeric_limits<uint64_t>::max());
+      value = absl::Uniform(bitgen, 0u, std::numeric_limits<uint32_t>::max());
     }
     return value;
   };
 
-  uint64_t a = generate_non_subnormal();
-  uint64_t b = generate_non_subnormal();
-  uint64_t c = generate_non_subnormal();
-  return Float3x64(absl::bit_cast<double>(a), absl::bit_cast<double>(b),
-                   absl::bit_cast<double>(c));
+  uint32_t a = generate_non_subnormal();
+  uint32_t b = generate_non_subnormal();
+  uint32_t c = generate_non_subnormal();
+  return Float3x32(absl::bit_cast<float>(a), absl::bit_cast<float>(b),
+                   absl::bit_cast<float>(c));
 }
 
-double ComputeExpected(Fp64Fma* jit_wrapper, Float3x64 input) {
-  return fma(std::get<0>(input), std::get<1>(input), std::get<2>(input));
+float ComputeExpected(Fp32Fma* jit_wrapper, Float3x32 input) {
+  return fmaf(std::get<0>(input), std::get<1>(input), std::get<2>(input));
 }
 
-double ComputeActual(Fp64Fma* jit_wrapper, Float3x64 input) {
-  double result =
+float ComputeActual(Fp32Fma* jit_wrapper, Float3x32 input) {
+  float result =
       jit_wrapper
           ->Run(std::get<0>(input), std::get<1>(input), std::get<2>(input))
           .value();
   return result;
 }
 
-bool CompareResults(double a, double b) {
+bool CompareResults(float a, float b) {
   return a == b || (std::isnan(a) && std::isnan(b)) ||
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-std::string PrintDouble(double a) {
-  uint64_t a_int = absl::bit_cast<uint64_t>(a);
+std::string PrintFloat(float a) {
+  uint32_t a_int = absl::bit_cast<uint32_t>(a);
   return absl::StrFormat("0x%016x (0x%01x, 0x%03x, 0x%013x)", a_int,
                          fp_sign(a_int), fp_exp(a_int), fp_fraction(a_int));
 }
 
-std::string PrintInput(const Float3x64& input) {
+std::string PrintInput(const Float3x32& input) {
   return absl::StrFormat(
       "  A       : %s\n"
       "  B       : %s\n"
       "  C       : %s",
-      PrintDouble(std::get<0>(input)), PrintDouble(std::get<1>(input)),
-      PrintDouble(std::get<2>(input)));
+      PrintFloat(std::get<0>(input)), PrintFloat(std::get<1>(input)),
+      PrintFloat(std::get<2>(input)));
 }
 
 absl::Status RealMain(int64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float3x64, double, Fp64Fma> builder(
+  TestbenchBuilder<Float3x32, float, Fp32Fma> builder(
       ComputeExpected, ComputeActual,
-      []() { return Fp64Fma::Create().value(); });
+      []() { return Fp32Fma::Create().value(); });
   builder.SetCompareResultsFn(CompareResults)
       .SetIndexToInputFn(IndexToInput)
       .SetPrintInputFn(PrintInput)
-      .SetPrintResultFn(PrintDouble)
+      .SetPrintResultFn(PrintFloat)
       .SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

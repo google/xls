@@ -17,8 +17,8 @@
 #include "xls/common/status/matchers.h"
 #include "xls/ir/bits.h"
 #include "xls/ir/value.h"
-#include "xls/modules/fp32_add_2_cc.h"
-#include "xls/modules/fp32_fma_cc.h"
+#include "xls/modules/fp/fp32_add_2_cc.h"
+#include "xls/modules/fp/fp32_fma_cc.h"
 
 // Rather than do a pattern-matching unit test of aot_compile.cc's output, this
 // "unit test" focuses on using libraries compiled from such.

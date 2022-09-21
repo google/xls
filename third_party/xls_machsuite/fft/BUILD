@@ -36,12 +36,9 @@ xls_dslx_library(
     ],
     tags = ["optonly"],
     deps = [
-        "//xls/modules:apfloat_add_2_dslx",
-        "//xls/modules:apfloat_mul_2_dslx",
-        "//xls/modules:apfloat_sub_2_dslx",
-        "//xls/modules:fp32_add_2_dslx",
-        "//xls/modules:fp32_mul_2_dslx",
-        "//xls/modules:fp32_sub_2_dslx",
+        "//xls/modules/fp:fp32_add_2_dslx",
+        "//xls/modules/fp:fp32_mul_2_dslx",
+        "//xls/modules/fp:fp32_sub_2_dslx",
     ],
 )
 

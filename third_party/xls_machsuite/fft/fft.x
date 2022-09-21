@@ -36,9 +36,9 @@
 import float32
 import std
 import third_party.xls_machsuite.fft.test_data.dslx_test_data
-import xls.modules.fp32_add_2
-import xls.modules.fp32_sub_2
-import xls.modules.fp32_mul_2
+import xls.modules.fp.fp32_add_2
+import xls.modules.fp.fp32_sub_2
+import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
 

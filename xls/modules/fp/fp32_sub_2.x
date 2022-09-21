@@ -19,9 +19,8 @@
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-import xls.modules.apfloat_sub_2
-import xls.modules.fp32_add_2
 import float32
+import xls.modules.fp.apfloat_sub_2
 
 type F32 = float32::F32;
 

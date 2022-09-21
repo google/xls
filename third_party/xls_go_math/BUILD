@@ -22,10 +22,10 @@ xls_dslx_library(
     name = "fpexp_32_dslx",
     srcs = ["fpexp_32.x"],
     deps = [
-        "//xls/modules:fp32_add_2_dslx",
-        "//xls/modules:fp32_ldexp_dslx",
-        "//xls/modules:fp32_mul_2_dslx",
-        "//xls/modules:fp32_sub_2_dslx",
+        "//xls/modules/fp:fp32_add_2_dslx",
+        "//xls/modules/fp:fp32_ldexp_dslx",
+        "//xls/modules/fp:fp32_mul_2_dslx",
+        "//xls/modules/fp:fp32_sub_2_dslx",
         "//third_party/xls_berkeley_softfloat:fpdiv_2x32_dslx",
     ],
 )
@@ -89,9 +89,9 @@ xls_dslx_library(
     name = "fp_trig_reduce_dslx",
     srcs = ["fp_trig_reduce.x"],
     deps = [
-        "//xls/modules:apfloat_add_2_dslx",
-        "//xls/modules:apfloat_mul_2_dslx",
-        "//xls/modules:apfloat_sub_2_dslx",
+        "//xls/modules/fp:apfloat_add_2_dslx",
+        "//xls/modules/fp:apfloat_mul_2_dslx",
+        "//xls/modules/fp:apfloat_sub_2_dslx",
     ],
 )
 
@@ -100,9 +100,9 @@ xls_dslx_library(
     srcs = ["fp_sincos_32.x"],
     deps = [
         ":fp_trig_reduce_dslx",
-        "//xls/modules:fp32_add_2_dslx",
-        "//xls/modules:fp32_mul_2_dslx",
-        "//xls/modules:fp32_sub_2_dslx",
+        "//xls/modules/fp:fp32_add_2_dslx",
+        "//xls/modules/fp:fp32_mul_2_dslx",
+        "//xls/modules/fp:fp32_sub_2_dslx",
     ],
 )
 

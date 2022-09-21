@@ -21,7 +21,7 @@
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
 import apfloat
-import xls.modules.apfloat_add_2
+import xls.modules.fp.apfloat_add_2
 
 type APFloat = apfloat::APFloat;
 

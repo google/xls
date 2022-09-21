@@ -59,8 +59,8 @@ ABSL_FLAG(
 
 namespace xls {
 
-constexpr const char kIrPath[] = "xls/modules/fp32_add_2.ir";
-constexpr const char kOptIrPath[] = "xls/modules/fp32_add_2.opt.ir";
+constexpr const char kIrPath[] = "xls/modules/fp/fp32_add_2.ir";
+constexpr const char kOptIrPath[] = "xls/modules/fp/fp32_add_2.opt.ir";
 constexpr const char kFunctionName[] = "__fp32_add_2__fp32_add_2";
 
 using solvers::z3::IrTranslator;

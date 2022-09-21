@@ -19,8 +19,8 @@
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-import xls.modules.apfloat_add_2
 import float64
+import xls.modules.fp.apfloat_add_2
 
 type F64 = float64::F64;
 pub fn fp64_add_2(x: F64, y: F64) -> F64 {

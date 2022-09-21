@@ -14,7 +14,7 @@
 
 // Unit tests for the JIT wrapper using fp32_add_2 as a basis.
 
-#include "xls/modules/fp32_add_2_jit_wrapper.h"
+#include "xls/modules/fp/fp32_add_2_jit_wrapper.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"

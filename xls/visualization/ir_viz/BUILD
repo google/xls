@@ -30,7 +30,7 @@ filegroup(
     name = "ir_examples",
     srcs = [
         "//xls/examples:ir_examples",
-        "//xls/modules:ir_examples",
+        "//xls/modules/fp:ir_examples",
     ],
 )
 

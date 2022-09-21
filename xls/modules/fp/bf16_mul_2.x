@@ -12,18 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file implements [most of] IEEE 754 single-precision
-// floating point multiplication, with the following exceptions:
-//  - Both input and output denormals are treated as/flushed to 0.
-//  - Only round-to-nearest mode is supported.
-//  - No exception flags are raised/reported.
-// In all other cases, results should be identical to other
-// conforming implementations (modulo exact fraction values in the NaN case).
-import xls.modules.apfloat_mul_2
-import float64
+// bfloat16 instantiation of the floating-point multiplier.
+import xls.modules.fp.apfloat_mul_2
+import bfloat16
 
-type F64 = float64::F64;
+type BF16 = bfloat16::BF16;
 
-pub fn fp64_mul_2(x: F64, y: F64) -> F64 {
-  apfloat_mul_2::apfloat_mul_2<u32:11, u32:52>(x, y)
+fn bf16_mul_2(x: BF16, y: BF16) -> BF16 {
+  apfloat_mul_2::apfloat_mul_2<u32:8, u32:7>(x, y)
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Random-sampling test for the DSLX 2x64 floating-point adder.
+// Random-sampling test for the DSLX 2x32 floating-point adder.
 #include <cmath>
 #include <limits>
 
@@ -25,7 +25,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
-#include "xls/modules/fp64_add_2_jit_wrapper.h"
+#include "xls/modules/fp/fp32_add_2_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -36,36 +36,36 @@ ABSL_FLAG(int64_t, num_samples, 1024 * 1024,
 
 namespace xls {
 
-using Float2x64 = std::tuple<double, double>;
+using Float2x32 = std::tuple<float, float>;
 
 // The DSLX implementation uses the "round to nearest (half to even)"
 // rounding mode, which is the default on most systems, hence we don't need
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-double ComputeExpected(Fp64Add2* jit_wrapper, Float2x64 input) {
-  double x = FlushSubnormal(std::get<0>(input));
-  double y = FlushSubnormal(std::get<1>(input));
+float ComputeExpected(Fp32Add2* jit_wrapper, Float2x32 input) {
+  float x = FlushSubnormal(std::get<0>(input));
+  float y = FlushSubnormal(std::get<1>(input));
   return x + y;
 }
 
 // Computes FP addition via DSLX & the JIT.
-double ComputeActual(Fp64Add2* jit_wrapper, Float2x64 input) {
+float ComputeActual(Fp32Add2* jit_wrapper, Float2x32 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
 // Compares expected vs. actual results, taking into account two special cases.
-bool CompareResults(double a, double b) {
+bool CompareResults(float a, float b) {
   // DSLX flushes subnormal outputs, while regular FP addition does not, so
   // just check for that here.
   return a == b || (std::isnan(a) && std::isnan(b)) ||
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-std::unique_ptr<Fp64Add2> CreateJit() { return Fp64Add2::Create().value(); }
+std::unique_ptr<Fp32Add2> CreateJit() { return Fp32Add2::Create().value(); }
 
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float2x64, double, Fp64Add2> builder(
+  TestbenchBuilder<Float2x32, float, Fp32Add2> builder(
       ComputeExpected, ComputeActual, CreateJit);
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {

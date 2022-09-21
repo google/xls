@@ -96,10 +96,10 @@
 import std
 import float32
 import third_party.xls_berkeley_softfloat.fpdiv_2x32
-import xls.modules.fp32_add_2
-import xls.modules.fp32_ldexp
-import xls.modules.fp32_mul_2
-import xls.modules.fp32_sub_2
+import xls.modules.fp.fp32_add_2
+import xls.modules.fp.fp32_ldexp
+import xls.modules.fp.fp32_mul_2
+import xls.modules.fp.fp32_sub_2
 
 type F32 = float32::F32;
 

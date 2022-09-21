@@ -20,8 +20,8 @@
 //  - No exception flags are raised/reported.
 // In all other cases, results should be identical to other
 // conforming implementations (modulo exact fraction values in the NaN case).
-import xls.modules.apfloat_fma
 import float64
+import xls.modules.fp.apfloat_fma
 
 type F64 = float64::F64;
 pub fn fp64_fma(a: F64, b: F64, c: F64) -> F64 {

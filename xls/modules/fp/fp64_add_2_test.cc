@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Random-sampling test for the DSLX 2x64 floating-point multiplier.
+// Random-sampling test for the DSLX 2x64 floating-point adder.
 #include <cmath>
-#include <tuple>
+#include <limits>
 
+#include "absl/flags/flag.h"
 #include "absl/random/random.h"
 #include "absl/status/status.h"
-#include "xls/common/file/get_runfile_path.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/math_util.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/ir/value_view_helpers.h"
-#include "xls/modules/fp64_mul_2_jit_wrapper.h"
+#include "xls/modules/fp/fp64_add_2_jit_wrapper.h"
 #include "xls/tools/testbench.h"
 #include "xls/tools/testbench_builder.h"
 
@@ -37,31 +38,19 @@ namespace xls {
 
 using Float2x64 = std::tuple<double, double>;
 
-double FlushSubnormals(double value) {
-  if (std::fpclassify(value) == FP_SUBNORMAL) {
-    return 0;
-  }
-
-  return value;
-}
-
-bool ZeroOrSubnormal(double value) {
-  return value == 0 || std::fpclassify(value) == FP_SUBNORMAL;
-}
-
 // The DSLX implementation uses the "round to nearest (half to even)"
 // rounding mode, which is the default on most systems, hence we don't need
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-double ComputeExpected(Fp64Mul2* jit_wrapper, Float2x64 input) {
-  double x = FlushSubnormals(std::get<0>(input));
-  double y = FlushSubnormals(std::get<1>(input));
-  return x * y;
+double ComputeExpected(Fp64Add2* jit_wrapper, Float2x64 input) {
+  double x = FlushSubnormal(std::get<0>(input));
+  double y = FlushSubnormal(std::get<1>(input));
+  return x + y;
 }
 
 // Computes FP addition via DSLX & the JIT.
-double ComputeActual(Fp64Mul2* jit_wrapper, Float2x64 input) {
+double ComputeActual(Fp64Add2* jit_wrapper, Float2x64 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
@@ -73,10 +62,11 @@ bool CompareResults(double a, double b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
+std::unique_ptr<Fp64Add2> CreateJit() { return Fp64Add2::Create().value(); }
+
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float2x64, double, Fp64Mul2> builder(
-      ComputeActual, ComputeExpected,
-      []() { return Fp64Mul2::Create().value(); });
+  TestbenchBuilder<Float2x64, double, Fp64Add2> builder(
+      ComputeExpected, ComputeActual, CreateJit);
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

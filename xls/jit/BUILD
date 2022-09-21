@@ -45,8 +45,8 @@ cc_test(
         "//xls/common/status:matchers",
         "//xls/ir:bits",
         "//xls/ir:value",
-        "//xls/modules:fp32_add_2_cc",
-        "//xls/modules:fp32_fma_cc",
+        "//xls/modules/fp:fp32_add_2_cc",
+        "//xls/modules/fp:fp32_fma_cc",
         "@com_google_googletest//:gtest",
     ],
 )

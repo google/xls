@@ -27,9 +27,9 @@ import float32
 import float64
 import std
 
-import xls.modules.apfloat_add_2
-import xls.modules.apfloat_sub_2
-import xls.modules.apfloat_mul_2
+import xls.modules.fp.apfloat_add_2
+import xls.modules.fp.apfloat_sub_2
+import xls.modules.fp.apfloat_mul_2
 
 type F32 = float32::F32;
 type F64 = float64::F64;

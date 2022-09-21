@@ -19,7 +19,7 @@
 // bit unwieldy; if we can use arrays-of-channels, that'll make things cleaner.
 
 import float32
-import xls.modules.fp32_mul_2
+import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
 

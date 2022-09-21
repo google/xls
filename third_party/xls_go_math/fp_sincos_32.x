@@ -81,9 +81,9 @@
 import std
 import float32
 
-import xls.modules.fp32_add_2
-import xls.modules.fp32_mul_2
-import xls.modules.fp32_sub_2
+import xls.modules.fp.fp32_add_2
+import xls.modules.fp.fp32_mul_2
+import xls.modules.fp.fp32_sub_2
 import third_party.xls_go_math.fp_trig_reduce
 
 type F32 = float32::F32;

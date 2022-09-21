@@ -16,7 +16,7 @@
 // `acc = a * b + acc`
 // This is, effectively, an FMA unit that stores its result between ticks.
 import apfloat
-import xls.modules.apfloat_fma
+import xls.modules.fp.apfloat_fma
 
 type APFloat = apfloat::APFloat;
 

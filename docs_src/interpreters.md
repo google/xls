@@ -67,14 +67,14 @@ invoked in nearly the same way, via the
 `eval_ir_main` supports a wide number of use cases, but the most common end-user
 case will be to run a sample through a design. To evaluate a sample (1.0 + 2.5)
 on the
-[floating-point adder](https://github.com/google/xls/tree/main/xls/modules/fp32_add_2.x),
+[floating-point adder](https://github.com/google/xls/tree/main/xls/modules/fp/fp32_add_2.x),
 one would run the following:
 
 ```
 bazel build -c opt //xls/tools:eval_ir_main
 ./bazel-bin/xls/tools/eval_ir_main \
   --input '(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)' \
-  ./xls/modules/fp32_add_2.x
+  ./xls/modules/fp/fp32_add_2.x
 ```
 
 By default, this runs via the JIT. To use the interpreter, add the

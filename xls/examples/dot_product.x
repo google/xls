@@ -17,8 +17,8 @@
 
 import std
 import float32
-import xls.modules.fp32_add_2
-import xls.modules.fp32_mul_2
+import xls.modules.fp.fp32_add_2
+import xls.modules.fp.fp32_mul_2
 
 type F32 = float32::F32;
 
