@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Fuzzer generate-and-compare loop."""
 
 import datetime
@@ -139,7 +138,8 @@ def run_sample(smp: sample.Sample,
 
 def minimize_ir(smp: sample.Sample,
                 run_dir: Text,
-                inject_jit_result: Optional[Text] = None) -> Optional[Text]:
+                inject_jit_result: Optional[Text] = None,
+                timeout: Optional[datetime.timedelta] = None) -> Optional[Text]:
   """Tries to minimize the IR of the given sample in the run directory.
 
   Writes a test script into the run_directory for testing the IR for the
@@ -150,6 +150,8 @@ def minimize_ir(smp: sample.Sample,
     smp: The sample to try to minimize.
     run_dir: The run directory the sample was run in.
     inject_jit_result: For testing only. Value to produce as the JIT result.
+    timeout: Timeout for running the minimizer.
+
   Returns:
     The path to the minimized IR file (created in the run directory), or None if
     minimization was not possible
@@ -173,14 +175,21 @@ def minimize_ir(smp: sample.Sample,
         'ir_minimizer_test.sh',
         f'#!/bin/sh\n! {" ".join(args)}',
         executable=True)
-    comp = subprocess.run([
-        IR_MINIMIZER_MAIN_PATH, '--logtostderr',
-        '--test_executable=ir_minimizer_test.sh', 'sample.ir'
-    ],
-                          cwd=run_dir,
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          check=False)
+    basename = os.path.basename(IR_MINIMIZER_MAIN_PATH)
+    stderr_path = os.path.join(run_dir, basename + '.stderr')
+    try:
+      with open(stderr_path, 'w') as f_stderr:
+        comp = subprocess.run([
+            IR_MINIMIZER_MAIN_PATH, '--logtostderr',
+            '--test_executable=ir_minimizer_test.sh', 'sample.ir'
+        ],
+                              cwd=run_dir,
+                              stdout=subprocess.PIPE,
+                              stderr=f_stderr,
+                              check=False,
+                              timeout=timeout.seconds if timeout else None)
+    except subprocess.TimeoutExpired:
+      return None
     if comp.returncode == 0:
       minimized_ir_path = os.path.join(run_dir, 'minimized.ir')
       with open(minimized_ir_path, 'wb') as f:
@@ -195,26 +204,40 @@ def minimize_ir(smp: sample.Sample,
       # (2) Run the minimization tool using this input as the test.
       extra_args = ['--test_only_inject_jit_result=' +
                     inject_jit_result] if inject_jit_result else []
-      comp = subprocess.run(
-          [FIND_FAILING_INPUT_MAIN, '--input_file=args.txt', 'sample.ir'] +
-          extra_args,
-          cwd=run_dir,
-          stdout=subprocess.PIPE,
-          stderr=subprocess.PIPE,
-          check=False)
+      basename = os.path.basename(FIND_FAILING_INPUT_MAIN)
+      stderr_path = os.path.join(run_dir, basename + '.stderr')
+      try:
+        with open(stderr_path, 'w') as f_stderr:
+          comp = subprocess.run(
+              [FIND_FAILING_INPUT_MAIN, '--input_file=args.txt', 'sample.ir'] +
+              extra_args,
+              cwd=run_dir,
+              stdout=subprocess.PIPE,
+              stderr=f_stderr,
+              check=False,
+              timeout=timeout.seconds if timeout else None)
+      except subprocess.TimeoutExpired:
+        return None
       if comp.returncode == 0:
         # A failing input for JIT vs interpreter was found
         failed_input = comp.stdout.decode('utf-8')
-        comp = subprocess.run(
-            [
-                IR_MINIMIZER_MAIN_PATH, '--logtostderr', '--test_llvm_jit',
-                '--use_optimization_pipeline', '--input=' + failed_input,
-                'sample.ir'
-            ] + extra_args,
-            cwd=run_dir,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False)
+        basename = os.path.basename(IR_MINIMIZER_MAIN_PATH)
+        stderr_path = os.path.join(run_dir, basename + '_jit.stderr')
+        try:
+          with open(stderr_path, 'w') as f_stderr:
+            comp = subprocess.run(
+                [
+                    IR_MINIMIZER_MAIN_PATH, '--logtostderr', '--test_llvm_jit',
+                    '--use_optimization_pipeline', '--input=' + failed_input,
+                    'sample.ir'
+                ] + extra_args,
+                cwd=run_dir,
+                stdout=subprocess.PIPE,
+                stderr=f_stderr,
+                check=False,
+                timeout=timeout.seconds if timeout else None)
+        except subprocess.TimeoutExpired:
+          return None
         if comp.returncode == 0:
           minimized_ir_path = os.path.join(run_dir, 'minimized.ir')
           with open(minimized_ir_path, 'wb') as f:
@@ -265,14 +288,15 @@ def generate_sample_and_run(
   except sample_runner.SampleError as e:
     logging.error('Sample failed: %s', str(e))
     if crasher_dir is not None:
+      _save_crasher(run_dir, smp, e, crasher_dir)
       if not e.is_timeout:
         logging.info('Attempting to minimize IR...')
-        ir_minimized = minimize_ir(smp, run_dir)
+        ir_minimized = minimize_ir(
+            smp, crasher_dir, timeout=sample_options.timeout_seconds)
         if ir_minimized:
           logging.info('...minimization successful.')
         else:
           logging.info('...minimization failed.')
-      _save_crasher(run_dir, smp, e, crasher_dir)
       raise e
 
   return smp
