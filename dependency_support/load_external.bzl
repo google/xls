@@ -56,11 +56,11 @@ def load_external_repositories():
 
     git_repository(
         name = "boringssl",
-        commit = "4fb158925f7753d80fb858cb0239dff893ef9f15",  # 2021-11-01
-        remote = "https://github.com/google/boringssl.git",
-        shallow_since = "1635790430 +0000",
-        # Fix an out-of-bounds warning on GCC 12.
-        patches = ["@com_google_xls//dependency_support/boringssl:array-bounds.patch"],
+        # Commit date: 2022-09-14
+        # Note for updating: we need to use a commit from the main-with-bazel branch.
+        commit = "d345d68d5c4b5471290ebe13f090f1fd5b7e8f58",
+        remote = "https://boringssl.googlesource.com/boringssl",
+        shallow_since = "1663197646 +0000",
     )
 
     # Commit on 2021-12-03, current as of 2022-05-31
