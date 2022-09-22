@@ -2,6 +2,9 @@
 
 load(
     "//xls/build_rules:xls_build_defs.bzl",
+    "xls_benchmark_ir",
+    "xls_dslx_library",
+    "xls_dslx_opt_ir",
     "xls_dslx_test",
 )
 
@@ -48,4 +51,23 @@ cc_library(
     name = "fast_hsv2rgb",
     srcs = ["fast_hsv2rgb_32bit.c"],
     hdrs = ["fast_hsv2rgb.h"],
+)
+
+xls_dslx_library(
+    name = "hsv2rgb_dslx",
+    srcs = ["hsv2rgb.x"],
+    deps = [],
+)
+
+xls_dslx_opt_ir(
+    name = "hsv2rgb",
+    dslx_top = "hsv2rgb",
+    ir_file = "hsv2rgb.ir",
+    library = ":hsv2rgb_dslx",
+    opt_ir_file = "hsv2rgb.opt.ir",
+)
+
+xls_benchmark_ir(
+    name = "hsv2rgb_benchmark_ir",
+    src = ":hsv2rgb.ir",
 )
