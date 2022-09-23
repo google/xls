@@ -22,7 +22,7 @@ fn main(offset: u32) -> u32 {
   five() + four::result() + offset
 }
 
-#![test]
+#[test]
 fn test_main_value() {
   let _ = assert_eq(main(u32: 0), u32:15);
   let _ = assert_eq(main(u32: 1), u32:16);

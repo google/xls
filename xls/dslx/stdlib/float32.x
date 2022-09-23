@@ -92,7 +92,7 @@ pub fn tag(f: F32) -> FloatTag {
   apfloat::tag<u32:8, u32:23>(f)
 }
 
-#![test]
+#[test]
 fn normalize_test() {
   let expected = F32 {
       sign: u1:0, bexp: u8:0x12, fraction: u23:0x7e_dcba };
@@ -139,7 +139,7 @@ fn normalize_test() {
   ()
 }
 
-#![test]
+#[test]
 fn tag_test() {
   let _ = assert_eq(tag(F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
   let _ = assert_eq(tag(F32 { sign: u1:1, bexp: u8:0, fraction: u23:0 }), FloatTag::ZERO);
@@ -234,7 +234,7 @@ pub fn from_int32(x: s32) -> F32 {
   result
 }
 
-#![test]
+#[test]
 fn from_int32_test() {
   let expected = F32 { sign: u1:0, bexp: u8:0, fraction: u23:0 };
   let actual = from_int32(s32:0);

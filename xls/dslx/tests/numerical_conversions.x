@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![test]
+#[test]
 fn numerical_conversions() {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:0xfe;

@@ -25,7 +25,7 @@ fn main(x: u32) -> u5 {
   f(x) + g(x) + h(x)
 }
 
-#![test]
+#[test]
 fn main_test() {
   let x = u32:0xa000_0000;
   let want = u5:0b1010_0;

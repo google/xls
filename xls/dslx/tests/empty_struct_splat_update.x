@@ -19,7 +19,7 @@ fn main() -> Empty {
   Empty{..orig}
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(main(), Empty {})
 }

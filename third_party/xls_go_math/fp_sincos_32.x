@@ -252,7 +252,7 @@ pub fn fp_sincos_32(x: F32) -> (F32, F32) {
   result
 }
 
-#![test]
+#[test]
 fn test_fp_sincos_32() {
   let non_canonical_nan = float32::unflatten(
     float32::flatten(float32::qnan()) | u32:1);
@@ -285,7 +285,7 @@ pub fn fp_sin_32(x: F32) -> F32 {
   sin
 }
 
-#![test]
+#[test]
 fn test_fp_sin_32() {
   // Just testing that we got the wiring right.
   let _ = assert_eq(fp_sin_32(float32::zero(u1:0)),
@@ -299,7 +299,7 @@ pub fn fp_cos_32(x: F32) -> F32 {
   cos
 }
 
-#![test]
+#[test]
 fn test_fp_cos_32() {
   // Just testing that we got the wiring right.
   let _ = assert_eq(fp_cos_32(float32::zero(u1:0)),

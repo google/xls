@@ -54,7 +54,7 @@ fn main(s: PP32) -> u32 {
   s.x
 }
 
-#![test]
+#[test]
 fn test_funcs() {
   // make_point is type-parametric.
   let p = make_point(u2:1, u4:1);

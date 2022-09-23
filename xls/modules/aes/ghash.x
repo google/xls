@@ -64,7 +64,7 @@ pub fn gf128_mul(x: Block, y: Block) -> Block {
     u128_to_block(z_v.0)
 }
 
-#![test]
+#[test]
 fn gf128_mul_test() {
     // Test vectors were constructed by evaluation against a reference.
     // Mul by zero.
@@ -276,7 +276,7 @@ pub proc ghash {
 
 // General test of GHASH operation. Verified against the Go cipher package's
 // GCM implementation.
-#![test_proc()]
+#[test_proc()]
 proc ghash_test {
 	command_out: chan<Command> out;
     data_out: chan<Block> out;

@@ -18,7 +18,7 @@ fn main(i: u2) -> mod_simple_const_array_of_enums::MyEnum {
   mod_simple_const_array_of_enums::ENUMS[i]
 }
 
-#![test]
+#[test]
 fn main_test() {
   let _ = assert_eq(main(u2:0), mod_simple_const_array_of_enums::MyEnum::A);
   let _ = assert_eq(main(u2:1), mod_simple_const_array_of_enums::MyEnum::B);

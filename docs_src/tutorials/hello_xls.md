@@ -88,7 +88,7 @@ First, though, we need a test case for it to execute. Add the following to the
 end of your `hello_xls.x` file:
 
 ```dslx-snippet
-#![test]
+#[test]
 fn hello_test() {
   hello_xls("Hello, XLS!")
 }

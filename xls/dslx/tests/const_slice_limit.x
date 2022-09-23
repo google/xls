@@ -22,7 +22,7 @@ fn main(x: u32, lotsabits: LotsOfBits) -> LotsOfBits {
   lotsabits[:10] ++ x ++ lotsabits[42:SIZE_BITS]
 }
 
-#![test]
+#[test]
 fn test_main() {
   let want = LotsOfBits:0xdeadbeef << ((SIZE_BITS-s32:42) as LotsOfBits);
   assert_eq(want, main(u32:0xdeadbeef, LotsOfBits:0))

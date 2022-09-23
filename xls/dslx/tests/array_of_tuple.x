@@ -17,7 +17,7 @@ type Foo = (
   u32,
 );
 
-#![test]
+#[test]
 fn array_of_tuple_literal_test() {
   let xs = Foo[2]:[(u8:1, u32:2), (u8:3, u32:4)];
   let x0 = xs[0];
@@ -29,7 +29,7 @@ fn array_of_tuple_literal_test() {
   ()
 }
 
-#![test]
+#[test]
 fn array_of_tuple_type_annotation_test() {
   let xs: (u8, u32)[2] = [(u8:1, u32:2), (u8:3, u32:4)];
   let x0 = xs[u32:0];
@@ -41,7 +41,7 @@ fn array_of_tuple_type_annotation_test() {
   ()
 }
 
-#![test]
+#[test]
 fn multi_dimensional_array_of_tuple_type_annotation_test() {
   let xs: (u8, u32)[2][1] = [[(u8:1, u32:2), (u8:3, u32:4)]];
   let x0 = xs[u32:0][u32:0];

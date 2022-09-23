@@ -19,7 +19,7 @@ fn main(x: u32) -> u32 {
   }
 }
 
-#![test]
+#[test]
 fn main_test() {
   //let _ = assert_eq(u32:42, main(u32:24));
   let _ = assert_eq(u32:42, main(u32:42));

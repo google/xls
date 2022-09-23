@@ -21,7 +21,7 @@ fn main(x: u8) -> u8 {
   }(x)
 }
 
-#![test]
+#[test]
 fn main_test() {
   let _ = assert_eq(u8:0xba, main(u8:0xab));
   let _ = assert_eq(u8:0xdc, main(u8:0xcd));

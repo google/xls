@@ -118,7 +118,7 @@ pub fn fp_trig_reduce_32(x: F32) -> (u3, F32) {
 
 // This is just a smoke test validation - thorough validation will be achieved
 // for 32 bit trig_reduce by testing 32 bit sin/cos.
-#![test]
+#[test]
 fn fp_trig_reduce_32_test() {
   let num = float32::unflatten(u32:0x45492679);
   let (j, fraction) = fp_trig_reduce_32(num);
@@ -128,7 +128,7 @@ fn fp_trig_reduce_32_test() {
 }
 
 // 64-bit version of the above test for comparison.
-#![test]
+#[test]
 fn fp_trig_reduce_64_test() {
   let num = float64::unflatten(u64:0x40a924cf20000000);
   let (j, fraction) = fp_trig_reduce_64(num);

@@ -99,7 +99,7 @@ fn idct_row(s: s32[8]) -> s32[8] {
   result
 }
 
-#![test]
+#[test]
 fn idct_row_test() {
   let input = s32[8]:[0x17, 0xffffffff, 0xfffffffe, 0, 0, 0, 0, 0];
   let got = idct_row(input);
@@ -249,7 +249,7 @@ pub fn idct(f: s32[COEFF_PER_MCU]) -> s32[COEFF_PER_MCU] {
 }
 
 // Test case that has row0 populated with some values.
-#![test]
+#[test]
 fn idct0_test() {
   let input = s32[COEFF_PER_MCU]:[23, -1, -2, 0, ...];
   let want = s32[COEFF_PER_MCU]:[
@@ -266,7 +266,7 @@ fn idct0_test() {
 }
 
 // Test case that has row0 and (1, 1) populated with some values.
-#![test]
+#[test]
 fn idct1_test() {
   let input = s32[COEFF_PER_MCU]:[
     13, -7,  0,  0,  0,  0,  0,  0,  //
@@ -292,7 +292,7 @@ fn idct1_test() {
 }
 
 // Test case that has row0 and col0 populated with some values.
-#![test]
+#[test]
 fn idct2_test() {
   let input = s32[COEFF_PER_MCU]:[
     -166 ,-7, -4, -4,  0,  0,  0, 0,  //
@@ -319,7 +319,7 @@ fn idct2_test() {
 
 // Test case that is quite "busy" in the input space, even the highest
 // frequency value is non-zero.
-#![test]
+#[test]
 fn idct3_test() {
   let input = s32[COEFF_PER_MCU]:[
     -240 ,  8, -11,  47,  26,  -6,   0,  5,  //

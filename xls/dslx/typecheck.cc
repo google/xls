@@ -262,7 +262,7 @@ absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
   return imported_ctx;
 }
 
-// Checks a single #![test_proc()] construct.
+// Checks a single #[test_proc()] construct.
 absl::Status CheckTestProc(const TestProc* test_proc, Module* module,
                            DeduceCtx* ctx) {
   Proc* proc = test_proc->proc();

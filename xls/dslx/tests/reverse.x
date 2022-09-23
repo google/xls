@@ -23,7 +23,7 @@ fn main(x: u3) -> u3 {
 }
 
 // Reverse examples.
-#![test]
+#[test]
 fn test_reverse() {
   let _ = assert_eq(u3:0b100, main(u3:0b001));
   let _ = assert_eq(u3:0b001, main(u3:0b100));
@@ -35,13 +35,13 @@ fn test_reverse() {
 }
 
 // Reversing a value twice gets you the original value.
-#![quickcheck]
+#[quickcheck]
 fn prop_double_reverse(x: u32) -> bool {
   x == rev(rev(x))
 }
 
 // Reversing a value means that the lsb becomes the msb.
-#![quickcheck]
+#[quickcheck]
 fn prop_lsb_becomes_msb(x: u32) -> bool {
   let reversed_x = rev(x);
   x[0:1] == reversed_x[-1:]

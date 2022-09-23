@@ -74,7 +74,7 @@ pub fn fp32_ldexp(fraction: F32, exp: s32) -> F32 {
   result
 }
 
-#![test]
+#[test]
 fn fp32_ldexp_test() {
   // Test Special cases.
   let _ = assert_eq(fp32_ldexp(float32::zero(u1:0), s32:1),

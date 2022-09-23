@@ -54,7 +54,7 @@ proc strange_mather {
   }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc test_proc {
   terminator: chan<bool> out;
   p: chan<u32> out;

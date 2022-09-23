@@ -29,7 +29,7 @@ fn main(x: EnumType) -> bool {
   }(false)
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(false, main(EnumType::FIRST));
   let _ = assert_eq(true, main(EnumType::SECOND));

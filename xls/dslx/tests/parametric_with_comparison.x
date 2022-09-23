@@ -21,7 +21,7 @@ fn foo<A: u32, B: u32, C: u32 = if A > B { A } else { B }>(x: bits[A], y: bits[B
   }
 }
 
-#![test]
+#[test]
 fn parametric_with_comparison() {
   let A = u32:8;
   let B = u32:16;

@@ -27,7 +27,7 @@ fn main(x: u3, y: u3) -> s6 {
   (umul_2(x as u2, y as u2) as s6) + smul_3(x as s3, y as s3)
 }
 
-#![test]
+#[test]
 fn multiplies_test() {
   let _ = assert_eq(u4:0b1001, umul_2(u2:0b11, u2:0b11));
   let _ = assert_eq(u4:0b0001, umul_2(u2:0b01, u2:0b01));

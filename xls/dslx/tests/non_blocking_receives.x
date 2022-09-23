@@ -54,7 +54,7 @@ pub proc proc_main {
   next(tok: token) { () }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc test_main {
   terminator: chan<bool> out;
   in0: chan<u32> out;

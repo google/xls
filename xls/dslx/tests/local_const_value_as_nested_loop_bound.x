@@ -23,7 +23,7 @@ fn main(input: u32) -> u32 {
   }(u32:0)
 }
 
-#![test]
+#[test]
 fn local_test() {
   assert_eq(u32:8, main(u32:1))
 }

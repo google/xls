@@ -132,7 +132,7 @@ fn fft(real: F32[FFT_SIZE], img: F32[FFT_SIZE], real_twid: F32[FFT_HALF_SIZE],
   } ((real, img))
 }
 
-#![test]
+#[test]
 fn test_fft() {
   // Grab and format data.
   let real_in: F32[FFT_SIZE] =

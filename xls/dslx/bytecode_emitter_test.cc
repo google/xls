@@ -92,7 +92,7 @@ TEST(BytecodeEmitterTest, SimpleTranslation) {
 
 // Validates emission of AssertEq builtins.
 TEST(BytecodeEmitterTest, AssertEq) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn expect_fail() -> u32{
   let foo = u32:3;
   let _ = assert_eq(foo, u32:2);
@@ -165,7 +165,7 @@ fn expect_fail() -> u32{
 
 // Validates emission of Let nodes with structured bindings.
 TEST(BytecodeEmitterTest, DestructuringLet) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   let _ = assert_eq(a, u4:0);
@@ -264,7 +264,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeEmitterTest, Ternary) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn do_ternary() -> u32 {
   if true { u32:42 } else { u32:64 }
 })";
@@ -284,7 +284,7 @@ fn do_ternary() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, MatchSimpleArms) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn do_match() -> u32 {
   let x = u32:77;
   match x {
@@ -347,7 +347,7 @@ TEST(BytecodeEmitterTest, BytecodesFromString) {
 
 // Tests emission of all of the supported binary operators.
 TEST(BytecodeEmitterTest, Binops) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn binops_galore() {
   let a = u32:4;
   let b = u32:2;
@@ -430,7 +430,7 @@ fn binops_galore() {
 
 // Tests emission of all of the supported binary operators.
 TEST(BytecodeEmitterTest, Unops) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn unops() {
   let a = s32:32;
   let b = !a;
@@ -453,7 +453,7 @@ fn unops() {
 
 // Tests array creation.
 TEST(BytecodeEmitterTest, Arrays) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn arrays() -> u32[3] {
   let a = u32:32;
   u32[3]:[u32:0, u32:1, a]
@@ -476,7 +476,7 @@ fn arrays() -> u32[3] {
 
 // Tests emission of kIndex ops on arrays.
 TEST(BytecodeEmitterTest, IndexArray) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn index_array() -> u32 {
   let a = u32[3]:[0, 1, 2];
   let b = bits[32][3]:[3, 4, 5];
@@ -501,7 +501,7 @@ fn index_array() -> u32 {
 
 // Tests emission of kIndex ops on tuples.
 TEST(BytecodeEmitterTest, IndexTuple) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn index_tuple() -> u32 {
   let a = (u16:0, u32:1, u64:2);
   let b = (bits[128]:3, bits[32]:4);
@@ -526,7 +526,7 @@ fn index_tuple() -> u32 {
 
 // Tests a regular a[x:y] slice op.
 TEST(BytecodeEmitterTest, SimpleSlice) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn simple_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[16:32]
@@ -552,7 +552,7 @@ fn simple_slice() -> u16 {
 
 // Tests a slice from the start: a[-x:].
 TEST(BytecodeEmitterTest, NegativeStartSlice) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn negative_start_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[-16:]
@@ -578,7 +578,7 @@ fn negative_start_slice() -> u16 {
 
 // Tests a slice from the end: a[:-x].
 TEST(BytecodeEmitterTest, NegativeEndSlice) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn negative_end_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[:-16]
@@ -604,7 +604,7 @@ fn negative_end_slice() -> u16 {
 
 // Tests a slice from both ends: a[-x:-y].
 TEST(BytecodeEmitterTest, BothNegativeSlice) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn both_negative_slice() -> u8 {
   let a = u32:0xdeadbeef;
   a[-16:-8]
@@ -630,7 +630,7 @@ fn both_negative_slice() -> u8 {
 
 // Tests the width slice op.
 TEST(BytecodeEmitterTest, WidthSlice) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn width_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[u32:8 +: bits[16]]
@@ -657,7 +657,7 @@ TEST(BytecodeEmitterTest, LocalEnumRef) {
   VAL_2 = 2,
 }
 
-#![test]
+#[test]
 fn local_enum_ref() -> MyEnum {
   MyEnum::VAL_1
 }
@@ -688,7 +688,7 @@ TEST(BytecodeEmitterTest, ImportedEnumRef) {
   constexpr absl::string_view kBaseProgram = R"(
 import import_0
 
-#![test]
+#[test]
 fn imported_enum_ref() -> import_0::ImportedEnum {
   import_0::ImportedEnum::VAL_2
 }
@@ -724,7 +724,7 @@ TEST(BytecodeEmitterTest, ImportedConstant) {
   constexpr absl::string_view kBaseProgram = R"(
 import import_0
 
-#![test]
+#[test]
 fn imported_enum_ref() -> u3 {
   import_0::MY_CONST
 }
@@ -757,7 +757,7 @@ fn imported_enum_ref() -> u3 {
 TEST(BytecodeEmitterTest, HandlesConstRefs) {
   constexpr absl::string_view kProgram = R"(const kFoo = u32:100;
 
-#![test]
+#[test]
 fn handles_const_refs() -> u32 {
   let a = u32:200;
   a + kFoo
@@ -783,7 +783,7 @@ TEST(BytecodeEmitterTest, HandlesStructInstances) {
   y: u64,
 }
 
-#![test]
+#[test]
 fn handles_struct_instances() -> MyStruct {
   let x = u32:2;
   MyStruct { x: x, y: u64:3 }
@@ -805,7 +805,7 @@ TEST(BytecodeEmitterTest, HandlesAttr) {
   y: u64,
 }
 
-#![test]
+#[test]
 fn handles_attr() -> u64 {
   MyStruct { x: u32:0, y: u64:0xbeef }.y
 })";
@@ -821,7 +821,7 @@ fn handles_attr() -> u64 {
 }
 
 TEST(BytecodeEmitterTest, CastBitsToBits) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn cast_bits_to_bits() -> u64 {
   let a = s16:-4;
   a as u64
@@ -839,7 +839,7 @@ fn cast_bits_to_bits() -> u64 {
 }
 
 TEST(BytecodeEmitterTest, CastArrayToBits) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn cast_array_to_bits() -> u32 {
   let a = u8[4]:[0xc, 0xa, 0xf, 0xe];
   a as u32
@@ -856,7 +856,7 @@ fn cast_array_to_bits() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, CastBitsToArray) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn cast_bits_to_array() -> u8 {
   let a = u32:0x0c0a0f0e;
   let b = a as u8[4];
@@ -881,7 +881,7 @@ TEST(BytecodeEmitterTest, CastEnumToBits) {
   VAL_3 = 3,
 }
 
-#![test]
+#[test]
 fn cast_enum_to_bits() -> u3 {
   let a = MyEnum::VAL_3;
   a as u3
@@ -905,7 +905,7 @@ TEST(BytecodeEmitterTest, CastBitsToEnum) {
   VAL_3 = 3,
 }
 
-#![test]
+#[test]
 fn cast_bits_to_enum() -> MyEnum {
   let a = u3:2;
   a as MyEnum
@@ -928,7 +928,7 @@ TEST(BytecodeEmitterTest, HandlesSplatStructInstances) {
   z: u64,
 }
 
-#![test]
+#[test]
 fn handles_struct_instances() -> MyStruct {
   let a = u16:2;
   let b = MyStruct { z: u64:0xbeef, x: a, y: u32:3 };
@@ -1014,7 +1014,7 @@ fn has_params(x: u32, y: u64) -> u48 {
 
 TEST(BytecodeEmitterTest, Strings) {
   constexpr absl::string_view kProgram = R"(
-#![test]
+#[test]
 fn main() -> u8[13] {
   "tofu sandwich"
 })";
@@ -1037,7 +1037,7 @@ fn foo<N: u32>(x: uN[N]) -> uN[N] {
   x * x
 }
 
-#![test]
+#[test]
 fn main() -> u32 {
   let a = foo<u32:16>(u16:4);
   let b = foo(u32:8);
@@ -1066,7 +1066,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, SimpleFor) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn main() -> u32 {
   for (i, accum) : (u32, u32) in range(u32:0, u32:8) {
     accum + i
@@ -1120,7 +1120,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeEmitterTest, Range) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn main() -> u32[8] {
   let x = u32:8;
   let y = u32:16;
@@ -1137,7 +1137,7 @@ fn main() -> u32[8] {
 }
 
 TEST(BytecodeEmitterTest, ShlAndShr) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn main() -> u32 {
   let x = u32:8;
   let y = u32:16;
@@ -1175,7 +1175,7 @@ import imported
 type MyEnum = imported::ImportedEnum;
 type MyStruct = imported::ImportedStruct<u32:16>;
 
-#![test]
+#[test]
 fn main() -> u32 {
   let foo = MyStruct { x: u16:100 };
   foo.x as u32 + (MyEnum::VEGGIES as u32)
@@ -1348,7 +1348,7 @@ pub const MY_CONST = u32:4;
   constexpr absl::string_view kProgram = R"(
 import imported as mod
 
-#![test]
+#[test]
 fn main() -> u32 {
   mod::MY_CONST + u32:1
 }

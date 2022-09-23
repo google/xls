@@ -19,7 +19,7 @@ pub fn d() -> u32 {
   b::b() + c::c() + u32:0
 }
 
-#![test]
+#[test]
 fn d_test() {
   let _ = assert_eq(u32:5, d());
   ()

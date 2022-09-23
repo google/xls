@@ -16,7 +16,7 @@ fn main(a: u32[2], i: u1) -> u32 {
   a[i]
 }
 
-#![test]
+#[test]
 fn main_test() {
   let x = u32:42;
   let y = u32:64;

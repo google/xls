@@ -40,7 +40,7 @@ fn main(a: u32[4], b: u32[4]) -> u32 {
   dot_product(a, b)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u32:20, main(u32[4]:[0, 1, 2, 3], u32[4]:[1, 2, 3, 4]))
 }

@@ -28,7 +28,7 @@ proc parametric<N: u32, M: u32> {
   }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc test_proc {
   terminator: chan<bool> out;
   output_c: chan<u37> in;

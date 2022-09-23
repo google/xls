@@ -32,7 +32,7 @@ fn main_tuple_as_type_annotation() -> u32 {
   f_tuple_as_type_annotation(xs)
 }
 
-#![test]
+#[test]
 fn main_test() {
   let _ = assert_eq(u32:3, main_tuple_as_type_alias());
   let _ = assert_eq(u32:3, main_tuple_as_type_annotation());

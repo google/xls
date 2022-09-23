@@ -9,7 +9,7 @@ functional stack, from input DSLX down to the netlist level.
 
 The DSLX interpreter (`//xls/dslx:interpreter_main`) operates on
 DSLX `.x` files that contain both the design and unit tests to execute (present
-as `#![test]` annotated functions).
+as `#[test]` annotated functions).
 
 The [adler32](https://github.com/google/xls/tree/main/xls/examples/adler32.x) example
 demonstrates this: the design is encapsulated in the `main`, `adler32_seq`, and

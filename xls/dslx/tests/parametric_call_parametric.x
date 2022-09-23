@@ -37,7 +37,7 @@ fn dot_product_local<BITCOUNT: u32, LENGTH: u32,
   } (u32:0)
 }
 
-#![test]
+#[test]
 fn parametric_call_local_parametric() {
   let a = [u32:0, u32:1, u32:2, u32:3];
   let b = [u32:4, u32:5, u32:6, u32:7];
@@ -63,7 +63,7 @@ fn dot_product_modref<BITCOUNT: u32, LENGTH: u32,
   } (u32:0)
 }
 
-#![test]
+#[test]
 fn parametric_call_modref_parametric() {
   let a = [u32:0, u32:1, u32:2, u32:3];
   let b = [u32:4, u32:5, u32:6, u32:7];

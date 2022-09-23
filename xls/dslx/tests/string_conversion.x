@@ -14,7 +14,7 @@
 
 // Simple verification that character strings can be lowered to IR.
 
-#![test]
+#[test]
 fn size_test() {
   let string:u8[27] = "abcdefghijklmnopqrstuvwxyz\"";
   ()

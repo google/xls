@@ -24,7 +24,7 @@ fn binop_parametric<M: u32, N: u32, R: u32 = M+N>(x: bits[M], y: bits[N]) -> bit
   x ++ y
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(u8:0b11000000, binop(u2:0b11, u6:0));
   let _ = assert_eq(u8:0b00000111, binop(u2:0, u6:0b111));
@@ -35,7 +35,7 @@ fn test_main() {
 }
 
 // Example given in the docs.
-#![test]
+#[test]
 fn test_docs() {
   let _ = assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
   let _ = assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);

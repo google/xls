@@ -31,7 +31,7 @@ proc fp32_fmac {
   next(tok: token) { () }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc smoke_test {
   input_a_p: chan<F32> out;
   input_b_p: chan<F32> out;

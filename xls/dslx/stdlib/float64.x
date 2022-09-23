@@ -90,7 +90,7 @@ pub fn to_int64(x: F64) -> s64 {
   apfloat::to_int<u32:11, u32:52, u32:64>(x)
 }
 
-#![test]
+#[test]
 fn normalize_test() {
   let expected = F64 {
       sign: u1:0, bexp: u11:0x2, fraction: u52:0xf_fffe_dcba_0000 };
@@ -114,7 +114,7 @@ fn normalize_test() {
   ()
 }
 
-#![test]
+#[test]
 fn tag_test() {
   let _ = assert_eq(tag(F64 { sign: u1:0, bexp: u11:0, fraction: u52:0 }), FloatTag::ZERO);
   let _ = assert_eq(tag(F64 { sign: u1:1, bexp: u11:0, fraction: u52:0 }), FloatTag::ZERO);

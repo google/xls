@@ -136,7 +136,7 @@ fn decode_r_instruction(ins: u32) -> (u7, u5, u5, u3, u5, u7) {
    (funct7, rs2, rs1, funct3, rd, opcode)
 }
 
-#![test]
+#[test]
 fn decode_r_test_lsb_test() {
    let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(
         u32:0b0000001_00001_00001_001_00001_0000001);
@@ -149,7 +149,7 @@ fn decode_r_test_lsb_test() {
    _
 }
 
-#![test]
+#[test]
 fn decode_r_test_msb_test() {
    let (funct7, rs2, rs1, funct3, rd, opcode) = decode_r_instruction(
         u32:0b_1000000_10000_10000_100_10000_1000000);
@@ -179,7 +179,7 @@ fn decode_i_instruction(ins: u32) -> (u12, u5, u3, u5, u7) {
    (imm_11_0, rs1, funct3, rd, opcode)
 }
 
-#![test]
+#[test]
 fn decode_i_test_lsb_test() {
    let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(
         u32:0b000000100001_00001_001_00001_0000001);
@@ -191,7 +191,7 @@ fn decode_i_test_lsb_test() {
    _
 }
 
-#![test]
+#[test]
 fn decode_i_test_msb_test() {
    let (imm12, rs1, funct3, rd, opcode) = decode_i_instruction(
         u32:0b100000010000_10000_100_10000_1000000);
@@ -222,7 +222,7 @@ fn decode_s_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
    (imm_11_5 ++ imm_4_0, rs2, rs1, funct3, opcode)
 }
 
-#![test]
+#[test]
 fn decode_s_test_lsb_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(
         u32:0b0000001_00001_00001_001_00001_0000001);
@@ -234,7 +234,7 @@ fn decode_s_test_lsb_test() {
    _
 }
 
-#![test]
+#[test]
 fn decode_s_test_msb_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_s_instruction(
         u32:0b1000000_10000_10000_100_10000_1000000);
@@ -260,7 +260,7 @@ fn decode_u_instruction(ins: u32) -> (u20, u5, u7) {
    (imm_31_12, rd, opcode)
 }
 
-#![test]
+#[test]
 fn decode_u_test_lsb_test() {
    let (imm20, rd, opcode) = decode_u_instruction(
         u32:0b00000000000000000001_00001_0000001);
@@ -270,7 +270,7 @@ fn decode_u_test_lsb_test() {
    _
 }
 
-#![test]
+#[test]
 fn decode_u_test_msb_test() {
    let (imm20, rd, opcode) = decode_u_instruction(
         u32:0b10000000000000000000_10000_1000000);
@@ -305,7 +305,7 @@ fn decode_b_instruction(ins: u32) -> (u12, u5, u5, u3, u7) {
     rs2, rs1, funct3, opcode)
 }
 
-#![test]
+#[test]
 fn decode_b_test() {
    let (imm12, rs2, rs1, funct3, opcode) = decode_b_instruction(
         u32:0b1_000001_00001_00001_001_0001_1_0000001);
@@ -338,7 +338,7 @@ fn decode_j_instruction(ins: u32) -> (u20, u5, u7) {
     rd, opcode)
 }
 
-#![test]
+#[test]
 fn decode_j_test() {
    let (imm20, rd, opcode) = decode_j_instruction(
         u32:0b1_0000000001_1_00000001_00001_0000001);
@@ -600,7 +600,7 @@ fn make_uj_insn(rdest: u5, imm20: u20) -> u32 {
 // We construct and iterate over the instructions here, in a test(),
 // to make sure that above functions are not being inlined multiple
 // times.
-#![test]
+#[test]
 fn risc_v_example_test() {
   // Create an initial machine / process.
   //

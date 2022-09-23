@@ -77,7 +77,7 @@ pub fn add_round_key(block: Block, key: RoundKey) -> Block {
     ]
 }
 
-#![test]
+#[test]
 fn test_add_round_key() {
     let key = RoundKey: [
         u8:0x30 ++ u8:0x31 ++ u8:0x32 ++ u8:0x33,
@@ -115,7 +115,7 @@ pub fn sub_bytes(block: Block) -> Block {
     ]
 }
 
-#![test]
+#[test]
 fn test_sub_bytes() {
     let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
@@ -142,7 +142,7 @@ pub fn shift_rows(block: Block) -> Block {
     ]
 }
 
-#![test]
+#[test]
 fn test_shift_rows() {
     let input = Block:[
         [u8:0, u8:1, u8:2, u8:3],
@@ -234,7 +234,7 @@ pub fn mix_columns(block: Block) -> Block {
 
 // Verification values were generated from from the BoringSSL implementation,
 // commit efd09b7e.
-#![test]
+#[test]
 fn test_mix_columns() {
     let input = Block:[
         [u8:0xdb, u8:0xf2, u8:0xc6, u8:0x2d],
@@ -264,7 +264,7 @@ pub fn inv_sub_bytes(block: Block) -> Block {
     ]
 }
 
-#![test]
+#[test]
 fn test_inv_sub_bytes(block: Block) {
     let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
@@ -284,7 +284,7 @@ pub fn inv_shift_rows(block: Block) -> Block {
     ]
 }
 
-#![test]
+#[test]
 fn test_inv_shift_rows(block: Block) {
     let input = Block:[
         [u8:0x0, u8:0x1, u8:0x2, u8:0x3],
@@ -317,7 +317,7 @@ pub fn inv_mix_columns(block: Block) -> Block {
     ]
 }
 
-#![test]
+#[test]
 fn test_inv_mix_columns() {
     let input = Block:[
         [u8:0xdb, u8:0xf2, u8:0xc6, u8:0x2d],

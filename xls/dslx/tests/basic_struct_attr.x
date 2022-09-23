@@ -25,7 +25,7 @@ fn main() -> u32 {
   f(Point { x: u32:42, y: u32:64 })
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(u32:106, main())
 }

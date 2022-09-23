@@ -103,7 +103,7 @@ pub fn increment_fraction(input: BF16) -> BF16 {
   }
 }
 
-#![test]
+#[test]
 fn increment_fraction_bf16_test() {
   // No normalization required.
   let _ = assert_eq(increment_fraction(BF16 { sign: u1:0, bexp: u8:42, fraction: u7:0 }),

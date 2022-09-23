@@ -16,7 +16,7 @@ fn main(p: bool, x: u32) -> u32 {
   gate!(p, x)
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(u32:0, main(false, u32:1));
   let _ = assert_eq(u32:1, main(true, u32:1));

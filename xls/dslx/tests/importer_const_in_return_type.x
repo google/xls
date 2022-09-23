@@ -33,7 +33,7 @@ fn main() -> u4 {
   f() ^ g()
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(main(), u4:0b0110)
 }

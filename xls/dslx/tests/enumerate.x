@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![test]
+#[test]
 fn enumerate_test() {
   let my_array = u32[4]:[u32:1, u32:2, u32:4, u32:8];
   let enumerated = enumerate(my_array);

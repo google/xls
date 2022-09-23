@@ -19,7 +19,7 @@ fn main(x: u8) -> (u8, u32, u64) {
   (x, y, z)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq((u8:8, u32:42, u64:64), main(u8:8))
 }

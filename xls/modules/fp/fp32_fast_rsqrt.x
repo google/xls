@@ -85,7 +85,7 @@ pub fn fp32_fast_rsqrt(x: F32) -> F32 {
   fp32_fast_rsqrt_config_refinements<u32:1>(x)
 }
 
-#![test]
+#[test]
 fn fast_sqrt_test() {
   // Test Special cases.
   let _ = assert_eq(fp32_fast_rsqrt(float32::zero(u1:0)),

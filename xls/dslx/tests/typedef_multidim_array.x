@@ -22,7 +22,7 @@ fn main(x: u6[3][2]) -> u6[3][2] {
   x
 }
 
-#![test]
+#[test]
 fn main_test() {
   let a : u6[3][2] = [[TypeX:1, TypeX:2, TypeX:3],
                       [TypeX:4, TypeX:5, TypeX:6]];

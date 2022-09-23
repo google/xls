@@ -31,7 +31,7 @@ fn main(x: u2) -> MyEnum {
   }(MyEnum::A)
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(MyEnum::A, main(u2:0));
   let _ = assert_eq(MyEnum::B, main(u2:1));

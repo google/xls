@@ -20,7 +20,7 @@ fn main(x: Nibble) -> Nibble {
   x+Nibble:1
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(main(Nibble:14), u4:15)
 }

@@ -29,7 +29,7 @@ fn main(x: MyType) -> MyType {
   x
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(main(u4:0xa), u4:0xa)
 }

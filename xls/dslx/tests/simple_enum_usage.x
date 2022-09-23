@@ -21,7 +21,7 @@ fn main(x: Foo) -> Foo {
   if x == Foo::A { Foo::B } else { Foo::A }
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(Foo::B, main(Foo::A));
   let _ = assert_eq(Foo::A, main(Foo::B));

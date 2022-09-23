@@ -26,7 +26,7 @@ fn main() -> (u10, u20) {
   (x1, x2)
 }
 
-#![test]
+#[test]
 fn derived_parametric_functions() {
   let arr = map([u2:1, u2:2], self_append);
   let _ = assert_eq(u4:5, arr[u32:0]);

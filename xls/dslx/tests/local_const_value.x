@@ -17,7 +17,7 @@ fn main() -> u32[4] {
   u32[FOO]:[0, ...]
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(u32[4]:[0, ...], main())
 }

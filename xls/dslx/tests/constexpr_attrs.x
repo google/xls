@@ -31,7 +31,7 @@ const local_struct = u32[LOCAL.a]:[u32:0, u32:1, u32:2, u32:3, ...];
 
 // TODO(rspringer): 2021/03/04 Add a test that dereferences an attribute of an attribute,
 // e.g., "u32[IMPORTED_STRUCT.a.b]:[...]".
-#![test]
+#[test]
 fn can_instantiate() {
   let local_struct_expected = u32[8]:[u32:0, u32:1, u32:2, u32:3, ...];
   assert_eq(local_struct, local_struct_expected)

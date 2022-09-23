@@ -19,7 +19,7 @@ pub fn signed_max_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
   ((sN[N]:1 << N_MINUS_ONE) - sN[N]:1) as sN[N]
 }
 
-#![test]
+#[test]
 fn signed_max_value_test() {
   let _ = assert_eq(s8:0x7f, signed_max_value<u32:8>());
   let _ = assert_eq(s16:0x7fff, signed_max_value<u32:16>());
@@ -33,7 +33,7 @@ pub fn signed_min_value<N: u32, N_MINUS_ONE: u32 = N - u32:1>() -> sN[N] {
   (uN[N]:1 << N_MINUS_ONE) as sN[N]
 }
 
-#![test]
+#[test]
 fn signed_min_value_test() {
   let _ = assert_eq(s8:-128, signed_min_value<u32:8>());
   let _ = assert_eq(s16:-32768, signed_min_value<u32:16>());
@@ -46,7 +46,7 @@ pub fn unsigned_max_value<N: u32, N_PLUS_ONE: u32 = N + u32:1>() -> uN[N] {
     ((uN[N_PLUS_ONE]:1 << N) - uN[N_PLUS_ONE]:1) as uN[N]
 }
 
-#![test]
+#[test]
 fn unsigned_max_value_test() {
   let _ = assert_eq(u8:0xff, unsigned_max_value<u32:8>());
   let _ = assert_eq(u16:0xffff, unsigned_max_value<u32:16>());
@@ -65,14 +65,14 @@ pub fn smul<N: u32, M: u32, R: u32 = N + M>(x: sN[N], y: sN[M]) -> sN[R] {
   (x as sN[R]) * (y as sN[R])
 }
 
-#![test]
+#[test]
 fn smul_test() {
   let _ = assert_eq(s6:4, smul(s3:2, s3:2));
   let _ = assert_eq(s4:0b1111, smul(s2:0b11, s2:0b01));
   ()
 }
 
-#![test]
+#[test]
 fn umul_test() {
   let _ = assert_eq(u6:4, umul(u3:2, u3:2));
   let _ = assert_eq(u4:0b0011, umul(u2:0b11, u2:0b01));
@@ -114,7 +114,7 @@ pub fn iterative_div<N: u32, DN: u32 = N * u32:2>(x: uN[N], y: uN[N]) -> uN[N] {
   div_result
 }
 
-#![test]
+#[test]
 fn iterative_div_test () {
   // Power of 2.
   let _ = assert_eq(u4:0, iterative_div(u4:8, u4:15));
@@ -149,7 +149,7 @@ pub fn lsb<N: u32>(x: uN[N]) -> u1 {
   x as u1
 }
 
-#![test]
+#[test]
 fn lsb_test() {
   let _ = assert_eq(u1:0, lsb(u2:0b00));
   let _ = assert_eq(u1:1, lsb(u2:0b01));
@@ -170,7 +170,7 @@ pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N] {
   }(uN[N]:0)
 }
 
-#![test]
+#[test]
 fn convert_to_bits_test() {
   let _ = assert_eq(u3:0b010, convert_to_bits(bool[3]:[false, true, false]));
   let _ = assert_eq(u3:0b011, convert_to_bits(bool[3]:[false, true, true]));
@@ -197,7 +197,7 @@ pub fn find_index<BITS: u32, ELEMS: u32>(
   (found, if found { index as u32 } else { u32:0 })
 }
 
-#![test]
+#[test]
 fn find_index_test() {
   let haystack = u3[4]:[0b001, 0b010, 0b100, 0b111];
   let _ = assert_eq((true, u32:1), find_index(haystack, u3:0b010));
@@ -212,7 +212,7 @@ pub fn concat3<X: u32, Y: u32, Z: u32, R: u32 = X + Y + Z>(
   x ++ y ++ z
 }
 
-#![test]
+#[test]
 fn concat3_test() {
   let _ = assert_eq(u12:0b111000110010,
                     concat3(u6:0b111000, u4:0b1100, u2:0b10));
@@ -225,7 +225,7 @@ pub fn ceil_div<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   if x > uN[N]:0 { usual } else { uN[N]:0 }
 }
 
-#![test]
+#[test]
 fn ceil_div_test() {
   let _ = assert_eq(ceil_div(u32:6, u32:2), u32:3);
   let _ = assert_eq(ceil_div(u32:5, u32:2), u32:3);
@@ -251,7 +251,7 @@ pub fn round_up_to_nearest(x: u32, y: u32) -> u32 {
   (ceil_div(x, y) * y) as u32
 }
 
-#![test]
+#[test]
 fn round_up_to_nearest_test() {
   let _ = assert_eq(u32:4, round_up_to_nearest(u32:3, u32:2));
   let _ = assert_eq(u32:4, round_up_to_nearest(u32:4, u32:2));
@@ -263,7 +263,7 @@ pub fn rrot<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   (x >> y) | (x << ((N as bits[N]) - y))
 }
 
-#![test]
+#[test]
 fn rrot_test() {
   let _ = assert_eq(bits[3]:0b101, rrot(bits[3]:0b011, bits[3]:1));
   let _ = assert_eq(bits[3]:0b011, rrot(bits[3]:0b110, bits[3]:1));
@@ -275,7 +275,7 @@ pub fn smax<N: u32>(x: sN[N], y: sN[N]) -> sN[N] {
   if x > y { x } else { y }
 }
 
-#![test]
+#[test]
 fn smax_test() {
   let _ = assert_eq(s2:0, smax(s2:0, s2:0));
   let _ = assert_eq(s2:1, smax(s2:-1, s2:1));
@@ -288,7 +288,7 @@ pub fn umax<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   if x > y { x } else { y }
 }
 
-#![test]
+#[test]
 fn umax_test() {
   let _ = assert_eq(u1:1, umax(u1:1, u1:0));
   let _ = assert_eq(u1:1, umax(u1:1, u1:1));
@@ -301,7 +301,7 @@ pub fn umin<N: u32>(x: uN[N], y: uN[N]) -> uN[N] {
   if x < y { x } else { y }
 }
 
-#![test]
+#[test]
 fn umin_test() {
   let _ = assert_eq(u1:0, umin(u1:1, u1:0));
   let _ = assert_eq(u1:1, umin(u1:1, u1:1));
@@ -327,7 +327,7 @@ pub fn flog2<N: u32>(x: bits[N]) -> bits[N] {
   }
 }
 
-#![test]
+#[test]
 fn flog2_test() {
   let _ = assert_eq(u32:0, flog2(u32:0));
   let _ = assert_eq(u32:0, flog2(u32:1));
@@ -361,7 +361,7 @@ pub fn clog2<N: u32>(x: bits[N]) -> bits[N] {
   }
 }
 
-#![test]
+#[test]
 fn clog2_test() {
   let _ = assert_eq(u32:0, clog2(u32:0));
   let _ = assert_eq(u32:0, clog2(u32:1));
@@ -381,7 +381,7 @@ pub fn is_pow2<N: u32>(x: uN[N]) -> bool {
   x > uN[N]:0 && (x & (x - uN[N]:1) == uN[N]:0)
 }
 
-#![test]
+#[test]
 fn is_pow2_test() {
   let _ = assert_eq(is_pow2(u32: 0), false);
   let _ = assert_eq(is_pow2(u32: 1), true);
@@ -413,7 +413,7 @@ pub fn mod_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   x & (y-bits[N]:1)
 }
 
-#![test]
+#[test]
 fn mod_pow2_test() {
   let _ = assert_eq(u32:1, mod_pow2(u32:5, u32:4));
   let _ = assert_eq(u32:0, mod_pow2(u32:4, u32:4));
@@ -427,7 +427,7 @@ pub fn div_pow2<N: u32>(x: bits[N], y: bits[N]) -> bits[N] {
   x >> clog2(y)
 }
 
-#![test]
+#[test]
 fn div_pow2_test() {
   let _ = assert_eq(u32:1, div_pow2(u32:5, u32:4));
   let _ = assert_eq(u32:1, div_pow2(u32:4, u32:4));
@@ -440,7 +440,7 @@ pub fn mask_bits<X: u32>() -> bits[X] {
   !bits[X]:0
 }
 
-#![test]
+#[test]
 fn mask_bits_test() {
   let _ = assert_eq(u8:0xff, mask_bits<u32:8>());
   let _ = assert_eq(u13:0x1fff, mask_bits<u32:13>());
@@ -456,7 +456,7 @@ pub fn sgt<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) >  (y as sN[N]) }
 pub fn sle<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) <= (y as sN[N]) }
 pub fn slt<N: u32>(x: uN[N], y: uN[N]) -> bool { (x as sN[N]) <  (y as sN[N]) }
 
-#![test]
+#[test]
 fn test_scmps() {
   let _ = assert_eq(sge(u2:3, u2:1), false);
   let _ = assert_eq(sgt(u2:3, u2:1), false);
@@ -491,7 +491,7 @@ pub fn spow<N: u32>(x: sN[N], n: uN[N]) -> sN[N] {
   work.2
 }
 
-#![test]
+#[test]
 fn test_upow() {
   let _ = assert_eq(upow(u32:2, u32:2), u32:4);
   let _ = assert_eq(upow(u32:2, u32:20), u32:0x100000);
@@ -501,7 +501,7 @@ fn test_upow() {
   ()
 }
 
-#![test]
+#[test]
 fn test_spow() {
   let _ = assert_eq(spow(s32:2, u32:2), s32:4);
   let _ = assert_eq(spow(s32:2, u32:20), s32:0x100000);
@@ -520,7 +520,7 @@ pub fn popcount<N: u32>(x: bits[N]) -> bits[N] {
   (acc)
 }
 
-#![test]
+#[test]
 fn test_popcount() {
   let _ = assert_eq(popcount(u17:0xa5a5), u17:8);
   let _ = assert_eq(popcount(u17:0x1a5a5), u17:9);

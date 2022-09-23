@@ -217,13 +217,13 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 
     XLS_ASSIGN_OR_RETURN(bool dropped_hash, TryDropToken(TokenKind::kHash));
     if (dropped_hash) {
-      XLS_ASSIGN_OR_RETURN(auto directive,
-                           ParseDirective(&name_to_fn, bindings));
-      if (auto* t = TryGet<TestFunction*>(directive)) {
+      XLS_ASSIGN_OR_RETURN(auto attribute,
+                           ParseAttribute(&name_to_fn, bindings));
+      if (auto* t = TryGet<TestFunction*>(attribute)) {
         XLS_RETURN_IF_ERROR(module_->AddTop(t));
-      } else if (auto* tp = TryGet<TestProc*>(directive)) {
+      } else if (auto* tp = TryGet<TestProc*>(attribute)) {
         XLS_RETURN_IF_ERROR(module_->AddTop(tp));
-      } else if (auto* qc = TryGet<QuickCheck*>(directive)) {
+      } else if (auto* qc = TryGet<QuickCheck*>(attribute)) {
         XLS_RETURN_IF_ERROR(module_->AddTop(qc));
       } else {
         // Nothing, was a directive for the parser.
@@ -296,19 +296,15 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
 }
 
 absl::StatusOr<absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
-Parser::ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
+Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings* bindings) {
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kBang));
+  // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
+  // a use for inner vs. outer attributes, but that day will likely come.
   XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOBrack));
   XLS_ASSIGN_OR_RETURN(Token directive_tok,
                        PopTokenOrError(TokenKind::kIdentifier));
   const std::string& directive_name = directive_tok.GetStringValue();
 
-  if (directive_name == "cfg") {
-    XLS_RETURN_IF_ERROR(ParseConfig(directive_tok.span()));
-    XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
-    return nullptr;
-  }
   if (directive_name == "test") {
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCBrack));
     XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
@@ -2452,19 +2448,6 @@ absl::StatusOr<TestProc*> Parser::ParseTestProc(
 
   // Verify no state or config args
   return module_->Make<TestProc>(p, initial_values);
-}
-
-absl::Status Parser::ParseConfig(const Span& directive_span) {
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kOParen));
-  XLS_ASSIGN_OR_RETURN(std::string config_name, PopIdentifierOrError());
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kEquals));
-  XLS_ASSIGN_OR_RETURN(Token config_value,
-                       PopTokenOrError(TokenKind::kKeyword));
-  XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCParen));
-  return ParseErrorStatus(
-      directive_span,
-      absl::StrFormat("Unknown configuration key in directive: '%s'",
-                      config_name));
 }
 
 const Span& GetSpan(const absl::variant<NameDef*, WildcardPattern*>& v) {

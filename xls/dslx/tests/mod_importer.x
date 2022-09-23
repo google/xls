@@ -22,7 +22,7 @@ fn main(x: u3) -> u1 {
   lhs || rhs || ehs
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(u1:0b1, main(u3:0b001))
 }

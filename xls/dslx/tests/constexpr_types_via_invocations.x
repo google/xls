@@ -36,7 +36,7 @@ fn main(x: MyType) -> MyType2 {
   x
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(VALUE_LIMIT_BITS, u32:4);
   assert_eq(main(u4:0xa), u4:0xa)

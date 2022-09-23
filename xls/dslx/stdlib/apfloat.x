@@ -48,7 +48,7 @@ pub fn qnan<EXP_SZ:u32, FRACTION_SZ:u32>() -> APFloat<EXP_SZ, FRACTION_SZ> {
   }
 }
 
-#![test]
+#[test]
 fn qnan_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0xff, fraction: u23:0x400000,
@@ -72,7 +72,7 @@ pub fn zero<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1])
     fraction: bits[FRACTION_SZ]:0 }
 }
 
-#![test]
+#[test]
 fn zero_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0x0, fraction: u23:0x0,
@@ -98,7 +98,7 @@ pub fn one<EXP_SZ:u32, FRACTION_SZ:u32, MASK_SZ:u32 = EXP_SZ - u32:1>(
   }
 }
 
-#![test]
+#[test]
 fn one_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0x7f, fraction: u23:0x0,
@@ -122,7 +122,7 @@ pub fn inf<EXP_SZ:u32, FRACTION_SZ:u32>(sign: bits[1]) -> APFloat<EXP_SZ, FRACTI
   }
 }
 
-#![test]
+#[test]
 fn inf_test() {
   let expected = APFloat<u32:8, u32:23> {
     sign: u1:0, bexp: u8:0xff, fraction: u23:0x0,
@@ -158,7 +158,7 @@ pub fn unbiased_exponent<EXP_SZ:u32,
   if f.bexp == bits[EXP_SZ]:0 { subnormal_exp } else { uexp }
 }
 
-#![test]
+#[test]
 fn unbiased_exponent_zero_test() {
   let expected = s8:0;
   let actual = unbiased_exponent<u32:8, u32:23>(
@@ -167,7 +167,7 @@ fn unbiased_exponent_zero_test() {
   ()
 }
 
-#![test]
+#[test]
 fn unbiased_exponent_positive_test() {
   let expected = s8:1;
   let actual = unbiased_exponent<u32:8, u32:23>(
@@ -176,7 +176,7 @@ fn unbiased_exponent_positive_test() {
   ()
 }
 
-#![test]
+#[test]
 fn unbiased_exponent_negative_test() {
   let expected = s8:-1;
   let actual = unbiased_exponent<u32:8, u32:23>(
@@ -185,7 +185,7 @@ fn unbiased_exponent_negative_test() {
   ()
 }
 
-#![test]
+#[test]
 fn unbiased_exponent_subnormal_test() {
   let expected = s8:-126;
   let actual = unbiased_exponent<u32:8, u32:23>(
@@ -211,7 +211,7 @@ pub fn bias<EXP_SZ: u32,
   (extended_unbiased_exp + bias) as bits[EXP_SZ]
 }
 
-#![test]
+#[test]
 fn bias_test() {
   let expected = u8:127;
   let actual = bias<u32:8, u32:23>(s8:0);
@@ -291,7 +291,7 @@ pub fn cast_from_fixed<EXP_SZ:u32, FRACTION_SZ:u32, UEXP_SZ:u32 = EXP_SZ + u32:1
   result
 }
 
-#![test]
+#[test]
 fn cast_from_fixed_test() {
   // Zero is a special case.
   let zero_float = zero<u32:4, u32:4>(u1:0);
@@ -494,7 +494,7 @@ pub fn cast_to_fixed<NUM_DST_BITS:u32, EXP_SZ:u32, FRACTION_SZ:u32,
   result
 }
 
-#![test]
+#[test]
 fn cast_to_fixed_test() {
   // Cast +/-0.0
   let _ = assert_eq(
@@ -604,7 +604,7 @@ pub fn eq_2<EXP_SZ: u32, FRACTION_SZ: u32>(
   }
 }
 
-#![test]
+#[test]
 fn test_fp_eq_2() {
   let neg_zero = zero<u32:8, u32:23>(u1:1);
   let zero = zero<u32:8, u32:23>(u1:0);
@@ -683,7 +683,7 @@ pub fn gt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
   else { u1:0 }
 }
 
-#![test]
+#[test]
 fn test_fp_gt_2() {
   let zero = zero<u32:8, u32:23>(u1:0);
   let neg_one = one<u32:8, u32:23>(u1:1);
@@ -748,7 +748,7 @@ pub fn gte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
   gt_2(x, y) || eq_2(x,y)
 }
 
-#![test]
+#[test]
 fn test_fp_gte_2() {
   let zero = zero<u32:8, u32:23>(u1:0);
   let neg_one = one<u32:8, u32:23>(u1:1);
@@ -814,7 +814,7 @@ pub fn lte_2<EXP_SZ: u32, FRACTION_SZ: u32>(
   else { u1:0 }
 }
 
-#![test]
+#[test]
 fn test_fp_lte_2() {
   let zero = zero<u32:8, u32:23>(u1:0);
   let neg_one = one<u32:8, u32:23>(u1:1);
@@ -880,7 +880,7 @@ pub fn lt_2<EXP_SZ: u32, FRACTION_SZ: u32>(
   else { u1:0 }
 }
 
-#![test]
+#[test]
 fn test_fp_lt_2() {
   let zero = zero<u32:8, u32:23>(u1:0);
   let neg_one = one<u32:8, u32:23>(u1:1);
@@ -958,7 +958,7 @@ pub fn round_towards_zero<EXP_SZ:u32, FRACTION_SZ:u32,
   result
 }
 
-#![test]
+#[test]
 fn round_towards_zero_test() {
   // Special cases.
   let _ = assert_eq(round_towards_zero(zero<u32:8, u32:23>(u1:0)),
@@ -1091,7 +1091,7 @@ pub fn to_int<EXP_SZ: u32, FRACTION_SZ: u32, RESULT_SZ:u32,
   result as sN[RESULT_SZ]
 }
 
-#![test]
+#[test]
 fn to_int_test() {
   let expected = s32:0;
   let actual = to_int<u32:8, u32:23, u32:32>(

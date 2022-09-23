@@ -42,7 +42,7 @@ pub fn main() -> u32 {
   CONST_1 + CONST_2 + CONST_3 + CONST_4 + CONST_5
 }
 
-#![test]
+#[test]
 fn can_reference_constants_test() {
   let _ = assert_eq(u32:666, CONST_1);
   let _ = assert_eq(u32:666, CONST_2);
@@ -58,7 +58,7 @@ fn can_reference_constants_test() {
   ()
 }
 
-#![test]
+#[test]
 fn can_add_constants_test() {
   let _ = assert_eq(u32:1332, CONST_1 + CONST_1);
   let _ = assert_eq(u32:1332, CONST_1 + CONST_2);

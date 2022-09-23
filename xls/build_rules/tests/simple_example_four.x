@@ -24,7 +24,7 @@ pub fn result() -> u32 {
   one::one() + two::two() + three::three() + four()
 }
 
-#![test]
+#[test]
 fn test_result_value() {
   assert_eq(result(), u32:10)
 }

@@ -19,7 +19,7 @@ fn main() -> u32 {
   clz(x1)
 }
 
-#![test]
+#[test]
 fn clz_test() {
   let _ = assert_eq(u3:0, clz(u3:0b111));
   let _ = assert_eq(u3:1, clz(u3:0b011));

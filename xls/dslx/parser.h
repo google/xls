@@ -488,15 +488,10 @@ class Parser : public TokenParser {
       absl::flat_hash_map<std::string, Function*>* name_to_fn,
       Bindings* bindings, const Span& directive_span);
 
-  absl::Status ParseConfig(const Span& directive_span);
-
-  // Parses DSLX directives (analogous to Rust's attributes).
-  //
-  // These may preceed unit-test/QuickCheck constructs or they may set compiler
-  // configs (e.g. expect semi-colons instead of 'in').
+  // Parses DSLX attributes, analogous to Rust's attributes.
   absl::StatusOr<
       absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
-  ParseDirective(absl::flat_hash_map<std::string, Function*>* name_to_fn,
+  ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 
   // Parses a "spawn" statement, which creates & initializes a proc.

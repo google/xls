@@ -20,7 +20,7 @@ fn main() -> u32 {
   SIX
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u32:6, main())
 }

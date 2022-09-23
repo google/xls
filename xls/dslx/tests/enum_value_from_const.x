@@ -25,7 +25,7 @@ fn main() -> MyEnum {
   MyEnum::MolValue
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(MyEnum::MolValue as u32, MOLP1)
 }

@@ -20,7 +20,7 @@ fn main() -> u32 {
   }(u32:0)
 }
 
-#![test]
+#[test]
 fn test_fn() {
   let x = main();
   assert_eq(x, u32:35)

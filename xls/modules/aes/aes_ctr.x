@@ -134,7 +134,7 @@ pub proc aes_ctr {
     }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc aes_ctr_test_128 {
     terminator: chan<bool> out;
 

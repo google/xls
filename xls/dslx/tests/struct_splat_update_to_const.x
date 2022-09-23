@@ -24,7 +24,7 @@ fn main(p: Point) -> Point {
   Point{ y: BEST_Y, ..p }
 }
 
-#![test]
+#[test]
 fn main_test() {
   let p = Point{ x: u32:1, y: u32:2 };
   let q = main(p);

@@ -16,7 +16,7 @@ fn main(x: s8, y: s8) -> s8 {
   x - y
 }
 
-#![test]
+#[test]
 fn main_test() {
   let x: s8 = s8:2;
   let y: s8 = s8:3;

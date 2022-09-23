@@ -33,7 +33,7 @@ fn main() -> (u8, u16, u8, u4, u17) {
   (i, j, k, l, m)
 }
 
-#![test]
+#[test]
 fn test_non_constexpr_slice() {
   let t = main();
   assert_eq(t, (u8:239, u16:48879, u8:223, u4:7, u17:114415))

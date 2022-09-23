@@ -66,7 +66,7 @@ fn apply_stencil_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = NUM_ROWS*NUM
   }(float32::zero(u1:0))
 }
 
-#![test]
+#[test]
 fn apply_stencil_float32_test() {
   // Do we have a way to reshape a 9-element array to a 3x3?
   let img1 = map(s32[16]:[1, 1, 1, 1,
@@ -124,7 +124,7 @@ pub fn sobel_filter_float32<NUM_ROWS:u32, NUM_COLS:u32, NUM_ELMS:u32 = NUM_ROWS*
   }(F32[NUM_ELMS_OUT]:[float32::zero(u1:0), ...])
 }
 
-#![test]
+#[test]
 fn sobel_filter_float32_test() {
   // Do we have a way to reshape a 9-element array to a 3x3?
   let img1 = map(s32[16]:[1, 1, 1, 1,

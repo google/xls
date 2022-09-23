@@ -78,7 +78,7 @@ pub fn create_key_schedule(key: u8[aes_common::MAX_KEY_BYTES], key_width: KeyWid
     final_sched
 }
 
-#![test]
+#[test]
 fn test_create_key_schedule_256() {
     let key = u8[32]:[
         u8:0xac, u8:0x75, u8:0x4a, u8:0x55,
@@ -145,7 +145,7 @@ fn test_create_key_schedule_256() {
 // Verifies we produce a correct schedule for a given input key.
 // Verification values were generated from from the BoringSSL implementation,
 // commit efd09b7e.
-#![test]
+#[test]
 fn test_key_schedule_128() {
     let key = u8[32]:[
         u8:0x66, u8:0x65, u8:0x64, u8:0x63,
@@ -205,7 +205,7 @@ pub fn encrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {
     block
 }
 
-#![test]
+#[test]
 fn test_encrypt_256() {
     let key = Key:[
         u8:0xcc, u8:0x6d, u8:0xe8, u8:0x07,
@@ -232,7 +232,7 @@ fn test_encrypt_256() {
     assert_eq(expected, encrypt(key, KeyWidth::KEY_256, plaintext))
 }
 
-#![test]
+#[test]
 fn test_encrypt_128() {
     let key = Key:[
         u8:0xb9, u8:0x6e, u8:0xe5, u8:0xe2,
@@ -283,7 +283,7 @@ pub fn decrypt(key: Key, key_width: KeyWidth, block: Block) -> Block {
     block
 }
 
-#![test]
+#[test]
 fn test_decrypt_256() {
     let key = Key:[
         u8:0xcc, u8:0x6d, u8:0xe8, u8:0x07,
@@ -305,7 +305,7 @@ fn test_decrypt_256() {
               decrypt(key, KeyWidth::KEY_256, encrypt(key, KeyWidth::KEY_256, plaintext)))
 }
 
-#![test]
+#[test]
 fn test_decrypt_128() {
     let plaintext = Block:[
         [u8:0xb6, u8:0x7f, u8:0x5e, u8:0x7f],

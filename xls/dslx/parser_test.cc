@@ -429,7 +429,7 @@ TEST_F(ParserTest, ParseTestProc) {
     ((x) + (y),)
   }
 }
-#![test_proc(u32:0)]
+#[test_proc(u32:0)]
 proc tester {
   p: chan<u32> out;
   c: chan<u32> in;
@@ -802,14 +802,14 @@ const ARR = u32[2]:[MOL, ZERO, ...];)");
 }
 
 TEST_F(ParserTest, QuickCheckDirective) {
-  RoundTrip(R"(#![quickcheck]
+  RoundTrip(R"(#[quickcheck]
 fn foo(x: u5) -> bool {
   true
 })");
 }
 
 TEST_F(ParserTest, QuickCheckDirectiveWithTestCount) {
-  RoundTrip(R"(#![quickcheck(test_count=1024)]
+  RoundTrip(R"(#[quickcheck(test_count=1024)]
 fn foo(x: u5) -> bool {
   true
 })");
@@ -821,7 +821,7 @@ type MyTupleType = (MyType[2],);)");
 }
 
 TEST_F(ParserTest, ModuleWithEmptyTestFunction) {
-  RoundTrip(R"(#![test]
+  RoundTrip(R"(#[test]
 fn example() {
   ()
 })");
@@ -831,7 +831,7 @@ TEST_F(ParserTest, ModuleWithTestFunction) {
   RoundTrip(R"(fn id(x: u32) -> u32 {
   x
 }
-#![test]
+#[test]
 fn id_4() {
   assert_eq(u32:4, id(u32:4))
 })");

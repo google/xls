@@ -1696,8 +1696,8 @@ std::string TestProc::ToString() const {
     next_args.push_back(expr->ToString());
   }
 
-  return absl::StrFormat("#![test_proc(%s)]\n%s",
-                         absl::StrJoin(next_args, ", "), proc_->ToString());
+  return absl::StrFormat("#[test_proc(%s)]\n%s", absl::StrJoin(next_args, ", "),
+                         proc_->ToString());
 }
 
 // -- class BuiltinTypeAnnotation
@@ -1757,8 +1757,7 @@ std::string QuickCheck::ToString() const {
   if (test_count_.has_value()) {
     test_count_str = absl::StrFormat("(test_count=%d)", *test_count_);
   }
-  return absl::StrFormat("#![quickcheck%s]\n%s", test_count_str,
-                         f_->ToString());
+  return absl::StrFormat("#[quickcheck%s]\n%s", test_count_str, f_->ToString());
 }
 
 TupleIndex::TupleIndex(Module* owner, Span span, Expr* lhs, Number* index)

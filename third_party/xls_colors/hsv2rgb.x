@@ -65,7 +65,7 @@ pub fn hsv2rgb(h: u16, s: u8, v: u8) -> (u8, u8, u8) {
   }
 }
 
-#![test]
+#[test]
 fn hsv2rgb_test() {
   let _= assert_eq(hsv2rgb(u16:0, u8:0, u8:0), (u8:0, u8:0, u8:0));
   let _= assert_eq(hsv2rgb(u16:0, u8:0, u8:255), (u8:255, u8:255, u8:255));

@@ -16,17 +16,17 @@ fn main() -> s32[4] {
   s32[2]:[1, 2] ++ s32[2]:[3, 4]
 }
 
-#![test]
+#[test]
 fn test_concat() {
   assert_eq(s32[4]:[1, 2, 3, 4], main())
 }
 
-#![quickcheck]
+#[quickcheck]
 fn prop_associative(xs: s32[2], ys: s32[2], zs: s32[2]) -> bool {
   ((xs ++ ys) ++ zs) == (xs ++ (ys ++ zs))
 }
 
-#![quickcheck]
+#[quickcheck]
 fn prop_non_commutative(xs: s32[4], ys: s32[4]) -> bool {
   xs == ys || (xs ++ ys) != (ys ++ xs)
 }

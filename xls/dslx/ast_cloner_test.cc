@@ -242,7 +242,7 @@ TEST(AstClonerTest, Procs) {
 }
 
 TEST(AstClonerTest, TestFunctions) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn my_test() {
   let a = u32:0;
   let _ = assert_eq(u32:0, a);
@@ -259,7 +259,7 @@ fn my_test() {
 }
 
 TEST(AstClonerTest, TestProcs) {
-  constexpr absl::string_view kProgram = R"(#![test_proc(u64:0)]
+  constexpr absl::string_view kProgram = R"(#[test_proc(u64:0)]
 proc my_test_proc {
   a: u32;
   b: uN[127];
@@ -313,7 +313,7 @@ TEST(AstClonerTest, TypeDef) {
 }
 
 TEST(AstClonerTest, QuickCheck) {
-  constexpr absl::string_view kProgram = R"(#![quickcheck(test_count=1000)]
+  constexpr absl::string_view kProgram = R"(#[quickcheck(test_count=1000)]
 fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
   (((a) + (b)) + (c)) == ((a) + ((b) + (c)))
 })";

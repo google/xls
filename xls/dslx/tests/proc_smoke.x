@@ -26,7 +26,7 @@ proc proc_under_test {
   }
 }
 
-#![test_proc(u32:0)]
+#[test_proc(u32:0)]
 proc test_main {
   input_p: chan<u32> out;
   terminator_p: chan<bool> out;

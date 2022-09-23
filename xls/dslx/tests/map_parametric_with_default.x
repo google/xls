@@ -16,7 +16,7 @@ fn p<N: u32>(x: bits[N]) -> bits[N] { x << 0 }
 
 fn main(xs: u4[1]) -> u4[1] { map(xs, p) }
 
-#![test]
+#[test]
 fn test_main() {
   let xs = u4[1]:[0x7];
   assert_eq(main(xs), xs)

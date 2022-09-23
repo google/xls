@@ -57,7 +57,7 @@ fn shr_unsigned() -> uN[4] {
   x >> 2
 }
 
-#![test]
+#[test]
 fn test_shifts() {
   let _ = assert_eq(s16:40, shl_unsigned_type());
   let _ = assert_eq(s16:40, shl_literal());
@@ -108,7 +108,7 @@ fn main() -> sN[128] {
   sub / y
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(s32:-1, main32());
   let _ = assert_eq(sN[1024]:-2, main1k());

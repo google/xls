@@ -23,7 +23,7 @@ fn find_index(x: u4[4], target: u4) -> (bool, u2) {
   (found, index as u2)
 }
 
-#![test]
+#[test]
 fn test_sample_values() {
   let _ = assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:1), (true, u2:0));
   let _ = assert_eq(find_index(u4[4]:[1, 2, 3, 4], u4:3), (true, u2:2));

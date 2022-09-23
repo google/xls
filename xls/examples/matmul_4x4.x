@@ -108,7 +108,7 @@ proc matmul<ROWS: u32, COLS: u32> {
   }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc test_proc {
   activations_out: chan<F32>[4] out;
   results_in: chan<F32>[4] in;

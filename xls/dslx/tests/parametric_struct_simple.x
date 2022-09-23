@@ -25,7 +25,7 @@ fn from_point<N: u32>(p: Point1D<N>) -> Point1D<N> {
   Point1D { x }
 }
 
-#![test]
+#[test]
 fn test_from_point() {
   let p = make_point(u7:42);
   let q = from_point(p);

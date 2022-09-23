@@ -78,7 +78,7 @@ pub fn fir_filter_float32<NUM_TAPS:u32, NUM_SAMPLES:u32,
   }(F32[NUM_OUTPUTS]:[float32::zero(u1:0),...])
 }
 
-#![test]
+#[test]
 fn fir_filter_fixed_test() {
    let samples = s32[6]:[1, 2, 3, 4, 5, 6];
    let coefficients = s32[4]:[10, 11, -12, -13];
@@ -87,7 +87,7 @@ fn fir_filter_fixed_test() {
    ()
 }
 
-#![test]
+#[test]
 fn fir_filter_float32_test() {
    let samples = map(s32[6]:[1, 2, 3, 4, 5, 6], float32::cast_from_fixed);
    let coefficients= map(s32[4]:[10, 11, -12, -13], float32::cast_from_fixed);

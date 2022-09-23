@@ -286,7 +286,7 @@ proc aes_gcm {
 
 // Tests encryption of a single block of plaintext with a single block of AAD.
 // 256-bit testing is run via the cc_test.
-#![test_proc()]
+#[test_proc()]
 proc aes_gcm_test_smoke_128 {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
@@ -352,7 +352,7 @@ proc aes_gcm_test_smoke_128 {
 }
 
 // Tests encryption with three blocks of plaintext and two blocks of AAD.
-#![test_proc()]
+#[test_proc()]
 proc aes_gcm_multi_block_gcm {
     command_out: chan<Command> out;
     input_out: chan<Block> out;
@@ -472,7 +472,7 @@ proc aes_gcm_multi_block_gcm {
 // commands: 0 blocks of AAD, 0 blocks of msg, or 0 blocks of either.
 // We can't inspect proc internal state, so we finish up this sequence with a
 // normal encryption and verify the results.
-#![test_proc()]
+#[test_proc()]
 proc aes_128_gcm_zero_block_commands {
     command_out: chan<Command> out;
     input_out: chan<Block> out;

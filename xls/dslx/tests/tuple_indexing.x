@@ -18,7 +18,7 @@ fn tuple_index_all_bits_set(x: (u1, u2, u3, u4)) -> u4 {
   x.0b11
 }
 
-#![test]
+#[test]
 fn test_tuple_index() {
   // Perform tuple indexing without explicitly annotating the type of the index.
   let _ = assert_eq((u32:42, u4:7).1, u4:7);

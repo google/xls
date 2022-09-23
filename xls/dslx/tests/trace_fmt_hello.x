@@ -25,5 +25,5 @@ fn main() {
   hello()
 }
 
-#![test]
+#[test]
 fn hello_test() { hello() }

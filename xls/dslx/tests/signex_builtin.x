@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![test]
+#[test]
 fn signex_builtin() {
   let x = s8:-1;
   let s: s32 = signex(x, s32:0);

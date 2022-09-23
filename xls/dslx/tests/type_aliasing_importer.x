@@ -22,7 +22,7 @@ fn main() -> Point {
   Point{x: u32:42, y: u32:64}
 }
 
-#![test]
+#[test]
 fn main_test() {
   let p: Point = main();
   let _ = assert_eq(p.x, u32:42);

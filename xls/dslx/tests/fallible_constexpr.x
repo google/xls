@@ -28,7 +28,7 @@ fn main() -> u32 {
   u32:3 + u32:3
 }
 
-#![test]
+#[test]
 fn compute_without_fail_test() {
   let _ = assert_eq(u32:3, three);
   ()

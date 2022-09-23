@@ -83,7 +83,7 @@ Finally, let's write a quick test to make sure things work. Add the following
 code to your file.
 
 ```dslx-snippet
-#![test]
+#[test]
 fn float_to_int_test() {
   // 0xbeef in float32.
   let test_input = float32 {

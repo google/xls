@@ -20,7 +20,7 @@ fn main() -> xType {
   xType: 4
 }
 
-#![test]
+#[test]
 fn main_test() {
   let x: xType = main();
   let _ = assert_eq(x, u8:4);

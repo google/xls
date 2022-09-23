@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![test]
+#[test]
 fn first_failing() {
   assert_eq(false, true)
 }
 
-#![quickcheck]
+#[quickcheck]
 fn always_false(x: u32) -> bool {
   false
 }
 
-#![test]
+#[test]
 fn second_failing() {
   assert_eq(false, true)
 }

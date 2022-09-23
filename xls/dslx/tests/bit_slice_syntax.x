@@ -25,7 +25,7 @@ fn foo() -> u6 {
   get_middle_bits(u8:5)
 }
 
-#![test]
+#[test]
 fn bit_slice_syntax() {
   let _ = assert_eq(u2:0b11, get_middle_bits(u4:0b0110));
   let _ = assert_eq(u3:0b101, get_middle_bits(u5:0b01010));

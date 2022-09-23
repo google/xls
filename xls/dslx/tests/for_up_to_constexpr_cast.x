@@ -41,7 +41,7 @@ fn main() -> u32 {
   f() + g() + p<FOO>()
 }
 
-#![test]
+#[test]
 fn f_test() {
   let _ = assert_eq(f(), u32:3);
   let _ = assert_eq(g(), u32:3);

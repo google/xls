@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![test]
+#[test]
 fn bit_slice_test() {
   let _ = assert_eq(u2:0b11, bit_slice(u6:0b100111, u6:0, u2:0));
   let _ = assert_eq(u2:0b11, bit_slice(u6:0b100111, u6:1, u2:0));

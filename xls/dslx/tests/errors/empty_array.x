@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![test]
+#[test]
 fn empty_eq_test() {
   // This should fail with an error because the types of the empty arrays are
   // ambiguous, but not segfault.

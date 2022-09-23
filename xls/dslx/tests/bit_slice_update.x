@@ -16,7 +16,7 @@ fn main(x: u32, y: u5, z: u23) -> u32 {
    bit_slice_update(x, y, z)
 }
 
-#![test]
+#[test]
 fn bit_slice_update_test() {
   let _ = assert_eq(u6:0b010111, bit_slice_update(u6:0b010101, u16:0, u2:0b11));
   let _ = assert_eq(u6:0b110101, bit_slice_update(u6:0b010101, u16:4, u2:0b11));

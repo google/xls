@@ -38,7 +38,7 @@ _INPUT_FILES = [
 ]
 
 _INTERP_ATTR_RE = re.compile(
-    r'#!\[interp_main_(?P<key>\S+) = "(?P<value>\S+)"\]')
+    r'#\[interp_main_(?P<key>\S+) = "(?P<value>\S+)"\]')
 
 
 def get_examples() -> List[Dict[str, Union[int, str]]]:
@@ -77,10 +77,10 @@ class DocumentationTest(parameterized.TestCase):
   def test_strip_attributes(self):
     text = """\
 // Some comment
-#![interp_main_flag = "stuff"]
+#[interp_main_flag = "stuff"]
 
 // Another comment
-#![interp_main_other_flag = "thing"]
+#[interp_main_other_flag = "thing"]
 """
     example = strip_attributes(text)
     self.assertEqual(example.flags, ['--flag=stuff', '--other_flag=thing'])

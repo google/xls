@@ -340,7 +340,7 @@ fn extend_to_32b(x: MySignedEnum) -> u32 {
   x as u32  // Sign-extends because the source type is signed.
 }
 
-#![test]
+#[test]
 fn test_extend_to_32b() {
   assert_eq(extend_to_32b(MySignedEnum::LOW), u32:0xffffffff)
 }
@@ -384,7 +384,7 @@ To access individual tuple elements use simple indices, starting at 0. For
 example, to access the second element of a tuple (index 1):
 
 ```dslx
-#![test]
+#[test]
 fn test_tuple_access() {
   let t = (u32:2, u8:3);
   assert_eq(u8:3, t.1)
@@ -398,7 +398,7 @@ expressions, which provides a convenient syntax to name elements of a tuple for
 subsequent use. See `a` and `b` in the following:
 
 ```dslx-snippet
-#![test]
+#[test]
 fn test_tuple_destructure() {
   let t = (u32:2, u8:3);
   let (a, b) = t;
@@ -411,7 +411,7 @@ Just as values can be discarded in a `let` by using the "black hole identifier"
 `_`, don't-care values can also be discarded when destructuring a tuple:
 
 ```dslx-snippet
-#![test]
+#[test]
 fn test_black_hole() {
   let t = (u32:2, u8:3, true);
   let (_, _, v) = t;
@@ -443,7 +443,7 @@ struct Point {
   y: u32,
 }
 
-#![test]
+#[test]
 fn test_struct_equality() {
   let p0 = Point { x: u32:42, y: u32:64 };
   let p1 = Point { y: u32:64, x: u32:42 };
@@ -457,7 +457,7 @@ names of in-scope values:
 ```dslx
 struct Point { x: u32, y: u32, }
 
-#![test]
+#[test]
 fn test_struct_equality() {
   let x = u32:42;
   let y = u32:64;
@@ -483,7 +483,7 @@ fn main() -> u32 {
   f(Point { x: u32:42, y: u32:64 })
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u32:106, main())
 }
@@ -509,7 +509,7 @@ fn main() -> Point3 {
   update_y(p, u32:128)
 }
 
-#![test]
+#[test]
 fn test_main() {
   let want = Point3 { x: u32:42, y: u32:128, z: u32:256 };
   assert_eq(want, main())
@@ -555,7 +555,7 @@ fn make_point<A: u32, B: u32>(x: bits[A], y: bits[B]) -> Point<A, B> {
   Point{ x, y }
 }
 
-#![test]
+#[test]
 fn test_struct_construction() {
   let p = make_point(u16:42, u32:42);
   assert_eq(u16:42, p.x)
@@ -586,14 +586,14 @@ fn f(p: Point) -> u32 {
   p.x + p.y
 }
 
-#![test]
+#[test]
 fn test_ok() {
   assert_eq(f(Point { x: u32:42, y: u32:64 }), u32:106)
 }
 ```
 
 ```dslx-bad
-#![test]
+#[test]
 fn test_type_checker_error() {
   assert_eq(f(Coordinate { x: u32:42, y: u32:64 }), u32:106)
 }
@@ -610,7 +610,7 @@ fn main(a: u32[2], i: u1) -> u32 {
   a[i]
 }
 
-#![test]
+#[test]
 fn test_main() {
   let x = u32:42;
   let y = u32:64;
@@ -633,7 +633,7 @@ fn make_array(x: u32) -> u32[3] {
   u32[3]:[u32:42, x, ...]
 }
 
-#![test]
+#[test]
 fn test_make_array() {
   let _ = assert_eq(u32[3]:[u32:42, u32:42, u32:42], make_array(u32:42));
   let _ = assert_eq(u32[3]:[u32:42, u32:64, u32:64], make_array(u32:64));
@@ -656,7 +656,7 @@ fn add_one<N: u32>(input: u8[N]) -> u8[N] {
   }(input)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq("bcdef", add_one("abcde"))
 }
@@ -691,7 +691,7 @@ fn main(x: u8) -> MyEnum {
   x as MyEnum
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(main(u8:42), MyEnum::FOO);
   let _ = assert_eq(main(u8:64), MyEnum::BAR);
@@ -724,37 +724,37 @@ changed between signed and unsigned. Some examples are found below. See
 semantics.
 
 ```dslx
-#![test]
+#[test]
 fn test_narrow_cast() {
   let twelve = u4:0b1100;
   assert_eq(twelve as u2, u2:0)
 }
 
-#![test]
+#[test]
 fn test_widen_cast() {
   let three = u2:0b11;
   assert_eq(three as u4, u4:3)
 }
 
-#![test]
+#[test]
 fn test_narrow_signed_cast() {
   let negative_seven = s4:0b1001;
   assert_eq(negative_seven as u2, u2:1)
 }
 
-#![test]
+#[test]
 fn test_widen_signed_cast() {
   let negative_one = s2:0b11;
   assert_eq(negative_one as s4, s4:-1)
 }
 
-#![test]
+#[test]
 fn test_widen_to_unsigned() {
   let negative_one = s2:0b11;
   assert_eq(negative_one as u3, u3:0b111)
 }
 
-#![test]
+#[test]
 fn test_widen_to_signed() {
   let three = u2:0b11;
   assert_eq(three as u3, u3:0b011)
@@ -964,7 +964,7 @@ fn main(x: u3) -> u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u1:0b1, main(u3:0b001))
 }
@@ -992,7 +992,7 @@ fn main(x: u3) -> u1 {
   mod_imported::my_lsb(x) || mi::my_lsb(x)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u1:0b1, main(u3:0b001))
 }
@@ -1013,7 +1013,7 @@ fn match_const(x: u8) -> u8 {
   }
 }
 
-#![test]
+#[test]
 fn test_match_const_not_binding() {
   let _ = assert_eq(u8:42, match_const(u8:0));
   let _ = assert_eq(u8:42, match_const(u8:1));
@@ -1029,7 +1029,7 @@ fn h(t: (u8, (u16, u32))) -> u32 {
   }
 }
 
-#![test]
+#[test]
 fn test_match_nested() {
   let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
   let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
@@ -1050,7 +1050,7 @@ bits set to `1100`.
 DSLX supports initializing using binary, hex or decimal syntax. So
 
 ```dslx
-#![test]
+#[test]
 fn test_literal_initialization() {
   let _ = assert_eq(u8:12, u8:0b00001100);
   let _ = assert_eq(u8:12, u8:0x0c);
@@ -1069,7 +1069,7 @@ But what about `s8:128` ? This is a valid literal, even though a signed 8-bit
 integer cannot represent it. The following code offers a clue.
 
 ```dslx
-#![test]
+#[test]
 fn test_signed_literal_initialization() {
   let _ = assert_eq(s8:128, s8:-128);
   let _ = assert_eq(s8:128, s8:0b10000000);
@@ -1151,7 +1151,7 @@ becomes the least significant bits. These may be chained together as shown
 below:
 
 ```dslx
-#![test]
+#[test]
 fn test_bits_concat() {
   let _ = assert_eq(u8:0b11000000, u2:0b11 ++ u6:0b000000);
   let _ = assert_eq(u8:0b00000111, u2:0b00 ++ u6:0b000111);
@@ -1456,7 +1456,7 @@ for semantics of numeric casts:
     no-op.
 
 ```dslx
-#![test]
+#[test]
 fn test_numerical_conversions() {
   let s8_m2 = s8:-2;
   let u8_m2 = u8:0xfe;
@@ -1501,7 +1501,7 @@ fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] {
   a ++ b
 }
 
-#![test]
+#[test]
 fn test_cast_to_array() {
   let a_value: u6 = u6:0b011011;
   let a: u2[3] = cast_to_array(a_value);
@@ -1593,7 +1593,7 @@ sliced into complementary slices such as `:-2` (all but the two most significant
 bits) and `-2:` (the two most significant bits):
 
 ```dslx
-#![test]
+#[test]
 fn slice_into_two_pieces() {
   let x = u5:0b11000;
   let (lo, hi): (u3, u2) = (x[:-2], x[-2:]);
@@ -1620,7 +1620,7 @@ whereas `[start +: u4]` will produce a 4-bit unsigned number starting at
 // Identity function helper.
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 
-#![test]
+#[test]
 fn test_bit_slice_syntax() {
   let x = u6:0b100111;
   // Slice out two bits.
@@ -1781,7 +1781,7 @@ fn main(x: s3[3]) -> s3[3] {
   y
 }
 
-#![test]
+#[test]
 fn main_test() {
   let got: s3[3] = main(s3[3]:[-1, 1, 0]);
   assert_eq(s3[3]:[1, 1, 0], got)
@@ -1844,7 +1844,7 @@ signed or unsigned. Note that the *value* of the right hand side is ignored,
 only its type is used to determine the result type of the sign extension.
 
 ```dslx
-#![test]
+#[test]
 fn test_signex() {
   let x = u8:0xff;
   let s: s32 = signex(x, s32:0);
@@ -1884,7 +1884,7 @@ fn main(x: u3) -> u3 {
 }
 
 // Reverse examples.
-#![test]
+#[test]
 fn test_reverse() {
   let _ = assert_eq(u3:0b100, main(u3:0b001));
   let _ = assert_eq(u3:0b001, main(u3:0b100));
@@ -1921,7 +1921,7 @@ These functions return the identity element of the respective operation for
 trivial (0 bit wide) inputs:
 
 ```dslx
-#![test]
+#[test]
 fn test_trivial_reduce() {
   let _ = assert_eq(and_reduce(bits[0]:0), true);
   let _ = assert_eq(or_reduce(bits[0]:0), false);
@@ -1951,7 +1951,7 @@ fn divceil(x: u32, y: u32) -> u32 {
   (x-u32:1) / y + u32:1
 }
 
-#![test]
+#[test]
 fn test_divceil() {
   let _ = assert_eq(u32:3, divceil(u32:5, u32:2));
   let _ = assert_eq(u32:2, divceil(u32:4, u32:2));
@@ -1985,7 +1985,7 @@ fn shifty(x: u8, y: u3) -> u8 {
   x << y
 }
 
-#![test]
+#[test]
 fn test_shifty() {
   let _ = assert_eq(shifty(u8:0x42, u3:4), u8:0x20);
   let _ = assert_eq(shifty(u8:0x42, u3:7), u8:0);
@@ -2123,7 +2123,7 @@ documentation, similar in spirit to Python doc strings.
 Unit tests are specified by the `test` directive, as seen below:
 
 ```dslx
-#![test]
+#[test]
 fn test_reverse() {
   let _ = assert_eq(u1:1, rev(u1:1));
   let _ = assert_eq(u2:0b10, rev(u2:0b01));
@@ -2155,7 +2155,7 @@ implementation from above:
 ```dslx
 // Reversing a value twice gets you the original value.
 
-#![quickcheck]
+#[quickcheck]
 fn prop_double_reverse(x: u32) -> bool {
   x == rev(rev(x))
 }
@@ -2172,7 +2172,7 @@ inputs. This default may be changed by specifying the `test_count` key in the
 `quickcheck` directive before a particular test:
 
 ```
-#![quickcheck(test_count=50000)]
+#[quickcheck(test_count=50000)]
 ```
 
 The framework also allows programmers to specify a seed to use in generating the

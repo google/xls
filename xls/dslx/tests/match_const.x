@@ -21,7 +21,7 @@ fn match_const(x: u8) -> u8 {
   }
 }
 
-#![test]
+#[test]
 fn match_const_not_binding() {
   let _ = assert_eq(u8:42, match_const(u8:0));
   let _ = assert_eq(u8:42, match_const(u8:1));
@@ -37,7 +37,7 @@ fn h(t: (u8, (u16, u32))) -> u32 {
   }
 }
 
-#![test]
+#[test]
 fn match_nested() {
   let _ = assert_eq(u32:3, h((u8:42, (u16:1, u32:2))));
   let _ = assert_eq(u32:1, h((u8:0, (u16:1, u32:42))));
@@ -49,7 +49,7 @@ fn main() -> u32 {
   match_const(u8:42) as u32 + h((u8:0, (u16:1, u32:42)))
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(u32:1, main())
 }

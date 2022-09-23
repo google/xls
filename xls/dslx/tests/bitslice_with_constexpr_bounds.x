@@ -20,7 +20,7 @@ fn main(x: u32) -> bits[WIDTH] {
   x[START:LIMIT]
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(main(u32:0b1010_1010_1), u8:0b1010_1010)
 }

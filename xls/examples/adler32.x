@@ -52,7 +52,7 @@ fn main(message: u8) -> u32 {
   adler32_seq(message)
 }
 
-#![test]
+#[test]
 fn adler32_one_char_test() {
   let _ = assert_eq(u32:0x0010001, main(u8:0x00));  // dec 0
   let _ = assert_eq(u32:0x0310031, main(u8:0x30));  // '0'

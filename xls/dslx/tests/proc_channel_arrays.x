@@ -26,7 +26,7 @@ proc consumer {
   }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc producer {
   ps: chan<u16>[128][64][32] out;
   cs: chan<u16>[128][64][32] in;

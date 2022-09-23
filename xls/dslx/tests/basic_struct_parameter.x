@@ -25,7 +25,7 @@ fn main(x: Point) -> Point {
   id(x)
 }
 
-#![test]
+#[test]
 fn id_test() {
   let x = Point { x: u32:42, y: u32:64 };
   let y = main(x);

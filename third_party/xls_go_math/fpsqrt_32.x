@@ -171,7 +171,7 @@ pub fn fpsqrt_32(x: F32) -> F32 {
   result
 }
 
-#![test]
+#[test]
 fn sqrt_test() {
   // Test Special cases.
   let _ = assert_eq(fpsqrt_32(float32::zero(u1:0)),

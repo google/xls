@@ -18,7 +18,7 @@ fn main(x: u32) -> u32 {
   mod_parametric_id_indirect::id_indirect(x)
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(u32:42, main(u32:42))
 }

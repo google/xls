@@ -18,7 +18,7 @@ fn main() -> u32 {
   generated::VALUE
 }
 
-#![test]
+#[test]
 fn test_imported_value() {
   assert_eq(main(), u32:42)
 }

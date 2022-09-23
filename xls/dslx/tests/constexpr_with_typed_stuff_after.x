@@ -44,7 +44,7 @@ fn main() -> (u32, bits[42]) {
   (TWO, MyBits:0)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(main(), (u32:2, bits[42]:0))
 }

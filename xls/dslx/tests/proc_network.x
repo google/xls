@@ -43,7 +43,7 @@ proc first_level_proc {
   next(tok: token) { () }
 }
 
-#![test_proc()]
+#[test_proc()]
 proc main {
   terminator: chan<bool> out;
   config(terminator: chan<bool> out) {

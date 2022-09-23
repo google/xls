@@ -31,7 +31,7 @@ fn main() -> (bool, bool, bool) {
   (first, second, third)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq((true, true, false), main())
 }

@@ -54,7 +54,7 @@ genrule(
     outs = ["generated.x"],
     cmd = "echo 'pub const VALUE = u32:42;' > $(OUTS) && " +
           "echo 'fn main() -> u32 { VALUE }' >> $(OUTS) && " +
-          "echo '#![test]' >> $(OUTS) && " +
+          "echo '#[test]' >> $(OUTS) && " +
           "echo 'fn test_value() { assert_eq(VALUE, u32:42) }' >> $(OUTS)",
 )
 
@@ -62,7 +62,7 @@ genrule(
 check_sha256sum_test(
     name = "generated_x_sha256sum_test",
     src = ":generated.x",
-    sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
+    sha256sum = "cb04ccd886a4191d5ed6ddb3ac213b9d4eb9144b6d52880544d72ae6f055e432",
 )
 
 # Build a frozen file generated with a genrule.
@@ -70,14 +70,14 @@ check_sha256sum_frozen(
     name = "generated_x_sha256sum_frozen",
     src = ":generated.x",
     frozen_file = "generated.frozen.x",
-    sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
+    sha256sum = "cb04ccd886a4191d5ed6ddb3ac213b9d4eb9144b6d52880544d72ae6f055e432",
 )
 
 # Test with a frozen checksum file generated with a check_sha256sum_frozen rule.
 check_sha256sum_test(
     name = "generated_frozen_x_sha256sum_test",
     src = ":generated.frozen.x",
-    sha256sum = "6522799f7b64dbbb2a31eb2862052b8988e78821d8b61fff7f508237a9d9f01d",
+    sha256sum = "cb04ccd886a4191d5ed6ddb3ac213b9d4eb9144b6d52880544d72ae6f055e432",
 )
 
 # Check that we can generate a block a couple different ways.

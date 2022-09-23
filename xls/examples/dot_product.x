@@ -48,7 +48,7 @@ pub fn dot_product_float32<VECTOR_LENGTH: u32>
   } (float32::zero(u1:0))
 }
 
-#![test]
+#[test]
 fn dot_product_fixed_test() {
    let a = s32[4]:[1, 2, 3, 4];
    let b = s32[4]:[5, 6, 7, 8];
@@ -62,7 +62,7 @@ fn dot_product_fixed_test() {
    ()
 }
 
-#![test]
+#[test]
 fn dot_product_float32_test() {
    let a = map(s32[4]:[1, 2, 3, 4], float32::cast_from_fixed);
    let b = map(s32[4]:[5, 6, 7, 8], float32::cast_from_fixed);

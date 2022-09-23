@@ -213,7 +213,7 @@ test proc is very similar to a normal proc with the following changes:
 A skeletal example:
 
 ```dslx-snippet
-#![test_proc(u32:0)]
+#[test_proc(u32:0)]
 proc Tester {
   terminator: chan<bool> out;
 

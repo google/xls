@@ -31,7 +31,7 @@ TEST(RunRoutinesTest, TestInvokedFunctionDoesJit) {
   constexpr const char* kProgram = R"(
 fn unit() -> () { () }
 
-#![test]
+#[test]
 fn test_simple() { unit() }
 )";
   constexpr const char* kModuleName = "test";
@@ -51,7 +51,7 @@ TEST(RunRoutinesTest, QuickcheckInvokedFunctionDoesJit) {
   constexpr const char* kProgram = R"(
 fn id(x: bool) -> bool { x }
 
-#![quickcheck(test_count=1024)]
+#[quickcheck(test_count=1024)]
 fn trivial(x: u5) -> bool { id(true) }
 )";
   constexpr const char* kModuleName = "test";
@@ -72,7 +72,7 @@ TEST(RunRoutinesTest, NoSeedStillQuickChecks) {
   constexpr const char* kProgram = R"(
 fn id(x: bool) -> bool { x }
 
-#![quickcheck(test_count=1024)]
+#[quickcheck(test_count=1024)]
 fn trivial(x: u5) -> bool { id(true) }
 )";
   constexpr const char* kModuleName = "test";
@@ -90,7 +90,7 @@ fn trivial(x: u5) -> bool { id(true) }
 
 TEST(RunRoutinesTest, FailingQuickCheck) {
   constexpr const char* kProgram = R"(
-#![quickcheck(test_count=2)]
+#[quickcheck(test_count=2)]
 fn trivial(x: u5) -> bool { false }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,

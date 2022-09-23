@@ -29,7 +29,7 @@ fn main() -> u32{
   p<SIXTY_FOUR>()
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u32:106, main())
 }

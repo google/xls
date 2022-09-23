@@ -42,7 +42,7 @@ fn decode_a_instruction(ins: u16) -> (u15) {
   (value,)
 }
 
-#![test]
+#[test]
 fn decode_a_test() {
   // @21
   let (value) = decode_a_instruction(u16:0b0_000000000010101);
@@ -100,7 +100,7 @@ fn decode_c_instruction(ins: u16) -> (u7, u3, u3) {
   (comp, dest, jump)
 }
 
-#![test]
+#[test]
 fn decode_c_test() {
   // MD=D+1
   let (comp, dest, jump) = decode_c_instruction(u16:0b1110011111011000);
@@ -124,7 +124,7 @@ fn encode_a_instruction(a: u15) -> u16 {
   u1:0 ++ a
 }
 
-#![test]
+#[test]
 fn encode_a_test() {
   let value = encode_a_instruction(u15:21);
   let _ = assert_eq(value, u16:21);
@@ -135,7 +135,7 @@ fn encode_c_instruction(comp: u7, dest: u3, jump: u3) -> u16 {
   u3:0b111 ++ comp ++ dest ++ jump
 }
 
-#![test]
+#[test]
 fn encode_c_test() {
   let value = encode_c_instruction(COMP_D_PLUS_1, DEST_M|DEST_D, JUMP_NULL);
   let _ = assert_eq(value, u16:0b1110011111011000);
@@ -153,7 +153,7 @@ fn run_a_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
   (pc + u16:1, rd, ra', rm, wm)
 }
 
-#![test]
+#[test]
 fn run_a_test() {
   // @21
   let (pc, rd, ra, rm, wm) = run_a_instruction(u16:0, encode_a_instruction(u15:21), u16:1, u16:2, u16:3);
@@ -169,7 +169,7 @@ fn z_bit(z: u1, v: u16) -> u16 {
   if z { u16:0 } else { v }
 }
 
-#![test]
+#[test]
 fn z_bit_test() {
   let z = z_bit(u1:1, u16:42);
   let _ = assert_eq(z, u16:0);
@@ -182,7 +182,7 @@ fn n_bit(n: u1, v: u16) -> u16 {
   if n { !v } else { v }
 }
 
-#![test]
+#[test]
 fn n_bit_test() {
   let n = n_bit(u1:1, u16:42);
   let _ = assert_eq(n, !u16:42);
@@ -206,7 +206,7 @@ fn alu(x: u16, y:u16, c:u6) -> (u16, u1, u1) {
   (output', zr, ng)
 }
 
-#![test]
+#[test]
 fn alu_test() {
   let (output, zr, ng) = alu(u16:2, u16:8, COMP_D_PLUS_1[0:6]);
   let _ = assert_eq(output, u16:3);
@@ -237,7 +237,7 @@ fn run_c_instruction(pc: u16, ins: u16, rd: u16, ra: u16, rm: u16) -> (u16, u16,
   (pc', rd', ra', rm', wm)
 }
 
-#![test]
+#[test]
 fn run_c_test() {
   // MD=D+1
   let (pc, rd, ra, rm, wm) = run_c_instruction(u16:0, encode_c_instruction(u7:0b0011111, u3:0b011, u3:0b000), u16:1, u16:2, u16:3);
@@ -272,7 +272,7 @@ fn cpu(pc: u16, rd: u16, ra: u16, ram: u16[32], rom: u16[32]) -> (u16, u16, u16,
   (pc', rd', ra', if wm { update(ram, ra', rm') } else { ram })
 }
 
-#![test]
+#[test]
 fn run_cpu() {
   let rom = u16[32]:[
     encode_a_instruction(u15:16),                            // 00 @16

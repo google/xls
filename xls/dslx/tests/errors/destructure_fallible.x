@@ -29,7 +29,7 @@ fn main(x: u8) -> () {
   ()
 }
 
-#![test]
+#[test]
 fn main_test() {
   let x: u8 = u8:0;
   let result = main(x);

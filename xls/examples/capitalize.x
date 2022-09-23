@@ -66,13 +66,13 @@ fn sponge_capitalize<N: u32>(input: u8[N]) -> u8[N] {
   result.0
 }
 
-#![test]
+#[test]
 fn cap_test() {
   let _ = assert_eq("HELLO FRIENDS", capitalize("HeLlO fRiEnDs"));
   ()
 }
 
-#![test]
+#[test]
 fn sponge_cap_test() {
   let _ = assert_eq(
       sponge_capitalize("You shouldn't process strings in hardware"),
@@ -80,7 +80,7 @@ fn sponge_cap_test() {
   ()
 }
 
-#![test]
+#[test]
 fn escape_sequences_test() {
   let _ = assert_eq(
       "H\t\tE\tLLO\nFR\u{beef}IENDS",

@@ -16,7 +16,7 @@ fn main(x: s32, y: s32) -> s32 {
   x-y
 }
 
-#![test]
+#[test]
 fn subtract_to_negative() {
   let x: s32 = s32:5;
   let y: s32 = s32:6;

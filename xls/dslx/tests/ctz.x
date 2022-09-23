@@ -18,7 +18,7 @@ fn main() -> u32 {
   clz(x1)
 }
 
-#![test]
+#[test]
 fn ctz_test() {
   let _ = assert_eq(u32:27, main());
   let _ = assert_eq(u3:2, ctz(u3:0b100));

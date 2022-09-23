@@ -24,7 +24,7 @@ fn concat_arrays(a: u2[3], b: u2[3]) -> u2[6] {
   a ++ b
 }
 
-#![test]
+#[test]
 fn cast_to_array_test() {
   let a_value: u6 = u6:0b011011;
   let a: u2[3] = cast_to_array(a_value);

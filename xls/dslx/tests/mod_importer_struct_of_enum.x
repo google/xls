@@ -21,7 +21,7 @@ fn main(x: u8) -> MyStruct2 {
   MyStruct2 { x: x as MyEnum2 }
 }
 
-#![test]
+#[test]
 fn main_test() {
   let s: MyStruct2 = main(u8:42);
   assert_eq(s.x, MyEnum2::FOO)

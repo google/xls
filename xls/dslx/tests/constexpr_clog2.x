@@ -28,7 +28,7 @@ fn main() -> u32 {
   THING_BITS
 }
 
-#![test]
+#[test]
 fn test_main() {
   let _ = assert_eq(u32:2, THING_BITS);
   let _ = assert_eq(u32:2, main());

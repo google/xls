@@ -26,7 +26,7 @@ fn main() -> MyParametric<u32:8, u32:16> {
   MyParametric { x: u8:1, y: u16:2 }
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(MyParametric { x: u8:1, y: u16:2 }, main())
 }

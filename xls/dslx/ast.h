@@ -2245,7 +2245,7 @@ class Join : public Expr {
 // These are specified with an annotation as follows:
 //
 // ```dslx
-// #![test]
+// #[test]
 // fn test_foo() { ... }
 // ```
 class TestFunction : public AstNode {
@@ -2265,7 +2265,7 @@ class TestFunction : public AstNode {
 
   absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
   std::string ToString() const override {
-    return absl::StrFormat("#![test]\n%s", fn_->ToString());
+    return absl::StrFormat("#[test]\n%s", fn_->ToString());
   }
 
   Function* fn() const { return fn_; }
@@ -2286,7 +2286,7 @@ class TestFunction : public AstNode {
 //
 // These are specified with an annotation as follows:
 // ```dslx
-// #![test]
+// #[test_proc()]
 // proc test_proc { ... }
 // ```
 class TestProc : public AstNode {

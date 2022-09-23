@@ -21,7 +21,7 @@ fn main() -> (u32, u16) {
   (TWO, FOUR)
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(main(), (u32:2, u16:4))
 }

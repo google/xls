@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-#![test]
+#[test]
 fn priority_sel_raw_nums() {
   let _ = assert_eq(u4:0, priority_sel(u3:0b000, u4[3]:[u4:1, u4:2, u4:4]));
   let _ = assert_eq(u4:1, priority_sel(u3:0b001, u4[3]:[u4:1, u4:2, u4:4]));
@@ -23,7 +23,7 @@ fn priority_sel_raw_nums() {
   ()
 }
 
-#![test]
+#[test]
 fn priority_sel_symbols() {
   const A = u4:1;
   const B = u4:2;

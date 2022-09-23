@@ -99,7 +99,7 @@ fn compute_pad_bits(bit_count: u32) -> u32 {
   std::round_up_to_nearest(bit_count, u32:512)-bit_count
 }
 
-#![test]
+#[test]
 fn compute_pad_bits_test() {
   let _: () = assert_eq(u32:511, compute_pad_bits(u32:1));
   let _: () = assert_eq(u32:1, compute_pad_bits(u32:511));
@@ -137,7 +137,7 @@ fn main(message: bits[512]) -> Digest {
   sha256(message)
 }
 
-#![test]
+#[test]
 fn sha256_empty_payload_test() {
   let chunk: bits[512] = u1:0b1 ++ bits[511]:0;
   let digest: Digest = sha256(chunk);
@@ -151,7 +151,7 @@ fn sha256_empty_payload_test() {
              u32:0x7852b855), digest)
 }
 
-#![test]
+#[test]
 fn sha256_abc_test() {
   let message = u8[3]:['a', 'b', 'c'];
   let chunk = pad_to_512b_chunk(message as u24);

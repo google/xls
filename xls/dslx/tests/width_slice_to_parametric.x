@@ -23,7 +23,7 @@ fn main() -> (u1, u2, u3) {
   (low1, low2, low3)
 }
 
-#![test]
+#[test]
 fn test_main() {
   let want = (u1:0b1, u2:0b01, u3:0b101);
   assert_eq(want, main())

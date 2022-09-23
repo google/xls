@@ -16,7 +16,7 @@ fn main() -> s32[3] {
   slice(s32[8]:[1, 2, 3, 4, 5, 6, 7, 8], u32:2, s32[3]:[0, 0, 0])
 }
 
-#![test]
+#[test]
 fn test_concat() {
   assert_eq(s32[3]:[3, 4, 5], main())
 }

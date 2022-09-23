@@ -998,7 +998,7 @@ fn main() -> u8[2] { p(false) }
 
 TEST(TypecheckTest, BadQuickcheckFunctionRet) {
   EXPECT_THAT(Typecheck(R"(
-#![quickcheck]
+#[quickcheck]
 fn f() -> u5 { u5:1 }
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1008,7 +1008,7 @@ fn f() -> u5 { u5:1 }
 TEST(TypecheckTest, BadQuickcheckFunctionParametrics) {
   EXPECT_THAT(
       Typecheck(R"(
-#![quickcheck]
+#[quickcheck]
 fn f<N: u32>() -> bool { true }
 )"),
       StatusIs(absl::StatusCode::kInvalidArgument,
@@ -1239,7 +1239,7 @@ fn main() -> u18 {
 }
 
 TEST(TypecheckTest, BasicRange) {
-  constexpr absl::string_view kProgram = R"(#![test]
+  constexpr absl::string_view kProgram = R"(#[test]
 fn main() {
   let a = u32:0..u32:4;
   let b = u32[4]:[0, 1, 2, 3];

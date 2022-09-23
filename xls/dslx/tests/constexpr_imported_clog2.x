@@ -25,7 +25,7 @@ fn main() -> u32 {
   CONST_1_CLOG2
 }
 
-#![test]
+#[test]
 fn test_main() {
   assert_eq(u32:10, CONST_1_CLOG2)
 }

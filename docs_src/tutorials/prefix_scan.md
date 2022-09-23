@@ -173,14 +173,14 @@ To test the two cases we've described above, we add the following two test cases
 right to this implementation file:
 
 ```dslx-snippet
-#![test]
+#[test]
 fn test_prefix_scan_eq_all_zero() {
   let input = u32[8]:[0, ...];
   let result = prefix_scan_eq(input);
   assert_eq(result, u3[8]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
 
-#![test]
+#[test]
 fn test_prefix_scan_eq_doubles() {
   let input = u32[8]:[0, 0, 1, 1, 2, 2, 3, 3];
   let result = prefix_scan_eq(input);

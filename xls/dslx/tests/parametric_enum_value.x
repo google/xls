@@ -30,7 +30,7 @@ fn main(x: MyEnum) -> bool {
   is_a(x) || is_b(x)
 }
 
-#![test]
+#[test]
 fn parametric_enum_value() {
   let _ = assert_eq(is_a(MyEnum::A), true);
   let _ = assert_eq(is_a(MyEnum::B), false);

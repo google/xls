@@ -308,7 +308,7 @@ type BF16 = bfloat16::BF16;
 type F32 = float32::F32;
 type F64 = float64::F64;
 
-#![test]
+#[test]
 fn smoke() {
     let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
     let one_point_one = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0xccccd };
@@ -321,7 +321,7 @@ fn smoke() {
     assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn one_x_one_plus_one_f32() {
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let one_point_zero = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0 };
@@ -333,7 +333,7 @@ fn one_x_one_plus_one_f32() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn one_x_one_plus_one_f64() {
   let zero = F64 { sign: u1:0, bexp: u11:0, fraction: u52: 0 };
   let one_point_zero = F64 { sign: u1:0, bexp: u11:1023, fraction: u52: 0 };
@@ -345,7 +345,7 @@ fn one_x_one_plus_one_f64() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn one_x_one_plus_one_bf16() {
   let zero = BF16 { sign: u1:0, bexp: u8:0, fraction: u7: 0 };
   let one_point_zero = BF16 { sign: u1:0, bexp: u8:127, fraction: u7: 0 };
@@ -360,7 +360,7 @@ fn one_x_one_plus_one_bf16() {
 // Too complicated to be fully descriptive:
 // (3250761 x -0.00542...) + 456.31...
 // This set of tests will use the same inputs (or as close as is possible).
-#![test]
+#[test]
 fn manual_case_a_f32() {
   let a = F32 { sign: u1:0, bexp: u8:0x97, fraction: u23:0x565d43 };
   let b = F32 { sign: u1:1, bexp: u8:0x77, fraction: u23:0x319a49 };
@@ -370,7 +370,7 @@ fn manual_case_a_f32() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn manual_case_a_f64() {
   let a = F64 { sign: u1:0, bexp: u11:0x417, fraction: u52:0x565d43 };
   let b = F64 { sign: u1:1, bexp: u11:0x3f7, fraction: u52:0x319a49 };
@@ -380,7 +380,7 @@ fn manual_case_a_f64() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn manual_case_a_bf16() {
   let a = BF16 { sign: u1:0, bexp: u8:0x97, fraction: u7:0x2b };
   let b = BF16 { sign: u1:1, bexp: u8:0x77, fraction: u7:0x18 };
@@ -390,7 +390,7 @@ fn manual_case_a_bf16() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_zero() {
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
@@ -402,7 +402,7 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_zero() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one() {
   let zero = F32 { sign: u1:0, bexp: u8:0, fraction: u23: 0 };
   let one_point_zero = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0 };
@@ -415,7 +415,7 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one_point_one() {
   let one_point_one = F32 { sign: u1:0, bexp: u8:127, fraction: u23: 0xccccd };
   let twenty_seven_point_one = F32 { sign: u1:0, bexp: u8:131, fraction: u23: 0x58cccd };
@@ -427,7 +427,7 @@ fn twenty_seven_point_one_x_twenty_seven_point_one_plus_one_point_one() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_a() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x50, fraction: u23:0x1a8ddc };
   let b = F32 { sign: u1:0x1, bexp: u8:0xcb, fraction: u23:0xee7ac };
@@ -437,7 +437,7 @@ fn fail_case_a() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_b() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x23, fraction: u23:0x4d3a41 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x30, fraction: u23:0x35a901 };
@@ -447,7 +447,7 @@ fn fail_case_b() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_c() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x71, fraction: u23:0x2f0932 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xe5, fraction: u23:0x416b76 };
@@ -457,7 +457,7 @@ fn fail_case_c() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_d() {
   let a = F32 { sign: u1:0x0, bexp: u8:0xac, fraction: u23:0x1d0d22 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xdb, fraction: u23:0x2fe688 };
@@ -467,7 +467,7 @@ fn fail_case_d() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_e() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x7b, fraction: u23:0x25e79f };
   let b = F32 { sign: u1:0x1, bexp: u8:0xff, fraction: u23:0x207370 };
@@ -477,7 +477,7 @@ fn fail_case_e() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_f() {
   let a = F32 { sign: u1:0x1, bexp: u8:0xe0, fraction: u23:0x3cdaa8 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x96, fraction: u23:0x52549c };
@@ -487,7 +487,7 @@ fn fail_case_f() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_g() {
   let a = F32 { sign: u1:0x1, bexp: u8:0xc4, fraction: u23:0x73b59a };
   let b = F32 { sign: u1:0x0, bexp: u8:0xa6, fraction: u23:0x1631c0 };
@@ -497,7 +497,7 @@ fn fail_case_g() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_h() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x9b, fraction: u23:0x3f50d4 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x7b, fraction: u23:0x4beeb5 };
@@ -507,7 +507,7 @@ fn fail_case_h() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_i() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x66, fraction: u23:0x36e592 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xc8, fraction: u23:0x2b5bf1 };
@@ -517,7 +517,7 @@ fn fail_case_i() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_j() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x88, fraction: u23:0x0f0e03 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xb9, fraction: u23:0x36006d };
@@ -527,7 +527,7 @@ fn fail_case_j() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_k() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x29, fraction: u23:0x2fd76d };
   let b = F32 { sign: u1:0x1, bexp: u8:0xce, fraction: u23:0x63eded };
@@ -537,7 +537,7 @@ fn fail_case_k() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_l() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x6a, fraction: u23:0x09c1b9 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x7c, fraction: u23:0x666a52 };
@@ -547,7 +547,7 @@ fn fail_case_l() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_m() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x70, fraction: u23:0x41e2db };
   let b = F32 { sign: u1:0x1, bexp: u8:0xd1, fraction: u23:0x013c17 };
@@ -557,7 +557,7 @@ fn fail_case_m() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_n() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x33, fraction: u23:0x537374 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x40, fraction: u23:0x78fa62 };
@@ -567,7 +567,7 @@ fn fail_case_n() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_o() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x94, fraction: u23:0x1aeb90 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x88, fraction: u23:0x1ab376 };
@@ -577,7 +577,7 @@ fn fail_case_o() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_p() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x88, fraction: u23:0x1ebb00 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xf6, fraction: u23:0x0950b6 };
@@ -587,7 +587,7 @@ fn fail_case_p() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_q() {
   let a = F32 { sign: u1:0x0, bexp: u8:0xda, fraction: u23:0x5b328f };
   let b = F32 { sign: u1:0x1, bexp: u8:0x74, fraction: u23:0x157da3 };
@@ -597,7 +597,7 @@ fn fail_case_q() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_r() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x34, fraction: u23:0x4da000 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xf4, fraction: u23:0x4bc400 };
@@ -607,7 +607,7 @@ fn fail_case_r() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_s() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x27, fraction: u23:0x732d83 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xbb, fraction: u23:0x4b2dcd };
@@ -617,7 +617,7 @@ fn fail_case_s() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_t() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x17, fraction: u23:0x070770 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x86, fraction: u23:0x623b39 };
@@ -627,7 +627,7 @@ fn fail_case_t() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_u() {
   let a = F32 { sign: u1:0x0, bexp: u8:0xb1, fraction: u23:0x0c8800 };
   let b = F32 { sign: u1:0x1, bexp: u8:0xc6, fraction: u23:0x2b3800 };
@@ -637,7 +637,7 @@ fn fail_case_u() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_v() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x90, fraction: u23:0x04a800 };
   let b = F32 { sign: u1:0x1, bexp: u8:0x1f, fraction: u23:0x099cb0 };
@@ -647,7 +647,7 @@ fn fail_case_v() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_w() {
   let a = F32 { sign: u1:0x0, bexp: u8:0x90, fraction: u23:0x0fdde1 };
   let b = F32 { sign: u1:0x0, bexp: u8:0xa8, fraction: u23:0x663085 };
@@ -657,7 +657,7 @@ fn fail_case_w() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_x() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x4c, fraction: u23:0x5ca821 };
   let b = F32 { sign: u1:0x0, bexp: u8:0x87, fraction: u23:0x14808c };
@@ -667,7 +667,7 @@ fn fail_case_x() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_y() {
   let a = F32 { sign: u1:0x0, bexp: u8:0xc5, fraction: u23:0x3a123b };
   let b = F32 { sign: u1:0x1, bexp: u8:0x3b, fraction: u23:0x7ee4d9 };
@@ -677,7 +677,7 @@ fn fail_case_y() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_z() {
   let a = F32 { sign: u1:0x1, bexp: u8:0xd4, fraction: u23:0x1b858b };
   let b = F32 { sign: u1:0x1, bexp: u8:0x9e, fraction: u23:0x59fa23 };
@@ -687,7 +687,7 @@ fn fail_case_z() {
   assert_eq(expected, actual)
 }
 
-#![test]
+#[test]
 fn fail_case_aa() {
   let a = F32 { sign: u1:0x1, bexp: u8:0x9b, fraction: u23:0x3ac78d };
   let b = F32 { sign: u1:0x0, bexp: u8:0x3b, fraction: u23:0x542cbb };

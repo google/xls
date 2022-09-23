@@ -198,7 +198,7 @@ pub fn fpexp_32(x: F32) -> F32 {
 }
 
 
-#![test]
+#[test]
 fn fpexp_32_test() {
   // Special cases.
   let _ = assert_eq(float32::qnan(), fpexp_32(float32::qnan()));

@@ -31,7 +31,7 @@ fn main() -> (u1[4], u1[4]) {
   (f(), g())
 }
 
-#![test]
+#[test]
 fn main_test() {
   let (f, g) = main();
   let _ = assert_eq(u1[4]:[0, 1, 0, 1], f);

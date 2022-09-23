@@ -145,7 +145,7 @@ pub fn fpdiv_2x32(x: F32, y: F32) -> F32 {
 
 
 // Test special cases explicitly.
-#![test]
+#[test]
 fn special_cases_tests() {
   // Try all combinations of these special values.
   let nan  = float32::qnan();

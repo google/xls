@@ -26,7 +26,7 @@ fn main(arg: u32) -> u32 {
   parametric_main<u32:2>(arg)
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(u32:8, main(u32:1))
 }

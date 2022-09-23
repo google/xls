@@ -68,7 +68,7 @@ fn neq_by_element(x: TestBlob[3], y: TestBlob[3]) -> bool {
 
 // The default 1000 tests aren't enough to generate a counterexample
 // when eq_by_element has a bug (like not checking every element).
-#![quickcheck(test_count=100000)]
+#[quickcheck(test_count=100000)]
 fn prop_consistent_eq(x: TestBlob[3], y: TestBlob[3]) -> bool {
   x == x && eq_by_element(x,x) && y == y && eq_by_element(y,y) &&
   x == y == eq_by_element(x,y)
@@ -76,13 +76,13 @@ fn prop_consistent_eq(x: TestBlob[3], y: TestBlob[3]) -> bool {
 
 // Use the same test count as prop_consistent_eq because while the edge cases
 // may be different, the difficulty in finding them should be similar.
-#![quickcheck(test_count=100000)]
+#[quickcheck(test_count=100000)]
 fn prop_consistent_neq(x: TestBlob[3], y: TestBlob[3]) -> bool {
   !(x != x) && !(neq_by_element(x,x)) && !(y != y) && !(neq_by_element(y,y)) &&
   x != y == neq_by_element(x,y)
 }
 
-#![test]
+#[test]
 fn empty_eq_test() {
   let _ = assert_eq (() == (), true);
   let _ = assert_eq (() != (), false);

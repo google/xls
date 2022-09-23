@@ -23,7 +23,7 @@ fn main(x: u8) -> u8 {
   p(x)
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(main(u8:0x10), u8:0x20)
 }

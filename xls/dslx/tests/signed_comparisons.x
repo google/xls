@@ -17,7 +17,7 @@ import std
 const U32_NEG_2 = u32:0xfffffffe;
 const U32_NEG_3 = u32:0xfffffffd;
 
-#![test]
+#[test]
 fn signed_comparisons() {
   let _: () = assert_eq(true,  std::slt(u32:2, u32:3));
   let _: () = assert_eq(true,  std::sle(u32:2, u32:3));

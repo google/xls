@@ -25,14 +25,14 @@ fn main() -> bits[32] {
   CONST_1 + CONST_2 + CONST_3
 }
 
-#![test]
+#[test]
 fn can_reference_constants_test() {
   let _ = assert_eq(CONST_1, constexpr::CONST_1);
   let _ = assert_eq(bits[32]:666, constexpr::CONST_1);
   ()
 }
 
-#![test]
+#[test]
 fn can_add_constants_test() {
   assert_eq(bits[32]:1332, constexpr::CONST_1 + CONST_1)
 }

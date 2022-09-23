@@ -20,7 +20,7 @@ fn main(x: u32) -> u32 {
   x + mod_simple_const::FOUR
 }
 
-#![test]
+#[test]
 fn main_test() {
   let _ = assert_eq(main(u32:0), u32:4);
   let _ = assert_eq(main(u32:1), u32:5);

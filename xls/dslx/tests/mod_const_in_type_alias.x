@@ -22,7 +22,7 @@ fn main(x: u32) -> U32X4 {
   U32X4:[x, ...]
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(main(u32:42), u32[4]:[42, 42, 42, 42])
 }

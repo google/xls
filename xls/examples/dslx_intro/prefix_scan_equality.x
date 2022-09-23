@@ -35,14 +35,14 @@ fn prefix_scan_eq(x: u32[8]) -> u3[8] {
   result
 }
 
-#![test]
+#[test]
 fn prefix_scan_eq_all_zero_test() {
   let input = u32[8]:[0, ...];
   let result = prefix_scan_eq(input);
   assert_eq(result, u3[8]:[0, 1, 2, 3, 4, 5, 6, 7])
 }
 
-#![test]
+#[test]
 fn prefix_scan_eq_doubles_test() {
   let input = u32[8]:[0, 0, 1, 1, 2, 2, 3, 3];
   let result = prefix_scan_eq(input);

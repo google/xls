@@ -39,7 +39,7 @@ pub fn apfloat_sub_2<EXP_SZ: u32, FRACTION_SZ: u32>(
 // apfloat_add_2 is thoroughly tested elsewhere
 // and fp64_sub_2 is a trivial modification of
 // apfloat_add_2, so a few simple tests is sufficient.
-#![test]
+#[test]
 fn test_apfloat_sub_2() {
   let one = apfloat::one<u32:8, u32:23>(u1:0);
   let two = apfloat_add_2::add<u32:8, u32:23>(one, one);

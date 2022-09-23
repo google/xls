@@ -23,7 +23,7 @@ fn main(x: u8) -> u16 {
   concat_self(x)
 }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(main(u8:0x10), u16:0x1010)
 }

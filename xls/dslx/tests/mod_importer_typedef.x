@@ -18,7 +18,7 @@ type MyBits = mod_imported_typedef::MyBits;
 
 fn main(x: mod_imported_typedef::MyBits) -> mod_imported_typedef::MyBits { x }
 
-#![test]
+#[test]
 fn main_test() {
   assert_eq(main(MyBits:64), MyBits:64)
 }

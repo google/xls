@@ -15,7 +15,7 @@ fn add(x: u32, y: u32) -> u32 {
   x + y + u32:0  // Something to optimize.
 }
 
-#![test]
+#[test]
 fn test_add() {
   assert_eq(add(u32:2, u32:3), u32:5)
 }
