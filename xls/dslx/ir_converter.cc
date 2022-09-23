@@ -226,11 +226,7 @@ class FunctionConverter {
   // -- Accessors
 
   void SetSymbolicBindings(const SymbolicBindings* value) {
-    if (value == nullptr) {
-      symbolic_binding_map_.clear();
-    } else {
-      symbolic_binding_map_ = value->ToMap();
-    }
+    symbolic_binding_map_ = value->ToMap();
   }
   void set_symbolic_binding_map(
       absl::flat_hash_map<std::string, InterpValue> map) {
@@ -252,20 +248,12 @@ class FunctionConverter {
     }
     return it->second;
   }
+
   // Note: this object holds a map, but we can return a SymbolicBindings object
   // on demand.
   SymbolicBindings GetSymbolicBindings() const {
     return SymbolicBindings(symbolic_binding_map_);
   }
-
-  // Returns the symbolic bindings in symbolic_binding_map_ that are not
-  // module-level constants -- the typechecker doesn't care about module-level
-  // constants.
-  //
-  // TODO(leary): 2020-01-08 This seems broken, what if a local parametric
-  // shadows a module-level constant? We should use "stacked" bindings that look
-  // like a scope chain.
-  SymbolicBindings GetSymbolicBindingsTuple() const;
 
   // Returns the symbolic bindings to be used in the callee for this invocation.
   //
@@ -281,7 +269,7 @@ class FunctionConverter {
   //  spawn).
   std::optional<const SymbolicBindings*> GetInvocationCalleeBindings(
       const Invocation* invocation) const {
-    SymbolicBindings key = GetSymbolicBindingsTuple();
+    SymbolicBindings key = GetSymbolicBindings();
     return import_data_->GetRootTypeInfo(invocation->owner())
         .value()
         ->GetInvocationCalleeBindings(invocation, key);
@@ -956,21 +944,6 @@ absl::Status FunctionConverter::HandleNe(const Binop* node, BValue lhs,
                          return function_builder_->Ne(lhs, rhs, loc);
                        })
       .status();
-}
-
-SymbolicBindings FunctionConverter::GetSymbolicBindingsTuple() const {
-  absl::flat_hash_set<std::string> module_level_constant_identifiers;
-  for (const ConstantDef* constant : module_->GetConstantDefs()) {
-    module_level_constant_identifiers.insert(constant->identifier());
-  }
-  absl::flat_hash_map<std::string, InterpValue> sans_module_level_constants;
-  for (const auto& item : symbolic_binding_map_) {
-    if (module_level_constant_identifiers.contains(item.first)) {
-      continue;
-    }
-    sans_module_level_constants.insert({item.first, item.second});
-  }
-  return SymbolicBindings(std::move(sans_module_level_constants));
 }
 
 absl::Status FunctionConverter::HandleNumber(const Number* node) {
@@ -1774,7 +1747,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
       auto* slice = absl::get<Slice*>(rhs);
       std::optional<StartAndWidth> saw =
           current_type_info_->GetSliceStartAndWidth(slice,
-                                                    GetSymbolicBindingsTuple());
+                                                    GetSymbolicBindings());
       XLS_RET_CHECK(saw.has_value());
       Def(node, [&](const SourceInfo& loc) {
         return function_builder_->BitSlice(lhs, saw->start, saw->width, loc);

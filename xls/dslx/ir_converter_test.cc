@@ -1700,6 +1700,34 @@ TEST(IrConverterTest, FormatMacro) {
   ExpectIr(converted, TestName());
 }
 
+TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
+  constexpr absl::string_view kProgram = R"(
+  const FOO = u32:0;
+
+  fn test1<FOO:u32>(x:u32) -> u32 {
+    x + FOO
+  }
+
+  fn test2<FOO:u32>(x:u32) -> u32 {
+    test1<FOO>(x) - FOO
+  }
+
+  fn main() -> u32 {
+    let foo = test2<u32:3>(u32:3);
+    foo
+  }
+  )";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::string converted,
+      ConvertModuleForTest(kProgram, options, &import_data));
+  ExpectIr(converted, TestName());
+}
+
 }  // namespace
 }  // namespace xls::dslx
 

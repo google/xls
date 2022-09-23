@@ -1,0 +1,19 @@
+package test_module
+
+file_number 0 "fake_file.x"
+
+fn __test_module__test1__3(x: bits[32]) -> bits[32] {
+  FOO: bits[32] = literal(value=3, id=2)
+  ret add.3: bits[32] = add(x, FOO, id=3)
+}
+
+fn __test_module__test2__3(x: bits[32]) -> bits[32] {
+  invoke.6: bits[32] = invoke(x, to_apply=__test_module__test1__3, id=6)
+  FOO: bits[32] = literal(value=3, id=5)
+  ret sub.7: bits[32] = sub(invoke.6, FOO, id=7)
+}
+
+fn __test_module__main() -> bits[32] {
+  literal.8: bits[32] = literal(value=3, id=8)
+  ret foo: bits[32] = invoke(literal.8, to_apply=__test_module__test2__3, id=9)
+}
