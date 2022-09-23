@@ -8,6 +8,11 @@
 
 ## What is XLS?
 
+XLS implements a High Level Synthesis (HLS) toolchain which produces
+synthesizable designs (Verilog and SystemVerilog) from flexible, high-level 
+descriptions of functionality. It is fully Open Source: Apache 2 licensed and 
+developed via GitHub.
+
 XLS (Accelerated HW Synthesis) aims to be the Software Development Kit (SDK) for
 the End of Moore's Law (EoML) era. In this "age of specialization", software and
 hardware engineers must do more co-design across their domain boundaries --
@@ -21,10 +26,6 @@ program runs at native speeds for use in host software or a simulator, but that
 source can also be used to generate hardware block output -- the XLS tools'
 correctness ensures (and provides tools to help formally verify) that they are
 functionally identical.
-
-XLS implements a High Level Synthesis (HLS) toolchain which produces
-synthesizable designs from flexible, high-level descriptions of functionality.
-It is fully Open Source: Apache 2 licensed and developed via GitHub.
 
 XLS is used inside of Google for generating feed-forward pipelines from
 "building block" routines / libraries that can be easily retargeted, reused, and
