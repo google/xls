@@ -56,6 +56,9 @@ The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
 
 We start by assuming
 [Bazel has been installed](https://bazel.build/install/ubuntu).
+On an average 8-core VM, a full initial build (including the C++ frontend) may take up to 6 hours.
+A build without the C++ frontend may take about 2 hours. Please see the two corresponding
+command lines below:
 
 ```console
 ~$ git clone https://github.com/google/xls.git
@@ -69,10 +72,16 @@ bazel 5.2.0
 
 ~/xls$ # Note we're going to tell Ubuntu that `/usr/bin/env python` is actually python3
 ~/xls$ # here, since that is not the case by default on Ubuntu 20.04.
+~/xls$ # This is important. Without this step, you may experience cryptic error messages:
 ~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3
 
-~/xls$ # Now build/test everything in optimized build mode.
-~/xls$ bazel test -c opt //...
+~/xls$ # Now build/test in optimized build mode.
+~/xls$ # If you don't plan on using the C++ frontend, which is not needed to get started,
+~/xls$ # use this command line:
+~/xls$ bazel test -c opt -- //xls/... -//xls/contrib/xlscc/...
+
+~/xls$ # To build everything, including the C++ frontend:
+~/xls$ bazel test -c opt -- //xls/...
 ```
 
 Reference build/test environment setups are also provided via `Dockerfile`s:
