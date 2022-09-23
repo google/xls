@@ -440,17 +440,135 @@ optimizations include exposing parallelism, reducing latency, and eliminating
 instructions. Often these translate directly into the primary objectives of
 hardware optimization of reducing delay and area.
 
-### Common Subexpression Elimination (CSE)
-
-TODO: Finish.
-
-### Constant Folding
-
-TODO: Finish.
-
 ### Dead Code Elimination (DCE)
 
-TODO: Finish.
+Dead Code Elimination (DCE for short) is usually one of the easiest
+and most straigh-forward optimization passes in compilers. The same is
+true for XLS (the implementation is in
+`xls/passes/dce_pass.*`). Understanding the pass is also a good way to
+familiarize yourself with basics of the compiler IR, how to implement
+a pass, how to iterate over the nodes in the IR, how to query for node
+properties and so on.
+
+In general, DCE removes nodes from the IR that cannot be reached.
+Node can become unreachable by connstruction, for example, when a
+developer writes side-effect-free computations in DSLX that are
+disconnected from the function return ops. Certain optimization passes
+may also result in dead nodes.
+
+Let's look at the structure of the pass. The header file is
+straight-forward, The `DeadCodeEliminationPass` is a function-level
+pass and hence derived from `FunctionBasePass`. Every function-level
+pass must implement the function `RunOnFunctionBaseInternal` and
+return a status indicating whether or not the pass made a change to
+the IR:
+
+
+```
+class DeadCodeEliminationPass : public FunctionBasePass {
+ public:
+  DeadCodeEliminationPass()
+      : FunctionBasePass("dce", "Dead Code Elimination") {}
+  ~DeadCodeEliminationPass() override {}
+
+ protected:
+  // Iterate all nodes, mark and eliminate the unvisited nodes.
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
+};
+```
+
+Now let's look at the implementation (in file
+`xls/passes/dce_pass.cc). After the function declaration:
+
+```
+absl::StatusOr<bool> DeadCodeEliminationPass::RunOnFunctionBaseInternal(
+    FunctionBase* f, const PassOptions& options, PassResults* results) const {
+```
+
+There is a little lambda function testing whether a node is deletable or not:
+```
+  auto is_deletable = [](Node* n) {
+    return !n->function_base()->HasImplicitUse(n) &&
+           !OpIsSideEffecting(n->op());
+  };
+```
+
+This function tests for two special classes of nodes.
+
+* A node with implicit uses (defined in `xls/ir/function.h`) is a
+  function's return value. In case of proc's, the return is not
+  reached and may appear as dead. It must not be removed as XLS
+  expects each function to have a return value.
+
+*  There are a number of side-effecting nodes, sich as send/receive
+   operations, asserts, covers, input / output ports, register
+   read / writes, or parameters (and a few more). Because of their
+   side effects, they must not be eliminated by DCE.
+
+Next the pass iterates over all nodes in the function and adds
+deletable nodes with no users to a worklist. Those are leaf nodes,
+they are the initial candidates for deletion:
+
+
+```
+  std::deque<Node*> worklist;
+  for (Node* n : f->nodes()) {
+    if (n->users().empty() && is_deletable(n)) {
+      worklist.push_back(n);
+    }
+  }
+```
+
+Now on to the heart of the DCE algorithm. The algorithm iterates over
+nodes in the worklist until it is empty, popping elements from the
+front of the list and potentially adding new elements to the list. For
+example, assume there was a leaf node A with no further users. Further
+assume that its operand(s) only have node A has user, then the operand
+will be added to the worklist and visited in the next iteration over
+the worklist. There is a minor subtlety here - the code has to ensure
+that operands are only visited once, hence the use of a
+`flat_hash_set<Node*>` to check whether an operand has been visited
+already.
+
+After all operands have been visited and potentially added to the
+worklist, the original leaf node A is being removed and a
+corresponding logging statement (level 3) is generated.
+
+```
+  int64_t removed_count = 0;
+  absl::flat_hash_set<Node*> unique_operands;
+  while (!worklist.empty()) {
+    Node* node = worklist.front();
+    worklist.pop_front();
+
+    // A node may appear more than once as an operand of 'node'. Keep track of
+    // which operands have been handled in a set.
+    unique_operands.clear();
+    for (Node* operand : node->operands()) {
+      if (unique_operands.insert(operand).second) {
+        if (operand->users().size() == 1 && is_deletable(operand)) {
+          worklist.push_back(operand);
+        }
+      }
+    }
+    XLS_VLOG(3) << "DCE removing " << node->ToString();
+    XLS_RETURN_IF_ERROR(f->RemoveNode(node));
+    removed_count++;
+  }
+```
+
+Finally, a pass has to indicate whether or not it made any changes to
+the IR. For this pass, this amounts to returning whether or not a
+single IR node has been DCE'ed:
+
+```
+  XLS_VLOG(2) << "Removed " << removed_count << " dead nodes";
+  return removed_count > 0;
+}
+```
+
 
 ### IO simplifications
 
@@ -460,6 +578,15 @@ are replaced with their input token (in the case of sends) or a tuple containing
 their input token and a literal representing the zero value of the appropriate
 channel (in the case of receives). Conditional sends and receives that have a
 condition known to be true are replaced with unconditional sends and receives.
+
+
+### Common Subexpression Elimination (CSE)
+
+TODO: Finish.
+
+### Constant Folding
+
+TODO: Finish.
 
 ### Reassociation
 
