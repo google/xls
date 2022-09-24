@@ -31,6 +31,9 @@
 namespace xls::dslx {
 namespace {
 
+using status_testing::StatusIs;
+using ::testing::HasSubstr;
+
 constexpr ConvertOptions kFailNoPos = {
     .emit_positions = false,
 };
@@ -1726,6 +1729,21 @@ TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
       std::string converted,
       ConvertModuleForTest(kProgram, options, &import_data));
   ExpectIr(converted, TestName());
+}
+
+TEST(IrConverterTest, ChannelDecl) {
+  constexpr absl::string_view kProgram = R"(fn main() {
+  let _ = chan<u8>;
+  ()
+  })";
+  ConvertOptions options;
+  options.emit_fail_as_assert = false;
+  options.emit_positions = false;
+  options.verify_ir = false;
+  auto import_data = CreateImportDataForTest();
+  EXPECT_THAT(ConvertOneFunctionForTest(kProgram, "main", import_data, options),
+              StatusIs(absl::StatusCode::kUnimplemented,
+                       HasSubstr("AST node unsupported for IR conversion:")));
 }
 
 }  // namespace
