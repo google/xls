@@ -41,7 +41,7 @@ namespace {
 
 // Abstraction representing a simple loop in LLVM.
 struct LlvmIrLoop {
-  // Index value ranging from 0 ... N-1. Type is i64.
+  // Index value ranging from 0 ... (N-1) * stride. Type is i64.
   llvm::Value* index;
 
   // IRBuilder for the loop body basic block. Insertion point is right before
@@ -52,8 +52,9 @@ struct LlvmIrLoop {
   std::unique_ptr<llvm::IRBuilder<>> exit_builder;
 };
 
-// Creates a simple loop in LLVM IR which counts from 0 to `loop_count` - 1.
-LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder) {
+// Creates a simple loop in LLVM IR which interates `loop_count` times.
+LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
+                      int64_t stride = 1) {
   llvm::Function* function = builder.GetInsertBlock()->getParent();
   llvm::LLVMContext& context = builder.getContext();
   llvm::BasicBlock* entry_block = builder.GetInsertBlock();
@@ -77,7 +78,7 @@ LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder) {
   //   br(cond, exit, body)
   llvm::Type* i64 = llvm::Type::getInt64Ty(context);
   llvm::Value* init_index = llvm::ConstantInt::get(i64, 0);
-  llvm::Value* index_limit = llvm::ConstantInt::get(i64, loop_count);
+  llvm::Value* index_limit = llvm::ConstantInt::get(i64, loop_count * stride);
 
   llvm::PHINode* index_phi = preheader_builder->CreatePHI(i64, 2);
   index_phi->setName("index");
@@ -92,7 +93,7 @@ LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder) {
   //   ===> body insertion point
   //   br(preheader)
   llvm::Value* next_index = ir_loop.body_builder->CreateAdd(
-      index_phi, llvm::ConstantInt::get(i64, 1));
+      index_phi, llvm::ConstantInt::get(i64, stride));
   next_index->setName("next_index");
   llvm::Instruction* br = ir_loop.body_builder->CreateBr(preheader_block);
   ir_loop.body_builder->SetInsertPoint(br);
@@ -1444,21 +1445,31 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
                         NumberedStrings("invariant_arg",
                                         counted_for->invariant_args().size())),
           /*include_wrapper_args=*/true));
-  llvm::IRBuilder<>& b = node_context.entry_builder();
-
   XLS_ASSIGN_OR_RETURN(llvm::Function * body, GetFunction(counted_for->body()));
 
-  llvm::Type* index_type = type_converter()->ConvertToLlvmType(
-      counted_for->body()->param(0)->GetType());
+  // Create a buffer to hold the loop state and write in the initial value.
   llvm::Type* state_type = type_converter()->ConvertToLlvmType(
       counted_for->initial_value()->GetType());
+  llvm::Value* loop_state_buffer =
+      node_context.entry_builder().CreateAlloca(state_type);
+  node_context.entry_builder().CreateStore(node_context.LoadOperand(0),
+                                           loop_state_buffer);
 
-  llvm::Value* index_buffer = b.CreateAlloca(index_type);
-  llvm::Value* loop_state_buffer = b.CreateAlloca(state_type);
   std::vector<llvm::Value*> invariant_arg_buffers;
   for (int64_t i = 1; i < counted_for->operand_count(); ++i) {
     invariant_arg_buffers.push_back(node_context.GetOperandPtr(i));
   }
+
+  LlvmIrLoop loop =
+      CreateLoop(counted_for->trip_count(), node_context.entry_builder(),
+                 counted_for->stride());
+
+  llvm::Type* index_type = type_converter()->ConvertToLlvmType(
+      counted_for->body()->param(0)->GetType());
+  llvm::Value* cast_index = loop.body_builder->CreateIntCast(
+      loop.index, index_type, /*isSigned=*/false);
+  llvm::Value* index_buffer = loop.body_builder->CreateAlloca(index_type);
+  loop.body_builder->CreateStore(cast_index, index_buffer);
 
   // Signature of body function is:
   //
@@ -1471,28 +1482,23 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   input_arg_ptrs.insert(input_arg_ptrs.end(), invariant_arg_buffers.begin(),
                         invariant_arg_buffers.end());
 
-  llvm::Value* next_state_buffer = b.CreateAlloca(state_type);
+  llvm::Value* next_state_buffer = loop.body_builder->CreateAlloca(state_type);
+  XLS_RETURN_IF_ERROR(CallFunction(body, input_arg_ptrs, {next_state_buffer},
+                                   node_context.GetTempBufferArg(),
+                                   node_context.GetInterpreterEventsArg(),
+                                   node_context.GetUserDataArg(),
+                                   node_context.GetJitRuntimeArg(),
+                                   *loop.body_builder)
+                          .status());
+  // TODO(meheff): 2022/09/09 Rather than loading the state and storing it in
+  // the state buffer for the next iteration, simply swap the state and
+  // next-state buffer pointers passed to the loop body function.
+  llvm::Value* next_state =
+      loop.body_builder->CreateLoad(state_type, next_state_buffer);
+  loop.body_builder->CreateStore(next_state, loop_state_buffer);
 
-  llvm::Value* next_state = node_context.LoadOperand(0);
-  b.CreateStore(next_state, loop_state_buffer);
-  // TODO(meheff): 2022/09/09 Generate an LLVM loop rather than unrolling.
-  for (int i = 0; i < counted_for->trip_count(); ++i) {
-    b.CreateStore(llvm::ConstantInt::get(index_type, i * counted_for->stride()),
-                  index_buffer);
-    XLS_RETURN_IF_ERROR(CallFunction(body, input_arg_ptrs, {next_state_buffer},
-                                     node_context.GetTempBufferArg(),
-                                     node_context.GetInterpreterEventsArg(),
-                                     node_context.GetUserDataArg(),
-                                     node_context.GetJitRuntimeArg(), b)
-                            .status());
-    // TODO(meheff): 2022/09/09 Rather than loading the state and storing it in
-    // the state buffer for the next iteration, simply swap the state and
-    // next-state buffer pointers passed to the loop body function.
-    next_state = b.CreateLoad(state_type, next_state_buffer);
-    b.CreateStore(next_state, loop_state_buffer);
-  }
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), next_state);
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), loop_state_buffer, loop.exit_builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
@@ -1539,7 +1545,6 @@ absl::Status IrBuilderVisitor::HandleDynamicCountedFor(
   llvm::Value* initial_value = node_context.LoadOperand(0);
   llvm::Value* trip_count = node_context.LoadOperand(1);
   llvm::Value* stride = node_context.LoadOperand(2);
-  //  auto invariant_args = node_context.LoadOperands().subspan(3);
 
   // Grab loop body.
   XLS_ASSIGN_OR_RETURN(llvm::Function * loop_body_function,
