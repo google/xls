@@ -60,8 +60,7 @@ class ProcInliningPassTest : public IrTestBase {
     return changed;
   }
 
-  absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
-  CreateProcNetworkInterpreter(
+  absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> CreateInterpreter(
       Package* p,
       const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs) {
     // Create an fixed input queue for each set of inputs. It will feed in the
@@ -88,7 +87,7 @@ class ProcInliningPassTest : public IrTestBase {
         queues.push_back(std::move(queue));
       }
     }
-    return ProcNetworkInterpreter::Create(p, std::move(queues));
+    return CreateProcNetworkInterpreter(p, std::move(queues));
   }
 
   // Evaluate the proc with the given inputs and expect the given
@@ -108,7 +107,7 @@ class ProcInliningPassTest : public IrTestBase {
 
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        CreateProcNetworkInterpreter(p, inputs));
+        CreateInterpreter(p, inputs));
 
     std::vector<Channel*> output_channels;
     absl::flat_hash_map<Channel*, int64_t> expected_output_count;
@@ -1721,7 +1720,7 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth0) {
 
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
+      CreateInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
   EXPECT_THAT(
       interpreter->Tick(),
       StatusIs(
@@ -1882,9 +1881,8 @@ TEST_F(ProcInliningPassTest, DelayedReceiveWithDataLossFifoDepth1) {
 
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3}}}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateInterpreter(p.get(), {{"in", {1, 2, 3}}}));
   XLS_EXPECT_OK(interpreter->Tick());
   EXPECT_THAT(interpreter->Tick(),
               StatusIs(absl::StatusCode::kAborted,
@@ -1943,7 +1941,7 @@ TEST_F(ProcInliningPassTest, DataLoss) {
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
+      CreateInterpreter(p.get(), {{"in", {1, 2, 3, 4, 5}}}));
 
   XLS_EXPECT_OK(interpreter->Tick());
   EXPECT_THAT(interpreter->Tick(),
@@ -2001,9 +1999,8 @@ TEST_F(ProcInliningPassTest, DataLossDueToReceiveNotActivated) {
   ASSERT_THAT(Run(p.get(), /*top=*/"A"), IsOkAndHolds(true));
 
   EXPECT_EQ(p->procs().size(), 1);
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3}}}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateInterpreter(p.get(), {{"in", {1, 2, 3}}}));
   EXPECT_THAT(interpreter->Tick(),
               StatusIs(absl::StatusCode::kAborted,
                        HasSubstr("Channel a_to_b1 lost data")));
@@ -2597,7 +2594,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
         {"in", {2, 5, 7}}};
     XLS_ASSERT_OK_AND_ASSIGN(
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
-        CreateProcNetworkInterpreter(p.get(), inputs));
+        CreateInterpreter(p.get(), inputs));
     ChannelQueue& output_queue = interpreter->queue_manager().GetQueue(ch_out);
     while (output_queue.size() < inputs.at("in").size()) {
       XLS_ASSERT_OK(interpreter->Tick());
@@ -3135,7 +3132,7 @@ TEST_F(ProcInliningPassTest, MultipleReceivesDoesNotFireEveryTickFifoDepth0) {
   EXPECT_EQ(p->procs().size(), 1);
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(p.get(), {{"in", {1, 2, 3, 42, 123, 333}}}));
+      CreateInterpreter(p.get(), {{"in", {1, 2, 3, 42, 123, 333}}}));
 
   // Data is lost on tick 3 because a receive does not fire and the fifo
   // depth is zero.

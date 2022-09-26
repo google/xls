@@ -711,12 +711,10 @@ class ProcBuilder : public BuilderBase {
 
 // A derived ProcBuilder which automatically manages tokens internally.  This
 // makes it much less verbose to construct procs with sends, receives, or other
-// token-using operations. In the TokenlessProcBuilder, *all* token-using
-// operations use GetTokenParam() as their token operand, and the recurrent
-// token is an AfterAll operation whose operands are the tokens from all of the
-// token-using operations. The limitation of the TokenlessProcBuilder is that it
-// cannot be used if non-trivial ordering of these operations is required
-// (enforced via token data dependencies).
+// token-using operations. In the TokenlessProcBuilder, token-using
+// operations are totally ordered by threading of a single token. The limitation
+// of the TokenlessProcBuilder is that it cannot be used if non-trivial ordering
+// of these operations is required (enforced via token data dependencies).
 //
 // Note: a proc built with the TokenlessProcBuilder still has token types
 // internally. "Tokenless" refers to the fact that token values are hidden from
@@ -748,14 +746,12 @@ class TokenlessProcBuilder : public ProcBuilder {
                  absl::string_view name = "");
 
   // Add a non-blocking receive operation. The type of the data value received
-  // is determined by the channel. The returned BValue is a tuple of
-  // the received data itself along with a valid bit (*not* the receive
-  // operation itself which produces a tuple containing a token, the data,
-  // and a valid bit).
+  // is determined by the channel. The returned BValue is a pair of
+  // the received data itself along with a valid bit.
   using ProcBuilder::ReceiveNonBlocking;
-  BValue ReceiveNonBlocking(Channel* channel,
-                            const SourceInfo& loc = SourceInfo(),
-                            absl::string_view name = "");
+  std::pair<BValue, BValue> ReceiveNonBlocking(
+      Channel* channel, const SourceInfo& loc = SourceInfo(),
+      absl::string_view name = "");
 
   // Add a conditinal receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is

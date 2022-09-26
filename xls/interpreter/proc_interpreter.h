@@ -21,22 +21,83 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "xls/interpreter/channel_queue.h"
-#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/events.h"
-#include "xls/ir/node_iterator.h"
-#include "xls/ir/package.h"
+#include "xls/ir/proc.h"
 #include "xls/ir/value.h"
 
 namespace xls {
 
-// A stateful interpreter for an individual proc. Incrementally executes Procs a
-// single iteration at a time. Data is fed to the proc via
-// ChannelQueues. ProcInterpreters are thread-compatible, but not thread-safe.
+// Abstract base class representing a continuation for the evaluation of a
+// Proc. The continuation captures the control and data state of the execution
+// of a proc tick.
+class ProcContinuation {
+ public:
+  virtual ~ProcContinuation() = default;
+
+  // Returns the Proc state at the beginning of the tick currently being
+  // executed.
+  virtual std::vector<Value> GetState() const = 0;
+
+  // Returns the events recorded during execution of this continuation.
+  virtual const InterpreterEvents& GetEvents() const = 0;
+  virtual InterpreterEvents& GetEvents() = 0;
+
+  // Returns true if the point of execution of this continuation is at the start
+  // of a tick, rather than, for example, blocked on a receive in the middle of
+  // a tick execution.
+  virtual bool AtStartOfTick() const = 0;
+};
+
+// A continuation used by the ProcInterpreter.
+class ProcInterpreterContinuation : public ProcContinuation {
+ public:
+  // Construct a new continuation. Execution the proc begins with the state set
+  // to its initial values with no proc nodes yet executed.
+  explicit ProcInterpreterContinuation(Proc* proc)
+      : node_index_(0),
+        state_(proc->InitValues().begin(), proc->InitValues().end()) {}
+
+  ~ProcInterpreterContinuation() override = default;
+
+  std::vector<Value> GetState() const override { return state_; }
+  const InterpreterEvents& GetEvents() const override { return events_; }
+  InterpreterEvents& GetEvents() override { return events_; }
+  bool AtStartOfTick() const override { return node_index_ == 0; }
+
+  // Resets the continuation so it will start executing at the begining of the
+  // proc with the given state values.
+  void NextTick(std::vector<Value>&& next_state) {
+    node_index_ = 0;
+    state_ = next_state;
+    node_values_.clear();
+  }
+
+  // Gets/sets the index of the node to be executed next. This index refers to a
+  // place in a topological sort of the proc nodes held by the ProcInterpreter.
+  int64_t GetNodeExecutionIndex() const { return node_index_; }
+  void SetNodeExecutionIndex(int64_t index) { node_index_ = index; }
+
+  // Returns the map of node values computed in the tick so far.
+  absl::flat_hash_map<Node*, Value>& GetNodeValues() { return node_values_; }
+  const absl::flat_hash_map<Node*, Value>& GetNodeValues() const {
+    return node_values_;
+  }
+
+ private:
+  int64_t node_index_;
+  std::vector<Value> state_;
+
+  InterpreterEvents events_;
+  absl::flat_hash_map<Node*, Value> node_values_;
+};
+
+// A interpreter for an individual proc. Incrementally executes Procs a single
+// tick at a time. Data is fed to the proc via ChannelQueues.  ProcInterpreters
+// are thread-save if called with different continuations.
 class ProcInterpreter {
  public:
   ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager);
@@ -44,74 +105,51 @@ class ProcInterpreter {
   ProcInterpreter(const ProcInterpreter&) = delete;
   ProcInterpreter operator=(const ProcInterpreter&) = delete;
 
-  // Advances the proc interpreter to the next iteration. This method must be
-  // called prior to calling RunIterationUntilCompleteOrBlocked() for the first
-  // time. An error is returned if the the interpreter has not completed the
-  // previous iteration.
-  // absl::Status NextIteration();
+  // Creates and returns a new continuation for the proc.
+  std::unique_ptr<ProcContinuation> NewContinuation() const;
 
-  // Data structure holding the result of a single call to
-  // RunIterationUntilCompleteOrBlocked.
-  struct RunResult {
-    // Whether the proc completed executing for this iteration. Execution is not
+  // Data structure holding the result of a single call to Tick.
+  struct TickResult {
+    // Whether the proc completed executing for this tick. Execution is not
     // completed if (and only if) a receive operation is blocked.
-    bool iteration_complete;
+    bool tick_complete;
 
     // Whether any progress was made (at least one instruction was executed).
     bool progress_made;
 
     // If the proc is blocked on receive (iteration complete is false), this
     // vector includes the channels which have blocked operations.
-    std::vector<Channel*> blocked_channels;
+    std::optional<Channel*> blocked_channel;
 
-    bool operator==(const RunResult& other) const;
-    bool operator!=(const RunResult& other) const;
+    // Vector of channels which were sent on by this proc in this invocation of
+    // Tick.
+    std::vector<Channel*> sent_channels;
+
+    bool operator==(const TickResult& other) const;
+    bool operator!=(const TickResult& other) const;
 
     std::string ToString() const;
   };
 
-  // Runs the proc until the iteration is complete or execution is blocked on a
-  // receive operation. If the previous call to this method completed the
-  // iteration (the returned RunResult field iteration_complete was true), a new
-  // iteration of the proc will be initiated.
-  absl::StatusOr<RunResult> RunIterationUntilCompleteOrBlocked();
+  // Runs the proc from the given continuation until the tick is complete or
+  // execution is blocked on a receive operation. The continuation is updated in
+  // place to reflect the new execution point. If the proc tick completes, the
+  // continuation is set to execute the next tick on the subsequent invocation
+  // of Tick.
+  absl::StatusOr<TickResult> Tick(ProcContinuation& continuation) const;
 
-  // Whether the previous call to RunUntilIterationCompleteOrBlocked completed
-  // an iteration of the proc (the returned RunResult field iteration_complete
-  // was true).
-  bool IsIterationComplete() const;
-
-  Proc* proc() { return proc_; }
-
-  // Returns the computed next state values. Returns NotFoundError if not all
-  // next state values have been computed (due to a blocked channel).
-  absl::StatusOr<std::vector<Value>> ResolveState() const;
-
-  // Resets the proc state elements to their initial values.
-  void ResetState();
-
-  // Get events that happened in the underlying `IrInterpreter`.
-  const InterpreterEvents& GetInterpreterEvents() const {
-    return visitor_->GetInterpreterEvents();
-  }
+  Proc* proc() const { return proc_; }
 
  private:
   Proc* proc_;
   ChannelQueueManager* queue_manager_;
 
   // A topological sort of the nodes of the proc.
-  NodeIterator topo_sort_;
-
-  // A monotonically increasing value holding the number of complete iterations
-  // that the proc has executed.
-  int64_t current_iteration_;
-
-  // The interpreter used for evaluating nodes in the proc.
-  std::unique_ptr<IrInterpreter> visitor_;
+  std::vector<Node*> execution_order_;
 };
 
 std::ostream& operator<<(std::ostream& os,
-                         const ProcInterpreter::RunResult& result);
+                         const ProcInterpreter::TickResult& result);
 
 }  // namespace xls
 

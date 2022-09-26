@@ -359,8 +359,7 @@ void XlsccTestBase::ProcTest(
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 
   XLS_ASSERT_OK_AND_ASSIGN(
-      auto interpreter,
-      xls::ProcNetworkInterpreter::Create(package_.get(), {}));
+      auto interpreter, xls::CreateProcNetworkInterpreter(package_.get(), {}));
 
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
@@ -370,6 +369,9 @@ void XlsccTestBase::ProcTest(
                              queue_manager.GetQueueByName(ch_name));
 
     for (const xls::Value& value : values) {
+      XLS_LOG(INFO) << absl::StrFormat("Enqueuing %s on channel %s",
+                                       value.ToString(),
+                                       queue->channel()->name());
       XLS_ASSERT_OK(queue->Enqueue(value));
     }
   }
@@ -382,15 +384,11 @@ void XlsccTestBase::ProcTest(
     XLS_ASSERT_OK(interpreter->Tick());
 
     XLS_LOG(INFO) << "State after tick " << tick;
-    for (const auto& [proc, value_or] : interpreter->ResolveState()) {
-      XLS_CHECK(value_or.ok() ||
-                value_or.status().code() == absl::StatusCode::kNotFound);
+    for (const auto& [proc, state] : interpreter->ResolveState()) {
       XLS_LOG(INFO) << absl::StrFormat(
           "[%s]: %s", proc->name(),
-          (value_or.ok()
-               ? absl::StrFormat("{%s}", absl::StrJoin(value_or.value(), ", ",
-                                                       xls::ValueFormatter))
-               : "(none)"));
+          absl::StrFormat("{%s}",
+                          absl::StrJoin(state, ", ", xls::ValueFormatter)));
     }
 
     // Check as we go

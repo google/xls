@@ -117,9 +117,9 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithExplicitTicks) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(
-                               package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
 
@@ -150,9 +150,9 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilOutput) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(
-                               package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
@@ -176,9 +176,9 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilBlocked) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(
-                               package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
 
   EXPECT_THAT(interpreter->TickUntilBlocked(/*max_ticks=*/100),
               StatusIs(absl::StatusCode::kDeadlineExceeded,
@@ -202,9 +202,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
       CreateAccumProc("accum", iota_accum_channel, out_channel, package.get())
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(
-                               package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(out_channel);
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
@@ -223,9 +223,9 @@ TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
   auto package = CreatePackage();
   ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(
-                               package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
 
   // Ticking the proc has no observable effect, but it should not hang or crash.
   XLS_ASSERT_OK(interpreter->Tick());
@@ -277,7 +277,7 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
       std::make_unique<FixedChannelQueue>(in_channel, package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
+      CreateProcNetworkInterpreter(package.get(), std::move(queues)));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{out_channel, 3}}));
@@ -302,9 +302,9 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
                                       /*out_channel=*/channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(
-                               package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      std::unique_ptr<ProcNetworkInterpreter> interpreter,
+      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
 
   // The interpreter can tick once without deadlocking because some instructions
   // can actually execute initially (e.g., the parameters). A subsequent call to
@@ -346,7 +346,7 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
                                                        package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
+      CreateProcNetworkInterpreter(package.get(), std::move(queues)));
 
   XLS_ASSERT_OK(interpreter->TickUntilBlocked().status());
 
@@ -402,7 +402,7 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
                                                        package.get(), inputs));
   XLS_ASSERT_OK_AND_ASSIGN(
       std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(queues)));
+      CreateProcNetworkInterpreter(package.get(), std::move(queues)));
 
   XLS_ASSERT_OK(interpreter->TickUntilBlocked().status());
 
@@ -439,7 +439,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(package.get(), {}));
+                           CreateProcNetworkInterpreter(package.get(), {}));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{output_channel, 3}}));
@@ -480,7 +480,7 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           ProcNetworkInterpreter::Create(package.get(), {}));
+                           CreateProcNetworkInterpreter(package.get(), {}));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{output_channel, 9}}));

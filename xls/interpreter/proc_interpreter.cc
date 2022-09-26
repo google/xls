@@ -17,8 +17,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/log_lines.h"
-#include "xls/ir/node_iterator.h"
-#include "xls/ir/proc.h"
+#include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -28,10 +27,18 @@ namespace {
 // communcate via ChannelQueues.
 class ProcIrInterpreter : public IrInterpreter {
  public:
-  // "state" is the value to use for the proc state during interpretation.
+  // Constructor args:
+  //   state: is the value to use for the proc state in the tick being
+  //     interpreted.
+  //   node_values: map from Node to Value for already computed values in this
+  //     tick of the proc. Used for continuations.
+  //   events: events object to record events in (e.g, traces).
+  //   queue_manager: manger for channel queues.
   ProcIrInterpreter(absl::Span<const Value> state,
+                    absl::flat_hash_map<Node*, Value>* node_values,
+                    InterpreterEvents* events,
                     ChannelQueueManager* queue_manager)
-      : IrInterpreter(),
+      : IrInterpreter(node_values, events),
         state_(state.begin(), state.end()),
         queue_manager_(queue_manager) {}
 
@@ -49,9 +56,14 @@ class ProcIrInterpreter : public IrInterpreter {
       }
     }
 
-    // If this is a non-blocking queue, if the queue is empty, then
-    // return a value of zero for that type.
-    if (!receive->is_blocking() && queue->empty()) {
+    if (queue->empty()) {
+      if (receive->is_blocking()) {
+        // Record the channel this receive instruction is blocked on and exit.
+        blocked_channel_ = queue->channel();
+        return absl::OkStatus();
+      }
+      // A non-blocking receive returns a zero data value with a zero valid bit
+      // if the queue is empty.
       return SetValueResult(receive, ZeroOfType(receive->GetType()));
     }
 
@@ -74,6 +86,9 @@ class ProcIrInterpreter : public IrInterpreter {
         return SetValueResult(send, Value::Token());
       }
     }
+    // Indicate that data is sent on this channel.
+    sent_channel_ = queue->channel();
+
     XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send->data())));
 
     // The result of a send is simply a token.
@@ -90,153 +105,163 @@ class ProcIrInterpreter : public IrInterpreter {
     return SetValueResult(param, state_[index - 1]);
   }
 
+  // Executes a single node and return whether the node is blocked on a channel
+  // (for receive nodes) or whether data was sent on a channel (for send nodes).
+  struct NodeResult {
+    std::optional<Channel*> blocked_channel;
+    std::optional<Channel*> sent_channel;
+  };
+  absl::StatusOr<NodeResult> ExecuteNode(Node* node) {
+    // Send/Receive handlers might set these values so clear them before hand.
+    blocked_channel_ = std::nullopt;
+    sent_channel_ = std::nullopt;
+    XLS_RETURN_IF_ERROR(node->VisitSingleNode(this));
+    return NodeResult{.blocked_channel = blocked_channel_,
+                      .sent_channel = sent_channel_};
+  }
+
  private:
   std::vector<Value> state_;
-
   ChannelQueueManager* queue_manager_;
+
+  // Emphemeral values set by the send/receive handlers indicating the channel
+  // execution is blocked on or the channel on which data was sent.
+  std::optional<Channel*> blocked_channel_;
+  std::optional<Channel*> sent_channel_;
 };
+
+// Computes the node execution order for the interpreter. Due to a bug in the
+// way xlscc emits IR, place receives as late as possible in the order to avoid
+// deadlocks.
+// TODO(https://github.com/google/xls/issues/717): Remove hack for late receive
+// ordering when xlscc is fixed.
+std::vector<Node*> NodeExecutionOrder(Proc* proc) {
+  std::vector<Node*> result;
+  std::list<Node*> ready_list;
+  absl::flat_hash_map<Node*, int64_t> operands_remaining;
+  for (Node* node : proc->nodes()) {
+    absl::flat_hash_set<Node*> unique_operands(node->operands().begin(),
+                                               node->operands().end());
+    operands_remaining[node] = unique_operands.size();
+    if (unique_operands.empty()) {
+      ready_list.push_back(node);
+    }
+  }
+  while (!ready_list.empty()) {
+    auto it = ready_list.begin();
+    // Chose the first node on the ready list which is *not* a receive.
+    for (; it != ready_list.end(); ++it) {
+      if (!(*it)->Is<Receive>()) {
+        break;
+      }
+    }
+    // If all nodes on the ready list are receives, then pick the first one.
+    it = it == ready_list.end() ? ready_list.begin() : it;
+    Node* node = *it;
+    ready_list.erase(it);
+
+    result.push_back(node);
+
+    for (Node* user : node->users()) {
+      if (--operands_remaining[user] == 0) {
+        ready_list.push_back(user);
+      }
+    }
+  }
+  XLS_CHECK_EQ(result.size(), proc->node_count());
+  return result;
+}
 
 }  // namespace
 
-bool ProcInterpreter::RunResult::operator==(
-    const ProcInterpreter::RunResult& other) const {
-  return iteration_complete == other.iteration_complete &&
+bool ProcInterpreter::TickResult::operator==(
+    const ProcInterpreter::TickResult& other) const {
+  return tick_complete == other.tick_complete &&
          progress_made == other.progress_made &&
-         blocked_channels == other.blocked_channels;
+         blocked_channel == other.blocked_channel &&
+         sent_channels == other.sent_channels;
 }
 
-bool ProcInterpreter::RunResult::operator!=(
-    const ProcInterpreter::RunResult& other) const {
+bool ProcInterpreter::TickResult::operator!=(
+    const ProcInterpreter::TickResult& other) const {
   return !(*this == other);
 }
 
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
     : proc_(proc),
       queue_manager_(queue_manager),
-      topo_sort_(TopoSort(proc)),
-      current_iteration_(0) {}
+      execution_order_(NodeExecutionOrder(proc)) {}
 
-bool ProcInterpreter::IsIterationComplete() const {
-  return visitor_ == nullptr ||
-         (std::all_of(proc_->NextState().begin(), proc_->NextState().end(),
-                      [&](Node* n) { return visitor_->IsVisited(n); }) &&
-          visitor_->IsVisited(proc_->NextToken()));
+std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation() const {
+  return std::make_unique<ProcInterpreterContinuation>(proc());
 }
 
-absl::StatusOr<std::vector<Value>> ProcInterpreter::ResolveState() const {
-  std::vector<Value> results;
-  for (Node* next_node : proc_->NextState()) {
-    if (!visitor_->HasResult(next_node)) {
-      return absl::NotFoundError(absl::StrFormat(
-          "Proc next state has not been computed: %s", next_node->GetName()));
+absl::StatusOr<ProcInterpreter::TickResult> ProcInterpreter::Tick(
+    ProcContinuation& continuation) const {
+  ProcInterpreterContinuation* cont =
+      dynamic_cast<ProcInterpreterContinuation*>(&continuation);
+  XLS_RET_CHECK_NE(cont, nullptr) << "ProcInterpreter requires a continuation "
+                                     "of type ProcInterpreterContinuation";
+  std::vector<Channel*> sent_channels;
+
+  ProcIrInterpreter ir_interpreter(cont->GetState(), &cont->GetNodeValues(),
+                                   &cont->GetEvents(), queue_manager_);
+
+  // Resume execution at the node indicated in the continuation
+  // (NodeExecutionIndex).
+  int64_t starting_index = cont->GetNodeExecutionIndex();
+  for (int64_t i = starting_index; i < execution_order_.size(); ++i) {
+    Node* node = execution_order_[i];
+    XLS_ASSIGN_OR_RETURN(ProcIrInterpreter::NodeResult result,
+                         ir_interpreter.ExecuteNode(node));
+    if (result.sent_channel.has_value()) {
+      sent_channels.push_back(result.sent_channel.value());
     }
-    results.push_back(visitor_->ResolveAsValue(next_node));
-  }
-  return results;
-}
-
-absl::StatusOr<ProcInterpreter::RunResult>
-ProcInterpreter::RunIterationUntilCompleteOrBlocked() {
-  XLS_VLOG(3) << absl::StreamFormat(
-      "%s iteration %d of proc %s",
-      (IsIterationComplete() ? "Running" : "Resuming"), current_iteration_,
-      proc_->name());
-  XLS_VLOG_LINES(4, proc_->DumpIr());
-
-  if (IsIterationComplete()) {
-    // Previous iteration was complete or this the first time this method has
-    // been called. Create a new visitor for evaluating the nodes this
-    // iteration.
-    if (visitor_ == nullptr) {
-      // This is the first time the proc has run. Proc state is the init value.
-      ResetState();
-    } else {
-      XLS_ASSIGN_OR_RETURN(std::vector<Value> next_state, ResolveState());
-      visitor_ =
-          std::make_unique<ProcIrInterpreter>(next_state, queue_manager_);
-    }
-  }
-
-  RunResult result{.iteration_complete = true,
-                   .progress_made = false,
-                   .blocked_channels = {}};
-  auto executed_this_iteration = [&](Node* node) {
-    return visitor_->IsVisited(node);
-  };
-
-  // TODO(meheff): Iterating through all the nodes every time is
-  // inefficient. It'd be better to continue from some checkpointed state.
-  for (Node* node : topo_sort_) {
-    if (executed_this_iteration(node)) {
-      continue;
-    }
-    if (std::all_of(node->operands().begin(), node->operands().end(),
-                    executed_this_iteration)) {
-      // Check to see if this is a receive node which is blocked.
-      if (node->Is<Receive>() && node->As<Receive>()->is_blocking()) {
-        Receive* receive = node->As<Receive>();
-        bool predicate = !receive->predicate().has_value() ||
-                         visitor_->ResolveAsValue(receive->predicate().value())
-                             .bits()
-                             .IsOne();
-        XLS_ASSIGN_OR_RETURN(
-            ChannelQueue * queue,
-            queue_manager_->GetQueueById(node->As<Receive>()->channel_id()));
-        if (predicate && queue->empty()) {
-          // Queue is empty, receive is blocked.
-          XLS_VLOG(4) << absl::StreamFormat(
-              "Receive node %s blocked on channel with ID %d", node->GetName(),
-              node->As<Receive>()->channel_id());
-          result.blocked_channels.push_back(queue->channel());
-          result.iteration_complete = false;
-          continue;
-        }
-      }
-
-      // Node is ready to execute.
-      XLS_VLOG(4) << absl::StreamFormat("Node %s executing", node->GetName());
-      XLS_RETURN_IF_ERROR(node->VisitSingleNode(visitor_.get()));
-      visitor_->MarkVisited(node);
-
-      result.progress_made = true;
-    } else {
-      XLS_VLOG(4) << absl::StreamFormat("Node %s not ready to execute",
-                                        node->GetName());
+    if (result.blocked_channel.has_value()) {
+      // Proc is blocked at a receive node waiting for data on a channel.
+      cont->SetNodeExecutionIndex(i);
+      // Raise a status error if interpreter events indicate failure such as a
+      // failed assert.
+      XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
+      return TickResult{
+          .tick_complete = false,
+          .progress_made = cont->GetNodeExecutionIndex() != starting_index,
+          .blocked_channel = result.blocked_channel,
+          .sent_channels = sent_channels};
     }
   }
+
+  // Proc completed execution of the Tick. Set the next proc state in the
+  // continuation.
+  std::vector<Value> next_state;
+  next_state.reserve(proc()->GetStateElementCount());
+  for (Node* next_node : proc()->NextState()) {
+    next_state.push_back(ir_interpreter.ResolveAsValue(next_node));
+  }
+  cont->NextTick(std::move(next_state));
 
   // Raise a status error if interpreter events indicate failure such as a
   // failed assert.
-  XLS_RETURN_IF_ERROR(
-      InterpreterEventsToStatus(visitor_->GetInterpreterEvents()));
+  XLS_RETURN_IF_ERROR(InterpreterEventsToStatus(cont->GetEvents()));
 
-  // Sort blocked_channels vector by channel id.
-  std::sort(result.blocked_channels.begin(), result.blocked_channels.end(),
-            [](Channel* a, Channel* b) { return a->id() < b->id(); });
-
-  XLS_VLOG(3) << absl::StreamFormat("Proc %s run result: %s", proc_->name(),
-                                    result.ToString());
-  if (result.iteration_complete) {
-    ++current_iteration_;
-  }
-  return result;
+  return TickResult{.tick_complete = true,
+                    .progress_made = true,
+                    .blocked_channel = std::nullopt,
+                    .sent_channels = sent_channels};
 }
 
-void ProcInterpreter::ResetState() {
-  visitor_ =
-      std::make_unique<ProcIrInterpreter>(proc_->InitValues(), queue_manager_);
-}
-
-std::string ProcInterpreter::RunResult::ToString() const {
+std::string ProcInterpreter::TickResult::ToString() const {
   return absl::StrFormat(
-      "{ iteration_complete=%s, progress_made=%s, "
-      "blocked_channels={%s} }",
-      iteration_complete ? "true" : "false", progress_made ? "true" : "false",
-      absl::StrJoin(blocked_channels, ", ", ChannelFormatter));
+      "{ tick_complete=%s, progress_made=%s, "
+      "blocked_channel=%s, sent_channels={%s} }",
+      tick_complete ? "true" : "false", progress_made ? "true" : "false",
+      blocked_channel.has_value() ? blocked_channel.value()->ToString()
+                                  : "(none)",
+      absl::StrJoin(sent_channels, ", ", ChannelFormatter));
 }
 
 std::ostream& operator<<(std::ostream& os,
-                         const ProcInterpreter::RunResult& result) {
+                         const ProcInterpreter::TickResult& result) {
   os << result.ToString();
   return os;
 }

@@ -36,6 +36,7 @@ namespace xls {
 
 namespace {
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 
 class RollIntoProcPassTest : public IrTestBase {
@@ -248,23 +249,15 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
 
   // Check if output is equal to 2
@@ -272,19 +265,9 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
               IsOkAndHolds(Value(UBits(2, 32))));
 
   // Run again
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
   EXPECT_THAT(send_queue.Dequeue(),
               IsOkAndHolds(Value(UBits(2, 32))));
@@ -359,23 +342,15 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
 
   // Check if output is equal to 2
@@ -383,19 +358,9 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
               IsOkAndHolds(Value(UBits(4, 32))));
 
   // Run again
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
   EXPECT_THAT(send_queue.Dequeue(),
               IsOkAndHolds(Value(UBits(4, 32))));
@@ -470,23 +435,15 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
 
   // Check if output is equal to 2
@@ -494,19 +451,9 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
               IsOkAndHolds(Value(UBits(10, 32))));
 
   // Run again
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
   EXPECT_THAT(send_queue.Dequeue(),
               IsOkAndHolds(Value(UBits(10, 32))));
@@ -583,16 +530,13 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 2; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -669,16 +613,13 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 2; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -762,16 +703,13 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -855,17 +793,14 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   std::vector<int> results = {10, 11, 12, 13, 14};
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -950,17 +885,14 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   std::vector<int> results = {11, 11, 11, 11, 11};
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -1050,17 +982,14 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(11, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(10, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   std::vector<int> results = {1, 0, 1, 0, 1};
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -1129,41 +1058,23 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until four iterations (the length of the
   // kernel) have completed.
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
   // At the end of this iteration, the result of the FIR filtering should be
   // available on the send queue.
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
@@ -1173,12 +1084,7 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 3) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -1245,23 +1151,15 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until two iterations (the length of the
   // kernel divided by number of unrolls) have completed.
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.empty());
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
 
 
@@ -1273,12 +1171,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 2; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 1) {
         EXPECT_TRUE(send_queue.empty());
       } else {
@@ -1345,14 +1238,11 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   // This got fully unrolled so it should have something to send out on every
   // iteration
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-  EXPECT_TRUE(pi.IsIterationComplete());
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.empty());
 
   // It should be equal to 1. Confirm.
@@ -1363,12 +1253,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 1; j++) {
-      ASSERT_THAT(
-          pi.RunIterationUntilCompleteOrBlocked(),
-          IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                                  .progress_made = true,
-                                                  .blocked_channels = {}}));
-      EXPECT_TRUE(pi.IsIterationComplete());
+      ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 0) {
         EXPECT_TRUE(send_queue.empty());
       } else {

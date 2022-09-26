@@ -75,11 +75,11 @@ absl::StatusOr<Value> InterpretNode(Node* node,
 absl::Status IrInterpreter::AddInterpreterEvents(
     const InterpreterEvents& events) {
   for (const std::string& trace_msg : events.trace_msgs) {
-    events_.trace_msgs.push_back(trace_msg);
+    GetInterpreterEvents().trace_msgs.push_back(trace_msg);
   }
 
   for (const std::string& assert_msg : events.assert_msgs) {
-    events_.assert_msgs.push_back(assert_msg);
+    GetInterpreterEvents().assert_msgs.push_back(assert_msg);
   }
 
   return absl::OkStatus();
@@ -482,7 +482,7 @@ absl::Status IrInterpreter::HandleAssert(Assert* assert_op) {
   XLS_VLOG(2) << "Checking assert " << assert_op->ToString();
   XLS_VLOG(2) << "Condition is " << ResolveAsBool(assert_op->condition());
   if (!ResolveAsBool(assert_op->condition())) {
-    events_.assert_msgs.push_back(assert_op->message());
+    GetInterpreterEvents().assert_msgs.push_back(assert_op->message());
   }
   return SetValueResult(assert_op, Value::Token());
 }
@@ -525,7 +525,7 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
 
     XLS_VLOG(3) << "Trace output: " << trace_output;
 
-    events_.trace_msgs.push_back(trace_output);
+    GetInterpreterEvents().trace_msgs.push_back(trace_output);
   }
   return SetValueResult(trace_op, Value::Token());
 }
@@ -807,11 +807,11 @@ absl::Status IrInterpreter::VerifyAllBitsTypes(Node* node) {
 }
 
 const Bits& IrInterpreter::ResolveAsBits(Node* node) {
-  return node_values_.at(node).bits();
+  return NodeValuesMap().at(node).bits();
 }
 
 bool IrInterpreter::ResolveAsBool(Node* node) {
-  const Bits& bits = node_values_.at(node).bits();
+  const Bits& bits = NodeValuesMap().at(node).bits();
   XLS_CHECK_EQ(bits.bit_count(), 1);
   return bits.IsAllOnes();
 }
@@ -845,7 +845,7 @@ absl::Status IrInterpreter::SetBitsResult(Node* node, const Bits& result) {
 absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
   if (XLS_VLOG_IS_ON(4) &&
       std::all_of(node->operands().begin(), node->operands().end(),
-                  [this](Node* o) { return node_values_.contains(o); })) {
+                  [this](Node* o) { return NodeValuesMap().contains(o); })) {
     XLS_VLOG(4) << absl::StreamFormat("%s operands:", node->GetName());
     for (int64_t i = 0; i < node->operand_count(); ++i) {
       XLS_VLOG(4) << absl::StreamFormat(
@@ -856,13 +856,13 @@ absl::Status IrInterpreter::SetValueResult(Node* node, Value result) {
   XLS_VLOG(3) << absl::StreamFormat("Result of %s: %s", node->ToString(),
                                     result.ToString());
 
-  XLS_RET_CHECK(!node_values_.contains(node));
+  XLS_RET_CHECK(!NodeValuesMap().contains(node));
   if (!ValueConformsToType(result, node->GetType())) {
     return absl::InternalError(absl::StrFormat(
         "Expected value %s to match type %s of node %s", result.ToString(),
         node->GetType()->ToString(), node->GetName()));
   }
-  node_values_[node] = std::move(result);
+  NodeValuesMap()[node] = std::move(result);
   return absl::OkStatus();
 }
 

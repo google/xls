@@ -470,15 +470,13 @@ TEST(FunctionBuilderTest, NonBlockingAndBlockingReceives) {
   BValue in0_data = b.Receive(in0);
 
   // Streaming non-blocking receive.
-  BValue in1_data_and_valid = b.ReceiveNonBlocking(in1);
-  BValue in1_data = b.TupleIndex(in1_data_and_valid, 0);
+  auto [in1_data, in1_valid] = b.ReceiveNonBlocking(in1);
 
   // Single-value blocking receive (which will not block).
   BValue in2_data = b.Receive(in2);
 
   // Single-value non-blocking receive which will always return a valid.
-  BValue in3_data_and_valid = b.ReceiveNonBlocking(in3);
-  BValue in3_data = b.TupleIndex(in3_data_and_valid, 0);
+  auto [in3_data, in3_valid] = b.ReceiveNonBlocking(in3);
 
   BValue sum = b.Add(in0_data, b.Add(in1_data, b.Add(in2_data, in3_data)));
   b.Send(out0, sum);
@@ -488,11 +486,10 @@ TEST(FunctionBuilderTest, NonBlockingAndBlockingReceives) {
   // Check that the receive nodes are of the expected type.
   // Non-blocking nodes will have an extra bit for valid.
   EXPECT_EQ(in0_data.node()->GetType(), in0->type());
-  EXPECT_EQ(in1_data_and_valid.node()->GetType(),
-            p.GetTupleType({in1->type(), p.GetBitsType(1)}));
+  EXPECT_EQ(in1_valid.node()->GetType(), p.GetBitsType(1));
   EXPECT_EQ(in2_data.node()->GetType(), in2->type());
-  EXPECT_EQ(in3_data_and_valid.node()->GetType(),
-            p.GetTupleType({in3->type(), p.GetBitsType(1)}));
+  EXPECT_EQ(in3_data.node()->GetType(), in3->type());
+  EXPECT_EQ(in3_valid.node()->GetType(), p.GetBitsType(1));
 
   // Check that the receive nodes are correctly built as either
   // blocking or non-blocking.

@@ -14,6 +14,8 @@
 
 #include "xls/interpreter/proc_network_interpreter.h"
 
+#include <deque>
+
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
 
@@ -23,43 +25,38 @@ namespace xls {
 absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
 ProcNetworkInterpreter::Create(
     Package* package,
-    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues) {
-  // Create a queue manager for the queues. This factory verifies that there an
-  // receive only queue for every receive only channel.
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(std::move(user_defined_queues), package));
-
-  // Create a network interpreter.
-  auto interpreter = absl::WrapUnique(
-      new ProcNetworkInterpreter(package, std::move(queue_manager)));
-
-  for (auto& proc : package->procs()) {
-    interpreter->proc_interpreters_.push_back(std::make_unique<ProcInterpreter>(
-        proc.get(), &interpreter->queue_manager()));
+    std::vector<std::unique_ptr<ProcInterpreter>>&& interpreters,
+    std::unique_ptr<ChannelQueueManager>&& queue_manager) {
+  // Verify there exists exactly one interpreter per proc in the package.
+  absl::flat_hash_map<Proc*, std::unique_ptr<ProcInterpreter>> interpreter_map;
+  for (std::unique_ptr<ProcInterpreter>& interpreter : interpreters) {
+    Proc* proc = interpreter->proc();
+    auto [it, inserted] =
+        interpreter_map.insert({proc, std::move(interpreter)});
+    XLS_RET_CHECK(inserted) << absl::StreamFormat(
+        "More than one interpreter given for proc `%s`", proc->name());
   }
-
-  // Inject initial values into channels.
-  for (Channel* channel : package->channels()) {
-    ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
-    for (const Value& value : channel->initial_values()) {
-      XLS_RETURN_IF_ERROR(queue.Enqueue(value));
-    }
+  for (const std::unique_ptr<Proc>& proc : package->procs()) {
+    XLS_RET_CHECK(interpreter_map.contains(proc.get())) << absl::StreamFormat(
+        "No interpreter given for proc `%s`", proc->name());
   }
+  XLS_RET_CHECK_EQ(interpreter_map.size(), package->procs().size())
+      << "More interpreters than procs given.";
+  auto network_interpreter = absl::WrapUnique(new ProcNetworkInterpreter(
+      package, std::move(interpreter_map), std::move(queue_manager)));
 
-  // Create a ProcInterpreter for each Proc.
-  return std::move(interpreter);
+  return std::move(network_interpreter);
 }
 
 absl::Status ProcNetworkInterpreter::Tick() {
   std::vector<Channel*> blocked_channels;
-  XLS_ASSIGN_OR_RETURN(bool progress_made, TickInternal(&blocked_channels));
-  if (!progress_made) {
+  XLS_ASSIGN_OR_RETURN(NetworkTickResult result, TickInternal());
+  if (!result.progress_made) {
     // Not a single instruction executed on any proc. This is necessarily a
     // deadlock.
     return absl::InternalError(absl::StrFormat(
         "Proc network is deadlocked. Blocked channels: %s",
-        absl::StrJoin(blocked_channels, ", ", ChannelFormatter)));
+        absl::StrJoin(result.blocked_channels, ", ", ChannelFormatter)));
   }
   return absl::OkStatus();
 }
@@ -127,9 +124,8 @@ absl::StatusOr<int64_t> ProcNetworkInterpreter::TickUntilBlocked(
                                     package_->name());
   int64_t ticks = 0;
   while (!max_ticks.has_value() || ticks < max_ticks.value()) {
-    std::vector<Channel*> blocked_channels;
-    XLS_ASSIGN_OR_RETURN(bool progress_made, TickInternal(&blocked_channels));
-    if (!progress_made) {
+    XLS_ASSIGN_OR_RETURN(NetworkTickResult result, TickInternal());
+    if (!result.progress_made) {
       return ticks;
     }
     ticks++;
@@ -139,64 +135,112 @@ absl::StatusOr<int64_t> ProcNetworkInterpreter::TickUntilBlocked(
       max_ticks.value()));
 }
 
-absl::StatusOr<bool> ProcNetworkInterpreter::TickInternal(
-    std::vector<Channel*>* blocked_channels) {
+absl::StatusOr<ProcNetworkInterpreter::NetworkTickResult>
+ProcNetworkInterpreter::TickInternal() {
   XLS_VLOG(3) << absl::StreamFormat("TickInternal on package %s",
                                     package_->name());
-  absl::flat_hash_set<ProcInterpreter*> completed_procs;
-  absl::flat_hash_set<Channel*> blocked_channel_set;
-  bool global_progress_made = false;
-  bool progress_made_this_loop = true;
-  while (progress_made_this_loop) {
-    progress_made_this_loop = false;
-    blocked_channel_set.clear();
-    for (auto& interpreter : proc_interpreters_) {
-      if (completed_procs.contains(interpreter.get())) {
-        continue;
-      }
-      XLS_ASSIGN_OR_RETURN(ProcInterpreter::RunResult result,
-                           interpreter->RunIterationUntilCompleteOrBlocked());
+  // Map containing any blocked procs and the channels they are blocked on.
+  absl::flat_hash_map<Channel*, Proc*> blocked_procs;
 
-      progress_made_this_loop |= result.progress_made;
-      if (result.iteration_complete) {
-        completed_procs.insert(interpreter.get());
+  std::deque<Proc*> ready_procs;
+
+  // Put all procs on the ready list.
+  for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+    XLS_VLOG(3) << absl::StreamFormat("Proc `%s` added to ready list",
+                                      proc->name());
+    ready_procs.push_back(proc.get());
+  }
+
+  bool progress_made = false;
+  while (!ready_procs.empty()) {
+    Proc* proc = ready_procs.front();
+    InterpreterContext& context = interpreter_contexts_.at(proc);
+    ready_procs.pop_front();
+
+    XLS_VLOG(3) << absl::StreamFormat("Ticking proc `%s`", proc->name());
+    XLS_ASSIGN_OR_RETURN(ProcInterpreter::TickResult tick_result,
+                         context.interpreter->Tick(*context.continuation));
+    XLS_VLOG(3) << "Tick result: " << tick_result;
+
+    progress_made |= tick_result.progress_made;
+    for (Channel* channel : tick_result.sent_channels) {
+      if (blocked_procs.contains(channel)) {
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Unblocking proc `%s` and adding to ready list",
+            blocked_procs.at(channel)->name());
+        ready_procs.push_back(blocked_procs.at(channel));
+        blocked_procs.erase(channel);
       }
-      blocked_channel_set.insert(result.blocked_channels.begin(),
-                                 result.blocked_channels.end());
     }
-    global_progress_made |= progress_made_this_loop;
+    if (tick_result.blocked_channel.has_value()) {
+      XLS_VLOG(3) << absl::StreamFormat(
+          "Proc `%s` is now blocked on channel `%s`", proc->name(),
+          tick_result.blocked_channel.value()->ToString());
+      blocked_procs[tick_result.blocked_channel.value()] = proc;
+    }
   }
-  if (!global_progress_made) {
-    // Not a single instruction executed on any proc. This is necessarily a
-    // deadlock. Sort blocked channels by channel id so the channels order is
-    // deterministic.
-    blocked_channels->clear();
-    blocked_channels->insert(blocked_channels->begin(),
-                             blocked_channel_set.begin(),
-                             blocked_channel_set.end());
-    std::sort(blocked_channels->begin(), blocked_channels->end(),
+  auto get_blocked_channels = [&]() {
+    std::vector<Channel*> channels;
+    for (auto [channel, proc] : blocked_procs) {
+      channels.push_back(channel);
+    }
+    std::sort(channels.begin(), channels.end(),
               [](Channel* a, Channel* b) { return a->id() < b->id(); });
-    XLS_VLOG(3) << absl::StreamFormat(
-        "TickInternal: no progress made, blocked channels: %s",
-        absl::StrJoin(*blocked_channels, ", ", ChannelFormatter));
-    return false;
-  }
-  XLS_VLOG(3) << "TickInternal: Progress made";
-  return true;
+    return channels;
+  };
+  return NetworkTickResult{
+      .progress_made = progress_made,
+      .blocked_channels = get_blocked_channels(),
+  };
 }
 
-absl::flat_hash_map<Proc*, absl::StatusOr<std::vector<Value>>>
+absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
+CreateProcNetworkInterpreter(
+    Package* package,
+    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues) {
+  // Create a queue manager for the queues. This factory verifies that there an
+  // receive only queue for every receive only channel.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ChannelQueueManager> queue_manager,
+      ChannelQueueManager::Create(std::move(user_defined_queues), package));
+
+  // Create a ProcInterpreter for each Proc.
+  std::vector<std::unique_ptr<ProcInterpreter>> proc_interpreters;
+  for (auto& proc : package->procs()) {
+    proc_interpreters.push_back(
+        std::make_unique<ProcInterpreter>(proc.get(), queue_manager.get()));
+  }
+  // Create a network interpreter.
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcNetworkInterpreter> network_interpreter,
+      ProcNetworkInterpreter::Create(package, std::move(proc_interpreters),
+                                     std::move(queue_manager)));
+
+  // Inject initial values into channels.
+  for (Channel* channel : package->channels()) {
+    ChannelQueue& queue =
+        network_interpreter->queue_manager().GetQueue(channel);
+    for (const Value& value : channel->initial_values()) {
+      XLS_RETURN_IF_ERROR(queue.Enqueue(value));
+    }
+  }
+
+  return std::move(network_interpreter);
+}
+
+absl::flat_hash_map<Proc*, std::vector<Value>>
 ProcNetworkInterpreter::ResolveState() const {
-  absl::flat_hash_map<Proc*, absl::StatusOr<std::vector<Value>>> states;
-  for (const auto& interpreter : proc_interpreters_) {
-    states[interpreter->proc()] = interpreter->ResolveState();
+  absl::flat_hash_map<Proc*, std::vector<Value>> states;
+  for (const auto& [proc, context] : interpreter_contexts_) {
+    states[proc] = context.continuation->GetState();
   }
   return states;
 }
 
 void ProcNetworkInterpreter::ResetState() {
-  for (const auto& interpreter : proc_interpreters_) {
-    interpreter->ResetState();
+  for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+    InterpreterContext& context = interpreter_contexts_[proc.get()];
+    context.continuation = context.interpreter->NewContinuation();
   }
 }
 

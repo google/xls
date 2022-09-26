@@ -222,6 +222,12 @@ inline void ChannelFormatter(std::string* out, Channel* channel) {
   absl::StrAppend(out, channel->name());
 }
 
+inline std::ostream& operator<<(std::ostream& os, const Channel* channel) {
+  os << (channel == nullptr ? std::string("<nullptr Channel*>")
+                            : channel->name());
+  return os;
+}
+
 }  // namespace xls
 
 #endif  // XLS_IR_CHANNEL_H_

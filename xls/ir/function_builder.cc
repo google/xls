@@ -1408,12 +1408,11 @@ BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,
   return TupleIndex(rcv, 1);
 }
 
-BValue TokenlessProcBuilder::ReceiveNonBlocking(Channel* channel,
-                                                const SourceInfo& loc,
-                                                absl::string_view name) {
+std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveNonBlocking(
+    Channel* channel, const SourceInfo& loc, absl::string_view name) {
   BValue rcv = ProcBuilder::ReceiveNonBlocking(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0, loc);
-  return Tuple({TupleIndex(rcv, 1), TupleIndex(rcv, 2)}, loc);
+  return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
 }
 
 BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,

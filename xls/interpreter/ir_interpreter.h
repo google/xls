@@ -15,12 +15,13 @@
 #ifndef XLS_INTERPRETER_IR_INTERPRETER_H_
 #define XLS_INTERPRETER_IR_INTERPRETER_H_
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
-#include "xls/ir/function.h"
-#include "xls/ir/function_builder.h"
+#include "xls/ir/node.h"
 
 namespace xls {
 
@@ -29,10 +30,17 @@ namespace xls {
 absl::StatusOr<Value> InterpretNode(Node* node,
                                     absl::Span<const Value> operand_values);
 
-// A visitor for traversing and evaluating a Function.
+// A visitor for traversing and evaluating XLS IR.
 class IrInterpreter : public DfsVisitor {
  public:
-  IrInterpreter() = default;
+  IrInterpreter() : node_values_ptr_(nullptr), events_ptr_(nullptr) {}
+
+  // Constructor which takes an existing map of node values and events. Used for
+  // continuations to enable stopping and restarting execution of a
+  // FunctionBase.
+  IrInterpreter(absl::flat_hash_map<Node*, Value>* node_values,
+                InterpreterEvents* events)
+      : node_values_ptr_(node_values), events_ptr_(events) {}
 
   // Sets the evaluated value for 'node' to the given Value. 'value' must be
   // passed in by value (ha!) because a use case is passing in a previously
@@ -42,15 +50,20 @@ class IrInterpreter : public DfsVisitor {
 
   // Returns the previously evaluated value of 'node' as a Value.
   const Value& ResolveAsValue(Node* node) const {
-    return node_values_.at(node);
+    return NodeValuesMap().at(node);
   }
 
-  const InterpreterEvents& GetInterpreterEvents() const { return events_; }
+  const InterpreterEvents& GetInterpreterEvents() const {
+    return events_ptr_ != nullptr ? *events_ptr_ : events_;
+  }
+  InterpreterEvents& GetInterpreterEvents() {
+    return events_ptr_ != nullptr ? *events_ptr_ : events_;
+  }
 
   absl::Status AddInterpreterEvents(const InterpreterEvents& events);
 
   // Returns true if a value has been set for the result of the given node.
-  bool HasResult(Node* node) const { return node_values_.contains(node); }
+  bool HasResult(Node* node) const { return NodeValuesMap().contains(node); }
 
   absl::Status HandleAdd(BinOp* add) override;
   absl::Status HandleAfterAll(AfterAll* after_all) override;
@@ -165,10 +178,26 @@ class IrInterpreter : public DfsVisitor {
   absl::StatusOr<Value> DeepOr(Type* input_type,
                                absl::Span<const Value* const> inputs);
 
-  // The evaluated values for the nodes in the Function.
+  // Returns the map which maps Node* to the Value computed for that node.
+  absl::flat_hash_map<Node*, Value>& NodeValuesMap() {
+    return node_values_ptr_ != nullptr ? *node_values_ptr_ : node_values_;
+  }
+  const absl::flat_hash_map<Node*, Value>& NodeValuesMap() const {
+    return node_values_ptr_ != nullptr ? *node_values_ptr_ : node_values_;
+  }
+
+  // The evaluated values for the nodes in the Function. To support
+  // continuations, an existing map can either be passed in at construction time
+  // (`node_values_ptr_` is not null), or a freshly constructed map is used
+  // (`node_values_ptr` is null).
+  absl::flat_hash_map<Node*, Value>* node_values_ptr_;
   absl::flat_hash_map<Node*, Value> node_values_;
 
-  // Events observed while interpreting (currently only trace messages).
+  // Events observed while interpreting (currently only trace messages). To
+  // support continuations, an existing events object can either be passed in at
+  // construction time (`events_ptr_` is not null), or a fresh events object is
+  // used (`events_ptr` is null).
+  InterpreterEvents* events_ptr_;
   InterpreterEvents events_;
 };
 

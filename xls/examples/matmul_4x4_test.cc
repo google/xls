@@ -78,7 +78,7 @@ TEST(Matmul4x4Test, Works) {
       channel, package.get(), []() { return GetX3Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(
       auto interpreter,
-      ProcNetworkInterpreter::Create(package.get(), std::move(rx_queues)));
+      CreateProcNetworkInterpreter(package.get(), std::move(rx_queues)));
 
   // Now get the output queues.
   ChannelQueueManager& qm = interpreter->queue_manager();

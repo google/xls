@@ -36,18 +36,17 @@ class ProcNetworkInterpreter {
   // channel in the package.
   static absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> Create(
       Package* package,
-      std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues);
+      std::vector<std::unique_ptr<ProcInterpreter>>&& interpreters,
+      std::unique_ptr<ChannelQueueManager>&& queue_manager);
 
-  // Execute (up to) a single iteration of every proc in the package. In a
-  // round-robin fashion each proc is executed until no further progress can be
-  // made. If no conditional send/receive nodes exist in the package then
-  // calling Tick will execute exactly one iteration for all procs in the
-  // package. If conditional send/receive nodes do exist, then some procs may be
-  // blocked in a state where the iteration is partially complete. In this case,
-  // the call to Tick() will not execute a complete iteration of the
-  // proc. Calling Tick() again will resume these procs from their partially
-  // executed state. Returns an error if no progress can be made due to a
-  // deadlock.
+  // Execute (up to) a single iteration of every proc in the package. If no
+  // conditional send/receive nodes exist in the package then calling Tick will
+  // execute exactly one iteration for all procs in the package. If conditional
+  // send/receive nodes do exist, then some procs may be blocked in a state
+  // where the iteration is partially complete. In this case, the call to Tick()
+  // will not execute a complete iteration of the proc. Calling Tick() again
+  // will resume these procs from their partially executed state. Returns an
+  // error if no progress can be made due to a deadlock.
   absl::Status Tick();
 
   // Tick the proc network until some output channels have produced at least a
@@ -71,37 +70,57 @@ class ProcNetworkInterpreter {
   ChannelQueueManager& queue_manager() { return *queue_manager_; }
 
   // Returns the state values for each proc in the network.
-  absl::flat_hash_map<Proc*, absl::StatusOr<std::vector<Value>>> ResolveState()
-      const;
+  absl::flat_hash_map<Proc*, std::vector<Value>> ResolveState() const;
 
   void ResetState();
 
   // Returns the events for each proc in the network.
   absl::flat_hash_map<Proc*, InterpreterEvents> GetInterpreterEvents() const {
     absl::flat_hash_map<Proc*, InterpreterEvents> result;
-    for (const auto& interp : proc_interpreters_) {
-      result[interp->proc()] = interp->GetInterpreterEvents();
+    for (const auto& [proc, context] : interpreter_contexts_) {
+      result[proc] = context.continuation->GetEvents();
     }
     return result;
   }
 
  private:
-  ProcNetworkInterpreter(Package* package,
-                         std::unique_ptr<ChannelQueueManager>&& queue_manager)
-      : package_(package), queue_manager_(std::move(queue_manager)) {}
+  ProcNetworkInterpreter(
+      Package* package,
+      absl::flat_hash_map<Proc*, std::unique_ptr<ProcInterpreter>>&&
+          interpreters,
+      std::unique_ptr<ChannelQueueManager>&& queue_manager)
+      : package_(package), queue_manager_(std::move(queue_manager)) {
+    for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+      std::unique_ptr<ProcContinuation> continuation =
+          interpreters.at(proc.get())->NewContinuation();
+      interpreter_contexts_[proc.get()] = InterpreterContext{
+          .interpreter = std::move(interpreters.at(proc.get())),
+          .continuation = std::move(continuation)};
+    }
+  }
 
-  // Execute (up to) a single iteration of every proc in the package. Returns
-  // whether any progress was made. If no progress was made, then
-  // `blocked_channels` will contain the set of channels on which receives are
-  // blocked.
-  absl::StatusOr<bool> TickInternal(std::vector<Channel*>* blocked_channels);
+  // Execute (up to) a single iteration of every proc in the package.
+  struct NetworkTickResult {
+    bool progress_made;
+    std::vector<Channel*> blocked_channels;
+  };
+  absl::StatusOr<NetworkTickResult> TickInternal();
 
   Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
-
-  // The vector of interpreters for each proc in the package.
-  std::vector<std::unique_ptr<ProcInterpreter>> proc_interpreters_;
+  struct InterpreterContext {
+    std::unique_ptr<ProcInterpreter> interpreter;
+    std::unique_ptr<ProcContinuation> continuation;
+  };
+  absl::flat_hash_map<Proc*, InterpreterContext> interpreter_contexts_;
 };
+
+// Create a proc network interpreter backed by ProcInterpreters for the given
+// package.
+absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
+CreateProcNetworkInterpreter(
+    Package* package,
+    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues);
 
 }  // namespace xls
 

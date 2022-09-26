@@ -94,7 +94,7 @@ absl::Status RunIrInterpreter(
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels) {
   XLS_ASSIGN_OR_RETURN(auto interpreter,
-                       ProcNetworkInterpreter::Create(package, {}));
+                       CreateProcNetworkInterpreter(package, {}));
 
   ChannelQueueManager& queue_manager = interpreter->queue_manager();
   for (const auto& [channel_name, values] : inputs_for_channels) {
@@ -113,7 +113,7 @@ absl::Status RunIrInterpreter(
       XLS_RETURN_IF_ERROR(interpreter->Tick());
 
       // Sort the keys for stable print order.
-      absl::flat_hash_map<Proc*, absl::StatusOr<std::vector<Value>>> states =
+      absl::flat_hash_map<Proc*, std::vector<Value>> states =
           interpreter->ResolveState();
       std::vector<Proc*> sorted_procs;
       for (const auto& [k, v] : states) {
@@ -131,15 +131,10 @@ absl::Status RunIrInterpreter(
       std::sort(sorted_procs.begin(), sorted_procs.end(),
                 [](Proc* a, Proc* b) { return a->name() < b->name(); });
       for (const auto& proc : sorted_procs) {
-        const auto& value_or = states.at(proc);
-        XLS_CHECK(value_or.ok() ||
-                  value_or.status().code() == absl::StatusCode::kNotFound);
+        const auto& state = states.at(proc);
         XLS_VLOG(1) << "Proc " << proc->name() << " : "
-                    << (value_or.ok()
-                            ? absl::StrFormat(
-                                  "{%s}", absl::StrJoin(value_or.value(), ", ",
-                                                        ValueFormatter))
-                            : "(none)");
+                    << absl::StrFormat(
+                           "{%s}", absl::StrJoin(state, ", ", ValueFormatter));
       }
     }
   }
@@ -159,9 +154,9 @@ absl::Status RunIrInterpreter(
       }
       XLS_ASSIGN_OR_RETURN(Value out_val, out_queue->Dequeue());
       if (value != out_val) {
-        XLS_RET_CHECK_EQ(value, out_val)
-            << absl::StreamFormat("Mismatched (channel=%s) after %d outputs",
-                                  channel_name, processed_count);
+        XLS_RET_CHECK_EQ(value, out_val) << absl::StreamFormat(
+            "Mismatched (channel=%s) after %d outputs (%s != %s)", channel_name,
+            processed_count, value.ToString(), out_val.ToString());
       }
       checked_any_output = true;
       ++processed_count;

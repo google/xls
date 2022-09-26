@@ -33,6 +33,7 @@ namespace xls {
 
 namespace {
 
+using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
 
 class ProcFirFilterTest : public IrTestBase {
@@ -84,14 +85,10 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
 
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
 
-  EXPECT_TRUE(pi.IsIterationComplete());
   EXPECT_EQ(send_queue.size(), 1);
   EXPECT_FALSE(send_queue.empty());
   EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
@@ -100,28 +97,15 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
 
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(64, 32))}));
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
 
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(128, 32))}));
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
 
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(256, 32))}));
 
-  ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
-
+  ASSERT_THAT(pi.Tick(*continuation), IsOk());
 
   EXPECT_EQ(send_queue.size(), 3);
 
@@ -174,14 +158,11 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
   ASSERT_TRUE(send_queue.empty());
   ASSERT_TRUE(recv_queue.empty());
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   for (int idx = 1; idx < 8; idx++) {
     XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(idx, 32))}));
-
-    ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+    ASSERT_THAT(pi.Tick(*continuation), IsOk());
   }
 
   EXPECT_EQ(send_queue.size(), 7);
@@ -240,14 +221,11 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
   ASSERT_TRUE(send_queue.empty());
   ASSERT_TRUE(recv_queue.empty());
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   for (int idx = 0; idx < 6; idx++) {
     XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(idx, 32))}));
-
-    ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+    ASSERT_THAT(pi.Tick(*continuation), IsOk());
   }
 
   EXPECT_EQ(send_queue.size(), 6);
@@ -306,14 +284,11 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
 
   std::vector<int> values = {2, 10, 4, 3, 8, 20, 9, 3};
 
+  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
+
   for (int idx = 0; idx < 8; idx++) {
     XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(values[idx], 32))}));
-
-    ASSERT_THAT(
-      pi.RunIterationUntilCompleteOrBlocked(),
-      IsOkAndHolds(ProcInterpreter::RunResult{.iteration_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channels = {}}));
+    ASSERT_THAT(pi.Tick(*continuation), IsOk());
   }
 
   EXPECT_EQ(send_queue.size(), 8);
