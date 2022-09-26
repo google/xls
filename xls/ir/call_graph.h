@@ -36,6 +36,12 @@ std::vector<Function*> CalledFunctions(FunctionBase* f);
 // final element in the returned vector is `function_base`.
 std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base);
 
+// Clones transitively the given function and its dependencies.
+absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
+    Function* to_clone, absl::string_view new_name,
+    Package* target_package = nullptr,
+    absl::flat_hash_map<const Function*, Function*> call_remapping = {});
+
 // Returns the functions in package 'p' in a DFS post order traversal of the
 // call graph induced by function-invoking nodes. Called FunctionBases are
 // returned before callee FunctionBases in the returned order.

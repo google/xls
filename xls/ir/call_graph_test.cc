@@ -148,5 +148,42 @@ TEST_F(CallGraphTest, SeveralFunctions) {
   EXPECT_THAT(FunctionsInPostOrder(p.get()), UnorderedElementsAre(a, b, c, d));
 }
 
+TEST_F(CallGraphTest, CloneFunctionAndItsDependencies) {
+  auto p = CreatePackage();
+  Type* u32 = p->GetBitsType(32);
+
+  Function* a;
+  {
+    FunctionBuilder fb("a", p.get());
+    fb.Param("x", u32);
+    XLS_ASSERT_OK_AND_ASSIGN(a, fb.Build());
+  }
+  Function* b;
+  {
+    FunctionBuilder fb("b", p.get());
+    BValue x = fb.Param("x", u32);
+    BValue invoke = fb.Invoke({x}, a);
+    XLS_ASSERT_OK_AND_ASSIGN(b, fb.Build());
+    EXPECT_THAT(CalledFunction(invoke.node()), Optional(a));
+  }
+  Function* c;
+  {
+    FunctionBuilder fb("c", p.get());
+    BValue array = fb.Param("array", p->GetArrayType(42, u32));
+    fb.Map(array, b);
+    XLS_ASSERT_OK_AND_ASSIGN(c, fb.Build());
+  }
+  EXPECT_THAT(GetDependentFunctions(c), ElementsAre(a, b, c));
+  EXPECT_THAT(p->functions().size(), 3);
+
+  auto p_clone = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Function * c_clone,
+      CloneFunctionAndItsDependencies(
+          /*to_clone=*/c, /*new_name=*/"c_clone", p_clone.get()));
+  EXPECT_THAT(c_clone->name(), "c_clone");
+  EXPECT_THAT(p_clone->functions().size(), 3);
+}
+
 }  // namespace
 }  // namespace xls

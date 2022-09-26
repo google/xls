@@ -1248,6 +1248,7 @@ cc_library(
     deps = [
         ":ir",
         ":op",
+        "//xls/common/status:status_macros",
         "@com_google_absl//absl/container:flat_hash_set",
     ],
 )

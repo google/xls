@@ -15,6 +15,7 @@
 #include "xls/ir/call_graph.h"
 
 #include "absl/container/flat_hash_set.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/op.h"
 
 namespace xls {
@@ -102,6 +103,25 @@ std::vector<FunctionBase*> FunctionsInPostOrder(Package* p) {
     DfsVisit(f, &visited, &post_order);
   }
   return post_order;
+}
+
+absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
+    Function* to_clone, absl::string_view new_name, Package* target_package,
+    absl::flat_hash_map<const Function*, Function*> call_remapping) {
+  std::vector<FunctionBase*> dependent_functions =
+      GetDependentFunctions(to_clone);
+  for (const FunctionBase* dependent_function : dependent_functions) {
+    if (dependent_function == dependent_functions.back()) {
+      continue;
+    }
+    XLS_RET_CHECK(dependent_function->IsFunction());
+    auto function = static_cast<const Function*>(dependent_function);
+    XLS_ASSIGN_OR_RETURN(
+        Function * dependent_function_clone,
+        function->Clone(function->name(), target_package, call_remapping));
+    call_remapping.insert({function, dependent_function_clone});
+  }
+  return to_clone->Clone(new_name, target_package, call_remapping);
 }
 
 }  // namespace xls
