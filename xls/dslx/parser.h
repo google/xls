@@ -490,7 +490,7 @@ class Parser : public TokenParser {
 
   // Parses DSLX attributes, analogous to Rust's attributes.
   absl::StatusOr<
-      absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
+      absl::variant<TestFunction*, TestProc*, QuickCheck*, std::nullptr_t>>
   ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 

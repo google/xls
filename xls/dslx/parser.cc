@@ -295,7 +295,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   return std::move(module_);
 }
 
-absl::StatusOr<absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
+absl::StatusOr<absl::variant<TestFunction*, TestProc*, QuickCheck*, std::nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings* bindings) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have

@@ -84,11 +84,11 @@ class FifoChannelQueue : public ChannelQueue {
   }
 
   // Enqueues the given value on to the channel.
-  virtual absl::Status Enqueue(const Value& value);
+  absl::Status Enqueue(const Value& value) override;
 
   // Dequeues and returns a value from the channel. Returns an error if the
   // channel is empty.
-  virtual absl::StatusOr<Value> Dequeue();
+  absl::StatusOr<Value> Dequeue() override;
 
  protected:
   // Values are enqueued to the back, and dequeued from the front.
