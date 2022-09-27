@@ -93,7 +93,7 @@ class NameDefCollector : public AstNodeVisitor {
 
   DEFAULT_HANDLER(Array);
   DEFAULT_HANDLER(ArrayTypeAnnotation);
-  absl::Status HandleAttr(const Attr* n) {
+  absl::Status HandleAttr(const Attr* n) override {
     XLS_RETURN_IF_ERROR(n->lhs()->Accept(this));
     return absl::OkStatus();
   }
@@ -107,13 +107,13 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(ColonRef);
   DEFAULT_HANDLER(ConstantArray);
   DEFAULT_HANDLER(ConstantDef);
-  absl::Status HandleConstRef(const ConstRef* n) {
+  absl::Status HandleConstRef(const ConstRef* n) override {
     return n->name_def()->Accept(this);
   }
   DEFAULT_HANDLER(EnumDef);
   DEFAULT_HANDLER(For);
   DEFAULT_HANDLER(FormatMacro);
-  absl::Status HandleFunction(const Function* n) {
+  absl::Status HandleFunction(const Function* n) override {
     return absl::InternalError(
         absl::StrFormat(
             "Encountered nested Function: %s @ %s",
@@ -141,7 +141,7 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(Number);
   DEFAULT_HANDLER(Param);
   DEFAULT_HANDLER(ParametricBinding);
-  absl::Status HandleProc(const Proc* n) {
+  absl::Status HandleProc(const Proc* n) override {
     return absl::InternalError(
         absl::StrFormat(
             "Encountered nested Proc: %s @ %s",
@@ -159,13 +159,13 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(SplatStructInstance);
   DEFAULT_HANDLER(String);
   DEFAULT_HANDLER(StructDef);
-  absl::Status HandleTestFunction(const TestFunction* n) {
+  absl::Status HandleTestFunction(const TestFunction* n) override {
     return absl::InternalError(
         absl::StrFormat(
             "Encountered nested TestFunction: %s @ %s",
             n->identifier(), n->GetSpan()->ToString()));
   }
-  absl::Status HandleStructInstance(const StructInstance* n) {
+  absl::Status HandleStructInstance(const StructInstance* n) override {
     for (const auto& member : n->GetUnorderedMembers()) {
       XLS_RETURN_IF_ERROR(member.second->Accept(this));
     }

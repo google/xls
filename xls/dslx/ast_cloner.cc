@@ -832,7 +832,7 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
-  absl::Status HandleWildcardPattern(const WildcardPattern* n) {
+  absl::Status HandleWildcardPattern(const WildcardPattern* n) override {
     old_to_new_[n] = module_->Make<WildcardPattern>(n->span());
     return absl::OkStatus();
   }
