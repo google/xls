@@ -36,7 +36,7 @@ class ProcNetworkInterpreter {
   // channel in the package.
   static absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> Create(
       Package* package,
-      std::vector<std::unique_ptr<ProcInterpreter>>&& interpreters,
+      std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
       std::unique_ptr<ChannelQueueManager>&& queue_manager);
 
   // Execute (up to) a single iteration of every proc in the package. If no
@@ -77,7 +77,7 @@ class ProcNetworkInterpreter {
   // Returns the events for each proc in the network.
   absl::flat_hash_map<Proc*, InterpreterEvents> GetInterpreterEvents() const {
     absl::flat_hash_map<Proc*, InterpreterEvents> result;
-    for (const auto& [proc, context] : interpreter_contexts_) {
+    for (const auto& [proc, context] : evaluator_contexts_) {
       result[proc] = context.continuation->GetEvents();
     }
     return result;
@@ -86,16 +86,15 @@ class ProcNetworkInterpreter {
  private:
   ProcNetworkInterpreter(
       Package* package,
-      absl::flat_hash_map<Proc*, std::unique_ptr<ProcInterpreter>>&&
-          interpreters,
+      absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>>&& evaluators,
       std::unique_ptr<ChannelQueueManager>&& queue_manager)
       : package_(package), queue_manager_(std::move(queue_manager)) {
     for (const std::unique_ptr<Proc>& proc : package_->procs()) {
       std::unique_ptr<ProcContinuation> continuation =
-          interpreters.at(proc.get())->NewContinuation();
-      interpreter_contexts_[proc.get()] = InterpreterContext{
-          .interpreter = std::move(interpreters.at(proc.get())),
-          .continuation = std::move(continuation)};
+          evaluators.at(proc.get())->NewContinuation();
+      evaluator_contexts_[proc.get()] =
+          EvaluatorContext{.evaluator = std::move(evaluators.at(proc.get())),
+                           .continuation = std::move(continuation)};
     }
   }
 
@@ -108,11 +107,11 @@ class ProcNetworkInterpreter {
 
   Package* package_;
   std::unique_ptr<ChannelQueueManager> queue_manager_;
-  struct InterpreterContext {
-    std::unique_ptr<ProcInterpreter> interpreter;
+  struct EvaluatorContext {
+    std::unique_ptr<ProcEvaluator> evaluator;
     std::unique_ptr<ProcContinuation> continuation;
   };
-  absl::flat_hash_map<Proc*, InterpreterContext> interpreter_contexts_;
+  absl::flat_hash_map<Proc*, EvaluatorContext> evaluator_contexts_;
 };
 
 // Create a proc network interpreter backed by ProcInterpreters for the given

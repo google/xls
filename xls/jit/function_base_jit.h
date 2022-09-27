@@ -16,11 +16,10 @@
 
 #include <vector>
 
+#include "absl/container/flat_hash_map.h"
 #include "xls/ir/events.h"
 #include "xls/ir/function.h"
-#include "xls/ir/function_base.h"
 #include "xls/ir/proc.h"
-#include "xls/jit/ir_builder_visitor.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/jit_runtime.h"
 #include "xls/jit/orc_jit.h"
@@ -40,10 +39,15 @@ namespace xls {
 //   user_data: pointer to arbitrary data passed to send/receive functions
 //       in procs.
 //   jit_runtime: pointer to a JitRuntime object.
-using JitFunctionType = void (*)(const uint8_t* const* inputs,
-                                 uint8_t* const* outputs, void* temp_buffer,
-                                 InterpreterEvents* events, void* user_data,
-                                 JitRuntime* jit_runtime);
+//   continuation_point: the continuation point to start execution at.
+//
+// Returns the continuation point at which execution stopped or 0 if the tick
+// completed.
+using JitFunctionType = int64_t (*)(const uint8_t* const* inputs,
+                                    uint8_t* const* outputs, void* temp_buffer,
+                                    InterpreterEvents* events, void* user_data,
+                                    JitRuntime* jit_runtime,
+                                    int64_t continuation_point);
 
 // Abstraction holding function pointers and metadata about a jitted function
 // implementing a XLS Function, Proc, etc.
@@ -69,6 +73,11 @@ struct JittedFunctionBase {
 
   // Size of the temporary buffer required by `function`.
   int64_t temp_buffer_size;
+
+  // Map from the continuation point value to the corresponding node at which
+  // execution was interrupted.. Generally, these nodes will be blocking receive
+  // nodes.
+  absl::flat_hash_map<int64_t, Node*> continuation_points;
 };
 
 // Builds and returns an LLVM IR function implementing the given XLS
@@ -79,8 +88,7 @@ absl::StatusOr<JittedFunctionBase> BuildFunction(Function* xls_function,
 // Builds and returns an LLVM IR function implementing the given XLS
 // proc.
 absl::StatusOr<JittedFunctionBase> BuildProcFunction(
-    Proc* proc, JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
-    SendFnT send_fn, OrcJit& orc_jit);
+    Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit);
 
 }  // namespace xls
 

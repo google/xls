@@ -153,6 +153,9 @@ class IrWrapper {
   // Retrieve and create (if needed) the JIT for the given proc.
   absl::StatusOr<ProcJit*> GetAndMaybeCreateProcJit(absl::string_view name);
 
+  // Retrieve the execution state of the JIT for this proc.
+  absl::StatusOr<ProcContinuation*> GetJitContinuation(absl::string_view name);
+
   // Retrieve JIT channel queue for the given channel name.
   absl::StatusOr<JitChannelQueue*> GetJitChannelQueue(
       absl::string_view name) const;
@@ -208,6 +211,10 @@ class IrWrapper {
 
   // Holds pre-compiled IR Proc Jit.
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcJit>> pre_compiled_proc_jit_;
+
+  // Holds the execution state of the Proc Jit.
+  absl::flat_hash_map<Proc*, std::unique_ptr<ProcContinuation>>
+      jit_continuations_;
 
   // Holds set of queues for each channel in the top-level package.
   std::unique_ptr<JitChannelQueueManager> jit_channel_manager_;

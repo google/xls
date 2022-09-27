@@ -281,21 +281,6 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
   return pre_compiled_function_jit_[f].get();
 }
 
-namespace {
-
-// Recv/Send functions for the JIT proc creation.
-bool RecvFn(JitChannelQueue* queue, Receive* recv_ptr, uint8_t* data_ptr,
-            int64_t data_sz, void* user_data) {
-  return queue->Recv(data_ptr, data_sz);
-}
-
-void SendFn(JitChannelQueue* queue, Send* send_ptr, uint8_t* data_ptr,
-            int64_t data_sz, void* user_data) {
-  queue->Send(data_ptr, data_sz);
-}
-
-}  // namespace
-
 absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
     absl::string_view name) {
   XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
@@ -310,12 +295,19 @@ absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
         JitChannelQueueManager::CreateThreadUnsafe(package_.get()));
   }
 
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(p, jit_channel_manager_.get(), RecvFn, SendFn));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcJit> jit,
+                       ProcJit::Create(p, jit_channel_manager_.get()));
   pre_compiled_proc_jit_[p] = std::move(jit);
+  jit_continuations_[p] = pre_compiled_proc_jit_[p]->NewContinuation();
 
   return pre_compiled_proc_jit_[p].get();
+}
+
+absl::StatusOr<ProcContinuation*> IrWrapper::GetJitContinuation(
+    absl::string_view name) {
+  XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
+  XLS_RET_CHECK(jit_continuations_.contains(p));
+  return jit_continuations_.at(p).get();
 }
 
 absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(

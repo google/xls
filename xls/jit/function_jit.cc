@@ -139,9 +139,9 @@ void FunctionJit::InvokeJitFunction(absl::Span<uint8_t* const> arg_buffers,
                                     uint8_t* output_buffer,
                                     InterpreterEvents* events) {
   uint8_t* output_buffers[1] = {output_buffer};
-  jitted_function_base_.function(arg_buffers.data(), output_buffers,
-                                 temp_buffer_.data(), events,
-                                 /*user_data=*/nullptr, runtime());
+  jitted_function_base_.function(
+      arg_buffers.data(), output_buffers, temp_buffer_.data(), events,
+      /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 }
 
 }  // namespace xls

@@ -59,6 +59,8 @@ class JitRuntime {
 
   const llvm::DataLayout& data_layout() { return data_layout_; }
 
+  LlvmTypeConverter* type_converter() { return type_converter_; }
+
  private:
   llvm::DataLayout data_layout_;
   LlvmTypeConverter* type_converter_;

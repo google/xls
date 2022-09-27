@@ -24,26 +24,24 @@ namespace xls {
 /* static */
 absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
 ProcNetworkInterpreter::Create(
-    Package* package,
-    std::vector<std::unique_ptr<ProcInterpreter>>&& interpreters,
+    Package* package, std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
     std::unique_ptr<ChannelQueueManager>&& queue_manager) {
-  // Verify there exists exactly one interpreter per proc in the package.
-  absl::flat_hash_map<Proc*, std::unique_ptr<ProcInterpreter>> interpreter_map;
-  for (std::unique_ptr<ProcInterpreter>& interpreter : interpreters) {
-    Proc* proc = interpreter->proc();
-    auto [it, inserted] =
-        interpreter_map.insert({proc, std::move(interpreter)});
+  // Verify there exists exactly one evaluator per proc in the package.
+  absl::flat_hash_map<Proc*, std::unique_ptr<ProcEvaluator>> evaluator_map;
+  for (std::unique_ptr<ProcEvaluator>& evaluator : evaluators) {
+    Proc* proc = evaluator->proc();
+    auto [it, inserted] = evaluator_map.insert({proc, std::move(evaluator)});
     XLS_RET_CHECK(inserted) << absl::StreamFormat(
-        "More than one interpreter given for proc `%s`", proc->name());
+        "More than one evaluator given for proc `%s`", proc->name());
   }
   for (const std::unique_ptr<Proc>& proc : package->procs()) {
-    XLS_RET_CHECK(interpreter_map.contains(proc.get())) << absl::StreamFormat(
-        "No interpreter given for proc `%s`", proc->name());
+    XLS_RET_CHECK(evaluator_map.contains(proc.get()))
+        << absl::StreamFormat("No evaluator given for proc `%s`", proc->name());
   }
-  XLS_RET_CHECK_EQ(interpreter_map.size(), package->procs().size())
-      << "More interpreters than procs given.";
+  XLS_RET_CHECK_EQ(evaluator_map.size(), package->procs().size())
+      << "More evaluators than procs given.";
   auto network_interpreter = absl::WrapUnique(new ProcNetworkInterpreter(
-      package, std::move(interpreter_map), std::move(queue_manager)));
+      package, std::move(evaluator_map), std::move(queue_manager)));
 
   return std::move(network_interpreter);
 }
@@ -154,12 +152,12 @@ ProcNetworkInterpreter::TickInternal() {
   bool progress_made = false;
   while (!ready_procs.empty()) {
     Proc* proc = ready_procs.front();
-    InterpreterContext& context = interpreter_contexts_.at(proc);
+    EvaluatorContext& context = evaluator_contexts_.at(proc);
     ready_procs.pop_front();
 
     XLS_VLOG(3) << absl::StreamFormat("Ticking proc `%s`", proc->name());
-    XLS_ASSIGN_OR_RETURN(ProcInterpreter::TickResult tick_result,
-                         context.interpreter->Tick(*context.continuation));
+    XLS_ASSIGN_OR_RETURN(TickResult tick_result,
+                         context.evaluator->Tick(*context.continuation));
     XLS_VLOG(3) << "Tick result: " << tick_result;
 
     progress_made |= tick_result.progress_made;
@@ -205,7 +203,7 @@ CreateProcNetworkInterpreter(
       ChannelQueueManager::Create(std::move(user_defined_queues), package));
 
   // Create a ProcInterpreter for each Proc.
-  std::vector<std::unique_ptr<ProcInterpreter>> proc_interpreters;
+  std::vector<std::unique_ptr<ProcEvaluator>> proc_interpreters;
   for (auto& proc : package->procs()) {
     proc_interpreters.push_back(
         std::make_unique<ProcInterpreter>(proc.get(), queue_manager.get()));
@@ -231,7 +229,7 @@ CreateProcNetworkInterpreter(
 absl::flat_hash_map<Proc*, std::vector<Value>>
 ProcNetworkInterpreter::ResolveState() const {
   absl::flat_hash_map<Proc*, std::vector<Value>> states;
-  for (const auto& [proc, context] : interpreter_contexts_) {
+  for (const auto& [proc, context] : evaluator_contexts_) {
     states[proc] = context.continuation->GetState();
   }
   return states;
@@ -239,8 +237,8 @@ ProcNetworkInterpreter::ResolveState() const {
 
 void ProcNetworkInterpreter::ResetState() {
   for (const std::unique_ptr<Proc>& proc : package_->procs()) {
-    InterpreterContext& context = interpreter_contexts_[proc.get()];
-    context.continuation = context.interpreter->NewContinuation();
+    EvaluatorContext& context = evaluator_contexts_[proc.get()];
+    context.continuation = context.evaluator->NewContinuation();
   }
 }
 

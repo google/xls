@@ -387,13 +387,6 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
   return absl::OkStatus();
 }
 
-bool DummyRecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
-                 int64_t data_bytes, void* user_data) {
-  return true;
-}
-void DummySendFn(JitChannelQueue* queue, Send* send, uint8_t* data,
-                 int64_t data_bytes, void* user_data) {}
-
 absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   std::minstd_rand rng_engine;
   if (function_base->IsFunction()) {
@@ -440,9 +433,8 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   absl::Time start_jit_compile = absl::Now();
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_manager,
                        JitChannelQueueManager::Create(proc->package()));
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_manager.get(), &DummyRecvFn, &DummySendFn));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcJit> jit,
+                       ProcJit::Create(proc, queue_manager.get()));
   std::cout << absl::StreamFormat(
       "JIT compile time: %dms\n",
       DurationToMs(absl::Now() - start_jit_compile));

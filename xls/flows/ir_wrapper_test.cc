@@ -177,8 +177,8 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_TRUE(out.Empty());
 
   // Run one tick
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> next_state,
-                           DropInterpreterEvents(jit->Run({})));
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
+  XLS_ASSERT_OK(jit->Tick(*continuation));
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
@@ -208,7 +208,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_FALSE(in_1.Empty());
 
   // Run one tick
-  XLS_ASSERT_OK_AND_ASSIGN(next_state, DropInterpreterEvents(jit->Run({})));
+  XLS_ASSERT_OK(jit->Tick(*continuation));
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());

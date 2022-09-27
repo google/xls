@@ -61,12 +61,11 @@ TEST_F(ProcInterpreterTest, ProcIota) {
   // Before running, the state should be the initial value.
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(42, 32))));
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
 
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(49, 32))));
 
@@ -77,26 +76,23 @@ TEST_F(ProcInterpreterTest, ProcIota) {
   EXPECT_TRUE(ch0_queue.empty());
 
   // Run three times. Should enqueue three values in the output queue.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(56, 32))));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(63, 32))));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(70, 32))));
 
   ASSERT_EQ(ch0_queue.size(), 3);
@@ -140,19 +136,17 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
 
   std::unique_ptr<ProcContinuation> continuation =
       interpreter.NewContinuation();
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(55, 32))));
@@ -162,22 +156,21 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   // should not change because the proc is blocked.
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(123, 32))));
   EXPECT_THAT(interpreter.Tick(*continuation),
-              IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = false,
-                                                       .progress_made = true,
-                                                       .blocked_channel = ch_in,
-                                                       .sent_channels = {}}));
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in,
+                                      .sent_channels = {}}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(123, 32))));
   EXPECT_FALSE(continuation->AtStartOfTick());
   EXPECT_TRUE(output_queue.empty());
 
   // Feeding another input should unblock it.
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(111, 32))}));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(111, 32))));
 }
@@ -223,45 +216,41 @@ TEST_F(ProcInterpreterTest, MultipleReceives) {
   // Initially should be blocked on in0.
   std::unique_ptr<ProcContinuation> continuation =
       interpreter.NewContinuation();
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = false,
-                                               .progress_made = true,
-                                               .blocked_channel = ch_in0,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in0,
+                                      .sent_channels = {}}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
   XLS_ASSERT_OK(in0_queue.Enqueue({Value(UBits(10, 32))}));
 
   // Then should be blocked on in1.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = false,
-                                               .progress_made = true,
-                                               .blocked_channel = ch_in1,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in1,
+                                      .sent_channels = {}}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
   XLS_ASSERT_OK(in1_queue.Enqueue({Value(UBits(1, 1))}));
 
   // Then should be blocked on in2.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = false,
-                                               .progress_made = true,
-                                               .blocked_channel = ch_in2,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in2,
+                                      .sent_channels = {}}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
   XLS_ASSERT_OK(in2_queue.Enqueue({Value(UBits(42, 32))}));
 
   // Finally, should run to completion.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(52, 32))));
@@ -270,12 +259,11 @@ TEST_F(ProcInterpreterTest, MultipleReceives) {
   // predicate is false.
   XLS_ASSERT_OK(in0_queue.Enqueue({Value(UBits(123, 32))}));
   XLS_ASSERT_OK(in1_queue.Enqueue({Value(UBits(0, 1))}));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
@@ -323,34 +311,31 @@ TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
   // true.
   std::unique_ptr<ProcContinuation> continuation =
       interpreter.NewContinuation();
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(0, 1))));
 
   // The second iteration should not dequeue anything as the receive predicate
   // is now false. The data value of the receive (which is sent over the output
   // channel) should be zeros.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
 
   // The third iteration should again dequeue a value.
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(123, 32))}));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_out}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_out}}));
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
 
   EXPECT_TRUE(output_queue.empty());
@@ -382,45 +367,40 @@ TEST_F(ProcInterpreterTest, ConditionalSendProc) {
 
   std::unique_ptr<ProcContinuation> continuation =
       interpreter.NewContinuation();
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
   EXPECT_EQ(queue.size(), 1);
   EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
   EXPECT_TRUE(queue.empty());
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
   EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
   EXPECT_TRUE(queue.empty());
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {channel}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel}}));
   EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
 }
 
@@ -476,22 +456,20 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
       interpreter.NewContinuation();
 
   // Tick twice and verify that the expected outputs appear at output B.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_b}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_b}}));
   EXPECT_TRUE(a_queue->empty());
   EXPECT_FALSE(b_queue->empty());
   EXPECT_THAT(b_queue->Dequeue(), IsOkAndHolds(Value(UBits(1, 32))));
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_b}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_b}}));
   EXPECT_THAT(b_queue->Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
   EXPECT_TRUE(a_queue->empty());
   EXPECT_TRUE(b_queue->empty());
@@ -500,23 +478,21 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
   XLS_ASSERT_OK(dir_queue->Enqueue(Value(UBits(1, 1))));
 
   // Tick twice and verify that the expectedoutputs appear at output A.
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_a}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_a}}));
   EXPECT_FALSE(a_queue->empty());
   EXPECT_TRUE(b_queue->empty());
 
   EXPECT_THAT(a_queue->Dequeue(), IsOkAndHolds(Value(UBits(3, 32))));
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {ch_a}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {ch_a}}));
 
   EXPECT_THAT(a_queue->Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
   EXPECT_TRUE(a_queue->empty());
@@ -554,11 +530,10 @@ TEST_F(ProcInterpreterTest, StatelessProc) {
       interpreter.NewContinuation();
 
   EXPECT_THAT(interpreter.Tick(*continuation),
-              IsOkAndHolds(
-                  ProcInterpreter::TickResult{.tick_complete = true,
-                                              .progress_made = true,
-                                              .blocked_channel = std::nullopt,
-                                              .sent_channels = {channel_out}}));
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {channel_out}}));
 
   EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
 
@@ -597,28 +572,25 @@ TEST_F(ProcInterpreterTest, MultiStateElementProc) {
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(10, 32))}));
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(20, 32))}));
 
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
   EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(1, 32)), Value(UBits(99, 32))));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
   EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(11, 32)), Value(UBits(89, 32))));
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
   EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(31, 32)), Value(UBits(69, 32))));
 }
@@ -679,12 +651,11 @@ TEST_F(ProcInterpreterTest, NonBlockingReceives) {
   EXPECT_TRUE(in0_queue.empty());
   EXPECT_TRUE(in1_queue.empty());
   EXPECT_FALSE(in2_queue.empty());
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {out0}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {out0}}));
 
   EXPECT_TRUE(in0_queue.empty());
   EXPECT_TRUE(in1_queue.empty());
@@ -698,12 +669,11 @@ TEST_F(ProcInterpreterTest, NonBlockingReceives) {
   EXPECT_TRUE(in0_queue.empty());
   EXPECT_FALSE(in1_queue.empty());
   EXPECT_FALSE(in2_queue.empty());
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {out0}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {out0}}));
 
   EXPECT_TRUE(in0_queue.empty());
   EXPECT_TRUE(in1_queue.empty());
@@ -717,12 +687,11 @@ TEST_F(ProcInterpreterTest, NonBlockingReceives) {
   EXPECT_FALSE(in0_queue.empty());
   EXPECT_TRUE(in1_queue.empty());
   EXPECT_FALSE(in2_queue.empty());
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {out0}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {out0}}));
 
   EXPECT_TRUE(in0_queue.empty());
   EXPECT_TRUE(in1_queue.empty());
@@ -737,12 +706,11 @@ TEST_F(ProcInterpreterTest, NonBlockingReceives) {
   EXPECT_FALSE(in0_queue.empty());
   EXPECT_FALSE(in1_queue.empty());
   EXPECT_FALSE(in2_queue.empty());
-  EXPECT_THAT(
-      interpreter.Tick(*continuation),
-      IsOkAndHolds(ProcInterpreter::TickResult{.tick_complete = true,
-                                               .progress_made = true,
-                                               .blocked_channel = std::nullopt,
-                                               .sent_channels = {out0}}));
+  EXPECT_THAT(interpreter.Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {out0}}));
 
   EXPECT_TRUE(in0_queue.empty());
   EXPECT_TRUE(in1_queue.empty());

@@ -33,7 +33,7 @@ class ProcIrInterpreter : public IrInterpreter {
   //   node_values: map from Node to Value for already computed values in this
   //     tick of the proc. Used for continuations.
   //   events: events object to record events in (e.g, traces).
-  //   queue_manager: manger for channel queues.
+  //   queue_manager: manager for channel queues.
   ProcIrInterpreter(absl::Span<const Value> state,
                     absl::flat_hash_map<Node*, Value>* node_values,
                     InterpreterEvents* events,
@@ -124,7 +124,7 @@ class ProcIrInterpreter : public IrInterpreter {
   std::vector<Value> state_;
   ChannelQueueManager* queue_manager_;
 
-  // Emphemeral values set by the send/receive handlers indicating the channel
+  // Ephemeral values set by the send/receive handlers indicating the channel
   // execution is blocked on or the channel on which data was sent.
   std::optional<Channel*> blocked_channel_;
   std::optional<Channel*> sent_channel_;
@@ -174,17 +174,30 @@ std::vector<Node*> NodeExecutionOrder(Proc* proc) {
 
 }  // namespace
 
-bool ProcInterpreter::TickResult::operator==(
-    const ProcInterpreter::TickResult& other) const {
+bool TickResult::operator==(const TickResult& other) const {
   return tick_complete == other.tick_complete &&
          progress_made == other.progress_made &&
          blocked_channel == other.blocked_channel &&
          sent_channels == other.sent_channels;
 }
 
-bool ProcInterpreter::TickResult::operator!=(
-    const ProcInterpreter::TickResult& other) const {
+bool TickResult::operator!=(const TickResult& other) const {
   return !(*this == other);
+}
+
+std::string TickResult::ToString() const {
+  return absl::StrFormat(
+      "{ tick_complete=%s, progress_made=%s, "
+      "blocked_channel=%s, sent_channels={%s} }",
+      tick_complete ? "true" : "false", progress_made ? "true" : "false",
+      blocked_channel.has_value() ? blocked_channel.value()->ToString()
+                                  : "(none)",
+      absl::StrJoin(sent_channels, ", ", ChannelFormatter));
+}
+
+std::ostream& operator<<(std::ostream& os, const TickResult& result) {
+  os << result.ToString();
+  return os;
 }
 
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
@@ -196,7 +209,7 @@ std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation() const {
   return std::make_unique<ProcInterpreterContinuation>(proc());
 }
 
-absl::StatusOr<ProcInterpreter::TickResult> ProcInterpreter::Tick(
+absl::StatusOr<TickResult> ProcInterpreter::Tick(
     ProcContinuation& continuation) const {
   ProcInterpreterContinuation* cont =
       dynamic_cast<ProcInterpreterContinuation*>(&continuation);
@@ -248,22 +261,6 @@ absl::StatusOr<ProcInterpreter::TickResult> ProcInterpreter::Tick(
                     .progress_made = true,
                     .blocked_channel = std::nullopt,
                     .sent_channels = sent_channels};
-}
-
-std::string ProcInterpreter::TickResult::ToString() const {
-  return absl::StrFormat(
-      "{ tick_complete=%s, progress_made=%s, "
-      "blocked_channel=%s, sent_channels={%s} }",
-      tick_complete ? "true" : "false", progress_made ? "true" : "false",
-      blocked_channel.has_value() ? blocked_channel.value()->ToString()
-                                  : "(none)",
-      absl::StrJoin(sent_channels, ", ", ChannelFormatter));
-}
-
-std::ostream& operator<<(std::ostream& os,
-                         const ProcInterpreter::TickResult& result) {
-  os << result.ToString();
-  return os;
 }
 
 }  // namespace xls

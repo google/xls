@@ -112,9 +112,9 @@ class FunctionJit {
 
     InterpreterEvents events;
     uint8_t* output_buffers[1] = {result_buffer};
-    jitted_function_base_.packed_function(arg_buffers, output_buffers,
-                                          temp_buffer_.data(), &events,
-                                          /*user_data=*/nullptr, runtime());
+    jitted_function_base_.packed_function(
+        arg_buffers, output_buffers, temp_buffer_.data(), &events,
+        /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 
     return InterpreterEventsToStatus(events);
   }

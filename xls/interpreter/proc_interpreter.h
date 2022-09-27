@@ -52,6 +52,52 @@ class ProcContinuation {
   virtual bool AtStartOfTick() const = 0;
 };
 
+// Data structure holding the result of a single call to Tick.
+struct TickResult {
+  // Whether the proc completed executing for this tick. Execution is not
+  // completed if (and only if) a receive operation is blocked.
+  bool tick_complete;
+
+  // Whether any progress was made (at least one instruction was executed).
+  bool progress_made;
+
+  // If the proc is blocked on receive (iteration complete is false), this
+  // vector includes the channels which have blocked operations.
+  std::optional<Channel*> blocked_channel;
+
+  // Vector of channels which were sent on by this proc in this invocation of
+  // Tick.
+  std::vector<Channel*> sent_channels;
+
+  bool operator==(const TickResult& other) const;
+  bool operator!=(const TickResult& other) const;
+
+  std::string ToString() const;
+};
+
+// Abstract base class for evaluators of procs (e.g., interpreter or JIT).
+class ProcEvaluator {
+ public:
+  virtual ~ProcEvaluator() = default;
+
+  // Creates and returns a new continuation for the proc. The continuation is
+  // initialized to start execution at the beginning of the proc with state set
+  // to its initial value.
+  virtual std::unique_ptr<ProcContinuation> NewContinuation() const = 0;
+
+  // Runs the proc from the given continuation until the tick is complete or
+  // execution is blocked on a receive operation. The continuation is updated in
+  // place to reflect the new execution point. If the proc tick completes, the
+  // continuation is set to execute the next tick on the subsequent invocation
+  // of Tick.
+  virtual absl::StatusOr<TickResult> Tick(
+      ProcContinuation& continuation) const = 0;
+
+  virtual Proc* proc() const = 0;
+};
+
+std::ostream& operator<<(std::ostream& os, const TickResult& result);
+
 // A continuation used by the ProcInterpreter.
 class ProcInterpreterContinuation : public ProcContinuation {
  public:
@@ -68,7 +114,7 @@ class ProcInterpreterContinuation : public ProcContinuation {
   InterpreterEvents& GetEvents() override { return events_; }
   bool AtStartOfTick() const override { return node_index_ == 0; }
 
-  // Resets the continuation so it will start executing at the begining of the
+  // Resets the continuation so it will start executing at the beginning of the
   // proc with the given state values.
   void NextTick(std::vector<Value>&& next_state) {
     node_index_ = 0;
@@ -98,58 +144,27 @@ class ProcInterpreterContinuation : public ProcContinuation {
 // A interpreter for an individual proc. Incrementally executes Procs a single
 // tick at a time. Data is fed to the proc via ChannelQueues.  ProcInterpreters
 // are thread-save if called with different continuations.
-class ProcInterpreter {
+class ProcInterpreter : public ProcEvaluator {
  public:
   ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager);
-
   ProcInterpreter(const ProcInterpreter&) = delete;
   ProcInterpreter operator=(const ProcInterpreter&) = delete;
 
-  // Creates and returns a new continuation for the proc.
-  std::unique_ptr<ProcContinuation> NewContinuation() const;
+  virtual ~ProcInterpreter() = default;
 
-  // Data structure holding the result of a single call to Tick.
-  struct TickResult {
-    // Whether the proc completed executing for this tick. Execution is not
-    // completed if (and only if) a receive operation is blocked.
-    bool tick_complete;
-
-    // Whether any progress was made (at least one instruction was executed).
-    bool progress_made;
-
-    // If the proc is blocked on receive (iteration complete is false), this
-    // vector includes the channels which have blocked operations.
-    std::optional<Channel*> blocked_channel;
-
-    // Vector of channels which were sent on by this proc in this invocation of
-    // Tick.
-    std::vector<Channel*> sent_channels;
-
-    bool operator==(const TickResult& other) const;
-    bool operator!=(const TickResult& other) const;
-
-    std::string ToString() const;
-  };
-
-  // Runs the proc from the given continuation until the tick is complete or
-  // execution is blocked on a receive operation. The continuation is updated in
-  // place to reflect the new execution point. If the proc tick completes, the
-  // continuation is set to execute the next tick on the subsequent invocation
-  // of Tick.
-  absl::StatusOr<TickResult> Tick(ProcContinuation& continuation) const;
-
-  Proc* proc() const { return proc_; }
+  std::unique_ptr<ProcContinuation> NewContinuation() const override;
+  absl::StatusOr<TickResult> Tick(
+      ProcContinuation& continuation) const override;
+  Proc* proc() const override { return proc_; }
 
  private:
   Proc* proc_;
   ChannelQueueManager* queue_manager_;
 
-  // A topological sort of the nodes of the proc.
+  // A topological sort of the nodes of the proc which determines the execution
+  // order of the proc.
   std::vector<Node*> execution_order_;
 };
-
-std::ostream& operator<<(std::ostream& os,
-                         const ProcInterpreter::TickResult& result);
 
 }  // namespace xls
 
