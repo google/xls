@@ -327,31 +327,47 @@ absl::Status ChannelSource::SetDataSequence(absl::Span<const uint64_t> data) {
 
 absl::Status ChannelSource::SetBlockInputs(
     int64_t this_cycle, absl::flat_hash_map<std::string, Value>& inputs,
-    std::minstd_rand& random_engine) {
-  if (is_valid_) {
-    // Continue to output valid and data, while waiting for the ready signal.
-    XLS_CHECK_GE(current_index_, 0);
-    XLS_CHECK_LT(current_index_, data_sequence_.size());
+    std::minstd_rand& random_engine, std::optional<verilog::ResetProto> reset) {
+  bool is_in_reset = false;
 
-    inputs[data_name_] = data_sequence_.at(current_index_);
-    inputs[valid_name_] = Value(UBits(1, 1));
-
-    return absl::OkStatus();
+  // Don't send inputs when reset is asserted, because we don't typically care
+  // about the behavior of the block when inputs are sent during reset.
+  if (reset.has_value()) {
+    if (inputs.contains(reset.value().name())) {
+      Value value_when_reset_asserted =
+          Value(UBits(reset.value().active_low() ? 0 : 1, 1));
+      if (inputs.at(reset.value().name()) == value_when_reset_asserted) {
+        is_in_reset = true;
+      }
+    }
   }
 
-  if (HasMoreData()) {
-    bool send_next_data = std::bernoulli_distribution(lambda_)(random_engine);
-    if (send_next_data) {
-      ++current_index_;
-
+  if (!is_in_reset) {
+    if (is_valid_) {
+      // Continue to output valid and data, while waiting for the ready signal.
       XLS_CHECK_GE(current_index_, 0);
       XLS_CHECK_LT(current_index_, data_sequence_.size());
 
       inputs[data_name_] = data_sequence_.at(current_index_);
       inputs[valid_name_] = Value(UBits(1, 1));
-      is_valid_ = true;
 
       return absl::OkStatus();
+    }
+
+    if (HasMoreData()) {
+      bool send_next_data = std::bernoulli_distribution(lambda_)(random_engine);
+      if (send_next_data) {
+        ++current_index_;
+
+        XLS_CHECK_GE(current_index_, 0);
+        XLS_CHECK_LT(current_index_, data_sequence_.size());
+
+        inputs[data_name_] = data_sequence_.at(current_index_);
+        inputs[valid_name_] = Value(UBits(1, 1));
+        is_valid_ = true;
+
+        return absl::OkStatus();
+      }
     }
   }
 
@@ -429,7 +445,7 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-    int64_t seed) {
+    std::optional<verilog::ResetProto> reset, int64_t seed) {
   std::minstd_rand random_engine;
   random_engine.seed(seed);
 
@@ -447,7 +463,8 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
 
     // Sources set data/valid
     for (ChannelSource& src : channel_sources) {
-      XLS_RETURN_IF_ERROR(src.SetBlockInputs(cycle, input_set, random_engine));
+      XLS_RETURN_IF_ERROR(
+          src.SetBlockInputs(cycle, input_set, random_engine, reset));
     }
 
     // Sinks set ready
@@ -497,7 +514,7 @@ InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
-    int64_t seed) {
+    std::optional<verilog::ResetProto> reset, int64_t seed) {
   std::vector<absl::flat_hash_map<std::string, Value>> input_values;
   for (const absl::flat_hash_map<std::string, uint64_t>& input_set : inputs) {
     absl::flat_hash_map<std::string, Value> input_value_set;
@@ -515,7 +532,7 @@ InterpretChannelizedSequentialBlockWithUint64(
   XLS_ASSIGN_OR_RETURN(
       BlockIoResults block_io_result,
       InterpretChannelizedSequentialBlock(block, channel_sources, channel_sinks,
-                                          input_values, seed));
+                                          input_values, reset, seed));
 
   BlockIoResultsAsUint64 block_io_result_as_uint64;
 

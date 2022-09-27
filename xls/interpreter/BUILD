@@ -34,6 +34,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",

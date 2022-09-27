@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/block.h"
 #include "xls/ir/value.h"
@@ -99,7 +100,8 @@ class ChannelSource {
   // inputs[valid_name] to the Value they should be driven for this_cycle.
   absl::Status SetBlockInputs(int64_t this_cycle,
                               absl::flat_hash_map<std::string, Value>& inputs,
-                              std::minstd_rand& random_engine);
+                              std::minstd_rand& random_engine,
+                              std::optional<verilog::ResetProto> reset);
 
   // For each cycle, GetBlockOutputs() is called to provide this channel
   // the block's outputs for the cycle.
@@ -212,7 +214,7 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-    int64_t seed = 0);
+    std::optional<verilog::ResetProto> reset = std::nullopt, int64_t seed = 0);
 
 // Variant which accepts and returns uint64_t values instead of xls::Values.
 absl::StatusOr<BlockIoResultsAsUint64>
@@ -220,7 +222,7 @@ InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
-    int64_t seed = 0);
+    std::optional<verilog::ResetProto> reset = std::nullopt, int64_t seed = 0);
 
 }  // namespace xls
 
