@@ -40,6 +40,8 @@ pub enum KeyWidth : u2 {
     KEY_256 = 2,
 }
 
+pub const ZERO_KEY = Key:[u8:0, ...];
+
 pub const ZERO_BLOCK = Block:[
     u32:0 as u8[4],
     u32:0 as u8[4],
