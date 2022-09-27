@@ -42,6 +42,8 @@ namespace xls {
 namespace verilog {
 namespace {
 
+using Stage = int64_t;
+
 // Name of the output port which holds the return value of the function.
 // TODO(meheff): 2021-03-01 Allow port names other than "out".
 static const char kOutputPortName[] = "out";
@@ -122,12 +124,38 @@ struct PipelineRegister {
 };
 
 // A data structure representing a state register for a single XLS IR value.
-struct StateRegister {
-  std::string name;
-  Value reset_value;
-  Register* reg;
-  RegisterWrite* reg_write;
-  RegisterRead* reg_read;
+class StateRegister {
+ public:
+  StateRegister(absl::string_view name, Value reset_value, Stage stage,
+                Register* reg, RegisterWrite* reg_write, RegisterRead* reg_read)
+      : name_(name),
+        reset_value_(reset_value),
+        stage_(stage),
+        reg_(reg),
+        reg_write_(reg_write),
+        reg_read_(reg_read) {}
+
+  std::string& name() { return name_; }
+  Value& reset_value() { return reset_value_; }
+  Stage& stage() { return stage_; }
+  Register*& reg() { return reg_; }
+  RegisterWrite*& reg_write() { return reg_write_; }
+  RegisterRead*& reg_read() { return reg_read_; }
+
+  absl::string_view name() const { return name_; }
+  const Value& reset_value() const { return reset_value_; }
+  Stage stage() const { return stage_; }
+  Register* reg() const { return reg_; }
+  RegisterWrite* reg_write() const { return reg_write_; }
+  RegisterRead* reg_read() const { return reg_read_; }
+
+ private:
+  std::string name_;
+  Value reset_value_;
+  Stage stage_;
+  Register* reg_;
+  RegisterWrite* reg_write_;
+  RegisterRead* reg_read_;
 };
 
 // The collection of pipeline registers for a single stage.
@@ -253,27 +281,27 @@ static absl::StatusOr<std::optional<Node*>> MaybeGetOrMakeResetNode(
 static absl::Status UpdateStateRegisterWithReset(const ResetInfo& reset_info,
                                                  StateRegister& state_register,
                                                  Block* block) {
-  XLS_CHECK_NE(state_register.reg, nullptr);
-  XLS_CHECK_NE(state_register.reg_write, nullptr);
-  XLS_CHECK_NE(state_register.reg_read, nullptr);
+  XLS_CHECK_NE(state_register.reg(), nullptr);
+  XLS_CHECK_NE(state_register.reg_write(), nullptr);
+  XLS_CHECK_NE(state_register.reg_read(), nullptr);
 
   // Blocks containing a state register must also have a reset signal.
   if (!reset_info.input_port.has_value() || !reset_info.behavior.has_value()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Unable to update state register %s with reset, signal as block"
         " was not created with a reset.",
-        state_register.reg->name()));
+        state_register.reg()->name()));
   }
 
   // Follow the reset behavior of the valid registers except for the initial
   // value.
   xls::Reset reset_behavior = reset_info.behavior.value();
-  reset_behavior.reset_value = state_register.reset_value;
+  reset_behavior.reset_value = state_register.reset_value();
   Node* reset_node = reset_info.input_port.value();
 
   // Replace the register's reset signal
-  return state_register.reg_write->AddOrReplaceReset(reset_node,
-                                                     reset_behavior);
+  return state_register.reg_write()->AddOrReplaceReset(reset_node,
+                                                       reset_behavior);
 }
 
 // Updates datapath pipeline registers with a reset signal.
@@ -415,6 +443,10 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
   result.data_load_enable.at(stage_count - 1) =
       pipeline_done_nodes.at(stage_count - 1);
 
+  std::vector<Node*> state_enables;
+  state_enables.resize(stage_count, nullptr);
+  state_enables.at(stage_count - 1) = pipeline_done_nodes.at(stage_count - 1);
+
   for (int64_t stage = stage_count - 2; stage >= 0; --stage) {
     // Create load enables for valid registers.
     XLS_ASSIGN_OR_RETURN(
@@ -455,6 +487,8 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
                              SourceInfo(), data_en_operands, Op::kAnd,
                              PipelineSignalName("data_enable", stage)));
 
+    state_enables.at(stage) = data_enable;
+
     // If datapath registers are reset, then adding reset to the
     // load enable is redundant.
     if (reset_info.reset_data_path) {
@@ -479,24 +513,22 @@ static absl::StatusOr<BubbleFlowControl> UpdatePipelineWithBubbleFlowControl(
         pipeline_reg.reg_write = new_reg_write;
       }
     }
+  }
 
-    // Also update the state register and share the enable signal
-    // with the data registers.
-    if (stage == 0) {
-      for (std::optional<StateRegister>& state_register : state_registers) {
-        if (state_register.has_value()) {
-          XLS_ASSIGN_OR_RETURN(
-              RegisterWrite * new_reg_write,
-              block->MakeNode<RegisterWrite>(
-                  /*loc=*/state_register->reg_write->loc(),
-                  /*data=*/state_register->reg_write->data(),
-                  /*load_enable=*/data_enable,
-                  /*reset=*/state_register->reg_write->reset(),
-                  /*reg=*/state_register->reg_write->GetRegister()));
-          XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
-          state_register->reg_write = new_reg_write;
-        }
-      }
+  // Generate writes for state registers. This is done in a separate loop
+  // because the last stage isn't included in the pipeline register loop.
+  for (std::optional<StateRegister>& state_register : state_registers) {
+    if (state_register.has_value()) {
+      XLS_ASSIGN_OR_RETURN(
+          RegisterWrite * new_reg_write,
+          block->MakeNode<RegisterWrite>(
+              /*loc=*/state_register->reg_write()->loc(),
+              /*data=*/state_register->reg_write()->data(),
+              /*load_enable=*/state_enables.at(state_register->stage()),
+              /*reset=*/state_register->reg_write()->reset(),
+              /*reg=*/state_register->reg_write()->GetRegister()));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write()));
+      state_register->reg_write() = new_reg_write;
     }
   }
 
@@ -535,13 +567,13 @@ static absl::StatusOr<Node*> UpdateSingleStagePipelineWithFlowControl(
       XLS_ASSIGN_OR_RETURN(
           RegisterWrite * new_reg_write,
           block->MakeNode<RegisterWrite>(
-              /*loc=*/state_register->reg_write->loc(),
-              /*data=*/state_register->reg_write->data(),
+              /*loc=*/state_register->reg_write()->loc(),
+              /*data=*/state_register->reg_write()->data(),
               /*load_enable=*/pipeline_enable,
-              /*reset=*/state_register->reg_write->reset(),
-              /*reg=*/state_register->reg_write->GetRegister()));
-      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write));
-      state_register->reg_write = new_reg_write;
+              /*reset=*/state_register->reg_write()->reset(),
+              /*reg=*/state_register->reg_write()->GetRegister()));
+      XLS_RETURN_IF_ERROR(block->RemoveNode(state_register->reg_write()));
+      state_register->reg_write() = new_reg_write;
     }
   }
 
@@ -680,8 +712,6 @@ struct SingleValueOutput {
   OutputPort* port;
   Channel* channel;
 };
-
-using Stage = int64_t;
 
 struct StreamingIoPipeline {
   absl::flat_hash_map<Stage, std::vector<StreamingInput>> inputs;
@@ -1981,15 +2011,14 @@ class CloneNodesIntoBlockHandler {
           if (node == token_param_) {
             XLS_ASSIGN_OR_RETURN(next_node, HandleTokenParam(node));
           } else {
-            XLS_RET_CHECK_EQ(stage, 0);
             XLS_ASSIGN_OR_RETURN(
                 int64_t index,
                 node->function_base()->AsProcOrDie()->GetStateParamIndex(
                     node->As<Param>()));
-            XLS_ASSIGN_OR_RETURN(next_node, HandleStateParam(node, index));
+            XLS_ASSIGN_OR_RETURN(next_node,
+                                 HandleStateParam(node, stage, index));
           }
         } else {
-          XLS_RET_CHECK_EQ(stage, 0);
           XLS_ASSIGN_OR_RETURN(next_node, HandleFunctionParam(node));
         }
         node_map_[node] = next_node;
@@ -2010,7 +2039,6 @@ class CloneNodesIntoBlockHandler {
     if (is_proc_) {
       for (Node* node : sorted_nodes) {
         if (next_state_nodes_.contains(node)) {
-          XLS_RET_CHECK_EQ(stage, 0);
           XLS_RETURN_IF_ERROR(
               SetNextStateNode(node_map_.at(node), next_state_nodes_.at(node)));
         }
@@ -2084,7 +2112,10 @@ class CloneNodesIntoBlockHandler {
   }
 
   // Replace state parameter at the given index with Literal empty tuple.
-  absl::StatusOr<Node*> HandleStateParam(Node* node, int64_t index) {
+  absl::StatusOr<Node*> HandleStateParam(Node* node, Stage stage,
+                                         int64_t index) {
+    XLS_CHECK_GE(stage, 0);
+
     Proc* proc = function_base_->AsProcOrDie();
 
     if (node->GetType()->GetFlatBitCount() == 0) {
@@ -2114,9 +2145,10 @@ class CloneNodesIntoBlockHandler {
                                                /*name=*/reg->name()));
 
     result_.state_registers[index] =
-        StateRegister{std::string(proc->GetStateParam(index)->name()),
-                      proc->GetInitValueElement(index), reg,
-                      /*reg_write=*/nullptr, reg_read};
+        StateRegister(std::string(proc->GetStateParam(index)->name()),
+                      proc->GetInitValueElement(index),
+                      /*stage=*/stage, reg,
+                      /*reg_write=*/nullptr, reg_read);
 
     return reg_read;
   }
@@ -2297,13 +2329,13 @@ class CloneNodesIntoBlockHandler {
 
       StateRegister& state_register = result_.state_registers.at(index).value();
       // There should only be one next state node.
-      XLS_CHECK_EQ(state_register.reg_write, nullptr);
+      XLS_CHECK_EQ(state_register.reg_write(), nullptr);
 
-      XLS_ASSIGN_OR_RETURN(state_register.reg_write,
+      XLS_ASSIGN_OR_RETURN(state_register.reg_write(),
                            block_->MakeNode<RegisterWrite>(
                                next_state->loc(), next_state,
                                /*load_enable=*/absl::nullopt,
-                               /*reset=*/absl::nullopt, state_register.reg));
+                               /*reset=*/absl::nullopt, state_register.reg()));
     }
 
     return absl::OkStatus();
