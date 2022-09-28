@@ -5,6 +5,6 @@ build --copt "-Wno-comment"
 build --host_copt "-Wno-sign-compare"
 build --host_copt "-Wno-comment"
 
-# TODO(leary): 2020-09-09 Make it possible to enable this option.
-# Currently m4 doesn't seem to work as a dependency.
-# build --crosstool_top=@llvm_toolchain_llvm//:toolchain
+# TODO(proppy): 2022-09-29 per https://github.com/grailbio/bazel-toolchain#quickstart
+# remove when https://github.com/bazelbuild/bazel/issues/7260 is closed.
+build --incompatible_enable_cc_toolchain_resolution
