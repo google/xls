@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/strings/match.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/bytecode_emitter.h"
@@ -29,6 +30,7 @@
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/deduce_ctx.h"
 #include "xls/dslx/errors.h"
+#include "xls/dslx/token_utils.h"
 #include "xls/dslx/type_and_bindings.h"
 
 namespace xls::dslx {
@@ -68,8 +70,9 @@ absl::StatusOr<InterpValue> InterpretExpr(
 //   the argument array.
 static Invocation* CreateElementInvocation(Module* module, const Span& span,
                                            Expr* callee, Expr* arg_array) {
+  auto* name = module->GetOrCreateBuiltinNameDef("u32");
   auto* annotation =
-      module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32);
+      module->Make<BuiltinTypeAnnotation>(span, BuiltinType::kU32, name);
   auto* index_number =
       module->Make<Number>(span, "0", NumberKind::kOther, annotation);
   auto* index = module->Make<Index>(span, arg_array, index_number);
@@ -1058,23 +1061,16 @@ static bool IsPublic(const ModuleMember& member) {
 
 // Deduces a colon-ref in the particular case when the subject is known to be an
 // import.
-static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
-    const ColonRef* node, Import* import, DeduceCtx* ctx) {
-  // Referring to something within an (imported) module.
-  std::optional<const ImportedInfo*> imported =
-      ctx->type_info()->GetImported(import);
-  XLS_RET_CHECK(imported.has_value());
-
-  // Find the member being referred to within the imported module.
-  Module* imported_module = (*imported)->module;
-  std::optional<ModuleMember*> elem =
-      imported_module->FindMemberWithName(node->attr());
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefToModule(
+    const ColonRef* node, Module* module, DeduceCtx* ctx) {
+  XLS_VLOG(5) << "DeduceColonRefToModule; node: `" << node->ToString() << "`";
+  std::optional<ModuleMember*> elem = module->FindMemberWithName(node->attr());
   if (!elem.has_value()) {
     return TypeInferenceErrorStatus(
         node->span(), nullptr,
         absl::StrFormat("Attempted to refer to module %s member '%s' "
                         "which does not exist.",
-                        imported_module->name(), node->attr()));
+                        module->name(), node->attr()));
   }
   if (!IsPublic(*elem.value())) {
     return TypeInferenceErrorStatus(
@@ -1084,7 +1080,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
                         ToAstNode(*elem.value())->ToString()));
   }
 
-  TypeInfo* imported_type_info = (*imported)->type_info;
+  XLS_ASSIGN_OR_RETURN(TypeInfo * imported_type_info,
+                       ctx->import_data()->GetRootTypeInfo(module));
   if (absl::holds_alternative<Function*>(*elem.value())) {
     auto* f = absl::get<Function*>(*elem.value());
     if (!imported_type_info->Contains(f->name_def())) {
@@ -1096,7 +1093,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
       // module (this will only get the type signature, the body gets
       // typechecked after parametric instantiation).
       std::unique_ptr<DeduceCtx> imported_ctx =
-          ctx->MakeCtx(imported_type_info, imported_module);
+          ctx->MakeCtx(imported_type_info, module);
       const FnStackEntry& peek_entry = ctx->fn_stack().back();
       imported_ctx->AddFnStackEntry(peek_entry);
       XLS_RETURN_IF_ERROR(ctx->typecheck_function()(f, imported_ctx.get()));
@@ -1110,43 +1107,83 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefImport(
   return type.value()->CloneToUnique();
 }
 
+static absl::StatusOr<std::unique_ptr<ConcreteType>>
+DeduceColonRefToBuiltinNameDef(BuiltinNameDef* builtin_name_def,
+                               const ColonRef* node) {
+  const auto& sized_type_keywords = GetSizedTypeKeywordsMetadata();
+  if (auto it = sized_type_keywords.find(builtin_name_def->identifier());
+      it != sized_type_keywords.end()) {
+    auto [is_signed, size] = it->second;
+    if (node->attr() == "MAX") {
+      return std::make_unique<BitsType>(is_signed, size);
+    }
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Builtin type '%s' does not have attribute '%s'.",
+                        builtin_name_def->identifier(), node->attr()));
+  }
+  return TypeInferenceErrorStatus(
+      node->span(), nullptr,
+      absl::StrFormat("Builtin '%s' has no attributes.",
+                      builtin_name_def->identifier()));
+}
+
+static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefToArrayType(
+    ArrayTypeAnnotation* array_type, const ColonRef* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved,
+                       ctx->Deduce(array_type));
+  if (!IsBits(*resolved)) {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Cannot use '::' on type %s -- only bits types support "
+                        "'::' attributes",
+                        resolved->ToString()));
+  }
+  if (node->attr() != "MAX") {
+    return TypeInferenceErrorStatus(
+        node->span(), nullptr,
+        absl::StrFormat("Type '%s' does not have attribute '%s'.",
+                        array_type->ToString(), node->attr()));
+  }
+  return resolved;
+}
+
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRef(
     const ColonRef* node, DeduceCtx* ctx) {
   XLS_VLOG(5) << "Deducing type for ColonRef @ " << node->span().ToString();
-  bool subject_is_name_ref = absl::holds_alternative<NameRef*>(node->subject());
-  if (subject_is_name_ref) {
-    NameRef* name_ref = absl::get<NameRef*>(node->subject());
-    if (absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def())) {
-      auto* builtin_name_def = absl::get<BuiltinNameDef*>(name_ref->name_def());
-      return TypeInferenceErrorStatus(
-          node->span(), nullptr,
-          absl::StrFormat("Builtin '%s' has no attributes.",
-                          builtin_name_def->identifier()));
-    }
-    const NameDef* name_def = std::get<const NameDef*>(name_ref->name_def());
-    Import* import = dynamic_cast<Import*>(name_def->definer());
-    if (import != nullptr) {
-      return DeduceColonRefImport(node, import, ctx);
-    }
-  }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> subject_type,
-                       ctx->Deduce(ToAstNode(node->subject())));
-  auto* enum_type = dynamic_cast<EnumType*>(subject_type.get());
-  if (enum_type == nullptr) {
-    return TypeInferenceErrorStatus(
-        node->span(), subject_type.get(),
-        absl::StrFormat("Cannot use '::' on '%s', it is not an enum or module",
-                        ToAstNode(node->subject())->ToString()));
-  }
-  const EnumDef& enum_def = enum_type->nominal_type();
-  if (!enum_def.HasValue(node->attr())) {
-    return TypeInferenceErrorStatus(
-        node->span(), nullptr,
-        absl::StrFormat("Name '%s' is not defined by the enum %s.",
-                        node->attr(), enum_def.identifier()));
-  }
-  return subject_type;
+  ImportData* import_data = ctx->import_data();
+  XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubject(
+                                         import_data, ctx->type_info(), node));
+  using ReturnT = absl::StatusOr<std::unique_ptr<ConcreteType>>;
+  Module* subject_module = ToAstNode(subject)->owner();
+  XLS_ASSIGN_OR_RETURN(TypeInfo * subject_type_info,
+                       import_data->GetRootTypeInfo(subject_module));
+  auto subject_ctx = ctx->MakeCtx(subject_type_info, subject_module);
+  const FnStackEntry& peek_entry = ctx->fn_stack().back();
+  subject_ctx->AddFnStackEntry(peek_entry);
+  return absl::visit(
+      Visitor{
+          [&](Module* module) -> ReturnT {
+            return DeduceColonRefToModule(node, module, subject_ctx.get());
+          },
+          [&](EnumDef* enum_def) -> ReturnT {
+            if (!enum_def->HasValue(node->attr())) {
+              return TypeInferenceErrorStatus(
+                  node->span(), nullptr,
+                  absl::StrFormat("Name '%s' is not defined by the enum %s.",
+                                  node->attr(), enum_def->identifier()));
+            }
+            return DeduceEnumDef(enum_def, subject_ctx.get());
+          },
+          [&](BuiltinNameDef* builtin_name_def) -> ReturnT {
+            return DeduceColonRefToBuiltinNameDef(builtin_name_def, node);
+          },
+          [&](ArrayTypeAnnotation* type) -> ReturnT {
+            return DeduceColonRefToArrayType(type, node, subject_ctx.get());
+          },
+      },
+      subject);
 }
 
 // Returns (start, width), resolving indices via DSLX bit slice semantics.

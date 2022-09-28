@@ -1346,5 +1346,42 @@ fn main() -> u32[8] {
   }
 }
 
+TEST(BytecodeInterpreterTest, TypeMaxExprU7) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> u7 {
+  u7::MAX
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x7f));
+}
+
+TEST(BytecodeInterpreterTest, TypeMaxExprS7) {
+  constexpr absl::string_view kProgram = R"(
+fn main() -> s3 {
+  s3::MAX
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueInt64(), IsOkAndHolds(3));
+}
+
+TEST(BytecodeInterpreterTest, TypeMaxExprTypeAlias) {
+  constexpr absl::string_view kProgram = R"(
+type MyU9 = uN[9];
+fn main() -> MyU9 {
+  MyU9::MAX
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x1ff));
+}
+
 }  // namespace
 }  // namespace xls::dslx

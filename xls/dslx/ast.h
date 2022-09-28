@@ -387,7 +387,8 @@ absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type);
 // Represents a built-in type annotation; e.g. `u32`, `bits`, etc.
 class BuiltinTypeAnnotation : public TypeAnnotation {
  public:
-  BuiltinTypeAnnotation(Module* owner, Span span, BuiltinType builtin_type);
+  BuiltinTypeAnnotation(Module* owner, Span span, BuiltinType builtin_type,
+                        BuiltinNameDef* builtin_name_def);
 
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleBuiltinTypeAnnotation(this);
@@ -396,9 +397,7 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
   absl::string_view GetNodeTypeName() const override {
     return "BuiltinTypeAnnotation";
   }
-  std::vector<AstNode*> GetChildren(bool want_types) const override {
-    return {};
-  }
+  std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override {
     return BuiltinTypeToString(builtin_type_);
@@ -411,8 +410,11 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
 
   BuiltinType builtin_type() const { return builtin_type_; }
 
+  BuiltinNameDef* builtin_name_def() const { return builtin_name_def_; }
+
  private:
   BuiltinType builtin_type_;
+  BuiltinNameDef* builtin_name_def_;
 };
 
 // Represents a tuple type annotation; e.g. `(u32, s42)`.
@@ -2847,12 +2849,19 @@ class Module : public AstNode {
 
   template <typename T, typename... Args>
   T* Make(Args&&... args) {
-    std::unique_ptr<T> node =
-        std::make_unique<T>(this, std::forward<Args>(args)...);
-    T* ptr = node.get();
-    ptr->SetParentage();
-    nodes_.push_back(std::move(node));
-    return ptr;
+    static_assert(!std::is_same<T, BuiltinNameDef>::value,
+                  "Use Module::GetOrCreateBuiltinNameDef()");
+    return MakeInternal<T, Args...>(std::forward<Args>(args)...);
+  }
+
+  BuiltinNameDef* GetOrCreateBuiltinNameDef(std::string_view name) {
+    auto it = builtin_name_defs_.find(name);
+    if (it == builtin_name_defs_.end()) {
+      BuiltinNameDef* bnd = MakeInternal<BuiltinNameDef>(std::string(name));
+      builtin_name_defs_.emplace_hint(it, std::string(name), bnd);
+      return bnd;
+    }
+    return it->second;
   }
 
   absl::Status AddTop(ModuleMember member);
@@ -2962,6 +2971,16 @@ class Module : public AstNode {
   }
 
  private:
+  template <typename T, typename... Args>
+  T* MakeInternal(Args&&... args) {
+    std::unique_ptr<T> node =
+        std::make_unique<T>(this, std::forward<Args>(args)...);
+    T* ptr = node.get();
+    ptr->SetParentage();
+    nodes_.push_back(std::move(node));
+    return ptr;
+  }
+
   // Returns all of the elements of top_ that have the given variant type T.
   template <typename T>
   std::vector<T*> GetTopWithT() const {
@@ -2994,6 +3013,11 @@ class Module : public AstNode {
 
   // Map of top-level module member name to the member itself.
   absl::flat_hash_map<std::string, ModuleMember> top_by_name_;
+
+  // Builtin name definitions, which we common out on a per-module basis. Not
+  // for any particular purpose at this time aside from cleanliness of not
+  // having many definition nodes of the same builtin thing floating around.
+  absl::flat_hash_map<std::string, BuiltinNameDef*> builtin_name_defs_;
 };
 
 // Helper for determining whether an AST node is constant (e.g. can be

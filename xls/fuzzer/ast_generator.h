@@ -457,8 +457,8 @@ class AstGenerator {
                                   /*definer=*/nullptr);
   }
   NameRef* MakeBuiltinNameRef(std::string identifier) {
-    return module_->Make<NameRef>(fake_span_, identifier,
-                                  module_->Make<BuiltinNameDef>(identifier));
+    return module_->Make<NameRef>(
+        fake_span_, identifier, module_->GetOrCreateBuiltinNameDef(identifier));
   }
 
   // Generates a unique symbol identifier.

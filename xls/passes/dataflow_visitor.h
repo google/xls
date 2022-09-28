@@ -86,7 +86,7 @@ class DataFlowVisitor : public DfsVisitorWithDefault {
     LeafTypeTree<T> ltt = std::move(map_.at(node));
     // Erase the moved element from the map to avoid later access.
     map_.erase(node);
-    return std::move(ltt);
+    return ltt;
   }
 
  private:

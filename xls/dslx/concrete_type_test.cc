@@ -137,10 +137,12 @@ TEST(ConcreteTypeTest, StructTypeGetTotalBitCount) {
   std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "x", nullptr),
-      module.Make<BuiltinTypeAnnotation>(kFakeSpan, BuiltinType::kU8));
+      module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU8, module.GetOrCreateBuiltinNameDef("u8")));
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "y", nullptr),
-      module.Make<BuiltinTypeAnnotation>(kFakeSpan, BuiltinType::kU1));
+      module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU1, module.GetOrCreateBuiltinNameDef("u1")));
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
       std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);

@@ -82,6 +82,17 @@ std::string TagToString(InterpValueTag tag) {
                      UBits(value, /*bit_count=*/bit_count)};
 }
 
+/* static */ InterpValue InterpValue::MakeMaxValue(bool is_signed,
+                                                   int64_t bit_count) {
+  auto bits = Bits::AllOnes(bit_count);
+  if (!is_signed) {
+    return InterpValue{InterpValueTag::kUBits, std::move(bits)};
+  }
+  // Unset the highest bit to get the maximum value in two's complement form.
+  bits = bits.UpdateWithSet(bit_count - 1, false);
+  return InterpValue{InterpValueTag::kSBits, std::move(bits)};
+}
+
 /* static */ InterpValue InterpValue::MakeSBits(int64_t bit_count,
                                                 int64_t value) {
   return InterpValue{InterpValueTag::kSBits,

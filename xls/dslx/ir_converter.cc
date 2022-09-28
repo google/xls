@@ -27,7 +27,9 @@
 #include "absl/status/status.h"
 #include "absl/types/optional.h"
 #include "absl/types/variant.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/constexpr_evaluator.h"
 #include "xls/dslx/extract_conversion_order.h"
@@ -2526,18 +2528,18 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
+absl::Status FunctionConverter::HandleColonRef(const ColonRef* colon_ref) {
   // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
-  if (std::optional<Import*> import = node->ResolveImportSubject()) {
+  if (std::optional<Import*> import = colon_ref->ResolveImportSubject()) {
     std::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
     XLS_RET_CHECK(imported.has_value());
     Module* imported_mod = (*imported)->module;
     ScopedTypeInfoSwap stis(this, (*imported)->type_info);
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
-                         imported_mod->GetConstantDef(node->attr()));
+                         imported_mod->GetConstantDef(colon_ref->attr()));
     // A constant may be defined in terms of other constants
     // (pub const MY_CONST = std::foo(ANOTHER_CONST);), so we need to collect
     // constants transitively so we can visit all dependees.
@@ -2547,31 +2549,58 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
       XLS_RETURN_IF_ERROR(Visit(dep));
     }
     XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
-    return DefAlias(constant_def->name_def(), /*to=*/node);
+    return DefAlias(constant_def->name_def(), /*to=*/colon_ref);
   }
 
-  EnumDef* enum_def;
-  if (absl::holds_alternative<NameRef*>(node->subject())) {
-    XLS_ASSIGN_OR_RETURN(enum_def,
-                         DerefEnum(absl::get<NameRef*>(node->subject())));
-  } else {
-    XLS_ASSIGN_OR_RETURN(TypeDefinition type_definition,
-                         ToTypeDefinition(ToAstNode(node->subject())));
-    XLS_ASSIGN_OR_RETURN(enum_def, DerefEnum(type_definition));
-  }
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data_->GetRootTypeInfo(enum_def->owner()));
-  ScopedTypeInfoSwap stis(this, type_info);
-  XLS_ASSIGN_OR_RETURN(Expr * attr_value, enum_def->GetValue(node->attr()));
+  XLS_ASSIGN_OR_RETURN(
+      auto subject,
+      ResolveColonRefSubject(import_data_, current_type_info_, colon_ref));
+  return absl::visit(
+      Visitor{
+          [&](Module* module) -> absl::Status {
+            return absl::InternalError("ColonRefs with imports unhandled.");
+          },
+          [&](EnumDef* enum_def) -> absl::Status {
+            XLS_ASSIGN_OR_RETURN(
+                TypeInfo * type_info,
+                import_data_->GetRootTypeInfo(enum_def->owner()));
+            ScopedTypeInfoSwap stis(this, type_info);
+            XLS_ASSIGN_OR_RETURN(Expr * attr_value,
+                                 enum_def->GetValue(colon_ref->attr()));
 
-  // We've already computed enum member values during constexpr eval.
-  XLS_ASSIGN_OR_RETURN(InterpValue iv,
-                       current_type_info_->GetConstExpr(attr_value));
-  XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
-  Def(node, [this, &value](const SourceInfo& loc) {
-    return function_builder_->Literal(value, loc);
-  });
-  return absl::OkStatus();
+            // We've already computed enum member values during constexpr
+            // evaluation.
+            XLS_ASSIGN_OR_RETURN(InterpValue iv,
+                                 current_type_info_->GetConstExpr(attr_value));
+            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
+            Def(colon_ref, [this, &value](const SourceInfo& loc) {
+              return function_builder_->Literal(value, loc);
+            });
+            return absl::OkStatus();
+          },
+          [&](BuiltinNameDef* builtin_name_def) -> absl::Status {
+            XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
+                                 GetBuiltinNameDefColonAttr(builtin_name_def,
+                                                            colon_ref->attr()));
+            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
+            DefConst(colon_ref, value);
+            return absl::OkStatus();
+          },
+          [&](ArrayTypeAnnotation* array_type) -> absl::Status {
+            // Type checking currently ensures that we're not taking a '::' on
+            // anything other than a bits type.
+            XLS_ASSIGN_OR_RETURN(xls::Type * input_type,
+                                 ResolveTypeToIr(array_type));
+            xls::BitsType* bits_type = input_type->AsBitsOrDie();
+            const int64_t bit_count = bits_type->bit_count();
+            XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
+                                 GetArrayTypeColonAttr(array_type, bit_count,
+                                                       colon_ref->attr()));
+            XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
+            DefConst(colon_ref, value);
+            return absl::OkStatus();
+          }},
+      subject);
 }
 
 absl::Status FunctionConverter::HandleSplatStructInstance(

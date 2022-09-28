@@ -68,55 +68,6 @@ class NameDefCollector : public AstNodeVisitorWithDefault {
 
 }  // namespace
 
-template <int N, typename... Ts>
-struct GetNth {
-  using type = typename std::tuple_element<N, std::tuple<Ts...>>::type;
-};
-
-template <int N, typename... ToTypes, typename... FromTypes>
-absl::variant<ToTypes...> TryWidenVariant(
-    const absl::variant<FromTypes...>& v) {
-  using TryT = typename GetNth<N, FromTypes...>::type;
-  if (absl::holds_alternative<TryT>(v)) {
-    return absl::get<TryT>(v);
-  }
-  if constexpr (N == 0) {
-    XLS_LOG(FATAL) << "Could not find variant in FromTypes.";
-  } else {
-    return TryWidenVariant<N - 1, ToTypes...>(v);
-  }
-}
-
-template <typename... ToTypes, typename... FromTypes>
-absl::variant<ToTypes...> WidenVariant(const absl::variant<FromTypes...>& v) {
-  return TryWidenVariant<sizeof...(FromTypes) - 1, ToTypes...>(v);
-}
-
-template <int N, typename... ToTypes, typename... FromTypes>
-absl::variant<ToTypes...> TryNarrowVariant(
-    const absl::variant<FromTypes...>& v) {
-  using TryT = typename GetNth<N, ToTypes...>::type;
-  if (absl::holds_alternative<TryT>(v)) {
-    return absl::get<TryT>(v);
-  }
-  if constexpr (N == 0) {
-    XLS_LOG(FATAL) << "Could not find variant in ToTypes.";
-  } else {
-    return TryNarrowVariant<N - 1, ToTypes...>(v);
-  }
-}
-
-template <typename... ToTypes, typename... FromTypes>
-absl::variant<ToTypes...> NarrowVariant(const absl::variant<FromTypes...>& v) {
-  return TryNarrowVariant<sizeof...(ToTypes) - 1, ToTypes...>(v);
-}
-
-template <typename... FromTypes>
-NameDefTree::Leaf WidenToNameDefTreeLeaf(const absl::variant<FromTypes...>& v) {
-  return WidenVariant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>(
-      v);
-}
-
 absl::StatusOr<BuiltinType> Parser::TokenToBuiltinType(const Token& tok) {
   return BuiltinTypeFromString(*tok.GetValue());
 }
@@ -151,9 +102,14 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   }
 
   for (auto const& it : GetParametricBuiltins()) {
-    bindings->Add(std::string(it.first),
-                  module_->Make<BuiltinNameDef>(std::string(it.first)));
+    std::string name(it.first);
+    bindings->Add(name, module_->GetOrCreateBuiltinNameDef(name));
   }
+
+#define ADD_SIZED_TYPE_KEYWORD(__enum, __caps, __str) \
+  bindings->Add(__str, module_->GetOrCreateBuiltinNameDef(__str));
+  XLS_DSLX_SIZED_TYPE_KEYWORDS(ADD_SIZED_TYPE_KEYWORD);
+#undef ADD_SIZED_TYPE_KEYWORD
 
   absl::flat_hash_map<std::string, Function*> name_to_fn;
 
@@ -803,8 +759,10 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings* bindings) {
       return ParseNameDefTree(bindings);
     }
     XLS_ASSIGN_OR_RETURN(auto name_def, ParseNameDefOrWildcard(bindings));
-    return module_->Make<NameDefTree>(GetSpan(name_def),
-                                      WidenToNameDefTreeLeaf(name_def));
+    auto tree_leaf =
+        WidenVariant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>(
+            name_def);
+    return module_->Make<NameDefTree>(GetSpan(name_def), tree_leaf);
   };
 
   XLS_ASSIGN_OR_RETURN(
@@ -2200,8 +2158,9 @@ absl::StatusOr<EnumDef*> Parser::ParseEnumDef(bool is_public,
 absl::StatusOr<TypeAnnotation*> Parser::MakeBuiltinTypeAnnotation(
     const Span& span, const Token& tok, absl::Span<Expr* const> dims) {
   XLS_ASSIGN_OR_RETURN(BuiltinType builtin_type, TokenToBuiltinType(tok));
-  TypeAnnotation* elem_type =
-      module_->Make<BuiltinTypeAnnotation>(tok.span(), builtin_type);
+  auto* builtin_name_def = module_->GetOrCreateBuiltinNameDef(*tok.GetValue());
+  TypeAnnotation* elem_type = module_->Make<BuiltinTypeAnnotation>(
+      tok.span(), builtin_type, builtin_name_def);
   for (Expr* dim : dims) {
     elem_type = module_->Make<ArrayTypeAnnotation>(span, elem_type, dim);
   }

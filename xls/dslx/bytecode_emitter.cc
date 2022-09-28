@@ -508,21 +508,35 @@ absl::Status BytecodeEmitter::HandleColonRef(const ColonRef* node) {
 
 absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefInternal(
     const ColonRef* node) {
-  absl::variant<Module*, EnumDef*> resolved_subject;
-  XLS_ASSIGN_OR_RETURN(resolved_subject,
+  XLS_ASSIGN_OR_RETURN(auto resolved_subject,
                        ResolveColonRefSubject(import_data_, type_info_, node));
 
-  if (absl::holds_alternative<EnumDef*>(resolved_subject)) {
-    EnumDef* enum_def = absl::get<EnumDef*>(resolved_subject);
-    const TypeInfo* type_info = type_info_;
-    if (enum_def->owner() != type_info_->module()) {
-      type_info = import_data_->GetRootTypeInfo(enum_def->owner()).value();
-    }
-    return HandleColonRefToEnum(node, enum_def, type_info);
-  }
-
-  Module* module = absl::get<Module*>(resolved_subject);
-  return HandleColonRefToValue(module, node);
+  return absl::visit(
+      Visitor{
+          [&](EnumDef* enum_def) -> absl::StatusOr<InterpValue> {
+            const TypeInfo* type_info = type_info_;
+            if (enum_def->owner() != type_info_->module()) {
+              type_info =
+                  import_data_->GetRootTypeInfo(enum_def->owner()).value();
+            }
+            return HandleColonRefToEnum(node, enum_def, type_info);
+          },
+          [&](BuiltinNameDef* builtin_name_def) -> absl::StatusOr<InterpValue> {
+            return GetBuiltinNameDefColonAttr(builtin_name_def, node->attr());
+          },
+          [&](ArrayTypeAnnotation* array_type) -> absl::StatusOr<InterpValue> {
+            XLS_ASSIGN_OR_RETURN(
+                TypeInfo * type_info,
+                import_data_->GetRootTypeInfoForNode(array_type));
+            XLS_ASSIGN_OR_RETURN(InterpValue value,
+                                 type_info->GetConstExpr(array_type->dim()));
+            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, value.GetBitValueUint64());
+            return GetArrayTypeColonAttr(array_type, dim_u64, node->attr());
+          },
+          [&](Module* module) -> absl::StatusOr<InterpValue> {
+            return HandleColonRefToValue(module, node);
+          }},
+      resolved_subject);
 }
 
 absl::Status BytecodeEmitter::HandleConstantArray(const ConstantArray* node) {

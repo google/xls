@@ -49,7 +49,7 @@ class ParserTest : public ::testing::Test {
     parser_.emplace("test", &*scanner_);
     Bindings b;
     for (const std::string& s : predefine) {
-      b.Add(s, parser_->module_->Make<BuiltinNameDef>(s));
+      b.Add(s, parser_->module_->GetOrCreateBuiltinNameDef(s));
     }
     return parser_->ParseExpression(/*bindings=*/&b);
   }
@@ -87,9 +87,9 @@ TEST(BindingsTest, BindingsStack) {
   Bindings leaf0(&top);
   Bindings leaf1(&top);
 
-  auto* a = module.Make<BuiltinNameDef>("a");
-  auto* b = module.Make<BuiltinNameDef>("b");
-  auto* c = module.Make<BuiltinNameDef>("c");
+  auto* a = module.GetOrCreateBuiltinNameDef("a");
+  auto* b = module.GetOrCreateBuiltinNameDef("b");
+  auto* c = module.GetOrCreateBuiltinNameDef("c");
 
   top.Add("a", a);
   leaf0.Add("b", b);

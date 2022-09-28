@@ -38,7 +38,8 @@ void DoRun(std::string_view program, absl::Span<const std::string> want,
       ParseAndTypecheck(program, "fake.x", "fake", import_data));
 
   XLS_ASSERT_OK_AND_ASSIGN(TypeInfoProto tip, TypeInfoToProto(*tm.type_info));
-  ASSERT_THAT(want, ::testing::SizeIs(tip.nodes_size()));
+  ASSERT_THAT(want, ::testing::SizeIs(tip.nodes_size()))
+      << "want size: " << want.size() << " got size: " << tip.nodes_size();
   std::vector<std::string> got;
   for (int64_t i = 0; i < tip.nodes_size(); ++i) {
     XLS_ASSERT_OK_AND_ASSIGN(std::string node_str,
@@ -196,8 +197,7 @@ fn f() -> E { E::A }
       /*7=*/"2:10-2:11: TYPE_REF :: `E` :: E",
       /*8=*/"2:10-2:12: TYPE_ANNOTATION :: `E` :: E",
       /*9=*/"2:12-2:20: BLOCK :: `{\n  E::A\n}` :: E",
-      /*10=*/"2:14-2:15: NAME_REF :: `E` :: E",
-      /*11=*/"2:15-2:18: COLON_REF :: `E::A` :: E",
+      /*10=*/"2:15-2:18: COLON_REF :: `E::A` :: E",
   };
   DoRun(program, want);
 }

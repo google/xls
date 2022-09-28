@@ -1703,8 +1703,16 @@ std::string TestProc::ToString() const {
 // -- class BuiltinTypeAnnotation
 
 BuiltinTypeAnnotation::BuiltinTypeAnnotation(Module* owner, Span span,
-                                             BuiltinType builtin_type)
-    : TypeAnnotation(owner, std::move(span)), builtin_type_(builtin_type) {}
+                                             BuiltinType builtin_type,
+                                             BuiltinNameDef* builtin_name_def)
+    : TypeAnnotation(owner, std::move(span)),
+      builtin_type_(builtin_type),
+      builtin_name_def_(builtin_name_def) {}
+
+std::vector<AstNode*> BuiltinTypeAnnotation::GetChildren(
+    bool want_types) const {
+  return std::vector<AstNode*>{};
+}
 
 int64_t BuiltinTypeAnnotation::GetBitCount() const {
   return GetBuiltinTypeBitCount(builtin_type_).value();

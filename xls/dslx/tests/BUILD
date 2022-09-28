@@ -60,6 +60,11 @@ dslx_lang_test(
     dslx_deps = [":constexpr_dslx"],
 )
 
+dslx_lang_test(
+    name = "builtin_type_max",
+    dslx_deps = [":number_of_imported_type_import_dslx"],
+)
+
 dslx_lang_test(name = "fallible_constexpr")
 
 dslx_lang_test(name = "comments")

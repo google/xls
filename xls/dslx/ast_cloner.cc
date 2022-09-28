@@ -81,15 +81,17 @@ class AstCloner : public AstNodeVisitor {
 
   absl::Status HandleBuiltinNameDef(const BuiltinNameDef* n) override {
     if (!old_to_new_.contains(n)) {
-      old_to_new_[n] = module_->Make<BuiltinNameDef>(n->identifier());
+      old_to_new_[n] = module_->GetOrCreateBuiltinNameDef(n->identifier());
     }
     return absl::OkStatus();
   }
 
   absl::Status HandleBuiltinTypeAnnotation(
       const BuiltinTypeAnnotation* n) override {
-    old_to_new_[n] =
-        module_->Make<BuiltinTypeAnnotation>(n->span(), n->builtin_type());
+    XLS_RETURN_IF_ERROR(n->builtin_name_def()->Accept(this));
+    old_to_new_[n] = module_->Make<BuiltinTypeAnnotation>(
+        n->span(), n->builtin_type(),
+        down_cast<BuiltinNameDef*>(old_to_new_.at(n->builtin_name_def())));
     return absl::OkStatus();
   }
 

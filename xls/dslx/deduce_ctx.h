@@ -118,7 +118,10 @@ class DeduceCtx {
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
   absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node) {
-    XLS_RET_CHECK_EQ(node->owner(), type_info()->module());
+    XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
+        << "node: `" << node->ToString() << "` from module "
+        << node->owner()->name()
+        << " vs type info module: " << type_info()->module()->name();
     return deduce_function_(node, this);
   }
 

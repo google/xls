@@ -187,18 +187,23 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
 }
 
 BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
-  return module_->Make<BuiltinTypeAnnotation>(fake_span_, BuiltinType::kToken);
+  return module_->Make<BuiltinTypeAnnotation>(
+      fake_span_, BuiltinType::kToken,
+      module_->GetOrCreateBuiltinNameDef("token"));
 }
 
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
                                                  int64_t width) {
   XLS_CHECK_GT(width, 0);
   if (width <= 64) {
+    BuiltinType type = GetBuiltinType(is_signed, width).value();
     return module_->Make<BuiltinTypeAnnotation>(
-        fake_span_, GetBuiltinType(is_signed, width).value());
+        fake_span_, type,
+        module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
   }
   auto* element_type = module_->Make<BuiltinTypeAnnotation>(
-      fake_span_, is_signed ? BuiltinType::kSN : BuiltinType::kUN);
+      fake_span_, is_signed ? BuiltinType::kSN : BuiltinType::kUN,
+      module_->GetOrCreateBuiltinNameDef(is_signed ? "sN" : "uN"));
   Number* dim = MakeNumber(width);
   return module_->Make<ArrayTypeAnnotation>(fake_span_, element_type, dim);
 }
@@ -860,7 +865,9 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
   int64_t integral = RandRange(
       std::min(kConcreteBuiltinTypeLimit, options_.max_width_bits_types + 1));
   auto type = static_cast<BuiltinType>(integral);
-  return module_->Make<BuiltinTypeAnnotation>(fake_span_, type);
+  return module_->Make<BuiltinTypeAnnotation>(
+      fake_span_, type,
+      module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
 }
 
 TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {

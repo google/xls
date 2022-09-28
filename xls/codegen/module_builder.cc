@@ -838,65 +838,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
   return ref;
 }
 
-// Returns a string generated from instantiating the given format string with
-// placeholder substrings (e.g., "{condition}") replaced with the given
-// placeholder values. Arguments:
-//
-//   fmt_string: The format template string with optional "{foo}" style
-//       placeholder substrings to substitute.
-//   supported_placeholders: A map from placeholder string (e.g., "condition")
-//       to the value to replace it.
-//   unsupported_placeholders: A map holding placeholder strings which are valid
-//       generally, but may not be valid for this particular instance and a more
-//       specific error message may be desired. For example, "{clk}" maybe a
-//       valid placeholder but may be unsupported if the block does not have a
-//       clock. In this case, an error like "{clk} in format string, but block
-//       has no clock" is much better than "{clk} is not a valid placeholder".
-//       `unsupported_placeholder` is a map from placeholder string to error
-//       message to emit if the placeholder is found in `fmt_string`.
-static absl::StatusOr<std::string> GenerateFormatString(
-    absl::string_view fmt_string,
-    const absl::flat_hash_map<std::string, std::string>& supported_placeholders,
-    const absl::flat_hash_map<std::string, std::string>&
-        unsupported_placeholders) {
-  RE2 re(R"({(\w+)})");
-  std::string placeholder;
-  absl::string_view piece(fmt_string);
-
-  // Verify that all placeholder substrings are supported.
-  while (RE2::FindAndConsume(&piece, re, &placeholder)) {
-    if (unsupported_placeholders.contains(placeholder)) {
-      // Placeholder is one of the explicitly unsupported ones. Return the
-      // error specific to that placeholder.
-      return absl::InvalidArgumentError(
-          unsupported_placeholders.at(placeholder));
-    }
-
-    if (!supported_placeholders.contains(placeholder)) {
-      // Placeholder is not a supported string. Emit an error message with a
-      // sorted list of all valid placeholders.
-      std::vector<std::string> all_placeholders;
-      for (auto [name, value] : supported_placeholders) {
-        all_placeholders.push_back(absl::StrCat("{", name, "}"));
-      }
-      for (auto [name, value] : unsupported_placeholders) {
-        all_placeholders.push_back(absl::StrCat("{", name, "}"));
-      }
-      std::sort(all_placeholders.begin(), all_placeholders.end());
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid placeholder {%s} in format string. "
-                          "Valid placeholders: %s",
-                          placeholder, absl::StrJoin(all_placeholders, ", ")));
-    }
-  }
-
-  std::string str(fmt_string);
-  for (auto [name, value] : supported_placeholders) {
-    absl::StrReplaceAll({{absl::StrCat("{", name, "}"), value}}, &str);
-  }
-  return str;
-}
-
 AlwaysComb* ModuleBuilder::AssertAlwaysComb(const SourceInfo& loc) {
   if (assert_always_comb_ == nullptr) {
     assert_always_comb_ = assert_section_->Add<AlwaysComb>(loc);
