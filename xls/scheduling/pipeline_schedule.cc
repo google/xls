@@ -287,29 +287,6 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
   return live_out;
 }
 
-namespace {
-class DelayEstimatorWithInputDelay : public DelayEstimator {
- public:
-  DelayEstimatorWithInputDelay(const DelayEstimator& base, int64_t input_delay)
-      : DelayEstimator(absl::StrFormat("%s_with_input_delay", base.name())),
-        base_delay_estimator_(&base),
-        input_delay_(input_delay) {}
-
-  virtual absl::StatusOr<int64_t> GetOperationDelayInPs(
-      Node* node) const override {
-    XLS_ASSIGN_OR_RETURN(int64_t base_delay,
-                         base_delay_estimator_->GetOperationDelayInPs(node));
-
-    return (node->op() == Op::kReceive) ? base_delay + input_delay_
-                                        : base_delay;
-  }
-
- private:
-  const DelayEstimator* base_delay_estimator_;
-  int64_t input_delay_;
-};
-}  // namespace
-
 /*static*/ absl::StatusOr<PipelineSchedule> PipelineSchedule::Run(
     FunctionBase* f, const DelayEstimator& delay_estimator,
     const SchedulingOptions& options) {
@@ -317,8 +294,12 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
                             ? options.additional_input_delay_ps().value()
                             : 0;
 
-  DelayEstimatorWithInputDelay delay_estimator_with_delay(delay_estimator,
-                                                          input_delay);
+  DecoratingDelayEstimator input_delay_added(
+      "input_delay_added", delay_estimator,
+      [input_delay](Node* node, int64_t base_delay) {
+        return node->op() == Op::kReceive ? base_delay + input_delay
+                                          : base_delay;
+      });
 
   int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {
@@ -343,7 +324,7 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
     // given pipeline length.
     XLS_ASSIGN_OR_RETURN(clock_period_ps,
                          FindMinimumClockPeriod(f, *options.pipeline_stages(),
-                                                delay_estimator_with_delay));
+                                                input_delay_added));
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
@@ -355,7 +336,7 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
   XLS_ASSIGN_OR_RETURN(
       sched::ScheduleBounds bounds,
       ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
-                      options.pipeline_stages(), delay_estimator_with_delay));
+                      options.pipeline_stages(), input_delay_added));
   int64_t schedule_length = bounds.max_lower_bound() + 1;
   if (options.pipeline_stages().has_value()) {
     schedule_length = options.pipeline_stages().value();
@@ -363,15 +344,15 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
 
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::MIN_CUT) {
-    XLS_ASSIGN_OR_RETURN(cycle_map,
-                         MinCutScheduler(f, schedule_length, clock_period_ps,
-                                         delay_estimator_with_delay, &bounds,
-                                         options.constraints()));
+    XLS_ASSIGN_OR_RETURN(
+        cycle_map,
+        MinCutScheduler(f, schedule_length, clock_period_ps, input_delay_added,
+                        &bounds, options.constraints()));
   } else if (options.strategy() == SchedulingStrategy::SDC) {
-    XLS_ASSIGN_OR_RETURN(cycle_map,
-                         SDCScheduler(f, schedule_length, clock_period_ps,
-                                      delay_estimator_with_delay, &bounds,
-                                      options.constraints()));
+    XLS_ASSIGN_OR_RETURN(
+        cycle_map,
+        SDCScheduler(f, schedule_length, clock_period_ps, input_delay_added,
+                     &bounds, options.constraints()));
   } else if (options.strategy() == SchedulingStrategy::RANDOM) {
     for (Node* node : TopoSort(f)) {
       int64_t lower_bound = bounds.lb(node);
@@ -397,7 +378,7 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
   auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(
-      schedule.VerifyTiming(clock_period_ps, delay_estimator_with_delay));
+      schedule.VerifyTiming(clock_period_ps, input_delay_added));
 
   // Verify that scheduling constraints are obeyed.
   {

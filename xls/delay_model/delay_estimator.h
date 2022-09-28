@@ -46,6 +46,22 @@ class DelayEstimator {
   std::string name_;
 };
 
+// Decorates an underlying delay estimator with an overriding modifier function.
+class DecoratingDelayEstimator : public DelayEstimator {
+ public:
+  DecoratingDelayEstimator(std::string_view name,
+                           const DelayEstimator& decorated,
+                           std::function<int64_t(Node*, int64_t)> modifier);
+
+  ~DecoratingDelayEstimator() override = default;
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const;
+
+ private:
+  const DelayEstimator& decorated_;
+  std::function<int64_t(Node*, int64_t)> modifier_;
+};
+
 enum class DelayEstimatorPrecedence {
   kLow = 1,
   kMedium = 2,

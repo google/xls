@@ -104,5 +104,27 @@ TEST_F(DelayEstimatorTest, LogicalEffortForXors) {
   }
 }
 
+TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor({x, x})));
+  DelayEstimatorManager manager;
+  XLS_ASSERT_OK(manager.RegisterDelayEstimator(
+      std::make_unique<TestDelayEstimator>(1, "one"),
+      DelayEstimatorPrecedence::kLow));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * one,
+                           manager.GetDelayEstimator("one"));
+  DecoratingDelayEstimator decorating("decorating", *one,
+                                      [](Node* n, int64_t original) -> int64_t {
+                                        EXPECT_EQ(n->GetName(), "xor.2");
+                                        EXPECT_EQ(original, 1);
+                                        return 42;
+                                      });
+  EXPECT_THAT(decorating.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(42));
+}
+
 }  // namespace
 }  // namespace xls
