@@ -253,6 +253,7 @@ def xls_ir_cc_library_macro(
         hdrs = [
             ":" + header_file,
         ],
+        # The XLS AOT compiler does not currently support cross-compilation.
         deps = [
             "@com_google_protobuf//:protobuf",
             "@com_google_absl//absl/status:statusor",
