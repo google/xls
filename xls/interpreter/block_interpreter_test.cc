@@ -322,7 +322,7 @@ TEST_F(BlockInterpreterTest, ChannelizedAccumulatorRegister) {
     std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
     inputs.resize(100);
 
-    BlockIoResultsAsUint64 block_io;
+    BlockIOResultsAsUint64 block_io;
     XLS_ASSERT_OK_AND_ASSIGN(
         block_io,
         InterpretChannelizedSequentialBlockWithUint64(
@@ -346,7 +346,7 @@ TEST_F(BlockInterpreterTest, ChannelizedAccumulatorRegister) {
     std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
     inputs.resize(100);
 
-    BlockIoResultsAsUint64 block_io;
+    BlockIOResultsAsUint64 block_io;
     XLS_ASSERT_OK_AND_ASSIGN(
         block_io,
         InterpretChannelizedSequentialBlockWithUint64(

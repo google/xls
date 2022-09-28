@@ -642,7 +642,7 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
                                                                  {{"rst", 0}});
   XLS_ASSERT_OK_AND_ASSIGN(
-      BlockIoResultsAsUint64 results,
+      BlockIOResultsAsUint64 results,
       InterpretChannelizedSequentialBlockWithUint64(
           block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
 
@@ -2666,7 +2666,7 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
       ChannelSink("out1", "out1_vld", "out1_rdy", 0.5, block),
   };
 
-  BlockIoResultsAsUint64 io_results;
+  BlockIOResultsAsUint64 io_results;
   std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
       io_results.inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
@@ -2974,7 +2974,7 @@ TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
         ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
     };
 
-    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 io_results,
                              InterpretChannelizedSequentialBlockWithUint64(
                                  block, absl::MakeSpan(sources),
                                  absl::MakeSpan(sinks), non_streaming_inputs));
@@ -3070,7 +3070,7 @@ TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
         ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
     };
 
-    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 io_results,
                              InterpretChannelizedSequentialBlockWithUint64(
                                  block, absl::MakeSpan(sources),
                                  absl::MakeSpan(sinks), non_streaming_inputs));
@@ -3173,7 +3173,7 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
         ChannelSink("out_b_data", "out_b_valid", "out_b_ready", 0.5, block),
     };
 
-    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 io_results,
                              InterpretChannelizedSequentialBlockWithUint64(
                                  block, absl::MakeSpan(sources),
                                  absl::MakeSpan(sinks), non_streaming_inputs));
@@ -3557,7 +3557,7 @@ class ProcWithStateTest : public BlockConversionTest {
     };
 
     XLS_ASSERT_OK_AND_ASSIGN(
-        BlockIoResultsAsUint64 results,
+        BlockIOResultsAsUint64 results,
         InterpretChannelizedSequentialBlockWithUint64(
             block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs,
             options.reset()));

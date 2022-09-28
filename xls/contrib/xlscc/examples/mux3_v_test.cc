@@ -30,7 +30,7 @@ namespace {
 
 using ::testing::HasSubstr;
 
-void IoSignalsPresent(absl::string_view verilog_text) {
+void IOSignalsPresent(absl::string_view verilog_text) {
   EXPECT_THAT(verilog_text, HasSubstr("input wire [1:0] csrs"));
 
   EXPECT_THAT(verilog_text, HasSubstr("input wire [7:0] mux_in0"));
@@ -62,7 +62,7 @@ TEST(Mux3VerilogTest, BasicCombSignaturePresent) {
                              xls::GetFileContents(ir_path));
     XLS_VLOG_LINES(2, verilog_text);
 
-    IoSignalsPresent(verilog_text);
+    IOSignalsPresent(verilog_text);
     EXPECT_THAT(verilog_text, HasSubstr("module mux3_comb("));
   }
 }
@@ -80,7 +80,7 @@ TEST(Mux3VerilogTest, BasicPipelineSignaturePresent) {
                              xls::GetFileContents(ir_path));
     XLS_VLOG_LINES(2, verilog_text);
 
-    IoSignalsPresent(verilog_text);
+    IOSignalsPresent(verilog_text);
 
     EXPECT_THAT(verilog_text, HasSubstr("module mux3_stages_5("));
     EXPECT_THAT(verilog_text, HasSubstr("input wire clk"));

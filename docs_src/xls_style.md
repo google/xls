@@ -48,6 +48,11 @@ in the XLS project, with the relevant Google style guides
     conditions that it would be too expensive to verify in production, but that
     are fast enough to include outside of production.
 
+*   Folow the C++ style guide for capitalization guidelines; however, in the
+    somewhat ambiguous case of I/O (short for Input/Output, which we use often),
+    the slash counts as internal spacing and therefore the capitalization we use
+    is `IO`, as in `WrapIO` or `StreamingIOReader`.
+
 ### Functions
 
 *   Short or easily-explained argument lists (as defined by the developer) can

@@ -19,7 +19,7 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<std::unique_ptr<IoStrategy>> IoStrategyFactory::CreateForDevice(
+absl::StatusOr<std::unique_ptr<IOStrategy>> IOStrategyFactory::CreateForDevice(
     absl::string_view target_device, VerilogFile* f) {
   auto it = GetSingleton()->strategies_.find(target_device);
   if (it == GetSingleton()->strategies_.end()) {

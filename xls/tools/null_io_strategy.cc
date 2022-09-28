@@ -17,7 +17,7 @@
 namespace xls {
 namespace verilog {
 
-absl::Status NullIoStrategy::AddTopLevelDependencies(LogicRef* clk, Reset reset,
+absl::Status NullIOStrategy::AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                                      Module* m) {
   DataType* u1 = m->file()->ScalarType(SourceInfo());
   DataType* u8 = m->file()->BitVectorType(8, SourceInfo());
@@ -32,7 +32,7 @@ absl::Status NullIoStrategy::AddTopLevelDependencies(LogicRef* clk, Reset reset,
   return absl::OkStatus();
 }
 
-absl::Status NullIoStrategy::InstantiateIoBlocks(Input input, Output output,
+absl::Status NullIOStrategy::InstantiateIOBlocks(Input input, Output output,
                                                  Module* m) {
   m->Add<ContinuousAssignment>(SourceInfo(), input.rx_byte, byte_in_);
   m->Add<ContinuousAssignment>(SourceInfo(), byte_in_ready_,

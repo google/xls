@@ -441,7 +441,7 @@ absl::StatusOr<std::vector<uint64_t>> ChannelSink::GetOutputSequenceAsUint64()
   return ret;
 }
 
-absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
+absl::StatusOr<BlockIOResults> InterpretChannelizedSequentialBlock(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
@@ -457,7 +457,7 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
 
   int64_t max_cycle_count = inputs.size();
 
-  BlockIoResults block_io_results;
+  BlockIOResults block_io_results;
   for (int64_t cycle = 0; cycle < max_cycle_count; ++cycle) {
     absl::flat_hash_map<std::string, Value> input_set = inputs.at(cycle);
 
@@ -509,7 +509,7 @@ absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
   return block_io_results;
 }
 
-absl::StatusOr<BlockIoResultsAsUint64>
+absl::StatusOr<BlockIOResultsAsUint64>
 InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
@@ -530,11 +530,11 @@ InterpretChannelizedSequentialBlockWithUint64(
   }
 
   XLS_ASSIGN_OR_RETURN(
-      BlockIoResults block_io_result,
+      BlockIOResults block_io_result,
       InterpretChannelizedSequentialBlock(block, channel_sources, channel_sinks,
                                           input_values, reset, seed));
 
-  BlockIoResultsAsUint64 block_io_result_as_uint64;
+  BlockIOResultsAsUint64 block_io_result_as_uint64;
 
   for (const absl::flat_hash_map<std::string, Value>& output_value_set :
        block_io_result.outputs) {

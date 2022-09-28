@@ -59,7 +59,7 @@ absl::Status Ice40IoStrategy::AddTopLevelDependencies(LogicRef* clk,
   return absl::OkStatus();
 }
 
-absl::Status Ice40IoStrategy::InstantiateIoBlocks(Input input, Output output,
+absl::Status Ice40IoStrategy::InstantiateIOBlocks(Input input, Output output,
                                                   Module* m) {
   // Instantiate the UART receiver.
   m->Add<Instantiation>(

@@ -713,7 +713,7 @@ struct SingleValueOutput {
   Channel* channel;
 };
 
-struct StreamingIoPipeline {
+struct StreamingIOPipeline {
   absl::flat_hash_map<Stage, std::vector<StreamingInput>> inputs;
   absl::flat_hash_map<Stage, std::vector<StreamingOutput>> outputs;
   std::vector<SingleValueInput> single_value_inputs;
@@ -732,7 +732,7 @@ struct StreamingIoPipeline {
 };
 
 // Update io channel metadata with latest information from block conversion.
-absl::Status UpdateChannelMetadata(const StreamingIoPipeline& io,
+absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
                                    Block* block) {
   for (const auto& [stage, inputs] : io.inputs) {
     for (const StreamingInput& input : inputs) {
@@ -1485,7 +1485,7 @@ static absl::StatusOr<Node*> AddRegisterBeforeStreamingOutput(
 // on the next clock tick.
 static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
                                         const CodegenOptions& options,
-                                        StreamingIoPipeline& streaming_io,
+                                        StreamingIOPipeline& streaming_io,
                                         Block* block,
                                         std::vector<Node*>& valid_nodes) {
   absl::flat_hash_set<Node*> handled_io_nodes;
@@ -1677,7 +1677,7 @@ static absl::Status AddOneShotLogicToRVNodes(Node* from_valid, Node* from_rdy,
 // sending an output twice.
 static absl::Status AddOneShotOutputLogic(const ResetInfo& reset_info,
                                           const CodegenOptions& options,
-                                          StreamingIoPipeline& streaming_io,
+                                          StreamingIOPipeline& streaming_io,
                                           Block* block) {
   XLS_CHECK(!streaming_io.all_active_outputs_ready.empty());
 
@@ -1728,7 +1728,7 @@ static absl::Status AddOneShotOutputLogic(const ResetInfo& reset_info,
 // TODO(tedhong): 2022-02-01 There may be some redundancy between B and C,
 // Create an optimization pass within the codegen pipeline to remove it.
 static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
-                                  StreamingIoPipeline& streaming_io,
+                                  StreamingIOPipeline& streaming_io,
                                   Block* block) {
   for (auto& [stage, vec] : streaming_io.inputs) {
     for (StreamingInput& input : vec) {
@@ -1762,7 +1762,7 @@ static absl::Status AddIdleOutput(std::vector<Node*> valid_nodes,
 // MakePipelineStagesForValid().
 static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
     const ResetInfo& reset_info, const CodegenOptions& options,
-    StreamingIoPipeline& streaming_io, Block* block) {
+    StreamingIOPipeline& streaming_io, Block* block) {
   int64_t stage_count = streaming_io.pipeline_registers.size() + 1;
   absl::string_view valid_suffix = options.streaming_channel_valid_suffix();
   absl::string_view ready_suffix = options.streaming_channel_ready_suffix();
@@ -1940,7 +1940,7 @@ static absl::Status RemoveDeadTokenNodes(Block* block) {
 // * Function parameters become InputPorts.
 // * The Function return value becomes an OutputPort.
 //
-// GetResult() returns a StreamingIoPipeline which
+// GetResult() returns a StreamingIOPipeline which
 //   1. Contains the InputPorts and OutputPorts created from
 //      Send/Receive operations of streaming channels
 //   2. Contains a list of PipelineRegisters per stage of the pipeline.
@@ -2103,7 +2103,7 @@ class CloneNodesIntoBlockHandler {
   }
 
   // Return structure describing streaming io ports and pipeline registers.
-  StreamingIoPipeline GetResult() { return result_; }
+  StreamingIOPipeline GetResult() { return result_; }
 
  private:
   // Replace token parameter with zero operand AfterAll.
@@ -2451,14 +2451,14 @@ class CloneNodesIntoBlockHandler {
   const CodegenOptions& options_;
 
   Block* block_;
-  StreamingIoPipeline result_;
+  StreamingIOPipeline result_;
   absl::flat_hash_map<Node*, Node*> node_map_;
 };
 
 // Adds the nodes in the given schedule to the block. Pipeline registers are
 // inserted between stages and returned as a vector indexed by cycle. The block
 // should be empty prior to calling this function.
-static absl::StatusOr<StreamingIoPipeline> CloneNodesIntoPipelinedBlock(
+static absl::StatusOr<StreamingIOPipeline> CloneNodesIntoPipelinedBlock(
     const PipelineSchedule& schedule, const CodegenOptions& options,
     Block* block) {
   FunctionBase* function_base = schedule.function_base();
@@ -2478,7 +2478,7 @@ static absl::StatusOr<StreamingIoPipeline> CloneNodesIntoPipelinedBlock(
 
 // Clones every node in the given proc into the given block. Some nodes are
 // handled specially.  See CloneNodesIntoBlockHandler for details.
-static absl::StatusOr<StreamingIoPipeline> CloneProcNodesIntoBlock(
+static absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
     Proc* proc, const CodegenOptions& options, Block* block) {
   CloneNodesIntoBlockHandler cloner(proc, /*stage_count=*/0, options, block);
   XLS_RET_CHECK_OK(cloner.CloneNodes(TopoSort(proc).AsVector(), /*stage=*/0));
@@ -2532,7 +2532,7 @@ absl::StatusOr<Block*> FunctionToPipelinedBlock(
                        MaybeAddInputOutputFlopsToSchedule(schedule, options));
 
   XLS_ASSIGN_OR_RETURN(
-      StreamingIoPipeline streaming_io_and_pipeline,
+      StreamingIOPipeline streaming_io_and_pipeline,
       CloneNodesIntoPipelinedBlock(transformed_schedule, options, block));
 
   XLS_ASSIGN_OR_RETURN(ResetInfo reset_info, MaybeAddResetPort(block, options));
@@ -2600,7 +2600,7 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
   XLS_VLOG(3) << "Schedule Used";
   XLS_VLOG_LINES(3, schedule.ToString());
 
-  XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io_and_pipeline,
+  XLS_ASSIGN_OR_RETURN(StreamingIOPipeline streaming_io_and_pipeline,
                        CloneNodesIntoPipelinedBlock(schedule, options, block));
 
   int64_t number_of_outputs = 0;
@@ -2755,7 +2755,7 @@ absl::StatusOr<Block*> ProcToCombinationalBlock(Proc* proc,
   Block* block = proc->package()->AddBlock(
       std::make_unique<Block>(module_name, proc->package()));
 
-  XLS_ASSIGN_OR_RETURN(StreamingIoPipeline streaming_io,
+  XLS_ASSIGN_OR_RETURN(StreamingIOPipeline streaming_io,
                        CloneProcNodesIntoBlock(proc, options, block));
 
   int64_t number_of_outputs = 0;

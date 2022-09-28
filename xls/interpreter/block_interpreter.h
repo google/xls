@@ -188,12 +188,12 @@ class ChannelSink {
   std::vector<Value> data_sequence_;  // Data sequence received.
 };
 
-struct BlockIoResults {
+struct BlockIOResults {
   std::vector<absl::flat_hash_map<std::string, Value>> inputs;
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
 };
 
-struct BlockIoResultsAsUint64 {
+struct BlockIOResultsAsUint64 {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
 };
@@ -210,14 +210,14 @@ struct BlockIoResultsAsUint64 {
 //
 // Registers are clocked between each set of inputs fed to the block.
 // Initial register state is zero for all registers.
-absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
+absl::StatusOr<BlockIOResults> InterpretChannelizedSequentialBlock(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
     std::optional<verilog::ResetProto> reset = std::nullopt, int64_t seed = 0);
 
 // Variant which accepts and returns uint64_t values instead of xls::Values.
-absl::StatusOr<BlockIoResultsAsUint64>
+absl::StatusOr<BlockIOResultsAsUint64>
 InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
