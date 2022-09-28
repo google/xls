@@ -19,6 +19,7 @@
 #include <memory>
 #include <regex>  // NOLINT
 #include <sstream>
+#include <string>
 #include <typeinfo>
 #include <vector>
 
@@ -106,8 +107,9 @@ xls::Type* CType::GetXLSType(xls::Package* /*package*/) const {
 
 bool CType::StoredAsXLSBits() const { return false; }
 
-absl::Status CType::GetMetadata(Translator& translator,
-                                xlscc_metadata::Type* output) const {
+absl::Status CType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   return absl::UnimplementedError(
       "GetMetadata unsupported in CType base class");
 }
@@ -126,8 +128,9 @@ int CVoidType::GetBitWidth() const {
   return 0;
 }
 
-absl::Status CVoidType::GetMetadata(Translator& translator,
-                                    xlscc_metadata::Type* output) const {
+absl::Status CVoidType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   (void)output->mutable_as_void();
   return absl::OkStatus();
 }
@@ -152,8 +155,9 @@ CBitsType::operator std::string() const {
   return absl::StrFormat("bits[%d]", width_);
 }
 
-absl::Status CBitsType::GetMetadata(Translator& translator,
-                                    xlscc_metadata::Type* output) const {
+absl::Status CBitsType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_bits()->set_width(width_);
   return absl::OkStatus();
 }
@@ -217,13 +221,15 @@ CIntType::operator std::string() const {
   return "Unsupported";
 }
 
-absl::Status CIntType::GetMetadata(Translator& translator,
-                                   xlscc_metadata::Type* output) const {
+absl::Status CIntType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_int()->set_width(width_);
   output->mutable_as_int()->set_is_signed(is_signed_);
   if (width_ == 8) {
     output->mutable_as_int()->set_is_declared_as_char(is_declared_as_char_);
   }
+  output->mutable_as_int()->set_is_synthetic(false);
   return absl::OkStatus();
 }
 
@@ -248,8 +254,9 @@ int CBoolType::GetBitWidth() const { return 1; }
 
 CBoolType::operator std::string() const { return "bool"; }
 
-absl::Status CBoolType::GetMetadata(Translator& translator,
-                                    xlscc_metadata::Type* output) const {
+absl::Status CBoolType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   (void)output->mutable_as_bool();
   return absl::OkStatus();
 }
@@ -278,7 +285,20 @@ CInstantiableTypeAlias::operator std::string() const {
 }
 
 absl::Status CInstantiableTypeAlias::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output) const {
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  absl::StatusOr<xlscc_metadata::IntType> is_synthetic_int =
+      translator.GenerateSyntheticInt(
+          std::make_shared<CInstantiableTypeAlias>(base_));
+
+  if (is_synthetic_int.ok()) {
+    // hls_synthetic_int case
+    *output->mutable_as_int() = is_synthetic_int.value();
+    return absl::OkStatus();
+  }
+
+  aliases_used.insert(base_);
+
   output->mutable_as_inst()->mutable_name()->set_name(base_->getNameAsString());
   output->mutable_as_inst()->mutable_name()->set_fully_qualified_name(
       base_->getQualifiedNameAsString());
@@ -302,8 +322,9 @@ absl::Status CInstantiableTypeAlias::GetMetadata(
           XLS_ASSIGN_OR_RETURN(
               std::shared_ptr<CType> arg_ctype,
               translator.TranslateTypeFromClang(arg.getAsType(), loc));
+          xlscc_metadata::Type* as_type = proto_arg->mutable_as_type();
           XLS_RETURN_IF_ERROR(
-              arg_ctype->GetMetadata(translator, proto_arg->mutable_as_type()));
+              arg_ctype->GetMetadata(translator, as_type, aliases_used));
           break;
         }
         default:
@@ -320,8 +341,13 @@ absl::Status CInstantiableTypeAlias::GetMetadata(
 absl::Status CInstantiableTypeAlias::GetMetadataValue(
     Translator& translator, const ConstValue const_value,
     xlscc_metadata::Value* output) const {
+  bool write_as_bits = false;
   std::shared_ptr<CInstantiableTypeAlias> inst(
       new CInstantiableTypeAlias(base_));
+  if (translator.GenerateSyntheticInt(inst).ok()) {
+    write_as_bits = true;
+  }
+
   auto found = translator.inst_types_.find(inst);
   XLS_CHECK(found != translator.inst_types_.end());
   auto struct_type =
@@ -330,7 +356,11 @@ absl::Status CInstantiableTypeAlias::GetMetadataValue(
   // Handle __xls_bits
   if (struct_type == nullptr) {
     XLS_CHECK_EQ(base_->getNameAsString(), "__xls_bits");
+    write_as_bits = true;
+  }
 
+  if (write_as_bits) {
+    XLS_CHECK(const_value.rvalue().IsBits());
     vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
     output->set_as_bits(bytes.data(), bytes.size());
 
@@ -364,8 +394,12 @@ CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
   }
 }
 
-absl::Status CStructType::GetMetadata(Translator& translator,
-                                      xlscc_metadata::Type* output) const {
+absl::Status CStructType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  // Synthetic int classes / structs should never be emitted
+  XLS_CHECK(!synthetic_int_flag_);
+
   output->mutable_as_struct()->set_no_tuple(no_tuple_flag_);
 
   absl::flat_hash_map<
@@ -382,7 +416,7 @@ absl::Status CStructType::GetMetadata(Translator& translator,
     std::pair<const clang::NamedDecl*, std::shared_ptr<CField>> field =
         fields_by_index[i];
     XLS_RETURN_IF_ERROR(field.second->GetMetadata(
-        translator, output->mutable_as_struct()->add_fields()));
+        translator, output->mutable_as_struct()->add_fields(), aliases_used));
   }
 
   return absl::OkStatus();
@@ -434,6 +468,9 @@ CStructType::operator std::string() const {
   ostr << "{";
   if (no_tuple_flag_) {
     ostr << " notuple ";
+  }
+  if (synthetic_int_flag_) {
+    ostr << " synthetic_int ";
   }
   for (const std::shared_ptr<CField>& it : fields_) {
     ostr << "[" << it->index() << "] "
@@ -491,10 +528,12 @@ bool CArrayType::operator==(const CType& o) const {
 
 int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
 
-absl::Status CField::GetMetadata(Translator& translator,
-                                 xlscc_metadata::StructField* output) const {
+absl::Status CField::GetMetadata(
+    Translator& translator, xlscc_metadata::StructField* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->set_name(name_->getNameAsString());
-  XLS_RETURN_IF_ERROR(type_->GetMetadata(translator, output->mutable_type()));
+  XLS_RETURN_IF_ERROR(
+      type_->GetMetadata(translator, output->mutable_type(), aliases_used));
   return absl::OkStatus();
 }
 
@@ -506,11 +545,13 @@ CArrayType::operator std::string() const {
   return absl::StrFormat("%s[%i]", string(*element_), size_);
 }
 
-absl::Status CArrayType::GetMetadata(Translator& translator,
-                                     xlscc_metadata::Type* output) const {
+absl::Status CArrayType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   output->mutable_as_array()->set_size(size_);
   XLS_RETURN_IF_ERROR(element_->GetMetadata(
-      translator, output->mutable_as_array()->mutable_element_type()));
+      translator, output->mutable_as_array()->mutable_element_type(),
+      aliases_used));
   return absl::OkStatus();
 }
 
@@ -545,8 +586,9 @@ CPointerType::operator std::string() const {
   return absl::StrFormat("%s*", string(*pointee_type_));
 }
 
-absl::Status CPointerType::GetMetadata(Translator& translator,
-                                       xlscc_metadata::Type* output) const {
+absl::Status CPointerType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
   XLS_CHECK(false) << "TODO: Metadata for pointers";
   return absl::OkStatus();
 }
@@ -1465,6 +1507,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
   XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
   const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
   const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+
   new_type.reset(new CStructType(
       fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma));
 
@@ -5641,8 +5684,8 @@ absl::Status Translator::InlineAllInvokes(xls::Package* package) {
 }
 
 absl::Status Translator::GenerateFunctionMetadata(
-    const clang::FunctionDecl* func,
-    xlscc_metadata::FunctionPrototype* output) {
+    const clang::FunctionDecl* func, xlscc_metadata::FunctionPrototype* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) {
   output->mutable_name()->set_name(func->getNameAsString());
   XLS_CHECK(xls_names_for_functions_generated_.contains(func));
   output->mutable_name()->set_xls_name(
@@ -5659,8 +5702,18 @@ absl::Status Translator::GenerateFunctionMetadata(
   FillLocationRangeProto(func->getSourceRange(),
                          output->mutable_whole_declaration_location());
 
-  XLS_RETURN_IF_ERROR(GenerateMetadataType(func->getReturnType(),
-                                           output->mutable_return_type()));
+  XLS_RETURN_IF_ERROR(GenerateMetadataType(
+      func->getReturnType(), output->mutable_return_type(), aliases_used));
+
+  if (clang::isa<clang::CXXMethodDecl>(func)) {
+    auto method = clang::dyn_cast<clang::CXXMethodDecl>(func);
+    const clang::QualType& this_ptr_type = method->getThisType();
+    const clang::QualType& this_type = this_ptr_type->getPointeeType();
+    output->set_is_const(this_type.isConstQualified());
+
+    XLS_RETURN_IF_ERROR(GenerateMetadataType(
+        this_type, output->mutable_this_type(), aliases_used));
+  }
 
   for (int64_t pi = 0; pi < func->getNumParams(); ++pi) {
     const clang::ParmVarDecl* p = func->getParamDecl(pi);
@@ -5670,8 +5723,8 @@ absl::Status Translator::GenerateFunctionMetadata(
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
 
-    XLS_RETURN_IF_ERROR(
-        GenerateMetadataType(stripped.base, proto_param->mutable_type()));
+    XLS_RETURN_IF_ERROR(GenerateMetadataType(
+        stripped.base, proto_param->mutable_type(), aliases_used));
 
     proto_param->set_is_reference(stripped.is_ref);
     proto_param->set_is_const(stripped.base.isConstQualified());
@@ -5694,14 +5747,15 @@ absl::Status Translator::GenerateFunctionMetadata(
     XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                          StripTypeQualifiers(p->getType()));
     XLS_RETURN_IF_ERROR(GenerateMetadataType(
-        stripped.base, proto_static_value->mutable_type()));
+        stripped.base, proto_static_value->mutable_type(), aliases_used));
     XLS_ASSIGN_OR_RETURN(
         std::shared_ptr<CType> ctype,
         TranslateTypeFromClang(stripped.base, xls::SourceInfo()));
     XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(
         *this, initval, proto_static_value->mutable_value()));
+    FillLocationRangeProto(namedecl->getSourceRange(),
+                           proto_static_value->mutable_declaration_location());
   }
-
   return absl::OkStatus();
 }
 
@@ -5714,30 +5768,63 @@ absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
 
   parser_->AddSourceInfoToMetadata(ret);
 
+  absl::flat_hash_set<const clang::NamedDecl*> aliases_used_unordered;
+
   // Top function proto
-  XLS_RETURN_IF_ERROR(
-      GenerateFunctionMetadata(top_function, ret.mutable_top_func_proto()));
+  XLS_RETURN_IF_ERROR(GenerateFunctionMetadata(
+      top_function, ret.mutable_top_func_proto(), aliases_used_unordered));
 
   for (auto const& [decl, xls_name] : xls_names_for_functions_generated_) {
-    XLS_RETURN_IF_ERROR(
-        GenerateFunctionMetadata(decl, ret.add_all_func_protos()));
-  }
-
-  // Struct types
-  for (std::pair<std::shared_ptr<CInstantiableTypeAlias>,
-                 std::shared_ptr<CType>>
-           type : inst_types_) {
-    auto ctype_as_struct = static_cast<const CStructType*>(type.second.get());
-    if (ctype_as_struct == nullptr) {
-      continue;
+    if (auto method_decl = clang::dyn_cast<clang::CXXMethodDecl>(decl);
+        method_decl != nullptr) {
+      auto type_alias = std::make_shared<CInstantiableTypeAlias>(
+          static_cast<const clang::NamedDecl*>(method_decl->getParent()));
+      auto found = inst_types_.find(type_alias);
+      if (found == inst_types_.end()) {
+        continue;
+      }
+      XLS_CHECK(found != inst_types_.end());
+      auto struct_type = dynamic_cast<const CStructType*>(found->second.get());
+      XLS_CHECK_NE(struct_type, nullptr);
+      if (struct_type->synthetic_int_flag()) {
+        continue;
+      }
     }
-
-    xlscc_metadata::Type* struct_out = ret.add_structs();
-    XLS_RETURN_IF_ERROR(type.first->GetMetadata(
-        *this, struct_out->mutable_as_struct()->mutable_name()));
-    XLS_RETURN_IF_ERROR(ctype_as_struct->GetMetadata(*this, struct_out));
+    XLS_RETURN_IF_ERROR(GenerateFunctionMetadata(
+        decl, ret.add_all_func_protos(), aliases_used_unordered));
   }
 
+  std::list<const clang::NamedDecl*> aliases_used(
+      aliases_used_unordered.begin(), aliases_used_unordered.end());
+
+  aliases_used.sort(
+      [](const clang::NamedDecl* a, const clang::NamedDecl* b) -> bool {
+        return a->getQualifiedNameAsString() < b->getQualifiedNameAsString();
+      });
+
+  // Recurses
+  absl::flat_hash_set<const clang::NamedDecl*> aliases_dummy;
+
+  while (!aliases_used.empty()) {
+    const clang::NamedDecl* alias = aliases_used.front();
+    aliases_used.pop_front();
+
+    auto temp_alias = std::make_shared<CInstantiableTypeAlias>(alias);
+    // Ignore __xls_channel
+    if (inst_types_.contains(temp_alias)) {
+      std::shared_ptr<CType> type = inst_types_.at(temp_alias);
+      auto ctype_as_struct = dynamic_cast<const CStructType*>(type.get());
+      if (ctype_as_struct == nullptr) {
+        continue;
+      }
+      xlscc_metadata::Type* struct_out = ret.add_structs();
+      XLS_RETURN_IF_ERROR(temp_alias->GetMetadata(
+          *this, struct_out->mutable_as_struct()->mutable_name(),
+          aliases_dummy));
+      XLS_RETURN_IF_ERROR(
+          ctype_as_struct->GetMetadata(*this, struct_out, aliases_dummy));
+    }
+  }
   return ret;
 }
 
@@ -5770,12 +5857,53 @@ absl::Status Translator::GenerateMetadataCPPName(
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateMetadataType(clang::QualType type_in,
-                                              xlscc_metadata::Type* type_out) {
+absl::Status Translator::GenerateMetadataType(
+    const clang::QualType& type_in, xlscc_metadata::Type* type_out,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) {
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
                        TranslateTypeFromClang(type_in, xls::SourceInfo(),
                                               /*allow_references=*/true));
-  return ctype->GetMetadata(*this, type_out);
+  const clang::RecordDecl* decl = type_in->getAsRecordDecl();
+  if (decl != nullptr) {
+    FillLocationRangeProto(decl->getSourceRange(),
+                           type_out->mutable_declaration_location());
+  }
+  XLS_RETURN_IF_ERROR(ctype->GetMetadata(*this, type_out, aliases_used));
+  if (type_out->has_as_int() && type_out->as_int().is_synthetic()) {
+    type_out->clear_declaration_location();
+  }
+  return absl::OkStatus();
+}
+
+absl::StatusOr<xlscc_metadata::IntType> Translator::GenerateSyntheticInt(
+    std::shared_ptr<CType> ctype) {
+  const CStructType* struct_type = nullptr;
+  auto inst_type = dynamic_cast<const CInstantiableTypeAlias*>(ctype.get());
+  if (inst_type != nullptr) {
+    XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> resolved,
+                         ResolveTypeInstance(ctype));
+    struct_type = dynamic_cast<const CStructType*>(resolved.get());
+    if (struct_type != nullptr && struct_type->synthetic_int_flag()) {
+      auto special = clang::cast<clang::ClassTemplateSpecializationDecl>(
+          inst_type->base());
+      const clang::TemplateArgumentList& arguments = special->getTemplateArgs();
+      XLS_CHECK_EQ(arguments.size(), 2);
+
+      const clang::TemplateArgument& width_arg = arguments.get(0);
+      XLS_CHECK_EQ(width_arg.getKind(),
+                   clang::TemplateArgument::ArgKind::Integral);
+      const clang::TemplateArgument& signed_arg = arguments.get(1);
+      XLS_CHECK_EQ(signed_arg.getKind(),
+                   clang::TemplateArgument::ArgKind::Integral);
+
+      xlscc_metadata::IntType ret;
+      ret.set_is_synthetic(true);
+      ret.set_width(width_arg.getAsIntegral().getExtValue());
+      ret.set_is_signed(signed_arg.getAsIntegral().getExtValue() == 1);
+      return ret;
+    }
+  }
+  return absl::NotFoundError("not synthetic int");
 }
 
 absl::StatusOr<xls::BValue> Translator::GenTypeConvert(

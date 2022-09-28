@@ -58,6 +58,7 @@ message FunctionValue {
   optional CPPName name = 1;
   optional Type type = 2;
   optional Value value = 3;
+  optional SourceLocationRange declaration_location = 4;
 }
 
 // Represents the prototype / interface of a function
@@ -69,6 +70,11 @@ message FunctionPrototype {
   optional SourceLocationRange return_location = 5;
   optional SourceLocationRange parameters_location = 6;
   repeated FunctionValue static_values = 7;
+  // If this is specified, then it's a method, and:
+  // - has an implicit this parameter
+  // - if not const, has an implicit this return
+  optional Type this_type = 8;
+  optional bool is_const = 9;
 }
 
 // The name of a C++ symbol / object.
@@ -102,6 +108,9 @@ message IntType {
   // for explicitly-signed- or explicitly-unsigned-char decalarations.  Do not
   // set it altogether for integer-type declarations of bit widths other than 8.
   optional bool is_declared_as_char = 3;
+  // Is this defined by a class with #pragma hls_synthetic_int?
+  // If so, values will use as_bits rather than as_int.
+  optional bool is_synthetic = 4;
 }
 
 // Placeholder for bool
@@ -133,6 +142,7 @@ message Type {
   optional InstanceType as_inst = 5;
   optional ArrayType as_array = 6;
   optional StructType as_struct = 7;
+  optional SourceLocationRange declaration_location = 8;
 }
 
 // A field in a structure
@@ -141,12 +151,12 @@ message StructField {
   optional Type type = 2;
 }
 
-//
 message StructType {
   // name() Type is always an InstanceType, that is, it has as_inst() valid
   optional Type name = 1;
   repeated StructField fields = 2;
-  // Whether or not #pragma hls_no_tuple was specified in the struct declaration
+  // Whether or not #pragma hls_no_tuple was specified
+  // in the struct declaration
   optional bool no_tuple = 3;
 }
 
