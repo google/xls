@@ -33,6 +33,7 @@ namespace {
 constexpr const char kIrPath[] = "xls/examples/matmul_4x4.ir";
 
 using status_testing::IsOkAndHolds;
+using testing::Optional;
 
 Value GetX0Value() {
   static int iter = 0;
@@ -62,23 +63,23 @@ TEST(Matmul4x4Test, Works) {
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSERT_OK_AND_ASSIGN(auto package, Parser::ParsePackage(ir_text));
 
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
+
   // Four input queues: (0,0)x, (1,0)x, (2,0)x, (3,0)x
   std::vector<std::unique_ptr<ChannelQueue>> rx_queues;
   XLS_ASSERT_OK_AND_ASSIGN(Channel * channel, package->GetChannel("c_0_0_x"));
-  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
-      channel, package.get(), []() { return GetX0Value(); }));
+  XLS_ASSERT_OK(interpreter->queue_manager().GetQueue(channel).AttachGenerator(
+      []() { return GetX0Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(channel, package->GetChannel("c_1_0_x"));
-  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
-      channel, package.get(), []() { return GetX1Value(); }));
+  XLS_ASSERT_OK(interpreter->queue_manager().GetQueue(channel).AttachGenerator(
+      []() { return GetX1Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(channel, package->GetChannel("c_2_0_x"));
-  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
-      channel, package.get(), []() { return GetX2Value(); }));
+  XLS_ASSERT_OK(interpreter->queue_manager().GetQueue(channel).AttachGenerator(
+      []() { return GetX2Value(); }));
   XLS_ASSERT_OK_AND_ASSIGN(channel, package->GetChannel("c_3_0_x"));
-  rx_queues.emplace_back(std::make_unique<GeneratedChannelQueue>(
-      channel, package.get(), []() { return GetX3Value(); }));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto interpreter,
-      CreateProcNetworkInterpreter(package.get(), std::move(rx_queues)));
+  XLS_ASSERT_OK(interpreter->queue_manager().GetQueue(channel).AttachGenerator(
+      []() { return GetX3Value(); }));
 
   // Now get the output queues.
   ChannelQueueManager& qm = interpreter->queue_manager();
@@ -92,17 +93,10 @@ TEST(Matmul4x4Test, Works) {
     XLS_EXPECT_OK(interpreter->Tick());
   }
 
-  XLS_ASSERT_OK_AND_ASSIGN(Value value, c30->Dequeue());
-  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(222));
-
-  XLS_ASSERT_OK_AND_ASSIGN(value, c31->Dequeue());
-  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(4444));
-
-  XLS_ASSERT_OK_AND_ASSIGN(value, c32->Dequeue());
-  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(66666));
-
-  XLS_ASSERT_OK_AND_ASSIGN(value, c33->Dequeue());
-  ASSERT_THAT(value.bits().ToUint64(), IsOkAndHolds(888888));
+  EXPECT_THAT(c30->Dequeue(), Optional(Value(UBits(222, 32))));
+  EXPECT_THAT(c31->Dequeue(), Optional(Value(UBits(4444, 32))));
+  EXPECT_THAT(c32->Dequeue(), Optional(Value(UBits(66666, 32))));
+  EXPECT_THAT(c33->Dequeue(), Optional(Value(UBits(888888, 32))));
 }
 
 }  // namespace

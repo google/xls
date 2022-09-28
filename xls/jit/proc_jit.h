@@ -34,8 +34,11 @@ namespace xls {
 // execution for the JIT.
 class ProcJitContinuation : public ProcContinuation {
  public:
-  // Construct a new continuation. Execution the proc begins with the state  set
-  // to its initial values with no proc nodes yet executed.
+  // Construct a new continuation. Execution the proc begins with the state set
+  // to its initial values with no proc nodes yet executed. `temp_buffer_size`
+  // specifies the size of a flat buffer used to hold temporary xls::Node values
+  // during execution of the JITed function. The size of the buffer is
+  // determined at JIT compile time and known by the ProcJit.
   explicit ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
                                JitRuntime* jit_runtime);
 
@@ -59,8 +62,8 @@ class ProcJitContinuation : public ProcContinuation {
   }
   absl::Span<uint8_t> GetTempBuffer() { return absl::MakeSpan(temp_buffer_); }
 
-  // Sets the proc_jit to start execution at the proc tick. Updates state to its
-  // next value.
+  // Sets the continuation to resume execution at the entry of the proc. Updates
+  // state to the "next" value computed in the previous tick.
   void NextTick();
 
   Proc* proc() const { return proc_; }

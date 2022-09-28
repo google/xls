@@ -39,7 +39,10 @@ namespace xls {
 //   user_data: pointer to arbitrary data passed to send/receive functions
 //       in procs.
 //   jit_runtime: pointer to a JitRuntime object.
-//   continuation_point: the continuation point to start execution at.
+//   continuation_point: an opaque value indicating the point in the
+//      FunctionBase to start execution when the jitted function is called.
+//      Used to enable interruption and resumption of execution of the
+//      the FunctionBase due to blocking operations such as receives.
 //
 // Returns the continuation point at which execution stopped or 0 if the tick
 // completed.
@@ -75,7 +78,7 @@ struct JittedFunctionBase {
   int64_t temp_buffer_size;
 
   // Map from the continuation point value to the corresponding node at which
-  // execution was interrupted.. Generally, these nodes will be blocking receive
+  // execution was interrupted. Generally, these nodes will be blocking receive
   // nodes.
   absl::flat_hash_map<int64_t, Node*> continuation_points;
 };

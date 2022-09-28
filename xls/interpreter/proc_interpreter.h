@@ -75,6 +75,8 @@ struct TickResult {
   std::string ToString() const;
 };
 
+std::ostream& operator<<(std::ostream& os, const TickResult& result);
+
 // Abstract base class for evaluators of procs (e.g., interpreter or JIT).
 class ProcEvaluator {
  public:
@@ -95,8 +97,6 @@ class ProcEvaluator {
 
   virtual Proc* proc() const = 0;
 };
-
-std::ostream& operator<<(std::ostream& os, const TickResult& result);
 
 // A continuation used by the ProcInterpreter.
 class ProcInterpreterContinuation : public ProcContinuation {

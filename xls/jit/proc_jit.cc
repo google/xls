@@ -93,8 +93,6 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
   ProcJitContinuation* cont = dynamic_cast<ProcJitContinuation*>(&continuation);
   XLS_RET_CHECK_NE(cont, nullptr)
       << "ProcJit requires a continuation of type ProcJitContinuation";
-  std::vector<Channel*> sent_channels;
-
   InterpreterEvents events;
 
   int64_t start_continuation_point = cont->GetContinuationPoint();
@@ -109,7 +107,7 @@ absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
     cont->NextTick();
   } else {
     // The proc is blocked. Determine which node (and associated channel) the
-    // node is blocke on.
+    // node is blocked on.
     cont->SetContinuationPoint(next_continuation_point);
     XLS_RET_CHECK(jitted_function_base_.continuation_points.contains(
         next_continuation_point));

@@ -29,6 +29,7 @@ namespace {
 
 using status_testing::IsOkAndHolds;
 using testing::ElementsAre;
+using testing::Optional;
 
 class ProcInterpreterTest : public IrTestBase {};
 
@@ -46,14 +47,13 @@ TEST_F(ProcInterpreterTest, ProcIota) {
   BValue new_value = pb.Add(counter, pb.Literal(UBits(7, 32)));
   XLS_ASSERT_OK(pb.Build(send_token, {new_value}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(package.get()));
   ProcInterpreter interpreter(FindProc("iota", package.get()),
                               queue_manager.get());
   ChannelQueue& ch0_queue = queue_manager->GetQueue(channel);
 
-  ASSERT_TRUE(ch0_queue.empty());
+  ASSERT_TRUE(ch0_queue.IsEmpty());
 
   std::unique_ptr<ProcContinuation> continuation =
       interpreter.NewContinuation();
@@ -69,11 +69,11 @@ TEST_F(ProcInterpreterTest, ProcIota) {
 
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(49, 32))));
 
-  EXPECT_EQ(ch0_queue.size(), 1);
-  EXPECT_FALSE(ch0_queue.empty());
-  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
-  EXPECT_EQ(ch0_queue.size(), 0);
-  EXPECT_TRUE(ch0_queue.empty());
+  EXPECT_EQ(ch0_queue.GetSize(), 1);
+  EXPECT_FALSE(ch0_queue.IsEmpty());
+  EXPECT_THAT(ch0_queue.Dequeue(), Optional(Value(UBits(42, 32))));
+  EXPECT_EQ(ch0_queue.GetSize(), 0);
+  EXPECT_TRUE(ch0_queue.IsEmpty());
 
   // Run three times. Should enqueue three values in the output queue.
   EXPECT_THAT(interpreter.Tick(*continuation),
@@ -95,13 +95,13 @@ TEST_F(ProcInterpreterTest, ProcIota) {
                                       .sent_channels = {channel}}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(70, 32))));
 
-  ASSERT_EQ(ch0_queue.size(), 3);
+  ASSERT_EQ(ch0_queue.GetSize(), 3);
 
-  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(49, 32))));
-  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(56, 32))));
-  EXPECT_THAT(ch0_queue.Dequeue(), IsOkAndHolds(Value(UBits(63, 32))));
+  EXPECT_THAT(ch0_queue.Dequeue(), Optional(Value(UBits(49, 32))));
+  EXPECT_THAT(ch0_queue.Dequeue(), Optional(Value(UBits(56, 32))));
+  EXPECT_THAT(ch0_queue.Dequeue(), Optional(Value(UBits(63, 32))));
 
-  EXPECT_TRUE(ch0_queue.empty());
+  EXPECT_TRUE(ch0_queue.IsEmpty());
 }
 
 TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
@@ -123,9 +123,8 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
   BValue send_token = pb.Send(ch_out, recv_token, prev_input);
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send_token, {input}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(&package));
 
   ProcInterpreter interpreter(proc, queue_manager.get());
   ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
@@ -149,8 +148,8 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
                                       .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(55, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(55, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 32))));
 
   // Ticking once more should block waiting for the input queue. The state
   // should not change because the proc is blocked.
@@ -162,7 +161,7 @@ TEST_F(ProcInterpreterTest, ProcWhichReturnsPreviousResults) {
                                       .sent_channels = {}}));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(123, 32))));
   EXPECT_FALSE(continuation->AtStartOfTick());
-  EXPECT_TRUE(output_queue.empty());
+  EXPECT_TRUE(output_queue.IsEmpty());
 
   // Feeding another input should unblock it.
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(111, 32))}));
@@ -203,9 +202,8 @@ TEST_F(ProcInterpreterTest, MultipleReceives) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(&package));
 
   ProcInterpreter interpreter(proc, queue_manager.get());
   ChannelQueue& in0_queue = queue_manager->GetQueue(ch_in0);
@@ -253,7 +251,7 @@ TEST_F(ProcInterpreterTest, MultipleReceives) {
                                       .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(52, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(52, 32))));
 
   // Next, only enqueue data on ch0 and ch1. ch2 should not be read because it's
   // predicate is false.
@@ -266,7 +264,7 @@ TEST_F(ProcInterpreterTest, MultipleReceives) {
                                       .sent_channels = {ch_out}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 32))));
 }
 
 TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
@@ -292,16 +290,15 @@ TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
   // Next state value is the inverse of the current state value.
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, {pb.Not(st)}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(&package));
 
   ProcInterpreter interpreter(proc, queue_manager.get());
   ChannelQueue& input_queue = queue_manager->GetQueue(ch_in);
   ChannelQueue& output_queue = queue_manager->GetQueue(ch_out);
 
-  ASSERT_TRUE(input_queue.empty());
-  ASSERT_TRUE(output_queue.empty());
+  ASSERT_TRUE(input_queue.IsEmpty());
+  ASSERT_TRUE(output_queue.IsEmpty());
 
   // Enqueue a single value into the input queue.
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(42, 32))}));
@@ -316,7 +313,7 @@ TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_out}}));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 32))));
   EXPECT_THAT(continuation->GetState(), ElementsAre(Value(UBits(0, 1))));
 
   // The second iteration should not dequeue anything as the receive predicate
@@ -327,7 +324,7 @@ TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_out}}));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(0, 32))));
 
   // The third iteration should again dequeue a value.
   XLS_ASSERT_OK(input_queue.Enqueue({Value(UBits(123, 32))}));
@@ -336,9 +333,9 @@ TEST_F(ProcInterpreterTest, ConditionalReceiveProc) {
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_out}}));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 32))));
 
-  EXPECT_TRUE(output_queue.empty());
+  EXPECT_TRUE(output_queue.IsEmpty());
 }
 
 TEST_F(ProcInterpreterTest, ConditionalSendProc) {
@@ -358,9 +355,8 @@ TEST_F(ProcInterpreterTest, ConditionalSendProc) {
   BValue new_value = pb.Add(prev, pb.Literal(UBits(1, 32)));
   XLS_ASSERT_OK(pb.Build(send_if, {new_value}).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(&package));
   ProcInterpreter interpreter(FindProc("even", &package), queue_manager.get());
 
   ChannelQueue& queue = queue_manager->GetQueue(channel);
@@ -372,36 +368,36 @@ TEST_F(ProcInterpreterTest, ConditionalSendProc) {
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {channel}}));
-  EXPECT_EQ(queue.size(), 1);
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
+  EXPECT_EQ(queue.GetSize(), 1);
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(0, 32))));
 
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {}}));
-  EXPECT_TRUE(queue.empty());
+  EXPECT_TRUE(queue.IsEmpty());
 
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {channel}}));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(2, 32))));
 
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {}}));
-  EXPECT_TRUE(queue.empty());
+  EXPECT_TRUE(queue.IsEmpty());
 
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {channel}}));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(4, 32))));
 }
 
 TEST_F(ProcInterpreterTest, OneToTwoDemux) {
@@ -431,9 +427,8 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(&package));
   ProcInterpreter interpreter(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * dir_queue,
@@ -461,18 +456,18 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_b}}));
-  EXPECT_TRUE(a_queue->empty());
-  EXPECT_FALSE(b_queue->empty());
-  EXPECT_THAT(b_queue->Dequeue(), IsOkAndHolds(Value(UBits(1, 32))));
+  EXPECT_TRUE(a_queue->IsEmpty());
+  EXPECT_FALSE(b_queue->IsEmpty());
+  EXPECT_THAT(b_queue->Dequeue(), Optional(Value(UBits(1, 32))));
 
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_b}}));
-  EXPECT_THAT(b_queue->Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
-  EXPECT_TRUE(a_queue->empty());
-  EXPECT_TRUE(b_queue->empty());
+  EXPECT_THAT(b_queue->Dequeue(), Optional(Value(UBits(2, 32))));
+  EXPECT_TRUE(a_queue->IsEmpty());
+  EXPECT_TRUE(b_queue->IsEmpty());
 
   // Switch direction to output A.
   XLS_ASSERT_OK(dir_queue->Enqueue(Value(UBits(1, 1))));
@@ -483,10 +478,10 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_a}}));
-  EXPECT_FALSE(a_queue->empty());
-  EXPECT_TRUE(b_queue->empty());
+  EXPECT_FALSE(a_queue->IsEmpty());
+  EXPECT_TRUE(b_queue->IsEmpty());
 
-  EXPECT_THAT(a_queue->Dequeue(), IsOkAndHolds(Value(UBits(3, 32))));
+  EXPECT_THAT(a_queue->Dequeue(), Optional(Value(UBits(3, 32))));
 
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
@@ -494,9 +489,9 @@ TEST_F(ProcInterpreterTest, OneToTwoDemux) {
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {ch_a}}));
 
-  EXPECT_THAT(a_queue->Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
-  EXPECT_TRUE(a_queue->empty());
-  EXPECT_TRUE(b_queue->empty());
+  EXPECT_THAT(a_queue->Dequeue(), Optional(Value(UBits(4, 32))));
+  EXPECT_TRUE(a_queue->IsEmpty());
+  EXPECT_TRUE(b_queue->IsEmpty());
 }
 
 TEST_F(ProcInterpreterTest, StatelessProc) {
@@ -517,9 +512,8 @@ TEST_F(ProcInterpreterTest, StatelessProc) {
               pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, std::vector<BValue>()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(package.get()));
   ProcInterpreter interpreter(proc, queue_manager.get());
   ChannelQueue& input_queue = queue_manager->GetQueue(channel_in);
   ChannelQueue& output_queue = queue_manager->GetQueue(channel_out);
@@ -535,7 +529,7 @@ TEST_F(ProcInterpreterTest, StatelessProc) {
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {channel_out}}));
 
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(43, 32))));
 
   // The next state should be empty.
   EXPECT_THAT(continuation->GetState(), ElementsAre());
@@ -560,9 +554,8 @@ TEST_F(ProcInterpreterTest, MultiStateElementProc) {
                                                  {pb.Add(a_state, data),
                                                   pb.Subtract(b_state, data)}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(package.get()));
   ProcInterpreter interpreter(proc, queue_manager.get());
   std::unique_ptr<ProcContinuation> continuation =
       interpreter.NewContinuation();
@@ -631,9 +624,8 @@ TEST_F(ProcInterpreterTest, NonBlockingReceives) {
 
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, package.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(package.get()));
 
   ProcInterpreter interpreter(proc, queue_manager.get());
   std::unique_ptr<ProcContinuation> continuation =
@@ -648,76 +640,76 @@ TEST_F(ProcInterpreterTest, NonBlockingReceives) {
   XLS_ASSERT_OK(in2_queue.Enqueue(Value(UBits(10, 32))));
 
   // All other channels are non-blocking, so run even if the queues are empty.
-  EXPECT_TRUE(in0_queue.empty());
-  EXPECT_TRUE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_TRUE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {out0}}));
 
-  EXPECT_TRUE(in0_queue.empty());
-  EXPECT_TRUE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
-  EXPECT_FALSE(out0_queue.empty());
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_TRUE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
+  EXPECT_FALSE(out0_queue.IsEmpty());
 
-  EXPECT_THAT(out0_queue.Dequeue(), IsOkAndHolds(Value(UBits(10, 32))));
+  EXPECT_THAT(out0_queue.Dequeue(), Optional(Value(UBits(10, 32))));
 
   // Run with only in1 (and in2) having data.
   XLS_ASSERT_OK(in1_queue.Enqueue(Value(UBits(5, 32))));
-  EXPECT_TRUE(in0_queue.empty());
-  EXPECT_FALSE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_FALSE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {out0}}));
 
-  EXPECT_TRUE(in0_queue.empty());
-  EXPECT_TRUE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
-  EXPECT_FALSE(out0_queue.empty());
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_TRUE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
+  EXPECT_FALSE(out0_queue.IsEmpty());
 
-  EXPECT_THAT(out0_queue.Dequeue(), IsOkAndHolds(Value(UBits(15, 32))));
+  EXPECT_THAT(out0_queue.Dequeue(), Optional(Value(UBits(15, 32))));
 
   // Run with only in0 (and in2) having data.
   XLS_ASSERT_OK(in0_queue.Enqueue(Value(UBits(7, 32))));
-  EXPECT_FALSE(in0_queue.empty());
-  EXPECT_TRUE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
+  EXPECT_FALSE(in0_queue.IsEmpty());
+  EXPECT_TRUE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {out0}}));
 
-  EXPECT_TRUE(in0_queue.empty());
-  EXPECT_TRUE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
-  EXPECT_FALSE(out0_queue.empty());
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_TRUE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
+  EXPECT_FALSE(out0_queue.IsEmpty());
 
-  EXPECT_THAT(out0_queue.Dequeue(), IsOkAndHolds(Value(UBits(17, 32))));
+  EXPECT_THAT(out0_queue.Dequeue(), Optional(Value(UBits(17, 32))));
 
   // Run with all channels having data.
   XLS_ASSERT_OK(in0_queue.Enqueue(Value(UBits(11, 32))));
   XLS_ASSERT_OK(in1_queue.Enqueue(Value(UBits(22, 32))));
-  EXPECT_FALSE(in0_queue.empty());
-  EXPECT_FALSE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
+  EXPECT_FALSE(in0_queue.IsEmpty());
+  EXPECT_FALSE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
   EXPECT_THAT(interpreter.Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
                                       .blocked_channel = std::nullopt,
                                       .sent_channels = {out0}}));
 
-  EXPECT_TRUE(in0_queue.empty());
-  EXPECT_TRUE(in1_queue.empty());
-  EXPECT_FALSE(in2_queue.empty());
-  EXPECT_FALSE(out0_queue.empty());
+  EXPECT_TRUE(in0_queue.IsEmpty());
+  EXPECT_TRUE(in1_queue.IsEmpty());
+  EXPECT_FALSE(in2_queue.IsEmpty());
+  EXPECT_FALSE(out0_queue.IsEmpty());
 
-  EXPECT_THAT(out0_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
+  EXPECT_THAT(out0_queue.Dequeue(), Optional(Value(UBits(43, 32))));
 }
 
 }  // namespace

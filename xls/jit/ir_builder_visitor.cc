@@ -542,8 +542,8 @@ class NodeIrContext {
  public:
   // Possible node function signatures:
   //
-  // bool f(operand_ptr_0, ..., operand_ptr_n,
-  //        output_ptr_0, ..., output_ptr_m)
+  // bool f(void* operand_ptr_0, ..., void* operand_ptr_n,
+  //        void* output_ptr_0,  ..., void* output_ptr_m)
   //
   // bool f(void* operand_ptr_0, ... , void* operand_ptr_n,
   //        void* output_ptr_0,  ... , void* output_ptr_m,

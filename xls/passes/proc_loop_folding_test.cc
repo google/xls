@@ -38,6 +38,7 @@ namespace {
 
 using status_testing::IsOk;
 using status_testing::IsOkAndHolds;
+using testing::Optional;
 
 class RollIntoProcPassTest : public IrTestBase {
  protected:
@@ -226,9 +227,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -241,8 +241,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
@@ -255,22 +255,20 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
+  EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
-  EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(2, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(2, 32))));
 
   // Run again
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
-  EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(2, 32))));
+  EXPECT_FALSE(send_queue.IsEmpty());
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(2, 32))));
 }
 
 // A similar simple loop as before, but it is unrolled twice.
@@ -319,9 +317,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -334,8 +331,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
@@ -348,22 +345,20 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
+  EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
-  EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(4, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(4, 32))));
 
   // Run again
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
-  EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(4, 32))));
+  EXPECT_FALSE(send_queue.IsEmpty());
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(4, 32))));
 }
 
 // A similar simple loop as before, but it is unrolled five times.
@@ -412,9 +407,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -427,8 +421,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
@@ -441,22 +435,20 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
+  EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
-  EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(10, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(10, 32))));
 
   // Run again
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
-  EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(10, 32))));
+  EXPECT_FALSE(send_queue.IsEmpty());
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(10, 32))));
 }
 
 
@@ -507,9 +499,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should just output 0 + 1 + ... + 9 each time (=45)
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -522,8 +513,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
@@ -538,12 +529,12 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
     for (int64_t j = 0; j < 10; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(45, 32))));
+    EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(45, 32))));
   }
 }
 
@@ -590,9 +581,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should output 0 + 3 + 6 + ... + 27 each time (=135)
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -605,8 +595,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
@@ -621,12 +611,12 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
     for (int64_t j = 0; j < 10; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(135, 32))));
+    EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(135, 32))));
   }
 }
 
@@ -677,9 +667,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
 
   // We will add the receive value + 1 to the accumulator 10 times. So it should
   // be equal to 10*(Receive + 1).
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -692,8 +681,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
@@ -711,14 +700,14 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
     for (int64_t j = 0; j < 10; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     int64_t correct_value = (i+1)*10;
-    EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(correct_value,
-                                                               32))));
+    EXPECT_THAT(send_queue.Dequeue(),
+                Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -767,9 +756,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
 
   // We will add 1 to the accumulator 10 times, so the output should be the
   // initial value of the accumulator + 10.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -782,8 +770,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
@@ -802,14 +790,14 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
     for (int64_t j = 0; j < 10; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     int64_t correct_value = results[i];
-    EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(correct_value,
-                                                               32))));
+    EXPECT_THAT(send_queue.Dequeue(),
+                Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -859,9 +847,8 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
 
   // We will add 1 to the accumulator 10 times, so the output should be 10 plus
   // one, from the use of the invariant after the loop.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -874,8 +861,8 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
@@ -894,14 +881,14 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
     for (int64_t j = 0; j < 10; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     int64_t correct_value = results[i];
-    EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(correct_value,
-                                                               32))));
+    EXPECT_THAT(send_queue.Dequeue(),
+                Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -956,9 +943,8 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // We will add 1 to the accumulator 10 times, so the output should be 10.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -971,8 +957,8 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
@@ -991,14 +977,14 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
     for (int64_t j = 0; j < 10; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 9) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     int64_t correct_value = results[i];
-    EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(correct_value,
-                                                               32))));
+    EXPECT_THAT(send_queue.Dequeue(),
+                Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -1034,9 +1020,8 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   EXPECT_THAT(Run(f), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(f, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -1049,8 +1034,8 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 4 elements.
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
@@ -1064,35 +1049,35 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   // be nothing on the send queue until four iterations (the length of the
   // kernel) have completed.
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   // At the end of this iteration, the result of the FIR filtering should be
   // available on the send queue.
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
+  EXPECT_FALSE(send_queue.IsEmpty());
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
   EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(expected_output[0], 32))));
+              Optional(Value(UBits(expected_output[0], 32))));
 
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 3) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     EXPECT_THAT(send_queue.Dequeue(),
-                IsOkAndHolds(Value(UBits(expected_output[i], 32))));
+                Optional(Value(UBits(expected_output[i], 32))));
   }
 }
 
@@ -1127,9 +1112,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   EXPECT_THAT(Run(f, 2), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(f, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -1142,8 +1126,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 4 elements.
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
@@ -1157,29 +1141,28 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   // be nothing on the send queue until two iterations (the length of the
   // kernel divided by number of unrolls) have completed.
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
-
+  EXPECT_FALSE(send_queue.IsEmpty());
 
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
   EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(expected_output[0], 32))));
+              Optional(Value(UBits(expected_output[0], 32))));
 
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 2; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 1) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     EXPECT_THAT(send_queue.Dequeue(),
-                IsOkAndHolds(Value(UBits(expected_output[i], 32))));
+                Optional(Value(UBits(expected_output[i], 32))));
   }
 }
 
@@ -1214,9 +1197,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   EXPECT_THAT(Run(f, 4), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(f, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -1229,8 +1211,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   // Enqueue 4 elements.
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
@@ -1243,25 +1225,25 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   // This got fully unrolled so it should have something to send out on every
   // iteration
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
-  EXPECT_FALSE(send_queue.empty());
+  EXPECT_FALSE(send_queue.IsEmpty());
 
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
   EXPECT_THAT(send_queue.Dequeue(),
-              IsOkAndHolds(Value(UBits(expected_output[0], 32))));
+              Optional(Value(UBits(expected_output[0], 32))));
 
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 1; j++) {
       ASSERT_THAT(pi.Tick(*continuation), IsOk());
       if (j < 0) {
-        EXPECT_TRUE(send_queue.empty());
+        EXPECT_TRUE(send_queue.IsEmpty());
       } else {
-        EXPECT_FALSE(send_queue.empty());
+        EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
     EXPECT_THAT(send_queue.Dequeue(),
-                IsOkAndHolds(Value(UBits(expected_output[i], 32))));
+                Optional(Value(UBits(expected_output[i], 32))));
   }
 }
 

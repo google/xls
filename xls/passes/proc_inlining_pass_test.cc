@@ -63,9 +63,9 @@ class ProcInliningPassTest : public IrTestBase {
   absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> CreateInterpreter(
       Package* p,
       const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs) {
-    // Create an fixed input queue for each set of inputs. It will feed in the
-    // specified inputs.
-    std::vector<std::unique_ptr<ChannelQueue>> queues;
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                         CreateProcNetworkInterpreter(p));
+
     for (auto [ch_name, ch_inputs] : inputs) {
       XLS_ASSIGN_OR_RETURN(Channel * ch, p->GetChannel(ch_name));
       XLS_RET_CHECK(ch->type()->IsBits());
@@ -75,19 +75,18 @@ class ProcInliningPassTest : public IrTestBase {
         input_values.push_back(Value(UBits(in, ch->type()->GetFlatBitCount())));
       }
 
+      ChannelQueue& queue = interpreter->queue_manager().GetQueue(ch);
       if (ch->kind() == ChannelKind::kStreaming) {
-        queues.push_back(
-            std::make_unique<FixedChannelQueue>(ch, p, input_values));
+        XLS_RETURN_IF_ERROR(
+            queue.AttachGenerator(FixedValueGenerator(input_values)));
       } else {
         XLS_RET_CHECK(ch->kind() == ChannelKind::kSingleValue);
         XLS_RET_CHECK_EQ(input_values.size(), 1)
             << "Single value channels may only have a single input";
-        auto queue = std::make_unique<SingleValueChannelQueue>(ch);
-        XLS_RETURN_IF_ERROR(queue->Enqueue(input_values.front()));
-        queues.push_back(std::move(queue));
+        XLS_RETURN_IF_ERROR(queue.Enqueue(input_values.front()));
       }
     }
-    return CreateProcNetworkInterpreter(p, std::move(queues));
+    return std::move(interpreter);
   }
 
   // Evaluate the proc with the given inputs and expect the given
@@ -134,7 +133,7 @@ class ProcInliningPassTest : public IrTestBase {
       std::vector<int64_t> outputs;
       ChannelQueue& queue = interpreter->queue_manager().GetQueue(ch);
       while (outputs.size() < expected_outputs.at(ch->name()).size()) {
-        XLS_ASSERT_OK_AND_ASSIGN(Value output, queue.Dequeue());
+        Value output = queue.Dequeue().value();
         outputs.push_back(output.bits().ToUint64().value());
       }
       EXPECT_THAT(outputs, ElementsAreArray(expected_outputs.at(ch->name())))
@@ -2596,12 +2595,12 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
         CreateInterpreter(p.get(), inputs));
     ChannelQueue& output_queue = interpreter->queue_manager().GetQueue(ch_out);
-    while (output_queue.size() < inputs.at("in").size()) {
+    while (output_queue.GetSize() < inputs.at("in").size()) {
       XLS_ASSERT_OK(interpreter->Tick());
     }
     absl::flat_hash_map<std::string, std::vector<int64_t>> expected_outputs;
-    while (!output_queue.empty()) {
-      XLS_ASSERT_OK_AND_ASSIGN(Value output, output_queue.Dequeue());
+    while (!output_queue.IsEmpty()) {
+      Value output = output_queue.Dequeue().value();
       expected_outputs[ch_out->name()].push_back(
           output.bits().ToUint64().value());
     }

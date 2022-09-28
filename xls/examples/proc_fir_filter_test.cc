@@ -34,7 +34,7 @@ namespace xls {
 namespace {
 
 using status_testing::IsOk;
-using status_testing::IsOkAndHolds;
+using testing::Optional;
 
 class ProcFirFilterTest : public IrTestBase {
  protected:
@@ -65,9 +65,8 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
                                                                filter_out,
                                                                p.get()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(fir_proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -80,8 +79,8 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
 
@@ -89,11 +88,11 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
 
-  EXPECT_EQ(send_queue.size(), 1);
-  EXPECT_FALSE(send_queue.empty());
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
-  EXPECT_EQ(send_queue.size(), 0);
-  EXPECT_TRUE(send_queue.empty());
+  EXPECT_EQ(send_queue.GetSize(), 1);
+  EXPECT_FALSE(send_queue.IsEmpty());
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(0, 32))));
+  EXPECT_EQ(send_queue.GetSize(), 0);
+  EXPECT_TRUE(send_queue.IsEmpty());
 
   XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(64, 32))}));
 
@@ -107,11 +106,11 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
 
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
 
-  EXPECT_EQ(send_queue.size(), 3);
+  EXPECT_EQ(send_queue.GetSize(), 3);
 
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(64, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(256, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(512, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(64, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(256, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(512, 32))));
 }
 
 // Test FIR filter with accumulator kernel = {1, 10, 100, 1000, 10000, 100000}.
@@ -140,9 +139,8 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
                                                                filter_out,
                                                                p.get()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(fir_proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -155,8 +153,8 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -165,15 +163,15 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
     ASSERT_THAT(pi.Tick(*continuation), IsOk());
   }
 
-  EXPECT_EQ(send_queue.size(), 7);
+  EXPECT_EQ(send_queue.GetSize(), 7);
 
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(1, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(12, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(1234, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(12345, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(123456, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(234567, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(1, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(12, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(123, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(1234, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(12345, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(123456, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(234567, 32))));
 }
 
 // Test a FIR filter with single element kernel = {2}
@@ -203,9 +201,8 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
                                                                filter_out,
                                                                p.get()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(fir_proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -218,8 +215,8 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -228,14 +225,14 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
     ASSERT_THAT(pi.Tick(*continuation), IsOk());
   }
 
-  EXPECT_EQ(send_queue.size(), 6);
+  EXPECT_EQ(send_queue.GetSize(), 6);
 
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(4, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(6, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(8, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(0, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(0, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(2, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(4, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(6, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(8, 32))));
 }
 
 // Compute a triangular blur.
@@ -264,9 +261,8 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
                                                                filter_out,
                                                                p.get()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, p.get()));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                           ChannelQueueManager::Create(p.get()));
   ProcInterpreter pi(fir_proc, queue_manager.get());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
@@ -279,8 +275,8 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
   ChannelQueue& send_queue = queue_manager->GetQueue(send);
   ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
 
-  ASSERT_TRUE(send_queue.empty());
-  ASSERT_TRUE(recv_queue.empty());
+  ASSERT_TRUE(send_queue.IsEmpty());
+  ASSERT_TRUE(recv_queue.IsEmpty());
 
   std::vector<int> values = {2, 10, 4, 3, 8, 20, 9, 3};
 
@@ -291,16 +287,16 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
     ASSERT_THAT(pi.Tick(*continuation), IsOk());
   }
 
-  EXPECT_EQ(send_queue.size(), 8);
+  EXPECT_EQ(send_queue.GetSize(), 8);
 
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(2, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(16, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(71, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(69, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(81, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(122, 32))));
-  EXPECT_THAT(send_queue.Dequeue(), IsOkAndHolds(Value(UBits(157, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(2, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(16, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(44, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(71, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(69, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(81, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(122, 32))));
+  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(157, 32))));
 }
 
 }  // namespace

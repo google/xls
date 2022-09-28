@@ -27,9 +27,9 @@
 namespace xls {
 namespace {
 
-using status_testing::IsOkAndHolds;
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
+using ::testing::Optional;
 
 class ProcNetworkInterpreterTest : public IrTestBase {};
 
@@ -117,27 +117,26 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithExplicitTicks) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
 
-  EXPECT_TRUE(queue.empty());
+  EXPECT_TRUE(queue.IsEmpty());
   XLS_ASSERT_OK(interpreter->Tick());
-  EXPECT_EQ(queue.size(), 1);
+  EXPECT_EQ(queue.GetSize(), 1);
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(5, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(5, 32))));
 
   XLS_ASSERT_OK(interpreter->Tick());
   XLS_ASSERT_OK(interpreter->Tick());
   XLS_ASSERT_OK(interpreter->Tick());
 
-  EXPECT_EQ(queue.size(), 3);
+  EXPECT_EQ(queue.GetSize(), 3);
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(15, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(25, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(35, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(15, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(25, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(35, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilOutput) {
@@ -150,20 +149,19 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilOutput) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(channel);
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{channel, 4}}));
   EXPECT_EQ(tick_count, 4);
-  EXPECT_EQ(queue.size(), 4);
+  EXPECT_EQ(queue.GetSize(), 4);
 
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(5, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(15, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(25, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(35, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(5, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(15, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(25, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(35, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilBlocked) {
@@ -176,9 +174,8 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilBlocked) {
                                channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
 
   EXPECT_THAT(interpreter->TickUntilBlocked(/*max_ticks=*/100),
               StatusIs(absl::StatusCode::kDeadlineExceeded,
@@ -202,20 +199,19 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
       CreateAccumProc("accum", iota_accum_channel, out_channel, package.get())
           .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
 
   ChannelQueue& queue = interpreter->queue_manager().GetQueue(out_channel);
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{out_channel, 4}}));
 
   EXPECT_EQ(tick_count, 4);
-  EXPECT_EQ(queue.size(), 4);
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(0, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(1, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(3, 32))));
-  EXPECT_THAT(queue.Dequeue(), IsOkAndHolds(Value(UBits(6, 32))));
+  EXPECT_EQ(queue.GetSize(), 4);
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(0, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(1, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(3, 32))));
+  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(6, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
@@ -223,9 +219,9 @@ TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
   auto package = CreatePackage();
   ProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
   XLS_ASSERT_OK(pb.Build(pb.GetTokenParam(), {}));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
 
   // Ticking the proc has no observable effect, but it should not hang or crash.
   XLS_ASSERT_OK(interpreter->Tick());
@@ -270,14 +266,14 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
                                 package.get())
                     .status());
 
-  std::vector<std::unique_ptr<ChannelQueue>> queues;
-  std::vector<Value> inputs = {
-      {Value(UBits(10, 32))}, {Value(UBits(20, 32))}, {Value(UBits(30, 32))}};
-  queues.push_back(
-      std::make_unique<FixedChannelQueue>(in_channel, package.get(), inputs));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), std::move(queues)));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
+
+  XLS_ASSERT_OK(interpreter->queue_manager()
+                    .GetQueue(in_channel)
+                    .AttachGenerator(FixedValueGenerator(
+                        {Value(UBits(10, 32)), Value(UBits(20, 32)),
+                         Value(UBits(30, 32))})));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{out_channel, 3}}));
@@ -285,9 +281,9 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(out_channel);
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(10, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(30, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(60, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(10, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(30, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(60, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
@@ -302,9 +298,8 @@ TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
                                       /*out_channel=*/channel, package.get())
                     .status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), /*user_defined_queues*/ {}));
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
 
   // The interpreter can tick once without deadlocking because some instructions
   // can actually execute initially (e.g., the parameters). A subsequent call to
@@ -335,29 +330,28 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
                                            output_channel, package.get())
                     .status());
 
-  std::vector<std::unique_ptr<ChannelQueue>> queues;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
   std::vector<Value> inputs = {
       Value::Tuple({Value(UBits(1, 32)), Value(UBits(42, 8))}),
       Value::Tuple({Value(UBits(3, 32)), Value(UBits(123, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
       Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
-  queues.push_back(std::make_unique<FixedChannelQueue>(input_channel,
-                                                       package.get(), inputs));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), std::move(queues)));
+  XLS_ASSERT_OK(interpreter->queue_manager()
+                    .GetQueue(input_channel)
+                    .AttachGenerator(FixedValueGenerator(inputs)));
 
   XLS_ASSERT_OK(interpreter->TickUntilBlocked().status());
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(123, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
@@ -391,18 +385,18 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
   BValue send_if = pb.SendIf(output_channel, rx_token, rx_value_even, rx_value);
   XLS_ASSERT_OK(pb.Build(send_if, {}));
 
-  std::vector<std::unique_ptr<ChannelQueue>> queues;
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                           CreateProcNetworkInterpreter(package.get()));
+
   std::vector<Value> inputs = {
       Value::Tuple({Value(UBits(1, 32)), Value(UBits(42, 8))}),
       Value::Tuple({Value(UBits(3, 32)), Value(UBits(123, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(55, 8))}),
       Value::Tuple({Value(UBits(0, 32)), Value(UBits(66, 8))}),
       Value::Tuple({Value(UBits(2, 32)), Value(UBits(20, 8))})};
-  queues.push_back(std::make_unique<FixedChannelQueue>(input_channel,
-                                                       package.get(), inputs));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcNetworkInterpreter> interpreter,
-      CreateProcNetworkInterpreter(package.get(), std::move(queues)));
+  XLS_ASSERT_OK(interpreter->queue_manager()
+                    .GetQueue(input_channel)
+                    .AttachGenerator(FixedValueGenerator(inputs)));
 
   XLS_ASSERT_OK(interpreter->TickUntilBlocked().status());
 
@@ -410,9 +404,9 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
       interpreter->queue_manager().GetQueue(output_channel);
 
   // Only even values should make it through the filter.
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
@@ -438,8 +432,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
   BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
+
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           CreateProcNetworkInterpreter(package.get(), {}));
+                           CreateProcNetworkInterpreter(package.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{output_channel, 3}}));
@@ -447,9 +442,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(44, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
@@ -479,8 +474,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
   BValue out_send = pb.Send(output_channel, pb.GetTokenParam(), state);
   BValue state_send = pb.Send(state_channel, receive_token, next_state);
   XLS_ASSERT_OK(pb.Build(pb.AfterAll({out_send, state_send}), {}).status());
+
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
-                           CreateProcNetworkInterpreter(package.get(), {}));
+                           CreateProcNetworkInterpreter(package.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(int64_t tick_count,
                            interpreter->TickUntilOutput({{output_channel, 9}}));
@@ -488,15 +484,15 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(42, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(55, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(100, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(43, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(56, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(101, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(44, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(57, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), IsOkAndHolds(Value(UBits(102, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(55, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(100, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(56, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(101, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(44, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(57, 32))));
+  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(102, 32))));
 }
 
 }  // namespace

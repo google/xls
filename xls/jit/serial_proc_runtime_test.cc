@@ -426,9 +426,6 @@ TEST(SerialProcRuntimeTest, StateReset) {
   BValue next_int = pb.Add(st, add_lit);
   XLS_ASSERT_OK(pb.Build(send_token, {next_int}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(/*user_defined_queues=*/{}, &package));
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
 
   auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {

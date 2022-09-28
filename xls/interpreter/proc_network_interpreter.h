@@ -32,8 +32,7 @@ namespace xls {
 class ProcNetworkInterpreter {
  public:
   // Creates and returns an proc network interpreter for the given
-  // package. user_defined_queues must contain a queue for each receive-only
-  // channel in the package.
+  // package.
   static absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> Create(
       Package* package,
       std::vector<std::unique_ptr<ProcEvaluator>>&& evaluators,
@@ -114,12 +113,10 @@ class ProcNetworkInterpreter {
   absl::flat_hash_map<Proc*, EvaluatorContext> evaluator_contexts_;
 };
 
-// Create a proc network interpreter backed by ProcInterpreters for the given
-// package.
+// Create a proc network interpreter backed by ProcInterpreters and
+// ChannelQueues for the given package.
 absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
-CreateProcNetworkInterpreter(
-    Package* package,
-    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues);
+CreateProcNetworkInterpreter(Package* package);
 
 }  // namespace xls
 

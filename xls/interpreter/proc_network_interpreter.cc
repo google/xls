@@ -42,7 +42,6 @@ ProcNetworkInterpreter::Create(
       << "More evaluators than procs given.";
   auto network_interpreter = absl::WrapUnique(new ProcNetworkInterpreter(
       package, std::move(evaluator_map), std::move(queue_manager)));
-
   return std::move(network_interpreter);
 }
 
@@ -97,7 +96,7 @@ absl::StatusOr<int64_t> ProcNetworkInterpreter::TickUntilOutput(
   int64_t ticks = 0;
   auto needs_more_output = [&]() {
     for (Channel* ch : output_channels) {
-      if (queue_manager().GetQueue(ch).size() < output_counts.at(ch)) {
+      if (queue_manager().GetQueue(ch).GetSize() < output_counts.at(ch)) {
         return true;
       }
     }
@@ -193,14 +192,11 @@ ProcNetworkInterpreter::TickInternal() {
 }
 
 absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>>
-CreateProcNetworkInterpreter(
-    Package* package,
-    std::vector<std::unique_ptr<ChannelQueue>>&& user_defined_queues) {
+CreateProcNetworkInterpreter(Package* package) {
   // Create a queue manager for the queues. This factory verifies that there an
   // receive only queue for every receive only channel.
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ChannelQueueManager> queue_manager,
-      ChannelQueueManager::Create(std::move(user_defined_queues), package));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ChannelQueueManager> queue_manager,
+                       ChannelQueueManager::Create(package));
 
   // Create a ProcInterpreter for each Proc.
   std::vector<std::unique_ptr<ProcEvaluator>> proc_interpreters;

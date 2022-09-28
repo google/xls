@@ -108,8 +108,9 @@ class LlvmFunctionWrapper {
     llvm::Type* type;
   };
 
-  // Creates a new wrapper. Arguments are described above `extra_arg` if
-  // specified will be added to the function signature after all other args.
+  // Creates a new wrapper. Arguments are described above. `extra_arg`, if
+  // specified will be added to the function signature after all other
+  // args.
   static LlvmFunctionWrapper Create(
       absl::string_view name, absl::Span<Node* const> input_args,
       absl::Span<Node* const> output_args, llvm::Type* return_type,

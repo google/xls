@@ -29,7 +29,7 @@
 #include "xls/interpreter/proc_network_interpreter.h"
 #include "xls/ir/value_helpers.h"
 
-using xls::status_testing::IsOkAndHolds;
+using testing::Optional;
 
 const int determinism_test_repeat_count = 3;
 
@@ -358,8 +358,8 @@ void XlsccTestBase::ProcTest(
 
   std::vector<std::unique_ptr<xls::ChannelQueue>> queues;
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      auto interpreter, xls::CreateProcNetworkInterpreter(package_.get(), {}));
+  XLS_ASSERT_OK_AND_ASSIGN(auto interpreter,
+                           xls::CreateProcNetworkInterpreter(package_.get()));
 
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
@@ -398,9 +398,9 @@ void XlsccTestBase::ProcTest(
                                package_->GetChannel(ch_name));
       xls::ChannelQueue& ch_out_queue = queue_manager.GetQueue(ch_out);
 
-      while (!ch_out_queue.empty()) {
+      while (!ch_out_queue.IsEmpty()) {
         const xls::Value& next_output = values.front();
-        EXPECT_THAT(ch_out_queue.Dequeue(), IsOkAndHolds(next_output));
+        EXPECT_THAT(ch_out_queue.Dequeue(), Optional(next_output));
         values.pop_front();
       }
 
@@ -416,7 +416,7 @@ void XlsccTestBase::ProcTest(
                              package_->GetChannel(ch_name));
     xls::ChannelQueue& ch_out_queue = queue_manager.GetQueue(ch_out);
 
-    EXPECT_EQ(ch_out_queue.size(), 0);
+    EXPECT_EQ(ch_out_queue.GetSize(), 0);
   }
 
   EXPECT_GE(tick, min_ticks);

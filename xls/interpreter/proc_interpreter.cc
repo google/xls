@@ -56,7 +56,8 @@ class ProcIrInterpreter : public IrInterpreter {
       }
     }
 
-    if (queue->empty()) {
+    std::optional<Value> value = queue->Dequeue();
+    if (!value.has_value()) {
       if (receive->is_blocking()) {
         // Record the channel this receive instruction is blocked on and exit.
         blocked_channel_ = queue->channel();
@@ -67,14 +68,12 @@ class ProcIrInterpreter : public IrInterpreter {
       return SetValueResult(receive, ZeroOfType(receive->GetType()));
     }
 
-    XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
-
     if (receive->is_blocking()) {
-      return SetValueResult(receive, Value::Tuple({Value::Token(), value}));
+      return SetValueResult(receive, Value::Tuple({Value::Token(), *value}));
     }
 
     return SetValueResult(
-        receive, Value::Tuple({Value::Token(), value, Value(UBits(1, 1))}));
+        receive, Value::Tuple({Value::Token(), *value, Value(UBits(1, 1))}));
   }
 
   absl::Status HandleSend(Send* send) override {

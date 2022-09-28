@@ -93,8 +93,7 @@ absl::Status RunIrInterpreter(
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels) {
-  XLS_ASSIGN_OR_RETURN(auto interpreter,
-                       CreateProcNetworkInterpreter(package, {}));
+  XLS_ASSIGN_OR_RETURN(auto interpreter, CreateProcNetworkInterpreter(package));
 
   ChannelQueueManager& queue_manager = interpreter->queue_manager();
   for (const auto& [channel_name, values] : inputs_for_channels) {
@@ -145,18 +144,18 @@ absl::Status RunIrInterpreter(
                          queue_manager.GetQueueByName(channel_name));
     uint64_t processed_count = 0;
     for (const Value& value : values) {
-      if (out_queue->empty()) {
+      std::optional<Value> out_val = out_queue->Dequeue();
+      if (!out_val.has_value()) {
         XLS_LOG(WARNING) << "Warning: Channel " << channel_name
                          << " didn't consume "
                          << values.size() - processed_count
                          << " expected values" << std::endl;
         break;
       }
-      XLS_ASSIGN_OR_RETURN(Value out_val, out_queue->Dequeue());
-      if (value != out_val) {
-        XLS_RET_CHECK_EQ(value, out_val) << absl::StreamFormat(
+      if (value != *out_val) {
+        XLS_RET_CHECK_EQ(value, *out_val) << absl::StreamFormat(
             "Mismatched (channel=%s) after %d outputs (%s != %s)", channel_name,
-            processed_count, value.ToString(), out_val.ToString());
+            processed_count, value.ToString(), out_val->ToString());
       }
       checked_any_output = true;
       ++processed_count;
