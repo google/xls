@@ -3583,6 +3583,45 @@ TEST_F(ProcWithStateTest, ProcWithStateSingleCycle) {
   TestBlockWithSchedule(scheduling_options);
 }
 
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn2Stages) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(2);
+
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+
+  TestBlockWithSchedule(scheduling_options);
+}
+
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3Stages) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(3);
+
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "b_in", xls::IODirection::kReceive, "c_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+
+  TestBlockWithSchedule(scheduling_options);
+}
+
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3StagesWithExtra) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(4);
+
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "b_in", xls::IODirection::kReceive, "c_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+
+  TestBlockWithSchedule(scheduling_options);
+}
+
 INSTANTIATE_TEST_SUITE_P(
     NonblockingReceivesProcTestSweep, NonblockingReceivesProcTestSweepFixture,
     testing::Combine(testing::Values(1, 2, 3), testing::Values(false, true),

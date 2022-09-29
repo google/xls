@@ -60,9 +60,7 @@ class UnionFind {
   }
 
   // Returns every element ever inserted, with unspecified ordering.
-  const std::vector<T>& GetElements() {
-    return union_find_map_.GetRepresentatives();
-  }
+  const std::vector<T>& GetElements() { return union_find_map_.GetKeys(); }
 
   // Returns the number of elements in the data structure.
   int64_t size() const { return union_find_map_.GetKeys().size(); }

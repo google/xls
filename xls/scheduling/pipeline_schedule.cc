@@ -49,25 +49,11 @@ int64_t MaximumCycle(const ScheduleCycleMap& cycle_map) {
 }
 
 // Returns the nodes of `f` which must be scheduled in the first stage of a
-// pipeline. For functions this is parameters. For procs, this is receive nodes
-// and next state nodes.
+// pipeline. For functions this is parameters.
 std::vector<Node*> FirstStageNodes(FunctionBase* f) {
   if (Function* function = dynamic_cast<Function*>(f)) {
     return std::vector<Node*>(function->params().begin(),
                               function->params().end());
-  }
-  if (Proc* proc = dynamic_cast<Proc*>(f)) {
-    std::vector<Node*> nodes(proc->params().begin(), proc->params().end());
-    for (Node* node : proc->nodes()) {
-      // TODO(tedhong): 2021/10/14 Make this more flexible (ex. for ii>N),
-      // where the next state node must be scheduled before a specific state
-      // but not necessarily the 1st stage.
-      if (std::find(proc->NextState().begin(), proc->NextState().end(), node) !=
-          proc->NextState().end()) {
-        nodes.push_back(node);
-      }
-    }
-    return nodes;
   }
 
   return {};
@@ -184,7 +170,8 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 // schedule the function into a pipeline with the given number of stages.
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
     FunctionBase* f, int64_t pipeline_stages,
-    const DelayEstimator& delay_estimator) {
+    const DelayEstimator& delay_estimator,
+    absl::Span<const SchedulingConstraint> constraints) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
   XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
   auto topo_sort_it = TopoSort(f);
@@ -206,12 +193,15 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
           search_start, search_end,
           [&](int64_t clk_period_ps) -> absl::StatusOr<bool> {
             absl::StatusOr<sched::ScheduleBounds> bounds_or = ConstructBounds(
-                f, clk_period_ps, topo_sort,
-                /*schedule_length=*/absl::nullopt, delay_estimator);
+                f, clk_period_ps, topo_sort, pipeline_stages, delay_estimator);
             if (!bounds_or.ok()) {
               return false;
             }
-            return bounds_or.value().max_lower_bound() < pipeline_stages;
+            sched::ScheduleBounds bounds = bounds_or.value();
+            absl::StatusOr<ScheduleCycleMap> scm =
+                SDCScheduler(f, pipeline_stages, clk_period_ps, delay_estimator,
+                             &bounds, constraints, /*check_feasibility=*/true);
+            return scm.ok();
           }));
   XLS_VLOG(4) << "minimum clock period = " << min_period;
 
@@ -342,9 +332,10 @@ std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
     // A pipeline length is specified, but no target clock period. Determine
     // the minimum clock period for which the function can be scheduled in the
     // given pipeline length.
-    XLS_ASSIGN_OR_RETURN(clock_period_ps,
-                         FindMinimumClockPeriod(f, *options.pipeline_stages(),
-                                                input_delay_added));
+    XLS_ASSIGN_OR_RETURN(
+        clock_period_ps,
+        FindMinimumClockPeriod(f, *options.pipeline_stages(), input_delay_added,
+                               options.constraints()));
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
