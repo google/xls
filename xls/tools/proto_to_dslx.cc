@@ -34,7 +34,7 @@ namespace internal {
 struct MessageRecord {
   struct ChildElement {
     // Message name (struct or enum) or bit width (integer).
-    absl::variant<std::string, google::protobuf::FieldDescriptor::Type> type;
+    std::variant<std::string, google::protobuf::FieldDescriptor::Type> type;
 
     // The greatest number of repeated entries seen in any single instance,
     // across all instances of this message.
@@ -51,7 +51,7 @@ struct MessageRecord {
   absl::flat_hash_map<std::string, ChildElement> children;
 
   // The [proto] descriptor for this message/struct, if applicable.
-  absl::variant<const google::protobuf::Descriptor*, const google::protobuf::EnumDescriptor*>
+  std::variant<const google::protobuf::Descriptor*, const google::protobuf::EnumDescriptor*>
       descriptor;
 
   // The typedef associated with this message, if it describes a struct.
@@ -281,8 +281,8 @@ absl::StatusOr<dslx::Expr*> MakeZeroValuedElement(
   if (dslx::TypeRefTypeAnnotation* typeref_type =
           dynamic_cast<dslx::TypeRefTypeAnnotation*>(type_annot)) {
     // TODO(rspringer): Could be enumdef or structdef!
-    dslx::StructDef* struct_def = absl::get<dslx::StructDef*>(
-        typeref_type->type_ref()->type_definition());
+    dslx::StructDef* struct_def =
+        std::get<dslx::StructDef*>(typeref_type->type_ref()->type_definition());
     std::vector<std::pair<std::string, dslx::Expr*>> members;
     for (const auto& child : struct_def->members()) {
       XLS_ASSIGN_OR_RETURN(dslx::Expr * expr,
@@ -455,7 +455,7 @@ absl::Status CollectElementCounts(const std::string& top_package,
 // Module.
 absl::Status EmitEnumDef(dslx::Module* module, MessageRecord* message_record) {
   const EnumDescriptor* descriptor =
-      absl::get<const EnumDescriptor*>(message_record->descriptor);
+      std::get<const EnumDescriptor*>(message_record->descriptor);
   std::vector<dslx::EnumMember> members;
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
   int num_values = descriptor->value_count();
@@ -498,7 +498,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
   std::vector<std::pair<dslx::NameDef*, dslx::TypeAnnotation*>> elements;
 
   const Descriptor* descriptor =
-      absl::get<const Descriptor*>(message_record->descriptor);
+      std::get<const Descriptor*>(message_record->descriptor);
   for (int i = 0; i < descriptor->field_count(); i++) {
     const FieldDescriptor* fd = descriptor->field(i);
     auto* name_def = module->Make<dslx::NameDef>(span, fd->name(), nullptr);
@@ -509,9 +509,9 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
     }
 
     dslx::TypeAnnotation* type_annot;
-    if (absl::holds_alternative<std::string>(element.type)) {
+    if (std::holds_alternative<std::string>(element.type)) {
       // Message/struct or enum.
-      std::string type_name = absl::get<std::string>(element.type);
+      std::string type_name = std::get<std::string>(element.type);
       auto* type_ref = module->Make<dslx::TypeRef>(
           span, type_name, name_to_record->at(type_name)->dslx_typedef);
       type_annot = module->Make<dslx::TypeRefTypeAnnotation>(
@@ -519,7 +519,7 @@ absl::Status EmitStructDef(dslx::Module* module, MessageRecord* message_record,
     } else {
       // Anything else that's supported, i.e., a number.
       FieldDescriptor::Type field_type =
-          absl::get<FieldDescriptor::Type>(element.type);
+          std::get<FieldDescriptor::Type>(element.type);
       dslx::BuiltinTypeAnnotation* bits_type;
       if (IsFieldSigned(field_type)) {
         bits_type = module->Make<dslx::BuiltinTypeAnnotation>(
@@ -592,8 +592,8 @@ absl::Status EmitTypeDefs(dslx::Module* module, NameToRecord* name_to_record) {
     blockers[message_record.get()] = BlockingSet();
     for (const auto& [field_name, element] : message_record->children) {
       if (!element.unsupported &&
-          absl::holds_alternative<std::string>(element.type)) {
-        std::string message_name = absl::get<std::string>(element.type);
+          std::holds_alternative<std::string>(element.type)) {
+        std::string message_name = std::get<std::string>(element.type);
         blockers[message_record.get()].insert(
             name_to_record->at(message_name).get());
       }
@@ -613,7 +613,7 @@ absl::Status EmitTypeDefs(dslx::Module* module, NameToRecord* name_to_record) {
       }
 
       progress = true;
-      if (absl::holds_alternative<const Descriptor*>(
+      if (std::holds_alternative<const Descriptor*>(
               message_record->descriptor)) {
         XLS_RETURN_IF_ERROR(
             EmitStructDef(module, message_record, name_to_record));
@@ -757,9 +757,9 @@ absl::Status EmitEnumData(
           reflection->GetRepeatedEnum(message, fd, submsg_idx);
       std::string type_name = GetParentPrefixedName(top_package, evd->type());
       auto* enum_def =
-          absl::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
+          std::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
       // auto* enum_def =
-      // absl::get<dslx::EnumDef*>(message_record.dslx_typedef);
+      // std::get<dslx::EnumDef*>(message_record.dslx_typedef);
       auto* name_ref =
           module->Make<dslx::NameRef>(span, type_name, enum_def->name_def());
       array_elements.push_back(
@@ -768,7 +768,7 @@ absl::Status EmitEnumData(
 
     std::string type_name = GetParentPrefixedName(top_package, ed);
     auto* enum_def =
-        absl::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
+        std::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
     auto* name_ref =
         module->Make<dslx::NameRef>(span, type_name, enum_def->name_def());
     return EmitArray(
@@ -784,7 +784,7 @@ absl::Status EmitEnumData(
   const google::protobuf::EnumValueDescriptor* evd = reflection->GetEnum(message, fd);
   std::string type_name = GetParentPrefixedName(top_package, evd->type());
   auto* enum_def =
-      absl::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
+      std::get<dslx::EnumDef*>(name_to_record.at(type_name)->dslx_typedef);
   auto* name_ref =
       module->Make<dslx::NameRef>(span, type_name, enum_def->name_def());
   auto* colon_ref = module->Make<dslx::ColonRef>(span, name_ref, evd->name());
@@ -799,7 +799,7 @@ absl::Status EmitIntegralData(
     std::vector<std::pair<std::string, dslx::Expr*>>* elements) {
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
   std::string field_name = fd->name();
-  FieldDescriptor::Type field_type = absl::get<FieldDescriptor::Type>(
+  FieldDescriptor::Type field_type = std::get<FieldDescriptor::Type>(
       message_record.children.at(fd->name()).type);
   dslx::BuiltinTypeAnnotation* bits_type;
   if (IsFieldSigned(field_type)) {
@@ -872,7 +872,7 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
 
   dslx::Span span(dslx::Pos{}, dslx::Pos{});
   dslx::TypeDefinition struct_def =
-      absl::get<dslx::StructDef*>(message_record.dslx_typedef);
+      std::get<dslx::StructDef*>(message_record.dslx_typedef);
   std::vector<std::pair<std::string, dslx::Expr*>> elements;
   for (int field_idx = 0; field_idx < descriptor->field_count(); field_idx++) {
     const FieldDescriptor* fd = descriptor->field(field_idx);
@@ -900,15 +900,15 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
     }
   }
 
-  XLS_RET_CHECK(absl::holds_alternative<dslx::StructDef*>(struct_def) ||
-                absl::holds_alternative<dslx::ColonRef*>(struct_def));
-  if (absl::holds_alternative<dslx::StructDef*>(struct_def)) {
+  XLS_RET_CHECK(std::holds_alternative<dslx::StructDef*>(struct_def) ||
+                std::holds_alternative<dslx::ColonRef*>(struct_def));
+  if (std::holds_alternative<dslx::StructDef*>(struct_def)) {
     return module->Make<dslx::StructInstance>(
-        span, absl::get<dslx::StructDef*>(struct_def), elements);
+        span, std::get<dslx::StructDef*>(struct_def), elements);
   }
 
   return module->Make<dslx::StructInstance>(
-      span, absl::get<dslx::ColonRef*>(struct_def), elements);
+      span, std::get<dslx::ColonRef*>(struct_def), elements);
 }
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(

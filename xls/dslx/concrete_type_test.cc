@@ -200,13 +200,13 @@ TEST(ConcreteTypeDimTest, TestArithmetic) {
 }
 
 TEST(ConcreteTypeDimTest, TestGetAs64BitsU64) {
-  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+  std::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
       InterpValue::MakeUBits(/*bit_count=*/64, static_cast<uint64_t>(-1));
   EXPECT_THAT(ConcreteTypeDim::GetAs64Bits(variant), IsOkAndHolds(int64_t{-1}));
 }
 
 TEST(ConcreteTypeDimTest, TestGetAs64BitsU128) {
-  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+  std::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
       InterpValue::MakeBits(/*is_signed=*/false, Bits::AllOnes(128));
   EXPECT_THAT(
       ConcreteTypeDim::GetAs64Bits(variant),
@@ -215,13 +215,13 @@ TEST(ConcreteTypeDimTest, TestGetAs64BitsU128) {
 }
 
 TEST(ConcreteTypeDimTest, TestGetAs64BitsS128) {
-  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+  std::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
       InterpValue::MakeBits(/*is_signed=*/true, Bits::AllOnes(128));
   EXPECT_THAT(ConcreteTypeDim::GetAs64Bits(variant), IsOkAndHolds(-1));
 }
 
 TEST(ConcreteTypeDimTest, TestGetAs64BitsParametricSymbol) {
-  absl::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
+  std::variant<InterpValue, std::unique_ptr<ParametricExpression>> variant =
       std::make_unique<ParametricSymbol>("N", kFakeSpan);
   EXPECT_THAT(ConcreteTypeDim::GetAs64Bits(variant),
               StatusIs(absl::StatusCode::kInvalidArgument,

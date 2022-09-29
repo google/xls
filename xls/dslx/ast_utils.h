@@ -44,7 +44,7 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 // reference or the EnumDef whose attribute is specified, or a builtin type
 // (with a constant on it, a la `u7::MAX`).
 absl::StatusOr<
-    absl::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
 ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
                        const ColonRef* colon_ref);
 
@@ -74,11 +74,11 @@ struct GetNth {
 // Recursive helper for WidenVariant below -- attempts to get the Nth type from
 // the narrower parameter pack and place it into a variant for ToTypes.
 template <int N, typename... ToTypes, typename... FromTypes>
-inline absl::variant<ToTypes...> TryWidenVariant(
-    const absl::variant<FromTypes...>& v) {
+inline std::variant<ToTypes...> TryWidenVariant(
+    const std::variant<FromTypes...>& v) {
   using TryT = typename GetNth<N, FromTypes...>::type;
-  if (absl::holds_alternative<TryT>(v)) {
-    return absl::get<TryT>(v);
+  if (std::holds_alternative<TryT>(v)) {
+    return std::get<TryT>(v);
   }
   if constexpr (N == 0) {
     XLS_LOG(FATAL) << "Could not find variant in FromTypes.";
@@ -93,8 +93,8 @@ inline absl::variant<ToTypes...> TryWidenVariant(
 // where `int, double` would be FromTypes and `int, double, std::string` would
 // be ToTypes.
 template <typename... ToTypes, typename... FromTypes>
-inline absl::variant<ToTypes...> WidenVariant(
-    const absl::variant<FromTypes...>& v) {
+inline std::variant<ToTypes...> WidenVariant(
+    const std::variant<FromTypes...>& v) {
   return TryWidenVariant<sizeof...(FromTypes) - 1, ToTypes...>(v);
 }
 

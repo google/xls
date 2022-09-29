@@ -32,8 +32,8 @@ ResolveTypeDefToDirectColonRefSubject(ImportData* import_data,
               << type_def->ToString() << "`";
 
   TypeDefinition td = type_def;
-  while (absl::holds_alternative<TypeDef*>(td)) {
-    TypeDef* type_def = absl::get<TypeDef*>(td);
+  while (std::holds_alternative<TypeDef*>(td)) {
+    TypeDef* type_def = std::get<TypeDef*>(td);
     XLS_VLOG(5) << "TypeDef: `" << type_def->ToString() << "`";
     TypeAnnotation* type = type_def->type_annotation();
     XLS_VLOG(5) << "TypeAnnotation: `" << type->ToString() << "`";
@@ -58,32 +58,32 @@ ResolveTypeDefToDirectColonRefSubject(ImportData* import_data,
     td = type_ref_type->type_ref()->type_definition();
   }
 
-  if (absl::holds_alternative<ColonRef*>(td)) {
-    ColonRef* colon_ref = absl::get<ColonRef*>(td);
+  if (std::holds_alternative<ColonRef*>(td)) {
+    ColonRef* colon_ref = std::get<ColonRef*>(td);
     XLS_ASSIGN_OR_RETURN(auto subject, ResolveColonRefSubject(
                                            import_data, type_info, colon_ref));
-    XLS_RET_CHECK(absl::holds_alternative<Module*>(subject));
-    Module* module = absl::get<Module*>(subject);
+    XLS_RET_CHECK(std::holds_alternative<Module*>(subject));
+    Module* module = std::get<Module*>(subject);
     XLS_ASSIGN_OR_RETURN(td, module->GetTypeDefinition(colon_ref->attr()));
 
-    if (absl::holds_alternative<TypeDef*>(td)) {
+    if (std::holds_alternative<TypeDef*>(td)) {
       // We need to get the right type info for the enum's containing module. We
       // can get the top-level module since [currently?] enums can't be
       // parameterized.
       type_info = import_data->GetRootTypeInfo(module).value();
       return ResolveTypeDefToDirectColonRefSubject(import_data, type_info,
-                                                   absl::get<TypeDef*>(td));
+                                                   std::get<TypeDef*>(td));
     }
   }
 
-  if (!absl::holds_alternative<EnumDef*>(td)) {
+  if (!std::holds_alternative<EnumDef*>(td)) {
     return absl::InternalError(
         "ResolveTypeDefToDirectColonRefSubject() can only be called when the "
         "TypeDef "
         "directory or indirectly refers to an EnumDef.");
   }
 
-  return absl::get<EnumDef*>(td);
+  return std::get<EnumDef*>(td);
 }
 
 void FlattenToSetInternal(const AstNode* node,
@@ -102,7 +102,7 @@ bool IsBuiltinFn(Expr* callee) {
     return false;
   }
 
-  return absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def());
+  return std::holds_alternative<BuiltinNameDef*>(name_ref->name_def());
 }
 
 absl::StatusOr<std::string> GetBuiltinName(Expr* callee) {
@@ -163,19 +163,19 @@ absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info) {
 //
 // Returns the entity the subject name_ref is referring to.
 static absl::StatusOr<
-    absl::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
 ResolveColonRefNameRefSubject(NameRef* name_ref, ImportData* import_data,
                               const TypeInfo* type_info) {
   XLS_VLOG(5) << "ResolveColonRefNameRefSubject for `" << name_ref->ToString()
               << "`";
 
-  absl::variant<const NameDef*, BuiltinNameDef*> any_name_def =
+  std::variant<const NameDef*, BuiltinNameDef*> any_name_def =
       name_ref->name_def();
-  if (absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
+  if (std::holds_alternative<BuiltinNameDef*>(any_name_def)) {
     return std::get<BuiltinNameDef*>(any_name_def);
   }
 
-  const NameDef* name_def = absl::get<const NameDef*>(any_name_def);
+  const NameDef* name_def = std::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
   XLS_VLOG(5) << " ResolveColonRefNameRefSubject definer: `"
               << definer->ToString()
@@ -214,38 +214,38 @@ ResolveColonRefNameRefSubject(NameRef* name_ref, ImportData* import_data,
 }
 
 absl::StatusOr<
-    absl::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
 ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
                        const ColonRef* colon_ref) {
   XLS_VLOG(5) << "ResolveColonRefSubject for " << colon_ref->ToString();
 
-  if (absl::holds_alternative<NameRef*>(colon_ref->subject())) {
-    NameRef* name_ref = absl::get<NameRef*>(colon_ref->subject());
+  if (std::holds_alternative<NameRef*>(colon_ref->subject())) {
+    NameRef* name_ref = std::get<NameRef*>(colon_ref->subject());
     return ResolveColonRefNameRefSubject(name_ref, import_data, type_info);
   }
 
-  XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(colon_ref->subject()));
-  ColonRef* subject = absl::get<ColonRef*>(colon_ref->subject());
+  XLS_RET_CHECK(std::holds_alternative<ColonRef*>(colon_ref->subject()));
+  ColonRef* subject = std::get<ColonRef*>(colon_ref->subject());
   XLS_ASSIGN_OR_RETURN(auto resolved_subject,
                        ResolveColonRefSubject(import_data, type_info, subject));
   // Has to be a module, since it's a ColonRef inside a ColonRef.
-  XLS_RET_CHECK(absl::holds_alternative<Module*>(resolved_subject));
-  Module* module = absl::get<Module*>(resolved_subject);
+  XLS_RET_CHECK(std::holds_alternative<Module*>(resolved_subject));
+  Module* module = std::get<Module*>(resolved_subject);
 
   // And the subject has to be a type, namely an enum, since the ColonRef must
   // be of the form: <MODULE>::SOMETHING::SOMETHING_ELSE. Keep in mind, though,
   // that we might have to traverse an EnumDef.
   XLS_ASSIGN_OR_RETURN(TypeDefinition td,
                        module->GetTypeDefinition(subject->attr()));
-  if (absl::holds_alternative<TypeDef*>(td)) {
+  if (std::holds_alternative<TypeDef*>(td)) {
     XLS_ASSIGN_OR_RETURN(auto resolved,
                          ResolveTypeDefToDirectColonRefSubject(
-                             import_data, type_info, absl::get<TypeDef*>(td)));
+                             import_data, type_info, std::get<TypeDef*>(td)));
     return WidenVariant<Module*, EnumDef*, BuiltinNameDef*,
                         ArrayTypeAnnotation*>(resolved);
   }
 
-  return absl::get<EnumDef*>(td);
+  return std::get<EnumDef*>(td);
 }
 
 absl::Status VerifyParentage(const Module* module) {

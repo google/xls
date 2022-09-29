@@ -188,7 +188,7 @@ FreeVariables FreeVariables::DropBuiltinDefs() const {
   for (const auto& [identifier, name_refs] : values_) {
     for (const NameRef* ref : name_refs) {
       auto def = ref->name_def();
-      if (absl::holds_alternative<BuiltinNameDef*>(def)) {
+      if (std::holds_alternative<BuiltinNameDef*>(def)) {
         continue;
       }
       result.Add(identifier, ref);
@@ -503,8 +503,8 @@ std::vector<AstNode*> StructInstance::GetChildren(bool want_types) const {
 
 std::string StructInstance::ToString() const {
   std::string type_name;
-  if (absl::holds_alternative<StructDef*>(struct_ref_)) {
-    type_name = absl::get<StructDef*>(struct_ref_)->identifier();
+  if (std::holds_alternative<StructDef*>(struct_ref_)) {
+    type_name = std::get<StructDef*>(struct_ref_)->identifier();
   } else {
     type_name = ToAstNode(struct_ref_)->ToString();
   }
@@ -624,15 +624,15 @@ ColonRef::ColonRef(Module* owner, Span span, Subject subject, std::string attr)
     : Expr(owner, std::move(span)), subject_(subject), attr_(std::move(attr)) {}
 
 std::optional<Import*> ColonRef::ResolveImportSubject() const {
-  if (!absl::holds_alternative<NameRef*>(subject_)) {
+  if (!std::holds_alternative<NameRef*>(subject_)) {
     return absl::nullopt;
   }
-  auto* name_ref = absl::get<NameRef*>(subject_);
+  auto* name_ref = std::get<NameRef*>(subject_);
   AnyNameDef any_name_def = name_ref->name_def();
-  if (!absl::holds_alternative<const NameDef*>(any_name_def)) {
+  if (!std::holds_alternative<const NameDef*>(any_name_def)) {
     return absl::nullopt;
   }
-  const auto* name_def = absl::get<const NameDef*>(any_name_def);
+  const auto* name_def = std::get<const NameDef*>(any_name_def);
   AstNode* definer = name_def->definer();
   Import* import = dynamic_cast<Import*>(definer);
   if (import == nullptr) {
@@ -666,8 +666,8 @@ std::string ChannelDecl::ToString() const {
 
 std::optional<Function*> Module::GetFunction(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<Function*>(member)) {
-      Function* f = absl::get<Function*>(member);
+    if (std::holds_alternative<Function*>(member)) {
+      Function* f = std::get<Function*>(member);
       if (f->identifier() == target_name) {
         return f;
       }
@@ -678,8 +678,8 @@ std::optional<Function*> Module::GetFunction(absl::string_view target_name) {
 
 std::optional<Proc*> Module::GetProc(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<Proc*>(member)) {
-      Proc* p = absl::get<Proc*>(member);
+    if (std::holds_alternative<Proc*>(member)) {
+      Proc* p = std::get<Proc*>(member);
       if (p->identifier() == target_name) {
         return p;
       }
@@ -690,8 +690,8 @@ std::optional<Proc*> Module::GetProc(absl::string_view target_name) {
 
 absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<TestFunction*>(member)) {
-      TestFunction* t = absl::get<TestFunction*>(member);
+    if (std::holds_alternative<TestFunction*>(member)) {
+      TestFunction* t = std::get<TestFunction*>(member);
       if (t->identifier() == target_name) {
         return t;
       }
@@ -703,8 +703,8 @@ absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
 
 absl::StatusOr<TestProc*> Module::GetTestProc(absl::string_view target_name) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<TestProc*>(member)) {
-      auto* t = absl::get<TestProc*>(member);
+    if (std::holds_alternative<TestProc*>(member)) {
+      auto* t = std::get<TestProc*>(member);
       if (t->proc()->identifier() == target_name) {
         return t;
       }
@@ -717,11 +717,11 @@ absl::StatusOr<TestProc*> Module::GetTestProc(absl::string_view target_name) {
 std::vector<std::string> Module::GetTestNames() const {
   std::vector<std::string> result;
   for (auto& member : top_) {
-    if (absl::holds_alternative<TestFunction*>(member)) {
-      TestFunction* t = absl::get<TestFunction*>(member);
+    if (std::holds_alternative<TestFunction*>(member)) {
+      TestFunction* t = std::get<TestFunction*>(member);
       result.push_back(t->identifier());
-    } else if (absl::holds_alternative<TestProc*>(member)) {
-      TestProc* tp = absl::get<TestProc*>(member);
+    } else if (std::holds_alternative<TestProc*>(member)) {
+      TestProc* tp = std::get<TestProc*>(member);
       result.push_back(tp->proc()->identifier());
     }
   }
@@ -731,8 +731,8 @@ std::vector<std::string> Module::GetTestNames() const {
 std::vector<std::string> Module::GetFunctionNames() const {
   std::vector<std::string> result;
   for (auto& member : top_) {
-    if (absl::holds_alternative<Function*>(member)) {
-      result.push_back(absl::get<Function*>(member)->identifier());
+    if (std::holds_alternative<Function*>(member)) {
+      result.push_back(std::get<Function*>(member)->identifier());
     }
   }
   return result;
@@ -749,44 +749,44 @@ const EnumDef* Module::FindEnumDef(const Span& span) const {
 std::optional<ModuleMember*> Module::FindMemberWithName(
     absl::string_view target) {
   for (ModuleMember& member : top_) {
-    if (absl::holds_alternative<Function*>(member)) {
-      if (absl::get<Function*>(member)->identifier() == target) {
+    if (std::holds_alternative<Function*>(member)) {
+      if (std::get<Function*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<Proc*>(member)) {
-      if (absl::get<Proc*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<Proc*>(member)) {
+      if (std::get<Proc*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<TestFunction*>(member)) {
-      if (absl::get<TestFunction*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<TestFunction*>(member)) {
+      if (std::get<TestFunction*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<TestProc*>(member)) {
-      if (absl::get<TestProc*>(member)->proc()->identifier() == target) {
+    } else if (std::holds_alternative<TestProc*>(member)) {
+      if (std::get<TestProc*>(member)->proc()->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<QuickCheck*>(member)) {
-      if (absl::get<QuickCheck*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<QuickCheck*>(member)) {
+      if (std::get<QuickCheck*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<TypeDef*>(member)) {
-      if (absl::get<TypeDef*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<TypeDef*>(member)) {
+      if (std::get<TypeDef*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<StructDef*>(member)) {
-      if (absl::get<StructDef*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<StructDef*>(member)) {
+      if (std::get<StructDef*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<ConstantDef*>(member)) {
-      if (absl::get<ConstantDef*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<ConstantDef*>(member)) {
+      if (std::get<ConstantDef*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<EnumDef*>(member)) {
-      if (absl::get<EnumDef*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<EnumDef*>(member)) {
+      if (std::get<EnumDef*>(member)->identifier() == target) {
         return &member;
       }
-    } else if (absl::holds_alternative<Import*>(member)) {
-      if (absl::get<Import*>(member)->identifier() == target) {
+    } else if (std::holds_alternative<Import*>(member)) {
+      if (std::get<Import*>(member)->identifier() == target) {
         return &member;
       }
     } else {
@@ -803,25 +803,25 @@ absl::StatusOr<ConstantDef*> Module::GetConstantDef(absl::string_view target) {
     return absl::NotFoundError(
         absl::StrFormat("Could not find member named '%s' in module.", target));
   }
-  if (!absl::holds_alternative<ConstantDef*>(*member.value())) {
+  if (!std::holds_alternative<ConstantDef*>(*member.value())) {
     return absl::NotFoundError(absl::StrFormat(
         "Member named '%s' in module was not a constant.", target));
   }
-  return absl::get<ConstantDef*>(*member.value());
+  return std::get<ConstantDef*>(*member.value());
 }
 
 absl::flat_hash_map<std::string, TypeDefinition>
 Module::GetTypeDefinitionByName() const {
   absl::flat_hash_map<std::string, TypeDefinition> result;
   for (auto& member : top_) {
-    if (absl::holds_alternative<TypeDef*>(member)) {
-      TypeDef* td = absl::get<TypeDef*>(member);
+    if (std::holds_alternative<TypeDef*>(member)) {
+      TypeDef* td = std::get<TypeDef*>(member);
       result[td->identifier()] = td;
-    } else if (absl::holds_alternative<EnumDef*>(member)) {
-      EnumDef* enum_ = absl::get<EnumDef*>(member);
+    } else if (std::holds_alternative<EnumDef*>(member)) {
+      EnumDef* enum_ = std::get<EnumDef*>(member);
       result[enum_->identifier()] = enum_;
-    } else if (absl::holds_alternative<StructDef*>(member)) {
-      StructDef* struct_ = absl::get<StructDef*>(member);
+    } else if (std::holds_alternative<StructDef*>(member)) {
+      StructDef* struct_ = std::get<StructDef*>(member);
       result[struct_->identifier()] = struct_;
     }
   }
@@ -831,14 +831,14 @@ Module::GetTypeDefinitionByName() const {
 std::vector<TypeDefinition> Module::GetTypeDefinitions() const {
   std::vector<TypeDefinition> results;
   for (auto& member : top_) {
-    if (absl::holds_alternative<TypeDef*>(member)) {
-      TypeDef* td = absl::get<TypeDef*>(member);
+    if (std::holds_alternative<TypeDef*>(member)) {
+      TypeDef* td = std::get<TypeDef*>(member);
       results.push_back(td);
-    } else if (absl::holds_alternative<EnumDef*>(member)) {
-      EnumDef* enum_def = absl::get<EnumDef*>(member);
+    } else if (std::holds_alternative<EnumDef*>(member)) {
+      EnumDef* enum_def = std::get<EnumDef*>(member);
       results.push_back(enum_def);
-    } else if (absl::holds_alternative<StructDef*>(member)) {
-      StructDef* struct_def = absl::get<StructDef*>(member);
+    } else if (std::holds_alternative<StructDef*>(member)) {
+      StructDef* struct_def = std::get<StructDef*>(member);
       results.push_back(struct_def);
     }
   }
@@ -979,8 +979,8 @@ std::vector<AstNode*> SplatStructInstance::GetChildren(bool want_types) const {
 
 std::string SplatStructInstance::ToString() const {
   std::string type_name;
-  if (absl::holds_alternative<StructDef*>(struct_ref_)) {
-    type_name = absl::get<StructDef*>(struct_ref_)->identifier();
+  if (std::holds_alternative<StructDef*>(struct_ref_)) {
+    type_name = std::get<StructDef*>(struct_ref_)->identifier();
   } else {
     type_name = ToAstNode(struct_ref_)->ToString();
   }
@@ -1803,11 +1803,11 @@ std::string XlsTuple::ToString() const {
 }
 
 std::string StructRefToText(const StructRef& struct_ref) {
-  if (absl::holds_alternative<StructDef*>(struct_ref)) {
-    return absl::get<StructDef*>(struct_ref)->identifier();
+  if (std::holds_alternative<StructDef*>(struct_ref)) {
+    return std::get<StructDef*>(struct_ref)->identifier();
   }
-  if (absl::holds_alternative<ColonRef*>(struct_ref)) {
-    return absl::get<ColonRef*>(struct_ref)->ToString();
+  if (std::holds_alternative<ColonRef*>(struct_ref)) {
+    return std::get<ColonRef*>(struct_ref)->ToString();
   }
   XLS_LOG(FATAL)
       << "Unhandled alternative for converting struct reference to string.";
@@ -1816,10 +1816,10 @@ std::string StructRefToText(const StructRef& struct_ref) {
 // -- class NameDefTree
 
 std::vector<AstNode*> NameDefTree::GetChildren(bool want_types) const {
-  if (absl::holds_alternative<Leaf>(tree_)) {
-    return {ToAstNode(absl::get<Leaf>(tree_))};
+  if (std::holds_alternative<Leaf>(tree_)) {
+    return {ToAstNode(std::get<Leaf>(tree_))};
   }
-  const Nodes& nodes = absl::get<Nodes>(tree_);
+  const Nodes& nodes = std::get<Nodes>(tree_);
   return ToAstNodes<NameDefTree>(nodes);
 }
 
@@ -1840,7 +1840,7 @@ std::vector<NameDefTree::Leaf> NameDefTree::Flatten() const {
     return {leaf()};
   }
   std::vector<Leaf> results;
-  for (const NameDefTree* node : absl::get<Nodes>(tree_)) {
+  for (const NameDefTree* node : std::get<Nodes>(tree_)) {
     auto node_leaves = node->Flatten();
     results.insert(results.end(), node_leaves.begin(), node_leaves.end());
   }
@@ -1850,19 +1850,19 @@ std::vector<NameDefTree::Leaf> NameDefTree::Flatten() const {
 std::vector<NameDef*> NameDefTree::GetNameDefs() const {
   std::vector<NameDef*> results;
   for (Leaf leaf : Flatten()) {
-    if (absl::holds_alternative<NameDef*>(leaf)) {
-      results.push_back(absl::get<NameDef*>(leaf));
+    if (std::holds_alternative<NameDef*>(leaf)) {
+      results.push_back(std::get<NameDef*>(leaf));
     }
   }
   return results;
 }
 
-std::vector<absl::variant<NameDefTree::Leaf, NameDefTree*>>
+std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>>
 NameDefTree::Flatten1() {
   if (is_leaf()) {
     return {leaf()};
   }
-  std::vector<absl::variant<Leaf, NameDefTree*>> result;
+  std::vector<std::variant<Leaf, NameDefTree*>> result;
   for (NameDefTree* ndt : nodes()) {
     if (ndt->is_leaf()) {
       result.push_back(ndt->leaf());

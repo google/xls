@@ -268,8 +268,8 @@ class RouterParam {
 // Variant used to store all possible param objects for
 // each type of network component.
 using NetworkComponentParam =
-    absl::variant<NetworkInterfaceSrcParam, NetworkInterfaceSinkParam,
-                  RouterParam, LinkParam>;
+    std::variant<NetworkInterfaceSrcParam, NetworkInterfaceSinkParam,
+                 RouterParam, LinkParam>;
 
 // Associates Param objects with NetworkGraph objects.
 class NocParameters {

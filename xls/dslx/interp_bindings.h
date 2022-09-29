@@ -48,7 +48,7 @@ struct FnCtx {
 class InterpBindings {
  public:
   using Entry =
-      absl::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
+      std::variant<InterpValue, TypeDef*, EnumDef*, StructDef*, Module*>;
 
   // Creates a new bindings object parented to "parent" and with the additional
   // binding given by name_def_tree/value.
@@ -115,7 +115,7 @@ class InterpBindings {
   absl::StatusOr<TypeAnnotation*> ResolveTypeAnnotation(
       absl::string_view identifier) const;
 
-  absl::StatusOr<absl::variant<TypeAnnotation*, EnumDef*, StructDef*>>
+  absl::StatusOr<std::variant<TypeAnnotation*, EnumDef*, StructDef*>>
   ResolveTypeDefinition(absl::string_view identifier) const;
 
   // Resolves an entry for "identifier" via local mapping and transitive binding

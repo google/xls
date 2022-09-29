@@ -489,13 +489,13 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToValue(
                         colon_ref->attr(), module->name()));
   }
 
-  if (absl::holds_alternative<Function*>(*member.value())) {
-    Function* f = absl::get<Function*>(*member.value());
+  if (std::holds_alternative<Function*>(*member.value())) {
+    Function* f = std::get<Function*>(*member.value());
     return InterpValue::MakeFunction(InterpValue::UserFnData{module, f});
   }
 
-  XLS_RET_CHECK(absl::holds_alternative<ConstantDef*>(*member.value()));
-  ConstantDef* constant_def = absl::get<ConstantDef*>(*member.value());
+  XLS_RET_CHECK(std::holds_alternative<ConstantDef*>(*member.value()));
+  ConstantDef* constant_def = std::get<ConstantDef*>(*member.value());
   return type_info->GetConstExpr(constant_def->value());
 }
 
@@ -686,8 +686,8 @@ absl::StatusOr<int64_t> GetValueWidth(const TypeInfo* type_info, Expr* expr) {
 absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
   XLS_RETURN_IF_ERROR(node->lhs()->AcceptExpr(this));
 
-  if (absl::holds_alternative<Slice*>(node->rhs())) {
-    Slice* slice = absl::get<Slice*>(node->rhs());
+  if (std::holds_alternative<Slice*>(node->rhs())) {
+    Slice* slice = std::get<Slice*>(node->rhs());
     if (slice->start() == nullptr) {
       int64_t start_width;
       if (slice->limit() == nullptr) {
@@ -736,8 +736,8 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
     return absl::OkStatus();
   }
 
-  if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
-    WidthSlice* width_slice = absl::get<WidthSlice*>(node->rhs());
+  if (std::holds_alternative<WidthSlice*>(node->rhs())) {
+    WidthSlice* width_slice = std::get<WidthSlice*>(node->rhs());
     XLS_RETURN_IF_ERROR(width_slice->start()->AcceptExpr(this));
 
     std::optional<ConcreteType*> maybe_type =
@@ -761,7 +761,7 @@ absl::Status BytecodeEmitter::HandleIndex(const Index* node) {
   }
 
   // Otherwise, it's a regular [array or tuple] index op.
-  Expr* expr = absl::get<Expr*>(node->rhs());
+  Expr* expr = std::get<Expr*>(node->rhs());
   XLS_RETURN_IF_ERROR(expr->AcceptExpr(this));
   Add(Bytecode::MakeIndex(node->span()));
   return absl::OkStatus();
@@ -813,15 +813,15 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
     return absl::visit(
         Visitor{
             [&](NameRef* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
-              using ValueT = absl::variant<InterpValue, Bytecode::SlotIndex>;
+              using ValueT = std::variant<InterpValue, Bytecode::SlotIndex>;
               XLS_ASSIGN_OR_RETURN(ValueT item_value, HandleNameRefInternal(n));
-              if (absl::holds_alternative<InterpValue>(item_value)) {
+              if (std::holds_alternative<InterpValue>(item_value)) {
                 return Bytecode::MatchArmItem::MakeInterpValue(
-                    absl::get<InterpValue>(item_value));
+                    std::get<InterpValue>(item_value));
               }
 
               return Bytecode::MatchArmItem::MakeLoad(
-                  absl::get<Bytecode::SlotIndex>(item_value));
+                  std::get<Bytecode::SlotIndex>(item_value));
             },
             [&](Number* n) -> absl::StatusOr<Bytecode::MatchArmItem> {
               XLS_ASSIGN_OR_RETURN(InterpValue number, HandleNumberInternal(n));
@@ -856,13 +856,13 @@ absl::StatusOr<Bytecode::MatchArmItem> BytecodeEmitter::HandleNameDefTreeExpr(
 
 void BytecodeEmitter::DestructureLet(NameDefTree* tree) {
   if (tree->is_leaf()) {
-    if (absl::holds_alternative<WildcardPattern*>(tree->leaf())) {
+    if (std::holds_alternative<WildcardPattern*>(tree->leaf())) {
       Add(Bytecode::MakePop(tree->span()));
       // We can just drop this one.
       return;
     }
 
-    NameDef* name_def = absl::get<NameDef*>(tree->leaf());
+    NameDef* name_def = std::get<NameDef*>(tree->leaf());
     if (!namedef_to_slot_.contains(name_def)) {
       namedef_to_slot_.insert({name_def, namedef_to_slot_.size()});
     }
@@ -890,21 +890,21 @@ absl::Status BytecodeEmitter::HandleLet(const Let* node) {
 
 absl::Status BytecodeEmitter::HandleNameRef(const NameRef* node) {
   XLS_ASSIGN_OR_RETURN(auto result, HandleNameRefInternal(node));
-  if (absl::holds_alternative<InterpValue>(result)) {
-    Add(Bytecode::MakeLiteral(node->span(), absl::get<InterpValue>(result)));
+  if (std::holds_alternative<InterpValue>(result)) {
+    Add(Bytecode::MakeLiteral(node->span(), std::get<InterpValue>(result)));
   } else {
     Add(Bytecode::MakeLoad(node->span(),
-                           absl::get<Bytecode::SlotIndex>(result)));
+                           std::get<Bytecode::SlotIndex>(result)));
   }
   return absl::OkStatus();
 }
 
-absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
+absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
 BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
-  if (absl::holds_alternative<BuiltinNameDef*>(node->name_def())) {
+  if (std::holds_alternative<BuiltinNameDef*>(node->name_def())) {
     // Builtins don't have NameDefs, so we can't use slots to store them. It's
     // simpler to just emit a literal InterpValue, anyway.
-    BuiltinNameDef* builtin_def = absl::get<BuiltinNameDef*>(node->name_def());
+    BuiltinNameDef* builtin_def = std::get<BuiltinNameDef*>(node->name_def());
     XLS_ASSIGN_OR_RETURN(Builtin builtin,
                          BuiltinFromString(builtin_def->identifier()));
     return InterpValue::MakeFunction(builtin);
@@ -912,7 +912,7 @@ BytecodeEmitter::HandleNameRefInternal(const NameRef* node) {
 
   // Emit function and constant refs directly so that they can be stack elements
   // without having to load slots with them.
-  const NameDef* name_def = absl::get<const NameDef*>(node->name_def());
+  const NameDef* name_def = std::get<const NameDef*>(node->name_def());
   if (auto* f = dynamic_cast<Function*>(name_def->definer()); f != nullptr) {
     return InterpValue::MakeFunction(InterpValue::UserFnData{f->owner(), f});
   }

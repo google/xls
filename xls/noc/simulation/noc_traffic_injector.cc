@@ -106,13 +106,13 @@ absl::Status MatchFlowToSourceAndRunAction(
           NetworkComponentParam param,
           noc_parameters.GetNetworkComponentParam(network_components[j]));
 
-      if (!absl::holds_alternative<ParamType>(param)) {
+      if (!std::holds_alternative<ParamType>(param)) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Expected all network components to be of type %s",
                             typeid(ParamType).name()));
       }
 
-      absl::string_view port_name = absl::get<ParamType>(param).GetName();
+      absl::string_view port_name = std::get<ParamType>(param).GetName();
 
       if (port_name == flow_component) {
         matched_flow = true;
@@ -331,14 +331,14 @@ absl::Status NocTrafficInjectorBuilder::BuildPerInterfaceDepacketizer(
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam param,
                          noc_parameters.GetNetworkComponentParam(link_id));
 
-    if (!absl::holds_alternative<LinkParam>(param)) {
+    if (!std::holds_alternative<LinkParam>(param)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected Link Parameter for network component %x",
                           link_id.AsUInt64()));
     }
 
     int64_t phit_width_in_bits =
-        absl::get<LinkParam>(param).GetPhitDataBitWidth();
+        std::get<LinkParam>(param).GetPhitDataBitWidth();
     int64_t source_index_bit_count =
         Bits::MinBitCountUnsigned(network_sources.size() - 1);
     int64_t max_packet_bit_count = max_packet_size_per_source[i];

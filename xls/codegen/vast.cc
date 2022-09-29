@@ -570,8 +570,8 @@ std::string ModuleSection::Emit(LineInfo* line_info) const {
   LineInfoStart(line_info, this);
   std::vector<std::string> elements;
   for (const ModuleMember& member : members_) {
-    if (absl::holds_alternative<ModuleSection*>(member)) {
-      if (absl::get<ModuleSection*>(member)->members_.empty()) {
+    if (std::holds_alternative<ModuleSection*>(member)) {
+      if (std::get<ModuleSection*>(member)->members_.empty()) {
         continue;
       }
     }

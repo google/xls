@@ -106,7 +106,7 @@ class InterpValue {
     Module* module;
     Function* function;
   };
-  using FnData = absl::variant<Builtin, UserFnData>;
+  using FnData = std::variant<Builtin, UserFnData>;
   using Channel = std::deque<InterpValue>;
 
   // Factories
@@ -182,13 +182,13 @@ class InterpValue {
   bool IsEnum() const { return tag_ == InterpValueTag::kEnum; }
   bool IsFunction() const { return tag_ == InterpValueTag::kFunction; }
   bool IsBuiltinFunction() const {
-    return IsFunction() && absl::holds_alternative<Builtin>(GetFunctionOrDie());
+    return IsFunction() && std::holds_alternative<Builtin>(GetFunctionOrDie());
   }
   bool IsChannel() const { return tag_ == InterpValueTag::kChannel; }
 
   bool IsTraceBuiltin() const {
     return IsBuiltinFunction() &&
-           absl::get<Builtin>(GetFunctionOrDie()) == Builtin::kTrace;
+           std::get<Builtin>(GetFunctionOrDie()) == Builtin::kTrace;
   }
 
   bool IsFalse() const { return IsBool() && GetBitsOrDie().IsZero(); }
@@ -197,7 +197,7 @@ class InterpValue {
   bool IsSigned() const {
     XLS_CHECK(IsBits() || IsEnum());
     if (IsEnum()) {
-      EnumData enum_data = absl::get<EnumData>(payload_);
+      EnumData enum_data = std::get<EnumData>(payload_);
       return enum_data.is_signed;
     }
 
@@ -289,27 +289,27 @@ class InterpValue {
   InterpValueTag tag() const { return tag_; }
 
   absl::StatusOr<const std::vector<InterpValue>*> GetValues() const {
-    if (!absl::holds_alternative<std::vector<InterpValue>>(payload_)) {
+    if (!std::holds_alternative<std::vector<InterpValue>>(payload_)) {
       return absl::InvalidArgumentError("Value does not hold element values");
     }
-    return &absl::get<std::vector<InterpValue>>(payload_);
+    return &std::get<std::vector<InterpValue>>(payload_);
   }
   const std::vector<InterpValue>& GetValuesOrDie() const {
-    return absl::get<std::vector<InterpValue>>(payload_);
+    return std::get<std::vector<InterpValue>>(payload_);
   }
   absl::StatusOr<const FnData*> GetFunction() const {
-    if (!absl::holds_alternative<FnData>(payload_)) {
+    if (!std::holds_alternative<FnData>(payload_)) {
       return absl::InvalidArgumentError(
           absl::StrCat("Value does not hold function data: ", ToString(), "."));
     }
-    return &absl::get<FnData>(payload_);
+    return &std::get<FnData>(payload_);
   }
   const FnData& GetFunctionOrDie() const { return *GetFunction().value(); }
   absl::StatusOr<Bits> GetBits() const;
   const Bits& GetBitsOrDie() const;
   absl::StatusOr<std::shared_ptr<Channel>> GetChannel() const;
   std::shared_ptr<Channel> GetChannelOrDie() const {
-    return absl::get<std::shared_ptr<Channel>>(payload_);
+    return std::get<std::shared_ptr<Channel>>(payload_);
   }
 
   // For enum values, returns the enum that the bit pattern is interpreted by is
@@ -322,7 +322,7 @@ class InterpValue {
 
   std::optional<EnumData> GetEnumData() const {
     if (IsEnum()) {
-      return absl::get<EnumData>(payload_);
+      return std::get<EnumData>(payload_);
     }
 
     return absl::nullopt;
@@ -332,17 +332,17 @@ class InterpValue {
   // ubits; this is checking whether there are bits in the payload, which would
   // apply to enum values as well.
   bool HasBits() const {
-    return absl::holds_alternative<Bits>(payload_) ||
-           absl::holds_alternative<EnumData>(payload_);
+    return std::holds_alternative<Bits>(payload_) ||
+           std::holds_alternative<EnumData>(payload_);
   }
 
   bool HasValues() const {
-    return absl::holds_alternative<std::vector<InterpValue>>(payload_);
+    return std::holds_alternative<std::vector<InterpValue>>(payload_);
   }
 
   bool IsToken() const { return tag_ == InterpValueTag::kToken; }
   const std::shared_ptr<TokenData>& GetTokenData() const {
-    return absl::get<std::shared_ptr<TokenData>>(payload_);
+    return std::get<std::shared_ptr<TokenData>>(payload_);
   }
 
   // Convert any non-function InterpValue to an IR Value.
@@ -373,8 +373,8 @@ class InterpValue {
   // TODO(leary): 2020-02-10 When all Python bindings are eliminated we can more
   // easily make an interpreter scoped lifetime that InterpValues can live in.
   using Payload =
-      absl::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
-                    std::shared_ptr<TokenData>, std::shared_ptr<Channel>>;
+      std::variant<Bits, EnumData, std::vector<InterpValue>, FnData,
+                   std::shared_ptr<TokenData>, std::shared_ptr<Channel>>;
 
   InterpValue(InterpValueTag tag, Payload payload)
       : tag_(tag), payload_(std::move(payload)) {}

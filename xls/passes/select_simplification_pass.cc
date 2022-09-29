@@ -76,7 +76,7 @@ absl::StatusOr<bool> SqueezeSelect(
 
 // The source of a bit. Can be either a literal 0/1 or a bit at a particular
 // index of a Node.
-using BitSource = absl::variant<bool, std::pair<Node*, int64_t>>;
+using BitSource = std::variant<bool, std::pair<Node*, int64_t>>;
 
 // Traces the bit at the given node and bit index through bit slices and concats
 // and returns its source.

@@ -20,9 +20,9 @@ namespace xls::dslx {
 absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim,
                                            const SymbolicBindings& bindings) {
   while (
-      absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+      std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
     ParametricExpression& original =
-        *absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+        *std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
     ParametricExpression::Evaluated evaluated =
         original.Evaluate(ToParametricEnv(bindings));
     dim = ConcreteTypeDim(std::move(evaluated));
@@ -33,8 +33,8 @@ absl::StatusOr<ConcreteTypeDim> ResolveDim(ConcreteTypeDim dim,
 absl::StatusOr<int64_t> ResolveDimToInt(const ConcreteTypeDim& dim,
                                         const SymbolicBindings& bindings) {
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim resolved, ResolveDim(dim, bindings));
-  if (absl::holds_alternative<InterpValue>(resolved.value())) {
-    return absl::get<InterpValue>(resolved.value()).GetBitValueInt64();
+  if (std::holds_alternative<InterpValue>(resolved.value())) {
+    return std::get<InterpValue>(resolved.value()).GetBitValueInt64();
   }
   return absl::InternalError(absl::StrFormat(
       "Expected resolved dimension of %s to be an integer, got: %s",

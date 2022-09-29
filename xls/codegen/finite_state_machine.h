@@ -294,7 +294,7 @@ class ConditionalFsmBlock : public FsmBlock<ConditionalFsmBlock> {
 
   // The next alternate (else if) of the conditional ladder. Only one of
   // next_alternate_ or final_alternate_ may be non-null. Might be representable
-  // as an absl::variant but an absl::variant of std::unique_ptrs is awkward to
+  // as a std::variant but a std::variant of std::unique_ptrs is awkward to
   // manipulate.
   std::unique_ptr<ConditionalFsmBlock> next_alternate_;
 

@@ -116,18 +116,18 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
 int64_t OperandsExpectedByFormat(absl::Span<const FormatStep> format) {
   return std::count_if(format.begin(), format.end(),
                        [](const FormatStep& step) {
-                         return absl::holds_alternative<FormatPreference>(step);
+                         return std::holds_alternative<FormatPreference>(step);
                        });
 }
 
 std::string StepsToXlsFormatString(absl::Span<const FormatStep> format) {
   return absl::StrJoin(
       format, "", [](std::string* out, const FormatStep& step) {
-        if (absl::holds_alternative<FormatPreference>(step)) {
+        if (std::holds_alternative<FormatPreference>(step)) {
           absl::StrAppend(out, FormatPreferenceToXlsSpecifier(
-                                   absl::get<FormatPreference>(step)));
+                                   std::get<FormatPreference>(step)));
         } else {
-          absl::StrAppend(out, absl::get<std::string>(step));
+          absl::StrAppend(out, std::get<std::string>(step));
         }
       });
 }
@@ -135,11 +135,11 @@ std::string StepsToXlsFormatString(absl::Span<const FormatStep> format) {
 std::string StepsToVerilogFormatString(absl::Span<const FormatStep> format) {
   return absl::StrJoin(
       format, "", [](std::string* out, const FormatStep& step) {
-        if (absl::holds_alternative<FormatPreference>(step)) {
+        if (std::holds_alternative<FormatPreference>(step)) {
           absl::StrAppend(out, FormatPreferenceToVerilogSpecifier(
-                                   absl::get<FormatPreference>(step)));
+                                   std::get<FormatPreference>(step)));
         } else {
-          absl::StrAppend(out, absl::get<std::string>(step));
+          absl::StrAppend(out, std::get<std::string>(step));
         }
       });
 }

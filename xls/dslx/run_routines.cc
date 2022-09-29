@@ -409,7 +409,7 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
     ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
-    if (absl::holds_alternative<TestFunction*>(*member)) {
+    if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
       status = RunTestFunction(&import_data, tm_or.value().type_info,
                                entry_module, tf, post_fn_eval_hook);

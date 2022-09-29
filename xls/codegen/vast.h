@@ -446,7 +446,7 @@ class StatementBlock : public VastNode {
 struct DefaultSentinel {};
 
 // Represents a label within a case statement.
-using CaseLabel = absl::variant<Expression*, DefaultSentinel>;
+using CaseLabel = std::variant<Expression*, DefaultSentinel>;
 
 // Represents an arm of a case statement.
 class CaseArm : public VastNode {
@@ -923,7 +923,7 @@ struct ImplicitEventExpression {};
 // Elements which can appear in a sensitivity list for an always or always_ff
 // block.
 using SensitivityListElement =
-    absl::variant<ImplicitEventExpression, PosEdge*, NegEdge*>;
+    std::variant<ImplicitEventExpression, PosEdge*, NegEdge*>;
 
 // Base class for 'always' style blocks with a sensitivity list.
 class AlwaysBase : public StructuredProcedure {
@@ -1431,20 +1431,20 @@ class ModuleSection;
 
 // Represents a member of a module.
 using ModuleMember =
-    absl::variant<Def*,                     // Logic definition.
-                  LocalParam*,              // Module-local parameter.
-                  Parameter*,               // Module parameter.
-                  Instantiation*,           // module instantiaion.
-                  ContinuousAssignment*,    // Continuous assignment.
-                  StructuredProcedure*,     // Initial or always comb block.
-                  AlwaysComb*,              // An always_comb block.
-                  AlwaysFf*,                // An always_ff block.
-                  AlwaysFlop*,              // "Flip-Flop" block.
-                  Comment*,                 // Comment text.
-                  BlankLine*,               // Blank line.
-                  InlineVerilogStatement*,  // InlineVerilog string statement.
-                  VerilogFunction*,         // Function definition
-                  Cover*, ModuleSection*>;
+    std::variant<Def*,                     // Logic definition.
+                 LocalParam*,              // Module-local parameter.
+                 Parameter*,               // Module parameter.
+                 Instantiation*,           // module instantiaion.
+                 ContinuousAssignment*,    // Continuous assignment.
+                 StructuredProcedure*,     // Initial or always comb block.
+                 AlwaysComb*,              // An always_comb block.
+                 AlwaysFf*,                // An always_ff block.
+                 AlwaysFlop*,              // "Flip-Flop" block.
+                 Comment*,                 // Comment text.
+                 BlankLine*,               // Blank line.
+                 InlineVerilogStatement*,  // InlineVerilog string statement.
+                 VerilogFunction*,         // Function definition
+                 Cover*, ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may
@@ -1561,7 +1561,7 @@ class Include : public VastNode {
   std::string path_;
 };
 
-using FileMember = absl::variant<Module*, Include*, BlankLine*, Comment*>;
+using FileMember = std::variant<Module*, Include*, BlankLine*, Comment*>;
 
 // Represents a file (as a Verilog translation-unit equivalent).
 class VerilogFile {

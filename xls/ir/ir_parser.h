@@ -237,7 +237,7 @@ class Parser {
     BValue next_token;
     std::vector<BValue> next_state;
   };
-  using BodyResult = absl::variant<BValue, ProcNext>;
+  using BodyResult = std::variant<BValue, ProcNext>;
   // Parses the line-statements in the body of a function/proc. Returns the
   // return value if the body is a function, or the next token/state pair if the
   // body is a proc.

@@ -193,7 +193,7 @@ absl::StatusOr<std::vector<ConversionRecord>> GetOrder(
 //  f: The top level function.
 //  type_info: Mapping from node to type.
 absl::StatusOr<std::vector<ConversionRecord>> GetOrderForEntry(
-    absl::variant<Function*, Proc*> entry, TypeInfo* type_info);
+    std::variant<Function*, Proc*> entry, TypeInfo* type_info);
 
 }  // namespace xls::dslx
 

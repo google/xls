@@ -173,7 +173,7 @@ absl::Status Scanner::PeekInternal() {
   if (const KVEntry* kv = absl::get_if<KVEntry>(&entry)) {
     return absl::StrFormat("(%s \"%s\")", kv->key, kv->value);
   }
-  const auto& block = absl::get<std::unique_ptr<Block>>(entry);
+  const auto& block = std::get<std::unique_ptr<Block>>(entry);
   return block->ToString();
 }
 
@@ -219,7 +219,7 @@ int64_t Block::CountEntries(absl::string_view target) const {
     if (const KVEntry* kv = absl::get_if<KVEntry>(&entry)) {
       count += kv->key == target;
     } else {
-      const Block* block = absl::get<std::unique_ptr<Block>>(entry).get();
+      const Block* block = std::get<std::unique_ptr<Block>>(entry).get();
       count += block->kind == target;
     }
   }

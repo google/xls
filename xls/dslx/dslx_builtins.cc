@@ -271,7 +271,7 @@ static void PopulateSignatureToLambdaMap(
     });
     XLS_ASSIGN_OR_RETURN(
         int64_t target,
-        absl::get<InterpValue>(b->size().value()).GetBitValueUint64());
+        std::get<InterpValue>(b->size().value()).GetBitValueUint64());
     checker.CheckIsLen(*a, target, [&] {
       return absl::StrFormat("Bit width %d must match %s array size %s", target,
                              a->ToString(), a->size().ToString());

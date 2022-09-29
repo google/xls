@@ -112,9 +112,9 @@ absl::Status ProcessStateTable(const cell_lib::Block& table_def,
 
   XLS_RET_CHECK(table_def.entries.size() == 1);
   XLS_RET_CHECK(
-      absl::holds_alternative<cell_lib::KVEntry>(table_def.entries[0]));
+      std::holds_alternative<cell_lib::KVEntry>(table_def.entries[0]));
   const cell_lib::KVEntry& table_entry =
-      absl::get<cell_lib::KVEntry>(table_def.entries[0]);
+      std::get<cell_lib::KVEntry>(table_def.entries[0]);
 
   // Table entries are, sadly, strings, such as:
   // " L H L : - : H,
@@ -247,8 +247,8 @@ absl::Status ExtractFromCell(const cell_lib::Block& cell,
   entry_proto->set_kind(netlist::CellKindProto::OTHER);
 
   for (const cell_lib::BlockEntry& entry : cell.entries) {
-    if (absl::holds_alternative<std::unique_ptr<cell_lib::Block>>(entry)) {
-      auto& block_entry = absl::get<std::unique_ptr<cell_lib::Block>>(entry);
+    if (std::holds_alternative<std::unique_ptr<cell_lib::Block>>(entry)) {
+      auto& block_entry = std::get<std::unique_ptr<cell_lib::Block>>(entry);
       if (block_entry->kind == kPinKind) {
         XLS_RETURN_IF_ERROR(ExtractFromPin(*block_entry.get(), entry_proto));
       } else if (block_entry->kind == kFfKind) {
@@ -278,8 +278,8 @@ absl::StatusOr<CellLibraryProto> ExtractFunctions(
                        parser.ParseLibrary());
   CellLibraryProto proto;
   for (const cell_lib::BlockEntry& entry : block->entries) {
-    if (absl::holds_alternative<std::unique_ptr<cell_lib::Block>>(entry)) {
-      auto& block_entry = absl::get<std::unique_ptr<cell_lib::Block>>(entry);
+    if (std::holds_alternative<std::unique_ptr<cell_lib::Block>>(entry)) {
+      auto& block_entry = std::get<std::unique_ptr<cell_lib::Block>>(entry);
       if (block_entry->kind == "cell") {
         CellLibraryEntryProto* entry_proto = proto.add_entries();
         XLS_RETURN_IF_ERROR(ExtractFromCell(*block_entry.get(), entry_proto));

@@ -175,19 +175,18 @@ std::string InterpValue::ToString(bool humanize,
     case InterpValueTag::kTuple:
       return absl::StrFormat("(%s)", make_guts());
     case InterpValueTag::kEnum: {
-      EnumData enum_data = absl::get<EnumData>(payload_);
+      EnumData enum_data = std::get<EnumData>(payload_);
       return absl::StrFormat("%s:%s", enum_data.def->identifier(),
                              enum_data.value.ToString());
     }
     case InterpValueTag::kFunction:
-      if (absl::holds_alternative<Builtin>(GetFunctionOrDie())) {
+      if (std::holds_alternative<Builtin>(GetFunctionOrDie())) {
         return absl::StrCat(
-            "builtin:",
-            BuiltinToString(absl::get<Builtin>(GetFunctionOrDie())));
+            "builtin:", BuiltinToString(std::get<Builtin>(GetFunctionOrDie())));
       }
       return absl::StrCat(
           "function:",
-          absl::get<UserFnData>(GetFunctionOrDie()).function->identifier());
+          std::get<UserFnData>(GetFunctionOrDie()).function->identifier());
     case InterpValueTag::kToken:
       return absl::StrFormat("token:%p", GetTokenData().get());
     case InterpValueTag::kChannel:
@@ -482,29 +481,29 @@ absl::StatusOr<InterpValue> InterpValue::ArithmeticNegate() const {
 }
 
 absl::StatusOr<Bits> InterpValue::GetBits() const {
-  if (absl::holds_alternative<Bits>(payload_)) {
-    return absl::get<Bits>(payload_);
+  if (std::holds_alternative<Bits>(payload_)) {
+    return std::get<Bits>(payload_);
   }
 
-  if (absl::holds_alternative<EnumData>(payload_)) {
-    return absl::get<EnumData>(payload_).value;
+  if (std::holds_alternative<EnumData>(payload_)) {
+    return std::get<EnumData>(payload_).value;
   }
 
   return absl::InvalidArgumentError("Value does not contain bits.");
 }
 
 const Bits& InterpValue::GetBitsOrDie() const {
-  if (absl::holds_alternative<Bits>(payload_)) {
-    return absl::get<Bits>(payload_);
+  if (std::holds_alternative<Bits>(payload_)) {
+    return std::get<Bits>(payload_);
   }
 
-  return absl::get<EnumData>(payload_).value;
+  return std::get<EnumData>(payload_).value;
 }
 
 absl::StatusOr<std::shared_ptr<InterpValue::Channel>> InterpValue::GetChannel()
     const {
-  if (absl::holds_alternative<std::shared_ptr<Channel>>(payload_)) {
-    return absl::get<std::shared_ptr<Channel>>(payload_);
+  if (std::holds_alternative<std::shared_ptr<Channel>>(payload_)) {
+    return std::get<std::shared_ptr<Channel>>(payload_);
   }
   return absl::InvalidArgumentError("Value does not contain a channel.");
 }
@@ -632,7 +631,7 @@ absl::StatusOr<int64_t> InterpValue::GetBitCount() const {
 
 absl::StatusOr<int64_t> InterpValue::GetBitValueCheckSign() const {
   if (IsEnum()) {
-    EnumData enum_data = absl::get<EnumData>(payload_);
+    EnumData enum_data = std::get<EnumData>(payload_);
     if (enum_data.is_signed) {
       return GetBitValueInt64();
     }
@@ -768,7 +767,7 @@ std::optional<Module*> GetFunctionValueOwner(
     return absl::nullopt;
   }
   const auto& fn_data =
-      absl::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());
+      std::get<InterpValue::UserFnData>(function_value.GetFunctionOrDie());
   return fn_data.function->owner();
 }
 

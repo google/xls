@@ -65,7 +65,7 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
   // Replace TupleIndex(Tuple(i{0}, i{1}, ..., i{N}), index=k) with i{k}
   bool changed = false;
-  std::deque<absl::variant<TupleIndex*, Tuple*>> worklist;
+  std::deque<std::variant<TupleIndex*, Tuple*>> worklist;
   for (Node* node : f->nodes()) {
     if (node->Is<TupleIndex>()) {
       worklist.push_back(node->As<TupleIndex>());
@@ -76,8 +76,8 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
   while (!worklist.empty()) {
     auto index = worklist.front();
     worklist.pop_front();
-    if (absl::holds_alternative<TupleIndex*>(index)) {
-      TupleIndex* tuple_index = absl::get<TupleIndex*>(index);
+    if (std::holds_alternative<TupleIndex*>(index)) {
+      TupleIndex* tuple_index = std::get<TupleIndex*>(index);
       // Note: lhs of tuple index may not be a tuple *instruction*.
       if (!tuple_index->operand(0)->Is<Tuple>()) {
         continue;
@@ -96,8 +96,8 @@ absl::StatusOr<bool> TupleSimplificationPass::RunOnFunctionBaseInternal(
           }
         }
       }
-    } else if (absl::holds_alternative<Tuple*>(index)) {
-      Tuple* tuple = absl::get<Tuple*>(index);
+    } else if (std::holds_alternative<Tuple*>(index)) {
+      Tuple* tuple = std::get<Tuple*>(index);
       Node* common_subject = FindEquivalentTuple(tuple);
       if (common_subject != nullptr) {
         XLS_RETURN_IF_ERROR(tuple->ReplaceUsesWith(common_subject));

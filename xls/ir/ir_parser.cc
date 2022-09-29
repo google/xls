@@ -168,10 +168,10 @@ struct QuotedString {
 // Variant which gathers all the possible keyword argument types. New
 // keywords arguments which require a new type should be added here.
 using KeywordVariant =
-    absl::variant<KeywordValue<int64_t>, KeywordValue<IdentifierString>,
-                  KeywordValue<QuotedString>, KeywordValue<BValue>,
-                  KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
-                  KeywordValue<SourceInfo>, KeywordValue<bool>>;
+    std::variant<KeywordValue<int64_t>, KeywordValue<IdentifierString>,
+                 KeywordValue<QuotedString>, KeywordValue<BValue>,
+                 KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
+                 KeywordValue<SourceInfo>, KeywordValue<bool>>;
 
 // Abstraction for parsing the arguments of a node. The arguments include
 // positional and keyword arguments. The positional arguments are exclusively
@@ -200,7 +200,7 @@ class ArgParser {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
-    auto& keyword_value = absl::get<KeywordValue<T>>(*pair.first->second);
+    auto& keyword_value = std::get<KeywordValue<T>>(*pair.first->second);
     keyword_value.is_optional = false;
     // Return a pointer into the KeywordValue which will be filled in when Run
     // is called.
@@ -215,7 +215,7 @@ class ArgParser {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
-    auto& keyword_value = absl::get<KeywordValue<T>>(*keywords_.at(key));
+    auto& keyword_value = std::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.is_optional = true;
     // Return a pointer into the KeywordValue which will be filled in when Run
     // is called.
@@ -227,7 +227,7 @@ class ArgParser {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
-    auto& keyword_value = absl::get<KeywordValue<T>>(*keywords_.at(key));
+    auto& keyword_value = std::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.optional_value = default_value;
     keyword_value.is_optional = true;
     // Return a pointer into the KeywordValue which may be filled in when Run is
@@ -1666,8 +1666,8 @@ absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(fb, &name_to_value, package));
 
-  XLS_RET_CHECK(absl::holds_alternative<BValue>(body_result));
-  BValue return_value = absl::get<BValue>(body_result);
+  XLS_RET_CHECK(std::holds_alternative<BValue>(body_result));
+  BValue return_value = std::get<BValue>(body_result);
 
   if (return_value.valid() &&
       return_value.node()->GetType() != function_data.second) {
@@ -1697,8 +1697,8 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(pb.get(), &name_to_value, package));
 
-  XLS_RET_CHECK(absl::holds_alternative<ProcNext>(body_result));
-  ProcNext proc_next = absl::get<ProcNext>(body_result);
+  XLS_RET_CHECK(std::holds_alternative<ProcNext>(body_result));
+  ProcNext proc_next = std::get<ProcNext>(body_result);
 
   return pb->Build(proc_next.next_token, proc_next.next_state);
 }
@@ -1718,7 +1718,7 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(bb.get(), &name_to_value, package));
-  XLS_RET_CHECK(absl::holds_alternative<BValue>(body_result));
+  XLS_RET_CHECK(std::holds_alternative<BValue>(body_result));
 
   XLS_ASSIGN_OR_RETURN(Block * block, bb->Build());
 

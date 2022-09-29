@@ -160,7 +160,7 @@ class ModuleTestbench {
   // Waits for an output port to equal a certain value.
   struct WaitForOutput {
     std::string port;
-    absl::variant<Bits, IsX, IsNotX> value;
+    std::variant<Bits, IsX, IsNotX> value;
   };
 
   // Inserts a Verilog display statement which prints the value of the given
@@ -174,8 +174,8 @@ class ModuleTestbench {
   };
 
   // The list of actions to perform during simulation.
-  using Action = absl::variant<AdvanceCycle, SetInput, SetInputX, WaitForOutput,
-                               DisplayOutput>;
+  using Action = std::variant<AdvanceCycle, SetInput, SetInputX, WaitForOutput,
+                              DisplayOutput>;
   std::vector<Action> actions_;
 
   // A pair of instance number and port name used as a key for associating a
@@ -189,7 +189,7 @@ class ModuleTestbench {
   // A map containing the expected values passed in to each ExpectEq call. Use
   // std::map for stable iteration order.
   struct Expectation {
-    absl::variant<Bits, IsX> expected;
+    std::variant<Bits, IsX> expected;
     xabsl::SourceLocation loc;
   };
   std::map<InstancePort, Expectation> expectations_;

@@ -70,16 +70,16 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     };
 
     for (const Block::Port& port : block->GetPorts()) {
-      if (absl::holds_alternative<InputPort*>(port)) {
-        InputPort* input_port = absl::get<InputPort*>(port);
+      if (std::holds_alternative<InputPort*>(port)) {
+        InputPort* input_port = std::get<InputPort*>(port);
         if (!is_data_port(input_port)) {
           continue;
         }
         input_types.push_back(input_port->GetType());
         b.AddDataInput(input_port->GetName(),
                        input_port->GetType()->GetFlatBitCount());
-      } else if (absl::holds_alternative<OutputPort*>(port)) {
-        OutputPort* output_port = absl::get<OutputPort*>(port);
+      } else if (std::holds_alternative<OutputPort*>(port)) {
+        OutputPort* output_port = std::get<OutputPort*>(port);
         if (!is_data_port(output_port)) {
           continue;
         }
@@ -88,7 +88,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
         b.AddDataOutput(output_port->GetName(), type->GetFlatBitCount());
       } else {
         // No need to do anything for the clock port.
-        XLS_RET_CHECK(absl::holds_alternative<Block::ClockPort*>(port));
+        XLS_RET_CHECK(std::holds_alternative<Block::ClockPort*>(port));
       }
     }
     if (output_types.size() == 1) {

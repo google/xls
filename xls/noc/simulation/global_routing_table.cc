@@ -88,9 +88,9 @@ DistributedRoutingTable::ComputeRoute(NetworkComponentId source,
             NetworkComponentParam nc_param,
             network_parameters_->GetNetworkComponentParam(nc_id));
         std::string name = "NOT A ROUTER OR LINK.";
-        if (absl::holds_alternative<RouterParam>(nc_param)) {
+        if (std::holds_alternative<RouterParam>(nc_param)) {
           name = std::get<RouterParam>(nc_param).GetName();
-        } else if (absl::holds_alternative<LinkParam>(nc_param)) {
+        } else if (std::holds_alternative<LinkParam>(nc_param)) {
           name = std::get<LinkParam>(nc_param).GetName();
         }
         route_error_msg << name << std::endl;
@@ -123,7 +123,7 @@ absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetNextHopPort(
           "Unable to find hop from port %s (%x) to sink %s (%x)"
           " - port is dandling.",
           port_param.GetName(), from.port_id_.AsUInt64(),
-          absl::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
+          std::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
           sink.AsUInt64()));
     } else {
       PortId next_port =
@@ -151,11 +151,11 @@ absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetNextHopPort(
   XLS_ASSIGN_OR_RETURN(NetworkComponentParam sink_param,
                        network_parameters_->GetNetworkComponentParam(sink));
 
-  return absl::NotFoundError(absl::StrFormat(
-      "Unable to find hop from port %s (%x) to sink %s (%x)",
-      port_param.GetName(), from.port_id_.AsUInt64(),
-      absl::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
-      sink.AsUInt64()));
+  return absl::NotFoundError(
+      absl::StrFormat("Unable to find hop from port %s (%x) to sink %s (%x)",
+                      port_param.GetName(), from.port_id_.AsUInt64(),
+                      std::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
+                      sink.AsUInt64()));
 }
 
 absl::StatusOr<PortAndVCIndex> DistributedRoutingTable::GetRouterOutputPort(
@@ -184,11 +184,11 @@ DistributedRoutingTable::GetRouterOutputPortByIndex(PortAndVCIndex from,
   XLS_ASSIGN_OR_RETURN(NetworkComponentParam sink_param,
                        network_parameters_->GetNetworkComponentParam(sink));
 
-  return absl::NotFoundError(absl::StrFormat(
-      "Unable to find hop from port %s (%x) to sink %s (%x)",
-      port_param.GetName(), from.port_id_.AsUInt64(),
-      absl::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
-      sink.AsUInt64()));
+  return absl::NotFoundError(
+      absl::StrFormat("Unable to find hop from port %s (%x) to sink %s (%x)",
+                      port_param.GetName(), from.port_id_.AsUInt64(),
+                      std::get<NetworkInterfaceSinkParam>(sink_param).GetName(),
+                      sink.AsUInt64()));
 }
 
 absl::Status DistributedRoutingTable::DumpRouterRoutingTable(

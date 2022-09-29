@@ -29,8 +29,8 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
                                  block->GetPorts().end());
   for (const Block::Port& port : ports) {
     // Remove zero-width input ports and output ports.
-    if (absl::holds_alternative<InputPort*>(port)) {
-      InputPort* input_port = absl::get<InputPort*>(port);
+    if (std::holds_alternative<InputPort*>(port)) {
+      InputPort* input_port = std::get<InputPort*>(port);
       if (input_port->GetType()->GetFlatBitCount() == 0) {
         XLS_VLOG(4) << "Removing zero-width input port " << input_port->name();
         XLS_RETURN_IF_ERROR(input_port
@@ -40,8 +40,8 @@ absl::StatusOr<bool> PortLegalizationPass::RunInternal(
         XLS_RETURN_IF_ERROR(block->RemoveNode(input_port));
         changed = true;
       }
-    } else if (absl::holds_alternative<OutputPort*>(port)) {
-      OutputPort* output_port = absl::get<OutputPort*>(port);
+    } else if (std::holds_alternative<OutputPort*>(port)) {
+      OutputPort* output_port = std::get<OutputPort*>(port);
       if (output_port->operand(0)->GetType()->GetFlatBitCount() == 0) {
         XLS_VLOG(4) << "Removing zero-width output port "
                     << output_port->name();

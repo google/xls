@@ -47,7 +47,7 @@ class Block : public FunctionBase {
 
   // Representation of a port of a block. Ports are the interface of the block
   // and represent ports on a Verilog module.
-  using Port = absl::variant<InputPort*, OutputPort*, ClockPort*>;
+  using Port = std::variant<InputPort*, OutputPort*, ClockPort*>;
 
   // Returns the ports in the block. The ports are returned in the order that
   // they will be emitted in the generated Verilog module. Input and output

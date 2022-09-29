@@ -458,10 +458,10 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
     absl::Span<const ModuleBuilder::IndexType> indices, IndexMatch index_match,
     Type* xls_type) {
   auto is_statically_true = [](const IndexMatch& im) {
-    return absl::holds_alternative<bool>(im) && absl::get<bool>(im);
+    return std::holds_alternative<bool>(im) && std::get<bool>(im);
   };
   auto is_statically_false = [](const IndexMatch& im) {
-    return absl::holds_alternative<bool>(im) && !absl::get<bool>(im);
+    return std::holds_alternative<bool>(im) && !std::get<bool>(im);
   };
   auto combine_index_matches = [&](const IndexMatch& a,
                                    const IndexMatch& b) -> IndexMatch {
@@ -474,8 +474,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
     if (is_statically_true(b)) {
       return a;
     }
-    return file_->LogicalAnd(absl::get<Expression*>(a),
-                             absl::get<Expression*>(b), SourceInfo());
+    return file_->LogicalAnd(std::get<Expression*>(a), std::get<Expression*>(b),
+                             SourceInfo());
   };
 
   if (indices.empty()) {
@@ -511,7 +511,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       // value. E.g:
       //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
       auto gen_ternary = [&](absl::Span<Expression* const> inputs) {
-        return file_->Ternary(absl::get<Expression*>(index_match), inputs[0],
+        return file_->Ternary(std::get<Expression*>(index_match), inputs[0],
                               inputs[1], SourceInfo());
       };
 

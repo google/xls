@@ -329,20 +329,19 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
   if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
     TypeDefinition type_definition =
         typeref_type->type_ref()->type_definition();
-    if (absl::holds_alternative<TypeDef*>(type_definition)) {
+    if (std::holds_alternative<TypeDef*>(type_definition)) {
       return SetStructMemberFromValue(
           xpile_data, object_name, field_name, element_index,
-          absl::get<TypeDef*>(type_definition)->type_annotation(),
-          indent_level);
+          std::get<TypeDef*>(type_definition)->type_annotation(), indent_level);
     }
-    if (absl::holds_alternative<EnumDef*>(type_definition)) {
-      EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
+    if (std::holds_alternative<EnumDef*>(type_definition)) {
+      EnumDef* enum_def = std::get<EnumDef*>(type_definition);
       return GenerateEnumFromValue(
           xpile_data, absl::StrCat("elements[", element_index, "]"),
           absl::StrCat(object_name, ".", field_name), enum_def->identifier(),
           enum_def->type_annotation(), indent_level);
     }
-    if (absl::holds_alternative<StructDef*>(type_definition)) {
+    if (std::holds_alternative<StructDef*>(type_definition)) {
       return absl::Substitute(
           "$0auto $1_or = $2::FromValue(elements[$3]);\n"
           "$0if (!$1_or.ok()) {\n"
@@ -449,14 +448,13 @@ $0elements.push_back($2_value);)";
   } else if (auto* typeref_type = dynamic_cast<TypeRefTypeAnnotation*>(type)) {
     TypeRef* type_ref = typeref_type->type_ref();
     TypeDefinition type_definition = type_ref->type_definition();
-    if (absl::holds_alternative<TypeDef*>(type_definition)) {
+    if (std::holds_alternative<TypeDef*>(type_definition)) {
       return StructMemberToValue(
           xpile_data, member_name,
-          absl::get<TypeDef*>(type_definition)->type_annotation(),
-          indent_level);
+          std::get<TypeDef*>(type_definition)->type_annotation(), indent_level);
     }
-    if (absl::holds_alternative<EnumDef*>(type_definition)) {
-      EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
+    if (std::holds_alternative<EnumDef*>(type_definition)) {
+      EnumDef* enum_def = std::get<EnumDef*>(type_definition);
       XLS_ASSIGN_OR_RETURN(
           std::optional<BuiltinType> enum_as_builtin_type,
           GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
@@ -468,7 +466,7 @@ $0elements.push_back($2_value);)";
           GenerateEnumToValue(xpile_data, member_name,
                               absl::StrCat(member_name, "_value"),
                               enum_as_builtin_type.value(), indent_level));
-    } else if (absl::holds_alternative<StructDef*>(type_definition)) {
+    } else if (std::holds_alternative<StructDef*>(type_definition)) {
       return absl::StrFormat("%selements.push_back(%s.ToValue());",
                              std::string(indent_level * 2, ' '), member_name);
     } else {
@@ -522,12 +520,12 @@ absl::StatusOr<std::optional<int64_t>> GetFieldWidth(
                  dynamic_cast<const TypeRefTypeAnnotation*>(type)) {
     TypeDefinition type_definition =
         typeref_type->type_ref()->type_definition();
-    if (absl::holds_alternative<TypeDef*>(type_definition)) {
+    if (std::holds_alternative<TypeDef*>(type_definition)) {
       return GetFieldWidth(
-          xpile_data, absl::get<TypeDef*>(type_definition)->type_annotation());
+          xpile_data, std::get<TypeDef*>(type_definition)->type_annotation());
     }
-    if (absl::holds_alternative<EnumDef*>(type_definition)) {
-      EnumDef* enum_def = absl::get<EnumDef*>(type_definition);
+    if (std::holds_alternative<EnumDef*>(type_definition)) {
+      EnumDef* enum_def = std::get<EnumDef*>(type_definition);
       return GetFieldWidth(xpile_data, enum_def->type_annotation());
     }
   }

@@ -114,21 +114,20 @@ class Token {
   const Span& span() const { return span_; }
 
   std::optional<std::string> GetValue() const {
-    if (absl::holds_alternative<Keyword>(payload_)) {
+    if (std::holds_alternative<Keyword>(payload_)) {
       return KeywordToString(GetKeyword());
     }
-    return absl::get<std::optional<std::string>>(payload_);
+    return std::get<std::optional<std::string>>(payload_);
   }
 
   // Note: assumes that the payload is not a keyword.
   const std::string& GetStringValue() const {
-    return *absl::get<std::optional<std::string>>(payload_);
+    return *std::get<std::optional<std::string>>(payload_);
   }
 
   absl::StatusOr<int64_t> GetValueAsInt64() const;
 
-  const absl::variant<std::optional<std::string>, Keyword>& GetPayload()
-      const {
+  const std::variant<std::optional<std::string>, Keyword>& GetPayload() const {
     return payload_;
   }
 
@@ -142,7 +141,7 @@ class Token {
            GetTypeKeywords().contains(GetKeyword());
   }
 
-  Keyword GetKeyword() const { return absl::get<Keyword>(payload_); }
+  Keyword GetKeyword() const { return std::get<Keyword>(payload_); }
 
   bool IsKeyword(Keyword target) const {
     return kind_ == TokenKind::kKeyword && GetKeyword() == target;
@@ -155,14 +154,14 @@ class Token {
   }
 
   bool IsKindIn(
-      absl::Span<absl::variant<TokenKind, Keyword> const> targets) const {
+      absl::Span<std::variant<TokenKind, Keyword> const> targets) const {
     for (auto target : targets) {
-      if (absl::holds_alternative<TokenKind>(target)) {
-        if (kind() == absl::get<TokenKind>(target)) {
+      if (std::holds_alternative<TokenKind>(target)) {
+        if (kind() == std::get<TokenKind>(target)) {
           return true;
         }
       } else {
-        if (IsKeyword(absl::get<Keyword>(target))) {
+        if (IsKeyword(std::get<Keyword>(target))) {
           return true;
         }
       }
@@ -181,7 +180,7 @@ class Token {
  private:
   TokenKind kind_;
   Span span_;
-  absl::variant<std::optional<std::string>, Keyword> payload_;
+  std::variant<std::optional<std::string>, Keyword> payload_;
 };
 
 // Converts the conceptual character stream in a string of text into a stream of

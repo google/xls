@@ -226,14 +226,14 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
   }
   ParametricExpression::Evaluated e =
       bits_type->size().parametric().Evaluate(parametric_env);
-  if (!absl::holds_alternative<InterpValue>(e)) {
+  if (!std::holds_alternative<InterpValue>(e)) {
     return absl::InternalError(
         absl::StrCat("Parametric number size did not evaluate to a constant: ",
                      bits_type->size().ToString()));
   }
   return std::make_unique<BitsType>(
       bits_type->is_signed(),
-      absl::get<InterpValue>(e).GetBitValueInt64().value());
+      std::get<InterpValue>(e).GetBitValueInt64().value());
 }
 
 }  // namespace
@@ -457,7 +457,7 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
                                   expr->attr(), module->name()));
             }
 
-            if (!absl::holds_alternative<ConstantDef*>(*maybe_member.value())) {
+            if (!std::holds_alternative<ConstantDef*>(*maybe_member.value())) {
               XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
                           << "\" is not constexpr evaluatable.";
               return absl::OkStatus();
@@ -467,7 +467,7 @@ absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
                                  import_data_->GetRootTypeInfo(module));
 
             ConstantDef* constant_def =
-                absl::get<ConstantDef*>(*maybe_member.value());
+                std::get<ConstantDef*>(*maybe_member.value());
             XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info, bindings_,
                                          constant_def->value()));
             XLS_RET_CHECK(type_info->IsKnownConstExpr(constant_def->value()));
@@ -532,10 +532,10 @@ absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
 
-  if (absl::holds_alternative<Expr*>(expr->rhs())) {
-    EVAL_AS_CONSTEXPR_OR_RETURN(absl::get<Expr*>(expr->rhs()));
-  } else if (absl::holds_alternative<Slice*>(expr->rhs())) {
-    Slice* slice = absl::get<Slice*>(expr->rhs());
+  if (std::holds_alternative<Expr*>(expr->rhs())) {
+    EVAL_AS_CONSTEXPR_OR_RETURN(std::get<Expr*>(expr->rhs()));
+  } else if (std::holds_alternative<Slice*>(expr->rhs())) {
+    Slice* slice = std::get<Slice*>(expr->rhs());
     if (slice->start() != nullptr) {
       EVAL_AS_CONSTEXPR_OR_RETURN(slice->start());
     }
@@ -543,7 +543,7 @@ absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
       EVAL_AS_CONSTEXPR_OR_RETURN(slice->limit());
     }
   } else {
-    WidthSlice* width_slice = absl::get<WidthSlice*>(expr->rhs());
+    WidthSlice* width_slice = std::get<WidthSlice*>(expr->rhs());
     EVAL_AS_CONSTEXPR_OR_RETURN(width_slice->start());
   }
 
@@ -608,7 +608,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
       bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   XLS_ASSIGN_OR_RETURN(
       int64_t bit_count,
-      absl::get<InterpValue>(bits_type->size().value()).GetBitValueInt64());
+      std::get<InterpValue>(bits_type->size().value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, expr->GetBits(bit_count));
   return InterpValue::MakeBits(tag, std::move(bits));
 }

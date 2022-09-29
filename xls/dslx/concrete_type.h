@@ -53,14 +53,14 @@ class ConcreteTypeDim {
 
   // Evaluates the given value to a 64-bit quantity.
   static absl::StatusOr<int64_t> GetAs64Bits(
-      const absl::variant<InterpValue, OwnedParametric>& variant);
+      const std::variant<InterpValue, OwnedParametric>& variant);
 
   // Creates a u32 `InterpValue`-based ConcreteTypeDim with the given "value".
   static ConcreteTypeDim CreateU32(uint32_t value) {
     return ConcreteTypeDim(InterpValue::MakeU32(value));
   }
 
-  explicit ConcreteTypeDim(absl::variant<InterpValue, OwnedParametric> value)
+  explicit ConcreteTypeDim(std::variant<InterpValue, OwnedParametric> value)
       : value_(std::move(value)) {}
 
   ConcreteTypeDim(const ConcreteTypeDim& other);
@@ -80,29 +80,28 @@ class ConcreteTypeDim {
   std::string ToString() const;
 
   bool operator==(const ConcreteTypeDim& other) const;
-  bool operator==(
-      const absl::variant<int64_t, InterpValue, const ParametricExpression*>&
-          other) const;
+  bool operator==(const std::variant<int64_t, InterpValue,
+                                     const ParametricExpression*>& other) const;
   bool operator!=(const ConcreteTypeDim& other) const {
     return !(*this == other);
   }
 
-  const absl::variant<InterpValue, OwnedParametric>& value() const {
+  const std::variant<InterpValue, OwnedParametric>& value() const {
     return value_;
   }
 
   bool IsParametric() const {
-    return absl::holds_alternative<OwnedParametric>(value_);
+    return std::holds_alternative<OwnedParametric>(value_);
   }
   const ParametricExpression& parametric() const {
-    return *absl::get<OwnedParametric>(value_);
+    return *std::get<OwnedParametric>(value_);
   }
 
   // Retrieves the bit value of the underlying InterpValue as an int64_t.
   absl::StatusOr<int64_t> GetAsInt64() const;
 
  private:
-  absl::variant<InterpValue, OwnedParametric> value_;
+  std::variant<InterpValue, OwnedParametric> value_;
 };
 
 // Represents a 'concrete' (evaluated) type, as determined by evaluating a

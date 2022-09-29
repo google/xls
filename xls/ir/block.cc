@@ -20,6 +20,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
@@ -76,10 +77,10 @@ static absl::flat_hash_map<Node*, int64_t> ComputeRegisterDepthToLeaves(
 static int64_t GetPortPosition(Node* n, const Block* block) {
   int64_t i = 0;
   for (const Block::Port& port : block->GetPorts()) {
-    if ((absl::holds_alternative<InputPort*>(port) &&
-         n == absl::get<InputPort*>(port)) ||
-        (absl::holds_alternative<OutputPort*>(port) &&
-         n == absl::get<OutputPort*>(port))) {
+    if ((std::holds_alternative<InputPort*>(port) &&
+         n == std::get<InputPort*>(port)) ||
+        (std::holds_alternative<OutputPort*>(port) &&
+         n == std::get<OutputPort*>(port))) {
       return i;
     }
     i++;
@@ -195,17 +196,17 @@ std::vector<Node*> Block::DumpOrder() const {
 std::string Block::DumpIr() const {
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
-    if (absl::holds_alternative<ClockPort*>(port)) {
+    if (std::holds_alternative<ClockPort*>(port)) {
       port_strings.push_back(
-          absl::StrFormat("%s: clock", absl::get<ClockPort*>(port)->name));
-    } else if (absl::holds_alternative<InputPort*>(port)) {
+          absl::StrFormat("%s: clock", std::get<ClockPort*>(port)->name));
+    } else if (std::holds_alternative<InputPort*>(port)) {
       port_strings.push_back(
-          absl::StrFormat("%s: %s", absl::get<InputPort*>(port)->GetName(),
-                          absl::get<InputPort*>(port)->GetType()->ToString()));
+          absl::StrFormat("%s: %s", std::get<InputPort*>(port)->GetName(),
+                          std::get<InputPort*>(port)->GetType()->ToString()));
     } else {
       port_strings.push_back(absl::StrFormat(
-          "%s: %s", absl::get<OutputPort*>(port)->GetName(),
-          absl::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
+          "%s: %s", std::get<OutputPort*>(port)->GetName(),
+          std::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
     }
   }
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
@@ -544,13 +545,12 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
 }
 
 /*static*/ std::string Block::PortName(const Port& port) {
-  if (absl::holds_alternative<ClockPort*>(port)) {
-    return absl::get<ClockPort*>(port)->name;
-  } else if (absl::holds_alternative<InputPort*>(port)) {
-    return absl::get<InputPort*>(port)->GetName();
-  } else {
-    return absl::get<OutputPort*>(port)->GetName();
-  }
+  return absl::visit(Visitor{
+                         [](ClockPort* p) { return p->name; },
+                         [](InputPort* p) { return p->GetName(); },
+                         [](OutputPort* p) { return p->GetName(); },
+                     },
+                     port);
 }
 
 absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(

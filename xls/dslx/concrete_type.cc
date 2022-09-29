@@ -96,9 +96,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ConcreteType::FromInterpValue(
 // -- class ConcreteTypeDim
 
 /* static */ absl::StatusOr<int64_t> ConcreteTypeDim::GetAs64Bits(
-    const absl::variant<InterpValue, OwnedParametric>& variant) {
-  if (absl::holds_alternative<InterpValue>(variant)) {
-    return absl::get<InterpValue>(variant).GetBitValueCheckSign();
+    const std::variant<InterpValue, OwnedParametric>& variant) {
+  if (std::holds_alternative<InterpValue>(variant)) {
+    return std::get<InterpValue>(variant).GetBitValueCheckSign();
   }
 
   return absl::InvalidArgumentError(
@@ -109,19 +109,19 @@ ConcreteTypeDim::ConcreteTypeDim(const ConcreteTypeDim& other)
     : value_(std::move(other.Clone().value_)) {}
 
 ConcreteTypeDim ConcreteTypeDim::Clone() const {
-  if (absl::holds_alternative<InterpValue>(value_)) {
-    return ConcreteTypeDim(absl::get<InterpValue>(value_));
+  if (std::holds_alternative<InterpValue>(value_)) {
+    return ConcreteTypeDim(std::get<InterpValue>(value_));
   }
-  if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
+  if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
     return ConcreteTypeDim(
-        absl::get<std::unique_ptr<ParametricExpression>>(value_)->Clone());
+        std::get<std::unique_ptr<ParametricExpression>>(value_)->Clone());
   }
   XLS_LOG(FATAL) << "Impossible ConcreteTypeDim value variant.";
 }
 
 std::string ConcreteTypeDim::ToString() const {
-  if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
-    return absl::get<std::unique_ptr<ParametricExpression>>(value_)->ToString();
+  if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_)) {
+    return std::get<std::unique_ptr<ParametricExpression>>(value_)->ToString();
   }
   // Note: we don't print out the type/width of the InterpValue that serves as
   // the dimension, because printing `uN[u32:42]` would appear odd vs just
@@ -133,45 +133,45 @@ std::string ConcreteTypeDim::ToString() const {
   // InterpValues to be passed as parametrics, not just ones that become (used)
   // dimension data -- we need to allow for e.g. signed types which may not end
   // up in any particular dimension position.
-  return absl::get<InterpValue>(value_).GetBitsOrDie().ToString();
+  return std::get<InterpValue>(value_).GetBitsOrDie().ToString();
 }
 
 bool ConcreteTypeDim::operator==(
-    const absl::variant<int64_t, InterpValue, const ParametricExpression*>&
+    const std::variant<int64_t, InterpValue, const ParametricExpression*>&
         other) const {
-  if (absl::holds_alternative<InterpValue>(other)) {
-    if (absl::holds_alternative<InterpValue>(value_)) {
-      return absl::get<InterpValue>(value_) == absl::get<InterpValue>(other);
+  if (std::holds_alternative<InterpValue>(other)) {
+    if (std::holds_alternative<InterpValue>(value_)) {
+      return std::get<InterpValue>(value_) == std::get<InterpValue>(other);
     }
     return false;
   }
-  if (absl::holds_alternative<const ParametricExpression*>(other)) {
-    return absl::holds_alternative<std::unique_ptr<ParametricExpression>>(
+  if (std::holds_alternative<const ParametricExpression*>(other)) {
+    return std::holds_alternative<std::unique_ptr<ParametricExpression>>(
                value_) &&
-           *absl::get<std::unique_ptr<ParametricExpression>>(value_) ==
-               *absl::get<const ParametricExpression*>(other);
+           *std::get<std::unique_ptr<ParametricExpression>>(value_) ==
+               *std::get<const ParametricExpression*>(other);
   }
 
   return false;
 }
 
 bool ConcreteTypeDim::operator==(const ConcreteTypeDim& other) const {
-  if (absl::holds_alternative<std::unique_ptr<ParametricExpression>>(value_) &&
-      absl::holds_alternative<std::unique_ptr<ParametricExpression>>(
+  if (std::holds_alternative<std::unique_ptr<ParametricExpression>>(value_) &&
+      std::holds_alternative<std::unique_ptr<ParametricExpression>>(
           other.value_)) {
-    return *absl::get<std::unique_ptr<ParametricExpression>>(value_) ==
-           *absl::get<std::unique_ptr<ParametricExpression>>(other.value_);
+    return *std::get<std::unique_ptr<ParametricExpression>>(value_) ==
+           *std::get<std::unique_ptr<ParametricExpression>>(other.value_);
   }
   return value_ == other.value_;
 }
 
 absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
     const ConcreteTypeDim& rhs) const {
-  if (absl::holds_alternative<InterpValue>(value_) &&
-      absl::holds_alternative<InterpValue>(rhs.value_)) {
+  if (std::holds_alternative<InterpValue>(value_) &&
+      std::holds_alternative<InterpValue>(rhs.value_)) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
-        absl::get<InterpValue>(value_).Mul(absl::get<InterpValue>(rhs.value_)));
+        std::get<InterpValue>(value_).Mul(std::get<InterpValue>(rhs.value_)));
     return ConcreteTypeDim(std::move(result));
   }
   if (IsParametric() && rhs.IsParametric()) {
@@ -184,11 +184,11 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Mul(
 
 absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
     const ConcreteTypeDim& rhs) const {
-  if (absl::holds_alternative<InterpValue>(value_) &&
-      absl::holds_alternative<InterpValue>(rhs.value_)) {
+  if (std::holds_alternative<InterpValue>(value_) &&
+      std::holds_alternative<InterpValue>(rhs.value_)) {
     XLS_ASSIGN_OR_RETURN(
         InterpValue result,
-        absl::get<InterpValue>(value_).Add(absl::get<InterpValue>(rhs.value_)));
+        std::get<InterpValue>(value_).Add(std::get<InterpValue>(rhs.value_)));
     return ConcreteTypeDim(result);
   }
   if (IsParametric() && rhs.IsParametric()) {
@@ -200,7 +200,7 @@ absl::StatusOr<ConcreteTypeDim> ConcreteTypeDim::Add(
 }
 
 absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
-  if (absl::holds_alternative<InterpValue>(value_)) {
+  if (std::holds_alternative<InterpValue>(value_)) {
     InterpValue value = std::get<InterpValue>(value_);
     if (!value.IsBits()) {
       return absl::InvalidArgumentError(
@@ -226,7 +226,7 @@ absl::StatusOr<int64_t> ConcreteTypeDim::GetAsInt64() const {
 
   return absl::InvalidArgumentError(
       absl::StrCat("Expected concrete type dimension to be integral; got: ",
-                   absl::get<OwnedParametric>(value_)->ToString()));
+                   std::get<OwnedParametric>(value_)->ToString()));
 }
 
 // -- ConcreteType

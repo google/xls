@@ -320,7 +320,7 @@ struct KVEntry {
 struct Block;
 
 // Inside of a block there are either key/value items or sub-blocks.
-using BlockEntry = absl::variant<KVEntry, std::unique_ptr<Block>>;
+using BlockEntry = std::variant<KVEntry, std::unique_ptr<Block>>;
 
 // Represents a hierarchical entity in the cell library description, as shown in
 // the grammar above.

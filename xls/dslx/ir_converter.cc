@@ -175,7 +175,7 @@ class FunctionConverter {
   // Every AST node has an "IR value" that is either a function builder value
   // (BValue) or its IR-conversion-time-constant-decorated cousin (CValue), or
   // an inter-proc Channel.
-  using IrValue = absl::variant<BValue, CValue, Channel*>;
+  using IrValue = std::variant<BValue, CValue, Channel*>;
 
   // Helper for converting an IR value to its BValue pointer for use in
   // debugging.
@@ -418,7 +418,7 @@ class FunctionConverter {
 
   // Dereferences a type definition to either a struct definition or enum
   // definition.
-  using DerefVariant = absl::variant<StructDef*, EnumDef*>;
+  using DerefVariant = std::variant<StructDef*, EnumDef*>;
   absl::StatusOr<DerefVariant> DerefStructOrEnum(TypeDefinition node);
 
   SourceInfo ToSourceInfo(const std::optional<Span>& span) {
@@ -575,7 +575,7 @@ static absl::StatusOr<std::vector<ConstantDef*>> GetConstantDepFreevars(
       free_variables.GetNameDefTuples();
   std::vector<ConstantDef*> constant_deps;
   for (const auto& [identifier, any_name_def] : freevars) {
-    if (absl::holds_alternative<BuiltinNameDef*>(any_name_def)) {
+    if (std::holds_alternative<BuiltinNameDef*>(any_name_def)) {
       continue;
     }
     const auto* name_def = std::get<const NameDef*>(any_name_def);
@@ -752,15 +752,15 @@ absl::Status FunctionConverter::Visit(AstNode* node) {
 }
 
 /* static */ std::string FunctionConverter::ToString(const IrValue& value) {
-  if (absl::holds_alternative<BValue>(value)) {
-    return absl::StrFormat("%p", absl::get<BValue>(value).node());
+  if (std::holds_alternative<BValue>(value)) {
+    return absl::StrFormat("%p", std::get<BValue>(value).node());
   }
 
-  if (absl::holds_alternative<CValue>(value)) {
-    return absl::StrFormat("%p", absl::get<CValue>(value).value.node());
+  if (std::holds_alternative<CValue>(value)) {
+    return absl::StrFormat("%p", std::get<CValue>(value).value.node());
   }
 
-  return absl::StrFormat("%p", absl::get<Channel*>(value));
+  return absl::StrFormat("%p", std::get<Channel*>(value));
 }
 
 FunctionConverter::FunctionConverter(PackageData& package_data, Module* module,
@@ -809,11 +809,11 @@ absl::Status FunctionConverter::DefAlias(const AstNode* from,
   node_to_ir_[to] = std::move(value);
   if (const auto* name_def = dynamic_cast<const NameDef*>(to)) {
     // Name the aliased node based on the identifier in the NameDef.
-    if (absl::holds_alternative<BValue>(node_to_ir_.at(from))) {
-      BValue ir_node = absl::get<BValue>(node_to_ir_.at(from));
+    if (std::holds_alternative<BValue>(node_to_ir_.at(from))) {
+      BValue ir_node = std::get<BValue>(node_to_ir_.at(from));
       ir_node.SetName(name_def->identifier());
-    } else if (absl::holds_alternative<CValue>(node_to_ir_.at(from))) {
-      BValue ir_node = absl::get<CValue>(node_to_ir_.at(from)).value;
+    } else if (std::holds_alternative<CValue>(node_to_ir_.at(from))) {
+      BValue ir_node = std::get<CValue>(node_to_ir_.at(from)).value;
       ir_node.SetName(name_def->identifier());
     }
     // Do nothing for channels; they have no BValue-type representation (they
@@ -867,11 +867,11 @@ absl::StatusOr<BValue> FunctionConverter::Use(const AstNode* node) const {
   const IrValue& ir_value = it->second;
   XLS_VLOG(6) << absl::StreamFormat("Using node '%s' (%p) as IR value %s.",
                                     node->ToString(), node, ToString(ir_value));
-  if (absl::holds_alternative<BValue>(ir_value)) {
-    return absl::get<BValue>(ir_value);
+  if (std::holds_alternative<BValue>(ir_value)) {
+    return std::get<BValue>(ir_value);
   }
-  XLS_RET_CHECK(absl::holds_alternative<CValue>(ir_value));
-  return absl::get<CValue>(ir_value).value;
+  XLS_RET_CHECK(std::holds_alternative<CValue>(ir_value));
+  return std::get<CValue>(ir_value).value;
 }
 
 void FunctionConverter::SetNodeToIr(const AstNode* node, IrValue value) {
@@ -952,7 +952,7 @@ absl::Status FunctionConverter::HandleNumber(const Number* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> type, ResolveType(node));
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim dim, type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(int64_t bit_count,
-                       absl::get<InterpValue>(dim.value()).GetBitValueInt64());
+                       std::get<InterpValue>(dim.value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, node->GetBits(bit_count));
   DefConst(node, Value(bits));
   return absl::OkStatus();
@@ -1013,17 +1013,17 @@ absl::Status FunctionConverter::HandleNameRef(const NameRef* node) {
   if (!node_to_ir_.contains(from)) {
     for (const auto& [k, v] : proc_data_->id_to_members.at(proc_id_)) {
       if (k == node->identifier()) {
-        if (absl::holds_alternative<Value>(v)) {
+        if (std::holds_alternative<Value>(v)) {
           XLS_VLOG(4) << "Reference to Proc member: " << k
-                      << " : Value : " << absl::get<Value>(v).ToString();
+                      << " : Value : " << std::get<Value>(v).ToString();
           CValue cvalue;
-          cvalue.ir_value = absl::get<Value>(v);
+          cvalue.ir_value = std::get<Value>(v);
           cvalue.value = function_builder_->Literal(cvalue.ir_value);
           SetNodeToIr(from, cvalue);
         } else {
           XLS_VLOG(4) << "Reference to Proc member: " << k
-                      << " : Chan  : " << absl::get<Channel*>(v)->ToString();
-          SetNodeToIr(from, absl::get<Channel*>(v));
+                      << " : Chan  : " << std::get<Channel*>(v)->ToString();
+          SetNodeToIr(from, std::get<Channel*>(v));
         }
       }
     }
@@ -1129,12 +1129,12 @@ absl::Status FunctionConverter::HandleCast(const Cast* node) {
                        output_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t new_bit_count,
-      absl::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(new_bit_count_ctd.value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim input_bit_count_ctd,
                        input_type->GetTotalBitCount());
   XLS_ASSIGN_OR_RETURN(
       int64_t old_bit_count,
-      absl::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
+      std::get<InterpValue>(input_bit_count_ctd.value()).GetBitValueInt64());
   if (new_bit_count < old_bit_count) {
     auto bvalue_status = DefWithStatus(
         node,
@@ -1307,12 +1307,11 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
     if (callee_name_ref == nullptr) {
       return error();
     }
-    if (!absl::holds_alternative<BuiltinNameDef*>(
-            callee_name_ref->name_def())) {
+    if (!std::holds_alternative<BuiltinNameDef*>(callee_name_ref->name_def())) {
       return error();
     }
     auto* builtin_name_def =
-        absl::get<BuiltinNameDef*>(callee_name_ref->name_def());
+        std::get<BuiltinNameDef*>(callee_name_ref->name_def());
     if (builtin_name_def->identifier() != "range") {
       return error();
     }
@@ -1356,11 +1355,11 @@ absl::StatusOr<FunctionConverter::RangeData> FunctionConverter::GetRangeData(
 // Convert a NameDefTree node variant to an AstNode pointer (either the leaf
 // node or the interior NameDefTree node).
 static AstNode* ToAstNode(
-    const absl::variant<NameDefTree::Leaf, NameDefTree*>& x) {
-  if (absl::holds_alternative<NameDefTree*>(x)) {
-    return absl::get<NameDefTree*>(x);
+    const std::variant<NameDefTree::Leaf, NameDefTree*>& x) {
+  if (std::holds_alternative<NameDefTree*>(x)) {
+    return std::get<NameDefTree*>(x);
   }
-  return ToAstNode(absl::get<NameDefTree::Leaf>(x));
+  return ToAstNode(std::get<NameDefTree::Leaf>(x));
 }
 
 absl::Status FunctionConverter::HandleFor(const For* node) {
@@ -1392,7 +1391,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
   body_converter.SetFunctionBuilder(std::move(body_builder));
 
   // Grab the two tuple of `(ivar, accum)`.
-  std::vector<absl::variant<NameDefTree::Leaf, NameDefTree*>> flat =
+  std::vector<std::variant<NameDefTree::Leaf, NameDefTree*>> flat =
       node->names()->Flatten1();
   if (flat.size() != 2) {
     return absl::UnimplementedError(
@@ -1440,7 +1439,7 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     }
   } else {
     // For tuple loop carries we have to destructure names on entry.
-    NameDefTree* accum = absl::get<NameDefTree*>(flat[1]);
+    NameDefTree* accum = std::get<NameDefTree*>(flat[1]);
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> carry_type,
                          ResolveType(accum));
     XLS_ASSIGN_OR_RETURN(xls::Type * carry_ir_type,
@@ -1498,8 +1497,8 @@ absl::Status FunctionConverter::HandleFor(const For* node) {
     // If free variable is a constant, create constant node inside body.
     // This preserves const-ness of loop body uses (e.g. loop bounds for
     // a nested loop).
-    if (absl::holds_alternative<CValue>(*ir_value)) {
-      Value constant_value = absl::get<CValue>(*ir_value).ir_value;
+    if (std::holds_alternative<CValue>(*ir_value)) {
+      Value constant_value = std::get<CValue>(*ir_value).ir_value;
       body_converter.DefConst(name_def, constant_value);
     } else {
       // Otherwise, pass in the variable to the loop body function as
@@ -1584,20 +1583,20 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
     XLS_VLOG(5) << absl::StreamFormat("Matcher is leaf: %s (%s)",
                                       ToAstNode(leaf)->ToString(),
                                       ToAstNode(leaf)->GetNodeTypeName());
-    if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+    if (std::holds_alternative<WildcardPattern*>(leaf)) {
       return Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Literal(UBits(1, 1), loc);
       });
     }
-    if (absl::holds_alternative<Number*>(leaf) ||
-        absl::holds_alternative<ColonRef*>(leaf)) {
+    if (std::holds_alternative<Number*>(leaf) ||
+        std::holds_alternative<ColonRef*>(leaf)) {
       XLS_RETURN_IF_ERROR(Visit(ToAstNode(leaf)));
       XLS_ASSIGN_OR_RETURN(BValue to_match, Use(ToAstNode(leaf)));
       return Def(matcher, [&](const SourceInfo& loc) {
         return function_builder_->Eq(to_match, matched_value);
       });
     }
-    if (absl::holds_alternative<NameRef*>(leaf)) {
+    if (std::holds_alternative<NameRef*>(leaf)) {
       // Comparing for equivalence to a (referenced) name.
       auto* name_ref = std::get<NameRef*>(leaf);
       const auto* name_def = std::get<const NameDef*>(name_ref->name_def());
@@ -1608,8 +1607,8 @@ absl::StatusOr<BValue> FunctionConverter::HandleMatcher(
       XLS_RETURN_IF_ERROR(DefAlias(name_def, name_ref));
       return result;
     }
-    XLS_RET_CHECK(absl::holds_alternative<NameDef*>(leaf));
-    auto* name_def = absl::get<NameDef*>(leaf);
+    XLS_RET_CHECK(std::holds_alternative<NameDef*>(leaf));
+    auto* name_def = std::get<NameDef*>(leaf);
     BValue ok = Def(name_def, [&](const SourceInfo& loc) {
       return function_builder_->Literal(UBits(1, 1));
     });
@@ -1733,8 +1732,8 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
     });
   } else if (dynamic_cast<const BitsType*>(lhs_type.value()) != nullptr) {
     IndexRhs rhs = node->rhs();
-    if (absl::holds_alternative<WidthSlice*>(rhs)) {
-      auto* width_slice = absl::get<WidthSlice*>(rhs);
+    if (std::holds_alternative<WidthSlice*>(rhs)) {
+      auto* width_slice = std::get<WidthSlice*>(rhs);
       XLS_RETURN_IF_ERROR(Visit(width_slice->start()));
       XLS_ASSIGN_OR_RETURN(BValue start, Use(width_slice->start()));
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> output_type,
@@ -1746,7 +1745,7 @@ absl::Status FunctionConverter::HandleIndex(const Index* node) {
         return function_builder_->DynamicBitSlice(lhs, start, width, loc);
       });
     } else {
-      auto* slice = absl::get<Slice*>(rhs);
+      auto* slice = std::get<Slice*>(rhs);
       std::optional<StartAndWidth> saw =
           current_type_info_->GetSliceStartAndWidth(slice,
                                                     GetSymbolicBindings());
@@ -2013,13 +2012,13 @@ absl::Status FunctionConverter::HandleSend(const Send* node) {
     return absl::InternalError("Send channel not found!");
   }
   IrValue ir_value = node_to_ir_[node->channel()];
-  if (!absl::holds_alternative<Channel*>(ir_value)) {
+  if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
-  BValue result = builder_ptr->Send(absl::get<Channel*>(ir_value), token, data);
+  BValue result = builder_ptr->Send(std::get<Channel*>(ir_value), token, data);
   node_to_ir_[node] = result;
   tokens_.push_back(result);
   return absl::OkStatus();
@@ -2040,7 +2039,7 @@ absl::Status FunctionConverter::HandleSendIf(const SendIf* node) {
     return absl::InternalError("Send channel not found!");
   }
   IrValue ir_value = node_to_ir_[node->channel()];
-  if (!absl::holds_alternative<Channel*>(ir_value)) {
+  if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
@@ -2051,8 +2050,8 @@ absl::Status FunctionConverter::HandleSendIf(const SendIf* node) {
 
   XLS_RETURN_IF_ERROR(Visit(node->payload()));
   XLS_ASSIGN_OR_RETURN(BValue data, Use(node->payload()));
-  BValue result = builder_ptr->SendIf(absl::get<Channel*>(ir_value), token,
-                                      predicate, data);
+  BValue result =
+      builder_ptr->SendIf(std::get<Channel*>(ir_value), token, predicate, data);
   node_to_ir_[node] = result;
   tokens_.push_back(result);
   return absl::OkStatus();
@@ -2105,13 +2104,13 @@ absl::Status FunctionConverter::HandleRecv(const Recv* node) {
     return absl::InternalError("Recv channel not found!");
   }
   IrValue ir_value = node_to_ir_[node->channel()];
-  if (!absl::holds_alternative<Channel*>(ir_value)) {
+  if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
-  BValue value = builder_ptr->Receive(absl::get<Channel*>(ir_value), token);
+  BValue value = builder_ptr->Receive(std::get<Channel*>(ir_value), token);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }
@@ -2132,14 +2131,14 @@ absl::Status FunctionConverter::HandleRecvNonBlocking(
     return absl::InternalError("Recv channel not found!");
   }
   IrValue ir_value = node_to_ir_[node->channel()];
-  if (!absl::holds_alternative<Channel*>(ir_value)) {
+  if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
 
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   BValue value =
-      builder_ptr->ReceiveNonBlocking(absl::get<Channel*>(ir_value), token);
+      builder_ptr->ReceiveNonBlocking(std::get<Channel*>(ir_value), token);
   node_to_ir_[node] = value;
 
   return absl::OkStatus();
@@ -2160,7 +2159,7 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
     return absl::InternalError("Recv channel not found!");
   }
   IrValue ir_value = node_to_ir_[node->channel()];
-  if (!absl::holds_alternative<Channel*>(ir_value)) {
+  if (!std::holds_alternative<Channel*>(ir_value)) {
     return absl::InvalidArgumentError(
         "Expected channel, got BValue or CValue.");
   }
@@ -2169,7 +2168,7 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
   XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
   XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
   BValue value =
-      builder_ptr->ReceiveIf(absl::get<Channel*>(ir_value), token, predicate);
+      builder_ptr->ReceiveIf(std::get<Channel*>(ir_value), token, predicate);
   node_to_ir_[node] = value;
   return absl::OkStatus();
 }
@@ -2520,7 +2519,7 @@ absl::Status FunctionConverter::HandleProcNextFunction(
 
   XLS_RETURN_IF_ERROR(Visit(f->body()));
 
-  BValue result = absl::get<BValue>(node_to_ir_[f->body()]);
+  BValue result = std::get<BValue>(node_to_ir_[f->body()]);
   BValue final_token = builder_ptr->AfterAll(tokens_);
   XLS_ASSIGN_OR_RETURN(xls::Proc * p,
                        builder_ptr->Build(final_token, {result}));
@@ -3146,8 +3145,8 @@ absl::Status FunctionConverter::CastFromArray(const Cast* node,
 
 absl::StatusOr<FunctionConverter::DerefVariant>
 FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
-  while (absl::holds_alternative<TypeDef*>(node)) {
-    auto* type_def = absl::get<TypeDef*>(node);
+  while (std::holds_alternative<TypeDef*>(node)) {
+    auto* type_def = std::get<TypeDef*>(node);
     TypeAnnotation* annotation = type_def->type_annotation();
     if (auto* type_ref_annotation =
             dynamic_cast<TypeRefTypeAnnotation*>(annotation)) {
@@ -3159,15 +3158,15 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
     }
   }
 
-  if (absl::holds_alternative<StructDef*>(node)) {
-    return absl::get<StructDef*>(node);
+  if (std::holds_alternative<StructDef*>(node)) {
+    return std::get<StructDef*>(node);
   }
-  if (absl::holds_alternative<EnumDef*>(node)) {
-    return absl::get<EnumDef*>(node);
+  if (std::holds_alternative<EnumDef*>(node)) {
+    return std::get<EnumDef*>(node);
   }
 
-  XLS_RET_CHECK(absl::holds_alternative<ColonRef*>(node));
-  auto* colon_ref = absl::get<ColonRef*>(node);
+  XLS_RET_CHECK(std::holds_alternative<ColonRef*>(node));
+  auto* colon_ref = std::get<ColonRef*>(node);
   std::optional<Import*> import = colon_ref->ResolveImportSubject();
   XLS_RET_CHECK(import.has_value());
   std::optional<const ImportedInfo*> info =
@@ -3182,14 +3181,14 @@ FunctionConverter::DerefStructOrEnum(TypeDefinition node) {
 
 absl::StatusOr<StructDef*> FunctionConverter::DerefStruct(TypeDefinition node) {
   XLS_ASSIGN_OR_RETURN(DerefVariant v, DerefStructOrEnum(node));
-  XLS_RET_CHECK(absl::holds_alternative<StructDef*>(v));
-  return absl::get<StructDef*>(v);
+  XLS_RET_CHECK(std::holds_alternative<StructDef*>(v));
+  return std::get<StructDef*>(v);
 }
 
 absl::StatusOr<EnumDef*> FunctionConverter::DerefEnum(TypeDefinition node) {
   XLS_ASSIGN_OR_RETURN(DerefVariant v, DerefStructOrEnum(node));
-  XLS_RET_CHECK(absl::holds_alternative<EnumDef*>(v));
-  return absl::get<EnumDef*>(v);
+  XLS_RET_CHECK(std::holds_alternative<EnumDef*>(v));
+  return std::get<EnumDef*>(v);
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> FunctionConverter::ResolveType(
@@ -3217,11 +3216,11 @@ absl::StatusOr<Value> FunctionConverter::GetConstValue(
         absl::StrFormat("AST node had no associated IR value: %s @ %s",
                         node->ToString(), SpanToString(node->GetSpan())));
   }
-  if (!absl::holds_alternative<CValue>(*ir_value)) {
+  if (!std::holds_alternative<CValue>(*ir_value)) {
     return absl::InternalError(absl::StrFormat(
         "AST node had a non-const IR value: %s", node->ToString()));
   }
-  return absl::get<CValue>(*ir_value).ir_value;
+  return std::get<CValue>(*ir_value).ir_value;
 }
 
 absl::StatusOr<Bits> FunctionConverter::GetConstBits(

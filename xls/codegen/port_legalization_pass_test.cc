@@ -79,8 +79,8 @@ TEST_F(PortLegalizationPassTest, ZeroWidthInput) {
   EXPECT_EQ(block->GetPorts().size(), 3);
   ASSERT_THAT(Run(block), IsOkAndHolds(true));
   ASSERT_EQ(block->GetPorts().size(), 2);
-  EXPECT_EQ(absl::get<InputPort*>(block->GetPorts()[0])->GetName(), "b");
-  EXPECT_EQ(absl::get<OutputPort*>(block->GetPorts()[1])->GetName(), "out");
+  EXPECT_EQ(std::get<InputPort*>(block->GetPorts()[0])->GetName(), "b");
+  EXPECT_EQ(std::get<OutputPort*>(block->GetPorts()[1])->GetName(), "out");
 }
 
 

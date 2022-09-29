@@ -251,8 +251,8 @@ class AbstractParser {
   // Pops either a name or number token or returns an error.  The overload
   // accepting a width parameter sets that parameter to the bit width of the
   // parsed number, if a number was parsed; otherwise, width is not modified.
-  absl::StatusOr<absl::variant<std::string, int64_t>> PopNameOrNumberOrError();
-  absl::StatusOr<absl::variant<std::string, int64_t>> PopNameOrNumberOrError(
+  absl::StatusOr<std::variant<std::string, int64_t>> PopNameOrNumberOrError();
+  absl::StatusOr<std::variant<std::string, int64_t>> PopNameOrNumberOrError(
       size_t& width);
 
   // Drops a token of kind target from the head of the stream or gives an error
@@ -361,7 +361,7 @@ absl::StatusOr<int64_t> AbstractParser<EvalT>::PopNumberOrError() {
 }
 
 template <typename EvalT>
-absl::StatusOr<absl::variant<std::string, int64_t>>
+absl::StatusOr<std::variant<std::string, int64_t>>
 AbstractParser<EvalT>::PopNameOrNumberOrError(size_t& width) {
   TokenKind kind = scanner_->Peek()->kind;
   if (kind == TokenKind::kName) {
@@ -375,7 +375,7 @@ AbstractParser<EvalT>::PopNameOrNumberOrError(size_t& width) {
 }
 
 template <typename EvalT>
-absl::StatusOr<absl::variant<std::string, int64_t>>
+absl::StatusOr<std::variant<std::string, int64_t>>
 AbstractParser<EvalT>::PopNameOrNumberOrError() {
   size_t width;
   return PopNameOrNumberOrError(width);
@@ -451,14 +451,14 @@ AbstractParser<EvalT>::ParseCellModule(AbstractNetlist<EvalT>& netlist) {
 template <typename EvalT>
 absl::StatusOr<AbstractNetRef<EvalT>> AbstractParser<EvalT>::ParseNetRef(
     AbstractModule<EvalT>* module) {
-  using TokenT = absl::variant<std::string, int64_t>;
+  using TokenT = std::variant<std::string, int64_t>;
   XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError());
-  if (absl::holds_alternative<int64_t>(token)) {
-    int64_t value = absl::get<int64_t>(token);
+  if (std::holds_alternative<int64_t>(token)) {
+    int64_t value = std::get<int64_t>(token);
     return module->AddOrResolveNumber(value);
   }
 
-  std::string name = absl::get<std::string>(token);
+  std::string name = std::get<std::string>(token);
   if (TryDropToken(TokenKind::kOpenBracket)) {
     XLS_ASSIGN_OR_RETURN(int64_t index, PopNumberOrError());
     XLS_RETURN_IF_ERROR(DropTokenOrError(TokenKind::kCloseBracket));
@@ -623,12 +623,12 @@ absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
     AbstractModule<EvalT>* module, std::vector<std::string>& side,
     bool is_lhs) {
   size_t number_bit_width;
-  using TokenT = absl::variant<std::string, int64_t>;
+  using TokenT = std::variant<std::string, int64_t>;
   XLS_ASSIGN_OR_RETURN(TokenT token, PopNameOrNumberOrError(number_bit_width));
   std::string name;
   std::optional<Range> range = absl::nullopt;
-  if (absl::holds_alternative<std::string>(token)) {
-    name = absl::get<std::string>(token);
+  if (std::holds_alternative<std::string>(token)) {
+    name = std::get<std::string>(token);
     XLS_ASSIGN_OR_RETURN(range, ParseOptionalRange(false));
   } else {
     // If we parsed a number, but we're expecting an lvalue, throw an error.
@@ -639,7 +639,7 @@ absl::Status AbstractParser<EvalT>::ParseOneEntryOfAssignDecl(
     // We got a number, and we're parsing the RHS. Break up the number into
     // bits, and splay its values as "0"s and "1"s in the string, starting with
     // the MSB.
-    auto bitmap = InlineBitmap::FromWord(absl::get<int64_t>(token),
+    auto bitmap = InlineBitmap::FromWord(std::get<int64_t>(token),
                                          number_bit_width, /*fill=*/false);
     XLS_CHECK(number_bit_width > 0);
     for (; number_bit_width; number_bit_width--) {

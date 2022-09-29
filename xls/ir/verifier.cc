@@ -1907,10 +1907,10 @@ absl::Status VerifyBlock(Block* block, bool codegen) {
   // Verify the nodes returned by Block::Get*Port methods are consistent.
   absl::flat_hash_set<Node*> all_data_ports;
   for (const Block::Port& port : block->GetPorts()) {
-    if (absl::holds_alternative<InputPort*>(port)) {
-      all_data_ports.insert(absl::get<InputPort*>(port));
-    } else if (absl::holds_alternative<OutputPort*>(port)) {
-      all_data_ports.insert(absl::get<OutputPort*>(port));
+    if (std::holds_alternative<InputPort*>(port)) {
+      all_data_ports.insert(std::get<InputPort*>(port));
+    } else if (std::holds_alternative<OutputPort*>(port)) {
+      all_data_ports.insert(std::get<OutputPort*>(port));
     }
   }
   absl::flat_hash_set<Node*> input_data_ports(block->GetInputPorts().begin(),

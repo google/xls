@@ -251,7 +251,7 @@ absl::StatusOr<std::unique_ptr<Module>> Parser::ParseModule(
   return std::move(module_);
 }
 
-absl::StatusOr<absl::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
+absl::StatusOr<std::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
 Parser::ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                        Bindings* bindings) {
   // Ignore the Rust "bang" in Attribute declarations, i.e. we don't yet have
@@ -399,17 +399,17 @@ absl::StatusOr<StructRef> Parser::ResolveStruct(Bindings* bindings,
   TypeRef* type_ref = type_ref_annotation->type_ref();
   TypeDefinition type_defn = type_ref->type_definition();
 
-  if (absl::holds_alternative<StructDef*>(type_defn)) {
-    return StructRef(absl::get<StructDef*>(type_defn));
+  if (std::holds_alternative<StructDef*>(type_defn)) {
+    return StructRef(std::get<StructDef*>(type_defn));
   }
-  if (absl::holds_alternative<ColonRef*>(type_defn)) {
-    return StructRef(absl::get<ColonRef*>(type_defn));
+  if (std::holds_alternative<ColonRef*>(type_defn)) {
+    return StructRef(std::get<ColonRef*>(type_defn));
   }
-  if (absl::holds_alternative<TypeDef*>(type_defn)) {
+  if (std::holds_alternative<TypeDef*>(type_defn)) {
     return ResolveStruct(bindings,
-                         absl::get<TypeDef*>(type_defn)->type_annotation());
+                         std::get<TypeDef*>(type_defn)->type_annotation());
   }
-  if (absl::holds_alternative<EnumDef*>(type_defn)) {
+  if (std::holds_alternative<EnumDef*>(type_defn)) {
     return absl::InvalidArgumentError(
         "Type resolved to an enum definition; expected struct definition: " +
         type->ToString());
@@ -621,7 +621,7 @@ absl::StatusOr<ColonRef*> Parser::ParseColonRef(Bindings* bindings,
     if (dropped_colon) {
       continue;
     }
-    return absl::get<ColonRef*>(subject);
+    return std::get<ColonRef*>(subject);
   }
 }
 
@@ -729,7 +729,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
   return module_->Make<StructInstance>(span, struct_ref, std::move(members));
 }
 
-absl::StatusOr<absl::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
+absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
     Bindings* bindings, absl::string_view context) {
   XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier,
                                                   /*start=*/nullptr, context));
@@ -795,7 +795,7 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {
     Span span;
   };
 
-  using ExprOrEllipsis = absl::variant<Expr*, EllipsisSentinel>;
+  using ExprOrEllipsis = std::variant<Expr*, EllipsisSentinel>;
   auto parse_ellipsis_or_expression =
       [this, bindings]() -> absl::StatusOr<ExprOrEllipsis> {
     XLS_ASSIGN_OR_RETURN(bool peek_is_ellipsis,
@@ -807,10 +807,10 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {
     return ParseExpression(bindings);
   };
   auto get_span = [](const ExprOrEllipsis& e) {
-    if (absl::holds_alternative<Expr*>(e)) {
-      return absl::get<Expr*>(e)->span();
+    if (std::holds_alternative<Expr*>(e)) {
+      return std::get<Expr*>(e)->span();
     }
-    return absl::get<EllipsisSentinel>(e).span;
+    return std::get<EllipsisSentinel>(e).span;
   };
 
   XLS_ASSIGN_OR_RETURN(std::vector<ExprOrEllipsis> members,
@@ -820,7 +820,7 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {
   bool has_trailing_ellipsis = false;
   for (int64_t i = 0; i < members.size(); ++i) {
     const ExprOrEllipsis& member = members[i];
-    if (absl::holds_alternative<EllipsisSentinel>(member)) {
+    if (std::holds_alternative<EllipsisSentinel>(member)) {
       if (i + 1 == members.size()) {
         has_trailing_ellipsis = true;
         members.pop_back();
@@ -829,7 +829,7 @@ absl::StatusOr<Array*> Parser::ParseArray(Bindings* bindings) {
                                 "Ellipsis may only be in trailing position.");
       }
     } else {
-      exprs.push_back(absl::get<Expr*>(member));
+      exprs.push_back(std::get<Expr*>(member));
     }
   }
 
@@ -885,20 +885,20 @@ absl::StatusOr<Expr*> Parser::ParseCast(Bindings* bindings,
 
 absl::StatusOr<Expr*> Parser::ParseBinopChain(
     const std::function<absl::StatusOr<Expr*>()>& sub_production,
-    absl::variant<absl::Span<TokenKind const>, absl::Span<Keyword const>>
+    std::variant<absl::Span<TokenKind const>, absl::Span<Keyword const>>
         target_tokens) {
   XLS_ASSIGN_OR_RETURN(Expr * lhs, sub_production());
   while (true) {
     XLS_VLOG(5) << "Binop chain lhs: " << lhs->ToString();
     bool peek_in_targets;
-    if (absl::holds_alternative<absl::Span<TokenKind const>>(target_tokens)) {
+    if (std::holds_alternative<absl::Span<TokenKind const>>(target_tokens)) {
       XLS_ASSIGN_OR_RETURN(
           peek_in_targets,
-          PeekTokenIn(absl::get<absl::Span<TokenKind const>>(target_tokens)));
+          PeekTokenIn(std::get<absl::Span<TokenKind const>>(target_tokens)));
     } else {
       XLS_ASSIGN_OR_RETURN(
           peek_in_targets,
-          PeekKeywordIn(absl::get<absl::Span<Keyword const>>(target_tokens)));
+          PeekKeywordIn(std::get<absl::Span<Keyword const>>(target_tokens)));
     }
     if (peek_in_targets) {
       Token op = PopTokenOrDie();
@@ -972,7 +972,7 @@ absl::StatusOr<NameDefTree*> Parser::ParsePattern(Bindings* bindings) {
     if (resolved) {
       AnyNameDef name_def =
           bindings->ResolveNameOrNullopt(*tok.GetValue()).value();
-      if (absl::holds_alternative<ConstantDef*>(*resolved)) {
+      if (std::holds_alternative<ConstantDef*>(*resolved)) {
         ref = module_->Make<ConstRef>(tok.span(), *tok.GetValue(), name_def);
       } else {
         ref = module_->Make<NameRef>(tok.span(), *tok.GetValue(), name_def);
@@ -1273,11 +1273,11 @@ absl::StatusOr<Expr*> Parser::ParseTerm(Bindings* outer_bindings) {
       lhs_str = "out";
     }
     XLS_ASSIGN_OR_RETURN(auto nocr, ParseNameOrColonRef(outer_bindings));
-    if (absl::holds_alternative<ColonRef*>(nocr)) {
+    if (std::holds_alternative<ColonRef*>(nocr)) {
       XLS_ASSIGN_OR_RETURN(bool peek_is_obrace,
                            PeekTokenIs(TokenKind::kOBrace));
       if (peek_is_obrace) {
-        ColonRef* colon_ref = absl::get<ColonRef*>(nocr);
+        ColonRef* colon_ref = std::get<ColonRef*>(nocr);
         TypeRef* type_ref =
             module_->Make<TypeRef>(colon_ref->span(), lhs_str, colon_ref);
         XLS_ASSIGN_OR_RETURN(
@@ -1559,7 +1559,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
   Expr* config_ref;
   Expr* next_ref;
   if (std::holds_alternative<NameRef*>(name_or_colon_ref)) {
-    NameRef* name_ref = absl::get<NameRef*>(name_or_colon_ref);
+    NameRef* name_ref = std::get<NameRef*>(name_or_colon_ref);
     spawnee = name_ref;
     // We avoid name collisions b/w exiesting functions and Proc config/next fns
     // by using a "." as the separator, which is invalid for function
@@ -1569,7 +1569,7 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
     XLS_ASSIGN_OR_RETURN(
         AnyNameDef config_def,
         bindings->ResolveNameOrError(config_name, spawnee->span()));
-    if (!absl::holds_alternative<const NameDef*>(config_def)) {
+    if (!std::holds_alternative<const NameDef*>(config_def)) {
       return absl::InternalError("Proc config should be named \".config\"");
     }
     config_ref =
@@ -1577,12 +1577,12 @@ absl::StatusOr<Spawn*> Parser::ParseSpawn(Bindings* bindings) {
 
     XLS_ASSIGN_OR_RETURN(AnyNameDef next_def, bindings->ResolveNameOrError(
                                                   next_name, spawnee->span()));
-    if (!absl::holds_alternative<const NameDef*>(next_def)) {
+    if (!std::holds_alternative<const NameDef*>(next_def)) {
       return absl::InternalError("Proc next should be named \".next\"");
     }
     next_ref = module_->Make<NameRef>(name_ref->span(), next_name, next_def);
   } else {
-    ColonRef* colon_ref = absl::get<ColonRef*>(name_or_colon_ref);
+    ColonRef* colon_ref = std::get<ColonRef*>(name_or_colon_ref);
     spawnee = colon_ref;
 
     // Problem: If naively assigned, the colon_ref subject would end up being a
@@ -1986,7 +1986,7 @@ absl::StatusOr<TypeRef*> Parser::ParseModTypeRef(Bindings* bindings,
   XLS_ASSIGN_OR_RETURN(
       BoundNode bn,
       bindings->ResolveNodeOrError(*start_tok.GetValue(), start_tok.span()));
-  if (!absl::holds_alternative<Import*>(bn)) {
+  if (!std::holds_alternative<Import*>(bn)) {
     return ParseErrorStatus(
         start_tok.span(),
         absl::StrFormat("Expected module for module-reference; got %s",
@@ -2187,7 +2187,7 @@ absl::StatusOr<Expr*> Parser::ParseCastOrStructInstance(Bindings* bindings) {
   return ParseStructInstance(bindings, type);
 }
 
-absl::StatusOr<absl::variant<NameDef*, WildcardPattern*>>
+absl::StatusOr<std::variant<NameDef*, WildcardPattern*>>
 Parser::ParseNameDefOrWildcard(Bindings* bindings) {
   XLS_ASSIGN_OR_RETURN(std::optional<Token> tok, TryPopIdentifierToken("_"));
   if (tok) {
@@ -2357,15 +2357,15 @@ absl::StatusOr<std::vector<Expr*>> Parser::ParseParametrics(
       return status_or_literal;
     }
 
-    auto status_or_ref = TryOrRollback<absl::variant<NameRef*, ColonRef*>>(
+    auto status_or_ref = TryOrRollback<std::variant<NameRef*, ColonRef*>>(
         txn.bindings(),
         [this](Bindings* bindings) { return ParseNameOrColonRef(bindings); });
     XLS_ASSIGN_OR_RETURN(auto ref, status_or_ref);
-    if (absl::holds_alternative<NameRef*>(ref)) {
-      return absl::get<NameRef*>(ref);
+    if (std::holds_alternative<NameRef*>(ref)) {
+      return std::get<NameRef*>(ref);
     }
 
-    return absl::get<ColonRef*>(ref);
+    return std::get<ColonRef*>(ref);
   };
 
   auto status_or_exprs =
@@ -2409,11 +2409,11 @@ absl::StatusOr<TestProc*> Parser::ParseTestProc(
   return module_->Make<TestProc>(p, initial_values);
 }
 
-const Span& GetSpan(const absl::variant<NameDef*, WildcardPattern*>& v) {
-  if (absl::holds_alternative<NameDef*>(v)) {
-    return absl::get<NameDef*>(v)->span();
+const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v) {
+  if (std::holds_alternative<NameDef*>(v)) {
+    return std::get<NameDef*>(v)->span();
   }
-  return absl::get<WildcardPattern*>(v)->span();
+  return std::get<WildcardPattern*>(v)->span();
 }
 
 }  // namespace xls::dslx

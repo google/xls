@@ -244,7 +244,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
 
   // Scan the simulator output and pick out the OUTPUT lines holding the value
   // of module output ports.
-  absl::flat_hash_map<InstancePort, absl::variant<Bits, IsX>> parsed_values;
+  absl::flat_hash_map<InstancePort, std::variant<Bits, IsX>> parsed_values;
 
   // Example output lines for a bits value:
   //
@@ -292,12 +292,12 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
           "Output %s, instance #%d not found in Verilog simulator output.",
           cycle_port.second, cycle_port.first));
     }
-    if (absl::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
+    if (std::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
       return absl::NotFoundError(absl::StrFormat(
           "Output %s, instance #%d holds X value in Verilog simulator output.",
           cycle_port.second, cycle_port.first));
     }
-    *value_ptr = absl::get<Bits>(parsed_values.at(cycle_port));
+    *value_ptr = std::get<Bits>(parsed_values.at(cycle_port));
   }
 
   // Check the module output port value against any expectations.
@@ -315,15 +315,15 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
           get_source_location(), cycle_port.second, cycle_port.first,
           ToString(expectation.loc)));
     }
-    if (absl::holds_alternative<Bits>(expectation.expected)) {
-      const Bits& expected_bits = absl::get<Bits>(expectation.expected);
-      if (absl::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
+    if (std::holds_alternative<Bits>(expectation.expected)) {
+      const Bits& expected_bits = std::get<Bits>(expectation.expected);
+      if (std::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have value: %s, has X",
             get_source_location(), cycle_port.second, cycle_port.first,
             expected_bits.ToString()));
       }
-      const Bits& actual_bits = absl::get<Bits>(parsed_values.at(cycle_port));
+      const Bits& actual_bits = std::get<Bits>(parsed_values.at(cycle_port));
       if (actual_bits != expected_bits) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have value: %s, actual: "
@@ -332,13 +332,13 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
             expected_bits.ToString(), actual_bits.ToString()));
       }
     } else {
-      XLS_CHECK(absl::holds_alternative<IsX>(expectation.expected));
-      if (absl::holds_alternative<Bits>(parsed_values.at(cycle_port))) {
+      XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
+      if (std::holds_alternative<Bits>(parsed_values.at(cycle_port))) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have X value, has non X "
             "value: %s",
             get_source_location(), cycle_port.second, cycle_port.first,
-            absl::get<Bits>(parsed_values.at(cycle_port)).ToString()));
+            std::get<Bits>(parsed_values.at(cycle_port)).ToString()));
       }
     }
   }
@@ -499,15 +499,15 @@ absl::Status ModuleTestbench::Run() {
               // TODO(meheff): If we switch to SystemVerilog this is better
               // handled using a clocking block.
               Expression* cmp;
-              if (absl::holds_alternative<Bits>(w.value)) {
+              if (std::holds_alternative<Bits>(w.value)) {
                 cmp = file.NotEquals(
                     port_refs.at(w.port),
-                    file.Literal(absl::get<Bits>(w.value), SourceInfo()),
+                    file.Literal(std::get<Bits>(w.value), SourceInfo()),
                     SourceInfo());
-              } else if (absl::holds_alternative<IsX>(w.value)) {
+              } else if (std::holds_alternative<IsX>(w.value)) {
                 cmp = file.NotEqualsX(port_refs.at(w.port), SourceInfo());
               } else {
-                XLS_CHECK(absl::holds_alternative<IsNotX>(w.value));
+                XLS_CHECK(std::holds_alternative<IsNotX>(w.value));
                 cmp = file.EqualsX(port_refs.at(w.port), SourceInfo());
               }
               auto whle =

@@ -154,7 +154,7 @@ class AstNodeVisitorWithDefault : public AstNodeVisitor {
 
 // Name definitions can be either built in (BuiltinNameDef, in which case they
 // have no effective position) or defined in the user AST (NameDef).
-using AnyNameDef = absl::variant<const NameDef*, BuiltinNameDef*>;
+using AnyNameDef = std::variant<const NameDef*, BuiltinNameDef*>;
 
 // Holds a mapping {identifier: NameRefs} -- this is used for accumulating free
 // variable references (the NameRefs) in the source program; see
@@ -327,14 +327,14 @@ absl::Status WalkPostOrder(AstNode* root, AstNodeVisitor* visitor,
 // Helpers for converting variants of "AstNode subtype" pointers and their
 // variants to the base `AstNode*`.
 template <typename... Types>
-inline AstNode* ToAstNode(const absl::variant<Types...>& v) {
+inline AstNode* ToAstNode(const std::variant<Types...>& v) {
   return absl::ConvertVariantTo<AstNode*>(v);
 }
 inline AstNode* ToAstNode(AstNode* n) { return n; }
 
 // As above, but for Expr base.
 template <typename... Types>
-inline Expr* ToExprNode(const absl::variant<Types...>& v) {
+inline Expr* ToExprNode(const std::variant<Types...>& v) {
   return absl::ConvertVariantTo<Expr*>(v);
 }
 
@@ -750,21 +750,21 @@ class NameRef : public Expr {
 
   template <typename T>
   bool DefinerIs() {
-    if (absl::holds_alternative<BuiltinNameDef*>(name_def_)) {
+    if (std::holds_alternative<BuiltinNameDef*>(name_def_)) {
       return false;
     }
-    auto* name_def = absl::get<const NameDef*>(name_def_);
+    auto* name_def = std::get<const NameDef*>(name_def_);
     return dynamic_cast<T*>(name_def->definer()) != nullptr;
   }
 
   std::optional<Pos> GetNameDefStart() const {
-    if (absl::holds_alternative<const NameDef*>(name_def_)) {
-      return absl::get<const NameDef*>(name_def_)->span().start();
+    if (std::holds_alternative<const NameDef*>(name_def_)) {
+      return std::get<const NameDef*>(name_def_)->span().start();
     }
     return absl::nullopt;
   }
 
-  absl::variant<const NameDef*, BuiltinNameDef*> name_def() const {
+  std::variant<const NameDef*, BuiltinNameDef*> name_def() const {
     return name_def_;
   }
 
@@ -958,7 +958,7 @@ class ConstantArray : public Array {
 
 // Several different AST nodes define types that can be referred to by a
 // TypeRef.
-using TypeDefinition = absl::variant<TypeDef*, StructDef*, EnumDef*, ColonRef*>;
+using TypeDefinition = std::variant<TypeDef*, StructDef*, EnumDef*, ColonRef*>;
 
 absl::StatusOr<TypeDefinition> ToTypeDefinition(AstNode* node);
 
@@ -1043,7 +1043,7 @@ class Import : public AstNode {
 // Then the ColonRef `some_mod::SomeEnum` is the LHS.
 class ColonRef : public Expr {
  public:
-  using Subject = absl::variant<NameRef*, ColonRef*>;
+  using Subject = std::variant<NameRef*, ColonRef*>;
 
   ColonRef(Module* owner, Span span, Subject subject, std::string attr);
 
@@ -1852,7 +1852,7 @@ class StructDef : public AstNode {
 // Variant that either points at a struct definition or a module reference
 // (which should be backed by a struct definition -- that property will be
 // checked by the typechecker).
-using StructRef = absl::variant<StructDef*, ColonRef*>;
+using StructRef = std::variant<StructDef*, ColonRef*>;
 
 std::string StructRefToText(const StructRef& struct_ref);
 
@@ -2588,9 +2588,9 @@ class NameDefTree : public AstNode {
  public:
   using Nodes = std::vector<NameDefTree*>;
   using Leaf =
-      absl::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>;
+      std::variant<NameDef*, NameRef*, WildcardPattern*, Number*, ColonRef*>;
 
-  NameDefTree(Module* owner, Span span, absl::variant<Nodes, Leaf> tree)
+  NameDefTree(Module* owner, Span span, std::variant<Nodes, Leaf> tree)
       : AstNode(owner), span_(std::move(span)), tree_(tree) {}
 
   AstNodeKind kind() const override { return AstNodeKind::kNameDefTree; }
@@ -2604,10 +2604,10 @@ class NameDefTree : public AstNode {
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
-  bool is_leaf() const { return absl::holds_alternative<Leaf>(tree_); }
-  Leaf leaf() const { return absl::get<Leaf>(tree_); }
+  bool is_leaf() const { return std::holds_alternative<Leaf>(tree_); }
+  Leaf leaf() const { return std::get<Leaf>(tree_); }
 
-  const Nodes& nodes() const { return absl::get<Nodes>(tree_); }
+  const Nodes& nodes() const { return std::get<Nodes>(tree_); }
 
   // Flattens this NameDefTree a single level, unwrapping any leaf NDTs; e.g.
   //
@@ -2618,7 +2618,7 @@ class NameDefTree : public AstNode {
   // This is useful for flattening a tuple a single level; e.g. where a
   // NameDefTree is going to be used as variadic args in for-loop to function
   // conversion.
-  std::vector<absl::variant<Leaf, NameDefTree*>> Flatten1();
+  std::vector<std::variant<Leaf, NameDefTree*>> Flatten1();
 
   // Flattens the (recursive) NameDefTree into a list of leaves.
   std::vector<Leaf> Flatten() const;
@@ -2632,8 +2632,8 @@ class NameDefTree : public AstNode {
   bool IsIrrefutable() const {
     auto leaves = Flatten();
     return std::all_of(leaves.begin(), leaves.end(), [](Leaf leaf) {
-      return absl::holds_alternative<NameDef*>(leaf) ||
-             absl::holds_alternative<WildcardPattern*>(leaf);
+      return std::holds_alternative<NameDef*>(leaf) ||
+             std::holds_alternative<WildcardPattern*>(leaf);
     });
   }
 
@@ -2656,13 +2656,13 @@ class NameDefTree : public AstNode {
     return absl::OkStatus();
   }
 
-  const absl::variant<Nodes, Leaf>& tree() const { return tree_; }
+  const std::variant<Nodes, Leaf>& tree() const { return tree_; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
 
  private:
   Span span_;
-  absl::variant<Nodes, Leaf> tree_;
+  std::variant<Nodes, Leaf> tree_;
 };
 
 // Represents a let-binding expression.
@@ -2734,7 +2734,7 @@ class ConstRef : public NameRef {
   // When holding a ConstRef we know that the corresponding NameDef cannot be
   // builtin (since consts are user constructs).
   const NameDef* name_def() const {
-    return absl::get<const NameDef*>(NameRef::name_def());
+    return std::get<const NameDef*>(NameRef::name_def());
   }
 
   // Returns the constant definition that this ConstRef is referring to.
@@ -2791,8 +2791,8 @@ class ChannelDecl : public Expr {
 };
 
 using ModuleMember =
-    absl::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
-                  TypeDef*, StructDef*, ConstantDef*, EnumDef*, Import*>;
+    std::variant<Function*, Proc*, TestFunction*, TestProc*, QuickCheck*,
+                 TypeDef*, StructDef*, ConstantDef*, EnumDef*, Import*>;
 
 absl::StatusOr<ModuleMember> AsModuleMember(AstNode* node);
 
@@ -2831,8 +2831,8 @@ class Module : public AstNode {
     // themselves.
     std::vector<ModuleMember> print_top;
     for (const auto& member : top_) {
-      if (absl::holds_alternative<Function*>(member) &&
-          absl::get<Function*>(member)->proc().has_value()) {
+      if (std::holds_alternative<Function*>(member) &&
+          std::get<Function*>(member)->proc().has_value()) {
         continue;
       }
       print_top.push_back(member);
@@ -2871,8 +2871,8 @@ class Module : public AstNode {
   template <typename T>
   absl::StatusOr<T*> GetMemberOrError(absl::string_view target_name) {
     for (ModuleMember& member : top_) {
-      if (absl::holds_alternative<T*>(member)) {
-        T* t = absl::get<T*>(member);
+      if (std::holds_alternative<T*>(member)) {
+        T* t = std::get<T*>(member);
         if (t->identifier() == target_name) {
           return t;
         }
@@ -2986,8 +2986,8 @@ class Module : public AstNode {
   std::vector<T*> GetTopWithT() const {
     std::vector<T*> result;
     for (auto& member : top_) {
-      if (absl::holds_alternative<T*>(member)) {
-        result.push_back(absl::get<T*>(member));
+      if (std::holds_alternative<T*>(member)) {
+        result.push_back(std::get<T*>(member));
       }
     }
     return result;
@@ -2999,8 +2999,8 @@ class Module : public AstNode {
   absl::flat_hash_map<std::string, T*> GetTopWithTByName() const {
     absl::flat_hash_map<std::string, T*> result;
     for (auto& member : top_) {
-      if (absl::holds_alternative<T*>(member)) {
-        auto* c = absl::get<T*>(member);
+      if (std::holds_alternative<T*>(member)) {
+        auto* c = std::get<T*>(member);
         result.insert({c->identifier(), c});
       }
     }

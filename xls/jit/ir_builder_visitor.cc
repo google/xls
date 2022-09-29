@@ -1070,9 +1070,9 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
 
   size_t operand_index = 2;
   for (const FormatStep& step : trace_op->format()) {
-    if (absl::holds_alternative<std::string>(step)) {
+    if (std::holds_alternative<std::string>(step)) {
       XLS_RETURN_IF_ERROR(InvokeStringStepCallback(
-          &print_builder, absl::get<std::string>(step), buffer_ptr));
+          &print_builder, std::get<std::string>(step), buffer_ptr));
     } else {
       xls::Node* o = trace_op->operand(operand_index);
       llvm::Value* operand = node_context.LoadOperand(operand_index);
@@ -1082,7 +1082,7 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
       // the next operand after formatting this one.
       operand_index += 1;
       XLS_RETURN_IF_ERROR(InvokeFormatStepCallback(
-          &print_builder, absl::get<FormatPreference>(step), o->GetType(),
+          &print_builder, std::get<FormatPreference>(step), o->GetType(),
           alloca, buffer_ptr, jit_runtime_ptr));
     }
   }

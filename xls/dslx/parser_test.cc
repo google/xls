@@ -161,7 +161,7 @@ TEST_F(ParserTest, ParseLetExpression) {
   XLS_ASSERT_OK_AND_ASSIGN(Expr * e, p.ParseExpression(/*bindings=*/nullptr));
   Let* let = dynamic_cast<Let*>(e);
   ASSERT_TRUE(let != nullptr) << e->ToString();
-  NameDef* name_def = absl::get<NameDef*>(let->name_def_tree()->leaf());
+  NameDef* name_def = std::get<NameDef*>(let->name_def_tree()->leaf());
   EXPECT_EQ(name_def->identifier(), "x");
   EXPECT_EQ(let->type_annotation()->ToString(), "u32");
   EXPECT_EQ(let->rhs()->ToString(), "2");
@@ -477,7 +477,7 @@ fn f(p: Point) -> Point {
   Parser parser{"test", &s};
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
   XLS_ASSERT_OK_AND_ASSIGN(TypeDefinition c, m->GetTypeDefinition("Point"));
-  ASSERT_TRUE(absl::holds_alternative<StructDef*>(c));
+  ASSERT_TRUE(std::holds_alternative<StructDef*>(c));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, m->GetMemberOrError<Function>("f"));
   Block* block = dynamic_cast<Block*>(f->body());
   SplatStructInstance* ssi = dynamic_cast<SplatStructInstance*>(block->body());
@@ -544,8 +544,8 @@ fn f(x: u32) -> u8 {
   auto* index = dynamic_cast<Index*>(block->body());
   ASSERT_NE(index, nullptr);
   IndexRhs rhs = index->rhs();
-  ASSERT_TRUE(absl::holds_alternative<Slice*>(rhs));
-  auto* slice = absl::get<Slice*>(rhs);
+  ASSERT_TRUE(std::holds_alternative<Slice*>(rhs));
+  auto* slice = std::get<Slice*>(rhs);
   EXPECT_EQ(slice->start()->ToString(), "0");
   EXPECT_EQ(slice->limit()->ToString(), "8");
 }

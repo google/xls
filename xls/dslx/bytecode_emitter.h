@@ -78,7 +78,7 @@ class BytecodeEmitter : public ExprVisitor {
   absl::Status HandleLet(const Let* node) override;
   absl::Status HandleMatch(const Match* node) override;
   absl::Status HandleNameRef(const NameRef* node) override;
-  absl::StatusOr<absl::variant<InterpValue, Bytecode::SlotIndex>>
+  absl::StatusOr<std::variant<InterpValue, Bytecode::SlotIndex>>
   HandleNameRefInternal(const NameRef* node);
   absl::Status HandleNumber(const Number* node) override;
   absl::StatusOr<InterpValue> HandleNumberInternal(const Number* node);

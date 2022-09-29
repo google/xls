@@ -183,22 +183,22 @@ struct TooManySentinel {};
 
 // Type that notes the frontier nodes involved in a boolean expression.
 using FrontierVector = absl::InlinedVector<Node*, kMaxFrontierNodes>;
-using Frontier = absl::variant<FrontierVector, TooManySentinel>;
+using Frontier = std::variant<FrontierVector, TooManySentinel>;
 
 bool HasFrontierVector(const Frontier& frontier) {
-  return absl::holds_alternative<FrontierVector>(frontier);
+  return std::holds_alternative<FrontierVector>(frontier);
 }
 const FrontierVector& GetFrontierVector(const Frontier& frontier) {
-  return absl::get<FrontierVector>(frontier);
+  return std::get<FrontierVector>(frontier);
 }
 
 // Adds a frontier "node" to the set -- note this may push it over to the
 // "TooManySentinel" mode.
 void AddNonBool(Node* node, Frontier* frontier) {
-  if (absl::holds_alternative<TooManySentinel>(*frontier)) {
+  if (std::holds_alternative<TooManySentinel>(*frontier)) {
     return;
   }
-  auto& nodes = absl::get<FrontierVector>(*frontier);
+  auto& nodes = std::get<FrontierVector>(*frontier);
   if (std::find(nodes.begin(), nodes.end(), node) != nodes.end()) {
     return;  // Already present.
   }
@@ -212,14 +212,14 @@ void AddNonBool(Node* node, Frontier* frontier) {
 // Unions the "arg" frontier set into the "out" frontier set. Note this may push
 // it over to the "TooManySentinel" mode.
 void Union(const Frontier& arg, Frontier* out) {
-  if (absl::holds_alternative<TooManySentinel>(*out)) {
+  if (std::holds_alternative<TooManySentinel>(*out)) {
     return;
   }
-  if (absl::holds_alternative<TooManySentinel>(arg)) {
+  if (std::holds_alternative<TooManySentinel>(arg)) {
     *out = TooManySentinel{};
     return;
   }
-  for (Node* node : absl::get<FrontierVector>(arg)) {
+  for (Node* node : std::get<FrontierVector>(arg)) {
     AddNonBool(node, out);
   }
 }
@@ -227,13 +227,13 @@ void Union(const Frontier& arg, Frontier* out) {
 // We arbitrarily call the node at index 0 in the frontier "X", and the one at
 // index 1 "Y".
 Node* GetX(const Frontier& frontier) {
-  return absl::get<FrontierVector>(frontier)[0];
+  return std::get<FrontierVector>(frontier)[0];
 }
 Node* GetY(const Frontier& frontier) {
-  return absl::get<FrontierVector>(frontier)[1];
+  return std::get<FrontierVector>(frontier)[1];
 }
 Node* GetZ(const Frontier& frontier) {
-  const auto& v = absl::get<FrontierVector>(frontier);
+  const auto& v = std::get<FrontierVector>(frontier);
   return v.size() > 2 ? v[2] : nullptr;
 }
 

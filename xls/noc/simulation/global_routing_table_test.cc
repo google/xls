@@ -148,11 +148,11 @@ TEST(GlobalRoutingTableTest, Index) {
   NetworkComponentId recvport3 =
       *routing_table.GetSinkIndices().GetNetworkComponentByIndex(3);
 
-  EXPECT_EQ(absl::get<NetworkInterfaceSrcParam>(
+  EXPECT_EQ(std::get<NetworkInterfaceSrcParam>(
                 *params.GetNetworkComponentParam(sendport0))
                 .GetName(),
             "SendPort0");
-  EXPECT_EQ(absl::get<NetworkInterfaceSinkParam>(
+  EXPECT_EQ(std::get<NetworkInterfaceSinkParam>(
                 *params.GetNetworkComponentParam(recvport3))
                 .GetName(),
             "RecvPort3");

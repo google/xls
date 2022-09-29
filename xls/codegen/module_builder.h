@@ -268,7 +268,7 @@ class ModuleBuilder {
 
   // Emits a copy and update of an array as a sequence of assignments. See
   // method definition for details and examples.
-  using IndexMatch = absl::variant<bool, Expression*>;
+  using IndexMatch = std::variant<bool, Expression*>;
   // Bundles an array index with its XLS type.
   struct IndexType {
     Expression* expression;

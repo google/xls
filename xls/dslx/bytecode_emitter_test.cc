@@ -132,8 +132,8 @@ fn expect_fail() -> u32{
   ASSERT_EQ(bc->op(), Bytecode::Op::kLiteral);
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue call_fn, bc->value_data());
   ASSERT_TRUE(call_fn.IsFunction());
-  ASSERT_TRUE(absl::holds_alternative<Builtin>(call_fn.GetFunctionOrDie()));
-  Builtin builtin = absl::get<Builtin>(call_fn.GetFunctionOrDie());
+  ASSERT_TRUE(std::holds_alternative<Builtin>(call_fn.GetFunctionOrDie()));
+  Builtin builtin = std::get<Builtin>(call_fn.GetFunctionOrDie());
   // How meta!
   ASSERT_EQ(builtin, Builtin::kAssertEq);
 
@@ -145,9 +145,9 @@ fn expect_fail() -> u32{
   NameRef* name_ref =
       dynamic_cast<NameRef*>(invocation_data.invocation->callee());
   ASSERT_NE(name_ref, nullptr);
-  ASSERT_TRUE(absl::holds_alternative<BuiltinNameDef*>(name_ref->name_def()));
+  ASSERT_TRUE(std::holds_alternative<BuiltinNameDef*>(name_ref->name_def()));
   BuiltinNameDef* builtin_name_def =
-      absl::get<BuiltinNameDef*>(name_ref->name_def());
+      std::get<BuiltinNameDef*>(name_ref->name_def());
   EXPECT_EQ(builtin_name_def->identifier(), "assert_eq");
 
   bc = &bytecodes[6];

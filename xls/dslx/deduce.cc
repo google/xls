@@ -111,7 +111,7 @@ absl::Status TryEnsureFitsInType(const Number& number, const BitsType& type) {
   }
 
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim bits_dim, type.GetTotalBitCount());
-  if (!absl::holds_alternative<InterpValue>(bits_dim.value())) {
+  if (!std::holds_alternative<InterpValue>(bits_dim.value())) {
     // We have to wait for the dimension to be fully resolved before we can
     // check that the number is compliant.
     return absl::OkStatus();
@@ -1026,34 +1026,34 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceConstantArray(
 }
 
 static bool IsPublic(const ModuleMember& member) {
-  if (absl::holds_alternative<Function*>(member)) {
-    return absl::get<Function*>(member)->is_public();
+  if (std::holds_alternative<Function*>(member)) {
+    return std::get<Function*>(member)->is_public();
   }
-  if (absl::holds_alternative<Proc*>(member)) {
-    return absl::get<Proc*>(member)->is_public();
+  if (std::holds_alternative<Proc*>(member)) {
+    return std::get<Proc*>(member)->is_public();
   }
-  if (absl::holds_alternative<TypeDef*>(member)) {
-    return absl::get<TypeDef*>(member)->is_public();
+  if (std::holds_alternative<TypeDef*>(member)) {
+    return std::get<TypeDef*>(member)->is_public();
   }
-  if (absl::holds_alternative<StructDef*>(member)) {
-    return absl::get<StructDef*>(member)->is_public();
+  if (std::holds_alternative<StructDef*>(member)) {
+    return std::get<StructDef*>(member)->is_public();
   }
-  if (absl::holds_alternative<ConstantDef*>(member)) {
-    return absl::get<ConstantDef*>(member)->is_public();
+  if (std::holds_alternative<ConstantDef*>(member)) {
+    return std::get<ConstantDef*>(member)->is_public();
   }
-  if (absl::holds_alternative<EnumDef*>(member)) {
-    return absl::get<EnumDef*>(member)->is_public();
+  if (std::holds_alternative<EnumDef*>(member)) {
+    return std::get<EnumDef*>(member)->is_public();
   }
-  if (absl::holds_alternative<TestFunction*>(member)) {
+  if (std::holds_alternative<TestFunction*>(member)) {
     return false;
   }
-  if (absl::holds_alternative<TestProc*>(member)) {
+  if (std::holds_alternative<TestProc*>(member)) {
     return false;
   }
-  if (absl::holds_alternative<QuickCheck*>(member)) {
+  if (std::holds_alternative<QuickCheck*>(member)) {
     return false;
   }
-  if (absl::holds_alternative<Import*>(member)) {
+  if (std::holds_alternative<Import*>(member)) {
     return false;
   }
   XLS_LOG(FATAL) << "Unhandled ModuleMember variant.";
@@ -1082,8 +1082,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceColonRefToModule(
 
   XLS_ASSIGN_OR_RETURN(TypeInfo * imported_type_info,
                        ctx->import_data()->GetRootTypeInfo(module));
-  if (absl::holds_alternative<Function*>(*elem.value())) {
-    auto* f = absl::get<Function*>(*elem.value());
+  if (std::holds_alternative<Function*>(*elem.value())) {
+    auto* f = std::get<Function*>(*elem.value());
     if (!imported_type_info->Contains(f->name_def())) {
       XLS_VLOG(2) << "Function name not in imported_type_info; indicates it is "
                      "parametric.";
@@ -1283,8 +1283,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim width_ctd,
                        width_type->GetTotalBitCount());
   ConcreteTypeDim subject_ctd = subject_type.size();
-  if (absl::holds_alternative<InterpValue>(width_ctd.value()) &&
-      absl::holds_alternative<InterpValue>(subject_ctd.value())) {
+  if (std::holds_alternative<InterpValue>(width_ctd.value()) &&
+      std::holds_alternative<InterpValue>(subject_ctd.value())) {
     XLS_ASSIGN_OR_RETURN(int64_t width_bits, width_ctd.GetAsInt64());
     XLS_ASSIGN_OR_RETURN(int64_t subject_bits, subject_ctd.GetAsInt64());
     if (width_bits > subject_bits) {
@@ -1367,8 +1367,8 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
                                     "Bit slice LHS must be unsigned.");
   }
 
-  if (absl::holds_alternative<WidthSlice*>(node->rhs())) {
-    auto* width_slice = absl::get<WidthSlice*>(node->rhs());
+  if (std::holds_alternative<WidthSlice*>(node->rhs())) {
+    auto* width_slice = std::get<WidthSlice*>(node->rhs());
     return DeduceWidthSliceType(node, *bits_type, *width_slice, ctx);
   }
 
@@ -1378,7 +1378,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
                             ctx->fn_stack().back().symbolic_bindings()));
 
   std::unique_ptr<ConcreteType> s32 = BitsType::MakeS32();
-  auto* slice = absl::get<Slice*>(node->rhs());
+  auto* slice = std::get<Slice*>(node->rhs());
 
   // Constexpr evaluate start & limit, skipping deducing in the case of
   // undecorated literals.
@@ -1419,13 +1419,13 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceSliceType(
   XLS_ASSIGN_OR_RETURN(ConcreteTypeDim lhs_bit_count_ctd,
                        lhs_type->GetTotalBitCount());
   int64_t bit_count;
-  if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+  if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(
           lhs_bit_count_ctd.value())) {
     auto& owned_parametric =
-        absl::get<ConcreteTypeDim::OwnedParametric>(lhs_bit_count_ctd.value());
+        std::get<ConcreteTypeDim::OwnedParametric>(lhs_bit_count_ctd.value());
     ParametricExpression::Evaluated evaluated =
         owned_parametric->Evaluate(ToParametricEnv(fn_symbolic_bindings));
-    InterpValue v = absl::get<InterpValue>(evaluated);
+    InterpValue v = std::get<InterpValue>(evaluated);
     bit_count = v.IsSigned() ? v.GetBitValueInt64().value()
                              : v.GetBitValueUint64().value();
   } else {
@@ -1442,8 +1442,8 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceIndex(const Index* node,
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> lhs_type,
                        ctx->Deduce(node->lhs()));
 
-  if (absl::holds_alternative<Slice*>(node->rhs()) ||
-      absl::holds_alternative<WidthSlice*>(node->rhs())) {
+  if (std::holds_alternative<Slice*>(node->rhs()) ||
+      std::holds_alternative<WidthSlice*>(node->rhs())) {
     return DeduceSliceType(node, ctx, std::move(lhs_type));
   }
 
@@ -1482,13 +1482,13 @@ static absl::Status Unify(NameDefTree* name_def_tree, const ConcreteType& other,
                        Resolve(other, ctx));
   if (name_def_tree->is_leaf()) {
     NameDefTree::Leaf leaf = name_def_tree->leaf();
-    if (absl::holds_alternative<NameDef*>(leaf)) {
+    if (std::holds_alternative<NameDef*>(leaf)) {
       // Defining a name in the pattern match, we accept all types.
       ctx->type_info()->SetItem(ToAstNode(leaf), *resolved_rhs_type);
-    } else if (absl::holds_alternative<WildcardPattern*>(leaf)) {
+    } else if (std::holds_alternative<WildcardPattern*>(leaf)) {
       // Nothing to do.
-    } else if (absl::holds_alternative<Number*>(leaf) ||
-               absl::holds_alternative<ColonRef*>(leaf)) {
+    } else if (std::holds_alternative<Number*>(leaf) ||
+               std::holds_alternative<ColonRef*>(leaf)) {
       // For a reference (or literal) the types must be consistent.
       XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> resolved_leaf_type,
                            DeduceAndResolve(ToAstNode(leaf), ctx));
@@ -1643,11 +1643,11 @@ static absl::StatusOr<StructDef*> DerefToStruct(
     const Span& span, absl::string_view original_ref_text,
     TypeDefinition current, TypeInfo* type_info) {
   while (true) {
-    if (absl::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
-      return absl::get<StructDef*>(current);
+    if (std::holds_alternative<StructDef*>(current)) {  // Done dereferencing.
+      return std::get<StructDef*>(current);
     }
-    if (absl::holds_alternative<TypeDef*>(current)) {
-      auto* type_def = absl::get<TypeDef*>(current);
+    if (std::holds_alternative<TypeDef*>(current)) {
+      auto* type_def = std::get<TypeDef*>(current);
       TypeAnnotation* annotation = type_def->type_annotation();
       TypeRefTypeAnnotation* type_ref =
           dynamic_cast<TypeRefTypeAnnotation*>(annotation);
@@ -1661,14 +1661,14 @@ static absl::StatusOr<StructDef*> DerefToStruct(
       current = type_ref->type_ref()->type_definition();
       continue;
     }
-    if (absl::holds_alternative<ColonRef*>(current)) {
-      auto* colon_ref = absl::get<ColonRef*>(current);
+    if (std::holds_alternative<ColonRef*>(current)) {
+      auto* colon_ref = std::get<ColonRef*>(current);
       // Colon ref has to be dereferenced, may be a module reference.
       ColonRef::Subject subject = colon_ref->subject();
       // TODO(leary): 2020-12-12 Original logic was this way, but we should be
       // able to violate this assertion.
-      XLS_RET_CHECK(absl::holds_alternative<NameRef*>(subject));
-      auto* name_ref = absl::get<NameRef*>(subject);
+      XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
+      auto* name_ref = std::get<NameRef*>(subject);
       AnyNameDef any_name_def = name_ref->name_def();
       XLS_RET_CHECK(std::holds_alternative<const NameDef*>(any_name_def));
       const NameDef* name_def = std::get<const NameDef*>(any_name_def);
@@ -1690,8 +1690,8 @@ static absl::StatusOr<StructDef*> DerefToStruct(
       return DerefToStruct(span, original_ref_text, current,
                            imported.value()->type_info);
     }
-    XLS_RET_CHECK(absl::holds_alternative<EnumDef*>(current));
-    auto* enum_def = absl::get<EnumDef*>(current);
+    XLS_RET_CHECK(std::holds_alternative<EnumDef*>(current));
+    auto* enum_def = std::get<EnumDef*>(current);
     return TypeInferenceErrorStatus(
         span, nullptr,
         absl::StrFormat("Expected struct reference, but found enum: %s",
@@ -2026,8 +2026,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   }
 
   absl::flat_hash_map<
-      std::string,
-      absl::variant<int64_t, std::unique_ptr<ParametricExpression>>>
+      std::string, std::variant<int64_t, std::unique_ptr<ParametricExpression>>>
       defined_to_annotated;
 
   for (int64_t i = 0; i < type_annotation->parametrics().size(); ++i) {
@@ -2082,25 +2081,24 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> ConcretizeStructAnnotation(
   // can `ParametricExpression::Evaluate()`).
   ParametricExpression::Env env;
   for (auto& item : defined_to_annotated) {
-    if (absl::holds_alternative<int64_t>(item.second)) {
-      env[item.first] = InterpValue::MakeU32(absl::get<int64_t>(item.second));
+    if (std::holds_alternative<int64_t>(item.second)) {
+      env[item.first] = InterpValue::MakeU32(std::get<int64_t>(item.second));
     } else {
       env[item.first] =
-          absl::get<std::unique_ptr<ParametricExpression>>(item.second).get();
+          std::get<std::unique_ptr<ParametricExpression>>(item.second).get();
     }
   }
 
   // Now evaluate all the dimensions according to the values we've got.
-  return base_type.MapSize(
-      [&env](ConcreteTypeDim dim) -> absl::StatusOr<ConcreteTypeDim> {
-        if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
-                dim.value())) {
-          auto& parametric =
-              absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
-          return ConcreteTypeDim(parametric->Evaluate(env));
-        }
-        return dim;
-      });
+  return base_type.MapSize([&env](ConcreteTypeDim dim)
+                               -> absl::StatusOr<ConcreteTypeDim> {
+    if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+      auto& parametric =
+          std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+      return ConcreteTypeDim(parametric->Evaluate(env));
+    }
+    return dim;
+  });
 }
 
 absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceTypeRefTypeAnnotation(
@@ -2819,10 +2817,9 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> Resolve(const ConcreteType& type,
 
   return type.MapSize([&fn_symbolic_bindings](ConcreteTypeDim dim)
                           -> absl::StatusOr<ConcreteTypeDim> {
-    if (absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
-            dim.value())) {
+    if (std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
       const auto& parametric =
-          absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+          std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
       ParametricExpression::Env env = ToParametricEnv(fn_symbolic_bindings);
       return ConcreteTypeDim(parametric->Evaluate(env));
     }
