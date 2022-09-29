@@ -48,17 +48,17 @@ absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
   return wrapper;
 }
 
-absl::Status JitChannelQueueWrapper::Enqueue(const Value& v) {
-  return queue_->Enqueue(v);
+absl::Status JitChannelQueueWrapper::Write(const Value& v) {
+  return queue_->Write(v);
 }
 
-absl::StatusOr<Value> JitChannelQueueWrapper::Dequeue() {
-  std::optional<Value> value = queue_->Dequeue();
+absl::StatusOr<Value> JitChannelQueueWrapper::Read() {
+  std::optional<Value> value = queue_->Read();
   XLS_RET_CHECK(value.has_value());
   return *value;
 }
 
-absl::Status JitChannelQueueWrapper::EnqueueWithUint64(uint64_t v) {
+absl::Status JitChannelQueueWrapper::WriteWithUint64(uint64_t v) {
   if (!type_->IsBits()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Queue id=%d has non-Bits-typed type: %s",
@@ -73,11 +73,11 @@ absl::Status JitChannelQueueWrapper::EnqueueWithUint64(uint64_t v) {
 
   Value xls_v(UBits(v, type_->AsBitsOrDie()->bit_count()));
 
-  return Enqueue(xls_v);
+  return Write(xls_v);
 }
 
-absl::StatusOr<uint64_t> JitChannelQueueWrapper::DequeueWithUint64() {
-  XLS_ASSIGN_OR_RETURN(Value xls_v, Dequeue());
+absl::StatusOr<uint64_t> JitChannelQueueWrapper::ReadWithUint64() {
+  XLS_ASSIGN_OR_RETURN(Value xls_v, Read());
 
   if (!xls_v.IsBits()) {
     return absl::InvalidArgumentError(
@@ -88,14 +88,14 @@ absl::StatusOr<uint64_t> JitChannelQueueWrapper::DequeueWithUint64() {
   return xls_v.bits().ToUint64();
 }
 
-absl::Status JitChannelQueueWrapper::Enqueue(absl::Span<uint8_t> buffer) {
-  queue_->EnqueueRaw(buffer.data());
+absl::Status JitChannelQueueWrapper::Write(absl::Span<uint8_t> buffer) {
+  queue_->WriteRaw(buffer.data());
   return absl::OkStatus();
 }
 
-absl::Status JitChannelQueueWrapper::Dequeue(absl::Span<uint8_t> buffer) {
-  bool was_dequeued = queue_->DequeueRaw(buffer.data());
-  XLS_RET_CHECK(was_dequeued);
+absl::Status JitChannelQueueWrapper::Read(absl::Span<uint8_t> buffer) {
+  bool was_read = queue_->ReadRaw(buffer.data());
+  XLS_RET_CHECK(was_read);
   return absl::OkStatus();
 }
 

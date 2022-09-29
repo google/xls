@@ -102,7 +102,7 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        package->GetChannel(kCmdChannelName));
   XLS_ASSIGN_OR_RETURN(Value command, CreateCommandValue(sample_data, encrypt));
-  XLS_RETURN_IF_ERROR(runtime->EnqueueValueToChannel(cmd_channel, command));
+  XLS_RETURN_IF_ERROR(runtime->WriteValueToChannel(cmd_channel, command));
 
   // Then send all input data: the AAD followed by the message body.
   XLS_ASSIGN_OR_RETURN(Channel * data_in_channel,
@@ -110,14 +110,14 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   for (int i = 0; i < sample_data.aad.size(); i++) {
     XLS_ASSIGN_OR_RETURN(Value block_value, BlockToValue(sample_data.aad[i]));
     XLS_RETURN_IF_ERROR(
-        runtime->EnqueueValueToChannel(data_in_channel, block_value));
+        runtime->WriteValueToChannel(data_in_channel, block_value));
   }
 
   for (int i = 0; i < sample_data.input_data.size(); i++) {
     XLS_ASSIGN_OR_RETURN(Value block_value,
                          BlockToValue(sample_data.input_data[i]));
     XLS_RETURN_IF_ERROR(
-        runtime->EnqueueValueToChannel(data_in_channel, block_value));
+        runtime->WriteValueToChannel(data_in_channel, block_value));
   }
 
   // Tick the network until we have all results.
@@ -128,7 +128,7 @@ absl::StatusOr<Result> XlsEncrypt(JitData* jit_data,
   while (true) {
     XLS_RETURN_IF_ERROR(runtime->Tick());
     XLS_ASSIGN_OR_RETURN(std::optional<Value> maybe_value,
-                         runtime->DequeueValueFromChannel(data_out_channel));
+                         runtime->ReadValueFromChannel(data_out_channel));
     if (!maybe_value.has_value()) {
       continue;
     }

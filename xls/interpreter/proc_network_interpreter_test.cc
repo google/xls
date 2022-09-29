@@ -126,7 +126,7 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithExplicitTicks) {
   XLS_ASSERT_OK(interpreter->Tick());
   EXPECT_EQ(queue.GetSize(), 1);
 
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(5, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(5, 32))));
 
   XLS_ASSERT_OK(interpreter->Tick());
   XLS_ASSERT_OK(interpreter->Tick());
@@ -134,9 +134,9 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithExplicitTicks) {
 
   EXPECT_EQ(queue.GetSize(), 3);
 
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(15, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(25, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(35, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(15, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(25, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(35, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilOutput) {
@@ -158,10 +158,10 @@ TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilOutput) {
   EXPECT_EQ(tick_count, 4);
   EXPECT_EQ(queue.GetSize(), 4);
 
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(5, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(15, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(25, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(35, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(5, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(15, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(25, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(35, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, ProcIotaWithTickUntilBlocked) {
@@ -208,10 +208,10 @@ TEST_F(ProcNetworkInterpreterTest, IotaFeedingAccumulator) {
 
   EXPECT_EQ(tick_count, 4);
   EXPECT_EQ(queue.GetSize(), 4);
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(0, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(1, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(3, 32))));
-  EXPECT_THAT(queue.Dequeue(), Optional(Value(UBits(6, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(0, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(1, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(3, 32))));
+  EXPECT_THAT(queue.Read(), Optional(Value(UBits(6, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, DegenerateProc) {
@@ -281,9 +281,9 @@ TEST_F(ProcNetworkInterpreterTest, WrappedProc) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(out_channel);
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(10, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(30, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(60, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(10, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(30, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(60, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, DeadlockedProc) {
@@ -346,12 +346,12 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecoding) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(123, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(42, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(123, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(20, 8))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
@@ -404,9 +404,9 @@ TEST_F(ProcNetworkInterpreterTest, RunLengthDecodingFilter) {
       interpreter->queue_manager().GetQueue(output_channel);
 
   // Only even values should make it through the filter.
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(42, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(20, 8))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(20, 8))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
@@ -442,9 +442,9 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedge) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(43, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(44, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(44, 32))));
 }
 
 TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
@@ -484,15 +484,15 @@ TEST_F(ProcNetworkInterpreterTest, IotaWithChannelBackedgeAndTwoInitialValues) {
 
   ChannelQueue& output_queue =
       interpreter->queue_manager().GetQueue(output_channel);
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(42, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(55, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(100, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(43, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(56, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(101, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(44, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(57, 32))));
-  EXPECT_THAT(output_queue.Dequeue(), Optional(Value(UBits(102, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(55, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(100, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(43, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(56, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(101, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(44, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(57, 32))));
+  EXPECT_THAT(output_queue.Read(), Optional(Value(UBits(102, 32))));
 }
 
 }  // namespace

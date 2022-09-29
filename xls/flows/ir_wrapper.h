@@ -46,26 +46,26 @@ class JitChannelQueueWrapper {
   // Returns if the queue is empty.
   bool Empty() const { return (queue_ == nullptr) || (queue_->IsEmpty()); }
 
-  // Enqueue on the channel the value v.
-  absl::Status Enqueue(const Value& v);
+  // Write on the channel the value v.
+  absl::Status Write(const Value& v);
 
-  // Dequeue on the channel the value v.
-  absl::StatusOr<Value> Dequeue();
+  // Read on the channel the value v.
+  absl::StatusOr<Value> Read();
 
-  // Convenience function to enqueue uint64.
-  absl::Status EnqueueWithUint64(uint64_t v);
+  // Convenience function to write a uint64.
+  absl::Status WriteWithUint64(uint64_t v);
 
-  // Convenience function to dequeue uint64.
-  absl::StatusOr<uint64_t> DequeueWithUint64();
+  // Convenience function to read a uint64.
+  absl::StatusOr<uint64_t> ReadWithUint64();
 
   // Return the buffer of the instance.
   absl::Span<uint8_t> buffer() { return absl::MakeSpan(buffer_); }
 
-  // Enqueue the buffer on the channel.
-  absl::Status Enqueue(absl::Span<uint8_t> buffer);
+  // Write the data in the buffer to the channel.
+  absl::Status Write(absl::Span<uint8_t> buffer);
 
-  // Dequeue the content of the channel in the buffer.
-  absl::Status Dequeue(absl::Span<uint8_t> buffer);
+  // Read the content of the channel into the buffer.
+  absl::Status Read(absl::Span<uint8_t> buffer);
 
  private:
   // Pointer to the jit.

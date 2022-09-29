@@ -49,14 +49,14 @@ class ProcIrInterpreter : public IrInterpreter {
     if (receive->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(receive->predicate().value());
       if (pred.IsZero()) {
-        // If the predicate is false, nothing is dequeued from the channel.
+        // If the predicate is false, nothing is read from the channel.
         // Rather the result of the receive is the zero values of the
         // respective type.
         return SetValueResult(receive, ZeroOfType(receive->GetType()));
       }
     }
 
-    std::optional<Value> value = queue->Dequeue();
+    std::optional<Value> value = queue->Read();
     if (!value.has_value()) {
       if (receive->is_blocking()) {
         // Record the channel this receive instruction is blocked on and exit.
@@ -88,7 +88,7 @@ class ProcIrInterpreter : public IrInterpreter {
     // Indicate that data is sent on this channel.
     sent_channel_ = queue->channel();
 
-    XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send->data())));
+    XLS_RETURN_IF_ERROR(queue->Write(ResolveAsValue(send->data())));
 
     // The result of a send is simply a token.
     return SetValueResult(send, Value::Token());

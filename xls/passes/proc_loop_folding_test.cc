@@ -244,10 +244,10 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // Write 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -261,14 +261,14 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
-  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(2, 32))));
+  EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(2, 32))));
 
   // Run again
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
-  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(2, 32))));
+  EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(2, 32))));
 }
 
 // A similar simple loop as before, but it is unrolled twice.
@@ -334,10 +334,10 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // Write 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -351,14 +351,14 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
-  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(4, 32))));
+  EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(4, 32))));
 
   // Run again
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
-  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(4, 32))));
+  EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(4, 32))));
 }
 
 // A similar simple loop as before, but it is unrolled five times.
@@ -424,10 +424,10 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // Write 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -441,14 +441,14 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
-  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(10, 32))));
+  EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(10, 32))));
 
   // Run again
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
   ASSERT_THAT(pi.Tick(*continuation), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
-  EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(10, 32))));
+  EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(10, 32))));
 }
 
 
@@ -516,10 +516,10 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // Write 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -534,7 +534,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
         EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(45, 32))));
+    EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(45, 32))));
   }
 }
 
@@ -598,10 +598,10 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 2 elements, so this will run twice. The value from the Receive is
+  // Write 2 elements, so this will run twice. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -616,7 +616,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
         EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(), Optional(Value(UBits(135, 32))));
+    EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(135, 32))));
   }
 }
 
@@ -684,13 +684,13 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
+  // Write 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(0, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -706,8 +706,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
       }
     }
     int64_t correct_value = (i+1)*10;
-    EXPECT_THAT(send_queue.Dequeue(),
-                Optional(Value(UBits(correct_value, 32))));
+    EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -773,13 +772,13 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
+  // Write 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(0, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -796,8 +795,7 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
       }
     }
     int64_t correct_value = results[i];
-    EXPECT_THAT(send_queue.Dequeue(),
-                Optional(Value(UBits(correct_value, 32))));
+    EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -864,13 +862,13 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
+  // Write 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(0, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -887,8 +885,7 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
       }
     }
     int64_t correct_value = results[i];
-    EXPECT_THAT(send_queue.Dequeue(),
-                Optional(Value(UBits(correct_value, 32))));
+    EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -960,13 +957,13 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 5 elements, so this will run 5 times. The value from the Receive is
+  // Write 5 elements, so this will run 5 times. The value from the Receive is
   // not used so it doesn't matter here.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(10, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(0, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(10, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(11, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(10, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(10, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(0, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(10, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(11, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(10, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -983,8 +980,7 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
       }
     }
     int64_t correct_value = results[i];
-    EXPECT_THAT(send_queue.Dequeue(),
-                Optional(Value(UBits(correct_value, 32))));
+    EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(correct_value, 32))));
   }
 }
 
@@ -1037,11 +1033,11 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 4 elements.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+  // Write 4 elements.
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -1063,7 +1059,7 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   EXPECT_FALSE(send_queue.IsEmpty());
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
-  EXPECT_THAT(send_queue.Dequeue(),
+  EXPECT_THAT(send_queue.Read(),
               Optional(Value(UBits(expected_output[0], 32))));
 
   // Now do this three more times and confirm if the output is correct.
@@ -1076,7 +1072,7 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
         EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(),
+    EXPECT_THAT(send_queue.Read(),
                 Optional(Value(UBits(expected_output[i], 32))));
   }
 }
@@ -1129,11 +1125,11 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 4 elements.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+  // Write 4 elements.
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -1148,7 +1144,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
 
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
-  EXPECT_THAT(send_queue.Dequeue(),
+  EXPECT_THAT(send_queue.Read(),
               Optional(Value(UBits(expected_output[0], 32))));
 
   // Now do this three more times and confirm if the output is correct.
@@ -1161,7 +1157,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
         EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(),
+    EXPECT_THAT(send_queue.Read(),
                 Optional(Value(UBits(expected_output[i], 32))));
   }
 }
@@ -1214,11 +1210,11 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  // Enqueue 4 elements.
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(1, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(2, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(3, 32))}));
-  XLS_ASSERT_OK(recv_queue.Enqueue({Value(UBits(4, 32))}));
+  // Write 4 elements.
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(2, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
+  XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
   std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
 
@@ -1229,7 +1225,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
 
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
-  EXPECT_THAT(send_queue.Dequeue(),
+  EXPECT_THAT(send_queue.Read(),
               Optional(Value(UBits(expected_output[0], 32))));
 
   // Now do this three more times and confirm if the output is correct.
@@ -1242,7 +1238,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
         EXPECT_FALSE(send_queue.IsEmpty());
       }
     }
-    EXPECT_THAT(send_queue.Dequeue(),
+    EXPECT_THAT(send_queue.Read(),
                 Optional(Value(UBits(expected_output[i], 32))));
   }
 }

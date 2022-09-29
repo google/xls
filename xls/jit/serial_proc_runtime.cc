@@ -47,10 +47,10 @@ absl::Status SerialProcRuntime::Init() {
     continuations_[proc.get()] = proc_jits_.at(proc.get())->NewContinuation();
   }
 
-  // Enqueue initial values into channels.
+  // Write initial values into channels.
   for (Channel* channel : package_->channels()) {
     for (const Value& value : channel->initial_values()) {
-      XLS_RETURN_IF_ERROR(EnqueueValueToChannel(channel, value));
+      XLS_RETURN_IF_ERROR(WriteValueToChannel(channel, value));
     }
   }
   return absl::OkStatus();
@@ -79,26 +79,26 @@ absl::Status SerialProcRuntime::Tick(bool print_traces) {
   return absl::OkStatus();
 }
 
-absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
-                                                      const Value& value) {
-  return queue_mgr()->GetQueue(channel).Enqueue(value);
+absl::Status SerialProcRuntime::WriteValueToChannel(Channel* channel,
+                                                    const Value& value) {
+  return queue_mgr()->GetQueue(channel).Write(value);
 }
 
-absl::Status SerialProcRuntime::EnqueueBufferToChannel(
+absl::Status SerialProcRuntime::WriteBufferToChannel(
     Channel* channel, absl::Span<uint8_t const> buffer) {
   JitChannelQueue& queue = queue_mgr()->GetJitQueue(channel);
-  queue.EnqueueRaw(buffer.data());
+  queue.WriteRaw(buffer.data());
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::optional<Value>> SerialProcRuntime::DequeueValueFromChannel(
+absl::StatusOr<std::optional<Value>> SerialProcRuntime::ReadValueFromChannel(
     Channel* channel) {
-  return queue_mgr()->GetQueue(channel).Dequeue();
+  return queue_mgr()->GetQueue(channel).Read();
 }
 
-absl::StatusOr<bool> SerialProcRuntime::DequeueBufferFromChannel(
+absl::StatusOr<bool> SerialProcRuntime::ReadBufferFromChannel(
     Channel* channel, absl::Span<uint8_t> buffer) {
-  return queue_mgr()->GetJitQueue(channel).DequeueRaw(buffer.data());
+  return queue_mgr()->GetJitQueue(channel).ReadRaw(buffer.data());
 }
 
 absl::StatusOr<std::vector<Value>>

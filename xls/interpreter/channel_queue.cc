@@ -37,8 +37,8 @@ absl::Status ChannelQueue::AttachGenerator(GeneratorFn generator) {
   return absl::OkStatus();
 }
 
-absl::Status ChannelQueue::Enqueue(const Value& value) {
-  XLS_VLOG(4) << absl::StreamFormat("Enqueuing value on channel %s: { %s }",
+absl::Status ChannelQueue::Write(const Value& value) {
+  XLS_VLOG(4) << absl::StreamFormat("Writing value to channel %s: { %s }",
                                     channel_->name(), value.ToString());
   absl::MutexLock lock(&mutex_);
   if (generator_.has_value()) {
@@ -51,13 +51,13 @@ absl::Status ChannelQueue::Enqueue(const Value& value) {
         channel_->type()->ToString(), value.ToString()));
   }
 
-  EnqueueInternal(value);
+  WriteInternal(value);
   XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
                                     queue_.size());
   return absl::OkStatus();
 }
 
-void ChannelQueue::EnqueueInternal(const Value& value) {
+void ChannelQueue::WriteInternal(const Value& value) {
   if (channel()->kind() == ChannelKind::kSingleValue) {
     if (queue_.empty()) {
       queue_.push_back(value);
@@ -71,20 +71,19 @@ void ChannelQueue::EnqueueInternal(const Value& value) {
   queue_.push_back(value);
 }
 
-std::optional<Value> ChannelQueue::Dequeue() {
+std::optional<Value> ChannelQueue::Read() {
   absl::MutexLock lock(&mutex_);
   if (generator_.has_value()) {
-    // Enqueue/DequeueInternal are virtual and may have other side-effects so
-    // rather than directly returning the generated value, enqueue then dequeue
-    // it.
+    // Write/ReadInternal are virtual and may have other side-effects so rather
+    // than directly returning the generated value, write then read it.
     std::optional<Value> generated_value = (*generator_)();
     if (generated_value.has_value()) {
-      EnqueueInternal(generated_value.value());
+      WriteInternal(generated_value.value());
     }
   }
-  std::optional<Value> value = DequeueInternal();
+  std::optional<Value> value = ReadInternal();
   XLS_VLOG(4) << absl::StreamFormat(
-      "Dequeuing data on channel %s: %s", channel_->name(),
+      "Reading data from channel %s: %s", channel_->name(),
       value.has_value() ? value->ToString() : "(none)");
   XLS_VLOG(4) << absl::StreamFormat("Channel now has %d elements",
                                     queue_.size());
@@ -93,7 +92,7 @@ std::optional<Value> ChannelQueue::Dequeue() {
 
 int64_t ChannelQueue::GetSizeInternal() const { return queue_.size(); }
 
-std::optional<Value> ChannelQueue::DequeueInternal() {
+std::optional<Value> ChannelQueue::ReadInternal() {
   if (queue_.empty()) {
     return std::nullopt;
   }

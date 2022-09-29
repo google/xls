@@ -2531,7 +2531,7 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::CallFunction(
 }
 
 bool QueueReceiveWrapper(JitChannelQueue* queue, uint8_t* buffer) {
-  return queue->DequeueRaw(buffer);
+  return queue->ReadRaw(buffer);
 }
 
 absl::StatusOr<llvm::Value*> IrBuilderVisitor::ReceiveFromQueue(
@@ -2670,7 +2670,7 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
 }
 
 void QueueSendWrapper(JitChannelQueue* queue, const uint8_t* data) {
-  queue->EnqueueRaw(data);
+  queue->WriteRaw(data);
 }
 
 absl::Status IrBuilderVisitor::SendToQueue(llvm::IRBuilder<>* builder,
@@ -2680,7 +2680,7 @@ absl::Status IrBuilderVisitor::SendToQueue(llvm::IRBuilder<>* builder,
   llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
-  // We do the same for sending/enqueuing as we do for receiving/dequeueing
+  // We do the same for sending/writing as we do for receiving/reading
   // above (set up and call an external function).
   std::vector<llvm::Type*> params = {ptr_type, ptr_type};
   llvm::FunctionType* fn_type =

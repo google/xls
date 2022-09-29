@@ -29,16 +29,14 @@ namespace {
 using status_testing::IsOkAndHolds;
 
 template <typename T>
-void EnqueueData(ChannelQueue* queue, T data) {
-  down_cast<JitChannelQueue*>(queue)->EnqueueRaw(
-      absl::bit_cast<uint8_t*>(&data));
+void WriteData(ChannelQueue* queue, T data) {
+  down_cast<JitChannelQueue*>(queue)->WriteRaw(absl::bit_cast<uint8_t*>(&data));
 }
 
 template <typename T>
-T DequeueData(ChannelQueue* queue) {
+T ReadData(ChannelQueue* queue) {
   T data;
-  down_cast<JitChannelQueue*>(queue)->DequeueRaw(
-      absl::bit_cast<uint8_t*>(&data));
+  down_cast<JitChannelQueue*>(queue)->ReadRaw(absl::bit_cast<uint8_t*>(&data));
   return data;
 }
 
@@ -84,11 +82,11 @@ proc b(my_token: token, state: (), init={()}) {
 
   // Prepopulate the non-output queues.
   for (int i = 0; i < kNumCycles; i++) {
-    EnqueueData(input_queue, i);
+    WriteData(input_queue, i);
   }
 
   int dummy = 0;
-  EnqueueData(internal_queue, dummy);
+  WriteData(internal_queue, dummy);
 
   // Run the runtime for those four cycles...
   for (int i = 0; i < kNumCycles; i++) {
@@ -97,9 +95,9 @@ proc b(my_token: token, state: (), init={()}) {
 
   // Then verify the output queue contains the right info. We drop one output,
   // since "b" doesn't get the actual input data until cycle 1.
-  DequeueData<int>(output_queue);
+  ReadData<int>(output_queue);
   for (int i = 0; i < kNumCycles - 1; i++) {
-    int result = DequeueData<int>(output_queue);
+    int result = ReadData<int>(output_queue);
     EXPECT_EQ(result, i * 6);
   }
 }
@@ -194,18 +192,18 @@ proc e(my_token: token, state: (), init={()}) {
   // cycles until they get real data).
 
   for (int i = 0; i < kNumCycles; i++) {
-    EnqueueData(i_a, i);
-    EnqueueData(i_b, i + 10);
+    WriteData(i_a, i);
+    WriteData(i_b, i + 10);
     XLS_ASSERT_OK(runtime->Tick());
   }
 
   // Now, cut out the garbage data from the output queues, and then verify their
   // contents.
   for (int i = 0; i < kNumCycles - 2; i++) {
-    int result = DequeueData<int>(d_o);
+    int result = ReadData<int>(d_o);
     ASSERT_EQ(result, i * 1 * 3 * 4);
 
-    result = DequeueData<int>(e_o);
+    result = ReadData<int>(e_o);
     ASSERT_EQ(result, (i + 10) * 2 * 3 * 5);
   }
 }
@@ -254,17 +252,17 @@ proc b(my_token: token, state: (bits[32]), init={()}) {
   XLS_ASSERT_OK_AND_ASSIGN(auto output_queue, queue_mgr->GetQueueById(2));
 
   int dummy = 0;
-  EnqueueData(internal_queue, dummy);
+  WriteData(internal_queue, dummy);
 
   for (int i = 0; i < kNumCycles; i++) {
-    EnqueueData(input_queue, i);
+    WriteData(input_queue, i);
     XLS_ASSERT_OK(runtime->Tick());
   }
 
   // Drop the output from the first cycle; it's not real/valid output.
-  DequeueData<int>(output_queue);
+  ReadData<int>(output_queue);
   for (int i = 0; i < kNumCycles - 1; i++) {
-    int actual = DequeueData<int>(output_queue);
+    int actual = ReadData<int>(output_queue);
     ASSERT_EQ(actual, i * (i + 1) * 3);
   }
 }
@@ -303,13 +301,13 @@ proc b(my_token: token, state: (), init={()}) {
     // Give enough time for the network to block, then send in the missing data.
     sleep(1);
     uint32_t data = 42;
-    EnqueueData(input_queue, data);
+    WriteData(input_queue, data);
   });
   XLS_ASSERT_OK_AND_ASSIGN(auto output_queue,
                            runtime->queue_mgr()->GetQueueById(2));
 
   uint8_t buffer[4];
-  while (!down_cast<JitChannelQueue*>(output_queue)->DequeueRaw(buffer)) {
+  while (!down_cast<JitChannelQueue*>(output_queue)->ReadRaw(buffer)) {
     XLS_ASSERT_OK(runtime->Tick());
   }
   uint32_t data;
@@ -352,13 +350,13 @@ proc a(my_token: token, state: (), init={()}) {
           "(bits[132]: 0xf_abcd_1234_9876_1010_aaaa_beeb_c12c_defd, "
           "bits[217]: 0x1111_2222_3333_4444_abcd_4321_4444_2468_3579)"));
   XLS_ASSERT_OK_AND_ASSIGN(Channel * input_channel, p->GetChannel(0));
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(input_channel, input));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(input_channel, input));
 
   XLS_ASSERT_OK(runtime->Tick());
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel * output_channel, p->GetChannel(1));
   XLS_ASSERT_OK_AND_ASSIGN(std::optional<Value> maybe_output,
-                           runtime->DequeueValueFromChannel(output_channel));
+                           runtime->ReadValueFromChannel(output_channel));
   ASSERT_TRUE(maybe_output.has_value());
 
   EXPECT_EQ(maybe_output.value().ToString(),
@@ -403,7 +401,7 @@ TEST(SerialProcRuntimeTest, ChannelInitValues) {
   }
 
   auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {
-    return runtime->DequeueValueFromChannel(output_channel);
+    return runtime->ReadValueFromChannel(output_channel);
   };
 
   EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(42, 32))));
@@ -434,7 +432,7 @@ TEST(SerialProcRuntimeTest, StateReset) {
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
 
   auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {
-    return runtime->DequeueValueFromChannel(ch_out);
+    return runtime->ReadValueFromChannel(ch_out);
   };
 
   XLS_ASSERT_OK(runtime->Tick());
@@ -499,11 +497,11 @@ TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
   XLS_ASSERT_OK_AND_ASSIGN(auto runtime, SerialProcRuntime::Create(&package));
 
   auto get_output = [&]() -> absl::StatusOr<std::optional<Value>> {
-    return runtime->DequeueValueFromChannel(out0);
+    return runtime->ReadValueFromChannel(out0);
   };
 
   // Initialize the single value queue.
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in2, Value(UBits(10, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in2, Value(UBits(10, 32))));
 
   // All other channels are non-blocking, so run even if the queues are empty.
   XLS_ASSERT_OK(runtime->Tick());
@@ -512,9 +510,9 @@ TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
   EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
 
   // Run with only in1 (and in2) having data, followed by only in2 with data.
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(5, 32))));
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(7, 32))));
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(3, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(5, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(7, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(3, 32))));
 
   XLS_ASSERT_OK(runtime->Tick());
   XLS_ASSERT_OK(runtime->Tick());
@@ -527,9 +525,9 @@ TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
   EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
 
   // Run with only in0 (and in2) having data followed by only in2 with data.
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(7, 32))));
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(100, 32))));
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(13, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(7, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(100, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(13, 32))));
 
   XLS_ASSERT_OK(runtime->Tick());
   XLS_ASSERT_OK(runtime->Tick());
@@ -542,8 +540,8 @@ TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
   EXPECT_THAT(get_output(), IsOkAndHolds(Value(UBits(10, 32))));
 
   // Run with all channels having data.
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in0, Value(UBits(11, 32))));
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(22, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in0, Value(UBits(11, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(22, 32))));
 
   XLS_ASSERT_OK(runtime->Tick());
 
@@ -551,23 +549,23 @@ TEST(SerialProcRuntimeTest, NonBlockingReceivesProc) {
 
   // Try large numnbers in the channels.
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in0, Value(UBits(0xffffffff, 32))));
+      runtime->WriteValueToChannel(in0, Value(UBits(0xffffffff, 32))));
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in0, Value(UBits(0x0faabbcc, 32))));
+      runtime->WriteValueToChannel(in0, Value(UBits(0x0faabbcc, 32))));
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in0, Value(UBits(0xfffffff2, 32))));
+      runtime->WriteValueToChannel(in0, Value(UBits(0xfffffff2, 32))));
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in0, Value(UBits(0xfffffff2, 32))));
+      runtime->WriteValueToChannel(in0, Value(UBits(0xfffffff2, 32))));
 
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in1, Value(UBits(0, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in1, Value(UBits(0, 32))));
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in1, Value(UBits(0xf0000000, 32))));
+      runtime->WriteValueToChannel(in1, Value(UBits(0xf0000000, 32))));
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in1, Value(UBits(0x0000000e, 32))));
+      runtime->WriteValueToChannel(in1, Value(UBits(0x0000000e, 32))));
   XLS_ASSERT_OK(
-      runtime->EnqueueValueToChannel(in1, Value(UBits(0x0000000f, 32))));
+      runtime->WriteValueToChannel(in1, Value(UBits(0x0000000f, 32))));
 
-  XLS_ASSERT_OK(runtime->EnqueueValueToChannel(in2, Value(UBits(0, 32))));
+  XLS_ASSERT_OK(runtime->WriteValueToChannel(in2, Value(UBits(0, 32))));
 
   XLS_ASSERT_OK(runtime->Tick());
   XLS_ASSERT_OK(runtime->Tick());

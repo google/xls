@@ -37,12 +37,12 @@ namespace {
 using status_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 
-void EnqueueU32(ChannelQueue* queue, uint32_t data) {
-  XLS_CHECK_OK(queue->Enqueue(Value(UBits(data, 32))));
+void WriteU32(ChannelQueue* queue, uint32_t data) {
+  XLS_CHECK_OK(queue->Write(Value(UBits(data, 32))));
 }
 
-uint32_t DequeueU32(ChannelQueue* queue) {
-  std::optional<Value> value_opt = queue->Dequeue();
+uint32_t ReadU32(ChannelQueue* queue) {
+  std::optional<Value> value_opt = queue->Read();
   XLS_CHECK(value_opt.has_value());
   return value_opt->bits().ToUint64().value();
 }
@@ -81,7 +81,7 @@ TEST_F(ProcJitTest, SendOnly) {
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   XLS_ASSERT_OK(jit->Tick(*continuation));
   EXPECT_FALSE(out_queue->IsEmpty());
-  EXPECT_EQ(DequeueU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
   EXPECT_TRUE(out_queue->IsEmpty());
 
   XLS_ASSERT_OK(jit->Tick(*continuation));
@@ -89,10 +89,10 @@ TEST_F(ProcJitTest, SendOnly) {
   XLS_ASSERT_OK(jit->Tick(*continuation));
   XLS_ASSERT_OK(jit->Tick(*continuation));
   EXPECT_FALSE(out_queue->IsEmpty());
-  EXPECT_EQ(DequeueU32(out_queue), 42);
-  EXPECT_EQ(DequeueU32(out_queue), 42);
-  EXPECT_EQ(DequeueU32(out_queue), 42);
-  EXPECT_EQ(DequeueU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
   EXPECT_TRUE(out_queue->IsEmpty());
 }
 
@@ -121,16 +121,16 @@ proc the_proc(my_token: token, state: (), init={()}) {
 
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   {
-    EnqueueU32(queue_mgr->GetQueueById(0).value(), 7);
+    WriteU32(queue_mgr->GetQueueById(0).value(), 7);
     XLS_ASSERT_OK(jit->Tick(*continuation));
-    EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 21);
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 21);
   }
 
   // Let's make sure we can call it 2x!
   {
-    EnqueueU32(queue_mgr->GetQueueById(0).value(), 7);
+    WriteU32(queue_mgr->GetQueueById(0).value(), 7);
     XLS_ASSERT_OK(jit->Tick(*continuation));
-    EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 21);
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 21);
   }
 }
 
@@ -159,21 +159,21 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
   auto [queue_mgr, jit] =
       CreateQueueManagerAndJit(FindProc("the_proc", package.get()));
 
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), kQueueData);
+  WriteU32(queue_mgr->GetQueueById(0).value(), kQueueData);
 
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   {
     // First: initial state is zero; receive predicate is false. Should produce
     // zero.
     XLS_ASSERT_OK(jit->Tick(*continuation));
-    EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 0);
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 0);
   }
 
   {
     // Next: state is now 1; receive predice is true, should produce non-zero
     // data.
     XLS_ASSERT_OK(jit->Tick(*continuation));
-    EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), kQueueData);
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), kQueueData);
   }
 }
 
@@ -201,8 +201,8 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
   auto [queue_mgr, jit] =
       CreateQueueManagerAndJit(FindProc("the_proc", package.get()));
 
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), kQueueData);
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), kQueueData + 1);
+  WriteU32(queue_mgr->GetQueueById(0).value(), kQueueData);
+  WriteU32(queue_mgr->GetQueueById(0).value(), kQueueData + 1);
 
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   {
@@ -215,7 +215,7 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
   {
     // Second: with state 1, make sure we've now got output data.
     XLS_ASSERT_OK(jit->Tick(*continuation));
-    EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
   }
 }
 
@@ -255,25 +255,25 @@ proc the_proc(my_token: token, state: (), init={()}) {
   XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * streaming_output,
                            queue_mgr->GetQueueById(2));
 
-  EnqueueU32(single_value_input, 7);
-  EnqueueU32(streaming_input, 42);
-  EnqueueU32(streaming_input, 123);
+  WriteU32(single_value_input, 7);
+  WriteU32(streaming_input, 42);
+  WriteU32(streaming_input, 123);
 
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
 
   XLS_EXPECT_OK(jit->Tick(*continuation));
   XLS_EXPECT_OK(jit->Tick(*continuation));
-  EXPECT_EQ(DequeueU32(streaming_output), 49);
-  EXPECT_EQ(DequeueU32(streaming_output), 130);
+  EXPECT_EQ(ReadU32(streaming_output), 49);
+  EXPECT_EQ(ReadU32(streaming_output), 130);
 
-  EnqueueU32(single_value_input, 10);
-  EnqueueU32(streaming_input, 42);
-  EnqueueU32(streaming_input, 123);
+  WriteU32(single_value_input, 10);
+  WriteU32(streaming_input, 42);
+  WriteU32(streaming_input, 123);
 
   XLS_EXPECT_OK(jit->Tick(*continuation));
   XLS_EXPECT_OK(jit->Tick(*continuation));
-  EXPECT_EQ(DequeueU32(streaming_output), 52);
-  EXPECT_EQ(DequeueU32(streaming_output), 133);
+  EXPECT_EQ(ReadU32(streaming_output), 52);
+  EXPECT_EQ(ReadU32(streaming_output), 133);
 }
 
 TEST_F(ProcJitTest, StatelessProc) {
@@ -296,10 +296,10 @@ TEST_F(ProcJitTest, StatelessProc) {
 
   auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
 
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), 7);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 7);
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   XLS_ASSERT_OK(jit->Tick(*continuation));
-  EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 49);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 49);
 }
 
 TEST_F(ProcJitTest, MultistateProc) {
@@ -333,9 +333,9 @@ TEST_F(ProcJitTest, MultistateProc) {
 
   auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
 
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), 7);
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), 10);
-  EnqueueU32(queue_mgr->GetQueueById(0).value(), 14);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 7);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 10);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 14);
 
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   XLS_ASSERT_OK_AND_ASSIGN(TickResult result, jit->Tick(*continuation));
@@ -353,13 +353,13 @@ TEST_F(ProcJitTest, MultistateProc) {
               ElementsAre(Value(UBits(4, 32)), Value(UBits(72, 32))));
 
   // 7 * 1 + 42
-  EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 49);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 49);
 
   // 10 * 2 + 52
-  EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 72);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 72);
 
   // 14 * 3 + 62
-  EXPECT_EQ(DequeueU32(queue_mgr->GetQueueById(1).value()), 104);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 104);
 
   EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->IsEmpty());
 }
@@ -423,7 +423,7 @@ TEST_F(ProcJitTest, NonBlockingReceivesProc) {
                            queue_mgr->GetQueueById(out0->id()));
 
   // Initialize the single value queue.
-  EnqueueU32(in2_queue, 10);
+  WriteU32(in2_queue, 10);
 
   std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
 
@@ -438,10 +438,10 @@ TEST_F(ProcJitTest, NonBlockingReceivesProc) {
   EXPECT_FALSE(in2_queue->IsEmpty());
   EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueU32(out0_queue), 10);
+  EXPECT_EQ(ReadU32(out0_queue), 10);
 
   // Run with only in1 (and in2) having data.
-  EnqueueU32(in1_queue, 5);
+  WriteU32(in1_queue, 5);
 
   EXPECT_TRUE(in0_queue->IsEmpty());
   EXPECT_FALSE(in1_queue->IsEmpty());
@@ -453,10 +453,10 @@ TEST_F(ProcJitTest, NonBlockingReceivesProc) {
   EXPECT_FALSE(in2_queue->IsEmpty());
   EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueU32(out0_queue), 15);
+  EXPECT_EQ(ReadU32(out0_queue), 15);
 
   // Run with only in0 (and in2) having data.
-  EnqueueU32(in0_queue, 7);
+  WriteU32(in0_queue, 7);
 
   EXPECT_FALSE(in0_queue->IsEmpty());
   EXPECT_TRUE(in1_queue->IsEmpty());
@@ -468,11 +468,11 @@ TEST_F(ProcJitTest, NonBlockingReceivesProc) {
   EXPECT_FALSE(in2_queue->IsEmpty());
   EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueU32(out0_queue), 17);
+  EXPECT_EQ(ReadU32(out0_queue), 17);
 
   // Run with all channels having data.
-  EnqueueU32(in0_queue, 11);
-  EnqueueU32(in1_queue, 22);
+  WriteU32(in0_queue, 11);
+  WriteU32(in1_queue, 22);
 
   EXPECT_FALSE(in0_queue->IsEmpty());
   EXPECT_FALSE(in1_queue->IsEmpty());
@@ -484,7 +484,7 @@ TEST_F(ProcJitTest, NonBlockingReceivesProc) {
   EXPECT_FALSE(in2_queue->IsEmpty());
   EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueU32(out0_queue), 43);
+  EXPECT_EQ(ReadU32(out0_queue), 43);
 }
 
 TEST_F(ProcJitTest, MultipleReceives) {
@@ -535,7 +535,7 @@ TEST_F(ProcJitTest, MultipleReceives) {
                                       .sent_channels = {}}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
-  EnqueueU32(in0_queue, 10);
+  WriteU32(in0_queue, 10);
 
   // Then should be blocked on in1.
   EXPECT_THAT(jit->Tick(*continuation),
@@ -545,7 +545,7 @@ TEST_F(ProcJitTest, MultipleReceives) {
                                       .sent_channels = {}}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
-  EnqueueU32(in1_queue, 1);
+  WriteU32(in1_queue, 1);
 
   // Then should be blocked on in2.
   EXPECT_THAT(jit->Tick(*continuation),
@@ -555,7 +555,7 @@ TEST_F(ProcJitTest, MultipleReceives) {
                                       .sent_channels = {}}));
   EXPECT_FALSE(continuation->AtStartOfTick());
 
-  EnqueueU32(in2_queue, 42);
+  WriteU32(in2_queue, 42);
 
   // Finally, should run to completion.
   EXPECT_THAT(jit->Tick(*continuation),
@@ -565,12 +565,12 @@ TEST_F(ProcJitTest, MultipleReceives) {
                                       .sent_channels = {}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
-  EXPECT_THAT(DequeueU32(output_queue), 52);
+  EXPECT_THAT(ReadU32(output_queue), 52);
 
-  // Next, only enqueue data on ch0 and ch1. ch2 should not be read because it's
+  // Next, only write data on ch0 and ch1. ch2 should not be read because it's
   // predicate is false.
-  EnqueueU32(in0_queue, 123);
-  EnqueueU32(in1_queue, 0);
+  WriteU32(in0_queue, 123);
+  WriteU32(in1_queue, 0);
   EXPECT_THAT(jit->Tick(*continuation),
               IsOkAndHolds(TickResult{.tick_complete = true,
                                       .progress_made = true,
@@ -578,7 +578,7 @@ TEST_F(ProcJitTest, MultipleReceives) {
                                       .sent_channels = {}}));
   EXPECT_TRUE(continuation->AtStartOfTick());
 
-  EXPECT_THAT(DequeueU32(output_queue), 123);
+  EXPECT_THAT(ReadU32(output_queue), 123);
 }
 
 }  // namespace

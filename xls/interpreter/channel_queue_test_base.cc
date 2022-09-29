@@ -40,23 +40,23 @@ TEST_P(ChannelQueueTestBase, FifoChannelQueueTest) {
   EXPECT_EQ(queue->GetSize(), 0);
   EXPECT_TRUE(queue->IsEmpty());
 
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(42, 32))));
+  XLS_ASSERT_OK(queue->Write(Value(UBits(42, 32))));
   EXPECT_EQ(queue->GetSize(), 1);
   EXPECT_FALSE(queue->IsEmpty());
 
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(123, 32))));
+  XLS_ASSERT_OK(queue->Write(Value(UBits(123, 32))));
   EXPECT_EQ(queue->GetSize(), 2);
   EXPECT_FALSE(queue->IsEmpty());
 
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(42, 32))));
   EXPECT_EQ(queue->GetSize(), 1);
   EXPECT_FALSE(queue->IsEmpty());
 
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(123, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(123, 32))));
   EXPECT_EQ(queue->GetSize(), 0);
   EXPECT_TRUE(queue->IsEmpty());
 
-  EXPECT_EQ(queue->Dequeue(), std::nullopt);
+  EXPECT_EQ(queue->Read(), std::nullopt);
 }
 
 TEST_P(ChannelQueueTestBase, SingleValueChannelQueueTest) {
@@ -69,26 +69,26 @@ TEST_P(ChannelQueueTestBase, SingleValueChannelQueueTest) {
   EXPECT_EQ(queue->channel(), channel);
   EXPECT_EQ(queue->GetSize(), 0);
   EXPECT_TRUE(queue->IsEmpty());
-  EXPECT_EQ(queue->Dequeue(), std::nullopt);
+  EXPECT_EQ(queue->Read(), std::nullopt);
 
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(42, 32))));
+  XLS_ASSERT_OK(queue->Write(Value(UBits(42, 32))));
   EXPECT_EQ(queue->GetSize(), 1);
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(42, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(42, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(42, 32))));
-  EXPECT_EQ(queue->GetSize(), 1);
-
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(123, 32))));
-  EXPECT_EQ(queue->GetSize(), 1);
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(123, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(123, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(42, 32))));
   EXPECT_EQ(queue->GetSize(), 1);
 
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(10, 32))));
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(20, 32))));
-  XLS_ASSERT_OK(queue->Enqueue(Value(UBits(30, 32))));
+  XLS_ASSERT_OK(queue->Write(Value(UBits(123, 32))));
   EXPECT_EQ(queue->GetSize(), 1);
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(30, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(123, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(123, 32))));
+  EXPECT_EQ(queue->GetSize(), 1);
+
+  XLS_ASSERT_OK(queue->Write(Value(UBits(10, 32))));
+  XLS_ASSERT_OK(queue->Write(Value(UBits(20, 32))));
+  XLS_ASSERT_OK(queue->Write(Value(UBits(30, 32))));
+  EXPECT_EQ(queue->GetSize(), 1);
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(30, 32))));
 }
 
 TEST_P(ChannelQueueTestBase, ErrorConditions) {
@@ -100,9 +100,9 @@ TEST_P(ChannelQueueTestBase, ErrorConditions) {
 
   auto queue = GetParam().CreateQueue(channel);
 
-  EXPECT_EQ(queue->Dequeue(), std::nullopt);
+  EXPECT_EQ(queue->Read(), std::nullopt);
 
-  EXPECT_THAT(queue->Enqueue(Value(UBits(44, 123))),
+  EXPECT_THAT(queue->Write(Value(UBits(44, 123))),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("Channel my_channel expects values to have "
                                  "type bits[1], got: bits[123]:0x2c")));
@@ -119,11 +119,11 @@ TEST_P(ChannelQueueTestBase, IotaGenerator) {
   XLS_ASSERT_OK(queue->AttachGenerator(
       [&]() -> std::optional<Value> { return Value(UBits(counter++, 32)); }));
 
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(42, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(43, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(44, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(42, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(43, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(44, 32))));
 
-  EXPECT_THAT(queue->Enqueue(Value(UBits(22, 32))),
+  EXPECT_THAT(queue->Write(Value(UBits(22, 32))),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Cannot write to ChannelQueue because it has "
                                  "a generator function")));
@@ -139,11 +139,11 @@ TEST_P(ChannelQueueTestBase, FixedValueGenerator) {
   XLS_ASSERT_OK(queue->AttachGenerator(FixedValueGenerator(
       {Value(UBits(22, 32)), Value(UBits(44, 32)), Value(UBits(55, 32))})));
 
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(22, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(44, 32))));
-  EXPECT_THAT(queue->Dequeue(), Optional(Value(UBits(55, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(22, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(44, 32))));
+  EXPECT_THAT(queue->Read(), Optional(Value(UBits(55, 32))));
 
-  EXPECT_EQ(queue->Dequeue(), std::nullopt);
+  EXPECT_EQ(queue->Read(), std::nullopt);
 }
 
 TEST_P(ChannelQueueTestBase, EmptyGenerator) {
@@ -156,7 +156,7 @@ TEST_P(ChannelQueueTestBase, EmptyGenerator) {
   XLS_ASSERT_OK(queue->AttachGenerator(
       []() -> std::optional<Value> { return std::nullopt; }));
 
-  EXPECT_EQ(queue->Dequeue(), std::nullopt);
+  EXPECT_EQ(queue->Read(), std::nullopt);
 }
 
 }  // namespace

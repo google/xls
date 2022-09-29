@@ -100,7 +100,7 @@ absl::Status RunIrInterpreter(
     XLS_ASSIGN_OR_RETURN(ChannelQueue * in_queue,
                          queue_manager.GetQueueByName(channel_name));
     for (const Value& value : values) {
-      XLS_RETURN_IF_ERROR(in_queue->Enqueue(value));
+      XLS_RETURN_IF_ERROR(in_queue->Write(value));
     }
   }
 
@@ -144,7 +144,7 @@ absl::Status RunIrInterpreter(
                          queue_manager.GetQueueByName(channel_name));
     uint64_t processed_count = 0;
     for (const Value& value : values) {
-      std::optional<Value> out_val = out_queue->Dequeue();
+      std::optional<Value> out_val = out_queue->Read();
       if (!out_val.has_value()) {
         XLS_LOG(WARNING) << "Warning: Channel " << channel_name
                          << " didn't consume "
@@ -178,11 +178,11 @@ absl::Status RunSerialJit(
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<SerialProcRuntime> runtime,
                        SerialProcRuntime::Create(package));
 
-  XLS_VLOG(1) << "Enqueueing...";
+  XLS_VLOG(1) << "Writing inputs...";
   for (const auto& [channel_name, values] : inputs_for_channels) {
     XLS_ASSIGN_OR_RETURN(Channel * in_ch, package->GetChannel(channel_name));
     for (const Value& value : values) {
-      XLS_RETURN_IF_ERROR(runtime->EnqueueValueToChannel(in_ch, value));
+      XLS_RETURN_IF_ERROR(runtime->WriteValueToChannel(in_ch, value));
     }
   }
 
@@ -221,7 +221,7 @@ absl::Status RunSerialJit(
                          << " expected values" << std::endl;
         break;
       }
-      std::optional<Value> out_val = queue.Dequeue();
+      std::optional<Value> out_val = queue.Read();
       XLS_RET_CHECK(out_val.has_value())
           << "No output value present on channel " << out_ch->name();
       XLS_RET_CHECK_EQ(value, out_val.value())

@@ -115,20 +115,20 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));
   JitChannelQueue* cmd_queue = &jit_data->queue_mgr->GetJitQueue(cmd_channel);
-  cmd_queue->EnqueueRaw(reinterpret_cast<uint8_t*>(&command));
+  cmd_queue->WriteRaw(reinterpret_cast<uint8_t*>(&command));
 
   XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
                        jit_data->package->GetChannel(kInputDataChannel));
   JitChannelQueue* input_data_queue =
       &jit_data->queue_mgr->GetJitQueue(input_data_channel);
-  input_data_queue->EnqueueRaw(sample_data.input_blocks[0].data());
+  input_data_queue->WriteRaw(sample_data.input_blocks[0].data());
 
   XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
   PrintTraceMessages(jit_data->continuation->GetEvents());
 
   // TODO(rspringer): Set this up to handle partial blocks.
   for (int i = 1; i < num_blocks; i++) {
-    input_data_queue->EnqueueRaw(sample_data.input_blocks[i].data());
+    input_data_queue->WriteRaw(sample_data.input_blocks[i].data());
     XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
     PrintTraceMessages(jit_data->continuation->GetEvents());
   }
@@ -141,7 +141,7 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
-    XLS_QCHECK(output_data_queue->DequeueRaw(blocks[i].data()));
+    XLS_QCHECK(output_data_queue->ReadRaw(blocks[i].data()));
   }
 
   return blocks;

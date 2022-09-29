@@ -215,7 +215,7 @@ CreateProcNetworkInterpreter(Package* package) {
     ChannelQueue& queue =
         network_interpreter->queue_manager().GetQueue(channel);
     for (const Value& value : channel->initial_values()) {
-      XLS_RETURN_IF_ERROR(queue.Enqueue(value));
+      XLS_RETURN_IF_ERROR(queue.Write(value));
     }
   }
 

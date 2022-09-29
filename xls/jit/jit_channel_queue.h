@@ -59,15 +59,14 @@ class ByteQueue {
     if (bytes_used_ == max_byte_count_ && !is_single_value_) {
       Resize();
     }
-    memcpy(circular_buffer_.data() + enqueue_index_, data,
-           channel_element_size_);
+    memcpy(circular_buffer_.data() + write_index_, data, channel_element_size_);
     if (is_single_value_) {
       bytes_used_ = allocated_element_size_;
     } else {
       bytes_used_ += allocated_element_size_;
-      enqueue_index_ = enqueue_index_ + allocated_element_size_;
-      if (enqueue_index_ == max_byte_count_) {
-        enqueue_index_ = 0;
+      write_index_ = write_index_ + allocated_element_size_;
+      if (write_index_ == max_byte_count_) {
+        write_index_ = 0;
       }
     }
   }
@@ -76,14 +75,14 @@ class ByteQueue {
     if (bytes_used_ == 0) {
       return false;
     }
-    memcpy(buffer, circular_buffer_.data() + dequeue_index_,
+    memcpy(buffer, circular_buffer_.data() + read_index_,
            channel_element_size_);
     if (!is_single_value_) {
       // Reads are destructive for non single-value channels.
       bytes_used_ -= allocated_element_size_;
-      dequeue_index_ = dequeue_index_ + allocated_element_size_;
-      if (dequeue_index_ == max_byte_count_) {
-        dequeue_index_ = 0;
+      read_index_ = read_index_ + allocated_element_size_;
+      if (read_index_ == max_byte_count_) {
+        read_index_ = 0;
       }
     }
     return true;
@@ -105,10 +104,10 @@ class ByteQueue {
   int64_t max_byte_count_ = 0;
   // The number of bytes used in the circular buffer.
   int64_t bytes_used_ = 0;
-  // Index in the circular buffer to enqueue send requests.
-  int64_t enqueue_index_ = 0;
-  // Index in the circular buffer to dequeue receive requests.
-  int64_t dequeue_index_ = 0;
+  // Index in the circular buffer to write values to.
+  int64_t read_index_ = 0;
+  // Index in the circular buffer to read values from.
+  int64_t write_index_ = 0;
   // A circular buffer to store the elements. It is preallocated with storage.
   absl::InlinedVector<uint8_t, kInitBufferSize> circular_buffer_;
   // Whether this queue follows single-value channel semantics.
@@ -125,8 +124,8 @@ class JitChannelQueue : public ChannelQueue {
         jit_runtime_(orc_jit->GetDataLayout(), &orc_jit->GetTypeConverter()) {}
   virtual ~JitChannelQueue() = default;
 
-  virtual void EnqueueRaw(const uint8_t* data) = 0;
-  virtual bool DequeueRaw(uint8_t* buffer) = 0;
+  virtual void WriteRaw(const uint8_t* data) = 0;
+  virtual bool ReadRaw(uint8_t* buffer) = 0;
 
  protected:
   JitRuntime jit_runtime_;
@@ -143,20 +142,20 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
             channel->kind() == ChannelKind::kSingleValue) {}
   virtual ~ThreadSafeJitChannelQueue() = default;
 
-  // Enqueue raw bytes representing a value in LLVM's native format.
-  void EnqueueRaw(const uint8_t* data) override {
+  // Write raw bytes representing a value in LLVM's native format.
+  void WriteRaw(const uint8_t* data) override {
     absl::MutexLock lock(&mutex_);
     byte_queue_.Write(data);
   }
 
-  // Dequeues raw bytes representing a value in LLVM's native format. Returns
-  // true if queue was not empty and data was dequeued.
-  bool DequeueRaw(uint8_t* buffer) override {
+  // Reads raw bytes representing a value in LLVM's native format. Returns
+  // true if queue was not empty and data was read.
+  bool ReadRaw(uint8_t* buffer) override {
     absl::MutexLock lock(&mutex_);
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
       if (generated_value.has_value()) {
-        EnqueueInternal(generated_value.value());
+        WriteInternal(generated_value.value());
       }
     }
     return byte_queue_.Read(buffer);
@@ -164,9 +163,9 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
 
  protected:
   int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
-  void EnqueueInternal(const Value& value)
+  void WriteInternal(const Value& value)
       ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
-  std::optional<Value> DequeueInternal()
+  std::optional<Value> ReadInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
 
   ByteQueue byte_queue_ ABSL_GUARDED_BY(mutex_);
@@ -182,12 +181,12 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
             channel->kind() == ChannelKind::kSingleValue) {}
   virtual ~ThreadUnsafeJitChannelQueue() = default;
 
-  void EnqueueRaw(const uint8_t* data) override { byte_queue_.Write(data); }
-  bool DequeueRaw(uint8_t* buffer) override {
+  void WriteRaw(const uint8_t* data) override { byte_queue_.Write(data); }
+  bool ReadRaw(uint8_t* buffer) override {
     if (generator_.has_value()) {
       std::optional<Value> generated_value = (*generator_)();
       if (generated_value.has_value()) {
-        EnqueueInternal(generated_value.value());
+        WriteInternal(generated_value.value());
       }
     }
     return byte_queue_.Read(buffer);
@@ -195,8 +194,8 @@ class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
 
  protected:
   int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_) override;
-  void EnqueueInternal(const Value& value) override;
-  std::optional<Value> DequeueInternal() override;
+  void WriteInternal(const Value& value) override;
+  std::optional<Value> ReadInternal() override;
 
   ByteQueue byte_queue_;
 };

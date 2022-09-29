@@ -169,8 +169,8 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_TRUE(in_1.Empty());
   EXPECT_TRUE(out.Empty());
 
-  XLS_ASSERT_OK(in_0.EnqueueWithUint64(10));
-  XLS_ASSERT_OK(in_1.EnqueueWithUint64(20));
+  XLS_ASSERT_OK(in_0.WriteWithUint64(10));
+  XLS_ASSERT_OK(in_1.WriteWithUint64(20));
 
   EXPECT_FALSE(in_0.Empty());
   EXPECT_FALSE(in_1.Empty());
@@ -185,7 +185,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_FALSE(out.Empty());
 
   // Receive data.
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t out_value, out.DequeueWithUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t out_value, out.ReadWithUint64());
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
@@ -201,8 +201,8 @@ proc __top__foo_0_next(__token: token, init={}) {
   in0_data.SetValue(20);
   auto in1_data = MutableInt32View(in_1_buffer.data());
   in1_data.SetValue(20);
-  XLS_ASSERT_OK(in_0.Enqueue(in_0_buffer));
-  XLS_ASSERT_OK(in_1.Enqueue(in_1_buffer));
+  XLS_ASSERT_OK(in_0.Write(in_0_buffer));
+  XLS_ASSERT_OK(in_1.Write(in_1_buffer));
 
   EXPECT_FALSE(in_0.Empty());
   EXPECT_FALSE(in_1.Empty());
@@ -216,7 +216,7 @@ proc __top__foo_0_next(__token: token, init={}) {
 
   // Receive data.
   absl::Span<uint8_t> out_buffer = out.buffer();
-  XLS_ASSERT_OK(out.Dequeue(out_buffer));
+  XLS_ASSERT_OK(out.Read(out_buffer));
 
   EXPECT_TRUE(out.Empty());
 

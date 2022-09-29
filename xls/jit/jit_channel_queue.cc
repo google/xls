@@ -20,16 +20,16 @@
 namespace xls {
 namespace {
 
-void EnqueueValueOnQueue(const Value& value, Type* type, JitRuntime& runtime,
-                         ByteQueue& queue) {
+void WriteValueOnQueue(const Value& value, Type* type, JitRuntime& runtime,
+                       ByteQueue& queue) {
   absl::InlinedVector<uint8_t, ByteQueue::kInitBufferSize> buffer(
       queue.element_size());
   runtime.BlitValueToBuffer(value, type, absl::MakeSpan(buffer));
   queue.Write(buffer.data());
 }
 
-std::optional<Value> DequeueValueFromQueue(Type* type, JitRuntime& runtime,
-                                           ByteQueue& queue) {
+std::optional<Value> ReadValueFromQueue(Type* type, JitRuntime& runtime,
+                                        ByteQueue& queue) {
   std::vector<uint8_t> buffer(queue.element_size());
   if (!queue.Read(buffer.data())) {
     return std::nullopt;
@@ -63,18 +63,17 @@ void ByteQueue::Resize() {
   max_byte_count_ = FloorOfRatio(static_cast<int64_t>(circular_buffer_.size()),
                                  allocated_element_size_) *
                     allocated_element_size_;
-  // The content of the circular buffer must be rearranged when the dequeue
+  // The content of the circular buffer must be rearranged when the read
   // index is not at the beginning of the circular buffer to ensure correct
   // ordering.
-  if (dequeue_index_ != 0) {
-    std::move(circular_buffer_.begin(),
-              circular_buffer_.begin() + dequeue_index_,
+  if (read_index_ != 0) {
+    std::move(circular_buffer_.begin(), circular_buffer_.begin() + read_index_,
               circular_buffer_.begin() + bytes_used_);
   }
-  // Realign the enqueue index to the next available slot.
-  enqueue_index_ = bytes_used_ + dequeue_index_;
-  if (enqueue_index_ == max_byte_count_) {
-    enqueue_index_ = 0;
+  // Realign the write index to the next available slot.
+  write_index_ = bytes_used_ + read_index_;
+  if (write_index_ == max_byte_count_) {
+    write_index_ = 0;
   }
 }
 
@@ -82,24 +81,24 @@ int64_t ThreadSafeJitChannelQueue::GetSizeInternal() const {
   return byte_queue_.size();
 }
 
-void ThreadSafeJitChannelQueue::EnqueueInternal(const Value& value) {
-  EnqueueValueOnQueue(value, channel()->type(), jit_runtime_, byte_queue_);
+void ThreadSafeJitChannelQueue::WriteInternal(const Value& value) {
+  WriteValueOnQueue(value, channel()->type(), jit_runtime_, byte_queue_);
 }
 
-std::optional<Value> ThreadSafeJitChannelQueue::DequeueInternal() {
-  return DequeueValueFromQueue(channel()->type(), jit_runtime_, byte_queue_);
+std::optional<Value> ThreadSafeJitChannelQueue::ReadInternal() {
+  return ReadValueFromQueue(channel()->type(), jit_runtime_, byte_queue_);
 }
 
 int64_t ThreadUnsafeJitChannelQueue::GetSizeInternal() const {
   return byte_queue_.size();
 }
 
-void ThreadUnsafeJitChannelQueue::EnqueueInternal(const Value& value) {
-  EnqueueValueOnQueue(value, channel()->type(), jit_runtime_, byte_queue_);
+void ThreadUnsafeJitChannelQueue::WriteInternal(const Value& value) {
+  WriteValueOnQueue(value, channel()->type(), jit_runtime_, byte_queue_);
 }
 
-std::optional<Value> ThreadUnsafeJitChannelQueue::DequeueInternal() {
-  return DequeueValueFromQueue(channel()->type(), jit_runtime_, byte_queue_);
+std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
+  return ReadValueFromQueue(channel()->type(), jit_runtime_, byte_queue_);
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>

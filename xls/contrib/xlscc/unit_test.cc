@@ -363,16 +363,16 @@ void XlsccTestBase::ProcTest(
 
   xls::ChannelQueueManager& queue_manager = interpreter->queue_manager();
 
-  // Enqueue all inputs.
+  // Write all inputs.
   for (auto [ch_name, values] : inputs_by_channel) {
     XLS_ASSERT_OK_AND_ASSIGN(xls::ChannelQueue * queue,
                              queue_manager.GetQueueByName(ch_name));
 
     for (const xls::Value& value : values) {
-      XLS_LOG(INFO) << absl::StrFormat("Enqueuing %s on channel %s",
+      XLS_LOG(INFO) << absl::StrFormat("Writing %s on channel %s",
                                        value.ToString(),
                                        queue->channel()->name());
-      XLS_ASSERT_OK(queue->Enqueue(value));
+      XLS_ASSERT_OK(queue->Write(value));
     }
   }
 
@@ -400,7 +400,7 @@ void XlsccTestBase::ProcTest(
 
       while (!ch_out_queue.IsEmpty()) {
         const xls::Value& next_output = values.front();
-        EXPECT_THAT(ch_out_queue.Dequeue(), Optional(next_output));
+        EXPECT_THAT(ch_out_queue.Read(), Optional(next_output));
         values.pop_front();
       }
 

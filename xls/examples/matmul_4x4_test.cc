@@ -93,10 +93,10 @@ TEST(Matmul4x4Test, Works) {
     XLS_EXPECT_OK(interpreter->Tick());
   }
 
-  EXPECT_THAT(c30->Dequeue(), Optional(Value(UBits(222, 32))));
-  EXPECT_THAT(c31->Dequeue(), Optional(Value(UBits(4444, 32))));
-  EXPECT_THAT(c32->Dequeue(), Optional(Value(UBits(66666, 32))));
-  EXPECT_THAT(c33->Dequeue(), Optional(Value(UBits(888888, 32))));
+  EXPECT_THAT(c30->Read(), Optional(Value(UBits(222, 32))));
+  EXPECT_THAT(c31->Read(), Optional(Value(UBits(4444, 32))));
+  EXPECT_THAT(c32->Read(), Optional(Value(UBits(66666, 32))));
+  EXPECT_THAT(c33->Read(), Optional(Value(UBits(888888, 32))));
 }
 
 }  // namespace

@@ -44,19 +44,18 @@ class SerialProcRuntime {
   Package* package() { return package_; }
   JitChannelQueueManager* queue_mgr() { return queue_mgr_.get(); }
 
-  // Enqueues the given set of values into the given channel. 'values' must
-  // match the number and type of the data elements of the channel.
-  absl::Status EnqueueValueToChannel(Channel* channel, const Value& value);
-  absl::Status EnqueueBufferToChannel(Channel* channel,
-                                      absl::Span<uint8_t const> buffer);
+  // Writes the values to the given channel. `value` must match the type of the
+  // data element of the channel.
+  absl::Status WriteValueToChannel(Channel* channel, const Value& value);
+  absl::Status WriteBufferToChannel(Channel* channel,
+                                    absl::Span<uint8_t const> buffer);
 
-  // Dequeues a set of values into the given channel. The number and type of the
-  // returned values matches the number and type of the data elements of the
-  // channel. If the queue is empty, absl::nullopt is returned.
-  absl::StatusOr<std::optional<Value>> DequeueValueFromChannel(
-      Channel* channel);
-  absl::StatusOr<bool> DequeueBufferFromChannel(Channel* channel,
-                                                absl::Span<uint8_t> buffer);
+  // Reads a value from the given channel. The type of the returned value
+  // matches the type of the data elements of the channel. If the queue is
+  // empty, absl::nullopt is returned.
+  absl::StatusOr<std::optional<Value>> ReadValueFromChannel(Channel* channel);
+  absl::StatusOr<bool> ReadBufferFromChannel(Channel* channel,
+                                             absl::Span<uint8_t> buffer);
 
   // Returns the current state values in the given proc.
   absl::StatusOr<std::vector<Value>> ProcState(Proc* proc) const;

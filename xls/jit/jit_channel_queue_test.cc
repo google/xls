@@ -69,22 +69,22 @@ TYPED_TEST(JitChannelQueueTest, BasicAccess) {
   // Send and receive immediately.
   for (int64_t i = 0; i < 10; i++) {
     send_buffer[0] = i;
-    queue.EnqueueRaw(send_buffer.data());
+    queue.WriteRaw(send_buffer.data());
     EXPECT_FALSE(queue.IsEmpty());
-    EXPECT_TRUE(queue.DequeueRaw(recv_buffer.data()));
+    EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
     EXPECT_THAT(recv_buffer[0], i);
     EXPECT_TRUE(queue.IsEmpty());
   }
 
-  EXPECT_FALSE(queue.DequeueRaw(recv_buffer.data()));
+  EXPECT_FALSE(queue.ReadRaw(recv_buffer.data()));
 
   // Send then receive.
   for (int64_t i = 0; i < 10; i++) {
     send_buffer[0] = i;
-    queue.EnqueueRaw(send_buffer.data());
+    queue.WriteRaw(send_buffer.data());
   }
   for (int64_t i = 0; i < 10; i++) {
-    EXPECT_TRUE(queue.DequeueRaw(recv_buffer.data()));
+    EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
     EXPECT_THAT(recv_buffer[0], i);
   }
   EXPECT_TRUE(queue.IsEmpty());
@@ -102,20 +102,20 @@ TYPED_TEST(JitChannelQueueTest, IotaGeneratorWithRawApi) {
   XLS_ASSERT_OK(queue.AttachGenerator(
       [&]() -> std::optional<Value> { return Value(UBits(counter++, 32)); }));
 
-  auto dequeue_u32 = [&]() {
+  auto read_u32 = [&]() {
     std::vector<uint8_t> recv_buffer(4);
-    EXPECT_TRUE(queue.DequeueRaw(recv_buffer.data()));
+    EXPECT_TRUE(queue.ReadRaw(recv_buffer.data()));
     uint32_t result;
     memcpy(&result, recv_buffer.data(), 4);
     return result;
   };
 
-  EXPECT_EQ(dequeue_u32(), 42);
-  EXPECT_EQ(dequeue_u32(), 43);
-  EXPECT_EQ(dequeue_u32(), 44);
-  EXPECT_EQ(dequeue_u32(), 45);
+  EXPECT_EQ(read_u32(), 42);
+  EXPECT_EQ(read_u32(), 43);
+  EXPECT_EQ(read_u32(), 44);
+  EXPECT_EQ(read_u32(), 45);
 
-  EXPECT_THAT(queue.Enqueue(Value(UBits(22, 32))),
+  EXPECT_THAT(queue.Write(Value(UBits(22, 32))),
               StatusIs(absl::StatusCode::kInternal,
                        HasSubstr("Cannot write to ChannelQueue because it has "
                                  "a generator function")));

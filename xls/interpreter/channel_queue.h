@@ -55,16 +55,16 @@ class ChannelQueue {
   // Returns whether the channel queue is empty.
   bool IsEmpty() const { return GetSize() == 0; }
 
-  // Enqueues the given value on to the channel.
-  absl::Status Enqueue(const Value& value);
+  // Writes the given value on to the channel.
+  absl::Status Write(const Value& value);
 
-  // Dequeues and returns a value from the channel. Returns an std::nullopt if
+  // Reads and returns a value from the channel. Returns an std::nullopt if
   // the channel is empty.
-  std::optional<Value> Dequeue();
+  std::optional<Value> Read();
 
   // Attaches a function which generates values for the channel. The generator
-  // is called when a value is needed for dequeuing. If a generator is attached
-  // then calling `Enqueue` returns an error.
+  // is called when a value is needed for reading. If a generator is attached
+  // then calling `Write` returns an error.
   using GeneratorFn = std::function<std::optional<Value>()>;
   absl::Status AttachGenerator(GeneratorFn generator);
 
@@ -72,9 +72,9 @@ class ChannelQueue {
   mutable absl::Mutex mutex_;
 
   virtual int64_t GetSizeInternal() const ABSL_SHARED_LOCKS_REQUIRED(mutex_);
-  virtual void EnqueueInternal(const Value& value)
+  virtual void WriteInternal(const Value& value)
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
-  virtual std::optional<Value> DequeueInternal()
+  virtual std::optional<Value> ReadInternal()
       ABSL_SHARED_LOCKS_REQUIRED(mutex_);
   Channel* channel_;
 

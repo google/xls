@@ -83,7 +83,7 @@ class ProcInliningPassTest : public IrTestBase {
         XLS_RET_CHECK(ch->kind() == ChannelKind::kSingleValue);
         XLS_RET_CHECK_EQ(input_values.size(), 1)
             << "Single value channels may only have a single input";
-        XLS_RETURN_IF_ERROR(queue.Enqueue(input_values.front()));
+        XLS_RETURN_IF_ERROR(queue.Write(input_values.front()));
       }
     }
     return std::move(interpreter);
@@ -133,7 +133,7 @@ class ProcInliningPassTest : public IrTestBase {
       std::vector<int64_t> outputs;
       ChannelQueue& queue = interpreter->queue_manager().GetQueue(ch);
       while (outputs.size() < expected_outputs.at(ch->name()).size()) {
-        Value output = queue.Dequeue().value();
+        Value output = queue.Read().value();
         outputs.push_back(output.bits().ToUint64().value());
       }
       EXPECT_THAT(outputs, ElementsAreArray(expected_outputs.at(ch->name())))
@@ -2600,7 +2600,7 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
     }
     absl::flat_hash_map<std::string, std::vector<int64_t>> expected_outputs;
     while (!output_queue.IsEmpty()) {
-      Value output = output_queue.Dequeue().value();
+      Value output = output_queue.Read().value();
       expected_outputs[ch_out->name()].push_back(
           output.bits().ToUint64().value());
     }
