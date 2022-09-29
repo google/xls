@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # pytype binary and test
+# cc_proto_library is used in this file
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -870,11 +871,35 @@ cc_library(
     ],
 )
 
+proto_library(
+    name = "codegen_flags_proto",
+    srcs = ["codegen_flags.proto"],
+)
+
+cc_proto_library(
+    name = "codegen_flags_cc_proto",
+    deps = [":codegen_flags_proto"],
+)
+
+cc_library(
+    name = "codegen_flags",
+    srcs = ["codegen_flags.cc"],
+    hdrs = ["codegen_flags.h"],
+    deps = [
+        ":codegen_flags_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+    ],
+)
+
 cc_binary(
     name = "codegen_main",
     srcs = ["codegen_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":codegen_flags",
         ":scheduling_options_flags",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",

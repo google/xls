@@ -39,18 +39,7 @@ class CodegenOptions {
   enum class IOKind { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
 
   // Convert IOKind enum to a string.
-  static std::string_view IOKindToString(IOKind kind) {
-    switch (kind) {
-      case IOKind::kFlop:
-        return "kFlop";
-      case IOKind::kSkidBuffer:
-        return "kSkidBuffer";
-      case IOKind::kZeroLatencyBuffer:
-        return "kZeroLatencyBuffer";
-      default:
-        return "UnknownKind";
-    }
-  }
+  static std::string_view IOKindToString(IOKind kind);
 
   // Added latency for each IOKind.
   static int64_t IOKindLatency(IOKind kind) {

@@ -18,6 +18,18 @@
 
 namespace xls::verilog {
 
+/* static */ std::string_view CodegenOptions::IOKindToString(IOKind kind) {
+  switch (kind) {
+    case IOKind::kFlop:
+      return "kFlop";
+    case IOKind::kSkidBuffer:
+      return "kSkidBuffer";
+    case IOKind::kZeroLatencyBuffer:
+      return "kZeroLatencyBuffer";
+  }
+  XLS_LOG(FATAL) << "Invalid IOKind: " << static_cast<int64_t>(kind);
+}
+
 CodegenOptions::CodegenOptions(const CodegenOptions& options)
     : entry_(options.entry_),
       module_name_(options.module_name_),
