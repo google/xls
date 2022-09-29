@@ -329,8 +329,9 @@ absl::Status CommandReload() {
   dslx::ImportData import_data(dslx::CreateImportData(
       /*dslx_stdlib_path=*/"",
       /*additional_search_paths=*/{}));
+  dslx::WarningCollector warnings;
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * type_info,
-                       CheckModule(module.get(), &import_data));
+                       CheckModule(module.get(), &import_data, &warnings));
   globals->dslx = std::make_unique<DslxGlobals>(std::move(import_data),
                                                 std::move(module), type_info);
   globals->identifier_trie = PopulateIdentifierTrie();

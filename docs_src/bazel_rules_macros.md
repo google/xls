@@ -243,7 +243,7 @@ Example:
 ## xls_dslx_library
 
 <pre>
-xls_dslx_library(<a href="#xls_dslx_library-name">name</a>, <a href="#xls_dslx_library-deps">deps</a>, <a href="#xls_dslx_library-srcs">srcs</a>)
+xls_dslx_library(<a href="#xls_dslx_library-name">name</a>, <a href="#xls_dslx_library-deps">deps</a>, <a href="#xls_dslx_library-srcs">srcs</a>, <a href="#xls_dslx_library-warnings_as_errors">warnings_as_errors</a>)
 </pre>
 
 A build rule that parses and type checks DSLX source files.
@@ -295,6 +295,7 @@ Examples:
 | <a id="xls_dslx_library-name"></a>name |  A unique name for this target.   | <a href="https://bazel.build/concepts/labels#target-names">Name</a> | required |  |
 | <a id="xls_dslx_library-deps"></a>deps |  Dependency targets for the rule.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | [] |
 | <a id="xls_dslx_library-srcs"></a>srcs |  Source files for the rule. Files must have a '.x' extension.   | <a href="https://bazel.build/concepts/labels">List of labels</a> | optional | [] |
+| <a id="xls_dslx_library-warnings_as_errors"></a>warnings_as_errors |  Whether warnings are errors within this library definition.   | Boolean | optional | False |
 
 
 <a id="#xls_dslx_opt_ir_test"></a>

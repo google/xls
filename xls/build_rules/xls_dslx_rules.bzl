@@ -103,6 +103,7 @@ def _get_dslx_test_cmdline(ctx, src, append_cmd_line_args = True):
     DSLX_TEST_FLAGS = (
         "compare",
         "dslx_path",
+        "warnings_as_errors",
     )
 
     dslx_test_args = dict(_dslx_test_args)
@@ -198,6 +199,10 @@ _xls_dslx_library_attrs = {
         doc = "Dependency targets for the rule.",
         providers = [DslxInfo],
     ),
+    "warnings_as_errors": attr.bool(
+        doc = "Whether warnings are errors within this library definition.",
+        mandatory = False,
+    ),
 }
 
 xls_dslx_library_as_input_attrs = {
@@ -281,9 +286,10 @@ def _xls_dslx_library_impl(ctx):
         command = "\n".join([
             "FILES=\"{}\"".format(dslx_srcs_str),
             "for file in $FILES; do",
-            "{} $file --compare=none --execute=false --dslx_path={}".format(
+            "{} $file --compare=none --execute=false --dslx_path={}{}".format(
                 dslx_interpreter_tool.path,
                 ":${PWD}:" + ctx.genfiles_dir.path + ":" + ctx.bin_dir.path,
+                " --warnings_as_errors=false" if not ctx.attr.warnings_as_errors else "",
             ),
             "if [ $? -ne 0 ]; then",
             "echo \"Error parsing and type checking DSLX source file: $file\"",

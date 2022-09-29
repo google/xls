@@ -22,6 +22,7 @@
 #include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/default_dslx_stdlib_path.h"
+#include "xls/dslx/error_printer.h"
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/parser.h"
@@ -50,6 +51,8 @@ ABSL_FLAG(bool, emit_fail_as_assert, true,
           "Feature flag for emitting fail!() in the DSL as an assert IR op.");
 ABSL_FLAG(bool, verify, true,
           "If true, verifies the generated IR for correctness.");
+ABSL_FLAG(bool, warnings_as_errors, true,
+          "Whether to fail early, as an error, if warnings are detected");
 // LINT.ThenChange(//xls/build_rules/xls_ir_rules.bzl)
 
 namespace xls::dslx {
@@ -89,7 +92,7 @@ static absl::Status AddPathToPackage(
     std::optional<absl::string_view> top_proc_initial_state,
     const ConvertOptions& convert_options, std::string stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, Package* package,
-    bool* printed_error) {
+    bool warnings_as_errors, bool* printed_error) {
   // Read the `.x` contents.
   XLS_ASSIGN_OR_RETURN(std::string text, GetFileContents(path));
   // Figure out what we name this module.
@@ -105,11 +108,19 @@ static absl::Status AddPathToPackage(
   // make the modules outlive any given AddPathToPackage() if we want to
   // appropriately reuse things in ImportData).
   ImportData import_data(CreateImportData(std::move(stdlib_path), dslx_paths));
+  WarningCollector warnings;
   absl::StatusOr<TypeInfo*> type_info_or =
-      CheckModule(module.get(), &import_data);
+      CheckModule(module.get(), &import_data, &warnings);
   if (!type_info_or.ok()) {
     *printed_error = TryPrintError(type_info_or.status());
     return type_info_or.status();
+  }
+
+  if (warnings_as_errors && !warnings.warnings().empty()) {
+    *printed_error = true;
+    PrintWarnings(warnings);
+    return absl::InvalidArgumentError(
+        "Warnings encountered and warnings-as-errors set.");
   }
 
   if (entry.has_value()) {
@@ -132,7 +143,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool emit_fail_as_assert, bool verify_ir,
-                      bool* printed_error) {
+                      bool warnings_as_errors, bool* printed_error) {
   std::optional<xls::Package> package;
   if (package_name.has_value()) {
     package.emplace(package_name.value());
@@ -163,7 +174,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
     }
     XLS_RETURN_IF_ERROR(AddPathToPackage(
         path, top, top_proc_initial_state, convert_options, stdlib_path,
-        dslx_paths, &package.value(), printed_error));
+        dslx_paths, &package.value(), warnings_as_errors, printed_error));
   }
   std::cout << package->DumpIr();
 
@@ -212,10 +223,11 @@ int main(int argc, char* argv[]) {
 
   bool emit_fail_as_assert = absl::GetFlag(FLAGS_emit_fail_as_assert);
   bool verify_ir = absl::GetFlag(FLAGS_verify);
+  bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
       args, top, top_proc_initial_state, package_name, stdlib_path, dslx_paths,
-      emit_fail_as_assert, verify_ir, &printed_error);
+      emit_fail_as_assert, verify_ir, warnings_as_errors, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

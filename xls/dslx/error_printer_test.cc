@@ -41,7 +41,7 @@ line 7)",
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", ss,
                                      /*get_file_contents=*/nullptr,
-                                     /*color=*/false,
+                                     /*color=*/PositionalErrorColor::kNoColor,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   // Note: we split lines and compare instead of doing a full string comparison
@@ -76,7 +76,7 @@ TEST(PrintPositionalErrorTest, MultiLineErrorTest) {
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "match not exhaustive", ss,
                                      /*get_file_contents=*/nullptr,
-                                     /*color=*/false,
+                                     /*color=*/PositionalErrorColor::kNoColor,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   // Note: we split lines and compare instead of doing a full string comparison

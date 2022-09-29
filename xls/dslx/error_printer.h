@@ -21,24 +21,31 @@
 #include "absl/strings/string_view.h"
 #include "absl/types/optional.h"
 #include "xls/dslx/pos.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
+enum class PositionalErrorColor {
+  kNoColor,
+  kErrorColor,
+  kWarningColor,
+};
+
 // Prints pretty message to output for a error with a position.
-//
-// ANSI color escapes are used when stderr appears to be a tty.
 //
 // Errors:
 //   InvalidArgumentError: if the error_context_line_count is not odd (only odd
 //    values can be symmetrical around the erroneous line).
-//   A filesystem error if the error_filename cannot be opened to retrieve lines
-//   from (for printing).
+//   Propagates errors from `get_file_contents` when attempting to retrieve the
+//   contents of a file for printing.
 absl::Status PrintPositionalError(
     const Span& error_span, absl::string_view error_message, std::ostream& os,
     std::function<absl::StatusOr<std::string>(absl::string_view)>
-        get_file_contents = nullptr,
-    std::optional<bool> color = absl::nullopt,
-    int64_t error_context_line_count = 5);
+        get_file_contents,
+    PositionalErrorColor color, int64_t error_context_line_count = 5);
+
+// Prints warnings to stderr.
+void PrintWarnings(const WarningCollector& warnings);
 
 }  // namespace xls::dslx
 

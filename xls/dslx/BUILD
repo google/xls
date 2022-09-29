@@ -878,6 +878,7 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         ":type_and_bindings",
+        ":warning_collector",
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/strings",
@@ -963,9 +964,10 @@ cc_test(
     srcs = ["typecheck_test.cc"],
     deps = [
         ":ast",
+        ":command_line_utils",
         ":create_import_data",
+        ":error_printer",
         ":parse_and_typecheck",
-        ":symbolic_bindings",
         ":type_info_to_proto",
         ":typecheck",
         "//xls/common:xls_gunit_main",
@@ -1061,6 +1063,7 @@ cc_library(
     hdrs = ["error_printer.h"],
     deps = [
         ":pos",
+        ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
@@ -1134,6 +1137,7 @@ cc_library(
         ":scanner",
         ":type_info",
         ":typecheck",
+        ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
@@ -1364,5 +1368,13 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/dslx/python:interpreter",
+    ],
+)
+
+cc_library(
+    name = "warning_collector",
+    hdrs = ["warning_collector.h"],
+    deps = [
+        ":pos",
     ],
 )

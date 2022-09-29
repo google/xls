@@ -42,9 +42,10 @@ absl::StatusOr<TestData> CreateTestData(absl::string_view module_text) {
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module, parser.ParseModule());
   TestData test_data{std::move(module), CreateImportDataForTest()};
+  WarningCollector warnings;
   XLS_ASSIGN_OR_RETURN(
       test_data.type_info,
-      CheckModule(test_data.module.get(), &test_data.import_data));
+      CheckModule(test_data.module.get(), &test_data.import_data, &warnings));
   return std::move(test_data);
 }
 

@@ -320,8 +320,9 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     std::string suffix;
     if (data_or.ok()) {
       const auto& data = data_or.value();
-      XLS_CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
-                                        std::cerr));
+      XLS_CHECK_OK(PrintPositionalError(
+          data.span, data.GetMessageWithType(), std::cerr,
+          /*get_file_contents=*/nullptr, PositionalErrorColor::kErrorColor));
     } else {
       // If we can't extract positional data we log the error and put the error
       // status into the "failed" prompted.
@@ -344,6 +345,18 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
       return TestResult::kSomeFailed;
     }
     return tm_or.status();
+  }
+
+  // If we're not executing, then we're just scanning for errors -- if warnings
+  // are *not* errors, just elide printing them (or e.g. we'd show warnings for
+  // files that had warnings suppressed at build time, which would gunk up build
+  // logs unnecessarily.).
+  if (options.execute || options.warnings_as_errors) {
+    PrintWarnings(tm_or->warnings);
+  }
+
+  if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
+    return TestResult::kFailedWarnings;
   }
 
   // If not executing tests and quickchecks, then return vacuous success.

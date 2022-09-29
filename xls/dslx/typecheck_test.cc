@@ -18,7 +18,9 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/error_printer.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
 
@@ -29,10 +31,21 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 // Helper for parsing/typechecking a snippet of DSLX text.
-absl::Status Typecheck(absl::string_view text) {
+absl::Status Typecheck(absl::string_view text,
+                       TypecheckedModule* tm_out = nullptr) {
   auto import_data = CreateImportDataForTest();
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ParseAndTypecheck(text, "fake.x", "fake", &import_data));
+  auto tm_or = ParseAndTypecheck(text, "fake.x", "fake", &import_data);
+  if (!tm_or.ok()) {
+    TryPrintError(tm_or.status(),
+                  [&](absl::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+    return tm_or.status();
+  }
+  TypecheckedModule& tm = tm_or.value();
+  if (tm_out != nullptr) {
+    *tm_out = tm;
+  }
   // Ensure that we can convert all the type information in the unit tests into
   // its protobuf form.
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
@@ -1447,6 +1460,30 @@ TEST(TypecheckTest, MaxAttrUsedToDefineAType) {
 type MyU255 = uN[u8::MAX as u32];
 fn f() -> MyU255 { uN[255]:42 }
 )"));
+}
+
+TEST(TypecheckTest, SplatWithAllStructMembersSpecifiedGivesWarning) {
+  const std::string program = R"(
+struct S {
+  x: u32,
+  y: u32,
+}
+fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
+)";
+  TypecheckedModule tm;
+  XLS_EXPECT_OK(Typecheck(program, &tm));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).span,
+            Span(Pos(filename, 5, 42), Pos(filename, 5, 43)));
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "'Splatted' struct instance has all members of struct defined, "
+            "consider removing the `..s`");
+  XLS_ASSERT_OK(PrintPositionalError(
+      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
+      std::cerr,
+      [&](absl::string_view) -> absl::StatusOr<std::string> { return program; },
+      PositionalErrorColor::kWarningColor));
 }
 
 }  // namespace

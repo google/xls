@@ -32,14 +32,15 @@ DeduceCtx::DeduceCtx(TypeInfo* type_info, Module* module,
                      TypecheckFunctionFn typecheck_function,
                      TypecheckModuleFn typecheck_module,
                      TypecheckInvocationFn typecheck_invocation,
-                     ImportData* import_data)
+                     ImportData* import_data, WarningCollector* warnings)
     : type_info_(type_info),
       module_(module),
       deduce_function_(std::move(XLS_DIE_IF_NULL(deduce_function))),
       typecheck_function_(std::move(typecheck_function)),
       typecheck_module_(std::move(typecheck_module)),
       typecheck_invocation_(std::move(typecheck_invocation)),
-      import_data_(import_data) {}
+      import_data_(import_data),
+      warnings_(warnings) {}
 
 // Helper that converts the symbolic bindings to a parametric expression
 // environment (for parametric evaluation).

@@ -90,9 +90,11 @@ struct ParseAndTestOptions {
   bool execute = true;
   std::optional<int64_t> seed = absl::nullopt;
   ConvertOptions convert_options;
+  bool warnings_as_errors = true;
 };
 
 enum class TestResult {
+  kFailedWarnings,
   kSomeFailed,
   kAllPassed,
 };

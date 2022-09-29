@@ -20,6 +20,7 @@
 #include "xls/dslx/ast.h"
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/type_info.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -28,6 +29,7 @@ namespace xls::dslx {
 struct TypecheckedModule {
   Module* module;
   TypeInfo* type_info;
+  WarningCollector warnings;
 };
 
 // Helper that parses and typechecks the given "text" for a module.

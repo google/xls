@@ -383,7 +383,10 @@ dslx_lang_test(name = "struct_splat_update")
 
 dslx_lang_test(name = "struct_splat_update_to_const")
 
-dslx_lang_test(name = "empty_struct_splat_update")
+dslx_lang_test(
+    name = "empty_struct_splat_update",
+    warnings_as_errors = False,
+)
 
 dslx_lang_test(name = "basic_struct_array")
 

@@ -801,20 +801,22 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   return tab;
 }
 
-absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
+absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
+                                      WarningCollector* warnings) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module));
 
   auto typecheck_module =
-      [import_data](Module* module) -> absl::StatusOr<TypeInfo*> {
-    return CheckModule(module, import_data);
+      [import_data, warnings](Module* module) -> absl::StatusOr<TypeInfo*> {
+    return CheckModule(module, import_data, warnings);
   };
 
   DeduceCtx ctx(type_info, module,
                 /*deduce_function=*/&Deduce,
                 /*typecheck_function=*/&CheckFunction,
                 /*typecheck_module=*/typecheck_module,
-                /*typecheck_invocation=*/&CheckInvocation, import_data);
+                /*typecheck_invocation=*/&CheckInvocation, import_data,
+                warnings);
   ctx.AddFnStackEntry(FnStackEntry::MakeTop(module));
 
   for (const ModuleMember& member : module->top()) {

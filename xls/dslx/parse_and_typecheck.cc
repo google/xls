@@ -58,9 +58,10 @@ absl::StatusOr<TypecheckedModule> TypecheckModule(
 
   absl::string_view module_name = module->name();
 
+  WarningCollector warnings;
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       CheckModule(module.get(), import_data));
-  TypecheckedModule result{module.get(), type_info};
+                       CheckModule(module.get(), import_data, &warnings));
+  TypecheckedModule result{module.get(), type_info, std::move(warnings)};
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
   XLS_RETURN_IF_ERROR(import_data

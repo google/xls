@@ -1,4 +1,3 @@
-#
 # Copyright 2020 The XLS Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 """Tests for DSLX modules with various forms of errors."""
 
 import subprocess as subp
@@ -24,13 +24,22 @@ _INTERP_PATH = runfiles.get_path('xls/dslx/interpreter_main')
 
 class ImportModuleWithTypeErrorTest(test_base.TestCase):
 
-  def _run(self, path: str) -> str:
+  def _run(self,
+           path: str,
+           warnings_as_errors: bool = True,
+           want_err_retcode: bool = True) -> str:
     full_path = runfiles.get_path(path)
-    p = subp.run([_INTERP_PATH, full_path],
+    p = subp.run([
+        _INTERP_PATH, full_path, '--warnings_as_errors={}'.format(
+            str(warnings_as_errors).lower())
+    ],
                  stderr=subp.PIPE,
                  check=False,
                  encoding='utf-8')
-    self.assertNotEqual(p.returncode, 0)
+    if want_err_retcode:
+      self.assertNotEqual(p.returncode, 0)
+    else:
+      self.assertEqual(p.returncode, 0)
     return p.stderr
 
   def test_failing_test_output(self):
@@ -371,6 +380,22 @@ class ImportModuleWithTypeErrorTest(test_base.TestCase):
     self.assertIn('Value \'256\' does not fit in the bitwidth of a uN[8]',
                   stderr)
     self.assertIn('Valid values are [0, 255]', stderr)
+
+  def test_should_not_splat_warning(self):
+    stderr = self._run(
+        'xls/dslx/tests/errors/should_not_splat_warning.x',
+        warnings_as_errors=False,
+        want_err_retcode=False)
+    self.assertIn('should_not_splat_warning.x:18:31-18:32', stderr)
+    self.assertIn(
+        "'Splatted' struct instance has all members of struct defined, consider removing the `..p`",
+        stderr)
+
+    self._run(
+        'xls/dslx/tests/errors/should_not_splat_warning.x',
+        warnings_as_errors=True,
+        want_err_retcode=True)
+
 
 if __name__ == '__main__':
   test_base.main()

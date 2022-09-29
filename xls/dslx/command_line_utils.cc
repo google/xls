@@ -14,6 +14,8 @@
 
 #include "xls/dslx/command_line_utils.h"
 
+#include <unistd.h>
+
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -38,9 +40,12 @@ bool TryPrintError(const absl::Status& status,
     return false;
   }
   auto& data = data_or.value();
+  bool is_tty = isatty(fileno(stderr)) != 0;
   absl::Status print_status = PrintPositionalError(
       data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
-      std::cerr, get_file_contents);
+      std::cerr, get_file_contents,
+      is_tty ? PositionalErrorColor::kErrorColor
+             : PositionalErrorColor::kNoColor);
   if (!print_status.ok()) {
     XLS_LOG(ERROR) << "Could not print positional error: " << print_status;
   }
