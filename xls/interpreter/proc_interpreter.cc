@@ -1,4 +1,4 @@
-  // Copyright 2020 The XLS Authors
+// Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -129,48 +129,6 @@ class ProcIrInterpreter : public IrInterpreter {
   std::optional<Channel*> sent_channel_;
 };
 
-// Computes the node execution order for the interpreter. Due to a bug in the
-// way xlscc emits IR, place receives as late as possible in the order to avoid
-// deadlocks.
-// TODO(https://github.com/google/xls/issues/717): Remove hack for late receive
-// ordering when xlscc is fixed.
-std::vector<Node*> NodeExecutionOrder(Proc* proc) {
-  std::vector<Node*> result;
-  std::list<Node*> ready_list;
-  absl::flat_hash_map<Node*, int64_t> operands_remaining;
-  for (Node* node : proc->nodes()) {
-    absl::flat_hash_set<Node*> unique_operands(node->operands().begin(),
-                                               node->operands().end());
-    operands_remaining[node] = unique_operands.size();
-    if (unique_operands.empty()) {
-      ready_list.push_back(node);
-    }
-  }
-  while (!ready_list.empty()) {
-    auto it = ready_list.begin();
-    // Chose the first node on the ready list which is *not* a receive.
-    for (; it != ready_list.end(); ++it) {
-      if (!(*it)->Is<Receive>()) {
-        break;
-      }
-    }
-    // If all nodes on the ready list are receives, then pick the first one.
-    it = it == ready_list.end() ? ready_list.begin() : it;
-    Node* node = *it;
-    ready_list.erase(it);
-
-    result.push_back(node);
-
-    for (Node* user : node->users()) {
-      if (--operands_remaining[user] == 0) {
-        ready_list.push_back(user);
-      }
-    }
-  }
-  XLS_CHECK_EQ(result.size(), proc->node_count());
-  return result;
-}
-
 }  // namespace
 
 bool TickResult::operator==(const TickResult& other) const {
@@ -202,7 +160,7 @@ std::ostream& operator<<(std::ostream& os, const TickResult& result) {
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
     : proc_(proc),
       queue_manager_(queue_manager),
-      execution_order_(NodeExecutionOrder(proc)) {}
+      execution_order_(TopoSort(proc).AsVector()) {}
 
 std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation() const {
   return std::make_unique<ProcInterpreterContinuation>(proc());

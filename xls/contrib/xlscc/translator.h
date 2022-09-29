@@ -478,6 +478,10 @@ struct IOOp {
 
   // Source location for messages
   xls::SourceInfo op_location;
+
+  // Must be sequenced after these ops via tokens
+  // Ops be in GeneratedFunction::io_ops respecting this order
+  std::vector<const IOOp*> after_ops;
 };
 
 enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };

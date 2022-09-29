@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -3010,15 +3011,30 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   // Map callee ops. There can be multiple for one channel
-  std::multimap<IOOp*, IOOp*> caller_ops_by_callee_op;
+  std::multimap<const IOOp*, IOOp*> caller_ops_by_callee_op;
 
   for (IOOp& callee_op : func->io_ops) {
+    XLS_CHECK(caller_ops_by_callee_op.find(&callee_op) ==
+              caller_ops_by_callee_op.end());
+
+    IOOp caller_op;
+
+    // Translate ops that must be sequenced before first
+    for (const IOOp* after_op : callee_op.after_ops) {
+      XLS_CHECK(caller_ops_by_callee_op.find(after_op) !=
+                caller_ops_by_callee_op.end());
+      auto range = caller_ops_by_callee_op.equal_range(after_op);
+      for (auto caller_it = range.first; caller_it != range.second;
+           ++caller_it) {
+        IOOp* after_caller_op = caller_it->second;
+        caller_op.after_ops.push_back(after_caller_op);
+      }
+    }
+
     IOChannel* caller_channel =
         context().sf->caller_channels_by_callee_op.at(&callee_op);
 
     // Add super op
-    IOOp caller_op;
-
     caller_op.op = callee_op.op;
     caller_op.sub_op = &callee_op;
 
@@ -3026,7 +3042,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         IOOp * caller_op_ptr,
         AddOpToChannel(caller_op, caller_channel, callee_op.op_location));
     caller_ops_by_callee_op.insert(
-        std::pair<IOOp*, IOOp*>(&callee_op, caller_op_ptr));
+        std::pair<const IOOp*, IOOp*>(&callee_op, caller_op_ptr));
+
+    XLS_CHECK_EQ(caller_op_ptr->after_ops.size(), callee_op.after_ops.size());
 
     // Count expected IO returns
     ++expected_returns;
@@ -3074,7 +3092,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       }
     }
   }
+
   xls::BValue raw_return = context().fb->Invoke(args, func->xls_func, loc);
+
   XLS_CHECK(expected_returns == 0 || raw_return.valid());
 
   list<xls::BValue> unpacked_returns;
@@ -4609,13 +4629,15 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     context_in_channel = &context().sf->io_channels.back();
   }
 
+  IOOp* ctx_out_op_ptr = nullptr;
   {
     IOOp op;
     op.op = OpType::kSend;
     std::vector<xls::BValue> sp = {context_tuple_out.rvalue(),
                                    context().full_condition_bval(loc)};
     op.ret_value = context().fb->Tuple(sp, loc);
-    XLS_RETURN_IF_ERROR(AddOpToChannel(op, context_out_channel, loc).status());
+    XLS_ASSIGN_OR_RETURN(ctx_out_op_ptr,
+                         AddOpToChannel(op, context_out_channel, loc));
   }
 
   IOOp* ctx_in_op_ptr;
@@ -4626,6 +4648,8 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
     XLS_ASSIGN_OR_RETURN(ctx_in_op_ptr,
                          AddOpToChannel(op, context_in_channel, loc));
   }
+
+  ctx_in_op_ptr->after_ops.push_back(ctx_out_op_ptr);
 
   // Create loop body proc
   std::vector<const clang::NamedDecl*> vars_changed_in_body;
@@ -5429,7 +5453,9 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
   XLS_CHECK_GE(prepared.xls_func->return_value_count,
                prepared.xls_func->io_ops.size());
 
-  std::vector<xls::BValue> fan_out_tokens;
+  absl::flat_hash_map<const IOOp*, xls::BValue> op_tokens;
+
+  std::list<const IOOp*> fan_ins_ordered;
 
   // The function is first invoked with defaults for any
   //  read() IO Ops.
@@ -5446,6 +5472,17 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 
     xls::SourceInfo op_loc = op.op_location;
 
+    xls::BValue before_token = prepared.token;
+    xls::BValue new_token;
+
+    if (!op.after_ops.empty()) {
+      std::vector<xls::BValue> after_tokens;
+      for (const IOOp* op : op.after_ops) {
+        after_tokens.push_back(op_tokens.at(op));
+      }
+      before_token = pb.AfterAll(after_tokens, body_loc);
+    }
+
     if (op.op == OpType::kRecv) {
       const int arg_index = prepared.arg_index_for_op.at(&op);
       XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
@@ -5456,9 +5493,8 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
       xls::BValue receive =
-          pb.ReceiveIf(xls_channel, prepared.token, condition, op_loc);
-      const xls::BValue new_token = pb.TupleIndex(receive, 0);
-      fan_out_tokens.push_back(new_token);
+          pb.ReceiveIf(xls_channel, before_token, condition, op_loc);
+      new_token = pb.TupleIndex(receive, 0);
 
       xls::BValue in_val = pb.TupleIndex(receive, 1);
 
@@ -5477,15 +5513,24 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       xls::BValue condition = pb.TupleIndex(
           send_tup, 1, op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
 
-      const xls::BValue new_token =
-          pb.SendIf(xls_channel, prepared.token, condition, {val}, op_loc);
-
-      fan_out_tokens.push_back(new_token);
+      new_token =
+          pb.SendIf(xls_channel, before_token, condition, {val}, op_loc);
+    } else {
+      XLS_CHECK("Unknown IOOp type" == nullptr);
     }
+
+    XLS_CHECK(!op_tokens.contains(&op));
+    op_tokens[&op] = new_token;
+
+    fan_ins_ordered.push_back(&op);
   }
 
-  if (!fan_out_tokens.empty()) {
-    prepared.token = pb.AfterAll(fan_out_tokens, body_loc);
+  if (!fan_ins_ordered.empty()) {
+    std::vector<xls::BValue> fan_ins_tokens;
+    for (const IOOp* op : fan_ins_ordered) {
+      fan_ins_tokens.push_back(op_tokens.at(op));
+    }
+    prepared.token = pb.AfterAll(fan_ins_tokens, body_loc);
   }
 
   return last_ret_val;
