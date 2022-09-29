@@ -365,6 +365,149 @@ TEST_F(TranslatorMetadataTest, NamespaceNestedStruct) {
   ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
 }
 
+TEST_F(TranslatorMetadataTest, ArrayOfStructs) {
+  const std::string content = R"(
+    namespace foo {
+      struct Something {
+        int bb;
+      };
+      struct Blah {
+        int aa;
+        Something b[10];
+      };
+      #pragma hls_top
+      Blah i_am_top(short a, short b[2]) {
+        Blah x;
+        x.aa = a+b[1];
+        return x;
+      }
+    })";
+
+  XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
+
+  XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,
+                           translator_->GenerateMetadata());
+
+  const std::string ref_meta_str = R"(
+    structs {
+      as_struct {
+        name {
+          as_inst {
+            name {
+              name: "Blah"
+              fully_qualified_name: "foo::Blah"
+            }
+          }
+        }
+        fields {
+          name: "b"
+          type {
+            as_array {
+              element_type {
+                as_inst {
+                  name {
+                    name: "Something"
+                    fully_qualified_name: "foo::Something"
+                  }
+                }
+              }
+              size: 10
+            }
+          }
+        }
+        fields {
+          name: "aa"
+          type {
+            as_int {
+              width: 32
+              is_signed: true
+              is_synthetic: false
+            }
+          }
+        }
+        no_tuple: false
+      }
+    }
+    structs {
+      as_struct {
+        name {
+          as_inst {
+            name {
+              name: "Something"
+              fully_qualified_name: "foo::Something"
+            }
+          }
+        }
+        fields {
+          name: "bb"
+          type {
+            as_int {
+              width: 32
+              is_signed: true
+              is_synthetic: false
+            }
+          }
+        }
+        no_tuple: false
+      }
+    }
+    top_func_proto {
+      name {
+        name: "i_am_top"
+        fully_qualified_name: "foo::i_am_top"
+        xls_name: "i_am_top"
+      }
+      return_type {
+        as_inst {
+          name {
+            name: "Blah"
+            fully_qualified_name: "foo::Blah"
+          }
+        }
+      }
+      params {
+        name: "a"
+        type {
+          as_int {
+            width: 16
+            is_signed: true
+            is_synthetic: false
+          }
+        }
+        is_reference: false
+        is_const: false
+      }
+      params {
+        name: "b"
+        type {
+          as_array {
+            element_type {
+              as_int {
+                width: 16
+                is_signed: true
+                is_synthetic: false
+              }
+            }
+            size: 2
+          }
+        }
+        is_reference: true
+        is_const: false
+      }
+    }
+
+  )";
+  xlscc_metadata::MetadataOutput ref_meta;
+  ASSERT_TRUE(google::protobuf::TextFormat::ParseFromString(ref_meta_str, &ref_meta));
+
+  standardizeMetadata(&meta);
+
+  std::string diff;
+  google::protobuf::util::MessageDifferencer differencer;
+  differencer.ReportDifferencesToString(&diff);
+  ASSERT_TRUE(differencer.Compare(meta, ref_meta)) << diff;
+}
+
 TEST_F(TranslatorMetadataTest, RefConstParams) {
   const std::string content = R"(
     #pragma hls_top
@@ -435,7 +578,7 @@ TEST_F(TranslatorMetadataTest, StaticInt) {
       x += inner;
       return x;
     }
-    } // namespacee foo
+    } // namespace foo
     )";
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir, SourceToIr(content, nullptr));
   XLS_ASSERT_OK_AND_ASSIGN(xlscc_metadata::MetadataOutput meta,

@@ -287,14 +287,23 @@ CInstantiableTypeAlias::operator std::string() const {
 absl::Status CInstantiableTypeAlias::GetMetadata(
     Translator& translator, xlscc_metadata::Type* output,
     absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  auto temp_alias = std::make_shared<CInstantiableTypeAlias>(base_);
   absl::StatusOr<xlscc_metadata::IntType> is_synthetic_int =
-      translator.GenerateSyntheticInt(
-          std::make_shared<CInstantiableTypeAlias>(base_));
+      translator.GenerateSyntheticInt(temp_alias);
 
   if (is_synthetic_int.ok()) {
     // hls_synthetic_int case
     *output->mutable_as_int() = is_synthetic_int.value();
     return absl::OkStatus();
+  }
+
+  // Recurse for aliases used in referenced struct
+  {
+    XLS_ASSIGN_OR_RETURN(auto resolved,
+                         translator.ResolveTypeInstance(temp_alias));
+    xlscc_metadata::Type dummy_type;
+    XLS_RETURN_IF_ERROR(
+        resolved->GetMetadata(translator, &dummy_type, aliases_used));
   }
 
   aliases_used.insert(base_);
