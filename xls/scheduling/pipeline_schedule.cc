@@ -273,17 +273,37 @@ absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
   return absl::Span<Node* const>();
 }
 
+bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
+  Function* as_func = dynamic_cast<Function*>(function_base_);
+
+  if (c == length() - 1) {
+    return false;
+  }
+
+  if ((as_func != nullptr) && (node == as_func->return_value())) {
+    return true;
+  }
+
+  for (Node* user : node->users()) {
+    if (cycle(user) > c) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
   std::vector<Node*> live_out;
+
   for (int64_t i = 0; i <= c; ++i) {
     for (Node* node : nodes_in_cycle(i)) {
-      if (node->function_base()->HasImplicitUse(node) ||
-          absl::c_any_of(node->users(),
-                         [&](Node* u) { return cycle(u) > c; })) {
+      if (IsLiveOutOfCycle(node, c)) {
         live_out.push_back(node);
       }
     }
   }
+
   return live_out;
 }
 
@@ -534,29 +554,13 @@ PipelineScheduleProto PipelineSchedule::ToProto() const {
 int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
   int64_t reg_count = 0;
 
-  Function* as_func = dynamic_cast<Function*>(function_base_);
   for (int64_t stage = 0; stage < length(); ++stage) {
     for (Node* function_base_node : function_base_->nodes()) {
       if (cycle(function_base_node) > stage) {
         continue;
       }
 
-      auto is_live_out_of_stage = [&](Node* n) {
-        if (stage == length() - 1) {
-          return false;
-        }
-        if (as_func && (n == as_func->return_value())) {
-          return true;
-        }
-        for (Node* user : n->users()) {
-          if (cycle(user) > stage) {
-            return true;
-          }
-        }
-        return false;
-      };
-
-      if (is_live_out_of_stage(function_base_node)) {
+      if (IsLiveOutOfCycle(function_base_node, stage)) {
         reg_count += function_base_node->GetType()->GetFlatBitCount();
       }
     }
