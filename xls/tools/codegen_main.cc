@@ -100,13 +100,13 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
   if (!p.gate_format().empty()) {
     options.SetOpOverride(Op::kGate,
                           std::make_unique<verilog::OpOverrideGateAssignment>(
-                              absl::GetFlag(p.gate_format())));
+                              p.gate_format()));
   }
 
   if (!p.assert_format().empty()) {
     options.SetOpOverride(Op::kAssert,
                           std::make_unique<verilog::OpOverrideAssertion>(
-                              absl::GetFlag(p.assert_format())));
+                              p.assert_format()));
   }
 
   if (!p.smulp_format().empty()) {
