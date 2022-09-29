@@ -297,10 +297,8 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   return std::move(schedule);
 }
 
-absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
-                              const BddQueryEngine& bdd_query_engine,
-                              const DelayEstimator& delay_estimator,
-                              std::optional<int64_t> clock_period_ps) {
+absl::Status PrintCodegenInfo(FunctionBase* f,
+                              const PipelineSchedule& schedule) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult codegen_result,
                        verilog::ToPipelineModuleText(
@@ -309,6 +307,21 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
   std::cout << absl::StreamFormat("Codegen time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
+  // TODO(meheff): Add an estimate of total number of gates.
+  std::cout << absl::StreamFormat(
+      "Lines of Verilog: %d\n",
+      std::vector<std::string>(
+          absl::StrSplit(codegen_result.verilog_text, '\n'))
+          .size());
+
+  return absl::OkStatus();
+}
+
+absl::Status PrintScheduleInfo(FunctionBase* f,
+                               const PipelineSchedule& schedule,
+                               const BddQueryEngine& bdd_query_engine,
+                               const DelayEstimator& delay_estimator,
+                               std::optional<int64_t> clock_period_ps) {
   int64_t total_flops = 0;
   int64_t total_duplicates = 0;
   int64_t total_constants = 0;
@@ -378,12 +391,6 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
     std::cout << absl::StreamFormat("Min stage slack: %d\n", min_slack);
   }
 
-  // TODO(meheff): Add an estimate of total number of gates.
-  std::cout << absl::StreamFormat(
-      "Lines of Verilog: %d\n",
-      std::vector<std::string>(
-          absl::StrSplit(codegen_result.verilog_text, '\n'))
-          .size());
   return absl::OkStatus();
 }
 
@@ -492,8 +499,17 @@ absl::Status RealMain(absl::string_view path,
         PipelineSchedule schedule,
         ScheduleAndPrintStats(package.get(), delay_estimator, clock_period_ps,
                               pipeline_stages, clock_margin_percent));
-    XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule, query_engine,
-                                         delay_estimator, clock_period_ps));
+
+    // Only print codegen info for functions.
+    //
+    // TODO(tedhong): 2022-09-28 - Support passing additional codegen options
+    // to benchmark_main to be able to codegen procs.
+    if (f->IsFunction()) {
+      XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule));
+    }
+
+    XLS_RETURN_IF_ERROR(PrintScheduleInfo(f, schedule, query_engine,
+                                          delay_estimator, clock_period_ps));
   }
 
   XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f));
