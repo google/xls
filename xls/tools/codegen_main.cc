@@ -53,20 +53,6 @@ Emit a feed-forward pipelined module:
 namespace xls {
 namespace {
 
-absl::StatusOr<FunctionBase*> FindTop(Package* p, std::string_view top_name) {
-  if (!top_name.empty()) {
-    XLS_RETURN_IF_ERROR(p->SetTopByName(top_name));
-  }
-
-  // Default to the top entity if nothing is specified.
-  std::optional<FunctionBase*> top = p->GetTop();
-  if (!top.has_value()) {
-    return absl::InternalError(
-        absl::StrFormat("Top entity not set for package: %s.", p->name()));
-  }
-  return top.value();
-}
-
 absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     const CodegenFlagsProto& p) {
   verilog::CodegenOptions options;
@@ -171,8 +157,11 @@ absl::Status RealMain(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(verilog::CodegenOptions codegen_options,
                        CodegenOptionsFromProto(codegen_flags_proto));
 
-  XLS_ASSIGN_OR_RETURN(FunctionBase * main,
-                       FindTop(p.get(), codegen_flags_proto.top()));
+  std::optional<std::string_view> maybe_top_str;
+  if (!codegen_flags_proto.top().empty()) {
+    maybe_top_str = codegen_flags_proto.top();
+  }
+  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
   if (codegen_flags_proto.generator() == GENERATOR_KIND_PIPELINE) {
     XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||

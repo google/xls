@@ -150,6 +150,41 @@ block.
 Simple driver for Z3IrTranslator - converts a given IR function into its Z3
 representation and outputs that translation as SMTLIB2.
 
+First obtain an XLS IR file:
+
+```
+$ bazel build -c opt //xls/examples:tiny_adder.opt.ir
+```
+
+And then feed that XLS IR file into this binary:
+
+```
+$ bazel run -c opt //xls/tools:smtlib_emitter_main -- --ir_path \
+    $PWD/bazel-bin/xls/examples/tiny_adder.opt.ir
+(bvadd (concat #b0 x) (concat #b0 y))
+```
+
+To turn it into "gate level" SMTLib, we can do a pre-pass through the
+`booleanify_main` tool:
+
+```
+$ bazel run -c opt //xls/tools:booleanify_main -- --ir_path \
+   $PWD/bazel-bin/xls/examples/tiny_adder.opt.ir \
+   > /tmp/tiny_adder.boolified.ir
+$ bazel run -c opt //xls/tools:smtlib_emitter_main -- \
+    --ir_path /tmp/tiny_adder.boolified.ir
+(let ((a!1 (bvand (bvor ((_ extract 0 0) x) ((_ extract 0 0) y))
+                  (bvnot (bvand ((_ extract 0 0) x) ((_ extract 0 0) y))))))
+(let ((a!2 (bvor (bvand (bvor #b0 #b0) (bvnot (bvand #b0 #b0)))
+                 (bvor (bvand ((_ extract 0 0) x) ((_ extract 0 0) y))
+                       (bvand a!1 #b0))))
+      (a!3 (bvand (bvand (bvor #b0 #b0) (bvnot (bvand #b0 #b0)))
+                  (bvor (bvand ((_ extract 0 0) x) ((_ extract 0 0) y))
+                        (bvand a!1 #b0)))))
+  (concat (bvand a!2 (bvnot a!3))
+          (bvand (bvor a!1 #b0) (bvnot (bvand a!1 #b0))))))
+```
+
 ## [`solver`](https://github.com/google/xls/tree/main/xls/tools/solver.cc)
 
 Uses a SMT solver (i.e. Z3) to prove properties of an XLS IR program from the

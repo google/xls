@@ -317,6 +317,13 @@ class Package {
 
 std::ostream& operator<<(std::ostream& os, const Package& package);
 
+// Implements the common idiom of:
+// a) if top_str is given and non-empty, sets that entity as the top entity of
+//    the package, then
+// b) retrieve the top entity for the package
+absl::StatusOr<FunctionBase*> FindTop(Package* p,
+                                      std::optional<std::string_view> top_str);
+
 }  // namespace xls
 
 #endif  // XLS_IR_PACKAGE_H_

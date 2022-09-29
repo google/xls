@@ -710,4 +710,19 @@ absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
                       name, channels().size()));
 }
 
+absl::StatusOr<FunctionBase*> FindTop(Package* p,
+                                      std::optional<std::string_view> top_str) {
+  if (top_str.has_value() && !top_str->empty()) {
+    XLS_RETURN_IF_ERROR(p->SetTopByName(top_str.value()));
+  }
+
+  // Default to the top entity if nothing is specified.
+  std::optional<FunctionBase*> top = p->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity not set for package: %s.", p->name()));
+  }
+  return top.value();
+}
+
 }  // namespace xls

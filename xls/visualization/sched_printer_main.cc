@@ -304,22 +304,6 @@ std::string DumpScheduleResultToDot(
   return absl::StrFormat("digraph {\n%s}\n", contents);
 }
 
-absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
-  std::string top_str = absl::GetFlag(FLAGS_top);
-
-  if (!top_str.empty()) {
-    XLS_RETURN_IF_ERROR(p->SetTopByName(top_str));
-  }
-
-  // Default to the top entity if nothing is specified.
-  std::optional<FunctionBase*> top = p->GetTop();
-  if (!top.has_value()) {
-    return absl::InternalError(
-        absl::StrFormat("Top entity not set for package: %s.", p->name()));
-  }
-  return top.value();
-}
-
 absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator) {
@@ -356,7 +340,10 @@ absl::Status RealMain(std::string_view ir_path,
 
   XLS_RETURN_IF_ERROR(VerifyPackage(p.get()));
 
-  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindEntry(p.get()));
+  std::string top_str = absl::GetFlag(FLAGS_top);
+  std::optional<std::string_view> maybe_top_str =
+      top_str.empty() ? std::nullopt : std::make_optional(top_str);
+  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
   XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||
              absl::GetFlag(FLAGS_clock_period_ps) != 0)
