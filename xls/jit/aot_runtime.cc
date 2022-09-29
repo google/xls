@@ -22,7 +22,7 @@
 namespace xls::aot_compile {
 
 std::unique_ptr<GlobalData> InitGlobalData(
-    absl::string_view fn_type_textproto) {
+    std::string_view fn_type_textproto) {
   llvm::InitializeNativeTarget();
   auto ctx = std::make_unique<llvm::LLVMContext>();
   auto error_or_target_builder =

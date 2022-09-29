@@ -79,7 +79,7 @@ absl::StatusOr<CountedFor*> RollIntoProcPass::UnrollCountedForBody(
 
   Function* countedfor_loopbody = countedfor->body();
   // Clone the function so we don't change the original.
-  absl::string_view loopbody_name = countedfor_loopbody->name();
+  std::string_view loopbody_name = countedfor_loopbody->name();
   XLS_ASSIGN_OR_RETURN(countedfor_loopbody, countedfor_loopbody->Clone(
       absl::StrFormat("%s_unrolled", loopbody_name),
       countedfor_loopbody->package()));

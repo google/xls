@@ -29,10 +29,10 @@ class NetworkConfigProtoBuilder {
  public:
   NetworkConfigProtoBuilder() = default;
 
-  explicit NetworkConfigProtoBuilder(absl::string_view network_name);
+  explicit NetworkConfigProtoBuilder(std::string_view network_name);
 
   // Sets the description of the network.
-  NetworkConfigProtoBuilder& WithDescription(absl::string_view description);
+  NetworkConfigProtoBuilder& WithDescription(std::string_view description);
 
   // Sets default flit bit width for links.
   NetworkConfigProtoBuilder& SetDefaultLinkPhitBitWidth(
@@ -55,7 +55,7 @@ class NetworkConfigProtoBuilder {
       std::optional<int64_t> depth);
 
   // Adds a port to this object. Returns its builder.
-  PortConfigProtoBuilder WithPort(absl::string_view name);
+  PortConfigProtoBuilder WithPort(std::string_view name);
 
   // Sets default Virtual Channels for input ports.
   NetworkConfigProtoBuilder& SetDefaultVirtualChannelsForRouterInputPort(
@@ -66,13 +66,13 @@ class NetworkConfigProtoBuilder {
       std::optional<std::vector<std::string>> virtual_channels);
 
   // Adds a router to this object. Returns its builder.
-  RouterConfigProtoBuilder WithRouter(absl::string_view name);
+  RouterConfigProtoBuilder WithRouter(std::string_view name);
 
   // Adds a link to this object. Returns its builder.
-  LinkConfigProtoBuilder WithLink(absl::string_view name);
+  LinkConfigProtoBuilder WithLink(std::string_view name);
 
   // Adds a virtual channel to this object. Returns its builder.
-  VirtualChannelConfigProtoBuilder WithVirtualChannel(absl::string_view name);
+  VirtualChannelConfigProtoBuilder WithVirtualChannel(std::string_view name);
 
   // If the builder defines a valid proto, returns the proto. Otherwise, returns
   // an error.

@@ -69,7 +69,7 @@ std::string Function::DumpIr() const {
 }
 
 absl::StatusOr<Function*> Function::Clone(
-    absl::string_view new_name, Package* target_package,
+    std::string_view new_name, Package* target_package,
     const absl::flat_hash_map<const Function*, Function*>& call_remapping)
     const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;

@@ -55,7 +55,7 @@ std::string ToString(const TernaryValue& value) {
   XLS_LOG(FATAL) << "Invalid ternary value: " << static_cast<int>(value);
 }
 
-absl::StatusOr<TernaryVector> StringToTernaryVector(absl::string_view s) {
+absl::StatusOr<TernaryVector> StringToTernaryVector(std::string_view s) {
   auto invalid_input = [&]() {
     return absl::InvalidArgumentError(
         absl::StrFormat("Invalid ternary string: %s", s));

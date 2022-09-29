@@ -31,14 +31,14 @@ using ::testing::MatchesRegex;
 // Parses and typechecks the given text to ensure it's valid -- prints errors to
 // the screen in a useful way for debugging if they fail parsing / typechecking.
 template <typename ModuleMember>
-absl::Status ParseAndTypecheck(absl::string_view text,
-                               absl::string_view module_name) {
+absl::Status ParseAndTypecheck(std::string_view text,
+                               std::string_view module_name) {
   XLS_LOG_LINES(INFO, text);
 
   std::string filename = absl::StrCat(module_name, ".x");
 
   auto get_file_contents =
-      [&](absl::string_view path) -> absl::StatusOr<std::string> {
+      [&](std::string_view path) -> absl::StatusOr<std::string> {
     XLS_CHECK_EQ(path, filename);
     return std::string(text);
   };

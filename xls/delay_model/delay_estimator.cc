@@ -30,7 +30,7 @@ DelayEstimatorManager& GetDelayEstimatorManagerSingleton() {
 }
 
 absl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
-    absl::string_view name) const {
+    std::string_view name) const {
   if (!estimators_.contains(name)) {
     if (estimator_names_.empty()) {
       return absl::NotFoundError(

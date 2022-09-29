@@ -50,7 +50,7 @@ struct Pos {
 // interface.
 class CharStream {
  public:
-  static absl::StatusOr<CharStream> FromPath(absl::string_view path);
+  static absl::StatusOr<CharStream> FromPath(std::string_view path);
   static absl::StatusOr<CharStream> FromText(std::string text);
 
   ~CharStream() {
@@ -191,7 +191,7 @@ class Token {
 
   TokenKind kind() const { return kind_; }
   const Pos& pos() const { return pos_; }
-  absl::string_view payload() const { return payload_.value(); }
+  std::string_view payload() const { return payload_.value(); }
   std::string PopPayload() { return std::move(payload_.value()); }
 
  private:
@@ -340,15 +340,15 @@ struct Block {
   // If target_kind is provided it is used as a filter (the only blocks returned
   // have subblock->kind == target_kind).
   std::vector<const Block*> GetSubBlocks(
-      std::optional<absl::string_view> target_kind = absl::nullopt) const;
+      std::optional<std::string_view> target_kind = absl::nullopt) const;
 
   // Retrieves the first key/value pair in this block that corresponds to
   // target_key.
-  const std::string& GetKVOrDie(absl::string_view target_key) const;
+  const std::string& GetKVOrDie(std::string_view target_key) const;
 
   // Counts the number of entries with either the key of "target" for a
   // key/value entry or a kind of "target" for a block entry.
-  int64_t CountEntries(absl::string_view target) const;
+  int64_t CountEntries(std::string_view target) const;
 
   // Helper used for converting entries contained within the block into strings.
   static std::string EntryToString(const BlockEntry& entry);
@@ -373,7 +373,7 @@ class Parser {
  private:
   absl::StatusOr<bool> TryDropToken(TokenKind target, Pos* pos = nullptr);
   absl::Status DropTokenOrError(TokenKind kind);
-  absl::Status DropIdentifierOrError(absl::string_view target);
+  absl::Status DropIdentifierOrError(std::string_view target);
 
   // Pops an identifier token and returns its payload, or errors.
   absl::StatusOr<std::string> PopIdentifierOrError();

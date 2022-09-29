@@ -20,7 +20,7 @@
 namespace xls {
 namespace logging {
 
-void LogLines(absl::LogSeverity severity, absl::string_view text,
+void LogLines(absl::LogSeverity severity, std::string_view text,
               const char* file_name, int line_number) {
   // Since there are multiple lines, using FATAL will cause only
   // the first line to be printed, so downgrade to ERROR, but
@@ -34,7 +34,7 @@ void LogLines(absl::LogSeverity severity, absl::string_view text,
   size_t current_position = 0;
   size_t next_newline = text.find_first_of('\n');
   while ((current_position < text.size()) &&
-         (next_newline != absl::string_view::npos)) {
+         (next_newline != std::string_view::npos)) {
     size_t length = next_newline - current_position;
     XLS_LOG(LEVEL(severity)).AtLocation(file_name, line_number)
         << absl::ClippedSubstr(text, current_position, length);

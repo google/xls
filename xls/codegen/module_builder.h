@@ -41,7 +41,7 @@ namespace verilog {
 //   (3) Imposes common organization to the module.
 class ModuleBuilder {
  public:
-  ModuleBuilder(absl::string_view name, VerilogFile* file,
+  ModuleBuilder(std::string_view name, VerilogFile* file,
                 CodegenOptions options,
                 std::optional<std::string_view> clk_name = absl::nullopt,
                 std::optional<ResetProto> rst = absl::nullopt);
@@ -50,19 +50,19 @@ class ModuleBuilder {
   Module* module() { return module_; }
 
   // Add an input port of the given XLS type to the module.
-  absl::StatusOr<LogicRef*> AddInputPort(absl::string_view name, Type* type);
+  absl::StatusOr<LogicRef*> AddInputPort(std::string_view name, Type* type);
 
   // Add an input port of the given width.
-  LogicRef* AddInputPort(absl::string_view name, int64_t bit_count);
+  LogicRef* AddInputPort(std::string_view name, int64_t bit_count);
 
   // Add an output port of the given XLS type to the module. The output is
   // assigned the given value.
-  absl::Status AddOutputPort(absl::string_view name, Type* type,
+  absl::Status AddOutputPort(std::string_view name, Type* type,
                              Expression* value);
 
   // Add an output port of the given width to the module. The output is assigned
   // the given value.
-  absl::Status AddOutputPort(absl::string_view name, int64_t bit_count,
+  absl::Status AddOutputPort(std::string_view name, int64_t bit_count,
                              Expression* value);
 
   // Returns whether the given node can be emitted as an inline expression in
@@ -89,7 +89,7 @@ class ModuleBuilder {
   // the given name. 'inputs' contains the operand expressions for the
   // node. Returns a reference to the declared variable.
   absl::StatusOr<LogicRef*> EmitAsAssignment(
-      absl::string_view name, Node* node, absl::Span<Expression* const> inputs);
+      std::string_view name, Node* node, absl::Span<Expression* const> inputs);
 
   // Get the always_comb block in the assertions section.
   // It is lazily created.
@@ -117,11 +117,11 @@ class ModuleBuilder {
 
   // Declares a variable with the given name and XLS type. Returns a reference
   // to the variable.
-  LogicRef* DeclareVariable(absl::string_view name, Type* type);
+  LogicRef* DeclareVariable(std::string_view name, Type* type);
 
   // Declares a flat variable with the given name and number of bits. Returns a
   // reference to the variable.
-  LogicRef* DeclareVariable(absl::string_view name, int64_t bit_count);
+  LogicRef* DeclareVariable(std::string_view name, int64_t bit_count);
 
   // Assigns the rhs to the lhs using continuous assignment where both sides
   // have the given XLS type. The emitted verilog may require multiple
@@ -130,7 +130,7 @@ class ModuleBuilder {
 
   // Declares variable with the given name and assigns the given value to
   // it. Returns a reference to the variable.
-  absl::StatusOr<LogicRef*> DeclareModuleConstant(absl::string_view name,
+  absl::StatusOr<LogicRef*> DeclareModuleConstant(std::string_view name,
                                                   const Value& Value);
 
   // Data structure describing a register (collection of flops).
@@ -163,12 +163,12 @@ class ModuleBuilder {
   //
   // Declared registers must be passed to a subsequent AssignRegisters call for
   // assignment within an always block.
-  absl::StatusOr<Register> DeclareRegister(absl::string_view name, Type* type,
+  absl::StatusOr<Register> DeclareRegister(std::string_view name, Type* type,
                                            Expression* next,
                                            Expression* reset_value = nullptr);
 
   // As above, but declares a register of a given bit width.
-  absl::StatusOr<Register> DeclareRegister(absl::string_view name,
+  absl::StatusOr<Register> DeclareRegister(std::string_view name,
                                            int64_t bit_count, Expression* next,
                                            Expression* reset_value = nullptr);
 

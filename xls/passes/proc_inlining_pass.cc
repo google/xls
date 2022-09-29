@@ -31,7 +31,7 @@ namespace {
 
 // Makes and returns a node computing Not(node).
 absl::StatusOr<Node*> Not(
-    Node* node, std::optional<absl::string_view> name = absl::nullopt) {
+    Node* node, std::optional<std::string_view> name = absl::nullopt) {
   if (name.has_value()) {
     return node->function_base()->MakeNodeWithName<UnOp>(
         node->loc(), node, Op::kNot, name.value());
@@ -41,7 +41,7 @@ absl::StatusOr<Node*> Not(
 
 // Makes and returns a node computing Identity(node).
 absl::StatusOr<Node*> Identity(
-    Node* node, std::optional<absl::string_view> name = absl::nullopt) {
+    Node* node, std::optional<std::string_view> name = absl::nullopt) {
   if (name.has_value()) {
     return node->function_base()->MakeNodeWithName<UnOp>(
         node->loc(), node, Op::kIdentity, name.value());
@@ -52,7 +52,7 @@ absl::StatusOr<Node*> Identity(
 
 // Makes and returns a node computing And(a, b).
 absl::StatusOr<Node*> And(
-    Node* a, Node* b, std::optional<absl::string_view> name = absl::nullopt) {
+    Node* a, Node* b, std::optional<std::string_view> name = absl::nullopt) {
   if (name.has_value()) {
     return a->function_base()->MakeNodeWithName<NaryOp>(
         a->loc(), std::vector<Node*>{a, b}, Op::kAnd, name.value());
@@ -63,7 +63,7 @@ absl::StatusOr<Node*> And(
 
 // Makes and returns a node computing Or(a, b).
 absl::StatusOr<Node*> Or(
-    Node* a, Node* b, std::optional<absl::string_view> name = absl::nullopt) {
+    Node* a, Node* b, std::optional<std::string_view> name = absl::nullopt) {
   if (name.has_value()) {
     return a->function_base()->MakeNodeWithName<NaryOp>(
         a->loc(), std::vector<Node*>{a, b}, Op::kOr, name.value());
@@ -74,7 +74,7 @@ absl::StatusOr<Node*> Or(
 
 // Makes and returns a node computing And(a, !b).
 absl::StatusOr<Node*> AndNot(
-    Node* a, Node* b, std::optional<absl::string_view> name = absl::nullopt) {
+    Node* a, Node* b, std::optional<std::string_view> name = absl::nullopt) {
   Node* not_b;
   if (name.has_value()) {
     XLS_ASSIGN_OR_RETURN(not_b, a->function_base()->MakeNodeWithName<UnOp>(
@@ -138,7 +138,7 @@ absl::StatusOr<Receive*> AddReceivePredicate(Receive* receive,
 // gathered together in a tuple to define the state of the proc.
 class StateElement {
  public:
-  static absl::StatusOr<StateElement> Create(absl::string_view name,
+  static absl::StatusOr<StateElement> Create(std::string_view name,
                                              Value initial_value, Proc* proc) {
     StateElement element;
     element.name_ = name;
@@ -160,7 +160,7 @@ class StateElement {
     return std::move(element);
   }
 
-  absl::string_view GetName() const { return name_; }
+  std::string_view GetName() const { return name_; }
   const Value& GetInitialValue() const { return initial_value_; }
 
   // Returns the node holding the element from the proc state.
@@ -847,7 +847,7 @@ class ProcThread {
 
   // Allocate and return a state element. The state will later be added to the
   // container proc state.
-  absl::StatusOr<StateElement*> AllocateState(absl::string_view name,
+  absl::StatusOr<StateElement*> AllocateState(std::string_view name,
                                               Value initial_value);
 
   // Allocates an activation node for the proc thread's activation network.
@@ -855,7 +855,7 @@ class ProcThread {
   // in the activation network. `original_node` is the (optional) node in the
   // inlined proc for which this activation node was created.
   absl::StatusOr<ActivationNode*> AllocateActivationNode(
-      absl::string_view name, absl::Span<Node* const> activations_in,
+      std::string_view name, absl::Span<Node* const> activations_in,
       std::optional<Node*> original_node);
 
   // Sets the next state of the proc thread to the given value. This value is
@@ -1213,7 +1213,7 @@ class ProcThread {
   absl::flat_hash_map<Node*, ActivationNode*> original_node_to_activation_node_;
 };
 
-absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
+absl::StatusOr<StateElement*> ProcThread::AllocateState(std::string_view name,
                                                         Value initial_value) {
   XLS_VLOG(3) << absl::StreamFormat(
       "AllocateState: %s, size: %d, initial value %s", name,
@@ -1226,7 +1226,7 @@ absl::StatusOr<StateElement*> ProcThread::AllocateState(absl::string_view name,
 }
 
 absl::StatusOr<ActivationNode*> ProcThread::AllocateActivationNode(
-    absl::string_view name, absl::Span<Node* const> activations_in,
+    std::string_view name, absl::Span<Node* const> activations_in,
     std::optional<Node*> original_node) {
   XLS_VLOG(3) << absl::StreamFormat(
       "AllocateActivationNode: %s, inputs (%s)", name,

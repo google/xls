@@ -24,7 +24,7 @@ namespace xls::dslx {
   return new_bindings;
 }
 
-/* static */ absl::string_view InterpBindings::VariantAsString(const Entry& e) {
+/* static */ std::string_view InterpBindings::VariantAsString(const Entry& e) {
   if (std::holds_alternative<InterpValue>(e)) {
     return "Value";
   }
@@ -67,7 +67,7 @@ void InterpBindings::AddValueTree(NameDefTree* name_def_tree,
 }
 
 absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
-    absl::string_view identifier, const Span* ref_span) const {
+    std::string_view identifier, const Span* ref_span) const {
   std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     std::string span_str;
@@ -89,7 +89,7 @@ absl::StatusOr<InterpValue> InterpBindings::ResolveValueFromIdentifier(
 }
 
 absl::StatusOr<Module*> InterpBindings::ResolveModule(
-    absl::string_view identifier) const {
+    std::string_view identifier) const {
   std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     return absl::NotFoundError(
@@ -104,7 +104,7 @@ absl::StatusOr<Module*> InterpBindings::ResolveModule(
 }
 
 absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
-    absl::string_view identifier) const {
+    std::string_view identifier) const {
   std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     return absl::NotFoundError(
@@ -122,7 +122,7 @@ absl::StatusOr<TypeAnnotation*> InterpBindings::ResolveTypeAnnotation(
 }
 
 absl::StatusOr<std::variant<TypeAnnotation*, EnumDef*, StructDef*>>
-InterpBindings::ResolveTypeDefinition(absl::string_view identifier) const {
+InterpBindings::ResolveTypeDefinition(std::string_view identifier) const {
   std::optional<Entry> entry = ResolveEntry(identifier);
   if (!entry.has_value()) {
     return absl::NotFoundError(absl::StrFormat(
@@ -157,7 +157,7 @@ absl::flat_hash_set<std::string> InterpBindings::GetKeys() const {
 }
 
 std::optional<InterpBindings::Entry> InterpBindings::ResolveEntry(
-    absl::string_view identifier) const {
+    std::string_view identifier) const {
   auto it = map_.find(identifier);
   if (it != map_.end()) {
     return it->second;

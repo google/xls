@@ -45,7 +45,7 @@ bool IsRepresentable(Type* type) {
 absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
     const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs,
-    absl::string_view name, bool emit_as_assignment) {
+    std::string_view name, bool emit_as_assignment) {
   if (node->Is<Tuple>()) {
     // A tuple may have unrepresentable inputs such as empty tuples.  Walk
     // through and gather non-zero-width inputs and flatten them.

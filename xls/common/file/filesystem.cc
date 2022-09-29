@@ -69,7 +69,7 @@ class ParseTextProtoFileErrorCollector : public google::protobuf::io::ErrorColle
 enum class SetOrAppend { kSet, kAppend };
 
 absl::Status SetFileContentsOrAppend(const std::filesystem::path& file_name,
-                                     absl::string_view content,
+                                     std::string_view content,
                                      SetOrAppend set_or_append) {
   // Use POSIX C APIs instead of C++ iostreams to avoid exceptions.
   int fd = open(file_name.c_str(),
@@ -181,16 +181,16 @@ absl::StatusOr<std::string> GetFileContents(
 }
 
 absl::Status SetFileContents(const std::filesystem::path& file_name,
-                             absl::string_view content) {
+                             std::string_view content) {
   return SetFileContentsOrAppend(file_name, content, SetOrAppend::kSet);
 }
 
 absl::Status AppendStringToFile(const std::filesystem::path& file_name,
-                                absl::string_view content) {
+                                std::string_view content) {
   return SetFileContentsOrAppend(file_name, content, SetOrAppend::kAppend);
 }
 
-absl::Status ParseTextProto(absl::string_view contents,
+absl::Status ParseTextProto(std::string_view contents,
                             const std::filesystem::path& file_name,
                             google::protobuf::Message* proto) {
   if (proto == nullptr) {
@@ -213,7 +213,7 @@ absl::Status ParseTextProtoFile(const std::filesystem::path& file_name,
   return ParseTextProto(text_proto, file_name, proto);
 }
 
-absl::Status ParseProtobin(absl::string_view contents,
+absl::Status ParseProtobin(std::string_view contents,
                            const std::filesystem::path& file_name,
                            google::protobuf::Message* proto) {
   if (proto == nullptr) {

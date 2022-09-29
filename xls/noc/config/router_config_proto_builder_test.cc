@@ -21,8 +21,8 @@ namespace xls::noc {
 
 // Test the field values of a router with an input port.
 TEST(RouterConfigBuilderTest, InputPortFieldValues) {
-  constexpr absl::string_view kName = "Test";
-  constexpr absl::string_view kRouterPortName = "RouterPort";
+  constexpr std::string_view kName = "Test";
+  constexpr std::string_view kRouterPortName = "RouterPort";
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);
   builder.WithName(kName);
@@ -48,8 +48,8 @@ TEST(RouterConfigBuilderTest, InputPortFieldValues) {
 
 // Test the field values of a router with an output port.
 TEST(RouterConfigBuilderTest, OutputPortFieldValues) {
-  constexpr absl::string_view kName = "Test";
-  constexpr absl::string_view kRouterPortName = "RouterPort";
+  constexpr std::string_view kName = "Test";
+  constexpr std::string_view kRouterPortName = "RouterPort";
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);
   builder.WithName(kName);
@@ -77,8 +77,8 @@ TEST(RouterConfigBuilderTest, OutputPortFieldValues) {
 // input port with non-default virtual channels, default virtual channels, then
 // non-default virtual channels (in that order).
 TEST(RouterConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
-  constexpr absl::string_view kNonDefault = "NonDefault";
-  constexpr absl::string_view kDefault = "Default";
+  constexpr std::string_view kNonDefault = "NonDefault";
+  constexpr std::string_view kDefault = "Default";
   const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);
@@ -103,8 +103,8 @@ TEST(RouterConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
 // output port with non-default virtual channels, default virtual channels, then
 // non-default virtual channels (in that order).
 TEST(RouterConfigBuilderTest, VirtualChannelsOutputPortDefaultFields) {
-  constexpr absl::string_view kNonDefault = "NonDefault";
-  constexpr absl::string_view kDefault = "Default";
+  constexpr std::string_view kNonDefault = "NonDefault";
+  constexpr std::string_view kDefault = "Default";
   const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
   RouterConfigProto proto;
   RouterConfigProtoBuilder builder(&proto);

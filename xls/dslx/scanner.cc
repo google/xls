@@ -252,7 +252,7 @@ absl::StatusOr<std::string> Scanner::ScanUntilDoubleQuote() {
       "Consumed all input without finding a closing double quote.");
 }
 
-/* static */ std::optional<Keyword> Scanner::GetKeyword(absl::string_view s) {
+/* static */ std::optional<Keyword> Scanner::GetKeyword(std::string_view s) {
   static const auto* mapping = new absl::flat_hash_map<std::string, Keyword>{
 #define MAKE_ITEM(__enum, unused, __str, ...) {__str, Keyword::__enum},
       XLS_DSLX_KEYWORDS(MAKE_ITEM)
@@ -352,7 +352,7 @@ std::string KeywordToString(Keyword keyword) {
   return absl::StrFormat("<invalid Keyword(%d)>", static_cast<int>(keyword));
 }
 
-std::optional<Keyword> KeywordFromString(absl::string_view s) {
+std::optional<Keyword> KeywordFromString(std::string_view s) {
 #define MAKE_CASE(__enum, unused, __str, ...) \
   if (s == __str) {                           \
     return Keyword::__enum;                   \
@@ -373,7 +373,7 @@ std::string TokenKindToString(TokenKind kind) {
   return absl::StrFormat("<invalid TokenKind(%d)>", static_cast<int>(kind));
 }
 
-absl::StatusOr<TokenKind> TokenKindFromString(absl::string_view s) {
+absl::StatusOr<TokenKind> TokenKindFromString(std::string_view s) {
 #define MAKE_CASE(__enum, unused, __str, ...) \
   if (s == __str) {                           \
     return TokenKind::__enum;                 \

@@ -612,7 +612,7 @@ std::string Bytecode::ToString(bool source_locs) const {
   return absl::StrFormat("%s%s", op_string, loc_string);
 }
 
-static absl::StatusOr<InterpValue> ParseInterpValue(absl::string_view text) {
+static absl::StatusOr<InterpValue> ParseInterpValue(std::string_view text) {
   std::vector<std::string_view> pieces =
       absl::StrSplit(text, absl::MaxSplits(':', 1));
   if (pieces.size() != 2) {
@@ -641,7 +641,7 @@ static absl::StatusOr<InterpValue> ParseInterpValue(absl::string_view text) {
 }
 
 absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
-    absl::string_view text) {
+    std::string_view text) {
   std::vector<Bytecode> result;
   std::vector<std::string_view> lines = absl::StrSplit(text, '\n');
   for (std::string_view line : lines) {

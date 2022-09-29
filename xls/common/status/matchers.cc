@@ -91,7 +91,7 @@ bool CanonicalStatusIsMatcherCommonImpl::MatchAndExplain(
   return true;
 }
 
-void AddFatalFailure(absl::string_view expression,
+void AddFatalFailure(std::string_view expression,
                      const xabsl::StatusBuilder& builder) {
   GTEST_MESSAGE_AT_(
       builder.source_location().file_name(), builder.source_location().line(),

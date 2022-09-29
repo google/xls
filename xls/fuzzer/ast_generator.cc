@@ -1236,7 +1236,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
-  absl::string_view op = RandomChoice<absl::string_view>(
+  std::string_view op = RandomChoice<std::string_view>(
       {"and_reduce", "or_reduce", "xor_reduce"});
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
   TypeAnnotation* type = MakeTypeAnnotation(false, 1);

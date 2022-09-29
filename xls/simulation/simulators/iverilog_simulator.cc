@@ -71,7 +71,7 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
 class IcarusVerilogSimulator : public VerilogSimulator {
  public:
   absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const override {
     if (file_type == FileType::kSystemVerilog) {
       return absl::UnimplementedError(
@@ -96,7 +96,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
   }
 
   absl::Status RunSyntaxChecking(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const override {
     if (file_type == FileType::kSystemVerilog) {
       return absl::UnimplementedError(

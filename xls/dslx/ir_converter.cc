@@ -57,7 +57,7 @@ struct PackageData {
 
 // Returns a status that indicates an error in the IR conversion process.
 absl::Status ConversionErrorStatus(const std::optional<Span>& span,
-                                   absl::string_view message) {
+                                   std::string_view message) {
   return absl::InternalError(
       absl::StrFormat("ConversionError: %s %s",
                       span ? span->ToString() : "<no span>", message));
@@ -243,7 +243,7 @@ class FunctionConverter {
   // TODO(leary): 2020-12-22 Clean all this up to expose a minimal surface area
   // once everything is ported over to C++.
   std::optional<InterpValue> get_symbolic_binding(
-      absl::string_view identifier) const {
+      std::string_view identifier) const {
     auto it = symbolic_binding_map_.find(identifier);
     if (it == symbolic_binding_map_.end()) {
       return absl::nullopt;
@@ -3325,7 +3325,7 @@ absl::Status CreateBoundaryChannels(absl::Span<Param* const> params,
 static absl::Status ConvertCallGraph(
     absl::Span<const ConversionRecord> order, ImportData* import_data,
     const ConvertOptions& options, PackageData& package_data,
-    std::optional<absl::string_view> initial_proc_state = absl::nullopt) {
+    std::optional<std::string_view> initial_proc_state = absl::nullopt) {
   XLS_VLOG(3) << "Conversion order: ["
               << absl::StrJoin(
                      order, "\n\t",
@@ -3484,7 +3484,7 @@ template <typename BlockT>
 absl::Status ConvertOneFunctionIntoPackageInternal(
     Module* module, BlockT* block, ImportData* import_data,
     const SymbolicBindings* symbolic_bindings, const ConvertOptions& options,
-    Package* package, std::optional<absl::string_view> top_proc_initial_state) {
+    Package* package, std::optional<std::string_view> top_proc_initial_state) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * func_type_info,
                        import_data->GetRootTypeInfoForNode(block));
   XLS_ASSIGN_OR_RETURN(std::vector<ConversionRecord> order,
@@ -3496,8 +3496,8 @@ absl::Status ConvertOneFunctionIntoPackageInternal(
 }
 
 absl::Status ConvertOneFunctionIntoPackage(
-    Module* module, absl::string_view entry_function_name,
-    std::optional<absl::string_view> top_proc_initial_state,
+    Module* module, std::string_view entry_function_name,
+    std::optional<std::string_view> top_proc_initial_state,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package) {
   std::optional<Function*> fn_or = module->GetFunction(entry_function_name);
@@ -3526,10 +3526,10 @@ absl::Status ConvertOneFunctionIntoPackage(
 }
 
 absl::StatusOr<std::string> ConvertOneFunction(
-    Module* module, absl::string_view entry_function_name,
+    Module* module, std::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options,
-    std::optional<absl::string_view> top_proc_initial_state) {
+    std::optional<std::string_view> top_proc_initial_state) {
   Package package(module->name());
   XLS_RETURN_IF_ERROR(ConvertOneFunctionIntoPackage(
       module, entry_function_name, top_proc_initial_state, import_data,

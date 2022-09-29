@@ -85,7 +85,7 @@ enum class TokenKind { XLS_DSLX_TOKEN_KINDS(XLS_FIRST_COMMA) };
 
 std::string TokenKindToString(TokenKind kind);
 
-absl::StatusOr<TokenKind> TokenKindFromString(absl::string_view s);
+absl::StatusOr<TokenKind> TokenKindFromString(std::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, TokenKind kind) {
   os << TokenKindToString(kind);
@@ -96,7 +96,7 @@ enum class Keyword { XLS_DSLX_KEYWORDS(XLS_FIRST_COMMA) };
 
 std::string KeywordToString(Keyword keyword);
 
-std::optional<Keyword> KeywordFromString(absl::string_view s);
+std::optional<Keyword> KeywordFromString(std::string_view s);
 
 // Returns a singleton set of type keywords.
 const absl::flat_hash_set<Keyword>& GetTypeKeywords();
@@ -146,10 +146,10 @@ class Token {
   bool IsKeyword(Keyword target) const {
     return kind_ == TokenKind::kKeyword && GetKeyword() == target;
   }
-  bool IsIdentifier(absl::string_view target) const {
+  bool IsIdentifier(std::string_view target) const {
     return kind_ == TokenKind::kIdentifier && *GetValue() == target;
   }
-  bool IsNumber(absl::string_view target) const {
+  bool IsNumber(std::string_view target) const {
     return kind_ == TokenKind::kNumber && *GetValue() == target;
   }
 
@@ -251,7 +251,7 @@ class Scanner {
   // Determines whether string "s" matches a keyword -- if so, returns the
   // keyword enum that it corresponds to. Otherwise, typically the caller will
   // assume s is an identifier.
-  static std::optional<Keyword> GetKeyword(absl::string_view s);
+  static std::optional<Keyword> GetKeyword(std::string_view s);
 
   // Scans a number token out of the character stream. Note the number may have
   // a base determined by a radix-noting prefix; e.g. "0x" or "0b".

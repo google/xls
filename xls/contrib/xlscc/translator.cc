@@ -1150,7 +1150,7 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 }
 
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
-    const clang::FunctionDecl* funcdecl, absl::string_view name_override,
+    const clang::FunctionDecl* funcdecl, std::string_view name_override,
     bool force_static) {
   XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
 
@@ -5263,8 +5263,8 @@ absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
 }
 
 absl::Status Translator::ScanFile(
-    absl::string_view source_filename,
-    absl::Span<absl::string_view> command_line_args) {
+    std::string_view source_filename,
+    absl::Span<std::string_view> command_line_args) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->ScanFile(source_filename, command_line_args);
 }
@@ -5274,7 +5274,7 @@ absl::StatusOr<std::string> Translator::GetEntryFunctionName() const {
   return parser_->GetEntryFunctionName();
 }
 
-absl::Status Translator::SelectTop(absl::string_view top_function_name) {
+absl::Status Translator::SelectTop(std::string_view top_function_name) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->SelectTop(top_function_name);
 }

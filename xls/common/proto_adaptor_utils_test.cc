@@ -22,7 +22,7 @@ namespace xls {
 // Test the ToProtoString function.
 TEST(ProtoAdaptorUtilsTest, ToProtoString) {
   const char* kString = "Test";
-  absl::string_view string_view_value = {kString};
+  std::string_view string_view_value = {kString};
   std::string string_result = ToProtoString(string_view_value);
 
   EXPECT_EQ(string_result, kString);

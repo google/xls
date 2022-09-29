@@ -912,8 +912,8 @@ absl::StatusOr<dslx::Expr*> EmitData(const std::string& top_package,
 }
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxWithDescriptorPool(
-    absl::string_view message_name, absl::string_view text_proto,
-    absl::string_view binding_name, DescriptorPool* descriptor_pool) {
+    std::string_view message_name, std::string_view text_proto,
+    std::string_view binding_name, DescriptorPool* descriptor_pool) {
   XLS_RET_CHECK(descriptor_pool != nullptr);
 
   google::protobuf::DynamicMessageFactory factory;
@@ -939,7 +939,7 @@ ProtoToDslxManager::ProtoToDslxManager(dslx::Module* module)
 ProtoToDslxManager::~ProtoToDslxManager() {}
 
 absl::Status ProtoToDslxManager::AddProtoInstantiationToDslxModule(
-    absl::string_view binding_name, const Message& message) {
+    std::string_view binding_name, const Message& message) {
   XLS_RET_CHECK(module_ != nullptr);
 
   const Descriptor* descriptor = message.GetDescriptor();
@@ -996,7 +996,7 @@ absl::Status ProtoToDslxManager::AddProtoTypeToDslxModule(
 // find the better API -- this also checks that there are no dependencies
 // (imports) unlike the above.
 absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessStringProtoSchema(
-    absl::string_view proto_def) {
+    std::string_view proto_def) {
   DiskSourceTree source_tree;
 
   XLS_ASSIGN_OR_RETURN(auto tempdir, TempDirectory::Create());
@@ -1024,8 +1024,8 @@ absl::StatusOr<std::unique_ptr<DescriptorPool>> ProcessStringProtoSchema(
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
     const std::filesystem::path& source_root,
     const std::filesystem::path& proto_schema_path,
-    absl::string_view message_name, absl::string_view text_proto,
-    absl::string_view binding_name) {
+    std::string_view message_name, std::string_view text_proto,
+    std::string_view binding_name) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
                        ProcessProtoSchema(source_root, proto_schema_path));
   return ProtoToDslxWithDescriptorPool(message_name, text_proto, binding_name,
@@ -1033,8 +1033,8 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
 }
 
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
-    absl::string_view proto_def, absl::string_view message_name,
-    absl::string_view text_proto, absl::string_view binding_name) {
+    std::string_view proto_def, std::string_view message_name,
+    std::string_view text_proto, std::string_view binding_name) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<DescriptorPool> descriptor_pool,
                        ProcessStringProtoSchema(proto_def));
   return ProtoToDslxWithDescriptorPool(message_name, text_proto, binding_name,
@@ -1042,7 +1042,7 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
 }
 
 absl::StatusOr<std::unique_ptr<Message>> ConstructProtoViaText(
-    absl::string_view text_proto, absl::string_view message_name,
+    std::string_view text_proto, std::string_view message_name,
     DescriptorPool* descriptor_pool, google::protobuf::DynamicMessageFactory* factory) {
   XLS_RET_CHECK(descriptor_pool != nullptr);
   XLS_RET_CHECK(factory != nullptr);

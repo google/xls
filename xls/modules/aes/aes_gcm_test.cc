@@ -50,10 +50,10 @@ constexpr int kMaxPtxtBlocks = 128;
 constexpr int kTagBits = 128;
 constexpr int kTagBytes = kTagBits / 8;
 
-constexpr absl::string_view kIrPath = "xls/modules/aes/aes_gcm.ir";
-constexpr absl::string_view kCmdChannelName = "aes_gcm__command_in";
-constexpr absl::string_view kDataInChannelName = "aes_gcm__data_in";
-constexpr absl::string_view kDataOutChannelName = "aes_gcm__data_out";
+constexpr std::string_view kIrPath = "xls/modules/aes/aes_gcm.ir";
+constexpr std::string_view kCmdChannelName = "aes_gcm__command_in";
+constexpr std::string_view kDataInChannelName = "aes_gcm__data_in";
+constexpr std::string_view kDataOutChannelName = "aes_gcm__data_out";
 
 struct JitData {
   std::unique_ptr<Package> package;
@@ -196,7 +196,7 @@ absl::StatusOr<Result> ReferenceEncrypt(const SampleData& sample) {
 }
 
 bool CompareBlock(const Block& expected, const Block& actual,
-                  absl::string_view failure_msg, bool is_ciphertext) {
+                  std::string_view failure_msg, bool is_ciphertext) {
   for (int byte_idx = 0; byte_idx < kBlockBytes; byte_idx++) {
     if (expected[byte_idx] != actual[byte_idx]) {
       std::cout << failure_msg << std::endl;
@@ -385,7 +385,7 @@ absl::Status RealMain(int num_samples) {
 }  // namespace xls::aes
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
   XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
   return 0;
 }

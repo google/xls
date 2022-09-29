@@ -90,7 +90,7 @@ class NodeMatcher : public ::testing::MatcherInterface<const Node*> {
 //   EXPECT_THAT(foo, m::Type(package->GetBitsType(32)));
 class TypeMatcher : public ::testing::MatcherInterface<const Node*> {
  public:
-  explicit TypeMatcher(absl::string_view type_str) : type_str_(type_str) {}
+  explicit TypeMatcher(std::string_view type_str) : type_str_(type_str) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -117,7 +117,7 @@ inline ::testing::Matcher<const ::xls::Node*> Type(const char* type_str) {
 // the m::Name. For example: EXPECT_THAT(baz, m::Or("foo", "bar")).
 class NameMatcher : public ::testing::MatcherInterface<const Node*> {
  public:
-  explicit NameMatcher(absl::string_view name) : name_(name) {}
+  explicit NameMatcher(std::string_view name) : name_(name) {}
 
   bool MatchAndExplain(const Node* node,
                        ::testing::MatchResultListener* listener) const override;
@@ -127,7 +127,7 @@ class NameMatcher : public ::testing::MatcherInterface<const Node*> {
   std::string name_;
 };
 
-inline ::testing::Matcher<const ::xls::Node*> Name(absl::string_view name_str) {
+inline ::testing::Matcher<const ::xls::Node*> Name(std::string_view name_str) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::NameMatcher(name_str));
 }
 
@@ -400,7 +400,7 @@ inline ::testing::Matcher<const ::xls::Node*> Literal(uint64_t value) {
 }
 
 inline ::testing::Matcher<const ::xls::Node*> Literal(
-    absl::string_view value_str) {
+    std::string_view value_str) {
   Value value = Parser::ParseTypedValue(value_str).value();
   FormatPreference format = FormatPreference::kDefault;
   if (absl::StrContains(value_str, "0b")) {
@@ -608,7 +608,7 @@ inline ::testing::Matcher<const ::xls::Channel*> Channel(int64_t id) {
 }
 
 inline ::testing::Matcher<const ::xls::Channel*> Channel(
-    absl::string_view name) {
+    std::string_view name) {
   return ::testing::MakeMatcher(new ::xls::op_matchers::ChannelMatcher(
       absl::nullopt, std::string{name}, absl::nullopt));
 }

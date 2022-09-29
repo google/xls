@@ -35,7 +35,7 @@
 
 namespace xls {
 
-Node::Node(Op op, Type* type, const SourceInfo& loc, absl::string_view name,
+Node::Node(Op op, Type* type, const SourceInfo& loc, std::string_view name,
            FunctionBase* function_base)
     : function_base_(function_base),
       id_(function_base_->package()->GetNextNodeId()),
@@ -393,7 +393,7 @@ std::string Node::GetName() const {
   return absl::StrFormat("%s.%d", OpToString(op()), id());
 }
 
-void Node::SetName(absl::string_view name) {
+void Node::SetName(std::string_view name) {
   name_ = function_base()->UniquifyNodeName(name);
 }
 

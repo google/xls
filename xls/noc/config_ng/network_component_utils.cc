@@ -96,7 +96,7 @@ absl::Status AddNameToComponent(
   // Set names for routers
   for (auto& [name, component] : components) {
     XLS_RET_CHECK(component != nullptr)
-        << absl::string_view("Component is not valid.");
+        << std::string_view("Component is not valid.");
     component->SetName(name);
   }
   return absl::Status();

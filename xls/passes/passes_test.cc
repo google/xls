@@ -117,7 +117,7 @@ TEST(PassesTest, AddPasses) {
 // particular name.
 class PackageNameChecker : public InvariantChecker {
  public:
-  explicit PackageNameChecker(absl::string_view str) : str_(str) {}
+  explicit PackageNameChecker(std::string_view str) : str_(str) {}
 
   absl::Status Run(Package* package, const PassOptions& options,
                    PassResults* results) const override {
@@ -214,7 +214,7 @@ TEST(PassesTest, RunWithFailingNestedInvariantChecker) {
 // Pass which adds a function of a particular name
 class FunctionAdderPass : public Pass {
  public:
-  explicit FunctionAdderPass(absl::string_view name)
+  explicit FunctionAdderPass(std::string_view name)
       : Pass("function_adder", absl::StrCat("Adds function named ", name)),
         name_(name) {}
 

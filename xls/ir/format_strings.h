@@ -29,7 +29,7 @@ using FormatStep = std::variant<std::string, FormatPreference>;
 // Example: "x is {} in the default format." would parse into the steps
 // {"x is ", FormatPreference::kDefault, " in the default format."}
 absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
-    absl::string_view format_string);
+    std::string_view format_string);
 
 // Count the number of data operands expected by parsed format.
 // Example: As above, "x is {} in the default format." parses into

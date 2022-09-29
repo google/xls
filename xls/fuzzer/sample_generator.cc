@@ -196,7 +196,7 @@ static absl::StatusOr<std::string> Generate(
 }
 
 static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(
-    absl::string_view dslx_text, absl::string_view fn_name) {
+    std::string_view dslx_text, std::string_view fn_name) {
   ImportData import_data(
       dslx::CreateImportData(/*stdlib_path=*/"",
                              /*additional_search_paths=*/{}));

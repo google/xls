@@ -34,9 +34,9 @@ using testing::Optional;
 const int determinism_test_repeat_count = 3;
 
 void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
-                        uint64_t expected, absl::string_view cpp_source,
+                        uint64_t expected, std::string_view cpp_source,
                         xabsl::SourceLocation loc,
-                        std::vector<absl::string_view> clang_argv) {
+                        std::vector<std::string_view> clang_argv) {
   if (XLS_VLOG_IS_ON(1)) {
     std::ostringstream input_str;
     for (const auto& [key, val] : args) {
@@ -54,8 +54,8 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
 
 void XlsccTestBase::Run(
     const absl::flat_hash_map<std::string, xls::Value>& args,
-    xls::Value expected, absl::string_view cpp_source,
-    xabsl::SourceLocation loc, std::vector<absl::string_view> clang_argv) {
+    xls::Value expected, std::string_view cpp_source,
+    xabsl::SourceLocation loc, std::vector<std::string_view> clang_argv) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
                            SourceToIr(cpp_source, nullptr, clang_argv));
@@ -65,7 +65,7 @@ void XlsccTestBase::Run(
 void XlsccTestBase::RunWithStatics(
     const absl::flat_hash_map<std::string, xls::Value>& args,
     const absl::Span<xls::Value>& expected_outputs,
-    absl::string_view cpp_source, xabsl::SourceLocation loc) {
+    std::string_view cpp_source, xabsl::SourceLocation loc) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "RunWithStatics failed");
 
@@ -129,7 +129,7 @@ void XlsccTestBase::RunWithStatics(
 }
 
 absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
-                                     std::vector<absl::string_view> clang_argv,
+                                     std::vector<std::string_view> clang_argv,
                                      bool io_test_mode,
                                      bool error_on_init_interval) {
   auto parser = std::make_unique<xlscc::CCParser>();
@@ -146,8 +146,8 @@ absl::Status XlsccTestBase::ScanFile(xls::TempFile& temp,
   return absl::OkStatus();
 }
 
-absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
-                                     std::vector<absl::string_view> clang_argv,
+absl::Status XlsccTestBase::ScanFile(std::string_view cpp_src,
+                                     std::vector<std::string_view> clang_argv,
                                      bool io_test_mode,
                                      bool error_on_init_interval) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
@@ -156,7 +156,7 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
-    absl::string_view cpp_src, std::vector<absl::string_view> argv,
+    std::string_view cpp_src, std::vector<std::string_view> argv,
     xlscc::CCParser* translator, const char* top_name) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
@@ -164,7 +164,7 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
 }
 
 /* static */ absl::Status XlsccTestBase::ScanTempFileWithContent(
-    xls::TempFile& temp, std::vector<absl::string_view> argv,
+    xls::TempFile& temp, std::vector<std::string_view> argv,
     xlscc::CCParser* translator, const char* top_name) {
   std::string ps = temp.path();
 
@@ -177,14 +177,14 @@ absl::Status XlsccTestBase::ScanFile(absl::string_view cpp_src,
   }
   XLS_RETURN_IF_ERROR(translator->ScanFile(
       temp.path().c_str(), argv.empty()
-                               ? absl::Span<absl::string_view>()
+                               ? absl::Span<std::string_view>()
                                : absl::MakeSpan(&argv[0], argv.size())));
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
-    absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
-    std::vector<absl::string_view> clang_argv, bool io_test_mode) {
+    std::string_view cpp_src, xlscc::GeneratedFunction** pfunc,
+    std::vector<std::string_view> clang_argv, bool io_test_mode) {
   XLS_ASSIGN_OR_RETURN(xls::TempFile temp,
                        xls::TempFile::CreateWithContent(cpp_src, ".cc"));
   return SourceToIr(temp, pfunc, clang_argv, io_test_mode);
@@ -192,7 +192,7 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
 
 absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     xls::TempFile& temp, xlscc::GeneratedFunction** pfunc,
-    std::vector<absl::string_view> clang_argv, bool io_test_mode) {
+    std::vector<std::string_view> clang_argv, bool io_test_mode) {
   std::list<std::string> ir_texts;
   std::string ret_text;
 

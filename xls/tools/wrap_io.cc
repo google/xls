@@ -141,8 +141,8 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
 
 }  // namespace
 
-absl::StatusOr<Module*> WrapIO(absl::string_view module_name,
-                               absl::string_view instance_name,
+absl::StatusOr<Module*> WrapIO(std::string_view module_name,
+                               std::string_view instance_name,
                                const ModuleSignature& signature,
                                IOStrategy* io_strategy, VerilogFile* f) {
   XLS_ASSIGN_OR_RETURN(Module * input_controller_m,

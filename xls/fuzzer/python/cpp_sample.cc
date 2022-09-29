@@ -161,7 +161,7 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def("__ne__", &Sample::operator!=)
       .def(
           "to_crasher",
-          [](const Sample& self, absl::string_view error_message) {
+          [](const Sample& self, std::string_view error_message) {
             return self.ToCrasher(error_message);
           },
           py::arg("error_message") = absl::nullopt)
@@ -172,7 +172,7 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_property_readonly("args_batch", &Sample::args_batch);
 
   m.def("parse_args",
-        [](absl::string_view args_text) -> absl::StatusOr<py::tuple> {
+        [](std::string_view args_text) -> absl::StatusOr<py::tuple> {
           XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
                                ParseArgs(args_text));
           py::tuple t(args.size());

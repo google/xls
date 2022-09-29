@@ -248,7 +248,7 @@ class StructType : public ConcreteType {
   // named members.
   absl::StatusOr<std::vector<std::string>> GetMemberNames() const;
 
-  absl::string_view GetMemberName(int64_t i) const {
+  std::string_view GetMemberName(int64_t i) const {
     return struct_def_.GetMemberName(i);
   }
 
@@ -258,14 +258,14 @@ class StructType : public ConcreteType {
   // error if the member is not found (i.e. it is generally expected that the
   // caller knows the name is present), and an InvalidArgument error status if
   // this TupleType does not have named members.
-  absl::StatusOr<int64_t> GetMemberIndex(absl::string_view name) const;
+  absl::StatusOr<int64_t> GetMemberIndex(std::string_view name) const;
 
   std::optional<const ConcreteType*> GetMemberTypeByName(
-      absl::string_view target) const;
+      std::string_view target) const;
 
   const StructDef& nominal_type() const { return struct_def_; }
 
-  bool HasNamedMember(absl::string_view target) const;
+  bool HasNamedMember(std::string_view target) const;
 
   int64_t size() const { return members_.size(); }
 

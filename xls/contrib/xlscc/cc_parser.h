@@ -64,8 +64,8 @@ class LibToolFrontendAction;
 // Needs to be here because std::unique uses sizeof()
 class LibToolThread {
  public:
-  LibToolThread(absl::string_view source_filename,
-                absl::Span<absl::string_view> command_line_args,
+  LibToolThread(std::string_view source_filename,
+                absl::Span<std::string_view> command_line_args,
                 CCParser& parser);
 
   void Start();
@@ -75,8 +75,8 @@ class LibToolThread {
   void Run();
 
   std::optional<xls::Thread> thread_;
-  absl::string_view source_filename_;
-  absl::Span<absl::string_view> command_line_args_;
+  std::string_view source_filename_;
+  absl::Span<std::string_view> command_line_args_;
   CCParser& parser_;
 };
 
@@ -94,7 +94,7 @@ class CCParser {
   // Either this must be called before ScanFile, or a #pragma hls_top
   // must be present in the file(s) being scanned, in order for
   // GetTopFunction() to return a valid pointer
-  absl::Status SelectTop(absl::string_view top_function_name);
+  absl::Status SelectTop(std::string_view top_function_name);
 
   // This function uses Clang to parse a source file and then walks its
   //  AST to discover global constructs. It will also scan the file
@@ -106,8 +106,8 @@ class CCParser {
   // source_filename must be .cc
   // Retains references to the TU until ~Translator()
   // This function may only be called once in the lifetime of a CCParser.
-  absl::Status ScanFile(absl::string_view source_filename,
-                        absl::Span<absl::string_view> command_line_args);
+  absl::Status ScanFile(std::string_view source_filename,
+                        absl::Span<std::string_view> command_line_args);
 
   // Call after ScanFile, as the top function may be specified by #pragma
   // If none was found, an error is returned
@@ -148,14 +148,14 @@ class CCParser {
   // Scans for top-level function candidates
   absl::Status VisitFunction(const clang::FunctionDecl* funcdecl);
   absl::Status VisitVarDecl(const clang::VarDecl* funcdecl);
-  absl::Status ScanFileForPragmas(absl::string_view filename);
+  absl::Status ScanFileForPragmas(std::string_view filename);
 
   using PragmaLoc = std::tuple<std::string, int>;
   absl::flat_hash_map<PragmaLoc, Pragma> hls_pragmas_;
   absl::flat_hash_set<std::string> files_scanned_for_pragmas_;
 
   const clang::FunctionDecl* top_function_ = nullptr;
-  absl::string_view top_function_name_ = "";
+  std::string_view top_function_name_ = "";
   const clang::VarDecl* xlscc_on_reset_ = nullptr;
 
   // For source location

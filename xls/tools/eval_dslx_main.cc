@@ -54,7 +54,7 @@ namespace xls {
 absl::Status RealMain(
     std::filesystem::path dslx_path,
     const std::vector<std::filesystem::path>& additional_search_paths,
-    absl::string_view entry_fn_name, absl::string_view args_text) {
+    std::string_view entry_fn_name, std::string_view args_text) {
   dslx::ImportData import_data(
       dslx::CreateImportData(kDefaultDslxStdlibPath, additional_search_paths));
 
@@ -89,7 +89,7 @@ absl::Status RealMain(
 }  // namespace xls
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
   XLS_QCHECK_EQ(positional_arguments.size(), 1) << absl::StreamFormat(
       "Expected invocation: %s <DSLX path> --input", argv[0]);

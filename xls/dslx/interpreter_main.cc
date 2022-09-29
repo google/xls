@@ -57,7 +57,7 @@ const char* kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 
-absl::Status RealMain(absl::string_view entry_module_path,
+absl::Status RealMain(std::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       std::optional<std::string> test_filter,
                       FormatPreference trace_format_preference,
@@ -97,7 +97,7 @@ absl::Status RealMain(absl::string_view entry_module_path,
 }  // namespace xls::dslx
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> args =
+  std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.empty()) {
     XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "

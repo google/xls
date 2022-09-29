@@ -19,13 +19,13 @@
 namespace xls::noc {
 
 RouterConfigProtoBuilder& RouterConfigProtoBuilder::WithName(
-    absl::string_view name) {
+    std::string_view name) {
   proto_->set_name(xls::ToProtoString(name));
   return *this;
 }
 
 PortConfigProtoBuilder RouterConfigProtoBuilder::WithInputPort(
-    absl::string_view name) {
+    std::string_view name) {
   PortConfigProto* port = proto_->add_ports();
   port->set_name(xls::ToProtoString(name));
   port->set_direction(PortConfigProto::INPUT);
@@ -39,7 +39,7 @@ PortConfigProtoBuilder RouterConfigProtoBuilder::WithInputPort(
 }
 
 PortConfigProtoBuilder RouterConfigProtoBuilder::WithOutputPort(
-    absl::string_view name) {
+    std::string_view name) {
   PortConfigProto* port = proto_->add_ports();
   port->set_name(xls::ToProtoString(name));
   port->set_direction(PortConfigProto::OUTPUT);

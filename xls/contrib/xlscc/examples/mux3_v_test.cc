@@ -30,7 +30,7 @@ namespace {
 
 using ::testing::HasSubstr;
 
-void IOSignalsPresent(absl::string_view verilog_text) {
+void IOSignalsPresent(std::string_view verilog_text) {
   EXPECT_THAT(verilog_text, HasSubstr("input wire [1:0] csrs"));
 
   EXPECT_THAT(verilog_text, HasSubstr("input wire [7:0] mux_in0"));

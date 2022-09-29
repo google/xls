@@ -160,7 +160,7 @@ absl::Status RealMain(int32_t num_samples) {
 }  // namespace xls::aes
 
 int32_t main(int32_t argc, char** argv) {
-  std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
   XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
   return 0;
 }

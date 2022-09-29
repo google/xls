@@ -53,7 +53,7 @@ struct GlobalData {
 
 // Performs [what should be] one-time initialization of a GlobalData function,
 // given the specified text-format FunctionType protobuf.
-std::unique_ptr<GlobalData> InitGlobalData(absl::string_view fn_type_textproto);
+std::unique_ptr<GlobalData> InitGlobalData(std::string_view fn_type_textproto);
 
 }  // namespace xls::aot_compile
 

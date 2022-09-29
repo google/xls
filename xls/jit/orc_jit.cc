@@ -247,7 +247,7 @@ absl::Status OrcJit::Init() {
   return absl::OkStatus();
 }
 
-std::unique_ptr<llvm::Module> OrcJit::NewModule(absl::string_view name) {
+std::unique_ptr<llvm::Module> OrcJit::NewModule(std::string_view name) {
   llvm::LLVMContext* bare_context = context_.getContext();
   auto module = std::make_unique<llvm::Module>(name, *bare_context);
   module->setDataLayout(data_layout_);
@@ -308,7 +308,7 @@ absl::Status OrcJit::CompileModule(std::unique_ptr<llvm::Module>&& module) {
 }
 
 absl::StatusOr<llvm::JITTargetAddress> OrcJit::LoadSymbol(
-    absl::string_view function_name) {
+    std::string_view function_name) {
   llvm::Expected<llvm::JITEvaluatedSymbol> symbol =
       execution_session_.lookup(&dylib_, function_name);
   if (!symbol) {

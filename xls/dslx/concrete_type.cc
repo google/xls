@@ -337,7 +337,7 @@ absl::StatusOr<std::vector<std::string>> StructType::GetMemberNames() const {
 }
 
 absl::StatusOr<int64_t> StructType::GetMemberIndex(
-    absl::string_view name) const {
+    std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(std::vector<std::string> names, GetMemberNames());
   auto it = std::find(names.begin(), names.end(), name);
   if (it == names.end()) {
@@ -348,7 +348,7 @@ absl::StatusOr<int64_t> StructType::GetMemberIndex(
 }
 
 std::optional<const ConcreteType*> StructType::GetMemberTypeByName(
-    absl::string_view target) const {
+    std::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
       return &GetMemberType(i);
@@ -390,7 +390,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> StructType::MapSize(
   return std::make_unique<StructType>(std::move(new_members), struct_def_);
 }
 
-bool StructType::HasNamedMember(absl::string_view target) const {
+bool StructType::HasNamedMember(std::string_view target) const {
   for (int64_t i = 0; i < members().size(); ++i) {
     if (GetMemberName(i) == target) {
       return true;

@@ -99,15 +99,15 @@ template <typename Key, typename Hash, typename Equal, typename Alloc>
 struct type_caster<absl::flat_hash_set<Key, Hash, Equal, Alloc>>
     : set_caster<absl::flat_hash_set<Key, Hash, Equal, Alloc>, Key> {};
 
-// Convert between absl::string_view and python.
+// Convert between std::string_view and python.
 //
-// pybind11 supports std::string_view, and absl::string_view is meant to be a
+// pybind11 supports std::string_view, and std::string_view is meant to be a
 // drop-in replacement for std::string_view, so we can just use the built in
-// implementation. This is only needed until absl::string_view becomes an alias
+// implementation. This is only needed until std::string_view becomes an alias
 // for std::string_view.
 #ifndef ABSL_USES_STD_STRING_VIEW
 template <>
-struct type_caster<absl::string_view> : string_caster<absl::string_view, true> {
+struct type_caster<std::string_view> : string_caster<std::string_view, true> {
 };
 #endif
 

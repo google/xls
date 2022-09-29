@@ -24,7 +24,7 @@ namespace xls {
 // Scrubs the given fuzzer crasher of any problematic substrings so it can be
 // checked into the source tree. See Sample::ToCrasher for details about the
 // format of a crasher.
-std::string ScrubCrasher(absl::string_view s);
+std::string ScrubCrasher(std::string_view s);
 
 }  // namespace xls
 

@@ -51,9 +51,9 @@ absl::StatusOr<FunctionBase*> GetFunctionBaseToView(Package* package) {
 
 // IR to JSON conversion function which takes strings rather than objects.
 absl::StatusOr<std::string> IrToJsonWrapper(
-    absl::string_view ir_text, absl::string_view delay_model_name,
+    std::string_view ir_text, std::string_view delay_model_name,
     std::optional<int64_t> pipeline_stages,
-    std::optional<absl::string_view> entry_name) {
+    std::optional<std::string_view> entry_name) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(ir_text));
   FunctionBase* func_base;

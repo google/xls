@@ -20,11 +20,11 @@
 namespace xls {
 
 absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
-    absl::string_view format_string) {
+    std::string_view format_string) {
   std::vector<FormatStep> steps;
 
   int64_t i = 0;
-  auto consume_substr = [&i, format_string](absl::string_view m) -> bool {
+  auto consume_substr = [&i, format_string](std::string_view m) -> bool {
     if (format_string.substr(i, m.length()) == m) {
       i = i + m.length();
       return true;
@@ -88,7 +88,7 @@ absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
     }
     if (format_string[i] == '{') {
       size_t close_pos = format_string.find('}', i);
-      if (close_pos != absl::string_view::npos) {
+      if (close_pos != std::string_view::npos) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Invalid or unsupported format specifier \"%s\" in format string "
             "\"%s\"",

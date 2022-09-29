@@ -80,8 +80,8 @@ class ChannelSource {
   // asserted (if the channel is not otherwise occupied by a in-progress
   // transaction).  Once valid is asserted, it will remain asserted until
   // the transaction completes via ready being asserted.
-  ChannelSource(absl::string_view data_name, absl::string_view valid_name,
-                absl::string_view ready_name, double lambda, Block* block)
+  ChannelSource(std::string_view data_name, std::string_view valid_name,
+                std::string_view ready_name, double lambda, Block* block)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),
@@ -146,8 +146,8 @@ class ChannelSink {
   //
   // lambda is the probability that for a given cycle, the sink will assert
   // ready.
-  ChannelSink(absl::string_view data_name, absl::string_view valid_name,
-              absl::string_view ready_name, double lambda, Block* block)
+  ChannelSink(std::string_view data_name, std::string_view valid_name,
+              std::string_view ready_name, double lambda, Block* block)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),

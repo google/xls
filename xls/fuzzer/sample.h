@@ -40,7 +40,7 @@ class SampleOptions {
   //
   // TODO(https://github.com/google/xls/issues/341): 2021-03-12 Rework to be
   // (schemaful) prototext instead.
-  static absl::StatusOr<SampleOptions> FromJson(absl::string_view json_text);
+  static absl::StatusOr<SampleOptions> FromJson(std::string_view json_text);
 
   // Returns a JSON-encoded string describing this object.
   //
@@ -132,7 +132,7 @@ class Sample {
   // TODO(meheff): 2021-03-19 Remove this when we no longer need to
   // pickle/depickle Samples for Python. Deserialize can be replaced with a
   // method FromCrasher.
-  static absl::StatusOr<Sample> Deserialize(absl::string_view s);
+  static absl::StatusOr<Sample> Deserialize(std::string_view s);
   std::string Serialize() const;
 
   // Returns "crasher" text serialization.
@@ -151,7 +151,7 @@ class Sample {
   //  // ...
   //  // args: <argument set 1>
   //  <code sample>
-  std::string ToCrasher(absl::string_view error_message) const;
+  std::string ToCrasher(std::string_view error_message) const;
 
   Sample(std::string input_text, SampleOptions options,
          std::vector<std::vector<dslx::InterpValue>> args_batch)

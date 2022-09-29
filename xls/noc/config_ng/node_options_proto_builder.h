@@ -43,7 +43,7 @@ class NodeOptionsProtoBuilder {
   NodeOptionsProtoBuilder& CopyFrom(const NodeOptionsProtoBuilder& builder);
 
   // Sets the name of the node options.
-  NodeOptionsProtoBuilder& SetName(absl::string_view name);
+  NodeOptionsProtoBuilder& SetName(std::string_view name);
 
   // Sets the send port count of the node options.
   NodeOptionsProtoBuilder& SetSendPortCount(int64_t send_port_count);

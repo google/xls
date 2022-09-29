@@ -23,13 +23,13 @@
 namespace xls::dslx {
 
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
-    const absl::Status& status, std::optional<absl::string_view> target_type) {
+    const absl::Status& status, std::optional<std::string_view> target_type) {
   auto error = [&] {
     return absl::InvalidArgumentError(
         "Provided status is not in recognized error form: " +
         status.ToString());
   };
-  absl::string_view s = status.message();
+  std::string_view s = status.message();
   std::string type_indicator;
   if (!RE2::Consume(&s, "(\\w+): ", &type_indicator)) {
     return error();
@@ -37,7 +37,7 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
   if (target_type.has_value() && type_indicator != *target_type) {
     return error();
   }
-  std::vector<absl::string_view> pieces =
+  std::vector<std::string_view> pieces =
       absl::StrSplit(s, absl::MaxSplits(' ', 1));
   if (pieces.size() < 2) {
     return absl::InvalidArgumentError(
@@ -113,13 +113,13 @@ std::string BoundNodeGetTypeString(const BoundNode& bn) {
 }
 
 absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
-    absl::string_view name, const Span& span) const {
+    std::string_view name, const Span& span) const {
   XLS_ASSIGN_OR_RETURN(BoundNode bn, ResolveNodeOrError(name, span));
   return BoundNodeToAnyNameDef(bn);
 }
 
 std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
-    absl::string_view name) const {
+    std::string_view name) const {
   std::optional<BoundNode> bn = ResolveNode(name);
   if (!bn) {
     return absl::nullopt;

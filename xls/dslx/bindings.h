@@ -41,7 +41,7 @@ std::string BoundNodeGetTypeString(const BoundNode& bn);
 // using the data encoded in the absl::Status message. See ParseErrorGetData()
 // for the utility used to extract the data from the error message text.
 inline absl::Status ParseErrorStatus(const Span& span,
-                                     absl::string_view message) {
+                                     std::string_view message) {
   return absl::InvalidArgumentError(
       absl::StrFormat("ParseError: %s %s", span.ToString(), message));
 }
@@ -66,7 +66,7 @@ struct PositionalErrorData {
 // ParseErrorStatus() above.
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
     const absl::Status& status,
-    std::optional<absl::string_view> target_type = absl::nullopt);
+    std::optional<std::string_view> target_type = absl::nullopt);
 
 // Maps identifiers to the AST node that bound that identifier (also known as
 // the lexical environment).
@@ -126,7 +126,7 @@ class Bindings {
   }
 
   // Returns the AST node bound to 'name'.
-  std::optional<BoundNode> ResolveNode(absl::string_view name) const {
+  std::optional<BoundNode> ResolveNode(std::string_view name) const {
     auto it = local_bindings_.find(name);
     if (it == local_bindings_.end()) {
       if (parent_ != nullptr) {
@@ -138,7 +138,7 @@ class Bindings {
     return it->second;
   }
 
-  bool ResolveNodeIsTypeDefinition(absl::string_view name) const {
+  bool ResolveNodeIsTypeDefinition(std::string_view name) const {
     std::optional<BoundNode> bn = ResolveNode(name);
     if (!bn) {
       return false;
@@ -150,7 +150,7 @@ class Bindings {
 
   // As above, but flags a ParseError() if the binding cannot be resolved,
   // attributing the source of the binding resolution as span.
-  absl::StatusOr<BoundNode> ResolveNodeOrError(absl::string_view name,
+  absl::StatusOr<BoundNode> ResolveNodeOrError(std::string_view name,
                                                const Span& span) const {
     std::optional<BoundNode> result = ResolveNode(name);
     if (result.has_value()) {
@@ -163,14 +163,14 @@ class Bindings {
   // Resolves "name" as an AST binding and returns the associated NameDefNode.
   //
   // Returns nullopt if no AST node binding is found associated with "name".
-  std::optional<AnyNameDef> ResolveNameOrNullopt(absl::string_view name) const;
+  std::optional<AnyNameDef> ResolveNameOrNullopt(std::string_view name) const;
 
   // As above, but returns a ParseError status.
-  absl::StatusOr<AnyNameDef> ResolveNameOrError(absl::string_view name,
+  absl::StatusOr<AnyNameDef> ResolveNameOrError(std::string_view name,
                                                 const Span& span) const;
 
   // Returns whether there is an AST binding associated with "name".
-  bool HasName(absl::string_view name) const {
+  bool HasName(std::string_view name) const {
     return ResolveNode(name).has_value();
   }
 

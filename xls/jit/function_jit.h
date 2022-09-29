@@ -139,7 +139,7 @@ class FunctionJit {
   }
 
   // Returns the name of the jitted function.
-  absl::string_view GetJittedFunctionName() const {
+  std::string_view GetJittedFunctionName() const {
     return jitted_function_base_.function_name;
   }
 

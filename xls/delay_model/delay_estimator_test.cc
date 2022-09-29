@@ -33,7 +33,7 @@ using ::testing::ElementsAre;
 // A test delay estimator that returns a fixed delay for every node.
 class TestDelayEstimator : public DelayEstimator {
  public:
-  explicit TestDelayEstimator(int64_t delay, absl::string_view name)
+  explicit TestDelayEstimator(int64_t delay, std::string_view name)
       : DelayEstimator(name), delay_(delay) {}
 
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {

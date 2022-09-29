@@ -35,7 +35,7 @@ namespace logging_internal {
 // Likewise backslash-escaping is not supported but we don't promise
 // not to change that.
 // It's not a static function for the unittest.
-bool SafeFNMatch(absl::string_view pattern, absl::string_view str) {
+bool SafeFNMatch(std::string_view pattern, std::string_view str) {
   while (true) {
     if (pattern.empty()) {
       // `pattern` is exhausted; succeed if all of `str` was consumed matching
@@ -87,7 +87,7 @@ static std::atomic<VModuleInfo*> vmodule_list;
 std::atomic<int32_t> xls::logging_internal::vlog_epoch{1};
 
 // This can be called very early, so we use SpinLock and RAW_VLOG here.
-int SetVLOGLevel(absl::string_view module_pattern, int log_level) {
+int SetVLOGLevel(std::string_view module_pattern, int log_level) {
   int result = absl::GetFlag(FLAGS_v);
   bool found = false;
   absl::base_internal::SpinLockHolder l(
@@ -134,13 +134,13 @@ namespace logging_internal {
 
 // NOTE: Individual XLS_VLOG statements cache the integer log level pointers.
 // NOTE: This function must not allocate memory or require any locks.
-int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path) {
+int InitVLOG(std::atomic<int32_t>* site, std::string_view full_path) {
   // protect the errno global in case someone writes:
   // XLS_VLOG(..) << "The last error was " << strerror(errno)
   ErrnoSaver errno_saver_;
 
   // Get basename for file
-  absl::string_view basename = full_path;
+  std::string_view basename = full_path;
   {
     const size_t sep = basename.rfind('/');
     if (sep != basename.npos) {
@@ -153,7 +153,7 @@ int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path) {
     }
   }
 
-  absl::string_view stem = full_path, stem_basename = basename;
+  std::string_view stem = full_path, stem_basename = basename;
   {
     const size_t sep = stem_basename.find('.');
     if (sep != stem_basename.npos) {
@@ -161,7 +161,7 @@ int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path) {
       stem_basename.remove_suffix(stem_basename.size() - sep);
     }
     if (absl::ConsumeSuffix(&stem_basename, "-inl")) {
-      stem.remove_suffix(absl::string_view("-inl").size());
+      stem.remove_suffix(std::string_view("-inl").size());
     }
   }
 
@@ -209,7 +209,7 @@ int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path) {
 }
 
 bool VLogEnabledSlow(std::atomic<int32_t>* site, int32_t level,
-                     absl::string_view file) {
+                     std::string_view file) {
   const int32_t site_copy = site->load(std::memory_order_acquire);
   int32_t site_level = ABSL_PREDICT_TRUE(SiteEpoch(site_copy) == GlobalEpoch())
                            ? SiteLevel(site_copy)

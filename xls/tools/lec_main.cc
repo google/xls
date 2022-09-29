@@ -96,7 +96,7 @@ constexpr const char kIrConverterPath[] = "xls/dslx/ir_converter_main";
 // Loads a cell library, either from a raw Liberty file or a preprocessed
 // CellLibraryProto proto.
 absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
-    absl::string_view cell_lib_path, absl::string_view cell_proto_path) {
+    std::string_view cell_lib_path, std::string_view cell_proto_path) {
   if (!cell_proto_path.empty()) {
     XLS_ASSIGN_OR_RETURN(std::string cell_proto_text,
                          GetFileContents(cell_proto_path));
@@ -115,7 +115,7 @@ absl::StatusOr<netlist::CellLibrary> GetCellLibrary(
 
 // Loads and parses a netlist from a file.
 absl::StatusOr<std::unique_ptr<netlist::rtl::Netlist>> GetNetlist(
-    absl::string_view netlist_path, netlist::CellLibrary* cell_library) {
+    std::string_view netlist_path, netlist::CellLibrary* cell_library) {
   XLS_ASSIGN_OR_RETURN(std::string netlist_text, GetFileContents(netlist_path));
   netlist::rtl::Scanner scanner(netlist_text);
   return netlist::rtl::Parser::ParseNetlist(cell_library, &scanner);
@@ -222,10 +222,10 @@ absl::Status AutoStage(const solvers::z3::LecParams& lec_params,
 }  // namespace
 
 absl::Status RealMain(
-    absl::string_view ir_path, absl::string_view entry_function_name,
-    absl::string_view netlist_module_name, absl::string_view cell_lib_path,
-    absl::string_view cell_proto_path, absl::string_view netlist_path,
-    absl::string_view constraints_file, absl::string_view schedule_path,
+    std::string_view ir_path, std::string_view entry_function_name,
+    std::string_view netlist_module_name, std::string_view cell_lib_path,
+    std::string_view cell_proto_path, std::string_view netlist_path,
+    std::string_view constraints_file, std::string_view schedule_path,
     int stage, bool auto_stage, int timeout_sec) {
   solvers::z3::LecParams lec_params;
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));

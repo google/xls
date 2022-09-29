@@ -19,7 +19,7 @@
 namespace xls::noc {
 
 VirtualChannelConfigProtoBuilder& VirtualChannelConfigProtoBuilder::WithName(
-    absl::string_view name) {
+    std::string_view name) {
   proto_->set_name(xls::ToProtoString(name));
   return *this;
 }

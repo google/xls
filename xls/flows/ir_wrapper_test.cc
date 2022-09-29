@@ -31,12 +31,12 @@ namespace xls {
 namespace {
 
 TEST(IrWrapperTest, DslxToIrOk) {
-  constexpr absl::string_view kParamsDslx = R"(pub struct ParamsProto {
+  constexpr std::string_view kParamsDslx = R"(pub struct ParamsProto {
   latency: sN[64],
 }
 pub const params = ParamsProto { latency: sN[64]:7 };)";
 
-  constexpr absl::string_view kTopDslx = R"(import param
+  constexpr std::string_view kTopDslx = R"(import param
 pub fn GetLatency() -> s64 {
   param::params.latency
 })";
@@ -97,7 +97,7 @@ fn __top__GetLatency() -> bits[64] {
 }
 
 TEST(IrWrapperTest, DslxProcsToIrOk) {
-  constexpr absl::string_view kTopDslx = R"(proc foo {
+  constexpr std::string_view kTopDslx = R"(proc foo {
   in_0: chan<u32> in;
   in_1: chan<u32> in;
   output: chan<u32> out;

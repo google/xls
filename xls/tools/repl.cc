@@ -91,12 +91,12 @@ class Trie {
   }
 
   // Insert the given string into the trie.
-  void Insert(absl::string_view string) {
+  void Insert(std::string_view string) {
     strings_.push_back(std::string(string));
   }
 
   // Returns all strings that are suffixes of the given query string.
-  std::vector<std::string> AllSuffixesOf(absl::string_view query) const {
+  std::vector<std::string> AllSuffixesOf(std::string_view query) const {
     std::vector<std::string> result;
     for (const auto& str : strings_) {
       if (absl::StartsWith(str, query)) {
@@ -125,13 +125,13 @@ enum class CommandName {
 // A parsed command, along with its arguments.
 struct Command {
   CommandName command;
-  std::vector<absl::string_view> arguments;
+  std::vector<std::string_view> arguments;
 };
 
 // Parse a command, given a string like `":type identifier"`.
 // Returns `absl::nullopt` only if the command could not be parsed.
-std::optional<Command> ParseCommand(absl::string_view str) {
-  absl::string_view stripped_str = absl::StripAsciiWhitespace(str);
+std::optional<Command> ParseCommand(std::string_view str) {
+  std::string_view stripped_str = absl::StripAsciiWhitespace(str);
   auto munch_prefix = [&str](std::string s) {
     return absl::ConsumePrefix(&str, s);
   };
@@ -182,7 +182,7 @@ struct DslxGlobals {
 };
 
 struct Globals {
-  absl::string_view dslx_path;
+  std::string_view dslx_path;
   std::unique_ptr<DslxGlobals> dslx;
   std::unique_ptr<Package> ir_package;
   Trie identifier_trie;
@@ -198,13 +198,13 @@ static Globals* GetSingletonGlobals() {
 // Allows for tab completion of commands and their arguments.
 void CompletionCallback(const char* buf, linenoiseCompletions* lc) {
   Globals* globals = GetSingletonGlobals();
-  absl::string_view so_far(buf);
+  std::string_view so_far(buf);
   std::optional<Command> maybe_command = ParseCommand(buf);
   if (maybe_command) {
     Command command = maybe_command.value();
     switch (command.command) {
       case CommandName::kType: {
-        absl::string_view arg = command.arguments[0];
+        std::string_view arg = command.arguments[0];
         for (const auto& c : globals->identifier_trie.AllSuffixesOf(arg)) {
           std::string completion_with_command = ":type " + c;
           linenoiseAddCompletion(lc, completion_with_command.c_str());
@@ -360,7 +360,7 @@ absl::Status CommandIr() {
 // attempts its value and its mangled value (against "module"'s name).
 //
 // Returns nullptr if neither of those can be found.
-absl::StatusOr<Function*> FindFunction(absl::string_view function_name,
+absl::StatusOr<Function*> FindFunction(std::string_view function_name,
                                        dslx::Module* module, Package* package) {
   // The user may have given us a mangled or demangled name, first we see if
   // it's a mangled one, and if it's not, we mangle it and try that.
@@ -423,7 +423,7 @@ absl::Status CommandLlvm() {
 
 // Function implementing the `:type` command, which prints the type of the given
 // identifier (defined in the current module or imported).
-absl::Status CommandType(absl::string_view ident) {
+absl::Status CommandType(std::string_view ident) {
   Globals* globals = GetSingletonGlobals();
   std::vector<std::string> split = absl::StrSplit(ident, absl::ByString("::"));
   absl::flat_hash_map<std::string, dslx::Function*> function_map;
@@ -468,7 +468,7 @@ absl::Status CommandType(absl::string_view ident) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::string_view dslx_path,
+absl::Status RealMain(std::string_view dslx_path,
                       std::filesystem::path history_path) {
   Globals* globals = GetSingletonGlobals();
 
@@ -555,7 +555,7 @@ absl::Status RealMain(absl::string_view dslx_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
@@ -563,7 +563,7 @@ int main(int argc, char** argv) {
                                           argv[0]);
   }
 
-  absl::string_view dslx_path = positional_arguments[0];
+  std::string_view dslx_path = positional_arguments[0];
   std::filesystem::path history_path;
 
   if (char* xls_history_path = std::getenv("XLS_HISTORY_PATH")) {

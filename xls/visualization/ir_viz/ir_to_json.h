@@ -29,7 +29,7 @@ namespace xls {
 absl::StatusOr<std::string> IrToJson(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule = nullptr,
-    std::optional<absl::string_view> entry_name = absl::nullopt);
+    std::optional<std::string_view> entry_name = absl::nullopt);
 
 // Return the IR text of the given package with HTML mark up. Various IR
 // constructs are wrapped in spans. This function is exposed only for testing as

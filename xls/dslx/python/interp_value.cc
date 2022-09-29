@@ -100,7 +100,7 @@ PYBIND11_MODULE(interp_value, m) {
       .def_static("make_array", &InterpValue::MakeArray, py::arg("elements"));
 
   m.def("interp_value_from_ir_string",
-        [](absl::string_view s) -> absl::StatusOr<InterpValue> {
+        [](std::string_view s) -> absl::StatusOr<InterpValue> {
           XLS_ASSIGN_OR_RETURN(Value v, Parser::ParseTypedValue(s));
           return ValueToInterpValue(v);
         });

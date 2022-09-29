@@ -179,7 +179,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   //
   // One after the last signal value used is returned.
   absl::StatusOr<uint64_t> SetIncrementingSignalOverCycles(
-      int64_t first_cycle, int64_t last_cycle, absl::string_view signal_name,
+      int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
       uint64_t signal_val,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
     XLS_CHECK_GE(first_cycle, 0);
@@ -201,7 +201,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   // For cycles in range [first_cycle, last_cycle] inclusive,  set given
   // input signal to uniformly random input in range [min_value, max_value].
   absl::Status SetRandomSignalOverCycles(
-      int64_t first_cycle, int64_t last_cycle, absl::string_view signal_name,
+      int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
       uint64_t min_value, uint64_t max_value, std::minstd_rand& rnd_engine,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
     XLS_CHECK_GE(first_cycle, 0);
@@ -292,7 +292,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       std::string row;
 
       for (const SignalSpec& col : table_spec) {
-        absl::string_view signal_name = col.signal_name;
+        std::string_view signal_name = col.signal_name;
         SignalType signal_type = col.signal_type;
 
         XLS_CHECK(signal_type == SignalType::kInput ||
@@ -326,7 +326,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       const absl::flat_hash_map<std::string, uint64_t>& inputs,
       const absl::flat_hash_map<std::string, uint64_t>& outputs) const {
     SignalType signal_type = signal.signal_type;
-    absl::string_view signal_name = signal.signal_name;
+    std::string_view signal_name = signal.signal_name;
 
     if (signal_type == SignalType::kInput) {
       if (!inputs.contains(signal_name)) {
@@ -348,7 +348,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   }
 
   // Name of the block created by BuildBlockInPackage().
-  const absl::string_view kBlockName = "the_proc";
+  const std::string_view kBlockName = "the_proc";
 };
 
 TEST_F(BlockConversionTest, SimpleFunction) {

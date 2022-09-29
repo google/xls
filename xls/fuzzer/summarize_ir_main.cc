@@ -74,14 +74,14 @@ void SummarizePackage(Package* package,
     }
   }
 }
-absl::StatusOr<std::unique_ptr<Package>> ParseFile(absl::string_view path) {
+absl::StatusOr<std::unique_ptr<Package>> ParseFile(std::string_view path) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(path));
   return Parser::ParsePackage(contents, path);
 }
 
-absl::Status RealMain(absl::string_view unoptimized_path,
-                      absl::string_view optimized_path,
-                      absl::string_view timing_str) {
+absl::Status RealMain(std::string_view unoptimized_path,
+                      std::string_view optimized_path,
+                      std::string_view timing_str) {
   fuzzer::SampleSummariesProto summaries;
   fuzzer::SampleSummaryProto* summary_proto = summaries.add_samples();
 
@@ -126,7 +126,7 @@ absl::Status RealMain(absl::string_view unoptimized_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (!positional_arguments.empty()) {

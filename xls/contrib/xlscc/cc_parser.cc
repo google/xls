@@ -124,8 +124,8 @@ CCParser::~CCParser() {
 }
 
 absl::Status CCParser::ScanFile(
-    absl::string_view source_filename,
-    absl::Span<absl::string_view> command_line_args) {
+    std::string_view source_filename,
+    absl::Span<std::string_view> command_line_args) {
   // This function may only be called once in the lifetime of a CCParser.
   XLS_CHECK_EQ(libtool_thread_.get(), nullptr);
   XLS_CHECK_EQ(libtool_wait_for_destruct_.get(), nullptr);
@@ -230,8 +230,8 @@ absl::StatusOr<Pragma> CCParser::FindPragmaForLoc(
   return hls_pragmas_.at(loc);
 }
 
-static size_t match_pragma(absl::string_view pragma_string,
-                           absl::string_view name) {
+static size_t match_pragma(std::string_view pragma_string,
+                           std::string_view name) {
   size_t at = pragma_string.find(name);
   if (at == std::string::npos) return std::string::npos;
   size_t lcs = pragma_string.find("//");
@@ -245,7 +245,7 @@ static size_t match_pragma(absl::string_view pragma_string,
   return at;
 }
 
-absl::Status CCParser::ScanFileForPragmas(absl::string_view filename) {
+absl::Status CCParser::ScanFileForPragmas(std::string_view filename) {
   std::ifstream fin(std::string(filename).c_str());
   if (!fin.good()) {
     if (filename != "/xls_builtin.h") {
@@ -394,8 +394,8 @@ absl::StatusOr<const clang::VarDecl*> CCParser::GetXlsccOnReset() const {
   return xlscc_on_reset_;
 }
 
-LibToolThread::LibToolThread(absl::string_view source_filename,
-                             absl::Span<absl::string_view> command_line_args,
+LibToolThread::LibToolThread(std::string_view source_filename,
+                             absl::Span<std::string_view> command_line_args,
                              CCParser& parser)
     : source_filename_(source_filename),
       command_line_args_(command_line_args),
@@ -505,7 +505,7 @@ absl::StatusOr<std::string> CCParser::GetEntryFunctionName() const {
   return top_function_->getNameAsString();
 }
 
-absl::Status CCParser::SelectTop(absl::string_view top_function_name) {
+absl::Status CCParser::SelectTop(std::string_view top_function_name) {
   top_function_name_ = top_function_name;
   return absl::OkStatus();
 }

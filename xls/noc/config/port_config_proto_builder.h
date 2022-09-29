@@ -28,7 +28,7 @@ class PortConfigProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the port.
-  PortConfigProtoBuilder& WithName(absl::string_view name);
+  PortConfigProtoBuilder& WithName(std::string_view name);
 
   // Sets the direction type of the port as input.
   PortConfigProtoBuilder& AsInputDirection();
@@ -38,7 +38,7 @@ class PortConfigProtoBuilder {
 
   // Adds the virtual channel configuration to the port.
   PortConfigProtoBuilder& WithVirtualChannel(
-      absl::string_view virtual_channel_name);
+      std::string_view virtual_channel_name);
 
  private:
   PortConfigProto* proto_;

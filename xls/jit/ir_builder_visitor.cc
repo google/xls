@@ -104,7 +104,7 @@ LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
 
 // Returns a sequence of numbered strings. Example: NumberedStrings("foo", 3)
 // returns: {"foo_0", "foo_1", "foo_2"}
-std::vector<std::string> NumberedStrings(absl::string_view s, int64_t count) {
+std::vector<std::string> NumberedStrings(std::string_view s, int64_t count) {
   std::vector<std::string> result(count);
   for (int64_t i = 0; i < count; ++i) {
     result[i] = absl::StrFormat("%s_%d", s, i);
@@ -524,7 +524,7 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
 }
 
 absl::StatusOr<llvm::Function*> CreateLlvmFunction(
-    absl::string_view name, llvm::FunctionType* function_type,
+    std::string_view name, llvm::FunctionType* function_type,
     llvm::Module* module) {
   XLS_RET_CHECK_EQ(module->getFunction(name), nullptr) << absl::StreamFormat(
       "Function named `%s` already exists in LLVM module", name);

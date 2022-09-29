@@ -106,7 +106,7 @@ std::vector<FunctionBase*> FunctionsInPostOrder(Package* p) {
 }
 
 absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
-    Function* to_clone, absl::string_view new_name, Package* target_package,
+    Function* to_clone, std::string_view new_name, Package* target_package,
     absl::flat_hash_map<const Function*, Function*> call_remapping) {
   std::vector<FunctionBase*> dependent_functions =
       GetDependentFunctions(to_clone);

@@ -34,7 +34,7 @@ class BigIntTest : public ::testing::Test {
     return BigInt::MakeSigned(SBits(value, 64));
   }
 
-  BigInt MakeBigInt(absl::string_view hex_string) {
+  BigInt MakeBigInt(std::string_view hex_string) {
     std::pair<bool, Bits> sign_magnitude =
         GetSignAndMagnitude(hex_string).value();
     if (sign_magnitude.first) {

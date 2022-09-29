@@ -38,7 +38,7 @@ std::vector<FunctionBase*> GetDependentFunctions(FunctionBase* function_base);
 
 // Clones transitively the given function and its dependencies.
 absl::StatusOr<Function*> CloneFunctionAndItsDependencies(
-    Function* to_clone, absl::string_view new_name,
+    Function* to_clone, std::string_view new_name,
     Package* target_package = nullptr,
     absl::flat_hash_map<const Function*, Function*> call_remapping = {});
 

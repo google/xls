@@ -41,7 +41,7 @@ struct SignatureData {
   const std::vector<const ConcreteType*>& arg_types;
   const std::vector<dslx::Span>& arg_spans;
   // Name of the builtin.
-  absl::string_view name;
+  std::string_view name;
   // Span that we're invoking the builtin from (span for the entire invocation).
   const Span& span;
   // Any "higher order" parametric bindings e.g. for the callee in the case of
@@ -76,7 +76,7 @@ using SignatureFn = std::function<absl::StatusOr<TypeAndBindings>(
 // than we currently have support for in the DSL. As parametric support grows,
 // however, one day these may all be a special "builtin" module.
 absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
-    absl::string_view builtin_name);
+    std::string_view builtin_name);
 
 }  // namespace xls::dslx
 

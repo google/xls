@@ -20,7 +20,7 @@ namespace xls::noc {
 
 ArbiterSchemeConfigProtoBuilder&
 ArbiterSchemeConfigProtoBuilder::WithPriorityEntry(
-    absl::string_view output_port_name,
+    std::string_view output_port_name,
     absl::Span<const PortVirtualChannelTuple> priority_list) {
   RouterConfigProto::ArbiterPriorityEntryConfig* arbiter_priority_entry_config =
       proto_->mutable_priority()->add_entries();

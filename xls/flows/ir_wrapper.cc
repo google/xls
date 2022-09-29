@@ -100,7 +100,7 @@ absl::Status JitChannelQueueWrapper::Read(absl::Span<uint8_t> buffer) {
 }
 
 absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
-    absl::string_view module_name, absl::string_view file_path) {
+    std::string_view module_name, std::string_view file_path) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<dslx::Module> module,
                        dslx::ParseModuleFromFileAtPath(file_path, module_name));
 
@@ -108,7 +108,7 @@ absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
 }
 
 absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
-    std::unique_ptr<dslx::Module> module, absl::string_view file_path) {
+    std::unique_ptr<dslx::Module> module, std::string_view file_path) {
   DslxModuleAndPath module_and_path;
 
   module_and_path.TakeDslxModule(std::move(module));
@@ -118,7 +118,7 @@ absl::StatusOr<DslxModuleAndPath> DslxModuleAndPath::Create(
 }
 
 absl::StatusOr<dslx::Module*> IrWrapper::GetDslxModule(
-    absl::string_view name) const {
+    std::string_view name) const {
   XLS_RET_CHECK(top_module_ != nullptr);
 
   if (top_module_->name() == name) {
@@ -149,7 +149,7 @@ absl::StatusOr<Package*> IrWrapper::GetIrPackage() const {
 }
 
 absl::StatusOr<IrWrapper> IrWrapper::Create(
-    absl::string_view ir_package_name, DslxModuleAndPath top_module,
+    std::string_view ir_package_name, DslxModuleAndPath top_module,
     std::vector<DslxModuleAndPath> import_modules) {
   IrWrapper ir_wrapper(ir_package_name);
 
@@ -194,9 +194,9 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
 }
 
 absl::StatusOr<IrWrapper> IrWrapper::Create(
-    absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
-    absl::string_view top_module_path, std::unique_ptr<Module> other_module,
-    absl::string_view other_module_path) {
+    std::string_view ir_package_name, std::unique_ptr<Module> top_module,
+    std::string_view top_module_path, std::unique_ptr<Module> other_module,
+    std::string_view other_module_path) {
   XLS_ASSIGN_OR_RETURN(
       DslxModuleAndPath top_module_and_path,
       DslxModuleAndPath::Create(std::move(top_module), top_module_path));
@@ -213,10 +213,10 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
 }
 
 absl::StatusOr<IrWrapper> IrWrapper::Create(
-    absl::string_view ir_package_name, std::unique_ptr<Module> top_module,
-    absl::string_view top_module_path,
+    std::string_view ir_package_name, std::unique_ptr<Module> top_module,
+    std::string_view top_module_path,
     absl::Span<std::unique_ptr<Module>> other_modules,
-    absl::Span<absl::string_view> other_modules_path) {
+    absl::Span<std::string_view> other_modules_path) {
   XLS_ASSIGN_OR_RETURN(
       DslxModuleAndPath top_module_and_path,
       DslxModuleAndPath::Create(std::move(top_module), top_module_path));
@@ -239,7 +239,7 @@ absl::StatusOr<IrWrapper> IrWrapper::Create(
 }
 
 absl::StatusOr<Function*> IrWrapper::GetIrFunction(
-    absl::string_view name) const {
+    std::string_view name) const {
   XLS_RET_CHECK(top_module_ != nullptr);
 
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
@@ -249,7 +249,7 @@ absl::StatusOr<Function*> IrWrapper::GetIrFunction(
   return package_->GetFunction(mangled_name);
 }
 
-absl::StatusOr<Proc*> IrWrapper::GetIrProc(absl::string_view name) const {
+absl::StatusOr<Proc*> IrWrapper::GetIrProc(std::string_view name) const {
   XLS_RET_CHECK(top_module_ != nullptr);
 
   XLS_ASSIGN_OR_RETURN(std::string mangled_name,
@@ -260,7 +260,7 @@ absl::StatusOr<Proc*> IrWrapper::GetIrProc(absl::string_view name) const {
 }
 
 absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
-    absl::string_view name) {
+    std::string_view name) {
   XLS_ASSIGN_OR_RETURN(Function * f, GetIrFunction(name));
 
   if (pre_compiled_function_jit_.contains(f)) {
@@ -275,7 +275,7 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
 }
 
 absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
-    absl::string_view name) {
+    std::string_view name) {
   XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
 
   if (pre_compiled_proc_jit_.contains(p)) {
@@ -299,20 +299,20 @@ absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
 }
 
 absl::StatusOr<ProcContinuation*> IrWrapper::GetJitContinuation(
-    absl::string_view name) {
+    std::string_view name) {
   XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
   XLS_RET_CHECK(jit_continuations_.contains(p));
   return jit_continuations_.at(p).get();
 }
 
 absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(
-    absl::string_view name) const {
+    std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
   return &jit_channel_manager_->GetJitQueue(channel);
 }
 
 absl::StatusOr<JitChannelQueueWrapper> IrWrapper::CreateJitChannelQueueWrapper(
-    absl::string_view name, ProcJit* jit) const {
+    std::string_view name, ProcJit* jit) const {
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue, GetJitChannelQueue(name));
 
   return JitChannelQueueWrapper::Create(queue, jit);

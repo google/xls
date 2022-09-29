@@ -178,8 +178,8 @@ absl::Status RunComparator::RunComparison(
   return absl::OkStatus();
 }
 
-static bool TestMatchesFilter(absl::string_view test_name,
-                              std::optional<absl::string_view> test_filter) {
+static bool TestMatchesFilter(std::string_view test_name,
+                              std::optional<std::string_view> test_filter) {
   if (!test_filter.has_value()) {
     return true;
   }
@@ -266,7 +266,7 @@ static absl::Status RunQuickCheck(RunComparator* run_comparator,
 }
 
 using HandleError = const std::function<void(
-    const absl::Status&, absl::string_view test_name, bool is_quickcheck)>;
+    const absl::Status&, std::string_view test_name, bool is_quickcheck)>;
 
 static absl::Status RunQuickChecksIfJitEnabled(
     Module* entry_module, TypeInfo* type_info, RunComparator* run_comparator,
@@ -303,16 +303,16 @@ static absl::Status RunQuickChecksIfJitEnabled(
   return absl::OkStatus();
 }
 
-absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
-                                        absl::string_view module_name,
-                                        absl::string_view filename,
+absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
+                                        std::string_view module_name,
+                                        std::string_view filename,
                                         const ParseAndTestOptions& options) {
   int64_t ran = 0;
   int64_t failed = 0;
   int64_t skipped = 0;
 
   auto handle_error = [&](const absl::Status& status,
-                          absl::string_view test_name, bool is_quickcheck) {
+                          std::string_view test_name, bool is_quickcheck) {
     XLS_VLOG(1) << "Handling error; status: " << status
                 << " test_name: " << test_name;
     absl::StatusOr<PositionalErrorData> data_or =

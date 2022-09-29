@@ -39,22 +39,22 @@ class ModuleSignature;
 // interfaces).
 class ModuleSignatureBuilder {
  public:
-  explicit ModuleSignatureBuilder(absl::string_view module_name) {
+  explicit ModuleSignatureBuilder(std::string_view module_name) {
     proto_.set_module_name(ToProtoString(module_name));
   }
 
   // Sets the clock as having the given name.
-  ModuleSignatureBuilder& WithClock(absl::string_view name);
+  ModuleSignatureBuilder& WithClock(std::string_view name);
 
   // Sets the reset signal as having the given name and properties.
-  ModuleSignatureBuilder& WithReset(absl::string_view name, bool asynchronous,
+  ModuleSignatureBuilder& WithReset(std::string_view name, bool asynchronous,
                                     bool active_low);
 
   // Defines the module interface as using ready/valid flow control with signals
   // of the given names.
   ModuleSignatureBuilder& WithReadyValidInterface(
-      absl::string_view input_ready, absl::string_view input_valid,
-      absl::string_view output_ready, absl::string_view output_valid);
+      std::string_view input_ready, std::string_view input_valid,
+      std::string_view output_ready, std::string_view output_valid);
 
   // Defines the module interface as fixed latency.
   ModuleSignatureBuilder& WithFixedLatencyInterface(int64_t latency);
@@ -81,23 +81,23 @@ class ModuleSignatureBuilder {
 
   // Add data input/outputs to the interface. Control signals such as the clock,
   // reset, ready/valid signals, etc should not be added using these methods.
-  ModuleSignatureBuilder& AddDataInput(absl::string_view name, int64_t width);
-  ModuleSignatureBuilder& AddDataOutput(absl::string_view name, int64_t width);
+  ModuleSignatureBuilder& AddDataInput(std::string_view name, int64_t width);
+  ModuleSignatureBuilder& AddDataOutput(std::string_view name, int64_t width);
 
   // Add a single value channel to the interface.
-  ModuleSignatureBuilder& AddSingleValueChannel(absl::string_view name,
+  ModuleSignatureBuilder& AddSingleValueChannel(std::string_view name,
                                                 ChannelOps supported_ops,
-                                                absl::string_view port_name);
+                                                std::string_view port_name);
 
   // Add a streaming channel to the interface
   ModuleSignatureBuilder& AddStreamingChannel(
-      absl::string_view name, ChannelOps supported_ops,
+      std::string_view name, ChannelOps supported_ops,
       FlowControl flow_control, std::optional<int64_t> fifo_depth,
-      absl::string_view port_name,
-      std::optional<absl::string_view> valid_port_name =
-          std::optional<absl::string_view>(),
-      std::optional<absl::string_view> ready_port_name =
-          std::optional<absl::string_view>());
+      std::string_view port_name,
+      std::optional<std::string_view> valid_port_name =
+          std::optional<std::string_view>(),
+      std::optional<std::string_view> ready_port_name =
+          std::optional<std::string_view>());
 
   absl::StatusOr<ModuleSignature> Build();
 

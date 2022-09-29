@@ -56,7 +56,7 @@ namespace {
 // Service implementation that dispatches compile requests.
 class JsonMetricsSynthesisServiceImpl : public SynthesisService::Service {
  public:
-  explicit JsonMetricsSynthesisServiceImpl(absl::string_view metrics_command)
+  explicit JsonMetricsSynthesisServiceImpl(std::string_view metrics_command)
       : metrics_command_(metrics_command) {}
 
   ::grpc::Status Compile(::grpc::ServerContext* server_context,

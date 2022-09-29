@@ -1311,7 +1311,7 @@ static absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceWidthSliceType(
 // Attempts to resolve one of the bounds (start or limit) of slice into a
 // DSLX-compile-time constant.
 static absl::StatusOr<std::optional<int64_t>> TryResolveBound(
-    Slice* slice, Expr* bound, absl::string_view bound_name, ConcreteType* s32,
+    Slice* slice, Expr* bound, std::string_view bound_name, ConcreteType* s32,
     const absl::flat_hash_map<std::string, InterpValue>& env, DeduceCtx* ctx) {
   if (bound == nullptr) {
     return absl::nullopt;
@@ -1598,7 +1598,7 @@ struct ValidatedStructMembers {
 //  * The ConcreteTypes of the corresponding struct member definition.
 static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
     absl::Span<const std::pair<std::string, Expr*>> members,
-    const StructType& struct_type, absl::string_view struct_text,
+    const StructType& struct_type, std::string_view struct_text,
     DeduceCtx* ctx) {
   ValidatedStructMembers result;
   for (auto& [name, expr] : members) {
@@ -1640,7 +1640,7 @@ static absl::StatusOr<ValidatedStructMembers> ValidateStructMembersSubset(
 //  type_info: The type information that the "current" TypeDefinition resolves
 //    against.
 static absl::StatusOr<StructDef*> DerefToStruct(
-    const Span& span, absl::string_view original_ref_text,
+    const Span& span, std::string_view original_ref_text,
     TypeDefinition current, TypeInfo* type_info) {
   while (true) {
     if (std::holds_alternative<StructDef*>(current)) {  // Done dereferencing.

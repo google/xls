@@ -126,7 +126,7 @@ struct PipelineRegister {
 // A data structure representing a state register for a single XLS IR value.
 class StateRegister {
  public:
-  StateRegister(absl::string_view name, Value reset_value, Stage stage,
+  StateRegister(std::string_view name, Value reset_value, Stage stage,
                 Register* reg, RegisterWrite* reg_write, RegisterRead* reg_read)
       : name_(name),
         reset_value_(reset_value),
@@ -142,7 +142,7 @@ class StateRegister {
   RegisterWrite*& reg_write() { return reg_write_; }
   RegisterRead*& reg_read() { return reg_read_; }
 
-  absl::string_view name() const { return name_; }
+  std::string_view name() const { return name_; }
   const Value& reset_value() const { return reset_value_; }
   Stage stage() const { return stage_; }
   Register* reg() const { return reg_; }
@@ -360,7 +360,7 @@ static absl::Status UpdateDatapathRegistersWithReset(
 //
 // This is used to drive load_enable signals of pipeline valid registers.
 static absl::StatusOr<Node*> MakeOrWithResetNode(Node* src_node,
-                                                 absl::string_view result_name,
+                                                 std::string_view result_name,
                                                  const ResetInfo& reset_info,
                                                  Block* block) {
   Node* result = src_node;
@@ -796,7 +796,7 @@ absl::Status UpdateChannelMetadata(const StreamingIOPipeline& io,
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
     absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
-    int64_t stage_count, absl::string_view ready_suffix, Block* block) {
+    int64_t stage_count, std::string_view ready_suffix, Block* block) {
   std::vector<Node*> result;
 
   // Add a ready input port for each streaming output. Gather the ready signals
@@ -859,7 +859,7 @@ static absl::StatusOr<std::vector<Node*>> MakeInputReadyPortsForOutputChannels(
 // Upon success returns a Node* to the all_active_inputs_valid signal.
 static absl::StatusOr<std::vector<Node*>> MakeInputValidPortsForInputChannels(
     absl::flat_hash_map<Stage, std::vector<StreamingInput>>& streaming_inputs,
-    int64_t stage_count, absl::string_view valid_suffix, Block* block) {
+    int64_t stage_count, std::string_view valid_suffix, Block* block) {
   std::vector<Node*> result;
 
   for (int64_t i = 0; i < stage_count; ++i) {
@@ -926,7 +926,7 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
     absl::Span<Node* const> pipelined_valids,
     absl::Span<Node* const> next_stage_open,
     absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
-    absl::string_view valid_suffix, Block* block) {
+    std::string_view valid_suffix, Block* block) {
   for (auto& [stage, vec] : streaming_outputs) {
     for (StreamingOutput& streaming_output : vec) {
       std::vector<Node*> operands{all_active_inputs_valid.at(stage),
@@ -958,7 +958,7 @@ static absl::Status MakeOutputValidPortsForOutputChannels(
 static absl::Status MakeOutputReadyPortsForInputChannels(
     absl::Span<Node* const> all_active_outputs_ready,
     absl::flat_hash_map<Stage, std::vector<StreamingInput>>& streaming_inputs,
-    absl::string_view ready_suffix, Block* block) {
+    std::string_view ready_suffix, Block* block) {
   for (auto& [stage, vec] : streaming_inputs) {
     for (StreamingInput& streaming_input : vec) {
       Node* ready = all_active_outputs_ready.at(stage);
@@ -1001,7 +1001,7 @@ static absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg,
 // Adds a register between the node and all its downstream users.
 // Returns the new register added.
 static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
-    absl::string_view name_prefix, const ResetInfo& reset_info,
+    std::string_view name_prefix, const ResetInfo& reset_info,
     std::optional<Node*> load_enable, Node* node, Block* block) {
   Type* node_type = node->GetType();
 
@@ -1044,7 +1044,7 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 // registers.
 static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
-    absl::string_view name_prefix, const ResetInfo& reset_info, Block* block,
+    std::string_view name_prefix, const ResetInfo& reset_info, Block* block,
     std::vector<Node*>& valid_nodes) {
   XLS_CHECK_EQ(from_rdy->operand_count(), 1);
 
@@ -1215,7 +1215,7 @@ static absl::StatusOr<Node*> AddSkidBufferToRDVNodes(
 // registers.
 static absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
-    absl::string_view name_prefix, const ResetInfo& reset_info, Block* block,
+    std::string_view name_prefix, const ResetInfo& reset_info, Block* block,
     std::vector<Node*>& valid_nodes) {
   XLS_CHECK_EQ(from_rdy->operand_count(), 1);
 
@@ -1339,7 +1339,7 @@ static absl::StatusOr<Node*> AddZeroLatencyBufferToRDVNodes(
 // Returns the node for the register_read of the data.
 static absl::StatusOr<RegisterRead*> AddRegisterToRDVNodes(
     Node* from_data, Node* from_valid, Node* from_rdy,
-    absl::string_view name_prefix, const ResetInfo& reset_info, Block* block,
+    std::string_view name_prefix, const ResetInfo& reset_info, Block* block,
     std::vector<Node*>& valid_nodes) {
   XLS_CHECK_EQ(from_rdy->operand_count(), 1);
 
@@ -1568,7 +1568,7 @@ static absl::Status AddInputOutputFlops(const ResetInfo& reset_info,
 // Add one-shot logic to the and output RDV channel.
 static absl::Status AddOneShotLogicToRVNodes(Node* from_valid, Node* from_rdy,
                                              Node* all_active_outputs_ready,
-                                             absl::string_view name_prefix,
+                                             std::string_view name_prefix,
                                              const ResetInfo& reset_info,
                                              Block* block) {
   // Location for added logic is taken from from_valid.
@@ -1764,8 +1764,8 @@ static absl::StatusOr<std::vector<Node*>> AddBubbleFlowControl(
     const ResetInfo& reset_info, const CodegenOptions& options,
     StreamingIOPipeline& streaming_io, Block* block) {
   int64_t stage_count = streaming_io.pipeline_registers.size() + 1;
-  absl::string_view valid_suffix = options.streaming_channel_valid_suffix();
-  absl::string_view ready_suffix = options.streaming_channel_ready_suffix();
+  std::string_view valid_suffix = options.streaming_channel_valid_suffix();
+  std::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_inputs_valid,
@@ -1861,8 +1861,8 @@ static absl::Status AddCombinationalFlowControl(
     absl::flat_hash_map<Stage, std::vector<StreamingInput>>& streaming_inputs,
     absl::flat_hash_map<Stage, std::vector<StreamingOutput>>& streaming_outputs,
     const CodegenOptions& options, Block* block) {
-  absl::string_view valid_suffix = options.streaming_channel_valid_suffix();
-  absl::string_view ready_suffix = options.streaming_channel_ready_suffix();
+  std::string_view valid_suffix = options.streaming_channel_valid_suffix();
+  std::string_view ready_suffix = options.streaming_channel_ready_suffix();
 
   XLS_ASSIGN_OR_RETURN(
       std::vector<Node*> all_active_outputs_ready,
@@ -2174,7 +2174,7 @@ class CloneNodesIntoBlockHandler {
 
     Receive* receive = node->As<Receive>();
     XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
-    absl::string_view data_suffix =
+    std::string_view data_suffix =
         (channel->kind() == ChannelKind::kStreaming)
             ? options_.streaming_channel_data_suffix()
             : "";
@@ -2213,7 +2213,7 @@ class CloneNodesIntoBlockHandler {
                      FlowControl::kReadyValid);
 
     // Construct the valid port.
-    absl::string_view valid_suffix = options_.streaming_channel_valid_suffix();
+    std::string_view valid_suffix = options_.streaming_channel_valid_suffix();
 
     XLS_ASSIGN_OR_RETURN(
         InputPort * input_valid_port,
@@ -2261,7 +2261,7 @@ class CloneNodesIntoBlockHandler {
 
     XLS_ASSIGN_OR_RETURN(Channel * channel, GetChannelUsedByNode(node));
     Send* send = node->As<Send>();
-    absl::string_view data_suffix =
+    std::string_view data_suffix =
         (channel->kind() == ChannelKind::kStreaming)
             ? options_.streaming_channel_data_suffix()
             : "";
@@ -2355,7 +2355,7 @@ class CloneNodesIntoBlockHandler {
   // Returns a PipelineRegister whose reg_read field can be used
   // to chain dependent ops to.
   absl::StatusOr<PipelineRegister> CreatePipelineRegister(
-      absl::string_view name, Node* node, Block* block) {
+      std::string_view name, Node* node, Block* block) {
     XLS_ASSIGN_OR_RETURN(Register * reg,
                          block_->AddRegister(name, node->GetType()));
     XLS_ASSIGN_OR_RETURN(
@@ -2393,7 +2393,7 @@ class CloneNodesIntoBlockHandler {
   //     the same type as the input node is returned.
   //
   absl::StatusOr<Node*> CreatePipelineRegistersForNode(
-      absl::string_view base_name, Node* node,
+      std::string_view base_name, Node* node,
       std::vector<PipelineRegister>& pipeline_registers_list, Block* block) {
     // As a special case, check if the node is a tuple
     // containing types that are of zero-width.  If so, separate them out so
@@ -2487,7 +2487,7 @@ static absl::StatusOr<StreamingIOPipeline> CloneProcNodesIntoBlock(
 
 }  // namespace
 
-std::string PipelineSignalName(absl::string_view root, int64_t stage) {
+std::string PipelineSignalName(std::string_view root, int64_t stage) {
   std::string base;
   // Strip any existing pipeline prefix from the name.
   if (!RE2::PartialMatch(root, R"(^p\d+_(.+))", &base)) {
@@ -2684,7 +2684,7 @@ absl::StatusOr<Block*> ProcToPipelinedBlock(const PipelineSchedule& schedule,
 }
 
 absl::StatusOr<Block*> FunctionToCombinationalBlock(
-    Function* f, absl::string_view block_name) {
+    Function* f, std::string_view block_name) {
   return FunctionToCombinationalBlock(f,
                                       CodegenOptions().module_name(block_name));
 }

@@ -34,9 +34,9 @@ class IOStrategyFactory {
   }
 
   static absl::StatusOr<std::unique_ptr<IOStrategy>> CreateForDevice(
-      absl::string_view target_device, VerilogFile* f);
+      std::string_view target_device, VerilogFile* f);
 
-  void Add(absl::string_view target_device,
+  void Add(std::string_view target_device,
            std::function<std::unique_ptr<IOStrategy>(VerilogFile*)> f) {
     strategies_.insert({std::string(target_device), std::move(f)});
   }

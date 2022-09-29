@@ -192,7 +192,7 @@ class Parser : public TokenParser {
   absl::StatusOr<Expr*> ParseCastOrStructInstance(Bindings* bindings);
 
   absl::StatusOr<std::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
-      Bindings* bindings, absl::string_view context = "");
+      Bindings* bindings, std::string_view context = "");
 
   absl::StatusOr<NameDef*> ParseNameDef(Bindings* bindings);
 
@@ -511,12 +511,12 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      const std::vector<Param*>& proc_members, absl::string_view proc_name,
+      const std::vector<Param*>& proc_members, std::string_view proc_name,
       bool is_public);
   absl::StatusOr<Function*> ParseProcNext(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      absl::string_view proc_name, bool is_public);
+      std::string_view proc_name, bool is_public);
 
   std::unique_ptr<Module> module_;
 

@@ -23,7 +23,7 @@ namespace {
 
 // Test field values of the builder when constructed using a proto ptr.
 TEST(NodeOptionsProtoBuilderTest, FieldValuesForPtr) {
-  constexpr absl::string_view kName = "Test";
+  constexpr std::string_view kName = "Test";
   CoordinateOptionsProto coordinate_proto;
   NodeOptionsProto proto;
   NodeOptionsProtoBuilder builder(&proto);
@@ -40,7 +40,7 @@ TEST(NodeOptionsProtoBuilderTest, FieldValuesForPtr) {
 // Test field values of the builder when constructed using a proto ptr and a
 // default proto.
 TEST(NodeOptionsProtoBuilderTest, FieldValuesForPtrWithDefault) {
-  constexpr absl::string_view kName = "Test";
+  constexpr std::string_view kName = "Test";
   NodeOptionsProto default_proto;
   NodeOptionsProtoBuilder builder_default(&default_proto);
   builder_default.SetName(kName);
@@ -57,7 +57,7 @@ TEST(NodeOptionsProtoBuilderTest, FieldValuesForPtrWithDefault) {
 
 // Test field values of the builder when copied from another builder.
 TEST(NodeOptionsProtoBuilderTest, FieldValuesForCopyFrom) {
-  constexpr absl::string_view kName = "Test";
+  constexpr std::string_view kName = "Test";
   NodeOptionsProto default_proto;
   NodeOptionsProtoBuilder builder_default(&default_proto);
   builder_default.SetName(kName);

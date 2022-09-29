@@ -26,35 +26,35 @@ Emits an ANSI-highlighted version of a given DSLX file.
 )";
 
 // ANSI color codes.
-constexpr absl::string_view kRed = "\e[1;31m";
-constexpr absl::string_view kGreen = "\e[1;32m";
-constexpr absl::string_view kYellow = "\e[1;33m";
-constexpr absl::string_view kBlue = "\e[1;34m";
-constexpr absl::string_view kCyan = "\e[1;36m";
-constexpr absl::string_view kReset = "\e[1;0m";
+constexpr std::string_view kRed = "\e[1;31m";
+constexpr std::string_view kGreen = "\e[1;32m";
+constexpr std::string_view kYellow = "\e[1;33m";
+constexpr std::string_view kBlue = "\e[1;34m";
+constexpr std::string_view kCyan = "\e[1;36m";
+constexpr std::string_view kReset = "\e[1;0m";
 
-std::string AnsiRed(absl::string_view s) {
+std::string AnsiRed(std::string_view s) {
   return absl::StrCat(kRed, s, kReset);
 }
-std::string AnsiGreen(absl::string_view s) {
+std::string AnsiGreen(std::string_view s) {
   return absl::StrCat(kGreen, s, kReset);
 }
-std::string AnsiYellow(absl::string_view s) {
+std::string AnsiYellow(std::string_view s) {
   return absl::StrCat(kYellow, s, kReset);
 }
-std::string AnsiBlue(absl::string_view s) {
+std::string AnsiBlue(std::string_view s) {
   return absl::StrCat(kBlue, s, kReset);
 }
-std::string AnsiCyan(absl::string_view s) {
+std::string AnsiCyan(std::string_view s) {
   return absl::StrCat(kCyan, s, kReset);
 }
 
-std::string HandleKeyword(absl::string_view s) { return AnsiYellow(s); }
-std::string HandleNumber(absl::string_view s) { return AnsiRed(s); }
-std::string HandleComment(absl::string_view s) { return AnsiBlue(s); }
-std::string HandleBuiltin(absl::string_view s) { return AnsiCyan(s); }
-std::string HandleType(absl::string_view s) { return AnsiGreen(s); }
-std::string HandleOther(absl::string_view s) { return std::string(s); }
+std::string HandleKeyword(std::string_view s) { return AnsiYellow(s); }
+std::string HandleNumber(std::string_view s) { return AnsiRed(s); }
+std::string HandleComment(std::string_view s) { return AnsiBlue(s); }
+std::string HandleBuiltin(std::string_view s) { return AnsiCyan(s); }
+std::string HandleType(std::string_view s) { return AnsiGreen(s); }
+std::string HandleOther(std::string_view s) { return std::string(s); }
 
 std::string ToHighlightStr(const Token& t) {
   switch (t.kind()) {
@@ -93,7 +93,7 @@ absl::Status RealMain(const std::filesystem::path& path) {
 }  // namespace xls::dslx
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> args =
+  std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.empty()) {
     XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "

@@ -56,7 +56,7 @@ class InterpBindings {
                                   NameDefTree* name_def_tree,
                                   InterpValue value);
 
-  static absl::string_view VariantAsString(const Entry& e);
+  static std::string_view VariantAsString(const Entry& e);
 
   explicit InterpBindings(const InterpBindings* parent = nullptr);
 
@@ -100,7 +100,7 @@ class InterpBindings {
   // Resolution functions from identifiers to values / AST nodes.
 
   absl::StatusOr<InterpValue> ResolveValueFromIdentifier(
-      absl::string_view identifier, const Span* ref_span = nullptr) const;
+      std::string_view identifier, const Span* ref_span = nullptr) const;
 
   // Resolves a name reference to an interpreter value.
   absl::StatusOr<InterpValue> ResolveValue(const NameRef* name_ref) const {
@@ -108,25 +108,25 @@ class InterpBindings {
                                       &name_ref->span());
   }
 
-  absl::StatusOr<Module*> ResolveModule(absl::string_view identifier) const;
+  absl::StatusOr<Module*> ResolveModule(std::string_view identifier) const;
 
   // Resolve identifier to a type binding, or returns a status error if it is
   // not found / not a type binding.
   absl::StatusOr<TypeAnnotation*> ResolveTypeAnnotation(
-      absl::string_view identifier) const;
+      std::string_view identifier) const;
 
   absl::StatusOr<std::variant<TypeAnnotation*, EnumDef*, StructDef*>>
-  ResolveTypeDefinition(absl::string_view identifier) const;
+  ResolveTypeDefinition(std::string_view identifier) const;
 
   // Resolves an entry for "identifier" via local mapping and transitive binding
   // parents. Returns nullopt if it is not found.
-  std::optional<Entry> ResolveEntry(absl::string_view identifier) const;
+  std::optional<Entry> ResolveEntry(std::string_view identifier) const;
 
   // Returns all the keys in this bindings object and all transitive parents as
   // a set.
   absl::flat_hash_set<std::string> GetKeys() const;
 
-  bool Contains(absl::string_view key) const {
+  bool Contains(std::string_view key) const {
     return map_.contains(key) || (parent_ != nullptr && parent_->Contains(key));
   }
 

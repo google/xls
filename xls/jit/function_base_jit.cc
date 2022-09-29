@@ -112,7 +112,7 @@ class LlvmFunctionWrapper {
   // specified will be added to the function signature after all other
   // args.
   static LlvmFunctionWrapper Create(
-      absl::string_view name, absl::Span<Node* const> input_args,
+      std::string_view name, absl::Span<Node* const> input_args,
       absl::Span<Node* const> output_args, llvm::Type* return_type,
       const JitBuilderContext& jit_context,
       std::optional<FunctionArg> extra_arg = std::nullopt) {
@@ -419,7 +419,7 @@ std::vector<Partition> PartitionFunctionBase(FunctionBase* f) {
 // `global_input_nodes` and `global_output_nodes` are the set of nodes whose
 // buffers are passed in via the `input`/`output` arguments of the function.
 absl::StatusOr<llvm::Function*> BuildPartitionFunction(
-    absl::string_view name, const Partition& partition,
+    std::string_view name, const Partition& partition,
     absl::Span<Node* const> global_input_nodes,
     absl::Span<Node* const> global_output_nodes,
     const TempBufferAllocator& allocator, JitBuilderContext& jit_context) {

@@ -89,7 +89,7 @@ ABSL_FLAG(int, warn_unroll_iters, 100,
 
 namespace xlscc {
 
-absl::Status Run(absl::string_view cpp_path) {
+absl::Status Run(std::string_view cpp_path) {
   // Warnings should print by default
   absl::SetFlag(&FLAGS_logtostderr, true);
 
@@ -138,7 +138,7 @@ absl::Status Run(absl::string_view cpp_path) {
     clang_argvs.push_back(absl::StrCat("-I", dir));
   }
 
-  std::vector<absl::string_view> clang_argv;
+  std::vector<std::string_view> clang_argv;
   for (size_t i = 0; i < clang_argvs.size(); ++i) {
     clang_argv.push_back(clang_argvs[i]);
   }
@@ -146,7 +146,7 @@ absl::Status Run(absl::string_view cpp_path) {
   std::cerr << "Parsing file '" << cpp_path << "' with clang..." << std::endl;
   XLS_RETURN_IF_ERROR(translator.ScanFile(
       cpp_path, clang_argv.empty()
-                    ? absl::Span<absl::string_view>()
+                    ? absl::Span<std::string_view>()
                     : absl::MakeSpan(&clang_argv[0], clang_argv.size())));
 
   XLS_ASSIGN_OR_RETURN(std::string top_name, translator.GetEntryFunctionName());
@@ -165,7 +165,7 @@ absl::Status Run(absl::string_view cpp_path) {
     output_absolute = cwd / output_file;
   }
 
-  auto write_to_output = [&](absl::string_view output) -> absl::Status {
+  auto write_to_output = [&](std::string_view output) -> absl::Status {
     if (output_file.empty()) {
       std::cout << output;
     } else {
@@ -218,14 +218,14 @@ absl::Status Run(absl::string_view cpp_path) {
 }  // namespace xlscc
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s CPP_FILE",
                                           argv[0]);
   }
-  absl::string_view cpp_path = positional_arguments[0];
+  std::string_view cpp_path = positional_arguments[0];
   //  XLS_QCHECK_OK(xlscc::Run(cpp_path));
   absl::Status status = xlscc::Run(cpp_path);
   if (!status.ok()) {

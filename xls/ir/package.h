@@ -46,7 +46,7 @@ class StreamingChannel;
 
 class Package {
  public:
-  explicit Package(absl::string_view name);
+  explicit Package(std::string_view name);
 
   // Note: functions have parent pointers to their packages, so we don't want
   // them to be moved or copied; this makes Package non-moveable non-copyable.
@@ -63,7 +63,7 @@ class Package {
   // parameter. The function calls xls::Package::SetTop function. Prerequisite:
   // a single function base with the with its name equivalent to the 'top_name'
   // parameter must exist.
-  absl::Status SetTopByName(absl::string_view top_name);
+  absl::Status SetTopByName(std::string_view top_name);
 
   // Helper function to get the top as a function, proc or block.
   absl::StatusOr<Function*> GetTopAsFunction() const;
@@ -71,7 +71,7 @@ class Package {
   absl::StatusOr<Block*> GetTopAsBlock() const;
 
   // Returns a FunctionBase with the given name if a single instance exists.
-  absl::StatusOr<FunctionBase*> GetFunctionBaseByName(absl::string_view name);
+  absl::StatusOr<FunctionBase*> GetFunctionBaseByName(std::string_view name);
 
   // Returns whether the given type is one of the types owned by this package.
   bool IsOwnedType(const Type* type) {
@@ -108,9 +108,9 @@ class Package {
 
   // Get a function, proc, or block by name. Returns an error if no such
   // construct of the indicated kind exists with that name.
-  absl::StatusOr<Function*> GetFunction(absl::string_view func_name) const;
-  absl::StatusOr<Proc*> GetProc(absl::string_view proc_name) const;
-  absl::StatusOr<Block*> GetBlock(absl::string_view block_name) const;
+  absl::StatusOr<Function*> GetFunction(std::string_view func_name) const;
+  absl::StatusOr<Proc*> GetProc(std::string_view proc_name) const;
+  absl::StatusOr<Block*> GetBlock(std::string_view block_name) const;
 
   // Remove a function, proc, or block. The caller is responsible for ensuring
   // no references to the construct remain (e.g., via invoke operations). The
@@ -140,7 +140,7 @@ class Package {
   // an internal lookup table, otherwise a new Fileno id is generated and added
   // to the table.
   // TODO(dmlockhart): update to use ABSL_LOC and xabsl::SourceLocation.
-  SourceLocation AddSourceLocation(absl::string_view filename, Lineno lineno,
+  SourceLocation AddSourceLocation(std::string_view filename, Lineno lineno,
                                    Colno colno);
 
   // Translates a SourceLocation object into a human readable debug identifier
@@ -153,11 +153,11 @@ class Package {
 
   // Adds a file to the file-number table and returns its corresponding number.
   // If it already exists, returns the existing file-number entry.
-  Fileno GetOrCreateFileno(absl::string_view filename);
+  Fileno GetOrCreateFileno(std::string_view filename);
 
   // Forcibly sets a given file number to map to a given file.
   // Used when parsing a `Package`.
-  void SetFileno(Fileno file_number, absl::string_view filename);
+  void SetFileno(Fileno file_number, std::string_view filename);
 
   // Get the filename corresponding to the given `Fileno`.
   std::optional<std::string> GetFilename(Fileno file_number) const;
@@ -202,7 +202,7 @@ class Package {
   std::vector<std::string> GetFunctionNames() const;
 
   // Returns whether this package contains a function with the "target" name.
-  bool HasFunctionWithName(absl::string_view target) const;
+  bool HasFunctionWithName(std::string_view target) const;
 
   int64_t next_node_id() const { return next_node_id_; }
 
@@ -215,7 +215,7 @@ class Package {
   // allocated.
   // TODO(meheff): Consider using a builder for constructing a channel.
   absl::StatusOr<StreamingChannel*> CreateStreamingChannel(
-      absl::string_view name, ChannelOps supported_ops, Type* type,
+      std::string_view name, ChannelOps supported_ops, Type* type,
       absl::Span<const Value> initial_values = {},
       std::optional<int64_t> fifo_depth = absl::nullopt,
       FlowControl flow_control = FlowControl::kReadyValid,
@@ -223,7 +223,7 @@ class Package {
       std::optional<int64_t> id = absl::nullopt);
 
   absl::StatusOr<SingleValueChannel*> CreateSingleValueChannel(
-      absl::string_view name, ChannelOps supported_ops, Type* type,
+      std::string_view name, ChannelOps supported_ops, Type* type,
       const ChannelMetadataProto& metadata = ChannelMetadataProto(),
       std::optional<int64_t> id = absl::nullopt);
 
@@ -233,7 +233,7 @@ class Package {
   // Returns the channel with the given ID or returns an error if no such
   // channel exists.
   absl::StatusOr<Channel*> GetChannel(int64_t id) const;
-  absl::StatusOr<Channel*> GetChannel(absl::string_view name) const;
+  absl::StatusOr<Channel*> GetChannel(std::string_view name) const;
 
   // Returns whether there exists a channel with the given ID.
   bool HasChannelWithId(int64_t id) const {

@@ -56,7 +56,7 @@ class ProtoToDslxManager {
   // Args:
   //   binding_name: The name to assign to the resulting DSLX constant.
   absl::Status AddProtoInstantiationToDslxModule(
-      absl::string_view binding_name, const google::protobuf::Message& message);
+      std::string_view binding_name, const google::protobuf::Message& message);
 
  private:
   // AddProtoTypeToDslxModule accepts a proto message and adds its type
@@ -86,8 +86,8 @@ class ProtoToDslxManager {
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
     const std::filesystem::path& source_root,
     const std::filesystem::path& proto_schema_path,
-    absl::string_view message_name, absl::string_view text_proto,
-    absl::string_view binding_name);
+    std::string_view message_name, std::string_view text_proto,
+    std::string_view binding_name);
 
 // As above, but doesn't refer directly to the filesystem for resolution.
 //
@@ -95,15 +95,15 @@ absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslx(
 //  proto_def: Contents of the proto schema file (i.e. `.proto` file).
 //  ..rest: as above
 absl::StatusOr<std::unique_ptr<dslx::Module>> ProtoToDslxViaText(
-    absl::string_view proto_def, absl::string_view message_name,
-    absl::string_view text_proto, absl::string_view binding_name);
+    std::string_view proto_def, std::string_view message_name,
+    std::string_view text_proto, std::string_view binding_name);
 
 // Compiles the specified proto schema into a "Descriptor" (contained in the
 // returned pool), potentially loading dependent schema files along the way.
 // Args:
 //  proto_def: Contents of the proto schema file (i.e. `.proto` file).
 absl::StatusOr<std::unique_ptr<google::protobuf::DescriptorPool>>
-ProcessStringProtoSchema(absl::string_view proto_def);
+ProcessStringProtoSchema(std::string_view proto_def);
 
 // Helper function to create a Proto Message from a string.
 // Args:
@@ -113,7 +113,7 @@ ProcessStringProtoSchema(absl::string_view proto_def);
 //                    given by message_name.
 //   factory: Factory to be used to create the message.
 absl::StatusOr<std::unique_ptr<google::protobuf::Message>> ConstructProtoViaText(
-    absl::string_view text_proto, absl::string_view message_name,
+    std::string_view text_proto, std::string_view message_name,
     google::protobuf::DescriptorPool* descriptor_pool,
     google::protobuf::DynamicMessageFactory* factory);
 

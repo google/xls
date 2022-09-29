@@ -59,11 +59,11 @@ absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node);
 // Returns the result of accessing a colon-ref member of a builtin type; e.g.
 // `s7::MAX`.
 absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
-    const BuiltinNameDef* builtin_name_def, absl::string_view attr);
+    const BuiltinNameDef* builtin_name_def, std::string_view attr);
 
 absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
     const ArrayTypeAnnotation* type, uint64_t constexpr_dim,
-    absl::string_view attr);
+    std::string_view attr);
 
 // TMP helper that gets the Nth type from a parameter pack.
 template <int N, typename... Ts>

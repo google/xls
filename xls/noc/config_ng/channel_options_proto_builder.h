@@ -43,11 +43,11 @@ class ChannelOptionsProtoBuilder {
   // Sets the source node name of the channel options. Makes a copy of the
   // source node name.
   ChannelOptionsProtoBuilder& SetSourceNodeName(
-      absl::string_view source_node_name);
+      std::string_view source_node_name);
 
   // Sets the sink node name of the channel options. Makes a copy of the sink
   // node name.
-  ChannelOptionsProtoBuilder& SetSinkNodeName(absl::string_view sink_node_name);
+  ChannelOptionsProtoBuilder& SetSinkNodeName(std::string_view sink_node_name);
 
  private:
   ChannelOptionsProto* proto_ptr_;

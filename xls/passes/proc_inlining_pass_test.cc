@@ -143,7 +143,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data on channel `in` and immediate sends back
   // the data on channel `out`.
-  absl::StatusOr<Proc*> MakeLoopbackProc(absl::string_view name, Channel* in,
+  absl::StatusOr<Proc*> MakeLoopbackProc(std::string_view name, Channel* in,
                                          Channel* out, Package* p) {
     XLS_RET_CHECK(in->type() == out->type());
     ProcBuilder b(name, "tkn", p);
@@ -154,7 +154,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data on channel `in` and sends back the data on
   // channel `out` after `delay` ticks.
-  absl::StatusOr<Proc*> MakeDelayedLoopbackProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakeDelayedLoopbackProc(std::string_view name,
                                                 int64_t delay, Channel* in,
                                                 Channel* out, Package* p) {
     XLS_RET_CHECK(in->type() == out->type());
@@ -178,7 +178,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data on channel `in` and sends back twice the
   // value of data on channel `out`.
-  absl::StatusOr<Proc*> MakeDoublerProc(absl::string_view name, Channel* in,
+  absl::StatusOr<Proc*> MakeDoublerProc(std::string_view name, Channel* in,
                                         Channel* out, Package* p) {
     XLS_RET_CHECK(in->type() == out->type());
     ProcBuilder b(name, "tkn", p);
@@ -191,7 +191,7 @@ class ProcInliningPassTest : public IrTestBase {
   // Make a proc which receives data on channel `a_in` and sends the data on
   // `a_out`, then receives data on channel `b_in` and sends that data on
   // `b_out`.
-  absl::StatusOr<Proc*> MakePassThroughProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakePassThroughProc(std::string_view name,
                                             Channel* a_in, Channel* a_out,
                                             Channel* b_in, Channel* b_out,
                                             Package* p) {
@@ -226,7 +226,7 @@ class ProcInliningPassTest : public IrTestBase {
   //    else:
   //      i = i + 1
   //      accum = x
-  absl::StatusOr<Proc*> MakeLoopingAccumulatorProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakeLoopingAccumulatorProc(std::string_view name,
                                                    Channel* input_ch,
                                                    Channel* output_ch,
                                                    int64_t iterations,
@@ -268,7 +268,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data values `x` and `y` and sends the sum and
   // difference.
-  absl::StatusOr<Proc*> MakeSumAndDifferenceProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakeSumAndDifferenceProc(std::string_view name,
                                                  Channel* x_in, Channel* y_in,
                                                  Channel* x_plus_y_out,
                                                  Channel* x_minus_y_out,
@@ -291,7 +291,7 @@ class ProcInliningPassTest : public IrTestBase {
   }
 
   // Make a proc which receives data values `x` and `y` and sends out the sum.
-  absl::StatusOr<Proc*> MakeSumProc(absl::string_view name, Channel* x_in,
+  absl::StatusOr<Proc*> MakeSumProc(std::string_view name, Channel* x_in,
                                     Channel* y_in, Channel* out, Package* p) {
     XLS_RET_CHECK(x_in->type() == y_in->type());
     XLS_RET_CHECK(x_in->type() == out->type());
@@ -318,7 +318,7 @@ class ProcInliningPassTest : public IrTestBase {
   //   y_accum += y
   //   send_if(out, cnt, (x_accum, y_accum))
   //   cnt = !cnt
-  absl::StatusOr<Proc*> MakeTupleAccumulator(absl::string_view name,
+  absl::StatusOr<Proc*> MakeTupleAccumulator(std::string_view name,
                                              Channel* in, Channel* out,
                                              Package* p) {
     XLS_RET_CHECK(in->type()->IsTuple());

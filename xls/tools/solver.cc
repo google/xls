@@ -53,10 +53,10 @@ namespace {
 
 using solvers::z3::Predicate;
 
-absl::Status RealMain(absl::string_view ir_path,
-                      absl::string_view subject_node_name,
-                      absl::string_view predicate_kind,
-                      absl::string_view other_node_name, int64_t timeout_ms) {
+absl::Status RealMain(std::string_view ir_path,
+                      std::string_view subject_node_name,
+                      std::string_view predicate_kind,
+                      std::string_view other_node_name, int64_t timeout_ms) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackage(contents, ir_path));
@@ -87,7 +87,7 @@ absl::Status RealMain(absl::string_view ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1 || positional_arguments[0].empty() ||

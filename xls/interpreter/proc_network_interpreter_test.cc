@@ -36,7 +36,7 @@ class ProcNetworkInterpreterTest : public IrTestBase {};
 // Creates a proc which has a single send operation using the given channel
 // which sends a sequence of U32 values starting at 'starting_value' and
 // increasing byte 'step' each tick.
-absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
+absl::StatusOr<Proc*> CreateIotaProc(std::string_view proc_name,
                                      int64_t starting_value, int64_t step,
                                      Channel* channel, Package* package) {
   ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
@@ -49,7 +49,7 @@ absl::StatusOr<Proc*> CreateIotaProc(absl::string_view proc_name,
 
 // Creates a proc which keeps a running sum of all values read through the input
 // channel. The sum is sent via an output chanel each iteration.
-absl::StatusOr<Proc*> CreateAccumProc(absl::string_view proc_name,
+absl::StatusOr<Proc*> CreateAccumProc(std::string_view proc_name,
                                       Channel* in_channel, Channel* out_channel,
                                       Package* package) {
   ProcBuilder pb(proc_name, /*token_name=*/"tok", package);
@@ -63,7 +63,7 @@ absl::StatusOr<Proc*> CreateAccumProc(absl::string_view proc_name,
 }
 
 // Creates a proc which simply passes through a received value to a send.
-absl::StatusOr<Proc*> CreatePassThroughProc(absl::string_view proc_name,
+absl::StatusOr<Proc*> CreatePassThroughProc(std::string_view proc_name,
                                             Channel* in_channel,
                                             Channel* out_channel,
                                             Package* package) {
@@ -78,7 +78,7 @@ absl::StatusOr<Proc*> CreatePassThroughProc(absl::string_view proc_name,
 // Create a proc which reads tuples of (count: u32, char: u8) from in_channel,
 // run-length decodes them, and sends the resulting char stream to
 // out_channel. Run lengths of zero are allowed.
-absl::StatusOr<Proc*> CreateRunLengthDecoderProc(absl::string_view proc_name,
+absl::StatusOr<Proc*> CreateRunLengthDecoderProc(std::string_view proc_name,
                                                  Channel* in_channel,
                                                  Channel* out_channel,
                                                  Package* package) {

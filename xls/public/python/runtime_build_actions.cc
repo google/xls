@@ -28,9 +28,9 @@ PYBIND11_MODULE(runtime_build_actions, m) {
 
   m.def(
       "convert_dslx_to_ir",
-      [](absl::string_view dslx, absl::string_view path,
-         absl::string_view package, absl::string_view dslx_stdlib_path,
-         const std::vector<absl::string_view>& additional_search_paths)
+      [](std::string_view dslx, std::string_view path,
+         std::string_view package, std::string_view dslx_stdlib_path,
+         const std::vector<std::string_view>& additional_search_paths)
           -> absl::StatusOr<std::string> {
         return ConvertDslxToIr(
             dslx, path, package, dslx_stdlib_path,
@@ -56,8 +56,8 @@ Args:
   });
   m.def(
       "convert_dslx_path_to_ir",
-      [](absl::string_view path, absl::string_view dslx_stdlib_path,
-         const std::vector<absl::string_view>& additional_search_paths)
+      [](std::string_view path, std::string_view dslx_stdlib_path,
+         const std::vector<std::string_view>& additional_search_paths)
           -> absl::StatusOr<std::string> {
         return ConvertDslxPathToIr(
             path, dslx_stdlib_path,

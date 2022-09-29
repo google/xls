@@ -469,7 +469,7 @@ absl::StatusOr<InterpValue> BytecodeEmitter::HandleColonRefToEnum(
     const ColonRef* colon_ref, EnumDef* enum_def, const TypeInfo* type_info) {
   // TODO(rspringer): 2022-01-26 We'll need to pull the right type info during
   // ResolveTypeDefToEnum.
-  absl::string_view attr = colon_ref->attr();
+  std::string_view attr = colon_ref->attr();
   XLS_ASSIGN_OR_RETURN(Expr * value_expr, enum_def->GetValue(attr));
   return type_info->GetConstExpr(value_expr);
 }

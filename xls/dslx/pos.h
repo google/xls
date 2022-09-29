@@ -27,7 +27,7 @@ namespace xls::dslx {
 // Represents a position in the text (file, line, column).
 class Pos {
  public:
-  static absl::StatusOr<Pos> FromString(absl::string_view s);
+  static absl::StatusOr<Pos> FromString(std::string_view s);
 
   Pos() : filename_(""), lineno_(0), colno_(0) {}
   Pos(std::string filename, int64_t lineno, int64_t colno)
@@ -87,7 +87,7 @@ inline std::ostream& operator<<(std::ostream& os, const Pos& pos) {
 // Represents a positional span in the text.
 class Span {
  public:
-  static absl::StatusOr<Span> FromString(absl::string_view s);
+  static absl::StatusOr<Span> FromString(std::string_view s);
   static Span Fake() { return Span(Pos(), Pos()); }
 
   Span(Pos start, Pos limit)

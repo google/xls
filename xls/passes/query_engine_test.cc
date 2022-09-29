@@ -62,7 +62,7 @@ class QueryEngineTest : public IrTestBase,
 
   // Create a BValue with known bits equal to the given ternary vector. Created
   // using a param and AND/OR masks.
-  BValue MakeValueWithKnownBits(absl::string_view name,
+  BValue MakeValueWithKnownBits(std::string_view name,
                                 TernaryVector known_bits, FunctionBuilder* fb) {
     absl::InlinedVector<bool, 1> known_zeros;
     absl::InlinedVector<bool, 1> known_ones;
@@ -81,7 +81,7 @@ class QueryEngineTest : public IrTestBase,
   // input to the op is crafted to have known bits equal to the given
   // TernaryVector.
   absl::StatusOr<std::string> RunOnUnaryOp(
-      absl::string_view operand_known_bits,
+      std::string_view operand_known_bits,
       std::function<void(BValue, FunctionBuilder*)> make_op) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
@@ -98,7 +98,7 @@ class QueryEngineTest : public IrTestBase,
   // inputs to the op is crafted to have known bits equal to the given
   // TernaryVectors.
   absl::StatusOr<std::string> RunOnBinaryOp(
-      absl::string_view lhs_known_bits, absl::string_view rhs_known_bits,
+      std::string_view lhs_known_bits, std::string_view rhs_known_bits,
       std::function<void(BValue, BValue, FunctionBuilder*)> make_op) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
@@ -114,7 +114,7 @@ class QueryEngineTest : public IrTestBase,
   }
 
   absl::StatusOr<std::string> GetMaxUnsignedValue(
-      absl::string_view known_bits) {
+      std::string_view known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
     BValue n = MakeValueWithKnownBits(
@@ -128,7 +128,7 @@ class QueryEngineTest : public IrTestBase,
   }
 
   absl::StatusOr<std::string> GetMinUnsignedValue(
-      absl::string_view known_bits) {
+      std::string_view known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
     BValue n = MakeValueWithKnownBits(
@@ -142,7 +142,7 @@ class QueryEngineTest : public IrTestBase,
   }
 
   absl::StatusOr<bool> GetNodesKnownUnsignedNotEquals(
-      absl::string_view lhs_known_bits, absl::string_view rhs_known_bits) {
+      std::string_view lhs_known_bits, std::string_view rhs_known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
     BValue lhs = MakeValueWithKnownBits(
@@ -156,7 +156,7 @@ class QueryEngineTest : public IrTestBase,
   }
 
   absl::StatusOr<bool> GetNodesKnownUnsignedEquals(
-      absl::string_view lhs_known_bits, absl::string_view rhs_known_bits) {
+      std::string_view lhs_known_bits, std::string_view rhs_known_bits) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);
     BValue lhs = MakeValueWithKnownBits(

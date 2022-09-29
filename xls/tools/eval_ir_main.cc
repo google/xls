@@ -145,7 +145,7 @@ namespace xls {
 namespace {
 
 // Name of the dummy package created to hold the validator function, if any.
-constexpr absl::string_view kPackageName = "validator";
+constexpr std::string_view kPackageName = "validator";
 
 // Excapsulates a set of arguments to pass to the function for evaluation and
 // the expected result.
@@ -165,8 +165,8 @@ std::string ArgsToString(absl::Span<const Value> args) {
 // results, respectively. These strings are included in error messages.
 absl::StatusOr<std::vector<Value>> Eval(
     Function* f, absl::Span<const ArgSet> arg_sets, bool use_jit,
-    absl::string_view actual_src = "actual",
-    absl::string_view expected_src = "expected") {
+    std::string_view actual_src = "actual",
+    std::string_view expected_src = "expected") {
   std::unique_ptr<FunctionJit> jit;
   if (use_jit) {
     // No support for procs yet.
@@ -297,9 +297,9 @@ absl::Status Run(Package* package, absl::Span<const ArgSet> arg_sets_in) {
 }
 
 // Parse the given string as a semi-colon separated list of Values.
-absl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
+absl::StatusOr<ArgSet> ArgSetFromString(std::string_view args_string) {
   ArgSet arg_set;
-  for (const absl::string_view& value_string :
+  for (const std::string_view& value_string :
        absl::StrSplit(args_string, ';')) {
     XLS_ASSIGN_OR_RETURN(Value arg, Parser::ParseTypedValue(value_string));
     arg_set.args.push_back(arg);
@@ -309,8 +309,8 @@ absl::StatusOr<ArgSet> ArgSetFromString(absl::string_view args_string) {
 
 // Converts the given DSLX validation function into IR.
 absl::StatusOr<std::unique_ptr<Package>> ConvertValidator(
-    Function* f, absl::string_view dslx_stdlib_path,
-    absl::string_view validator_dslx) {
+    Function* f, std::string_view dslx_stdlib_path,
+    std::string_view validator_dslx) {
   dslx::ImportData import_data(
       dslx::CreateImportData(std::string(dslx_stdlib_path),
                              absl::Span<const std::filesystem::path>{}));
@@ -387,8 +387,8 @@ absl::StatusOr<ArgSet> GenerateArgSet(Function* f, Function* validator,
       "or -input_validator_limit should be increased."));
 }
 
-absl::Status RealMain(absl::string_view input_path,
-                      absl::string_view dslx_stdlib_path) {
+absl::Status RealMain(std::string_view input_path,
+                      std::string_view dslx_stdlib_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
@@ -494,7 +494,7 @@ absl::Status RealMain(absl::string_view input_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
   if (positional_arguments.empty()) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",

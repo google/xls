@@ -31,13 +31,13 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 // Helper for parsing/typechecking a snippet of DSLX text.
-absl::Status Typecheck(absl::string_view text,
+absl::Status Typecheck(std::string_view text,
                        TypecheckedModule* tm_out = nullptr) {
   auto import_data = CreateImportDataForTest();
   auto tm_or = ParseAndTypecheck(text, "fake.x", "fake", &import_data);
   if (!tm_or.ok()) {
     TryPrintError(tm_or.status(),
-                  [&](absl::string_view path) -> absl::StatusOr<std::string> {
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
                     return std::string(text);
                   });
     return tm_or.status();
@@ -53,7 +53,7 @@ absl::Status Typecheck(absl::string_view text,
 }
 
 TEST(TypecheckTest, ParametricWrongArgCount) {
-  absl::string_view text = R"(
+  std::string_view text = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u8:4) }
 )";
@@ -64,7 +64,7 @@ fn f() -> u32 { id(u8:3, u8:4) }
 }
 
 TEST(TypecheckTest, ParametricTooManyExplicitSupplied) {
-  absl::string_view text = R"(
+  std::string_view text = R"(
 fn id<X: u32>(x: bits[X]) -> bits[X] { x }
 fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
 )";
@@ -1029,7 +1029,7 @@ fn f<N: u32>() -> bool { true }
 }
 
 TEST(TypecheckTest, GetAsBuiltinType) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 struct Foo {
   a: u64,
   b: u1,
@@ -1133,7 +1133,7 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
     TypeInfo* type_info_;
   };
 
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() {
   let foo = u32:0;
   let foo = u64:0x666;
@@ -1153,7 +1153,7 @@ fn main() {
 }
 
 TEST(TypecheckTest, CantSendOnNonMember) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   config() {
     ()
@@ -1174,7 +1174,7 @@ proc foo {
 }
 
 TEST(TypecheckTest, CantSendOnNonChannel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   bar: u32;
   config() {
@@ -1195,7 +1195,7 @@ proc foo {
 }
 
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   c : chan<u32> out;
   config(c: chan<u32> out) {
@@ -1224,7 +1224,7 @@ proc entry {
 }
 
 TEST(TypecheckTest, CantSendOnOutputChannel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc entry {
   p: chan<u32> out;
   c: chan<u32> in;
@@ -1252,7 +1252,7 @@ fn main() -> u18 {
 }
 
 TEST(TypecheckTest, BasicRange) {
-  constexpr absl::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(#[test]
 fn main() {
   let a = u32:0..u32:4;
   let b = u32[4]:[0, 1, 2, 3];
@@ -1482,7 +1482,7 @@ fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
   XLS_ASSERT_OK(PrintPositionalError(
       tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
       std::cerr,
-      [&](absl::string_view) -> absl::StatusOr<std::string> { return program; },
+      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
       PositionalErrorColor::kWarningColor));
 }
 

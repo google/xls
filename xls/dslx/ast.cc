@@ -292,7 +292,7 @@ absl::StatusOr<int64_t> GetBuiltinTypeBitCount(BuiltinType type) {
       absl::StrCat("Unknown builtin type: ", static_cast<int64_t>(type)));
 }
 
-absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s) {
+absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s) {
 #define CASE(__enum, __unused, __str, ...) \
   if (s == __str) {                        \
     return BuiltinType::__enum;            \
@@ -664,7 +664,7 @@ std::string ChannelDecl::ToString() const {
 
 // -- class Module
 
-std::optional<Function*> Module::GetFunction(absl::string_view target_name) {
+std::optional<Function*> Module::GetFunction(std::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<Function*>(member)) {
       Function* f = std::get<Function*>(member);
@@ -676,7 +676,7 @@ std::optional<Function*> Module::GetFunction(absl::string_view target_name) {
   return absl::nullopt;
 }
 
-std::optional<Proc*> Module::GetProc(absl::string_view target_name) {
+std::optional<Proc*> Module::GetProc(std::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<Proc*>(member)) {
       Proc* p = std::get<Proc*>(member);
@@ -688,7 +688,7 @@ std::optional<Proc*> Module::GetProc(absl::string_view target_name) {
   return absl::nullopt;
 }
 
-absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
+absl::StatusOr<TestFunction*> Module::GetTest(std::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<TestFunction*>(member)) {
       TestFunction* t = std::get<TestFunction*>(member);
@@ -701,7 +701,7 @@ absl::StatusOr<TestFunction*> Module::GetTest(absl::string_view target_name) {
       "No test in module %s with name \"%s\"", name_, target_name));
 }
 
-absl::StatusOr<TestProc*> Module::GetTestProc(absl::string_view target_name) {
+absl::StatusOr<TestProc*> Module::GetTestProc(std::string_view target_name) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<TestProc*>(member)) {
       auto* t = std::get<TestProc*>(member);
@@ -747,7 +747,7 @@ const EnumDef* Module::FindEnumDef(const Span& span) const {
 }
 
 std::optional<ModuleMember*> Module::FindMemberWithName(
-    absl::string_view target) {
+    std::string_view target) {
   for (ModuleMember& member : top_) {
     if (std::holds_alternative<Function*>(member)) {
       if (std::get<Function*>(member)->identifier() == target) {
@@ -797,7 +797,7 @@ std::optional<ModuleMember*> Module::FindMemberWithName(
   return absl::nullopt;
 }
 
-absl::StatusOr<ConstantDef*> Module::GetConstantDef(absl::string_view target) {
+absl::StatusOr<ConstantDef*> Module::GetConstantDef(std::string_view target) {
   std::optional<ModuleMember*> member = FindMemberWithName(target);
   if (!member.has_value()) {
     return absl::NotFoundError(
@@ -855,7 +855,7 @@ std::vector<AstNode*> Module::GetChildren(bool want_types) const {
 }
 
 absl::StatusOr<TypeDefinition> Module::GetTypeDefinition(
-    absl::string_view name) const {
+    std::string_view name) const {
   absl::flat_hash_map<std::string, TypeDefinition> map =
       GetTypeDefinitionByName();
   auto it = map.find(name);
@@ -1075,7 +1075,7 @@ EnumDef::EnumDef(Module* owner, Span span, NameDef* name_def,
       values_(std::move(values)),
       is_public_(is_public) {}
 
-bool EnumDef::HasValue(absl::string_view name) const {
+bool EnumDef::HasValue(std::string_view name) const {
   for (const auto& item : values_) {
     if (item.name_def->identifier() == name) {
       return true;
@@ -1084,7 +1084,7 @@ bool EnumDef::HasValue(absl::string_view name) const {
   return false;
 }
 
-absl::StatusOr<Expr*> EnumDef::GetValue(absl::string_view name) const {
+absl::StatusOr<Expr*> EnumDef::GetValue(std::string_view name) const {
   for (const EnumMember& item : values_) {
     if (item.name_def->identifier() == name) {
       return item.value;
@@ -1286,7 +1286,7 @@ std::vector<std::string> StructDef::GetMemberNames() const {
   return names;
 }
 
-std::optional<int64_t> StructDef::GetMemberIndex(absl::string_view name) const {
+std::optional<int64_t> StructDef::GetMemberIndex(std::string_view name) const {
   for (int64_t i = 0; i < members_.size(); ++i) {
     if (members_[i].first->identifier() == name) {
       return i;
@@ -1313,7 +1313,7 @@ std::vector<std::pair<std::string, Expr*>> StructInstance::GetOrderedMembers(
   return result;
 }
 
-absl::StatusOr<Expr*> StructInstance::GetExpr(absl::string_view name) const {
+absl::StatusOr<Expr*> StructInstance::GetExpr(std::string_view name) const {
   for (const auto& item : members_) {
     if (item.first == name) {
       return item.second;
@@ -1355,7 +1355,7 @@ std::string TypeRefTypeAnnotation::ToString() const {
   return absl::StrCat(type_ref_->ToString(), parametric_str);
 }
 
-absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s) {
+absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s) {
 #define HANDLE(__enum, __unused, __operator) \
   if (s == __operator) {                     \
     return BinopKind::__enum;                \
@@ -1370,7 +1370,7 @@ Binop::Binop(Module* owner, Span span, BinopKind binop_kind, Expr* lhs,
              Expr* rhs)
     : Expr(owner, span), binop_kind_(binop_kind), lhs_(lhs), rhs_(rhs) {}
 
-absl::StatusOr<UnopKind> UnopKindFromString(absl::string_view s) {
+absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s) {
   if (s == "!") {
     return UnopKind::kInvert;
   }
@@ -1480,7 +1480,7 @@ std::string Function::ToString() const {
                          body_->ToString());
 }
 
-std::string Function::ToUndecoratedString(absl::string_view identifier) const {
+std::string Function::ToUndecoratedString(std::string_view identifier) const {
   std::string params_str =
       absl::StrJoin(params(), ", ", [](std::string* out, Param* param) {
         absl::StrAppend(out, param->ToString());
@@ -1553,7 +1553,7 @@ std::string Proc::ToString() const {
   if (!members_str.empty()) {
     members_str.append("\n");
   }
-  constexpr absl::string_view kTemplate = R"(%sproc %s%s {
+  constexpr std::string_view kTemplate = R"(%sproc %s%s {
 %s%s
 %s
 })";

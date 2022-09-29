@@ -35,7 +35,7 @@ ABSL_FLAG(
 
 namespace xls {
 
-absl::Status RealMain(absl::string_view ir_path,
+absl::Status RealMain(std::string_view ir_path,
                       std::optional<std::string> restrict_fn) {
   XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(contents));
@@ -56,7 +56,7 @@ absl::Status RealMain(absl::string_view ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_args =
+  std::vector<std::string_view> positional_args =
       xls::InitXls(argv[0], argc, argv);
   XLS_QCHECK(positional_args.size() == 1);
 

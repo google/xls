@@ -210,7 +210,7 @@ class ConstraintBuilder {
  private:
   or_tools::MPConstraint* DiffLessThanConstraint(Node* x, Node* y,
                                                  int64_t limit,
-                                                 absl::string_view name) {
+                                                 std::string_view name) {
     or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
         -infinity_, limit,
         absl::StrFormat("%s:%s-%s≤%d", name, x->GetName(), y->GetName(),
@@ -222,7 +222,7 @@ class ConstraintBuilder {
 
   or_tools::MPConstraint* DiffGreaterThanConstraint(Node* x, Node* y,
                                                     int64_t limit,
-                                                    absl::string_view name) {
+                                                    std::string_view name) {
     or_tools::MPConstraint* constraint = solver_->MakeRowConstraint(
         -infinity_, -limit,
         absl::StrFormat("%s:%s-%s≥%d", name, x->GetName(), y->GetName(),
@@ -233,7 +233,7 @@ class ConstraintBuilder {
   }
 
   void DiffEqualsConstraint(Node* x, Node* y, int64_t diff,
-                            absl::string_view name) {
+                            std::string_view name) {
     if (x == y) {
       if (diff == 0) {
         return;

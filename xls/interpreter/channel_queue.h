@@ -126,7 +126,7 @@ class ChannelQueueManager {
   // Returns the queue associated with the channel with the given
   // ID/name. Returns an error if no such channel exists.
   absl::StatusOr<ChannelQueue*> GetQueueById(int64_t channel_id);
-  absl::StatusOr<ChannelQueue*> GetQueueByName(absl::string_view name);
+  absl::StatusOr<ChannelQueue*> GetQueueByName(std::string_view name);
 
  protected:
   ChannelQueueManager(Package* package,

@@ -275,7 +275,7 @@ class AstNode {
 
   // Retrieves the name of the leafmost-derived class, suitable for debugging;
   // e.g. "NameDef", "BuiltinTypeAnnotation", etc.
-  virtual absl::string_view GetNodeTypeName() const = 0;
+  virtual std::string_view GetNodeTypeName() const = 0;
   virtual std::string ToString() const = 0;
 
   virtual std::optional<Span> GetSpan() const = 0;
@@ -378,7 +378,7 @@ constexpr int64_t kConcreteBuiltinTypeLimit =
     static_cast<int64_t>(BuiltinType::kS64) + 1;
 
 std::string BuiltinTypeToString(BuiltinType t);
-absl::StatusOr<BuiltinType> BuiltinTypeFromString(absl::string_view s);
+absl::StatusOr<BuiltinType> BuiltinTypeFromString(std::string_view s);
 
 absl::StatusOr<BuiltinType> GetBuiltinType(bool is_signed, int64_t width);
 absl::StatusOr<bool> GetBuiltinTypeSignedness(BuiltinType type);
@@ -394,7 +394,7 @@ class BuiltinTypeAnnotation : public TypeAnnotation {
     return v->HandleBuiltinTypeAnnotation(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "BuiltinTypeAnnotation";
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -427,7 +427,7 @@ class TupleTypeAnnotation : public TypeAnnotation {
     return v->HandleTupleTypeAnnotation(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "TupleTypeAnnotation";
   }
   std::string ToString() const override;
@@ -466,7 +466,7 @@ class TypeRefTypeAnnotation : public TypeAnnotation {
 
   std::string ToString() const override;
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "TypeRefTypeAnnotation";
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -489,7 +489,7 @@ class ArrayTypeAnnotation : public TypeAnnotation {
     return v->HandleArrayTypeAnnotation(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "ArrayTypeAnnotation";
   }
   TypeAnnotation* element_type() const { return element_type_; }
@@ -522,7 +522,7 @@ class BuiltinNameDef : public AstNode {
   }
   std::optional<Span> GetSpan() const override { return absl::nullopt; }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "BuiltinNameDef";
   }
   std::string ToString() const override { return identifier_; }
@@ -549,7 +549,7 @@ class WildcardPattern : public AstNode {
     return v->HandleWildcardPattern(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "WildcardPattern";
   }
   std::string ToString() const override { return "_"; }
@@ -576,7 +576,7 @@ class NameDef : public AstNode {
     return v->HandleNameDef(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "NameDef"; }
+  std::string_view GetNodeTypeName() const override { return "NameDef"; }
   const Span& span() const { return span_; }
   std::optional<Span> GetSpan() const override { return span_; }
   const std::string& identifier() const { return identifier_; }
@@ -662,7 +662,7 @@ class ChannelTypeAnnotation : public TypeAnnotation {
     return v->HandleChannelTypeAnnotation(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "ChannelTypeAnnotation";
   }
 
@@ -710,7 +710,7 @@ class Block : public Expr {
   absl::Status AcceptExpr(ExprVisitor* v) const override {
     return v->HandleBlock(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "Block"; }
+  std::string_view GetNodeTypeName() const override { return "Block"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {body_};
@@ -741,7 +741,7 @@ class NameRef : public Expr {
 
   const std::string& identifier() const { return identifier_; }
 
-  absl::string_view GetNodeTypeName() const override { return "NameRef"; }
+  std::string_view GetNodeTypeName() const override { return "NameRef"; }
   std::string ToString() const override { return identifier_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -794,7 +794,7 @@ class Number : public Expr {
     return v->HandleNumber(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Number"; }
+  std::string_view GetNodeTypeName() const override { return "Number"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override;
@@ -838,7 +838,7 @@ class Number : public Expr {
 // quotation marks.
 class String : public Expr {
  public:
-  String(Module* owner, Span span, absl::string_view text)
+  String(Module* owner, Span span, std::string_view text)
       : Expr(owner, span), text_(text) {}
 
   AstNodeKind kind() const override { return AstNodeKind::kString; }
@@ -849,7 +849,7 @@ class String : public Expr {
   absl::Status AcceptExpr(ExprVisitor* v) const override {
     return v->HandleString(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "String"; }
+  std::string_view GetNodeTypeName() const override { return "String"; }
   std::string ToString() const override {
     // We need to re-insert the quote-escaping slash.
     return absl::StrFormat("\"%s\"",
@@ -880,7 +880,7 @@ class TypeDef : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleTypeDef(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "TypeDef"; }
+  std::string_view GetNodeTypeName() const override { return "TypeDef"; }
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override {
@@ -920,7 +920,7 @@ class Array : public Expr {
     return v->HandleArray(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Array"; }
+  std::string_view GetNodeTypeName() const override { return "Array"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -978,7 +978,7 @@ class TypeRef : public AstNode {
     return v->HandleTypeRef(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "TypeRef"; }
+  std::string_view GetNodeTypeName() const override { return "TypeRef"; }
   std::string ToString() const override { return text_; }
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1008,7 +1008,7 @@ class Import : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleImport(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "Import"; }
+  std::string_view GetNodeTypeName() const override { return "Import"; }
   const std::string& identifier() const { return name_def_->identifier(); }
 
   std::string ToString() const override;
@@ -1056,7 +1056,7 @@ class ColonRef : public Expr {
     return v->HandleColonRef(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "ColonRef"; }
+  std::string_view GetNodeTypeName() const override { return "ColonRef"; }
   std::string ToString() const override {
     return absl::StrFormat("%s::%s", ToAstNode(subject_)->ToString(), attr_);
   }
@@ -1093,7 +1093,7 @@ class Param : public AstNode {
     return v->HandleParam(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Param"; }
+  std::string_view GetNodeTypeName() const override { return "Param"; }
   std::string ToString() const override {
     return absl::StrFormat("%s: %s", name_def_->ToString(),
                            type_annotation_->ToString());
@@ -1120,7 +1120,7 @@ enum class UnopKind {
   kNegate,  // two's complement aritmetic negation (~x+1)
 };
 
-absl::StatusOr<UnopKind> UnopKindFromString(absl::string_view s);
+absl::StatusOr<UnopKind> UnopKindFromString(std::string_view s);
 std::string UnopKindToString(UnopKind k);
 
 // Represents a unary operation expression; e.g. `!x`.
@@ -1140,7 +1140,7 @@ class Unop : public Expr {
     return v->HandleUnop(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Unop"; }
+  std::string_view GetNodeTypeName() const override { return "Unop"; }
   std::string ToString() const override {
     return absl::StrFormat("%s(%s)", UnopKindToString(unop_kind_),
                            operand_->ToString());
@@ -1185,7 +1185,7 @@ enum class BinopKind {
 #undef FIRST_COMMA
 };
 
-absl::StatusOr<BinopKind> BinopKindFromString(absl::string_view s);
+absl::StatusOr<BinopKind> BinopKindFromString(std::string_view s);
 
 // Returns the "operator token" corresponding to the given binop kind; e.g. "+"
 // for kAdd.
@@ -1224,7 +1224,7 @@ class Binop : public Expr {
     return v->HandleBinop(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Binop"; }
+  std::string_view GetNodeTypeName() const override { return "Binop"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override {
     return {lhs_, rhs_};
   }
@@ -1261,7 +1261,7 @@ class Ternary : public Expr {
     return v->HandleTernary(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Ternary"; }
+  std::string_view GetNodeTypeName() const override { return "Ternary"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -1308,7 +1308,7 @@ class ParametricBinding : public AstNode {
   const Span& span() const { return name_def_->span(); }
   std::optional<Span> GetSpan() const override { return span(); }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "ParametricBinding";
   }
   std::string ToString() const override;
@@ -1354,13 +1354,13 @@ class Function : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleFunction(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "Function"; }
+  std::string_view GetNodeTypeName() const override { return "Function"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
   std::string ToString() const override;
   // Returns a string representation of this function with the given identifier
   // and without parametrics. Used for printing Proc component functions, i.e.,
   // config and next.
-  std::string ToUndecoratedString(absl::string_view identifier) const;
+  std::string ToUndecoratedString(std::string_view identifier) const;
 
   const std::string& identifier() const { return name_def_->identifier(); }
   const std::vector<ParametricBinding*>& parametric_bindings() const {
@@ -1409,7 +1409,7 @@ class Proc : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleProc(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "Proc"; }
+  std::string_view GetNodeTypeName() const override { return "Proc"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -1465,7 +1465,7 @@ class MatchArm : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleMatchArm(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "MatchArm"; }
+  std::string_view GetNodeTypeName() const override { return "MatchArm"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1504,7 +1504,7 @@ class Match : public Expr {
     return v->HandleMatch(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Match"; }
+  std::string_view GetNodeTypeName() const override { return "Match"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1534,7 +1534,7 @@ class Attr : public Expr {
     return v->HandleAttr(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Attr"; }
+  std::string_view GetNodeTypeName() const override { return "Attr"; }
   std::string ToString() const override {
     return absl::StrFormat("%s.%s", lhs_->ToString(), attr_->ToString());
   }
@@ -1596,7 +1596,7 @@ class Invocation : public Instantiation {
     return v->HandleInvocation(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Invocation"; }
+  std::string_view GetNodeTypeName() const override { return "Invocation"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string FormatArgs() const;
@@ -1631,7 +1631,7 @@ class Spawn : public Instantiation {
     return v->HandleSpawn(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Spawn"; }
+  std::string_view GetNodeTypeName() const override { return "Spawn"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
   std::string ToString() const override;
 
@@ -1662,7 +1662,7 @@ class FormatMacro : public Expr {
     return v->HandleFormatMacro(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "FormatMacro"; }
+  std::string_view GetNodeTypeName() const override { return "FormatMacro"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string FormatArgs() const;
@@ -1694,7 +1694,7 @@ class Slice : public AstNode {
     return v->HandleSlice(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Slice"; }
+  std::string_view GetNodeTypeName() const override { return "Slice"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override;
@@ -1738,15 +1738,15 @@ class EnumDef : public AstNode {
     return v->HandleEnumDef(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "EnumDef"; }
+  std::string_view GetNodeTypeName() const override { return "EnumDef"; }
 
   // Returns whether this enum definition has a member named "name".
-  bool HasValue(absl::string_view name) const;
+  bool HasValue(std::string_view name) const;
 
   // Returns the value bound to the given enum definition name.
   //
   // These must be constexprs, which will be computed at type checking time.
-  absl::StatusOr<Expr*> GetValue(absl::string_view name) const;
+  absl::StatusOr<Expr*> GetValue(std::string_view name) const;
 
   std::string ToString() const override;
 
@@ -1815,7 +1815,7 @@ class StructDef : public AstNode {
 
   const std::string& identifier() const { return name_def_->identifier(); }
 
-  absl::string_view GetNodeTypeName() const override { return "Struct"; }
+  std::string_view GetNodeTypeName() const override { return "Struct"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1837,7 +1837,7 @@ class StructDef : public AstNode {
   std::vector<std::string> GetMemberNames() const;
 
   // Returns the index at which the member name is "name".
-  std::optional<int64_t> GetMemberIndex(absl::string_view name) const;
+  std::optional<int64_t> GetMemberIndex(std::string_view name) const;
 
   int64_t size() const { return members_.size(); }
 
@@ -1877,7 +1877,7 @@ class StructInstance : public Expr {
     return v->HandleStructInstance(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "StructInstance";
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1895,7 +1895,7 @@ class StructInstance : public Expr {
 
   // Returns the expression associated with the member named "name", or a
   // NotFound error status if none exists.
-  absl::StatusOr<Expr*> GetExpr(absl::string_view name) const;
+  absl::StatusOr<Expr*> GetExpr(std::string_view name) const;
 
   // An AST node that refers to the struct being instantiated.
   StructRef struct_def() const { return struct_ref_; }
@@ -1927,7 +1927,7 @@ class SplatStructInstance : public Expr {
     return v->HandleSplatStructInstance(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "SplatStructInstance";
   }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -1964,7 +1964,7 @@ class WidthSlice : public AstNode {
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleWidthSlice(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "WidthSlice"; }
+  std::string_view GetNodeTypeName() const override { return "WidthSlice"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2008,7 +2008,7 @@ class Index : public Expr {
     return v->HandleIndex(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Index"; }
+  std::string_view GetNodeTypeName() const override { return "Index"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2033,7 +2033,7 @@ class Range : public Expr {
  public:
   Range(Module* owner, Span span, Expr* start, Expr* end);
   AstNodeKind kind() const override { return AstNodeKind::kRange; }
-  absl::string_view GetNodeTypeName() const override { return "Range"; }
+  std::string_view GetNodeTypeName() const override { return "Range"; }
   absl::Status Accept(AstNodeVisitor* v) const override {
     return v->HandleRange(this);
   }
@@ -2068,7 +2068,7 @@ class Recv : public Expr {
     return v->HandleRecv(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Recv"; }
+  std::string_view GetNodeTypeName() const override { return "Recv"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2098,7 +2098,7 @@ class RecvNonBlocking : public Expr {
     return v->HandleRecvNonBlocking(this);
   }
 
-  absl::string_view GetNodeTypeName() const override {
+  std::string_view GetNodeTypeName() const override {
     return "RecvNonBlocking";
   }
 
@@ -2132,7 +2132,7 @@ class RecvIf : public Expr {
     return v->HandleRecvIf(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "RecvIf"; }
+  std::string_view GetNodeTypeName() const override { return "RecvIf"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2166,7 +2166,7 @@ class Send : public Expr {
     return v->HandleSend(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Send"; }
+  std::string_view GetNodeTypeName() const override { return "Send"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2199,7 +2199,7 @@ class SendIf : public Expr {
     return v->HandleSendIf(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "SendIf"; }
+  std::string_view GetNodeTypeName() const override { return "SendIf"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2232,7 +2232,7 @@ class Join : public Expr {
   absl::Status AcceptExpr(ExprVisitor* v) const override {
     return v->HandleJoin(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "Join"; }
+  std::string_view GetNodeTypeName() const override { return "Join"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2265,7 +2265,7 @@ class TestFunction : public AstNode {
     return {name_def_};
   }
 
-  absl::string_view GetNodeTypeName() const override { return "TestFunction"; }
+  std::string_view GetNodeTypeName() const override { return "TestFunction"; }
   std::string ToString() const override {
     return absl::StrFormat("#[test]\n%s", fn_->ToString());
   }
@@ -2306,7 +2306,7 @@ class TestProc : public AstNode {
     }
     return children;
   }
-  absl::string_view GetNodeTypeName() const override { return "TestProc"; }
+  std::string_view GetNodeTypeName() const override { return "TestProc"; }
   std::string ToString() const override;
 
   Proc* proc() const { return proc_; }
@@ -2335,7 +2335,7 @@ class QuickCheck : public AstNode {
     return v->HandleQuickCheck(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "QuickCheck"; }
+  std::string_view GetNodeTypeName() const override { return "QuickCheck"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2363,7 +2363,7 @@ class TupleIndex : public Expr {
   AstNodeKind kind() const override { return AstNodeKind::kTupleIndex; }
   absl::Status Accept(AstNodeVisitor* v) const override;
   absl::Status AcceptExpr(ExprVisitor* v) const override;
-  absl::string_view GetNodeTypeName() const override { return "TupleIndex"; }
+  std::string_view GetNodeTypeName() const override { return "TupleIndex"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2390,7 +2390,7 @@ class XlsTuple : public Expr {
     return v->HandleXlsTuple(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "XlsTuple"; }
+  std::string_view GetNodeTypeName() const override { return "XlsTuple"; }
   absl::Span<Expr* const> members() const { return members_; }
   int64_t size() const { return members_.size(); }
   bool empty() const { return members_.empty(); }
@@ -2420,7 +2420,7 @@ class For : public Expr {
     return v->HandleFor(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "For"; }
+  std::string_view GetNodeTypeName() const override { return "For"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -2461,7 +2461,7 @@ class UnrollFor : public Expr {
   absl::Status AcceptExpr(ExprVisitor* v) const override {
     return v->HandleUnrollFor(this);
   }
-  absl::string_view GetNodeTypeName() const override { return "unroll-for"; }
+  std::string_view GetNodeTypeName() const override { return "unroll-for"; }
   std::string ToString() const override;
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
@@ -2502,7 +2502,7 @@ class Cast : public Expr {
     return v->HandleCast(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Cast"; }
+  std::string_view GetNodeTypeName() const override { return "Cast"; }
   std::string ToString() const override {
     return absl::StrFormat("((%s) as %s)", expr_->ToString(),
                            type_annotation_->ToString());
@@ -2538,7 +2538,7 @@ class ConstantDef : public AstNode {
     return v->HandleConstantDef(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "ConstantDef"; }
+  std::string_view GetNodeTypeName() const override { return "ConstantDef"; }
   std::string ToString() const override;
   std::string ToReprString() const;
 
@@ -2599,7 +2599,7 @@ class NameDefTree : public AstNode {
     return v->HandleNameDefTree(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "NameDefTree"; }
+  std::string_view GetNodeTypeName() const override { return "NameDefTree"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -2681,7 +2681,7 @@ class Let : public Expr {
     return v->HandleLet(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "Let"; }
+  std::string_view GetNodeTypeName() const override { return "Let"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override;
@@ -2729,7 +2729,7 @@ class ConstRef : public NameRef {
     return v->HandleConstRef(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "ConstRef"; }
+  std::string_view GetNodeTypeName() const override { return "ConstRef"; }
 
   // When holding a ConstRef we know that the corresponding NameDef cannot be
   // builtin (since consts are user constructs).
@@ -2775,7 +2775,7 @@ class ChannelDecl : public Expr {
     return v->HandleChannelDecl(this);
   }
 
-  absl::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
+  std::string_view GetNodeTypeName() const override { return "ChannelDecl"; }
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {
@@ -2823,7 +2823,7 @@ class Module : public AstNode {
   }
   std::optional<Span> GetSpan() const override { return absl::nullopt; }
 
-  absl::string_view GetNodeTypeName() const override { return "Module"; }
+  std::string_view GetNodeTypeName() const override { return "Module"; }
   std::vector<AstNode*> GetChildren(bool want_types) const override;
 
   std::string ToString() const override {
@@ -2869,7 +2869,7 @@ class Module : public AstNode {
   // Gets the element in this module with the given target_name, or returns a
   // NotFoundError.
   template <typename T>
-  absl::StatusOr<T*> GetMemberOrError(absl::string_view target_name) {
+  absl::StatusOr<T*> GetMemberOrError(std::string_view target_name) {
     for (ModuleMember& member : top_) {
       if (std::holds_alternative<T*>(member)) {
         T* t = std::get<T*>(member);
@@ -2884,19 +2884,19 @@ class Module : public AstNode {
                         name_, target_name));
   }
 
-  std::optional<Function*> GetFunction(absl::string_view target_name);
-  std::optional<Proc*> GetProc(absl::string_view target_name);
+  std::optional<Function*> GetFunction(std::string_view target_name);
+  std::optional<Proc*> GetProc(std::string_view target_name);
 
   // Gets a test construct in this module with the given "target_name", or
   // returns a NotFoundError.
-  absl::StatusOr<TestFunction*> GetTest(absl::string_view target_name);
-  absl::StatusOr<TestProc*> GetTestProc(absl::string_view target_name);
+  absl::StatusOr<TestFunction*> GetTest(std::string_view target_name);
+  absl::StatusOr<TestProc*> GetTestProc(std::string_view target_name);
 
   absl::Span<ModuleMember const> top() const { return top_; }
 
   // Finds the first top-level member in top() with the given "target" name as
   // an identifier.
-  std::optional<ModuleMember*> FindMemberWithName(absl::string_view target);
+  std::optional<ModuleMember*> FindMemberWithName(std::string_view target);
 
   const StructDef* FindStructDef(const Span& span) const;
 
@@ -2911,11 +2911,11 @@ class Module : public AstNode {
   std::vector<TypeDefinition> GetTypeDefinitions() const;
 
   absl::StatusOr<TypeDefinition> GetTypeDefinition(
-      absl::string_view name) const;
+      std::string_view name) const;
 
   // Retrieves a constant node from this module with the target name as its
   // identifier, or a NotFound error if none can be found.
-  absl::StatusOr<ConstantDef*> GetConstantDef(absl::string_view target);
+  absl::StatusOr<ConstantDef*> GetConstantDef(std::string_view target);
 
   absl::flat_hash_map<std::string, ConstantDef*> GetConstantByName() const {
     return GetTopWithTByName<ConstantDef>();

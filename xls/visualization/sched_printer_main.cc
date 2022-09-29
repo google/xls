@@ -343,7 +343,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   return schedule_status;
 }
 
-absl::Status RealMain(absl::string_view ir_path,
+absl::Status RealMain(std::string_view ir_path,
                       std::optional<int64_t> clock_period_ps,
                       std::optional<int64_t> pipeline_stages) {
   if (ir_path == "-") {
@@ -392,7 +392,7 @@ absl::Status RealMain(absl::string_view ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {

@@ -52,7 +52,7 @@ std::string MangleInterpValue(const InterpValue& value) {
 
 // LINT.IfChange
 absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view module_name, absl::string_view function_name,
+    std::string_view module_name, std::string_view function_name,
     CallingConvention convention, const absl::btree_set<std::string>& free_keys,
     const SymbolicBindings* symbolic_bindings) {
   absl::btree_set<std::string> symbolic_bindings_keys;

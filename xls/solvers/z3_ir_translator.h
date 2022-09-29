@@ -232,7 +232,7 @@ class IrTranslator : public DfsVisitorWithDefault {
 
   // Converts a XLS param decl into a Z3 param type.
   absl::StatusOr<Z3_ast> CreateZ3Param(Type* type,
-                                       absl::string_view param_name);
+                                       std::string_view param_name);
 
   // Records the mapping of the specified XLS IR node to Z3 value.
   void NoteTranslation(Node* node, Z3_ast translated);

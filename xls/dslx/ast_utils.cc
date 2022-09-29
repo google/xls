@@ -313,7 +313,7 @@ absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node) {
 }
 
 absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
-    const BuiltinNameDef* builtin_name_def, absl::string_view attr) {
+    const BuiltinNameDef* builtin_name_def, std::string_view attr) {
   // We only support MAX on builtin types at the moment -- this is checked
   // during typechecking.
   if (attr != "MAX") {
@@ -331,7 +331,7 @@ absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
 
 absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
     const ArrayTypeAnnotation* array_type, uint64_t constexpr_dim,
-    absl::string_view attr) {
+    std::string_view attr) {
   auto* builtin_type =
       dynamic_cast<BuiltinTypeAnnotation*>(array_type->element_type());
   if (builtin_type == nullptr) {

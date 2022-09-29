@@ -38,7 +38,7 @@ class ModuleSimulator {
   //  verilog_text: Verilog text containing the module to test.
   //  simulator: Verilog simulator to use.
   ModuleSimulator(const ModuleSignature& signature,
-                  absl::string_view verilog_text, FileType file_type,
+                  std::string_view verilog_text, FileType file_type,
                   const VerilogSimulator* simulator,
                   absl::Span<const VerilogInclude> includes = {})
       : signature_(signature),

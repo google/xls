@@ -174,7 +174,7 @@ absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueById(
 }
 
 absl::StatusOr<ChannelQueue*> ChannelQueueManager::GetQueueByName(
-    absl::string_view name) {
+    std::string_view name) {
   XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
   return queues_.at(channel).get();
 }

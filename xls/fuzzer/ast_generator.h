@@ -510,7 +510,7 @@ class AstGenerator {
   // Returns a recoverable status error with the given message. A recoverable
   // error may be raised to indicate that the generation of an individual
   // expression failed but that generation should continue.
-  absl::Status RecoverableError(absl::string_view message) {
+  absl::Status RecoverableError(std::string_view message) {
     return absl::AbortedError(absl::StrFormat("RecoverableError: %s", message));
   }
   bool IsRecoverableError(const absl::Status& status) {

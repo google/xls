@@ -38,22 +38,22 @@ struct TypecheckedModule {
 // given to the returned `TypecheckedModule::module`. "import_data" is used to
 // get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
-    absl::string_view text, absl::string_view path,
-    absl::string_view module_name, ImportData* import_data);
+    std::string_view text, std::string_view path,
+    std::string_view module_name, ImportData* import_data);
 
 // Helper that parses and creates a new module from the given "text".
 //
 // "path" is used for error reporting (`Span`s) and module_name is the name
 // given to the returned `TypecheckedModule::module`.
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
-    absl::string_view text, absl::string_view path,
-    absl::string_view module_name);
+    std::string_view text, std::string_view path,
+    std::string_view module_name);
 
 // Helper that parses and created a new Module from the given DSLX file path.
 //   path - path to the file to read and parse.
 //   module_name - the name given to the returned Module;
 absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
-    absl::string_view path, absl::string_view module_name);
+    std::string_view path, std::string_view module_name);
 
 // Helper that typechecks an already parsed module, ownership of
 // the module will be given to import_data.
@@ -61,7 +61,7 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 // "path" is used for error reporting (`Span`s)
 // "import_data" is used to get-or-insert any imported modules.
 absl::StatusOr<TypecheckedModule> TypecheckModule(
-    std::unique_ptr<Module> module, absl::string_view path,
+    std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data);
 
 }  // namespace xls::dslx

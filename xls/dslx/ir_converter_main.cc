@@ -73,10 +73,10 @@ If no entry point is given all functions within the module are converted:
   ir_converter_main path/to/frobulator.x
 )";
 
-absl::StatusOr<std::unique_ptr<Module>> ParseText(absl::string_view text,
-                                                  absl::string_view module_name,
+absl::StatusOr<std::unique_ptr<Module>> ParseText(std::string_view text,
+                                                  std::string_view module_name,
                                                   bool print_on_error,
-                                                  absl::string_view filename,
+                                                  std::string_view filename,
                                                   bool* printed_error) {
   Scanner scanner{std::string(filename), std::string(text)};
   Parser parser(std::string(module_name), &scanner);
@@ -88,8 +88,8 @@ absl::StatusOr<std::unique_ptr<Module>> ParseText(absl::string_view text,
 // Adds IR-converted symbols from the module specified by "path" to the given
 // "package".
 static absl::Status AddPathToPackage(
-    absl::string_view path, std::optional<absl::string_view> entry,
-    std::optional<absl::string_view> top_proc_initial_state,
+    std::string_view path, std::optional<std::string_view> entry,
+    std::optional<std::string_view> top_proc_initial_state,
     const ConvertOptions& convert_options, std::string stdlib_path,
     absl::Span<const std::filesystem::path> dslx_paths, Package* package,
     bool warnings_as_errors, bool* printed_error) {
@@ -136,10 +136,10 @@ static absl::Status AddPathToPackage(
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::Span<const absl::string_view> paths,
-                      std::optional<absl::string_view> top,
-                      std::optional<absl::string_view> top_proc_initial_state,
-                      std::optional<absl::string_view> package_name,
+absl::Status RealMain(absl::Span<const std::string_view> paths,
+                      std::optional<std::string_view> top,
+                      std::optional<std::string_view> top_proc_initial_state,
+                      std::optional<std::string_view> package_name,
                       const std::string& stdlib_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       bool emit_fail_as_assert, bool verify_ir,
@@ -168,7 +168,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
       .emit_fail_as_assert = emit_fail_as_assert,
       .verify_ir = verify_ir,
   };
-  for (absl::string_view path : paths) {
+  for (std::string_view path : paths) {
     if (path == "-") {
       path = "/dev/stdin";
     }
@@ -185,7 +185,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> paths,
 }  // namespace xls::dslx
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> args =
+  std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.empty()) {
     XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "

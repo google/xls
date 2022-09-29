@@ -19,7 +19,7 @@
 
 namespace xls {
 
-absl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name) {
+absl::StatusOr<DelayEstimator*> GetDelayEstimator(std::string_view name) {
   return GetDelayEstimatorManagerSingleton().GetDelayEstimator(name);
 }
 

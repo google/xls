@@ -720,14 +720,14 @@ class Translator {
   //
   // source_filename must be .cc
   // Retains references to the TU until ~Translator()
-  absl::Status ScanFile(absl::string_view source_filename,
-                        absl::Span<absl::string_view> command_line_args);
+  absl::Status ScanFile(std::string_view source_filename,
+                        absl::Span<std::string_view> command_line_args);
 
   // Call after ScanFile, as the top function may be specified by #pragma
   // If none was found, an error is returned
   absl::StatusOr<std::string> GetEntryFunctionName() const;
 
-  absl::Status SelectTop(absl::string_view top_function_name);
+  absl::Status SelectTop(std::string_view top_function_name);
 
   // Generates IR as an XLS function, that is, a pure function without
   //  IO / state / side effects.
@@ -1139,7 +1139,7 @@ class Translator {
   absl::StatusOr<const clang::Stmt*> GetFunctionBody(
       const clang::FunctionDecl*& funcdecl);
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
-      const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
+      const clang::FunctionDecl* funcdecl, std::string_view name_override = "",
       bool force_static = false);
 
   struct StrippedType {

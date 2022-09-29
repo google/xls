@@ -39,8 +39,8 @@ enum class PositionalErrorColor {
 //   Propagates errors from `get_file_contents` when attempting to retrieve the
 //   contents of a file for printing.
 absl::Status PrintPositionalError(
-    const Span& error_span, absl::string_view error_message, std::ostream& os,
-    std::function<absl::StatusOr<std::string>(absl::string_view)>
+    const Span& error_span, std::string_view error_message, std::ostream& os,
+    std::function<absl::StatusOr<std::string>(std::string_view)>
         get_file_contents,
     PositionalErrorColor color, int64_t error_context_line_count = 5);
 

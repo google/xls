@@ -38,7 +38,7 @@ namespace xls {
 // command-line flag (or arguments to a flag), not including the program
 // invocation name. (This includes positional arguments after the
 // flag-terminating delimiter '--'.)
-std::vector<absl::string_view> InitXls(absl::string_view usage, int argc,
+std::vector<std::string_view> InitXls(std::string_view usage, int argc,
                                        char* argv[]);
 
 }  // namespace xls

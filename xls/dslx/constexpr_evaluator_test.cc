@@ -36,7 +36,7 @@ struct TestData {
   TypeInfo* type_info;
 };
 
-absl::StatusOr<TestData> CreateTestData(absl::string_view module_text) {
+absl::StatusOr<TestData> CreateTestData(std::string_view module_text) {
   Scanner s("test.x", std::string(module_text));
   Parser parser{"test", &s};
 
@@ -58,7 +58,7 @@ absl::StatusOr<ConcreteType*> GetConcreteType(TypeInfo* ti, Expr* expr) {
 }
 
 TEST(ConstexprEvaluatorTest, HandleAttr_Simple) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 struct MyStruct {
   x: u32,
   y: u64
@@ -89,7 +89,7 @@ fn Foo() -> u64 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleNumber_Simple) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 const kFoo = u32:7;
 )";
 
@@ -109,7 +109,7 @@ const kFoo = u32:7;
 }
 
 TEST(ConstexprEvaluatorTest, HandleCast_Simple) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 const kFoo = u32:13;
 
 fn Foo() -> u64 {
@@ -134,7 +134,7 @@ fn Foo() -> u64 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleTernary) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   if false { u32:100 } else { u32:500 }
 })";
@@ -156,7 +156,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleStructInstance_Simple) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 struct MyStruct {
   x: u32,
   y: u64
@@ -190,7 +190,7 @@ fn Foo() -> MyStruct {
 }
 
 TEST(ConstexprEvaluatorTest, HandleSplatStructInstance) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 struct MyStruct {
   x: u32,
   y: u64
@@ -226,11 +226,11 @@ fn main() -> MyStruct {
 }
 
 TEST(ConstexprEvaluatorTest, HandleColonRefToConstant) {
-  constexpr absl::string_view kImported = R"(
+  constexpr std::string_view kImported = R"(
 pub const MY_CONST = u32:100;
   )";
 
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 import imported
 fn main() -> u32 {
   imported::MY_CONST
@@ -257,14 +257,14 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleColonRefToEnum) {
-  constexpr absl::string_view kImported = R"(
+  constexpr std::string_view kImported = R"(
 pub enum MyEnum : u4 {
   HELLO = 3,
   DEAR = 4,
   FRIENDS = 5,
 })";
 
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 import imported
 fn main() -> imported::MyEnum {
   imported::MyEnum::HELLO
@@ -291,7 +291,7 @@ fn main() -> imported::MyEnum {
 }
 
 TEST(ConstexprEvaluatorTest, HandleIndex) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 const MY_ARRAY = u32[4]:[u32:100, u32:200, u32:300, u32:400];
 
 fn main() -> u32 {
@@ -317,7 +317,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 const MY_VALUE = u32:0xdeadbeef;
 
 fn main() -> u16 {
@@ -343,7 +343,7 @@ fn main() -> u16 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleWidthSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 const MY_VALUE = u32:0xdeadbeef;
 
 fn main() -> u16 {
@@ -369,7 +369,7 @@ fn main() -> u16 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleXlsTuple) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> (u32, u32, u32) {
   (u32:1, u32:2, u32:3)
 }
@@ -398,7 +398,7 @@ fn main() -> (u32, u32, u32) {
 }
 
 TEST(ConstexprEvaluatorTest, HandleMatch) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   match u32:200 {
     u32:100 => u32:1,
@@ -426,7 +426,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleFor_Simple) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   for (i, acc) : (u32, u32) in range(u32:0, u32:8) {
     acc + i
@@ -452,7 +452,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleFor_OutsideRefs) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let beef = u32:0xbeef;
   for (i, acc) : (u32, u32) in range(u32:0, u32:8) {
@@ -479,7 +479,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleFor_InitShadowed) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let beef = u32:0xbeef;
   for (i, beef) : (u32, u32) in range(u32:0, u32:8) {
@@ -507,7 +507,7 @@ fn main() -> u32 {
 // Tests constexpr evaluation of `for` loops with misc. internal expressions (to
 // exercise NameRefCollector).
 TEST(ConstexprEvaluatorTest, HandleFor_MiscExprs) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let beef = u32:0xbeef;
   for (i, beef) : (u32, u32) in range(u32:0, u32:8) {
@@ -536,7 +536,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, HandleUnop) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> s32 {
   -s32:1337
 }
@@ -561,7 +561,7 @@ fn main() -> s32 {
 // Verifies that we can still constexpr evaluate, even when a variable declared
 // inside a for loop shadows a var outside.
 TEST(ConstexprEvaluatorTest, ShadowedVar) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let my_var = u32:32;
   for (i, my_var) : (u32, u32) in range(u32:0, u32:4) {
@@ -589,7 +589,7 @@ fn main() -> u32 {
 }
 
 TEST(ConstexprEvaluatorTest, BasicTupleIndex) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   (u64:64, u32:32, u16:16, u8:8).1
 }

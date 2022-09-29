@@ -36,7 +36,7 @@ PYBIND11_MODULE(ast, m) {
           .export_values()
           .def_property_readonly(
               "value", [](BinopKind kind) { return BinopKindFormat(kind); })
-          .def(py::init([](absl::string_view s) {
+          .def(py::init([](std::string_view s) {
             return BinopKindFromString(s).value();
           }));
 }  // NOLINT(readability/fn_size)

@@ -21,19 +21,19 @@
 
 namespace xls::verilog {
 
-constexpr std::array<absl::string_view, 2> kGatePlaceholderAliasKeys{
+constexpr std::array<std::string_view, 2> kGatePlaceholderAliasKeys{
     "condition", "input"};
-constexpr std::array<absl::string_view, 2> kGatePlaceholderAliasValues{
+constexpr std::array<std::string_view, 2> kGatePlaceholderAliasValues{
     "input0", "input1"};
 
 static absl::StatusOr<std::string> GenerateFormatString(
-    absl::string_view fmt_string,
+    std::string_view fmt_string,
     const absl::flat_hash_map<std::string, std::string>& supported_placeholders,
     const absl::flat_hash_map<std::string, std::string>&
         unsupported_placeholders) {
   RE2 re(R"({(\w+)})");
   std::string placeholder;
-  absl::string_view piece(fmt_string);
+  std::string_view piece(fmt_string);
 
   // Verify that all placeholder substrings are supported.
   while (RE2::FindAndConsume(&piece, re, &placeholder)) {
@@ -75,7 +75,7 @@ std::unique_ptr<OpOverride> OpOverrideAssignment::Clone() const {
 }
 
 absl::StatusOr<NodeRepresentation> OpOverrideAssignment::Emit(
-    Node* node, absl::string_view name,
+    Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   LogicRef* ref = mb.DeclareVariable(name, node->GetType());
   absl::flat_hash_map<std::string, std::string> placeholders;
@@ -114,7 +114,7 @@ static absl::flat_hash_map<std::string, std::string> GatePlaceholders() {
   return placeholders;
 }
 
-OpOverrideGateAssignment::OpOverrideGateAssignment(absl::string_view fmt_string)
+OpOverrideGateAssignment::OpOverrideGateAssignment(std::string_view fmt_string)
     : OpOverrideAssignment(fmt_string, GatePlaceholders()) {}
 
 std::unique_ptr<OpOverride> OpOverrideAssertion::Clone() const {
@@ -122,7 +122,7 @@ std::unique_ptr<OpOverride> OpOverrideAssertion::Clone() const {
 }
 
 absl::StatusOr<NodeRepresentation> OpOverrideAssertion::Emit(
-    Node* node, absl::string_view name,
+    Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   XLS_CHECK(node->Is<xls::Assert>());
   xls::Assert* asrt = node->As<xls::Assert>();
@@ -171,7 +171,7 @@ std::unique_ptr<OpOverride> OpOverrideInstantiation::Clone() const {
 }
 
 absl::StatusOr<NodeRepresentation> OpOverrideInstantiation::Emit(
-    Node* node, absl::string_view name,
+    Node* node, std::string_view name,
     absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) {
   LogicRef* ref = mb.DeclareVariable(name, node->GetType());
 

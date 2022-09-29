@@ -33,7 +33,7 @@ namespace xls {
 // model and therefore mitigate channel effects, which is an important step in
 // decoding a received signal in certain cases.
 absl::StatusOr<Proc*> CreateFirFilter(
-      absl::string_view name, const Value& kernel,
+      std::string_view name, const Value& kernel,
       StreamingChannel* input_channel, StreamingChannel* output_channel,
       Package* package);
 

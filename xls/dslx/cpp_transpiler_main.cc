@@ -51,9 +51,9 @@ modules).
 
 absl::Status RealMain(const std::filesystem::path& module_path,
                       const std::filesystem::path& dslx_stdlib_path,
-                      absl::string_view output_header_path,
-                      absl::string_view output_source_path,
-                      absl::string_view namespaces) {
+                      std::string_view output_header_path,
+                      std::string_view output_source_path,
+                      std::string_view namespaces) {
   XLS_ASSIGN_OR_RETURN(std::string module_text, GetFileContents(module_path));
 
   ImportData import_data(
@@ -75,7 +75,7 @@ absl::Status RealMain(const std::filesystem::path& module_path,
 }  // namespace xls
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
   if (args.size() != 1) {
     XLS_LOG(QFATAL) << "A single module file must be specified.";
   }

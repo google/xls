@@ -151,7 +151,7 @@ std::vector<absl::flat_hash_set<V>> RecursiveLargestFirstColoring(
 }
 
 inline std::optional<int64_t> LookupIntegerInZ3Model(z3::model model,
-                                                     absl::string_view name) {
+                                                     std::string_view name) {
   for (int32_t i = 0; i < model.size(); i++) {
     if (model[i].name().str() == name) {
       std::optional<int64_t> result;

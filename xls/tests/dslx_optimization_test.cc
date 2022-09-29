@@ -38,7 +38,7 @@ namespace {
 class DslxOptimizationTest : public IrTestBase {
  protected:
   absl::StatusOr<std::unique_ptr<VerifiedPackage>> DslxToIr(
-      absl::string_view dslx) {
+      std::string_view dslx) {
     XLS_ASSIGN_OR_RETURN(TempFile dslx_temp, TempFile::CreateWithContent(dslx));
     XLS_ASSIGN_OR_RETURN(std::filesystem::path ir_converter_main_path,
                          GetXlsRunfilePath("xls/dslx/ir_converter_main"));

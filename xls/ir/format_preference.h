@@ -37,19 +37,19 @@ enum class FormatPreference {
   kPlainHex  // No 0x prefix and no separators as in Rust {:x} and Verilog %h
 };
 
-absl::string_view FormatPreferenceToString(FormatPreference preference);
+std::string_view FormatPreferenceToString(FormatPreference preference);
 
 // Converts a format preference into a Rust/DSLX-style format specifier that can
 // be used in DSLX source or printed XLS IR.
-absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference);
+std::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference);
 
 // Converts a format preference into a Verilog-style format specifier that can
 // be used in generated Verilog output.
-absl::string_view FormatPreferenceToVerilogSpecifier(
+std::string_view FormatPreferenceToVerilogSpecifier(
     FormatPreference preference);
 
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
-    absl::string_view s);
+    std::string_view s);
 
 inline std::ostream& operator<<(std::ostream& os, FormatPreference preference) {
   os << FormatPreferenceToString(preference);

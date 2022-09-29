@@ -142,7 +142,7 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHot) {
   BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 3)));
   BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 3)));
   BValue pred4 = fb.Eq(s, fb.Literal(UBits(4, 3)));
-  auto param = [&](absl::string_view s) {
+  auto param = [&](std::string_view s) {
     return fb.Param(s, p->GetBitsType(8));
   };
   fb.Select(
@@ -172,7 +172,7 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotTooShort) {
   BValue pred0 = fb.Eq(s, fb.Literal(UBits(0, 2)));
   BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 2)));
   BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 2)));
-  auto param = [&](absl::string_view s) {
+  auto param = [&](std::string_view s) {
     return fb.Param(s, p->GetBitsType(8));
   };
   fb.Select(
@@ -191,7 +191,7 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotArray) {
   BValue pred1 = fb.Eq(s, fb.Literal(UBits(1, 2)));
   BValue pred2 = fb.Eq(s, fb.Literal(UBits(2, 2)));
   BValue pred3 = fb.Eq(s, fb.Literal(UBits(3, 2)));
-  auto param = [&](absl::string_view s) {
+  auto param = [&](std::string_view s) {
     return fb.Param(s, p->GetArrayType(8, p->GetBitsType(32)));
   };
   fb.Select(pred3, param("x3"),
@@ -213,7 +213,7 @@ TEST_F(BddSimplificationPassTest, SelectChainOneHotOrZeroSelectors) {
   BValue pred2 = fb.Eq(s, fb.Literal(UBits(12, 8)));
   BValue pred3 = fb.Eq(s, fb.Literal(UBits(13, 8)));
   BValue pred4 = fb.ULt(s, fb.Literal(UBits(7, 8)));
-  auto param = [&](absl::string_view s) {
+  auto param = [&](std::string_view s) {
     return fb.Param(s, p->GetBitsType(8));
   };
   fb.Select(

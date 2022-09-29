@@ -46,9 +46,9 @@ PYBIND11_MODULE(interpreter, m) {
 
   m.def(
       "run_batched",
-      [](absl::string_view text, absl::string_view function_name,
+      [](std::string_view text, std::string_view function_name,
          const std::vector<std::vector<InterpValue>> args_batch,
-         absl::string_view dslx_stdlib_path)
+         std::string_view dslx_stdlib_path)
           -> absl::StatusOr<std::vector<InterpValue>> {
         ImportData import_data(
             CreateImportData(std::string(dslx_stdlib_path),

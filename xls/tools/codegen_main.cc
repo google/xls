@@ -155,7 +155,7 @@ absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
 }
 
 absl::StatusOr<verilog::CodegenOptions::IOKind> StrToIOKind(
-    absl::string_view str) {
+    std::string_view str) {
   if (str == "flop") {
     return verilog::CodegenOptions::IOKind::kFlop;
   }
@@ -280,11 +280,11 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   return schedule_status;
 }
 
-absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
-                      absl::string_view signature_path,
-                      absl::string_view schedule_path,
-                      absl::string_view verilog_line_map_path,
-                      absl::string_view output_block_ir_path) {
+absl::Status RealMain(std::string_view ir_path, std::string_view verilog_path,
+                      std::string_view signature_path,
+                      std::string_view schedule_path,
+                      std::string_view verilog_line_map_path,
+                      std::string_view output_block_ir_path) {
   if (ir_path == "-") {
     ir_path = "/dev/stdin";
   }
@@ -365,14 +365,14 @@ absl::Status RealMain(absl::string_view ir_path, absl::string_view verilog_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s IR_FILE",
                                           argv[0]);
   }
-  absl::string_view ir_path = positional_arguments[0];
+  std::string_view ir_path = positional_arguments[0];
   XLS_QCHECK_OK(xls::RealMain(ir_path, absl::GetFlag(FLAGS_output_verilog_path),
                               absl::GetFlag(FLAGS_output_signature_path),
                               absl::GetFlag(FLAGS_output_schedule_path),

@@ -239,9 +239,9 @@ void DumpSampleInfo(const SampleInfo& info) {
   }
 }
 
-absl::Status RealMain(absl::Span<const absl::string_view> input_paths) {
+absl::Status RealMain(absl::Span<const std::string_view> input_paths) {
   SummaryInfo summary_info;
-  for (const absl::string_view input_path : input_paths) {
+  for (const std::string_view input_path : input_paths) {
     XLS_ASSIGN_OR_RETURN(std::string summary_data, GetFileContents(input_path));
     fuzzer::SampleSummariesProto summaries;
     if (!summaries.ParseFromString(summary_data)) {
@@ -271,7 +271,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> input_paths) {
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty()) {

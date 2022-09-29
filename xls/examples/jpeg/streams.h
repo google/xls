@@ -84,12 +84,12 @@ class ByteStream {
 
   // Drops the target "want" value from the head of the underlying byte stream,
   // or returns a MalformedInputError status that includes "message".
-  absl::Status DropExpected(uint8_t want, absl::string_view message);
+  absl::Status DropExpected(uint8_t want, std::string_view message);
 
   // Convenience wrapper that calls `DropExpected()` above for each of the byte
   // values in "want" in sequence.
   absl::Status DropExpectedMulti(absl::Span<const uint8_t> want,
-                                 absl::string_view message);
+                                 std::string_view message);
 
   // Pops a byte from the head of the underlying byte stream.
   //

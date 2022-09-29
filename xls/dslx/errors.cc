@@ -16,26 +16,26 @@
 namespace xls::dslx {
 
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
-                                         absl::string_view message) {
+                                         std::string_view message) {
   return absl::InvalidArgumentError(absl::StrFormat(
       "ArgCountMismatchError: %s %s", span.ToString(), message));
 }
 
-absl::Status FailureErrorStatus(const Span& span, absl::string_view message) {
+absl::Status FailureErrorStatus(const Span& span, std::string_view message) {
   return absl::InternalError(absl::StrFormat(
       "FailureError: %s The program being interpreted failed! %s",
       span.ToString(), message));
 }
 
 absl::Status InvalidIdentifierErrorStatus(const Span& span,
-                                          absl::string_view message) {
+                                          std::string_view message) {
   return absl::InvalidArgumentError(absl::StrFormat(
       "InvalidIdentifierError: %s %s", span.ToString(), message));
 }
 
 absl::Status TypeInferenceErrorStatus(const Span& span,
                                       const ConcreteType* type,
-                                      absl::string_view message) {
+                                      std::string_view message) {
   std::string type_str = "<>";
   if (type != nullptr) {
     type_str = type->ToString();
@@ -61,7 +61,7 @@ absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user) {
 
 absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 const ConcreteType& rhs,
-                                absl::string_view message) {
+                                std::string_view message) {
   return absl::InvalidArgumentError(
       absl::StrFormat("XlsTypeError: %s %s vs %s: %s", span.ToString(),
                       lhs.ToErrorString(), rhs.ToErrorString(), message));

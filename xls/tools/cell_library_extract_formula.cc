@@ -43,7 +43,7 @@ namespace cell_lib {
 namespace {
 
 // Dumps the boolean formula for all output pins of the cell to stdout.
-absl::Status DumpOutputPinExpressions(absl::string_view cell_name,
+absl::Status DumpOutputPinExpressions(std::string_view cell_name,
                                       const Block& entry) {
   for (const Block* pin_entry : entry.GetSubBlocks("pin")) {
     if (pin_entry->args.size() != 1) {
@@ -58,7 +58,7 @@ absl::Status DumpOutputPinExpressions(absl::string_view cell_name,
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::string_view path, absl::string_view cell_name,
+absl::Status RealMain(std::string_view path, std::string_view cell_name,
                       bool stream_from_file) {
   // Either make a char stream that loads the file entirely into memory or
   // streams it from disk. Since these files can get quite large this can be
@@ -111,7 +111,7 @@ absl::Status RealMain(absl::string_view path, absl::string_view cell_name,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 2 || positional_arguments[0].empty()) {

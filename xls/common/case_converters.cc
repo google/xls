@@ -20,7 +20,7 @@
 
 namespace xls {
 
-std::string Camelize(absl::string_view input) {
+std::string Camelize(std::string_view input) {
   std::vector<std::string> pieces =
       absl::StrSplit(input, absl::ByAnyChar("-_"));
   for (std::string& piece : pieces) {

@@ -256,10 +256,10 @@ InterpretBlockSignature(
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels,
-    absl::string_view streaming_channel_data_suffix,
-    absl::string_view streaming_channel_ready_suffix,
-    absl::string_view streaming_channel_valid_suffix,
-    absl::string_view idle_channel_name) {
+    std::string_view streaming_channel_data_suffix,
+    std::string_view streaming_channel_ready_suffix,
+    std::string_view streaming_channel_valid_suffix,
+    std::string_view idle_channel_name) {
   absl::flat_hash_map<std::string, ChannelInfo> channel_info;
 
   for (const xls::verilog::PortProto& port : signature.data_ports()) {
@@ -355,10 +355,10 @@ absl::Status RunBlockInterpreter(
     absl::flat_hash_map<std::string, std::vector<Value>> inputs_for_channels,
     absl::flat_hash_map<std::string, std::vector<Value>>
         expected_outputs_for_channels,
-    absl::string_view streaming_channel_data_suffix,
-    absl::string_view streaming_channel_ready_suffix,
-    absl::string_view streaming_channel_valid_suffix,
-    absl::string_view idle_channel_name, const int random_seed,
+    std::string_view streaming_channel_data_suffix,
+    std::string_view streaming_channel_ready_suffix,
+    std::string_view streaming_channel_valid_suffix,
+    std::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert) {
   if (package->blocks().size() != 1) {
     return absl::InvalidArgumentError(
@@ -578,15 +578,15 @@ ParseChannelFilenames(std::vector<std::string> files_raw) {
 }
 
 absl::Status RealMain(
-    absl::string_view ir_file, absl::string_view backend,
+    std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
     const int64_t max_cycles_no_output,
     std::vector<std::string> inputs_for_channels_text,
     std::vector<std::string> expected_outputs_for_channels_text,
-    absl::string_view streaming_channel_data_suffix,
-    absl::string_view streaming_channel_ready_suffix,
-    absl::string_view streaming_channel_valid_suffix,
-    absl::string_view idle_channel_name, const int random_seed,
+    std::string_view streaming_channel_data_suffix,
+    std::string_view streaming_channel_ready_suffix,
+    std::string_view streaming_channel_valid_suffix,
+    std::string_view idle_channel_name, const int random_seed,
     const double prob_input_valid_assert) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
@@ -641,7 +641,7 @@ absl::Status RealMain(
 }  // namespace xls
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> positional_args =
+  std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   if (positional_args.size() != 1) {
     XLS_LOG(QFATAL) << "One (and only one) IR file must be given.";

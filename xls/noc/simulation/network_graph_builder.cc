@@ -88,7 +88,7 @@ class NetworkGraphBuilderImpl {
 };
 
 absl::StatusOr<PortConfigProto::Direction> GetPortConfigProtoDirection(
-    const PortConfigProto& port, absl::string_view msg) {
+    const PortConfigProto& port, std::string_view msg) {
   PortConfigProto::Direction dir = port.direction();
 
   if (dir == PortConfigProto::INPUT || dir == PortConfigProto::OUTPUT) {
@@ -263,7 +263,7 @@ absl::Status BuildNetworkGraphFromProto(const NetworkConfigProto& proto,
 }
 
 absl::StatusOr<NetworkComponentId> FindNetworkComponentByName(
-    absl::string_view name, NetworkManager& network_mgr,
+    std::string_view name, NetworkManager& network_mgr,
     NocParameters& noc_parameters) {
   for (Network& network : network_mgr.GetNetworks()) {
     for (NetworkComponentId nc : network.GetNetworkComponentIds()) {
@@ -284,7 +284,7 @@ absl::StatusOr<NetworkComponentId> FindNetworkComponentByName(
       "Unable to find network component with param name %s", name));
 }
 
-absl::StatusOr<PortId> FindPortByName(absl::string_view name,
+absl::StatusOr<PortId> FindPortByName(std::string_view name,
                                       NetworkManager& network_mgr,
                                       NocParameters& noc_parameters) {
   for (Network& network : network_mgr.GetNetworks()) {

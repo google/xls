@@ -38,7 +38,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<std::unique_ptr<google::protobuf::Message>> MakeProtoForMessageType(
-    absl::string_view message_type) {
+    std::string_view message_type) {
   if (message_type == "xlscc.HLSBlock") {
     return std::make_unique<xlscc::HLSBlock>();
   }
@@ -47,9 +47,9 @@ absl::StatusOr<std::unique_ptr<google::protobuf::Message>> MakeProtoForMessageTy
       absl::StrFormat("Unsupported proto message type: %s", message_type));
 }
 
-absl::Status RealMain(absl::string_view textproto_path,
-                      absl::string_view message_type,
-                      absl::string_view output_path) {
+absl::Status RealMain(std::string_view textproto_path,
+                      std::string_view message_type,
+                      std::string_view output_path) {
   XLS_LOG(INFO) << absl::StrFormat(
       "Converting type %s textproto %s to binproto %s", message_type,
       textproto_path, output_path);
@@ -71,7 +71,7 @@ absl::Status RealMain(absl::string_view textproto_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1) {
@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
         "Expected invocation: %s TEXT_PROTO_FILE", argv[0]);
   }
 
-  absl::string_view text_proto_path = positional_arguments[0];
+  std::string_view text_proto_path = positional_arguments[0];
 
   if (absl::GetFlag(FLAGS_message).empty()) {
     XLS_LOG(QFATAL) << "--message (proto message type) required.";

@@ -30,7 +30,7 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 TEST(ProcConfigIrConverterTest, BasicConversion) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 proc test_proc {
   c: chan<u32> in;
   x: u32;
@@ -85,7 +85,7 @@ proc main {
 }
 
 TEST(ProcConfigIrConverterTest, CatchesMissingArgMap) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 proc test_proc {
   c: chan<u32> in;
   config(c: chan<u32> in) {

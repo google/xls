@@ -80,12 +80,12 @@ absl::StatusOr<StateTableSignalProto> LibertyToTableSignal(
   }
 }
 
-absl::string_view SanitizeRow(const absl::string_view& row) {
+std::string_view SanitizeRow(const std::string_view& row) {
   // Remove newlines, whitespace, and occasional extraneous slash characters
   // from a row in the state table: there are rows that appear as, for example:
   //  X X X : Y : Z  ,\
   // It makes life a lot easier if we can just deal with the range from X to Z.
-  absl::string_view result = absl::StripAsciiWhitespace(row);
+  std::string_view result = absl::StripAsciiWhitespace(row);
   if (result[0] == '\\') {
     result.remove_prefix(1);
   }
@@ -100,12 +100,12 @@ absl::string_view SanitizeRow(const absl::string_view& row) {
 absl::Status ProcessStateTable(const cell_lib::Block& table_def,
                                CellLibraryEntryProto* proto) {
   StateTableProto* table = proto->mutable_state_table();
-  for (absl::string_view name :
+  for (std::string_view name :
        absl::StrSplit(table_def.args[0], ' ', absl::SkipWhitespace())) {
     table->add_input_names(std::string(name));
   }
 
-  for (absl::string_view name :
+  for (std::string_view name :
        absl::StrSplit(table_def.args[1], ' ', absl::SkipWhitespace())) {
     table->add_internal_names(std::string(name));
   }
@@ -125,7 +125,7 @@ absl::Status ProcessStateTable(const cell_lib::Block& table_def,
   std::vector<std::string> rows =
       absl::StrSplit(table_entry.value, ',', absl::SkipWhitespace());
   for (const std::string& raw_row : rows) {
-    absl::string_view source_row = SanitizeRow(raw_row);
+    std::string_view source_row = SanitizeRow(raw_row);
     std::vector<std::string> fields =
         absl::StrSplit(source_row, ':', absl::SkipWhitespace());
     XLS_RET_CHECK(fields.size() == 3)

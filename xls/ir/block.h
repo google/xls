@@ -36,7 +36,7 @@ namespace xls {
 // tokens are used for supporting token-requiring operations such as assert.
 class Block : public FunctionBase {
  public:
-  Block(absl::string_view name, Package* package)
+  Block(std::string_view name, Package* package)
       : FunctionBase(name, package) {}
   virtual ~Block() = default;
 
@@ -60,23 +60,23 @@ class Block : public FunctionBase {
   absl::Span<OutputPort* const> GetOutputPorts() const { return output_ports_; }
 
   // Returns a given input/output port by name.
-  absl::StatusOr<InputPort*> GetInputPort(absl::string_view name) const;
-  absl::StatusOr<OutputPort*> GetOutputPort(absl::string_view name) const;
+  absl::StatusOr<InputPort*> GetInputPort(std::string_view name) const;
+  absl::StatusOr<OutputPort*> GetOutputPort(std::string_view name) const;
 
   // Adds an input/output port to the block. These methods should be used to add
   // ports rather than FunctionBase::AddNode and FunctionBase::MakeNode (checked
   // later by the verifier).
-  absl::StatusOr<InputPort*> AddInputPort(absl::string_view name, Type* type,
+  absl::StatusOr<InputPort*> AddInputPort(std::string_view name, Type* type,
                                           const SourceInfo& loc = SourceInfo());
   absl::StatusOr<OutputPort*> AddOutputPort(
-      absl::string_view name, Node* operand,
+      std::string_view name, Node* operand,
       const SourceInfo& loc = SourceInfo());
 
   // Add/get a clock port to the block. The clock is not represented as a value
   // within the IR (no input_port operation), but rather a Block::ClockPort
   // object is added to the list of ports as a place-holder for the clock which
   // records the port name and position.
-  absl::Status AddClockPort(absl::string_view name);
+  absl::Status AddClockPort(std::string_view name);
   std::optional<ClockPort> GetClockPort() const { return clock_port_; }
 
   absl::Status RemoveNode(Node* n) override;
@@ -91,11 +91,11 @@ class Block : public FunctionBase {
 
   // Returns the register in the block with the given name. Returns an error if
   // no such register exists.
-  absl::StatusOr<Register*> GetRegister(absl::string_view name) const;
+  absl::StatusOr<Register*> GetRegister(std::string_view name) const;
 
   // Adds a register to the block.
   absl::StatusOr<Register*> AddRegister(
-      absl::string_view name, Type* type,
+      std::string_view name, Type* type,
       std::optional<Reset> reset = absl::nullopt);
 
   // Removes the given register from the block. If the register is not owned by
@@ -116,7 +116,7 @@ class Block : public FunctionBase {
   // block. InstantiationInput and InstantiationOutput operations must be later
   // added to connect the instantation to the data-flow graph.
   absl::StatusOr<BlockInstantiation*> AddBlockInstantiation(
-      absl::string_view name, Block* instantiated_block);
+      std::string_view name, Block* instantiated_block);
 
   // Removes the given instantiation from the block. InstantationInput or
   // InstantationOutput operations for this instantation should be removed prior
@@ -130,7 +130,7 @@ class Block : public FunctionBase {
 
   // Return the instantiation owned by this block with the given name or an
   // error if no such one exists.
-  absl::StatusOr<Instantiation*> GetInstantiation(absl::string_view name) const;
+  absl::StatusOr<Instantiation*> GetInstantiation(std::string_view name) const;
 
   // Returns the instantation inputs/outputs associated with the given
   // instantiation.
@@ -153,7 +153,7 @@ class Block : public FunctionBase {
   bool HasImplicitUse(Node* node) const override { return false; }
 
   // Creates a clone of the block with the new name 'new_name'.
-  absl::StatusOr<Block*> Clone(absl::string_view new_name) const;
+  absl::StatusOr<Block*> Clone(std::string_view new_name) const;
 
   std::string DumpIr() const override;
 
@@ -173,7 +173,7 @@ class Block : public FunctionBase {
   // of interior nodes is best-effort. The problem this function solves is if a
   // node in the best-effort-naming category captures a name which is required
   // by a node in the hard-constraint-naming category.
-  absl::Status SetPortNameExactly(absl::string_view name, Node* port_node);
+  absl::Status SetPortNameExactly(std::string_view name, Node* port_node);
 
   Node* AddNodeInternal(std::unique_ptr<Node> node) override;
 

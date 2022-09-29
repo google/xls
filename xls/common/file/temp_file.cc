@@ -27,7 +27,7 @@
 namespace xls {
 namespace {
 
-absl::Status WriteContent(int fd, absl::string_view content) {
+absl::Status WriteContent(int fd, std::string_view content) {
   int bytes_written = 0;
   while (bytes_written < content.size()) {
     int bytes_written_this_time =
@@ -60,30 +60,30 @@ absl::StatusOr<std::filesystem::path> GetGlobalTemporaryDirectory() {
 
 TempFile::~TempFile() { Cleanup(); }
 
-absl::StatusOr<TempFile> TempFile::Create(absl::string_view suffix) {
+absl::StatusOr<TempFile> TempFile::Create(std::string_view suffix) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path temp_dir,
                        GetGlobalTemporaryDirectory());
   return CreateInDirectory(temp_dir, suffix);
 }
 
 absl::StatusOr<TempFile> TempFile::CreateInDirectory(
-    const std::filesystem::path& directory, absl::string_view suffix) {
+    const std::filesystem::path& directory, std::string_view suffix) {
   int fd;
   XLS_ASSIGN_OR_RETURN(TempFile temp_file, Create(directory, suffix, &fd));
   close(fd);
   return temp_file;
 }
 
-absl::StatusOr<TempFile> TempFile::CreateWithContent(absl::string_view content,
-                                                     absl::string_view suffix) {
+absl::StatusOr<TempFile> TempFile::CreateWithContent(std::string_view content,
+                                                     std::string_view suffix) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path temp_dir,
                        GetGlobalTemporaryDirectory());
   return CreateWithContentInDirectory(content, temp_dir, suffix);
 }
 
 absl::StatusOr<TempFile> TempFile::CreateWithContentInDirectory(
-    absl::string_view content, const std::filesystem::path& directory,
-    absl::string_view suffix) {
+    std::string_view content, const std::filesystem::path& directory,
+    std::string_view suffix) {
   int fd;
   XLS_ASSIGN_OR_RETURN(TempFile temp_file, Create(directory, suffix, &fd));
   absl::Status write_status = WriteContent(fd, content);
@@ -124,7 +124,7 @@ void TempFile::Cleanup() {
 }
 
 absl::StatusOr<TempFile> TempFile::Create(
-    const std::filesystem::path& directory, absl::string_view suffix,
+    const std::filesystem::path& directory, std::string_view suffix,
     int* file_descriptor) {
   std::string path_template =
       (directory / absl::StrCat("xls_tempfile_XXXXXX", suffix)).string();

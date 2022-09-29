@@ -167,7 +167,7 @@ class BValueHolder : public PyHolder {
 // other BValue objects, it itself is kept in a shared_ptr too.
 class FunctionBuilderHolder : public PyHolder {
  public:
-  FunctionBuilderHolder(absl::string_view name, PackageHolder package)
+  FunctionBuilderHolder(std::string_view name, PackageHolder package)
       : package_(package.package()),
         builder_(std::make_shared<FunctionBuilder>(name, &package.deref())) {}
 

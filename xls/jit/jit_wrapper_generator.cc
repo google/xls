@@ -158,7 +158,7 @@ std::string PackedTypeString(const Type& type) {
 
 // Emits the code necessary to convert a u32/i32 value to its corresponding
 // packed view.
-std::string ConvertUint(absl::string_view name, const Type& type) {
+std::string ConvertUint(std::string_view name, const Type& type) {
   XLS_CHECK(type.IsBits());
 
   return absl::StrFormat(
@@ -168,7 +168,7 @@ std::string ConvertUint(absl::string_view name, const Type& type) {
 
 // Emits the code necessary to convert a float value to its corresponding
 // packed view.
-std::string ConvertFloat(absl::string_view name) {
+std::string ConvertFloat(std::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, "
       "PackedBitsView<23>> ",
@@ -177,7 +177,7 @@ std::string ConvertFloat(absl::string_view name) {
 
 // Emits the code necessary to convert a double value to its corresponding
 // packed view.
-std::string ConvertDouble(absl::string_view name) {
+std::string ConvertDouble(std::string_view name) {
   return absl::StrCat(
       "PackedTupleView<PackedBitsView<1>, PackedBitsView<11>, "
       "PackedBitsView<52>> ",
@@ -207,7 +207,7 @@ std::optional<std::string> MatchTypeSpecialization(const Type& type) {
 // Simple matching "driver" for emitting logic to convert a simple type into an
 // XLS view.
 // Pretty bare-bones at present, but will be expanded depending on need.
-std::optional<std::string> CreateConversion(absl::string_view name,
+std::optional<std::string> CreateConversion(std::string_view name,
                                              const Type& type) {
   std::string type_string;
   if (MatchUint(type, &type_string)) {
@@ -267,7 +267,7 @@ std::string CreateDeclSpecialization(const Function& function,
 }
 
 std::string CreateImplSpecialization(const Function& function,
-                                     absl::string_view class_name) {
+                                     std::string_view class_name) {
   if (!IsSpecializable(function)) {
     return "";
   }
@@ -322,7 +322,7 @@ std::string CreateImplSpecialization(const Function& function,
 }  // namespace
 
 std::string GenerateWrapperHeader(const Function& function,
-                                  absl::string_view class_name,
+                                  std::string_view class_name,
                                   const std::filesystem::path& header_path,
                                   const std::filesystem::path& genfiles_path) {
   // $0 : Class name
@@ -396,7 +396,7 @@ class $0 {
 }
 
 std::string GenerateWrapperSource(const Function& function,
-                                  absl::string_view class_name,
+                                  std::string_view class_name,
                                   const std::filesystem::path& header_path) {
   // Use an extra '-' delimiter so we can embed a traditional-looking raw string
   // in the source.

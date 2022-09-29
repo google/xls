@@ -160,7 +160,7 @@ absl::Status Proc::ReplaceState(absl::Span<const std::string> state_param_names,
 }
 
 absl::StatusOr<Param*> Proc::ReplaceStateElement(
-    int64_t index, absl::string_view state_param_name, const Value& init_value,
+    int64_t index, std::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
   // Copy name to a string and value to avoid the use-after-free footgun of
   // `state_param_name` or `init_value` referring to the existing to-be-removed
@@ -187,14 +187,14 @@ absl::Status Proc::RemoveStateElement(int64_t index) {
 }
 
 absl::StatusOr<Param*> Proc::AppendStateElement(
-    absl::string_view state_param_name, const Value& init_value,
+    std::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
   return InsertStateElement(GetStateElementCount(), state_param_name,
                             init_value, next_state);
 }
 
 absl::StatusOr<Param*> Proc::InsertStateElement(
-    int64_t index, absl::string_view state_param_name, const Value& init_value,
+    int64_t index, std::string_view state_param_name, const Value& init_value,
     std::optional<Node*> next_state) {
   XLS_RET_CHECK_LE(index, GetStateElementCount());
   XLS_ASSIGN_OR_RETURN(
@@ -219,7 +219,7 @@ absl::StatusOr<Param*> Proc::InsertStateElement(
 }
 
 absl::StatusOr<Proc*> Proc::Clone(
-    absl::string_view new_name, Package* target_package,
+    std::string_view new_name, Package* target_package,
     absl::flat_hash_map<int64_t, int64_t> channel_remapping) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   if (target_package == nullptr) {

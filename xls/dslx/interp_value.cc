@@ -20,7 +20,7 @@
 
 namespace xls::dslx {
 
-absl::StatusOr<Builtin> BuiltinFromString(absl::string_view name) {
+absl::StatusOr<Builtin> BuiltinFromString(std::string_view name) {
 #define TRY_NAME(__name, __enum) \
   if (name == __name) {          \
     return Builtin::__enum;      \
@@ -341,7 +341,7 @@ absl::StatusOr<InterpValue> InterpValue::Add(const InterpValue& other) const {
 }
 
 absl::StatusOr<InterpValue> InterpValue::SCmp(const InterpValue& other,
-                                              absl::string_view method) {
+                                              std::string_view method) {
   // Note: no tag check, because this is an explicit request for a signed
   // comparison, we're conceptually "coercing" the operands if need be.
   XLS_ASSIGN_OR_RETURN(Bits lhs, GetBits());

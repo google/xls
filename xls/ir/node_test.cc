@@ -247,7 +247,7 @@ fn EqualityTest(x: bits[8], y: bits[8], z: bits[16]) -> bits[32] {
 )",
                                                        p.get()));
 
-  auto nodes_equal = [&](absl::string_view a, absl::string_view b) {
+  auto nodes_equal = [&](std::string_view a, std::string_view b) {
     return FindNode(a, f)->IsDefinitelyEqualTo(FindNode(b, f));
   };
   EXPECT_TRUE(nodes_equal("x", "x"));
@@ -324,7 +324,7 @@ fn main() -> bits[11] {
 }
 )"));
 
-  auto nodes_equal = [&](absl::string_view a, absl::string_view b) {
+  auto nodes_equal = [&](std::string_view a, std::string_view b) {
     return FindNode(a, p.get())->IsDefinitelyEqualTo(FindNode(b, p.get()));
   };
 

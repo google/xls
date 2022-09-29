@@ -53,7 +53,7 @@ absl::StatusOr<bool> TokenParser::PeekKeywordIn(
 
 absl::StatusOr<Token> TokenParser::PopTokenOrError(TokenKind target,
                                                    const Token* start,
-                                                   absl::string_view context,
+                                                   std::string_view context,
                                                    Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
   if (limit_pos != nullptr) {
@@ -85,7 +85,7 @@ absl::StatusOr<Token> TokenParser::PopTokenOrError(TokenKind target,
 }
 
 absl::Status TokenParser::DropTokenOrError(TokenKind target, const Token* start,
-                                           absl::string_view context,
+                                           std::string_view context,
                                            Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token token,
                        PopTokenOrError(target, start, context, limit_pos));
@@ -93,7 +93,7 @@ absl::Status TokenParser::DropTokenOrError(TokenKind target, const Token* start,
 }
 
 absl::StatusOr<Token> TokenParser::PopKeywordOrError(Keyword keyword,
-                                                     absl::string_view context,
+                                                     std::string_view context,
                                                      Pos* limit_pos) {
   XLS_ASSIGN_OR_RETURN(Token tok, PopToken());
   if (tok.IsKeyword(keyword)) {

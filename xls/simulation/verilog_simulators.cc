@@ -20,7 +20,7 @@
 namespace xls {
 namespace verilog {
 
-absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(absl::string_view name) {
+absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(std::string_view name) {
   return GetVerilogSimulatorManagerSingleton().GetVerilogSimulator(name);
 }
 

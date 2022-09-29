@@ -33,7 +33,7 @@ namespace verilog {
 
 namespace {
 
-int64_t NumberOfNewlines(absl::string_view string) {
+int64_t NumberOfNewlines(std::string_view string) {
   int64_t number_of_newlines = 0;
   for (char c : string) {
     if (c == '\n') {
@@ -109,7 +109,7 @@ std::optional<std::vector<LineSpan>> LineInfo::LookupNode(
   return spans_.at(node).completed_spans;
 }
 
-std::string SanitizeIdentifier(absl::string_view name) {
+std::string SanitizeIdentifier(std::string_view name) {
   if (name.empty()) {
     return "_";
   }
@@ -225,7 +225,7 @@ std::string VerilogFile::Emit(LineInfo* line_info) const {
   return out;
 }
 
-LocalParamItemRef* LocalParam::AddItem(absl::string_view name,
+LocalParamItemRef* LocalParam::AddItem(std::string_view name,
                                        Expression* value,
                                        const SourceInfo& loc) {
   items_.push_back(file()->Make<LocalParamItem>(loc, name, value));
@@ -291,14 +291,14 @@ absl::StatusOr<PortProto> Port::ToProto() const {
   return proto;
 }
 
-VerilogFunction::VerilogFunction(absl::string_view name, DataType* result_type,
+VerilogFunction::VerilogFunction(std::string_view name, DataType* result_type,
                                  VerilogFile* file, const SourceInfo& loc)
     : VastNode(file, loc),
       name_(name),
       return_value_def_(file->Make<RegDef>(loc, name, result_type)),
       statement_block_(file->Make<StatementBlock>(loc)) {}
 
-LogicRef* VerilogFunction::AddArgument(absl::string_view name, DataType* type,
+LogicRef* VerilogFunction::AddArgument(std::string_view name, DataType* type,
                                        const SourceInfo& loc) {
   argument_defs_.push_back(file()->Make<RegDef>(loc, name, type));
   return file()->Make<LogicRef>(loc, argument_defs_.back());
@@ -347,19 +347,19 @@ LogicRef* Module::AddPortDef(Direction direction, Def* def,
   return file()->Make<LogicRef>(loc, def);
 }
 
-LogicRef* Module::AddInput(absl::string_view name, DataType* type,
+LogicRef* Module::AddInput(std::string_view name, DataType* type,
                            const SourceInfo& loc) {
   return AddPortDef(Direction::kInput,
                     file()->Make<WireDef>(loc, name, std::move(type)), loc);
 }
 
-LogicRef* Module::AddOutput(absl::string_view name, DataType* type,
+LogicRef* Module::AddOutput(std::string_view name, DataType* type,
                             const SourceInfo& loc) {
   return AddPortDef(Direction::kOutput,
                     file()->Make<WireDef>(loc, name, std::move(type)), loc);
 }
 
-LogicRef* Module::AddReg(absl::string_view name, DataType* type,
+LogicRef* Module::AddReg(std::string_view name, DataType* type,
                          const SourceInfo& loc, Expression* init,
                          ModuleSection* section) {
   if (section == nullptr) {
@@ -369,7 +369,7 @@ LogicRef* Module::AddReg(absl::string_view name, DataType* type,
       loc, section->Add<RegDef>(loc, name, std::move(type), init));
 }
 
-LogicRef* Module::AddWire(absl::string_view name, DataType* type,
+LogicRef* Module::AddWire(std::string_view name, DataType* type,
                           const SourceInfo& loc, ModuleSection* section) {
   if (section == nullptr) {
     section = &top_;
@@ -378,7 +378,7 @@ LogicRef* Module::AddWire(absl::string_view name, DataType* type,
       loc, section->Add<WireDef>(loc, name, std::move(type)));
 }
 
-ParameterRef* Module::AddParameter(absl::string_view name, Expression* rhs,
+ParameterRef* Module::AddParameter(std::string_view name, Expression* rhs,
                                    const SourceInfo& loc) {
   Parameter* param = AddModuleMember(file()->Make<Parameter>(loc, name, rhs));
   return file()->Make<ParameterRef>(loc, param);
@@ -449,7 +449,7 @@ static std::string WidthToLimit(LineInfo* line_info, Expression* expr) {
 }
 
 std::string DataType::EmitWithIdentifier(LineInfo* line_info,
-                                         absl::string_view identifier) const {
+                                         std::string_view identifier) const {
   LineInfoStart(line_info, this);
   std::string result = is_signed_ ? " signed" : "";
   if (width_ != nullptr) {
@@ -803,7 +803,7 @@ std::string Index::Emit(LineInfo* line_info) const {
 }
 
 // Returns the given string wrappend in parentheses.
-static std::string ParenWrap(absl::string_view s) {
+static std::string ParenWrap(std::string_view s) {
   return absl::StrFormat("(%s)", s);
 }
 

@@ -730,7 +730,7 @@ absl::StatusOr<Expr*> Parser::ParseStructInstance(Bindings* bindings,
 }
 
 absl::StatusOr<std::variant<NameRef*, ColonRef*>> Parser::ParseNameOrColonRef(
-    Bindings* bindings, absl::string_view context) {
+    Bindings* bindings, std::string_view context) {
   XLS_ASSIGN_OR_RETURN(Token tok, PopTokenOrError(TokenKind::kIdentifier,
                                                   /*start=*/nullptr, context));
   XLS_ASSIGN_OR_RETURN(bool peek_is_double_colon,
@@ -774,7 +774,7 @@ absl::StatusOr<NameDefTree*> Parser::ParseNameDefTree(Bindings* bindings) {
   // Check that the name definitions are unique -- can't bind the same name
   // multiple times in one destructuring assignment.
   std::vector<NameDef*> name_defs = ndt->GetNameDefs();
-  absl::flat_hash_map<absl::string_view, NameDef*> seen;
+  absl::flat_hash_map<std::string_view, NameDef*> seen;
   for (NameDef* name_def : name_defs) {
     if (!seen.insert({name_def->identifier(), name_def}).second) {
       return ParseErrorStatus(
@@ -1718,7 +1718,7 @@ absl::StatusOr<std::vector<Param*>> Parser::CollectProcMembers(
 absl::StatusOr<Function*> Parser::ParseProcConfig(
     Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
-    const std::vector<Param*>& proc_members, absl::string_view proc_name,
+    const std::vector<Param*>& proc_members, std::string_view proc_name,
     bool is_public) {
   Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
@@ -1819,7 +1819,7 @@ bool HasChannelElement(const TypeAnnotation* type) {
 absl::StatusOr<Function*> Parser::ParseProcNext(
     Bindings* outer_bindings,
     const std::vector<ParametricBinding*>& parametric_bindings,
-    absl::string_view proc_name, bool is_public) {
+    std::string_view proc_name, bool is_public) {
   Bindings bindings(outer_bindings);
   XLS_ASSIGN_OR_RETURN(const Token* peek, PeekToken());
   if (!peek->IsKeyword(Keyword::kNext)) {

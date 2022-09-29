@@ -42,14 +42,14 @@ class OrcJit {
       int64_t opt_level = 3, bool emit_object_code = false);
 
   // Creates and returns a new LLVM module of the given name.
-  std::unique_ptr<llvm::Module> NewModule(absl::string_view name);
+  std::unique_ptr<llvm::Module> NewModule(std::string_view name);
 
   // Compiles the given LLVM module into the JIT's execution session.
   absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module);
 
   // Returns the address of the given JIT'ed function.
   absl::StatusOr<llvm::JITTargetAddress> LoadSymbol(
-      absl::string_view function_name);
+      std::string_view function_name);
 
   // Accessors to underlying LLVM guts.
   const llvm::DataLayout& GetDataLayout() const { return data_layout_; }

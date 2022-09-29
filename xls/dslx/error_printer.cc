@@ -23,32 +23,32 @@
 namespace xls::dslx {
 
 absl::Status PrintPositionalError(
-    const Span& error_span, absl::string_view error_message, std::ostream& os,
-    std::function<absl::StatusOr<std::string>(absl::string_view)>
+    const Span& error_span, std::string_view error_message, std::ostream& os,
+    std::function<absl::StatusOr<std::string>(std::string_view)>
         get_file_contents,
     PositionalErrorColor color, int64_t error_context_line_count) {
   XLS_RET_CHECK_EQ(error_context_line_count % 2, 1);
 
   if (get_file_contents == nullptr) {
-    get_file_contents = [](absl::string_view path) {
+    get_file_contents = [](std::string_view path) {
       return GetFileContents(path);
     };
   }
   XLS_ASSIGN_OR_RETURN(std::string contents,
                        get_file_contents(error_span.filename()));
-  std::vector<absl::string_view> lines = absl::StrSplit(contents, '\n');
+  std::vector<std::string_view> lines = absl::StrSplit(contents, '\n');
 
   int64_t line_count_each_side = error_context_line_count / 2;
   int64_t target_lineno = error_span.start().lineno();
   int64_t limit_lineno = error_span.limit().lineno();
   int64_t low_lineno =
       std::max(target_lineno - line_count_each_side, int64_t{0});
-  absl::Span<const absl::string_view> lines_before =
+  absl::Span<const std::string_view> lines_before =
       absl::MakeSpan(lines).subspan(low_lineno, target_lineno - low_lineno);
-  absl::string_view target_line = lines[error_span.start().lineno()];
+  std::string_view target_line = lines[error_span.start().lineno()];
 
   int64_t limit_lineno_after = limit_lineno + line_count_each_side;
-  absl::Span<const absl::string_view> lines_after =
+  absl::Span<const std::string_view> lines_after =
       absl::MakeSpan(lines).subspan(target_lineno + 1,
                                     limit_lineno_after - target_lineno);
 
@@ -72,7 +72,7 @@ absl::Status PrintPositionalError(
 
   bool is_multiline = error_span.limit().lineno() > error_span.start().lineno();
 
-  auto emit_line = [&](int64_t lineno, absl::string_view line) {
+  auto emit_line = [&](int64_t lineno, std::string_view line) {
     // When emitting multiline errors, we put a leading bar at the start of the
     // line to show which are in the error range. When we're not doing multiline
     // errors, this is just empty.
@@ -107,7 +107,7 @@ absl::Status PrintPositionalError(
 
   // Emit error indicator.
   if (is_multiline) {
-    std::string spaces(absl::string_view("0000: |").size(), ' ');
+    std::string spaces(std::string_view("0000: |").size(), ' ');
     std::string underscores(error_span.start().colno() + 1, '_');
     os << absl::StreamFormat("%s%s%s^%s\n", msg_color_leader, spaces,
                              underscores, color_reset);
@@ -130,7 +130,7 @@ absl::Status PrintPositionalError(
     // say what the error was after the whole relevant region of text has been
     // displayed.
     if (is_multiline && lineno == error_span.limit().lineno()) {
-      std::string spaces(absl::string_view("0000: ").size(), ' ');
+      std::string spaces(std::string_view("0000: ").size(), ' ');
       std::string underscores(error_span.limit().colno(), '_');
       os << absl::StreamFormat("%s%s|%s^ %s%s\n", msg_color_leader, spaces,
                                underscores, error_message, color_reset);

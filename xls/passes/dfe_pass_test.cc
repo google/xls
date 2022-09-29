@@ -39,7 +39,7 @@ class DeadFunctionEliminationPassTest : public IrTestBase {
     return DeadFunctionEliminationPass().Run(p, PassOptions(), &results);
   }
 
-  absl::StatusOr<Function*> MakeFunction(absl::string_view name, Package* p) {
+  absl::StatusOr<Function*> MakeFunction(std::string_view name, Package* p) {
     FunctionBuilder fb(name, p);
     fb.Param("arg", p->GetBitsType(32));
     return fb.Build();
@@ -204,7 +204,7 @@ TEST_F(DeadFunctionEliminationPassTest, BlockWithInstantiation) {
   auto p = CreatePackage();
   Type* u32 = p->GetBitsType(32);
 
-  auto build_subblock = [&](absl::string_view name) -> absl::StatusOr<Block*> {
+  auto build_subblock = [&](std::string_view name) -> absl::StatusOr<Block*> {
     BlockBuilder bb(name, p.get());
     bb.OutputPort("out", bb.InputPort("in", u32));
     return bb.Build();

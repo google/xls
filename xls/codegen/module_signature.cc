@@ -29,14 +29,14 @@ namespace xls {
 namespace verilog {
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithClock(
-    absl::string_view name) {
+    std::string_view name) {
   XLS_CHECK(!proto_.has_clock_name());
   proto_.set_clock_name(ToProtoString(name));
   return *this;
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(
-    absl::string_view name, bool asynchronous, bool active_low) {
+    std::string_view name, bool asynchronous, bool active_low) {
   XLS_CHECK(!proto_.has_reset());
   ResetProto* reset = proto_.mutable_reset();
   reset->set_name(ToProtoString(name));
@@ -46,8 +46,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithReadyValidInterface(
-    absl::string_view input_ready, absl::string_view input_valid,
-    absl::string_view output_ready, absl::string_view output_valid) {
+    std::string_view input_ready, std::string_view input_valid,
+    std::string_view output_ready, std::string_view output_valid) {
   XLS_CHECK_EQ(proto_.interface_oneof_case(),
                ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
   ReadyValidInterface* interface = proto_.mutable_ready_valid();
@@ -103,7 +103,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithFunctionType(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
-    absl::string_view name, int64_t width) {
+    std::string_view name, int64_t width) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(DIRECTION_INPUT);
   port->set_name(ToProtoString(name));
@@ -112,7 +112,7 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
-    absl::string_view name, int64_t width) {
+    std::string_view name, int64_t width) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(DIRECTION_OUTPUT);
   port->set_name(ToProtoString(name));
@@ -121,8 +121,8 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
-    absl::string_view name, ChannelOps supported_ops,
-    absl::string_view port_name) {
+    std::string_view name, ChannelOps supported_ops,
+    std::string_view port_name) {
   ChannelProto* channel = proto_.add_data_channels();
   channel->set_name(ToProtoString(name));
   channel->set_kind(CHANNEL_KIND_SINGLE_VALUE);
@@ -142,10 +142,10 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
-    absl::string_view name, ChannelOps supported_ops, FlowControl flow_control,
-    std::optional<int64_t> fifo_depth, absl::string_view port_name,
-    std::optional<absl::string_view> valid_port_name,
-    std::optional<absl::string_view> ready_port_name) {
+    std::string_view name, ChannelOps supported_ops, FlowControl flow_control,
+    std::optional<int64_t> fifo_depth, std::string_view port_name,
+    std::optional<std::string_view> valid_port_name,
+    std::optional<std::string_view> ready_port_name) {
   ChannelProto* channel = proto_.add_data_channels();
   channel->set_name(ToProtoString(name));
   channel->set_kind(CHANNEL_KIND_STREAMING);

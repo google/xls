@@ -41,7 +41,7 @@ class Function : public FunctionBase {
   using NodeList = std::list<std::unique_ptr<Node>>;
 
  public:
-  Function(absl::string_view name, Package* package)
+  Function(std::string_view name, Package* package)
       : FunctionBase(name, package) {}
   virtual ~Function() = default;
 
@@ -71,7 +71,7 @@ class Function : public FunctionBase {
   // holds {funcA, funcB}, any references to funcA in the function will be
   // references to funcB in the cloned function.
   absl::StatusOr<Function*> Clone(
-      absl::string_view new_name, Package* target_package = nullptr,
+      std::string_view new_name, Package* target_package = nullptr,
       const absl::flat_hash_map<const Function*, Function*>& call_remapping =
           {}) const;
 

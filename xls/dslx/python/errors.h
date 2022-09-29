@@ -43,9 +43,9 @@ class ScanError : public std::exception {
 // As above, but ScanErrors have positions (single points) in lieu of spans
 // (position ranges).
 inline void TryThrowScanError(const absl::Status& status) {
-  absl::string_view s = status.message();
+  std::string_view s = status.message();
   if (absl::ConsumePrefix(&s, "ScanError: ")) {
-    std::vector<absl::string_view> pieces =
+    std::vector<std::string_view> pieces =
         absl::StrSplit(s, absl::MaxSplits(" ", 1));
     if (pieces.size() < 2) {
       return;

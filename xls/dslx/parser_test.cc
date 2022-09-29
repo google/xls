@@ -29,7 +29,7 @@ static const char kFilename[] = "test.x";
 class ParserTest : public ::testing::Test {
  public:
   void RoundTrip(std::string program,
-                 std::optional<absl::string_view> target = absl::nullopt) {
+                 std::optional<std::string_view> target = absl::nullopt) {
     scanner_.emplace(kFilename, program);
     parser_.emplace("test", &*scanner_);
     XLS_ASSERT_OK_AND_ASSIGN(auto module, parser_->ParseModule());
@@ -268,7 +268,7 @@ TEST_F(ParserTest, ChannelsNotAsNextArgs) {
 }
 
 TEST_F(ParserTest, ChannelArraysOneD) {
-  constexpr absl::string_view kModule = R"(proc consumer {
+  constexpr std::string_view kModule = R"(proc consumer {
   c: chan<u32> out;
   config(c: chan<u32> out) {
     (c,)
@@ -299,7 +299,7 @@ proc producer {
 }
 
 TEST_F(ParserTest, ChannelArraysThreeD) {
-  constexpr absl::string_view kModule = R"(proc consumer {
+  constexpr std::string_view kModule = R"(proc consumer {
   c: chan<u32> out;
   config(c: chan<u32> out) {
     (c,)
@@ -330,7 +330,7 @@ proc producer {
 }
 
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
-  constexpr absl::string_view kModule = R"(proc producer {
+  constexpr std::string_view kModule = R"(proc producer {
   c: chan<u32> in;
   config(c: chan<u32> in) {
     (c,)
@@ -360,7 +360,7 @@ proc consumer {
 }
 
 TEST_F(ParserTest, ParseSendIfAndRecvNb) {
-  constexpr absl::string_view kModule = R"(proc producer {
+  constexpr std::string_view kModule = R"(proc producer {
   c: chan<u32> in;
   config(c: chan<u32> in) {
     (c,)
@@ -390,7 +390,7 @@ proc consumer {
 }
 
 TEST_F(ParserTest, ParseJoin) {
-  constexpr absl::string_view kModule = R"(proc foo {
+  constexpr std::string_view kModule = R"(proc foo {
   c0: chan<u32> out;
   c1: chan<u32> out;
   c2: chan<u32> out;
@@ -417,7 +417,7 @@ TEST_F(ParserTest, ParseJoin) {
 }
 
 TEST_F(ParserTest, ParseTestProc) {
-  constexpr absl::string_view kModule = R"(proc testee {
+  constexpr std::string_view kModule = R"(proc testee {
   input: chan<u32> in;
   output: chan<u32> out;
   config(input: chan<u32> in, output: chan<u32> out) {
@@ -596,7 +596,7 @@ TEST_F(ParserTest, BitSliceWithWidth) {
 TEST_F(ParserTest, ModuleConstWithEnumInside) {
   // TODO(leary): 2021-01-26 This doesn't round trip properly, note the type
   // annotation on the tuple constant is dropped.
-  absl::string_view expect = R"(enum MyEnum : u2 {
+  std::string_view expect = R"(enum MyEnum : u2 {
   FOO = 0,
   BAR = 1,
 }
@@ -1060,7 +1060,7 @@ TEST_F(ParserTest, Range) {
 }
 
 TEST_F(ParserTest, BuiltinFailWithLabels) {
-  constexpr absl::string_view kProgram = R"(fn main(x: u32) -> u32 {
+  constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
   let _ = if (x) == (u32:7) { fail!("x_is_7", u32:0) } else { u32:0 };
   let _ = {
     if (x) == (u32:8) { fail!("x_is_8", u32:0) } else { u32:0 }
@@ -1100,7 +1100,7 @@ TEST_F(ParserTest, NumberSpan) {
 }
 
 TEST_F(ParserTest, DetectsDuplicateFailLabels) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
   let _ = if x == u32:7 { fail!("x_is_7", u32:0) } else { u32:0 };
   let _ = { if x == u32:7 { fail!("x_is_7", u32:0)} } else { u32:0 } };
@@ -1118,7 +1118,7 @@ fn main(x: u32) -> u32 {
 // Verifies that we can walk backwards through a tree. In this case, from the
 // terminal node to the defining expr.
 TEST(ParserBackrefTest, CanFindDefiner) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let foo = u32:0 + u32:1;
   let bar = u32:3 + foo;

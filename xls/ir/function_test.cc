@@ -149,7 +149,7 @@ fn different_types(x: bits[16], y: bits[16]) -> bits[16] {
 }
 )"));
 
-  auto functions_equal = [&](absl::string_view a, absl::string_view b) {
+  auto functions_equal = [&](std::string_view a, std::string_view b) {
     return FindFunction(a, p.get())
         ->IsDefinitelyEqualTo(FindFunction(b, p.get()));
   };

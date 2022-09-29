@@ -46,7 +46,7 @@ std::string ArgsBatchToText(
 }
 
 /* static */ absl::StatusOr<SampleOptions> SampleOptions::FromJson(
-    absl::string_view json_text) {
+    std::string_view json_text) {
   std::string err;
   json11::Json parsed = json11::Json::parse(std::string(json_text), err);
   SampleOptions options;
@@ -160,12 +160,12 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   return true;
 }
 
-/* static */ absl::StatusOr<Sample> Sample::Deserialize(absl::string_view s) {
+/* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
   s = absl::StripAsciiWhitespace(s);
   std::optional<SampleOptions> options;
   std::vector<std::vector<InterpValue>> args_batch;
-  std::vector<absl::string_view> input_lines;
-  for (absl::string_view line : absl::StrSplit(s, '\n')) {
+  std::vector<std::string_view> input_lines;
+  for (std::string_view line : absl::StrSplit(s, '\n')) {
     if (RE2::FullMatch(line, "\\s*//\\s*options:(.*)", &line)) {
       XLS_ASSIGN_OR_RETURN(options, SampleOptions::FromJson(line));
     } else if (RE2::FullMatch(line, "\\s*//\\s*args:(.*)", &line)) {
@@ -200,7 +200,7 @@ std::string Sample::Serialize() const {
   return absl::StrCat(header, "\n", input_text_, "\n");
 }
 
-std::string Sample::ToCrasher(absl::string_view error_message) const {
+std::string Sample::ToCrasher(std::string_view error_message) const {
   absl::civil_year_t year =
       absl::ToCivilYear(absl::Now(), absl::TimeZone()).year();
   std::vector<std::string> lines = {
@@ -220,7 +220,7 @@ std::string Sample::ToCrasher(absl::string_view error_message) const {
 )",
                       year)};
   lines.push_back("// Exception:");
-  for (absl::string_view line : absl::StrSplit(error_message, '\n')) {
+  for (std::string_view line : absl::StrSplit(error_message, '\n')) {
     lines.push_back(absl::StrCat("// ", line));
   }
   // Split the D.N.S string to avoid triggering presubmit checks.

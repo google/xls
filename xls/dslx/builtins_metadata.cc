@@ -59,7 +59,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins() {
   return *map;
 }
 
-bool IsNameParametricBuiltin(absl::string_view identifier) {
+bool IsNameParametricBuiltin(std::string_view identifier) {
   const absl::flat_hash_map<std::string, BuiltinsData>& parametric_builtins =
       GetParametricBuiltins();
   if (auto it = parametric_builtins.find(identifier);

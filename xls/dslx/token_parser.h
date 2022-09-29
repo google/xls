@@ -58,7 +58,7 @@ class TokenParser {
   // If the token at the head of the stream is not an identifier, returns
   // nullopt.
   absl::StatusOr<std::optional<Token>> TryPopIdentifierToken(
-      absl::string_view target) {
+      std::string_view target) {
     XLS_ASSIGN_OR_RETURN(const Token* tok, PeekToken());
     if (tok->IsIdentifier(target)) {
       return PopTokenOrDie();
@@ -98,7 +98,7 @@ class TokenParser {
     return false;
   }
 
-  absl::StatusOr<bool> TryDropIdentifierToken(absl::string_view target) {
+  absl::StatusOr<bool> TryDropIdentifierToken(std::string_view target) {
     XLS_ASSIGN_OR_RETURN(std::optional<Token> maybe_tok,
                          TryPopIdentifierToken(target));
     return maybe_tok != absl::nullopt;
@@ -164,18 +164,18 @@ class TokenParser {
 
   absl::StatusOr<Token> PopTokenOrError(TokenKind target,
                                         const Token* start = nullptr,
-                                        absl::string_view context = "",
+                                        std::string_view context = "",
                                         Pos* limit_pos = nullptr);
 
   // Wrapper around PopTokenOrError that does not return the token. Helps
   // signify that the intent was to drop the token in the caller code vs
   // 'forgetting' to do something with the popped token.
   absl::Status DropTokenOrError(TokenKind target, const Token* start = nullptr,
-                                absl::string_view context = "",
+                                std::string_view context = "",
                                 Pos* limit_pos = nullptr);
 
   absl::StatusOr<Token> PopKeywordOrError(Keyword keyword,
-                                          absl::string_view context = "",
+                                          std::string_view context = "",
                                           Pos* limit_pos = nullptr);
 
   absl::Status DropKeywordOrError(Keyword target, Pos* limit_pos = nullptr);

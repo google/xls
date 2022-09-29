@@ -23,7 +23,7 @@ namespace netlist {
 namespace cell_lib {
 
 /* static */ absl::StatusOr<CharStream> CharStream::FromPath(
-    absl::string_view path) {
+    std::string_view path) {
   std::ifstream file_stream{std::string(path)};
   if (file_stream.is_open()) {
     return CharStream(std::move(file_stream));
@@ -70,7 +70,7 @@ absl::StatusOr<Token> Scanner::ScanIdentifier() {
     chars.push_back(cs_->PopCharOrDie());
   }
   return Token::Identifier(
-      start_pos, std::string(absl::string_view(chars.data(), chars.size())));
+      start_pos, std::string(std::string_view(chars.data(), chars.size())));
 }
 
 // Scans a number token.
@@ -89,7 +89,7 @@ absl::StatusOr<Token> Scanner::ScanNumber() {
     }
   }
   return Token::Number(
-      start_pos, std::string(absl::string_view(chars.data(), chars.size())));
+      start_pos, std::string(std::string_view(chars.data(), chars.size())));
 }
 
 // Scans a string token.
@@ -110,7 +110,7 @@ absl::StatusOr<Token> Scanner::ScanQuotedString() {
     chars.push_back(c);
   }
   return Token::QuotedString(
-      start_pos, std::string(absl::string_view(chars.data(), chars.size())));
+      start_pos, std::string(std::string_view(chars.data(), chars.size())));
 }
 
 absl::Status Scanner::PeekInternal() {
@@ -190,7 +190,7 @@ std::string Block::ToString() const {
 }
 
 std::vector<const Block*> Block::GetSubBlocks(
-    std::optional<absl::string_view> target_kind) const {
+    std::optional<std::string_view> target_kind) const {
   std::vector<const Block*> results;
   for (const BlockEntry& item : entries) {
     if (const auto* block = absl::get_if<std::unique_ptr<Block>>(&item)) {
@@ -202,7 +202,7 @@ std::vector<const Block*> Block::GetSubBlocks(
   return results;
 }
 
-const std::string& Block::GetKVOrDie(absl::string_view target_key) const {
+const std::string& Block::GetKVOrDie(std::string_view target_key) const {
   for (const BlockEntry& item : entries) {
     if (const KVEntry* kv_entry = absl::get_if<KVEntry>(&item);
         kv_entry->key == target_key) {
@@ -213,7 +213,7 @@ const std::string& Block::GetKVOrDie(absl::string_view target_key) const {
                  << " block: " << target_key;
 }
 
-int64_t Block::CountEntries(absl::string_view target) const {
+int64_t Block::CountEntries(std::string_view target) const {
   int64_t count = 0;
   for (const BlockEntry& entry : entries) {
     if (const KVEntry* kv = absl::get_if<KVEntry>(&entry)) {
@@ -246,7 +246,7 @@ absl::Status Parser::DropTokenOrError(TokenKind kind) {
   }
   return absl::OkStatus();
 }
-absl::Status Parser::DropIdentifierOrError(absl::string_view target) {
+absl::Status Parser::DropIdentifierOrError(std::string_view target) {
   XLS_ASSIGN_OR_RETURN(std::string identifier, PopIdentifierOrError());
   if (identifier != target) {
     return absl::InvalidArgumentError(absl::StrFormat(

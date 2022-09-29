@@ -453,7 +453,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::string_view path,
+absl::Status RealMain(std::string_view path,
                       std::optional<int64_t> clock_period_ps,
                       std::optional<int64_t> pipeline_stages,
                       std::optional<int64_t> clock_margin_percent) {
@@ -523,7 +523,7 @@ absl::Status RealMain(absl::string_view path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {

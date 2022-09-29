@@ -1846,7 +1846,7 @@ static absl::Status VerifyPortsMatch(
           instantiation->name()));
     }
   }
-  absl::flat_hash_set<absl::string_view> name_set;
+  absl::flat_hash_set<std::string_view> name_set;
   for (const std::string& name : instantiation_port_names) {
     if (!name_set.insert(name).second) {
       return absl::InternalError(

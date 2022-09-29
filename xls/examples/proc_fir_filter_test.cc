@@ -46,7 +46,7 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value, Value::UBitsArray({1, 2}, 32));
   // ProcFirFilter pff;
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
@@ -120,7 +120,7 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
                            Value::UBitsArray({1, 10, 100, 1000, 10000, 100000},
                                              32));
   // ProcFirFilter pff;
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
@@ -182,7 +182,7 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
   XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
                            Value::UBitsArray({2}, 32));
   // ProcFirFilter pff;
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
@@ -242,7 +242,7 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
   XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
                            Value::UBitsArray({1, 3, 5, 3, 1}, 32));
   // ProcFirFilter pff;
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,

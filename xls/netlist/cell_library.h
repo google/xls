@@ -113,7 +113,7 @@ class AbstractStateTable {
   // specified stimulus.
   // return true/false
   absl::StatusOr<EvalT> GetSignalValue(const InputStimulus& stimulus,
-                                       absl::string_view signal) const;
+                                       std::string_view signal) const;
 
   const absl::flat_hash_set<std::string>& internal_signals() const {
     return internal_signals_;
@@ -144,7 +144,7 @@ class AbstractStateTable {
 
   // True if the value of "name" in stimulus matches the given bool value or is
   // "don't care".
-  bool SignalMatches(absl::string_view name, EvalT value,
+  bool SignalMatches(std::string_view name, EvalT value,
                      const RowStimulus& stimulus) const;
 
   // The set of all signals (input and internal/output) in this state table.
@@ -186,7 +186,7 @@ class AbstractCellLibraryEntry {
   // of std::strings.
   template <typename InputNamesContainer = std::vector<std::string>>
   AbstractCellLibraryEntry(
-      CellKind kind, absl::string_view name,
+      CellKind kind, std::string_view name,
       const InputNamesContainer& input_names,
       const OutputPinToFunction& output_pin_to_function,
       const std::optional<AbstractStateTable<EvalT>> state_table,
@@ -240,7 +240,7 @@ class AbstractCellLibrary {
 
   // Returns a NOT_FOUND status if there is not entry with the given name.
   absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*> GetEntry(
-      absl::string_view name) const;
+      std::string_view name) const;
 
   absl::Status AddEntry(AbstractCellLibraryEntry<EvalT> entry);
 
@@ -362,7 +362,7 @@ AbstractStateTable<EvalT>::AbstractStateTable(
 // falling, etc.) here yet.
 template <typename EvalT>
 bool AbstractStateTable<EvalT>::SignalMatches(
-    absl::string_view name, EvalT value, const RowStimulus& stimulus) const {
+    std::string_view name, EvalT value, const RowStimulus& stimulus) const {
   // Input signals can be either high or low - we don't manage persistent state
   // inside this class; we just represent the table.
   if constexpr (std::is_convertible<EvalT, int>()) {
@@ -414,7 +414,7 @@ absl::StatusOr<bool> AbstractStateTable<EvalT>::MatchRow(
 
 template <typename EvalT>
 absl::StatusOr<EvalT> AbstractStateTable<EvalT>::GetSignalValue(
-    const InputStimulus& input_stimulus, absl::string_view signal) const {
+    const InputStimulus& input_stimulus, std::string_view signal) const {
   // Find a row matching the stimulus or return error.
   if (!internal_names_.contains(signal)) {
     return absl::InvalidArgumentError("No internal name matched signal");
@@ -596,7 +596,7 @@ absl::Status AbstractCellLibrary<EvalT>::AddEntry(
 
 template <typename EvalT>
 absl::StatusOr<const AbstractCellLibraryEntry<EvalT>*>
-AbstractCellLibrary<EvalT>::GetEntry(absl::string_view name) const {
+AbstractCellLibrary<EvalT>::GetEntry(std::string_view name) const {
   auto it = entries_.find(name);
   if (it == entries_.end()) {
     return absl::NotFoundError(

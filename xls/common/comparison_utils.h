@@ -42,7 +42,7 @@ namespace xls {
 // have the following signature, where 'MyClassOrStruct' is a user-defined class
 // or struct:
 //
-//     std::string Compare(absl::string_view element_name,
+//     std::string Compare(std::string_view element_name,
 //                         const MyClassOrStruct& expected,
 //                         const MyClassOrStruct& computed);
 //
@@ -81,7 +81,7 @@ namespace xls {
 // be as follows:
 //
 //     namespace xls {
-//       std::string Compare(absl::string_view element_name,
+//       std::string Compare(std::string_view element_name,
 //                           const ::userspace::UserStruct& expected,
 //                           const ::userspace::UserStruct& computed) {
 //         std::string comparison;
@@ -109,7 +109,7 @@ namespace xls {
 // Compares integral types.
 template <typename T,
           typename std::enable_if<std::is_integral_v<T>, T>::type* = nullptr>
-std::string Compare(absl::string_view element_name, T expected, T computed) {
+std::string Compare(std::string_view element_name, T expected, T computed) {
   if (computed == expected) return "";
   return absl::StrFormat("Element %s differ: expected (%s), got (%s).\n",
                          element_name, ToString(expected), ToString(computed));
@@ -117,7 +117,7 @@ std::string Compare(absl::string_view element_name, T expected, T computed) {
 
 // Compares std::pair types.
 template <typename T1, typename T2>
-std::string Compare(absl::string_view element_name,
+std::string Compare(std::string_view element_name,
                     const std::pair<T1, T2>& expected,
                     const std::pair<T1, T2>& computed) {
   std::string comparison;
@@ -147,7 +147,7 @@ template <typename T, template <class...> class Container,
           typename std::enable_if<has_const_iterator_v<Container<T>> &&
                                       has_member_size_v<Container<T>>,
                                   T>::type* = nullptr>
-std::string Compare(absl::string_view element_name,
+std::string Compare(std::string_view element_name,
                     const Container<T>& expected,
                     const Container<T>& computed) {
   if (computed.size() != expected.size()) {

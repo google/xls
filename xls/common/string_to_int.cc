@@ -23,11 +23,11 @@
 
 namespace xls {
 
-absl::StatusOr<int64_t> StrTo64Base(absl::string_view s, int base) {
+absl::StatusOr<int64_t> StrTo64Base(std::string_view s, int base) {
   if (s == "0" || s == "-0") {
     return 0;
   }
-  const absl::string_view original = s;
+  const std::string_view original = s;
   bool negated = absl::ConsumePrefix(&s, "-");
 
   if (base == 0) {

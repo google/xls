@@ -79,7 +79,7 @@ absl::StatusOr<Z3_ast> CreateComparisonFunction(
   return Z3_mk_eq(ctx, result1, result2);
 }
 
-absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
+absl::Status RealMain(const std::vector<std::string_view>& ir_paths,
                       const std::string& entry, absl::Duration timeout) {
   std::vector<std::unique_ptr<Package>> packages;
   for (const auto ir_path : ir_paths) {
@@ -164,7 +164,7 @@ absl::Status RealMain(const std::vector<absl::string_view>& ir_paths,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_args =
+  std::vector<std::string_view> positional_args =
       xls::InitXls(kUsage, argc, argv);
   XLS_QCHECK_EQ(positional_args.size(), 2) << "Two IR files must be specified!";
   XLS_QCHECK_OK(xls::RealMain(positional_args, absl::GetFlag(FLAGS_top),

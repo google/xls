@@ -32,7 +32,7 @@ class TernaryLogicTest : public ::testing::Test {
  protected:
   TernaryLogicTest() {}
 
-  TernaryVector FromString(absl::string_view s) {
+  TernaryVector FromString(std::string_view s) {
     return StringToTernaryVector(s).value();
   }
 

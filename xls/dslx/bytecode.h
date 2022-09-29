@@ -375,7 +375,7 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
 // Converts a string as given by BytecodesToString(..., /*source_locs=*/false)
 // into a bytecode sequence; e.g. for testing.
 absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
-    absl::string_view text);
+    std::string_view text);
 
 }  // namespace xls::dslx
 

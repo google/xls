@@ -20,14 +20,14 @@
 
 namespace xls {
 
-std::vector<absl::string_view> InitXls(absl::string_view usage, int argc,
+std::vector<std::string_view> InitXls(std::string_view usage, int argc,
                                        char* argv[]) {
   // Copy the argv array to ensure this method doesn't clobber argv.
   std::vector<char*> arguments(argv, argv + argc);
   std::vector<char*> remaining = absl::ParseCommandLine(argc, argv);
   XLS_CHECK_GE(argc, 1);
 
-  return std::vector<absl::string_view>(remaining.begin() + 1, remaining.end());
+  return std::vector<std::string_view>(remaining.begin() + 1, remaining.end());
 }
 
 }  // namespace xls

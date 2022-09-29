@@ -29,7 +29,7 @@ class XlsIntTest : public XlsccTestBase {
  public:
   void RunIntTest(
       const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
-      absl::string_view cpp_source,
+      std::string_view cpp_source,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
     XLS_ASSERT_OK_AND_ASSIGN(
         std::string ac_int_path,
@@ -48,7 +48,7 @@ class XlsIntTest : public XlsccTestBase {
     std::string xls_int_dir = std::filesystem::path(xls_int_path).parent_path();
     std::string xls_include = std::string("-I") + xls_int_dir.data();
 
-    std::vector<absl::string_view> argv;
+    std::vector<std::string_view> argv;
     argv.push_back(xls_include);
     argv.push_back(ac_include);
     argv.push_back("-D__SYNTHESIS__");

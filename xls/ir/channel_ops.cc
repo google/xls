@@ -30,7 +30,7 @@ std::string ChannelOpsToString(ChannelOps ops) {
   XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(ops);
 }
 
-absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str) {
+absl::StatusOr<ChannelOps> StringToChannelOps(std::string_view str) {
   if (str == "send_only") {
     return ChannelOps::kSendOnly;
   } else if (str == "receive_only") {

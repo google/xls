@@ -79,9 +79,9 @@ absl::StatusOr<Block*> GetTopBlock(Package* package) {
   return top.value()->AsBlockOrDie();
 }
 
-absl::Status RealMain(absl::string_view opt_ir_path,
-                      absl::string_view block_ir_path,
-                      absl::string_view verilog_path) {
+absl::Status RealMain(std::string_view opt_ir_path,
+                      std::string_view block_ir_path,
+                      std::string_view verilog_path) {
   XLS_VLOG(1) << "Reading optimized IR file: " << opt_ir_path;
   XLS_ASSIGN_OR_RETURN(std::string opt_ir_contents,
                        GetFileContents(opt_ir_path));
@@ -143,7 +143,7 @@ absl::Status RealMain(absl::string_view opt_ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 3) {

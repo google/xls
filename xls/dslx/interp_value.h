@@ -62,7 +62,7 @@ enum class Builtin {
 #undef ENUMIFY
 };
 
-absl::StatusOr<Builtin> BuiltinFromString(absl::string_view name);
+absl::StatusOr<Builtin> BuiltinFromString(std::string_view name);
 
 std::string BuiltinToString(Builtin builtin);
 
@@ -270,7 +270,7 @@ class InterpValue {
   // "method" should be a value in the set {slt, sle, sgt, sge} or an
   // InvalidArgumentError is returned.
   absl::StatusOr<InterpValue> SCmp(const InterpValue& other,
-                                   absl::string_view method);
+                                   std::string_view method);
 
   // Converts this value into a string for display.
   //

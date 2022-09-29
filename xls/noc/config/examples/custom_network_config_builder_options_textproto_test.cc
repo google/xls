@@ -25,7 +25,7 @@ namespace xls::noc {
 static const char* kExamplesPath = "xls/noc/config/examples/";
 
 static absl::Status ParseTextProtoFileToNetworkConfigBuilderOptionsProto(
-    absl::string_view filename) {
+    std::string_view filename) {
   std::string filepath = absl::StrCat(kExamplesPath, filename);
   absl::StatusOr<std::filesystem::path> runfile_path =
       GetXlsRunfilePath(filepath);

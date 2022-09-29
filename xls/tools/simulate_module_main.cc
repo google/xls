@@ -68,7 +68,7 @@ ABSL_FLAG(std::string, file_type, "",
 namespace xls {
 namespace {
 
-absl::Status RealMain(absl::string_view verilog_text,
+absl::Status RealMain(std::string_view verilog_text,
                       verilog::FileType file_type,
                       const verilog::ModuleSignature& signature,
                       absl::Span<const std::string> args_strings,
@@ -77,9 +77,9 @@ absl::Status RealMain(absl::string_view verilog_text,
                                      verilog_simulator);
 
   std::vector<absl::flat_hash_map<std::string, Value>> args_sets;
-  for (absl::string_view args_string : args_strings) {
+  for (std::string_view args_string : args_strings) {
     std::vector<Value> arg_values;
-    for (absl::string_view arg : absl::StrSplit(args_string, ';')) {
+    for (std::string_view arg : absl::StrSplit(args_string, ';')) {
       XLS_ASSIGN_OR_RETURN(Value v, Parser::ParseTypedValue(arg));
       arg_values.push_back(v);
     }
@@ -101,7 +101,7 @@ absl::Status RealMain(absl::string_view verilog_text,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   const xls::verilog::VerilogSimulator* verilog_simulator;

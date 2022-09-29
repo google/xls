@@ -46,7 +46,7 @@ class LeafTypeTreeTest : public ::testing::Test {
   }
 
   // Parse and return the given string as an XLS type.
-  Type* AsType(absl::string_view s) {
+  Type* AsType(std::string_view s) {
     return Parser::ParseType(s, &package_).value();
   }
 

@@ -51,7 +51,7 @@ inline bool NarrowingEnabled(int64_t opt_level) { return opt_level >= 2; }
 // class must define RunOnFunctionBaseInternal.
 class FunctionBasePass : public Pass {
  public:
-  FunctionBasePass(absl::string_view short_name, absl::string_view long_name)
+  FunctionBasePass(std::string_view short_name, std::string_view long_name)
       : Pass(short_name, long_name) {}
 
   // Runs the pass on a single function/proc.
@@ -85,7 +85,7 @@ class FunctionBasePass : public Pass {
 // class must define RunOnProcInternal.
 class ProcPass : public Pass {
  public:
-  ProcPass(absl::string_view short_name, absl::string_view long_name)
+  ProcPass(std::string_view short_name, std::string_view long_name)
       : Pass(short_name, long_name) {}
 
   // Proc the pass on a single proc.

@@ -38,7 +38,7 @@ using ConstexprEvalFn = std::function<absl::Status(int64_t argno)>;
 // "what if the len wasn't two?!"
 class Checker {
  public:
-  Checker(ArgTypes arg_types, absl::string_view name, const Span& span)
+  Checker(ArgTypes arg_types, std::string_view name, const Span& span)
       : arg_types_(arg_types), name_(name), span_(span) {}
 
   Checker& Len(int64_t target) {
@@ -198,7 +198,7 @@ class Checker {
 
  private:
   ArgTypes arg_types_;
-  absl::string_view name_;
+  std::string_view name_;
   const Span& span_;
   absl::Status status_;
 };
@@ -626,7 +626,7 @@ const absl::flat_hash_set<std::string>& GetUnaryParametricBuiltinNames() {
 }
 
 absl::StatusOr<SignatureFn> GetParametricBuiltinSignature(
-    absl::string_view builtin_name) {
+    std::string_view builtin_name) {
   const absl::flat_hash_map<std::string, BuiltinsData>& parametric_builtins =
       GetParametricBuiltins();
   auto it = parametric_builtins.find(builtin_name);

@@ -23,14 +23,14 @@ namespace xls::dslx {
 namespace {
 
 TEST(AstClonerTest, BasicOperation) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let a = u32:0;
   let b = u32:1;
   u32:3
 })";
 
-  constexpr absl::string_view kExpected = R"(let a = u32:0;
+  constexpr std::string_view kExpected = R"(let a = u32:0;
 let b = u32:1;
 u32:3)";
 
@@ -44,13 +44,13 @@ u32:3)";
 }
 
 TEST(AstClonerTest, NameRefs) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let a = u32:0;
   a
 })";
 
-  constexpr absl::string_view kExpected = R"(let a = u32:0;
+  constexpr std::string_view kExpected = R"(let a = u32:0;
 a)";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -63,7 +63,7 @@ a)";
 }
 
 TEST(AstClonerTest, XlsTuple) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> (u32, u32) {
   let a = u32:0;
   let b = u32:1;
@@ -71,7 +71,7 @@ fn main() -> (u32, u32) {
 }
 )";
 
-  constexpr absl::string_view kExpected = R"(let a = u32:0;
+  constexpr std::string_view kExpected = R"(let a = u32:0;
 let b = u32:1;
 (a, b))";
 
@@ -85,7 +85,7 @@ let b = u32:1;
 }
 
 TEST(AstClonerTest, BasicFunction) {
-  constexpr absl::string_view kProgram = R"(fn main() -> (u32, u32) {
+  constexpr std::string_view kProgram = R"(fn main() -> (u32, u32) {
   let a = u32:0;
   let b = u32:1;
   (a, b)
@@ -101,7 +101,7 @@ TEST(AstClonerTest, BasicFunction) {
 }
 
 TEST(AstClonerTest, StructDefAndInstance) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 struct MyStruct {
   a: u32,
   b: s64
@@ -112,12 +112,12 @@ fn main() -> MyStruct {
 }
 )";
 
-  constexpr absl::string_view kExpectedStructDef = R"(struct MyStruct {
+  constexpr std::string_view kExpectedStructDef = R"(struct MyStruct {
   a: u32,
   b: s64,
 })";
 
-  constexpr absl::string_view kExpectedFunction = R"(fn main() -> MyStruct {
+  constexpr std::string_view kExpectedFunction = R"(fn main() -> MyStruct {
   MyStruct { a: u32:0, b: s64:0xbeef }
 })";
 
@@ -135,7 +135,7 @@ fn main() -> MyStruct {
 }
 
 TEST(AstClonerTest, ColonRefToImportedStruct) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 import my.module as foo
 
 fn main() -> foo::ImportedStruct {
@@ -143,7 +143,7 @@ fn main() -> foo::ImportedStruct {
   bar.b
 })";
 
-  constexpr absl::string_view kExpectedFunction =
+  constexpr std::string_view kExpectedFunction =
       R"(fn main() -> foo::ImportedStruct {
   let bar = foo::ImportedStruct { a: u32:0, b: s64:0xbeef };
   bar.b
@@ -159,13 +159,13 @@ fn main() -> foo::ImportedStruct {
 }
 
 TEST(AstClonerTest, ArraysAndConstantDefs) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 const ARRAY_SIZE = uN[32]:5;
 fn main() -> u32[ARRAY_SIZE] {
   u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
 })";
 
-  constexpr absl::string_view kExpectedFunction =
+  constexpr std::string_view kExpectedFunction =
       R"(fn main() -> u32[ARRAY_SIZE] {
   u32[ARRAY_SIZE]:[u32:0, u32:1, u32:2, ...]
 })";
@@ -180,7 +180,7 @@ fn main() -> u32[ARRAY_SIZE] {
 }
 
 TEST(AstClonerTest, Binops) {
-  constexpr absl::string_view kProgram = R"(fn main() -> u13 {
+  constexpr std::string_view kProgram = R"(fn main() -> u13 {
   (u13:5) + (u13:500)
 })";
 
@@ -194,7 +194,7 @@ TEST(AstClonerTest, Binops) {
 }
 
 TEST(AstClonerTest, Unops) {
-  constexpr absl::string_view kProgram = R"(fn main() -> u13 {
+  constexpr std::string_view kProgram = R"(fn main() -> u13 {
   -(u13:500)
 })";
 
@@ -208,7 +208,7 @@ TEST(AstClonerTest, Unops) {
 }
 
 TEST(AstClonerTest, Casts) {
-  constexpr absl::string_view kProgram = R"(fn main() -> u13 {
+  constexpr std::string_view kProgram = R"(fn main() -> u13 {
   ((-(u17:500)) as u13)
 })";
 
@@ -222,7 +222,7 @@ TEST(AstClonerTest, Casts) {
 }
 
 TEST(AstClonerTest, Procs) {
-  constexpr absl::string_view kProgram = R"(proc MyProc {
+  constexpr std::string_view kProgram = R"(proc MyProc {
   a: u32;
   b: u64;
   config() {
@@ -242,7 +242,7 @@ TEST(AstClonerTest, Procs) {
 }
 
 TEST(AstClonerTest, TestFunctions) {
-  constexpr absl::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(#[test]
 fn my_test() {
   let a = u32:0;
   let _ = assert_eq(u32:0, a);
@@ -259,7 +259,7 @@ fn my_test() {
 }
 
 TEST(AstClonerTest, TestProcs) {
-  constexpr absl::string_view kProgram = R"(#[test_proc(u64:0)]
+  constexpr std::string_view kProgram = R"(#[test_proc(u64:0)]
 proc my_test_proc {
   a: u32;
   b: uN[127];
@@ -282,7 +282,7 @@ proc my_test_proc {
 }
 
 TEST(AstClonerTest, EnumDef) {
-  constexpr absl::string_view kProgram = R"(enum MyEnum : u32 {
+  constexpr std::string_view kProgram = R"(enum MyEnum : u32 {
   PET = 0,
   ALL = 1,
   DOGS = 2,
@@ -299,7 +299,7 @@ TEST(AstClonerTest, EnumDef) {
 }
 
 TEST(AstClonerTest, TypeDef) {
-  constexpr absl::string_view kProgram =
+  constexpr std::string_view kProgram =
       R"(type RobsUnnecessaryType = uN[0xbeef];)";
 
   XLS_ASSERT_OK_AND_ASSIGN(auto module,
@@ -313,7 +313,7 @@ TEST(AstClonerTest, TypeDef) {
 }
 
 TEST(AstClonerTest, QuickCheck) {
-  constexpr absl::string_view kProgram = R"(#[quickcheck(test_count=1000)]
+  constexpr std::string_view kProgram = R"(#[quickcheck(test_count=1000)]
 fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
   (((a) + (b)) + (c)) == ((a) + ((b) + (c)))
 })";
@@ -329,7 +329,7 @@ fn my_quickcheck(a: u32, b: u64, c: sN[128]) {
 }
 
 TEST(AstClonerTest, CloneModule) {
-  constexpr absl::string_view kProgram = R"(import my_import
+  constexpr std::string_view kProgram = R"(import my_import
 enum MyEnum : u8 {
   DOGS = 0,
   ARE = 1,
@@ -354,7 +354,7 @@ proc my_proc {
 
   // Note that we're dealing with a post-parsing AST, which means that the proc
   // config and next functions will be present as top-level functions.
-  constexpr absl::string_view kExpected = R"(import my_import
+  constexpr std::string_view kExpected = R"(import my_import
 enum MyEnum : u8 {
   DOGS = 0,
   ARE = 1,
@@ -391,7 +391,7 @@ proc my_proc {
 }
 
 TEST(AstClonerTest, IndexVariants) {
-  constexpr absl::string_view kProgram = R"(fn main() {
+  constexpr std::string_view kProgram = R"(fn main() {
   let array = u32[5]:[u32:0, u32:1, u32:2, u32:3, u32:4];
   let index = (array)[2];
   let slice = ((array)[3])[0:2];
@@ -408,7 +408,7 @@ TEST(AstClonerTest, IndexVariants) {
 }
 
 TEST(AstClonerTest, SplatStructInstance) {
-  constexpr absl::string_view kProgram = R"(struct MyStruct {
+  constexpr std::string_view kProgram = R"(struct MyStruct {
   a: u32,
   b: u33,
   c: u34,
@@ -428,7 +428,7 @@ fn main() {
 }
 
 TEST(AstClonerTest, Ternary) {
-  constexpr absl::string_view kProgram =
+  constexpr std::string_view kProgram =
       R"(fn main(a: u32, b: u32, c: u32) -> u32 {
   if (a) > (u32:5) { b } else { c }
 })";
@@ -442,7 +442,7 @@ TEST(AstClonerTest, Ternary) {
 }
 
 TEST(AstClonerTest, FormatMacro) {
-  constexpr absl::string_view kProgram = R"(fn main(x: u32) -> u32 {
+  constexpr std::string_view kProgram = R"(fn main(x: u32) -> u32 {
   let _ = trace_fmt!("x is {}, {:#x} in hex and {:#b} in binary", x, x, x);
   ()
 })";
@@ -457,7 +457,7 @@ TEST(AstClonerTest, FormatMacro) {
 TEST(AstClonerTest, Match) {
   // Try to every potential NameDefTree Leaf type (NameRef, NameDef,
   // WildcardPattern, Number, ColonRef).
-  constexpr absl::string_view kProgram = R"(import foo
+  constexpr std::string_view kProgram = R"(import foo
 fn main(x: u32, y: u32) -> u32 {
   match (x, y) {
     (u32:0, y) => y,
@@ -475,7 +475,7 @@ fn main(x: u32, y: u32) -> u32 {
 }
 
 TEST(AstClonerTest, String) {
-  constexpr absl::string_view kProgram = R"(fn main() -> u8[13] {
+  constexpr std::string_view kProgram = R"(fn main() -> u8[13] {
   "dogs are good"
 })";
 
@@ -487,7 +487,7 @@ TEST(AstClonerTest, String) {
 }
 
 TEST(AstClonerTest, NormalFor) {
-  constexpr absl::string_view kProgram = R"(fn main() -> u32 {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
   for (i, a): (u32, u32) in range(0, u32:100) {
     (i) + (a)
   }(u32:0)
@@ -501,7 +501,7 @@ TEST(AstClonerTest, NormalFor) {
 }
 
 TEST(AstClonerTest, TupleIndex) {
-  constexpr absl::string_view kProgram = R"(fn main() -> u32 {
+  constexpr std::string_view kProgram = R"(fn main() -> u32 {
   (u8:8, u16:16, u32:32, u64:64).2
 })";
 
@@ -513,7 +513,7 @@ TEST(AstClonerTest, TupleIndex) {
 }
 
 TEST(AstClonerTest, SendsAndRecvsAndSpawns) {
-  constexpr absl::string_view kProgram = R"(import other_module
+  constexpr std::string_view kProgram = R"(import other_module
 proc MyProc {
   input_p: chan<u32> out;
   output_c: chan<u64> out;
@@ -532,7 +532,7 @@ proc MyProc {
     (state) + (foo)
   }
 })";
-  constexpr absl::string_view kExpected = R"(import other_module
+  constexpr std::string_view kExpected = R"(import other_module
 fn MyProc.config() -> (chan<u32> out, chan<u64> out) {
   let (input_p, input_c) = chan<u32>;
   let (output_p, output_c) = chan<u64>;

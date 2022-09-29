@@ -39,17 +39,17 @@ xabsl::StatusBuilder ReturnOkBuilder() {
   return xabsl::StatusBuilder(absl::OkStatus());
 }
 
-absl::Status ReturnError(absl::string_view msg) {
+absl::Status ReturnError(std::string_view msg) {
   return absl::UnknownError(msg);
 }
 
-xabsl::StatusBuilder ReturnErrorBuilder(absl::string_view msg) {
+xabsl::StatusBuilder ReturnErrorBuilder(std::string_view msg) {
   return xabsl::StatusBuilder(absl::UnknownError(msg));
 }
 
 absl::StatusOr<int> ReturnStatusOrValue(int v) { return v; }
 
-absl::StatusOr<int> ReturnStatusOrError(absl::string_view msg) {
+absl::StatusOr<int> ReturnStatusOrError(std::string_view msg) {
   return absl::UnknownError(msg);
 }
 
@@ -60,7 +60,7 @@ absl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleValue(Args&&... v) {
 
 template <class... Args>
 absl::StatusOr<std::tuple<Args...>> ReturnStatusOrTupleError(
-    absl::string_view msg) {
+    std::string_view msg) {
   return absl::UnknownError(msg);
 }
 

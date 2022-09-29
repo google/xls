@@ -125,14 +125,14 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   // Returns a module testbench for testing the given verilog and signature. The
   // underlying simulator and file type is determined by the test parameters.
   ModuleTestbench NewModuleTestbench(
-      absl::string_view verilog_text, const ModuleSignature& signature,
+      std::string_view verilog_text, const ModuleSignature& signature,
       absl::Span<const VerilogInclude> includes = {}) {
     return ModuleTestbench(verilog_text, GetFileType(), signature,
                            GetSimulator(), includes);
   }
 
   ModuleSimulator NewModuleSimulator(
-      absl::string_view verilog_text, const ModuleSignature& signature,
+      std::string_view verilog_text, const ModuleSignature& signature,
       absl::Span<const VerilogInclude> includes = {}) {
     return ModuleSimulator(signature, verilog_text, GetFileType(),
                            GetSimulator(), includes);
@@ -161,12 +161,12 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
 
   // Validates the given verilog text by running it through the verilog
   // simulator. No functional testing is performed.
-  absl::Status ValidateVerilog(absl::string_view text,
+  absl::Status ValidateVerilog(std::string_view text,
                                absl::Span<const VerilogInclude> includes = {});
 
   // EXPECTs that the given strings are equal and are valid Verilog. The
   // includes are used for validating the verilog.
-  void ExpectVerilogEqual(absl::string_view expected, absl::string_view actual,
+  void ExpectVerilogEqual(std::string_view expected, std::string_view actual,
                           absl::Span<const VerilogInclude> includes = {});
 
   // EXPECTs that the given text is equal to the golden reference file
@@ -181,7 +181,7 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   //   ./path/to/foo_test --test_update_golden_files
   //
   void ExpectVerilogEqualToGoldenFile(
-      const std::filesystem::path& golden_file_path, absl::string_view text,
+      const std::filesystem::path& golden_file_path, std::string_view text,
       absl::Span<const VerilogInclude> includes = {},
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
@@ -195,7 +195,7 @@ class VerilogTestBase : public testing::TestWithParam<SimulationTarget> {
   // .cc extension. testdata_dir should the path the the testdata directory
   // relative to the XLS source top.
   std::filesystem::path GoldenFilePath(
-      absl::string_view test_file_name,
+      std::string_view test_file_name,
       const std::filesystem::path& testdata_dir);
 };
 

@@ -53,7 +53,7 @@ absl::StatusOr<InterpValue> InterpretExpr(
 
 // Camelizes the input string, unless it's a builtin like "int8_t" or a
 // std::tuple (whose elements have already been Camelized as appropriate.
-std::string CheckedCamelize(absl::string_view input) {
+std::string CheckedCamelize(std::string_view input) {
   if (absl::StartsWith(input, "std::tuple")) {
     return std::string(input);
   }
@@ -86,9 +86,9 @@ absl::StatusOr<Sources> TranspileColonRef(const TranspileData& xpile_data,
 
 absl::StatusOr<Sources> TranspileEnumDef(const TranspileData& xpile_data,
                                          const EnumDef* enum_def) {
-  constexpr absl::string_view kTemplate =
+  constexpr std::string_view kTemplate =
       "enum class %s {\n%s\n};\nconstexpr int64_t k%sNumElements = %d;";
-  constexpr absl::string_view kMemberTemplate = "  %s = %s,";
+  constexpr std::string_view kMemberTemplate = "  %s = %s,";
 
   std::vector<std::string> members;
   for (const EnumMember& member : enum_def->values()) {
@@ -243,7 +243,7 @@ absl::StatusOr<Sources> TranspileTypeDef(const TranspileData& xpile_data,
 }
 
 absl::StatusOr<std::string> GenerateScalarFromValue(
-    absl::string_view src_element, absl::string_view dst_element,
+    std::string_view src_element, std::string_view dst_element,
     BuiltinType builtin_type, int indent_level) {
   XLS_ASSIGN_OR_RETURN(bool is_signed, GetBuiltinTypeSignedness(builtin_type));
   return absl::StrFormat("%s%s = %s.bits().To%snt64().value();",
@@ -252,8 +252,8 @@ absl::StatusOr<std::string> GenerateScalarFromValue(
 }
 
 absl::StatusOr<std::string> GenerateEnumFromValue(
-    const TranspileData& xpile_data, absl::string_view src_element,
-    absl::string_view dst_element, absl::string_view enum_name,
+    const TranspileData& xpile_data, std::string_view src_element,
+    std::string_view dst_element, std::string_view enum_name,
     TypeAnnotation* type, int indent_level) {
   XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
@@ -269,9 +269,9 @@ absl::StatusOr<std::string> GenerateEnumFromValue(
 
 absl::StatusOr<std::string> GenerateArrayFromValue(
     const TranspileData& xpile_data, ArrayTypeAnnotation* array_type,
-    absl::string_view src_element, absl::string_view dst_element,
+    std::string_view src_element, std::string_view dst_element,
     int indent_level) {
-  constexpr absl::string_view kTemplate =
+  constexpr std::string_view kTemplate =
       R"(%sfor (int i = 0; i < %d; i++) {
 %s
 %s})";
@@ -308,8 +308,8 @@ absl::StatusOr<std::string> GenerateArrayFromValue(
 }
 
 absl::StatusOr<std::string> SetStructMemberFromValue(
-    const TranspileData& xpile_data, absl::string_view object_name,
-    absl::string_view field_name, int element_index, TypeAnnotation* type,
+    const TranspileData& xpile_data, std::string_view object_name,
+    std::string_view field_name, int element_index, TypeAnnotation* type,
     int indent_level) {
   XLS_ASSIGN_OR_RETURN(std::optional<BuiltinType> as_builtin_type,
                        GetAsBuiltinType(xpile_data.module, xpile_data.type_info,
@@ -359,8 +359,8 @@ absl::StatusOr<std::string> SetStructMemberFromValue(
 
 // Generates code for ToValue() logic for a struct scalar member.
 absl::StatusOr<std::string> GenerateScalarToValue(
-    const TranspileData& xpile_data, absl::string_view src_element,
-    absl::string_view dst_element, BuiltinType builtin_type, int indent_level) {
+    const TranspileData& xpile_data, std::string_view src_element,
+    std::string_view dst_element, BuiltinType builtin_type, int indent_level) {
   XLS_ASSIGN_OR_RETURN(bool is_signed, GetBuiltinTypeSignedness(builtin_type));
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, GetBuiltinTypeBitCount(builtin_type));
   return absl::StrFormat("%sxls::Value %s(xls::%cBits(%s, /*bit_count=*/%d));",
@@ -369,8 +369,8 @@ absl::StatusOr<std::string> GenerateScalarToValue(
 }
 
 absl::StatusOr<std::string> GenerateEnumToValue(const TranspileData& xpile_data,
-                                                absl::string_view src_element,
-                                                absl::string_view dst_element,
+                                                std::string_view src_element,
+                                                std::string_view dst_element,
                                                 BuiltinType builtin_type,
                                                 int indent_level) {
   XLS_ASSIGN_OR_RETURN(bool is_signed, GetBuiltinTypeSignedness(builtin_type));
@@ -384,12 +384,12 @@ absl::StatusOr<std::string> GenerateEnumToValue(const TranspileData& xpile_data,
 
 // Generates code for ToValue() logic for a struct array member.
 absl::StatusOr<std::string> GenerateArrayToValue(
-    const TranspileData& xpile_data, absl::string_view src_element,
+    const TranspileData& xpile_data, std::string_view src_element,
     ArrayTypeAnnotation* array_type, int indent_level) {
   // $0: Member/base var name
   // $1: The generated setter logic
   // $2: Indentation/padding.
-  constexpr absl::string_view kSetterTemplate =
+  constexpr std::string_view kSetterTemplate =
       R"($2std::vector<xls::Value> $0_elements;
 $2for (int i = 0; i < ABSL_ARRAYSIZE($0); i++) {
 $1
@@ -420,7 +420,7 @@ $2xls::Value $0_value = xls::Value::ArrayOrDie($0_elements);)";
 }
 
 absl::StatusOr<std::string> StructMemberToValue(const TranspileData& xpile_data,
-                                                absl::string_view member_name,
+                                                std::string_view member_name,
                                                 TypeAnnotation* type,
                                                 int indent_level) {
   // Because the input DSLX must be in decl order, the translators for any types
@@ -429,7 +429,7 @@ absl::StatusOr<std::string> StructMemberToValue(const TranspileData& xpile_data,
   // $0: Indentation.
   // $1: Setter logic.
   // $2: Member name.
-  constexpr absl::string_view kToValueTemplate = R"($1
+  constexpr std::string_view kToValueTemplate = R"($1
 $0elements.push_back($2_value);)";
 
   std::string setter;
@@ -487,7 +487,7 @@ $0elements.push_back($2_value);)";
 // Generates the code for the stream output operator, i.e., operator<<.
 std::string GenerateOutputOperator(const TranspileData& xpile_data,
                                    const StructDef* struct_def) {
-  constexpr absl::string_view kOutputOperatorTemplate =
+  constexpr std::string_view kOutputOperatorTemplate =
       R"(std::ostream& operator<<(std::ostream& os, const $0& data) {
   xls::Value value = data.ToValue();
   absl::Span<const xls::Value> elements = value.elements();
@@ -537,7 +537,7 @@ absl::StatusOr<std::optional<int64_t>> GetFieldWidth(
 // (packing?) struct members could be considered.
 absl::StatusOr<std::string> TranspileStructDefHeader(
     const TranspileData& xpile_data, const StructDef* struct_def) {
-  constexpr absl::string_view kStructTemplate = R"(struct $0 {
+  constexpr std::string_view kStructTemplate = R"(struct $0 {
   static absl::StatusOr<$0> FromValue(const xls::Value& value);
 
   xls::Value ToValue() const;
@@ -591,7 +591,7 @@ absl::StatusOr<std::string> TranspileStructDefBody(
   // $2: FromValue element setters.
   // $3: ToValue element setters.
   // $4: Stream output operator.
-  constexpr absl::string_view kStructTemplate =
+  constexpr std::string_view kStructTemplate =
       R"(absl::StatusOr<$0> $0::FromValue(const xls::Value& value) {
   absl::Span<const xls::Value> elements = value.elements();
   if (elements.size() != $1) {
@@ -671,9 +671,9 @@ absl::StatusOr<Sources> TranspileSingleToCpp(
 // Need namespaces
 // Need paths
 absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data,
-                                       absl::string_view output_header_path,
+                                       std::string_view output_header_path,
                                        std::string namespaces) {
-  constexpr absl::string_view kHeaderTemplate =
+  constexpr std::string_view kHeaderTemplate =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #ifndef $0
 #define $0
@@ -688,7 +688,7 @@ $2$1$3
 #endif  // $0
 )";
 
-  constexpr absl::string_view kSourceTemplate =
+  constexpr std::string_view kSourceTemplate =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #include <vector>
 

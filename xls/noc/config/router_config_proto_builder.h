@@ -30,13 +30,13 @@ class RouterConfigProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the router.
-  RouterConfigProtoBuilder& WithName(absl::string_view name);
+  RouterConfigProtoBuilder& WithName(std::string_view name);
 
   // Adds an input port to this object. Returns its builder.
-  PortConfigProtoBuilder WithInputPort(absl::string_view name);
+  PortConfigProtoBuilder WithInputPort(std::string_view name);
 
   // Adds an output port to this object. Returns its builder.
-  PortConfigProtoBuilder WithOutputPort(absl::string_view name);
+  PortConfigProtoBuilder WithOutputPort(std::string_view name);
 
   // Sets default Virtual Channels for input ports.
   RouterConfigProtoBuilder& SetDefaultVirtualChannelsForInputPort(

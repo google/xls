@@ -34,7 +34,7 @@ const absl::flat_hash_map<std::string, BuiltinsData>& GetParametricBuiltins();
 
 // Returns whether the identifier is a builtin parameter not implemented as an
 // AST node
-bool IsNameParametricBuiltin(absl::string_view identifier);
+bool IsNameParametricBuiltin(std::string_view identifier);
 
 }  // namespace xls::dslx
 

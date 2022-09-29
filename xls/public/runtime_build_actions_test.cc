@@ -23,8 +23,8 @@ namespace xls {
 namespace {
 
 TEST(RuntimeBuildActionsTest, SimpleProtoToDslxConversion) {
-  constexpr absl::string_view kBindingName = "MY_TEST_MESSAGE";
-  constexpr absl::string_view kProtoDef = R"(
+  constexpr std::string_view kBindingName = "MY_TEST_MESSAGE";
+  constexpr std::string_view kProtoDef = R"(
 syntax = "proto2";
 
 package xls_public_test;
@@ -37,7 +37,7 @@ message TestRepeatedMessage {
   repeated TestMessage messages = 1;
 }
 )";
-  constexpr absl::string_view kTextProto = R"(
+  constexpr std::string_view kTextProto = R"(
 messages: {
   test_field: 42
 }
@@ -45,7 +45,7 @@ messages: {
   test_field: 64
 }
 )";
-  constexpr absl::string_view kMessageName =
+  constexpr std::string_view kMessageName =
       "xls_public_test.TestRepeatedMessage";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string dslx,

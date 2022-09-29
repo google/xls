@@ -75,8 +75,8 @@ enum IOEscapeCode : uint8_t {
 // TODO(leary): 2019-03-25 We'll want to change the I/O mechanism into a
 // pluggable strategy, right now this assumes ICE40 UART, but just as easily we
 // should be able to plug in something like PCIe TLP handling.
-absl::StatusOr<Module*> WrapIO(absl::string_view module_name,
-                               absl::string_view instance_name,
+absl::StatusOr<Module*> WrapIO(std::string_view module_name,
+                               std::string_view instance_name,
                                const ModuleSignature& signature,
                                IOStrategy* io_strategy, VerilogFile* f);
 

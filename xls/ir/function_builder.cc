@@ -39,7 +39,7 @@ std::string BValue::ToString() const {
   return node_ == nullptr ? std::string("<null BValue>") : node_->ToString();
 }
 
-std::string BValue::SetName(absl::string_view name) {
+std::string BValue::SetName(std::string_view name) {
   if (node_ != nullptr) {
     node_->SetName(name);
   }
@@ -97,7 +97,7 @@ absl::Status BuilderBase::SetAsTop() {
   return package()->SetTop(function_.get());
 }
 
-BValue BuilderBase::SetError(absl::string_view msg, const SourceInfo& loc) {
+BValue BuilderBase::SetError(std::string_view msg, const SourceInfo& loc) {
   error_pending_ = true;
   error_msg_ = std::string(msg);
   error_loc_ = loc;
@@ -106,7 +106,7 @@ BValue BuilderBase::SetError(absl::string_view msg, const SourceInfo& loc) {
 }
 
 BValue BuilderBase::Literal(Value value, const SourceInfo& loc,
-                            absl::string_view name) {
+                            std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -114,7 +114,7 @@ BValue BuilderBase::Literal(Value value, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Negate(BValue x, const SourceInfo& loc,
-                           absl::string_view name) {
+                           std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -122,7 +122,7 @@ BValue BuilderBase::Negate(BValue x, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Not(BValue x, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -132,7 +132,7 @@ BValue BuilderBase::Not(BValue x, const SourceInfo& loc,
 
 BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
                            std::optional<BValue> default_value,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -150,13 +150,13 @@ BValue BuilderBase::Select(BValue selector, absl::Span<const BValue> cases,
 }
 
 BValue BuilderBase::Select(BValue selector, BValue on_true, BValue on_false,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   return Select(selector, {on_false, on_true}, /*default_value=*/absl::nullopt,
                 loc, name);
 }
 
 BValue BuilderBase::OneHot(BValue input, LsbOrMsb priority,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -166,7 +166,7 @@ BValue BuilderBase::OneHot(BValue input, LsbOrMsb priority,
 BValue BuilderBase::OneHotSelect(BValue selector,
                                  absl::Span<const BValue> cases,
                                  const SourceInfo& loc,
-                                 absl::string_view name) {
+                                 std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -181,7 +181,7 @@ BValue BuilderBase::OneHotSelect(BValue selector,
 BValue BuilderBase::PrioritySelect(BValue selector,
                                    absl::Span<const BValue> cases,
                                    const SourceInfo& loc,
-                                   absl::string_view name) {
+                                   std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -194,7 +194,7 @@ BValue BuilderBase::PrioritySelect(BValue selector,
 }
 
 BValue BuilderBase::Clz(BValue x, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -211,7 +211,7 @@ BValue BuilderBase::Clz(BValue x, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Ctz(BValue x, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -228,7 +228,7 @@ BValue BuilderBase::Ctz(BValue x, const SourceInfo& loc,
 
 BValue BuilderBase::Match(BValue condition, absl::Span<const Case> cases,
                           BValue default_value, const SourceInfo& loc,
-                          absl::string_view name) {
+                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -242,7 +242,7 @@ BValue BuilderBase::Match(BValue condition, absl::Span<const Case> cases,
 BValue BuilderBase::MatchTrue(absl::Span<const BValue> case_clauses,
                               absl::Span<const BValue> case_values,
                               BValue default_value, const SourceInfo& loc,
-                              absl::string_view name) {
+                              std::string_view name) {
   if (case_clauses.size() != case_values.size()) {
     return SetError(
         absl::StrFormat(
@@ -259,7 +259,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const BValue> case_clauses,
 
 BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
                               BValue default_value, const SourceInfo& loc,
-                              absl::string_view name) {
+                              std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -291,7 +291,7 @@ BValue BuilderBase::MatchTrue(absl::Span<const Case> cases,
 }
 
 BValue BuilderBase::AfterAll(absl::Span<const BValue> dependencies,
-                             const SourceInfo& loc, absl::string_view name) {
+                             const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -309,7 +309,7 @@ BValue BuilderBase::AfterAll(absl::Span<const BValue> dependencies,
 }
 
 BValue BuilderBase::Tuple(absl::Span<const BValue> elements,
-                          const SourceInfo& loc, absl::string_view name) {
+                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -322,7 +322,7 @@ BValue BuilderBase::Tuple(absl::Span<const BValue> elements,
 }
 
 BValue BuilderBase::Array(absl::Span<const BValue> elements, Type* element_type,
-                          const SourceInfo& loc, absl::string_view name) {
+                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -342,7 +342,7 @@ BValue BuilderBase::Array(absl::Span<const BValue> elements, Type* element_type,
 }
 
 BValue BuilderBase::TupleIndex(BValue arg, int64_t idx, const SourceInfo& loc,
-                               absl::string_view name) {
+                               std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -359,7 +359,7 @@ BValue BuilderBase::TupleIndex(BValue arg, int64_t idx, const SourceInfo& loc,
 BValue BuilderBase::CountedFor(BValue init_value, int64_t trip_count,
                                int64_t stride, Function* body,
                                absl::Span<const BValue> invariant_args,
-                               const SourceInfo& loc, absl::string_view name) {
+                               const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -375,7 +375,7 @@ BValue BuilderBase::DynamicCountedFor(BValue init_value, BValue trip_count,
                                       BValue stride, Function* body,
                                       absl::Span<const BValue> invariant_args,
                                       const SourceInfo& loc,
-                                      absl::string_view name) {
+                                      std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -389,7 +389,7 @@ BValue BuilderBase::DynamicCountedFor(BValue init_value, BValue trip_count,
 }
 
 BValue BuilderBase::Map(BValue operand, Function* to_apply,
-                        const SourceInfo& loc, absl::string_view name) {
+                        const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -397,7 +397,7 @@ BValue BuilderBase::Map(BValue operand, Function* to_apply,
 }
 
 BValue BuilderBase::Invoke(absl::Span<const BValue> args, Function* to_apply,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -410,7 +410,7 @@ BValue BuilderBase::Invoke(absl::Span<const BValue> args, Function* to_apply,
 }
 
 BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
-                               const SourceInfo& loc, absl::string_view name) {
+                               const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -438,7 +438,7 @@ BValue BuilderBase::ArrayIndex(BValue arg, absl::Span<const BValue> indices,
 }
 
 BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
-                               const SourceInfo& loc, absl::string_view name) {
+                               const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -463,7 +463,7 @@ BValue BuilderBase::ArraySlice(BValue array, BValue start, int64_t width,
 
 BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
                                 absl::Span<const BValue> indices,
-                                const SourceInfo& loc, absl::string_view name) {
+                                const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -510,7 +510,7 @@ BValue BuilderBase::ArrayUpdate(BValue arg, BValue update_value,
 }
 
 BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
-                                const SourceInfo& loc, absl::string_view name) {
+                                const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -548,7 +548,7 @@ BValue BuilderBase::ArrayConcat(absl::Span<const BValue> operands,
 }
 
 BValue BuilderBase::Reverse(BValue arg, const SourceInfo& loc,
-                            absl::string_view name) {
+                            std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -556,7 +556,7 @@ BValue BuilderBase::Reverse(BValue arg, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Identity(BValue var, const SourceInfo& loc,
-                             absl::string_view name) {
+                             std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -564,7 +564,7 @@ BValue BuilderBase::Identity(BValue var, const SourceInfo& loc,
 }
 
 BValue BuilderBase::SignExtend(BValue arg, int64_t new_bit_count,
-                               const SourceInfo& loc, absl::string_view name) {
+                               const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -573,7 +573,7 @@ BValue BuilderBase::SignExtend(BValue arg, int64_t new_bit_count,
 }
 
 BValue BuilderBase::ZeroExtend(BValue arg, int64_t new_bit_count,
-                               const SourceInfo& loc, absl::string_view name) {
+                               const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -582,7 +582,7 @@ BValue BuilderBase::ZeroExtend(BValue arg, int64_t new_bit_count,
 }
 
 BValue BuilderBase::BitSlice(BValue arg, int64_t start, int64_t width,
-                             const SourceInfo& loc, absl::string_view name) {
+                             const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -591,7 +591,7 @@ BValue BuilderBase::BitSlice(BValue arg, int64_t start, int64_t width,
 
 BValue BuilderBase::BitSliceUpdate(BValue arg, BValue start,
                                    BValue update_value, const SourceInfo& loc,
-                                   absl::string_view name) {
+                                   std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -601,7 +601,7 @@ BValue BuilderBase::BitSliceUpdate(BValue arg, BValue start,
 
 BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64_t width,
                                     const SourceInfo& loc,
-                                    absl::string_view name) {
+                                    std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -610,7 +610,7 @@ BValue BuilderBase::DynamicBitSlice(BValue arg, BValue start, int64_t width,
 }
 
 BValue BuilderBase::Encode(BValue arg, const SourceInfo& loc,
-                           absl::string_view name) {
+                           std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -618,7 +618,7 @@ BValue BuilderBase::Encode(BValue arg, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Decode(BValue arg, std::optional<int64_t> width,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -644,76 +644,76 @@ BValue BuilderBase::Decode(BValue arg, std::optional<int64_t> width,
 }
 
 BValue BuilderBase::Shra(BValue operand, BValue amount, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kShra, operand, amount, loc, name);
 }
 BValue BuilderBase::Shrl(BValue operand, BValue amount, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kShrl, operand, amount, loc, name);
 }
 BValue BuilderBase::Shll(BValue operand, BValue amount, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kShll, operand, amount, loc, name);
 }
 BValue BuilderBase::Subtract(BValue lhs, BValue rhs, const SourceInfo& loc,
-                             absl::string_view name) {
+                             std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kSub, lhs, rhs, loc, name);
 }
 BValue BuilderBase::Add(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kAdd, lhs, rhs, loc, name);
 }
 BValue BuilderBase::Or(absl::Span<const BValue> operands, const SourceInfo& loc,
-                       absl::string_view name) {
+                       std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddNaryOp(Op::kOr, operands, loc, name);
 }
 BValue BuilderBase::Or(BValue lhs, BValue rhs, const SourceInfo& loc,
-                       absl::string_view name) {
+                       std::string_view name) {
   return Or({lhs, rhs}, loc, name);
 }
 BValue BuilderBase::Xor(absl::Span<const BValue> operands,
-                        const SourceInfo& loc, absl::string_view name) {
+                        const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddNaryOp(Op::kXor, operands, loc, name);
 }
 BValue BuilderBase::Xor(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   return Xor({lhs, rhs}, loc, name);
 }
 BValue BuilderBase::And(absl::Span<const BValue> operands,
-                        const SourceInfo& loc, absl::string_view name) {
+                        const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddNaryOp(Op::kAnd, operands, loc, name);
 }
 BValue BuilderBase::And(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   return And({lhs, rhs}, loc, name);
 }
 
 BValue BuilderBase::AndReduce(BValue operand, const SourceInfo& loc,
-                              absl::string_view name) {
+                              std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -721,7 +721,7 @@ BValue BuilderBase::AndReduce(BValue operand, const SourceInfo& loc,
 }
 
 BValue BuilderBase::OrReduce(BValue operand, const SourceInfo& loc,
-                             absl::string_view name) {
+                             std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -729,7 +729,7 @@ BValue BuilderBase::OrReduce(BValue operand, const SourceInfo& loc,
 }
 
 BValue BuilderBase::XorReduce(BValue operand, const SourceInfo& loc,
-                              absl::string_view name) {
+                              std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -737,7 +737,7 @@ BValue BuilderBase::XorReduce(BValue operand, const SourceInfo& loc,
 }
 
 BValue BuilderBase::SMul(BValue lhs, BValue rhs, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -745,7 +745,7 @@ BValue BuilderBase::SMul(BValue lhs, BValue rhs, const SourceInfo& loc,
                     name);
 }
 BValue BuilderBase::UMul(BValue lhs, BValue rhs, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -753,21 +753,21 @@ BValue BuilderBase::UMul(BValue lhs, BValue rhs, const SourceInfo& loc,
                     name);
 }
 BValue BuilderBase::SMul(BValue lhs, BValue rhs, int64_t result_width,
-                         const SourceInfo& loc, absl::string_view name) {
+                         const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddArithOp(Op::kSMul, lhs, rhs, result_width, loc, name);
 }
 BValue BuilderBase::UMul(BValue lhs, BValue rhs, int64_t result_width,
-                         const SourceInfo& loc, absl::string_view name) {
+                         const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddArithOp(Op::kUMul, lhs, rhs, result_width, loc, name);
 }
 BValue BuilderBase::SMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
-                          absl::string_view name) {
+                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -775,7 +775,7 @@ BValue BuilderBase::SMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
                              /*result_width=*/absl::nullopt, loc, name);
 }
 BValue BuilderBase::UMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
-                          absl::string_view name) {
+                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -783,98 +783,98 @@ BValue BuilderBase::UMulp(BValue lhs, BValue rhs, const SourceInfo& loc,
                              /*result_width=*/absl::nullopt, loc, name);
 }
 BValue BuilderBase::SMulp(BValue lhs, BValue rhs, int64_t result_width,
-                          const SourceInfo& loc, absl::string_view name) {
+                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddPartialProductOp(Op::kSMulp, lhs, rhs, result_width, loc, name);
 }
 BValue BuilderBase::UMulp(BValue lhs, BValue rhs, int64_t result_width,
-                          const SourceInfo& loc, absl::string_view name) {
+                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddPartialProductOp(Op::kUMulp, lhs, rhs, result_width, loc, name);
 }
 BValue BuilderBase::UDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kUDiv, lhs, rhs, loc, name);
 }
 BValue BuilderBase::SDiv(BValue lhs, BValue rhs, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddBinOp(Op::kSDiv, lhs, rhs, loc, name);
 }
 BValue BuilderBase::Eq(BValue lhs, BValue rhs, const SourceInfo& loc,
-                       absl::string_view name) {
+                       std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kEq, lhs, rhs, loc, name);
 }
 BValue BuilderBase::Ne(BValue lhs, BValue rhs, const SourceInfo& loc,
-                       absl::string_view name) {
+                       std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kNe, lhs, rhs, loc, name);
 }
 BValue BuilderBase::UGe(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kUGe, lhs, rhs, loc, name);
 }
 BValue BuilderBase::UGt(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kUGt, lhs, rhs, loc, name);
 }
 BValue BuilderBase::ULe(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kULe, lhs, rhs, loc, name);
 }
 BValue BuilderBase::ULt(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kULt, lhs, rhs, loc, name);
 }
 BValue BuilderBase::SLt(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kSLt, lhs, rhs, loc, name);
 }
 BValue BuilderBase::SLe(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kSLe, lhs, rhs, loc, name);
 }
 BValue BuilderBase::SGe(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
   return AddCompareOp(Op::kSGe, lhs, rhs, loc, name);
 }
 BValue BuilderBase::SGt(BValue lhs, BValue rhs, const SourceInfo& loc,
-                        absl::string_view name) {
+                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -882,7 +882,7 @@ BValue BuilderBase::SGt(BValue lhs, BValue rhs, const SourceInfo& loc,
 }
 
 BValue BuilderBase::Concat(absl::Span<const BValue> operands,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -901,12 +901,12 @@ BValue BuilderBase::Concat(absl::Span<const BValue> operands,
   return AddNode<xls::Concat>(loc, node_operands, name);
 }
 
-FunctionBuilder::FunctionBuilder(absl::string_view name, Package* package,
+FunctionBuilder::FunctionBuilder(std::string_view name, Package* package,
                                  bool should_verify)
     : BuilderBase(std::make_unique<Function>(std::string(name), package),
                   should_verify) {}
 
-BValue FunctionBuilder::Param(absl::string_view name, Type* type,
+BValue FunctionBuilder::Param(std::string_view name, Type* type,
                               const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
@@ -957,7 +957,7 @@ absl::StatusOr<Function*> FunctionBuilder::BuildWithReturnValue(
   return f;
 }
 
-ProcBuilder::ProcBuilder(absl::string_view name, absl::string_view token_name,
+ProcBuilder::ProcBuilder(std::string_view name, std::string_view token_name,
                          Package* package, bool should_verify)
     : BuilderBase(std::make_unique<Proc>(name, token_name, package),
                   should_verify),
@@ -1013,7 +1013,7 @@ absl::StatusOr<Proc*> ProcBuilder::Build(BValue token,
   return proc;
 }
 
-BValue ProcBuilder::StateElement(absl::string_view name,
+BValue ProcBuilder::StateElement(std::string_view name,
                                  const Value initial_value,
                                  const SourceInfo& loc) {
   absl::StatusOr<xls::Param*> param_or =
@@ -1027,7 +1027,7 @@ BValue ProcBuilder::StateElement(absl::string_view name,
   return state_params_.back();
 }
 
-BValue ProcBuilder::Param(absl::string_view name, Type* type,
+BValue ProcBuilder::Param(std::string_view name, Type* type,
                           const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
@@ -1047,7 +1047,7 @@ Package* BuilderBase::package() const { return function_->package(); }
 
 BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
                                std::optional<int64_t> result_width,
-                               const SourceInfo& loc, absl::string_view name) {
+                               const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1079,7 +1079,7 @@ BValue BuilderBase::AddArithOp(Op op, BValue lhs, BValue rhs,
 BValue BuilderBase::AddPartialProductOp(Op op, BValue lhs, BValue rhs,
                                         std::optional<int64_t> result_width,
                                         const SourceInfo& loc,
-                                        absl::string_view name) {
+                                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1110,7 +1110,7 @@ BValue BuilderBase::AddPartialProductOp(Op op, BValue lhs, BValue rhs,
 }
 
 BValue BuilderBase::AddUnOp(Op op, BValue x, const SourceInfo& loc,
-                            absl::string_view name) {
+                            std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1124,7 +1124,7 @@ BValue BuilderBase::AddUnOp(Op op, BValue x, const SourceInfo& loc,
 }
 
 BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
-                             const SourceInfo& loc, absl::string_view name) {
+                             const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1139,7 +1139,7 @@ BValue BuilderBase::AddBinOp(Op op, BValue lhs, BValue rhs,
 
 BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
                                  const SourceInfo& loc,
-                                 absl::string_view name) {
+                                 std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1154,7 +1154,7 @@ BValue BuilderBase::AddCompareOp(Op op, BValue lhs, BValue rhs,
 }
 
 BValue BuilderBase::AddNaryOp(Op op, absl::Span<const BValue> args,
-                              const SourceInfo& loc, absl::string_view name) {
+                              const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1172,7 +1172,7 @@ BValue BuilderBase::AddNaryOp(Op op, absl::Span<const BValue> args,
 
 BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
                                           const SourceInfo& loc,
-                                          absl::string_view name) {
+                                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1181,9 +1181,9 @@ BValue BuilderBase::AddBitwiseReductionOp(Op op, BValue arg,
 }
 
 BValue BuilderBase::Assert(BValue token, BValue condition,
-                           absl::string_view message,
+                           std::string_view message,
                            std::optional<std::string> label,
-                           const SourceInfo& loc, absl::string_view name) {
+                           const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1208,7 +1208,7 @@ BValue BuilderBase::Assert(BValue token, BValue condition,
 BValue BuilderBase::Trace(BValue token, BValue condition,
                           absl::Span<const BValue> args,
                           absl::Span<const FormatStep> format,
-                          const SourceInfo& loc, absl::string_view name) {
+                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1253,8 +1253,8 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
 
 BValue BuilderBase::Trace(BValue token, BValue condition,
                           absl::Span<const BValue> args,
-                          absl::string_view format_string,
-                          const SourceInfo& loc, absl::string_view name) {
+                          std::string_view format_string,
+                          const SourceInfo& loc, std::string_view name) {
   auto parse_status = ParseFormatString(format_string);
 
   if (!parse_status.ok()) {
@@ -1265,8 +1265,8 @@ BValue BuilderBase::Trace(BValue token, BValue condition,
 }
 
 BValue BuilderBase::Cover(BValue token, BValue condition,
-                          absl::string_view label, const SourceInfo& loc,
-                          absl::string_view name) {
+                          std::string_view label, const SourceInfo& loc,
+                          std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1291,7 +1291,7 @@ BValue BuilderBase::Cover(BValue token, BValue condition,
 }
 
 BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
-                         absl::string_view name) {
+                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1307,7 +1307,7 @@ BValue BuilderBase::Gate(BValue condition, BValue data, const SourceInfo& loc,
 }
 
 BValue ProcBuilder::Receive(Channel* channel, BValue token,
-                            const SourceInfo& loc, absl::string_view name) {
+                            const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1324,7 +1324,7 @@ BValue ProcBuilder::Receive(Channel* channel, BValue token,
 
 BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
                                        const SourceInfo& loc,
-                                       absl::string_view name) {
+                                       std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1340,7 +1340,7 @@ BValue ProcBuilder::ReceiveNonBlocking(Channel* channel, BValue token,
 }
 
 BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
-                              const SourceInfo& loc, absl::string_view name) {
+                              const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1364,7 +1364,7 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
 }
 
 BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
-                         const SourceInfo& loc, absl::string_view name) {
+                         const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1380,7 +1380,7 @@ BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
 
 BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
                            BValue data, const SourceInfo& loc,
-                           absl::string_view name) {
+                           std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1402,14 +1402,14 @@ BValue ProcBuilder::SendIf(Channel* channel, BValue token, BValue pred,
 }
 
 BValue TokenlessProcBuilder::Receive(Channel* channel, const SourceInfo& loc,
-                                     absl::string_view name) {
+                                     std::string_view name) {
   BValue rcv = ProcBuilder::Receive(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0);
   return TupleIndex(rcv, 1);
 }
 
 std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveNonBlocking(
-    Channel* channel, const SourceInfo& loc, absl::string_view name) {
+    Channel* channel, const SourceInfo& loc, std::string_view name) {
   BValue rcv = ProcBuilder::ReceiveNonBlocking(channel, last_token_, loc, name);
   last_token_ = TupleIndex(rcv, 0, loc);
   return {TupleIndex(rcv, 1), TupleIndex(rcv, 2)};
@@ -1417,7 +1417,7 @@ std::pair<BValue, BValue> TokenlessProcBuilder::ReceiveNonBlocking(
 
 BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
                                        const SourceInfo& loc,
-                                       absl::string_view name) {
+                                       std::string_view name) {
   BValue rcv_if = ProcBuilder::ReceiveIf(channel, last_token_, pred, loc, name);
   last_token_ = TupleIndex(rcv_if, 0);
   return TupleIndex(rcv_if, 1);
@@ -1425,23 +1425,23 @@ BValue TokenlessProcBuilder::ReceiveIf(Channel* channel, BValue pred,
 
 BValue TokenlessProcBuilder::Send(Channel* channel, BValue data,
                                   const SourceInfo& loc,
-                                  absl::string_view name) {
+                                  std::string_view name) {
   last_token_ = ProcBuilder::Send(channel, last_token_, data, loc, name);
   return last_token_;
 }
 
 BValue TokenlessProcBuilder::SendIf(Channel* channel, BValue pred, BValue data,
                                     const SourceInfo& loc,
-                                    absl::string_view name) {
+                                    std::string_view name) {
   last_token_ =
       ProcBuilder::SendIf(channel, last_token_, pred, data, loc, name);
   return last_token_;
 }
 
-BValue TokenlessProcBuilder::Assert(BValue condition, absl::string_view message,
+BValue TokenlessProcBuilder::Assert(BValue condition, std::string_view message,
                                     std::optional<std::string> label,
                                     const SourceInfo& loc,
-                                    absl::string_view name) {
+                                    std::string_view name) {
   last_token_ =
       BuilderBase::Assert(last_token_, condition, message, label, loc, name);
   return last_token_;
@@ -1452,7 +1452,7 @@ absl::StatusOr<Proc*> TokenlessProcBuilder::Build(
   return ProcBuilder::Build(last_token_, next_state);
 }
 
-BValue BlockBuilder::Param(absl::string_view name, Type* type,
+BValue BlockBuilder::Param(std::string_view name, Type* type,
                            const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
@@ -1460,7 +1460,7 @@ BValue BlockBuilder::Param(absl::string_view name, Type* type,
   return SetError("Cannot add parameters to blocks", loc);
 }
 
-BValue BlockBuilder::InputPort(absl::string_view name, Type* type,
+BValue BlockBuilder::InputPort(std::string_view name, Type* type,
                                const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
@@ -1475,7 +1475,7 @@ BValue BlockBuilder::InputPort(absl::string_view name, Type* type,
   return CreateBValue(port_status.value(), loc);
 }
 
-BValue BlockBuilder::OutputPort(absl::string_view name, BValue operand,
+BValue BlockBuilder::OutputPort(std::string_view name, BValue operand,
                                 const SourceInfo& loc) {
   if (ErrorPending()) {
     return BValue();
@@ -1491,7 +1491,7 @@ BValue BlockBuilder::OutputPort(absl::string_view name, BValue operand,
 }
 
 BValue BlockBuilder::RegisterRead(Register* reg, const SourceInfo& loc,
-                                  absl::string_view name) {
+                                  std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1505,7 +1505,7 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
                                    std::optional<BValue> load_enable,
                                    std::optional<BValue> reset,
                                    const SourceInfo& loc,
-                                   absl::string_view name) {
+                                   std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1520,7 +1520,7 @@ BValue BlockBuilder::RegisterWrite(Register* reg, BValue data,
       reg, name);
 }
 
-BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
+BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
                                     std::optional<BValue> load_enable,
                                     const SourceInfo& loc) {
   if (ErrorPending()) {
@@ -1539,7 +1539,7 @@ BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
   return RegisterRead(reg, loc, reg->name());
 }
 
-BValue BlockBuilder::InsertRegister(absl::string_view name, BValue data,
+BValue BlockBuilder::InsertRegister(std::string_view name, BValue data,
                                     BValue reset_signal, Reset reset,
                                     std::optional<BValue> load_enable,
                                     const SourceInfo& loc) {
@@ -1583,9 +1583,9 @@ absl::StatusOr<Block*> BlockBuilder::Build() {
 }
 
 BValue BlockBuilder::InstantiationInput(Instantiation* instantiation,
-                                        absl::string_view port_name,
+                                        std::string_view port_name,
                                         BValue data, const SourceInfo& loc,
-                                        absl::string_view name) {
+                                        std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }
@@ -1600,9 +1600,9 @@ BValue BlockBuilder::InstantiationInput(Instantiation* instantiation,
 }
 
 BValue BlockBuilder::InstantiationOutput(Instantiation* instantiation,
-                                         absl::string_view port_name,
+                                         std::string_view port_name,
                                          const SourceInfo& loc,
-                                         absl::string_view name) {
+                                         std::string_view name) {
   if (ErrorPending()) {
     return BValue();
   }

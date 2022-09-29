@@ -39,7 +39,7 @@
 #include "xls/jit/proc_jit.h"
 #include "xls/modules/aes/aes_test_common.h"
 
-constexpr absl::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
+constexpr std::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
 
 ABSL_FLAG(int32_t, num_samples, 1000,
           "The number of (randomly-generated) blocks to test.");
@@ -84,9 +84,9 @@ void PrintTraceMessages(const InterpreterEvents& events) {
 
 absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
                                               JitData* jit_data) {
-  const absl::string_view kCmdChannel = "aes_ctr__command_in";
-  const absl::string_view kInputDataChannel = "aes_ctr__ptxt_in";
-  const absl::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
+  const std::string_view kCmdChannel = "aes_ctr__command_in";
+  const std::string_view kInputDataChannel = "aes_ctr__ptxt_in";
+  const std::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
 
   // TODO(rspringer): Find a better way to collect queue IDs than IR inspection:
   // numbering is not guaranteed! Perhaps GetQueueByName?
@@ -260,7 +260,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
   return true;
 }
 
-absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path) {
+absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
                        GetXlsRunfilePath(ir_path));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
@@ -349,7 +349,7 @@ absl::Status RealMain(int num_samples) {
 }  // namespace xls::aes
 
 int32_t main(int32_t argc, char** argv) {
-  std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
   XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
   return 0;
 }

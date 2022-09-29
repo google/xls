@@ -59,7 +59,7 @@ absl::StatusOr<std::string> GenerateHeader(
   // $1: Closing namespace(s)
   // $2: Function name
   // $3: Function parameters
-  constexpr absl::string_view kTemplate =
+  constexpr std::string_view kTemplate =
       R"(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "absl/status/statusor.h"
 #include "xls/ir/value.h"
@@ -105,7 +105,7 @@ absl::StatusOr<std::string> GenerateWrapperSource(
     Function* f, const JitObjectCode& object_code,
     const std::string& header_path,
     const std::vector<std::string>& namespaces) {
-  constexpr absl::string_view kTemplate =
+  constexpr std::string_view kTemplate =
       R"~(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "{{header_path}}"
 
@@ -129,7 +129,7 @@ void {{extern_fn}}(const uint8_t* const* inputs,
                    ::xls::JitRuntime* runtime);
 }
 {{open_ns}}
-constexpr absl::string_view kFnTypeProto = R"({{type_textproto}})";
+constexpr std::string_view kFnTypeProto = R"({{type_textproto}})";
 
 // We have to put "once" flags in different namespaces so their definitions
 // don't collide.

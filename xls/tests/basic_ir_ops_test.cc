@@ -89,7 +89,7 @@ top fn main(x: bits[$0]) -> bits[$2] {
 }
 
 TEST_F(BasicOpsTest, BitSliceUpdateOneBit) {
-  constexpr absl::string_view text = R"(
+  constexpr std::string_view text = R"(
 package BitSlice
 
 top fn main(x: bits[1]) -> bits[1] {
@@ -102,7 +102,7 @@ top fn main(x: bits[1]) -> bits[1] {
 }
 
 TEST_F(BasicOpsTest, BitSliceUpdateOneBitWithinTwo) {
-  constexpr absl::string_view text = R"(
+  constexpr std::string_view text = R"(
 package BitSlice
 
 top fn main(x: bits[2]) -> bits[2] {

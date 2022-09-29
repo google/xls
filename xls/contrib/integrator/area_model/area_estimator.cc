@@ -19,7 +19,7 @@
 namespace xls {
 
 absl::StatusOr<std::unique_ptr<AreaEstimator>> GetAreaEstimatorByName(
-    absl::string_view name) {
+    std::string_view name) {
   DelayEstimatorManager& singleton = GetDelayEstimatorManagerSingleton();
   XLS_ASSIGN_OR_RETURN(DelayEstimator * delay_estimator,
                        singleton.GetDelayEstimator(name));

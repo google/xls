@@ -45,16 +45,16 @@ class VerilogSimulator {
   // Runs the simulator with the given Verilog text as input and returns the
   // stdout/stderr as a string pair.
   absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text, FileType file_type) const;
+      std::string_view text, FileType file_type) const;
   virtual absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const = 0;
 
   // Runs the simulator to check the Verilog syntax. Does not run simulation.
   virtual absl::Status RunSyntaxChecking(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const = 0;
-  absl::Status RunSyntaxChecking(absl::string_view text,
+  absl::Status RunSyntaxChecking(std::string_view text,
                                  FileType file_type) const;
 
   // Simulation runner harness: runs the given Verilog text using the verilog
@@ -69,7 +69,7 @@ class VerilogSimulator {
   // Which the routine turns into a sequence of the Observation structure shown
   // above.
   absl::StatusOr<std::vector<Observation>> SimulateCombinational(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       const NameToBitCount& to_observe) const;
 
  protected:
@@ -86,12 +86,12 @@ class VerilogSimulatorManager {
   // Returns the delay estimator with the given name, or returns an error if no
   // such estimator exists.
   absl::StatusOr<VerilogSimulator*> GetVerilogSimulator(
-      absl::string_view name) const;
+      std::string_view name) const;
 
   // Adds a VerilogSimulator to the manager and associates it with the given
   // name.
   absl::Status RegisterVerilogSimulator(
-      absl::string_view name, std::unique_ptr<VerilogSimulator> simulator);
+      std::string_view name, std::unique_ptr<VerilogSimulator> simulator);
 
   // Returns a list of the names of available simulators in this manager.
   absl::Span<const std::string> simulator_names() const {

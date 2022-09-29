@@ -993,7 +993,7 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
                            Value::UBitsArray({1, 2, 3, 4}, 32));
 
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
@@ -1085,7 +1085,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
                            Value::UBitsArray({1, 2, 3, 4}, 32));
 
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,
@@ -1170,7 +1170,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   XLS_ASSERT_OK_AND_ASSIGN(Value kernel_value,
                            Value::UBitsArray({1, 2, 3, 4}, 32));
 
-  absl::string_view name = "fir_proc";
+  std::string_view name = "fir_proc";
   Type* kernel_type = p->GetTypeForValue(kernel_value.element(0));
 
   XLS_ASSERT_OK_AND_ASSIGN(StreamingChannel* x_in,

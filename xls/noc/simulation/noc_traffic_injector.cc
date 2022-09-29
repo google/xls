@@ -98,7 +98,7 @@ absl::Status MatchFlowToSourceAndRunAction(
     XLS_RET_CHECK(flow_id.IsValid());
     const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
 
-    absl::string_view flow_component = flow_component_func(flow);
+    std::string_view flow_component = flow_component_func(flow);
 
     bool matched_flow = false;
     for (int64_t j = 0; j < network_components.size(); ++j) {
@@ -112,7 +112,7 @@ absl::Status MatchFlowToSourceAndRunAction(
                             typeid(ParamType).name()));
       }
 
-      absl::string_view port_name = std::get<ParamType>(param).GetName();
+      std::string_view port_name = std::get<ParamType>(param).GetName();
 
       if (port_name == flow_component) {
         matched_flow = true;
@@ -157,7 +157,7 @@ NocTrafficInjectorBuilder::CalculateMaxPacketSizePerSource(
           packet_size_per_source[source_index] = flow.GetPacketSizeInBits();
         }
       },
-      [](const TrafficFlow& flow) -> absl::string_view {
+      [](const TrafficFlow& flow) -> std::string_view {
         return flow.GetSource();
       }));
 
@@ -182,7 +182,7 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToNetworkSources(
       [&injector](int64_t flow_index, int64_t source_index) -> void {
         injector.flows_index_to_sources_index_map_[flow_index] = source_index;
       },
-      [](const TrafficFlow& flow) -> absl::string_view {
+      [](const TrafficFlow& flow) -> std::string_view {
         return flow.GetSource();
       }));
 
@@ -202,7 +202,7 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToNetworkSinks(
       [&injector](int64_t flow_index, int64_t sink_index) -> void {
         injector.flows_index_to_sinks_index_map_[flow_index] = sink_index;
       },
-      [](const TrafficFlow& flow) -> absl::string_view {
+      [](const TrafficFlow& flow) -> std::string_view {
         return flow.GetDestination();
       }));
 
@@ -225,7 +225,7 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToVCs(
     XLS_RET_CHECK(flow_id.IsValid());
 
     const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
-    absl::string_view flow_vc = flow.GetVC();
+    std::string_view flow_vc = flow.GetVC();
 
     // If there are no VCs in use, always map to 0.
     int64_t vc_index = 0;

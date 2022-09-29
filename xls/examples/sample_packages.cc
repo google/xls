@@ -210,7 +210,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
   return {std::move(p), top};
 }
 
-absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
+absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(std::string_view name,
                                                       bool optimized) {
   std::filesystem::path filename =
       optimized ? absl::StrCat(name, ".opt.ir") : absl::StrCat(name, ".ir");
@@ -236,7 +236,7 @@ absl::StatusOr<std::vector<std::string>> GetBenchmarkNames() {
   for (auto& example_path : example_paths) {
     XLS_ASSIGN_OR_RETURN(std::string absolute_example_path,
                          GetXlsRunfilePath(example_path));
-    absl::string_view example_path_view = absolute_example_path;
+    std::string_view example_path_view = absolute_example_path;
     // Check if the file name ends with ".opt.ir". If so, strip the suffix and
     // add the result to names.
     if (absl::ConsumeSuffix(&example_path_view, ".opt.ir")) {
