@@ -93,7 +93,8 @@ class ProcJit : public ProcEvaluator {
   // Returns an object containing a host-compiled version of the specified XLS
   // proc.
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
-      Proc* proc, JitChannelQueueManager* queue_mgr, int64_t opt_level = 3);
+      Proc* proc, JitChannelQueueManager* queue_mgr,
+      std::unique_ptr<OrcJit> orc_jit);
 
   virtual ~ProcJit() = default;
 
@@ -111,7 +112,8 @@ class ProcJit : public ProcEvaluator {
   }
 
  private:
-  explicit ProcJit(Proc* proc) : proc_(proc) {}
+  explicit ProcJit(Proc* proc, std::unique_ptr<OrcJit> orc_jit)
+      : proc_(proc), orc_jit_(std::move(orc_jit)) {}
 
   Proc* proc_;
   std::unique_ptr<OrcJit> orc_jit_;

@@ -40,9 +40,7 @@ absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
   wrapper.jit_ = jit;
   wrapper.queue_ = queue;
 
-  int64_t id = queue->channel_id();
-  XLS_ASSIGN_OR_RETURN(Channel * ch, jit->proc()->package()->GetChannel(id));
-  wrapper.type_ = ch->type();
+  wrapper.type_ = queue->channel()->type();
 
   int64_t buffer_size = jit->type_converter()->GetTypeByteSize(wrapper.type_);
   wrapper.buffer_.resize(buffer_size);
@@ -51,32 +49,26 @@ absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
 }
 
 absl::Status JitChannelQueueWrapper::Enqueue(const Value& v) {
-  jit_->runtime()->BlitValueToBuffer(v, type_, absl::MakeSpan(buffer_));
-
-  queue_->Send(buffer_.data(), buffer_.size());
-
-  return absl::OkStatus();
+  return queue_->Enqueue(v);
 }
 
 absl::StatusOr<Value> JitChannelQueueWrapper::Dequeue() {
-  XLS_RET_CHECK(!queue_->Empty());
-
-  queue_->Recv(buffer_.data(), buffer_.size());
-
-  return jit_->runtime()->UnpackBuffer(buffer_.data(), type_);
+  std::optional<Value> value = queue_->Dequeue();
+  XLS_RET_CHECK(value.has_value());
+  return *value;
 }
 
 absl::Status JitChannelQueueWrapper::EnqueueWithUint64(uint64_t v) {
   if (!type_->IsBits()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Queue id=%d has non-Bits-typed type: %s",
-                        queue_->channel_id(), type_->ToString()));
+                        queue_->channel()->id(), type_->ToString()));
   }
 
   if (Bits::MinBitCountUnsigned(v) > type_->AsBitsOrDie()->bit_count()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Value %d for queue id=%d does not fit in type: %s", v,
-                        queue_->channel_id(), type_->ToString()));
+                        queue_->channel()->id(), type_->ToString()));
   }
 
   Value xls_v(UBits(v, type_->AsBitsOrDie()->bit_count()));
@@ -90,19 +82,20 @@ absl::StatusOr<uint64_t> JitChannelQueueWrapper::DequeueWithUint64() {
   if (!xls_v.IsBits()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Queue id=%d has non-Bits-typed type: %s",
-                        queue_->channel_id(), type_->ToString()));
+                        queue_->channel()->id(), type_->ToString()));
   }
 
   return xls_v.bits().ToUint64();
 }
 
 absl::Status JitChannelQueueWrapper::Enqueue(absl::Span<uint8_t> buffer) {
-  queue_->Send(buffer.data(), buffer.size());
+  queue_->EnqueueRaw(buffer.data());
   return absl::OkStatus();
 }
 
 absl::Status JitChannelQueueWrapper::Dequeue(absl::Span<uint8_t> buffer) {
-  queue_->Recv(buffer.data(), buffer.size());
+  bool was_dequeued = queue_->DequeueRaw(buffer.data());
+  XLS_RET_CHECK(was_dequeued);
   return absl::OkStatus();
 }
 
@@ -289,14 +282,16 @@ absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
     return pre_compiled_proc_jit_.at(p).get();
   }
 
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
   if (jit_channel_manager_ == nullptr) {
-    XLS_ASSIGN_OR_RETURN(
-        jit_channel_manager_,
-        JitChannelQueueManager::CreateThreadUnsafe(package_.get()));
+    XLS_ASSIGN_OR_RETURN(jit_channel_manager_,
+                         JitChannelQueueManager::CreateThreadUnsafe(
+                             package_.get(), orc_jit.get()));
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcJit> jit,
-                       ProcJit::Create(p, jit_channel_manager_.get()));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(p, jit_channel_manager_.get(), std::move(orc_jit)));
   pre_compiled_proc_jit_[p] = std::move(jit);
   jit_continuations_[p] = pre_compiled_proc_jit_[p]->NewContinuation();
 
@@ -313,7 +308,7 @@ absl::StatusOr<ProcContinuation*> IrWrapper::GetJitContinuation(
 absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(
     absl::string_view name) const {
   XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
-  return jit_channel_manager_->GetQueueById(channel->id());
+  return &jit_channel_manager_->GetJitQueue(channel);
 }
 
 absl::StatusOr<JitChannelQueueWrapper> IrWrapper::CreateJitChannelQueueWrapper(

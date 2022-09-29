@@ -69,9 +69,10 @@ class SerialProcRuntime {
 
   Package* package_;
   std::unique_ptr<JitChannelQueueManager> queue_mgr_;
+  std::unique_ptr<JitRuntime> jit_runtime_;
+
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcJit>> proc_jits_;
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcContinuation>> continuations_;
-  JitRuntime* jit_runtime_;
 };
 
 }  // namespace xls

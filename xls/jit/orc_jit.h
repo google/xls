@@ -38,8 +38,8 @@ class OrcJit {
   // Create an LLVM ORC JIT instance which compiles at the given optimization
   // level. If `emit_object_code` is true then `GetObjectCode` can be called
   // after compilation to get the object code.
-  static absl::StatusOr<std::unique_ptr<OrcJit>> Create(int64_t opt_level,
-                                                        bool emit_object_code);
+  static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
+      int64_t opt_level = 3, bool emit_object_code = false);
 
   // Creates and returns a new LLVM module of the given name.
   std::unique_ptr<llvm::Module> NewModule(absl::string_view name);

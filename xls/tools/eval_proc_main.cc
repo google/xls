@@ -214,16 +214,14 @@ absl::Status RunSerialJit(
     XLS_ASSIGN_OR_RETURN(Channel * out_ch, package->GetChannel(channel_name));
     uint64_t processed_count = 0;
     for (const Value& value : values) {
-      XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                           runtime->queue_mgr()->GetQueueById(out_ch->id()));
-      if (queue->Empty()) {
+      ChannelQueue& queue = runtime->queue_mgr()->GetQueue(out_ch);
+      if (queue.IsEmpty()) {
         XLS_LOG(WARNING) << "Warning: Didn't consume "
                          << values.size() - processed_count
                          << " expected values" << std::endl;
         break;
       }
-      XLS_ASSIGN_OR_RETURN(std::optional<Value> out_val,
-                           runtime->DequeueValueFromChannel(out_ch));
+      std::optional<Value> out_val = queue.Dequeue();
       XLS_RET_CHECK(out_val.has_value())
           << "No output value present on channel " << out_ch->name();
       XLS_RET_CHECK_EQ(value, out_val.value())

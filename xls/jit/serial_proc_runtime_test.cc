@@ -15,6 +15,7 @@
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
+#include "xls/common/casts.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/thread.h"
@@ -28,14 +29,16 @@ namespace {
 using status_testing::IsOkAndHolds;
 
 template <typename T>
-void EnqueueData(JitChannelQueue* queue, T data) {
-  queue->Send(absl::bit_cast<uint8_t*>(&data), sizeof(T));
+void EnqueueData(ChannelQueue* queue, T data) {
+  down_cast<JitChannelQueue*>(queue)->EnqueueRaw(
+      absl::bit_cast<uint8_t*>(&data));
 }
 
 template <typename T>
-T DequeueData(JitChannelQueue* queue) {
+T DequeueData(ChannelQueue* queue) {
   T data;
-  queue->Recv(absl::bit_cast<uint8_t*>(&data), sizeof(T));
+  down_cast<JitChannelQueue*>(queue)->DequeueRaw(
+      absl::bit_cast<uint8_t*>(&data));
   return data;
 }
 
@@ -299,16 +302,18 @@ proc b(my_token: token, state: (), init={()}) {
   Thread thread([input_queue]() {
     // Give enough time for the network to block, then send in the missing data.
     sleep(1);
-    int32_t data = 42;
-    input_queue->Send(absl::bit_cast<uint8_t*>(&data), sizeof(data));
+    uint32_t data = 42;
+    EnqueueData(input_queue, data);
   });
   XLS_ASSERT_OK_AND_ASSIGN(auto output_queue,
                            runtime->queue_mgr()->GetQueueById(2));
 
-  int32_t data;
-  while (!output_queue->Recv(absl::bit_cast<uint8_t*>(&data), sizeof(data))) {
+  uint8_t buffer[4];
+  while (!down_cast<JitChannelQueue*>(output_queue)->DequeueRaw(buffer)) {
     XLS_ASSERT_OK(runtime->Tick());
   }
+  uint32_t data;
+  memcpy(&data, buffer, 4);
   EXPECT_EQ(data, 42);
   thread.Join();
 }

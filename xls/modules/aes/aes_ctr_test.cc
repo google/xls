@@ -114,25 +114,21 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
 
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));
-  int cmd_channel_id = cmd_channel->id();
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * cmd_queue,
-                       jit_data->queue_mgr->GetQueueById(cmd_channel_id));
-  cmd_queue->Send(reinterpret_cast<uint8_t*>(&command), sizeof(CtrCommand));
+  JitChannelQueue* cmd_queue = &jit_data->queue_mgr->GetJitQueue(cmd_channel);
+  cmd_queue->EnqueueRaw(reinterpret_cast<uint8_t*>(&command));
 
   XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
                        jit_data->package->GetChannel(kInputDataChannel));
-  int input_data_channel_id = input_data_channel->id();
-  XLS_ASSIGN_OR_RETURN(
-      JitChannelQueue * input_data_queue,
-      jit_data->queue_mgr->GetQueueById(input_data_channel_id));
-  input_data_queue->Send(sample_data.input_blocks[0].data(), kBlockBytes);
+  JitChannelQueue* input_data_queue =
+      &jit_data->queue_mgr->GetJitQueue(input_data_channel);
+  input_data_queue->EnqueueRaw(sample_data.input_blocks[0].data());
 
   XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
   PrintTraceMessages(jit_data->continuation->GetEvents());
 
   // TODO(rspringer): Set this up to handle partial blocks.
   for (int i = 1; i < num_blocks; i++) {
-    input_data_queue->Send(sample_data.input_blocks[i].data(), kBlockBytes);
+    input_data_queue->EnqueueRaw(sample_data.input_blocks[i].data());
     XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
     PrintTraceMessages(jit_data->continuation->GetEvents());
   }
@@ -140,14 +136,12 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
   // Finally, read out the ciphertext.
   XLS_ASSIGN_OR_RETURN(Channel * output_data_channel,
                        jit_data->package->GetChannel(kOutputDataChannel));
-  int output_data_channel_id = output_data_channel->id();
-  XLS_ASSIGN_OR_RETURN(
-      JitChannelQueue * output_data_queue,
-      jit_data->queue_mgr->GetQueueById(output_data_channel_id));
+  JitChannelQueue* output_data_queue =
+      &jit_data->queue_mgr->GetJitQueue(output_data_channel);
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
-    XLS_QCHECK(output_data_queue->Recv(blocks[i].data(), kBlockBytes));
+    XLS_QCHECK(output_data_queue->DequeueRaw(blocks[i].data()));
   }
 
   return blocks;
@@ -276,13 +270,17 @@ absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(Proc * proc,
                        package->GetProc("__aes_ctr__aes_ctr_0_next"));
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_mgr,
-                       JitChannelQueueManager::Create(package.get()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<JitChannelQueueManager> queue_mgr,
+      JitChannelQueueManager::CreateThreadSafe(package.get(), orc_jit.get()));
 
   XLS_VLOG(1) << "JIT compiling.";
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcJit> jit,
-                       ProcJit::Create(proc, queue_mgr.get()));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_mgr.get(), std::move(orc_jit)));
   XLS_VLOG(1) << "Created JIT!";
+
   JitData jit_data;
   jit_data.jit = std::move(jit);
   jit_data.continuation = jit_data.jit->NewContinuation();

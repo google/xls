@@ -438,10 +438,13 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   Proc* proc = function_base->AsProcOrDie();
 
   absl::Time start_jit_compile = absl::Now();
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_manager,
-                       JitChannelQueueManager::Create(proc->package()));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcJit> jit,
-                       ProcJit::Create(proc, queue_manager.get()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<JitChannelQueueManager> queue_manager,
+      JitChannelQueueManager::CreateThreadSafe(proc->package(), orc_jit.get()));
+  XLS_ASSIGN_OR_RETURN(
+      std::unique_ptr<ProcJit> jit,
+      ProcJit::Create(proc, queue_manager.get(), std::move(orc_jit)));
   std::cout << absl::StreamFormat(
       "JIT compile time: %dms\n",
       DurationToMs(absl::Now() - start_jit_compile));

@@ -79,9 +79,7 @@ cc_library(
         "@com_google_absl//absl/base:config",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:optional",
         "@com_google_absl//absl/types:span",
-        "//xls/common:math_util",
         "//xls/common/logging",
         "//xls/ir",
         "//xls/ir:bits_ops",
@@ -189,6 +187,8 @@ cc_library(
     srcs = ["jit_channel_queue.cc"],
     hdrs = ["jit_channel_queue.h"],
     deps = [
+        ":jit_runtime",
+        ":orc_jit",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:inlined_vector",
         "@com_google_absl//absl/memory",
@@ -199,6 +199,7 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
+        "//xls/interpreter:channel_queue",
         "//xls/ir",
         "//xls/ir:channel",
     ],
@@ -210,6 +211,11 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/interpreter:channel_queue",
+        "//xls/interpreter:channel_queue_test_base",
+        "//xls/ir",
+        "//xls/ir:channel",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -261,6 +267,7 @@ cc_library(
     hdrs = ["serial_proc_runtime.h"],
     deps = [
         ":jit_channel_queue",
+        ":orc_jit",
         ":proc_jit",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -346,6 +353,7 @@ cc_test(
     srcs = ["proc_jit_test.cc"],
     deps = [
         ":jit_channel_queue",
+        ":orc_jit",
         ":proc_jit",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
@@ -367,6 +375,7 @@ cc_test(
     deps = [
         ":jit_channel_queue",
         ":serial_proc_runtime",
+        "//xls/common:casts",
         "//xls/common:thread",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",

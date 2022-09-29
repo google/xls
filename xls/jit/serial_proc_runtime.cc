@@ -31,18 +31,21 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> SerialProcRuntime::Create(
 SerialProcRuntime::SerialProcRuntime(Package* package) : package_(package) {}
 
 absl::Status SerialProcRuntime::Init() {
-  XLS_ASSIGN_OR_RETURN(queue_mgr_, JitChannelQueueManager::Create(package_));
-  jit_runtime_ = nullptr;
   // Create a ProcJit and continuation for each proc.
   for (const std::unique_ptr<Proc>& proc : package_->procs()) {
-    XLS_ASSIGN_OR_RETURN(proc_jits_[proc.get()],
-                         ProcJit::Create(proc.get(), queue_mgr_.get()));
-    continuations_[proc.get()] = proc_jits_.at(proc.get())->NewContinuation();
-    if (jit_runtime_ == nullptr) {
-      jit_runtime_ = proc_jits_[proc.get()]->runtime();
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+    if (queue_mgr_ == nullptr) {
+      XLS_ASSIGN_OR_RETURN(queue_mgr_, JitChannelQueueManager::CreateThreadSafe(
+                                           package_, orc_jit.get()));
+      jit_runtime_ = std::make_unique<JitRuntime>(orc_jit->GetDataLayout(),
+                                                  &orc_jit->GetTypeConverter());
     }
+
+    XLS_ASSIGN_OR_RETURN(
+        proc_jits_[proc.get()],
+        ProcJit::Create(proc.get(), queue_mgr_.get(), std::move(orc_jit)));
+    continuations_[proc.get()] = proc_jits_.at(proc.get())->NewContinuation();
   }
-  XLS_RET_CHECK_NE(jit_runtime_, nullptr);
 
   // Enqueue initial values into channels.
   for (Channel* channel : package_->channels()) {
@@ -78,61 +81,24 @@ absl::Status SerialProcRuntime::Tick(bool print_traces) {
 
 absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
                                                       const Value& value) {
-  XLS_RET_CHECK_EQ(package_->GetTypeForValue(value), channel->type());
-  Type* type = package_->GetTypeForValue(value);
-
-  int64_t size = jit_runtime_->type_converter()->GetTypeByteSize(type);
-  auto buffer = std::make_unique<uint8_t[]>(size);
-  jit_runtime_->BlitValueToBuffer(value, type,
-                                  absl::MakeSpan(buffer.get(), size));
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  queue->Send(buffer.get(), size);
-  return absl::OkStatus();
+  return queue_mgr()->GetQueue(channel).Enqueue(value);
 }
 
 absl::Status SerialProcRuntime::EnqueueBufferToChannel(
     Channel* channel, absl::Span<uint8_t const> buffer) {
-  int64_t size =
-      jit_runtime_->type_converter()->GetTypeByteSize(channel->type());
-  XLS_RET_CHECK_GE(buffer.size(), size);
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  queue->Send(buffer.data(), size);
+  JitChannelQueue& queue = queue_mgr()->GetJitQueue(channel);
+  queue.EnqueueRaw(buffer.data());
   return absl::OkStatus();
 }
 
 absl::StatusOr<std::optional<Value>> SerialProcRuntime::DequeueValueFromChannel(
     Channel* channel) {
-  Type* type = channel->type();
-  int64_t size = jit_runtime_->type_converter()->GetTypeByteSize(type);
-  auto buffer = std::make_unique<uint8_t[]>(size);
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  bool had_data = queue->Recv(buffer.get(), size);
-  if (!had_data) {
-    return absl::nullopt;
-  }
-
-  return jit_runtime_->UnpackBuffer(buffer.get(), type);
+  return queue_mgr()->GetQueue(channel).Dequeue();
 }
 
 absl::StatusOr<bool> SerialProcRuntime::DequeueBufferFromChannel(
     Channel* channel, absl::Span<uint8_t> buffer) {
-  Type* type = channel->type();
-
-  int64_t size = jit_runtime_->type_converter()->GetTypeByteSize(type);
-  XLS_RET_CHECK_GE(buffer.size(), size);
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  bool had_data = queue->Recv(buffer.data(), size);
-  if (!had_data) {
-    return false;
-  }
-  return true;
+  return queue_mgr()->GetJitQueue(channel).DequeueRaw(buffer.data());
 }
 
 absl::StatusOr<std::vector<Value>>

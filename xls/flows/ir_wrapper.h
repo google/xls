@@ -44,7 +44,7 @@ class JitChannelQueueWrapper {
   Type* GetType() const { return type_; }
 
   // Returns if the queue is empty.
-  bool Empty() const { return (queue_ == nullptr) || (queue_->Empty()); }
+  bool Empty() const { return (queue_ == nullptr) || (queue_->IsEmpty()); }
 
   // Enqueue on the channel the value v.
   absl::Status Enqueue(const Value& v);

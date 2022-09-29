@@ -79,7 +79,10 @@ class ChannelQueue {
   Channel* channel_;
 
   std::deque<Value> queue_ ABSL_GUARDED_BY(mutex_);
-  std::optional<GeneratorFn> generator_ ABSL_GUARDED_BY(mutex_);
+  // The ThreadUnsafeJitChannelQueue reads this value without a lock.
+  // TODO(meheff): 2022/09/27 Fix this, potentially by obviating the need for
+  // the thread-unsafe version of the queue.
+  std::optional<GeneratorFn> generator_ ABSL_GUARDED_BY_FIXME(mutex_);
 };
 
 // A functor which returns a sequence of Values when called. Maybe be attached

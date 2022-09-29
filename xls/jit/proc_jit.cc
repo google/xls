@@ -73,12 +73,11 @@ void ProcJitContinuation::NextTick() {
 }
 
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
-    Proc* proc, JitChannelQueueManager* queue_mgr, int64_t opt_level) {
-  auto jit = absl::WrapUnique(new ProcJit(proc));
-  XLS_ASSIGN_OR_RETURN(jit->orc_jit_,
-                       OrcJit::Create(opt_level, /*emit_object_code=*/false));
+    Proc* proc, JitChannelQueueManager* queue_mgr,
+    std::unique_ptr<OrcJit> orc_jit) {
+  auto jit = absl::WrapUnique(new ProcJit(proc, std::move(orc_jit)));
   jit->ir_runtime_ = std::make_unique<JitRuntime>(
-      jit->orc_jit_->GetDataLayout(), &jit->orc_jit_->GetTypeConverter());
+      jit->GetOrcJit().GetDataLayout(), &jit->GetOrcJit().GetTypeConverter());
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
                        BuildProcFunction(proc, queue_mgr, jit->GetOrcJit()));
   return jit;
