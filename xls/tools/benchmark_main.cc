@@ -394,6 +394,19 @@ absl::Status PrintScheduleInfo(FunctionBase* f,
   return absl::OkStatus();
 }
 
+absl::Status PrintProcInfo(Proc* p) {
+  XLS_RET_CHECK(p != nullptr);
+
+  int64_t total_flops = 0;
+  for (Param* param : p->StateParams()) {
+    total_flops += param->GetType()->GetFlatBitCount();
+  }
+
+  std::cout << absl::StreamFormat("Total state flops: %d\n", total_flops);
+
+  return absl::OkStatus();
+}
+
 absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   std::minstd_rand rng_engine;
   if (function_base->IsFunction()) {
@@ -513,6 +526,11 @@ absl::Status RealMain(std::string_view path,
 
     XLS_RETURN_IF_ERROR(PrintScheduleInfo(f, schedule, query_engine,
                                           delay_estimator, clock_period_ps));
+
+    // Print out state information for procs.
+    if (f->IsProc()) {
+      XLS_RETURN_IF_ERROR(PrintProcInfo(f->AsProcOrDie()));
+    }
   }
 
   XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f));
