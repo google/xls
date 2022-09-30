@@ -75,8 +75,12 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
     }
   }
 
-  // TODO(rspringer): 2022-04-12: pass/fail based on the value of term_chan's
-  // entry.
+  InterpValue ret_val = term_chan->front();
+  XLS_RET_CHECK(ret_val.IsBool());
+  if (!ret_val.IsTrue()) {
+    return FailureErrorStatus(
+        tp->proc()->span(), "Proc reported failure upon exit.");
+  }
   return absl::OkStatus();
 }
 
