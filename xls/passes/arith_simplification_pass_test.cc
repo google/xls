@@ -18,6 +18,7 @@
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
@@ -233,19 +234,77 @@ TEST_F(ArithSimplificationPassTest, UDivBy4) {
               m::Concat(m::Literal(UBits(0, 2)), m::BitSlice(m::Param("x"))));
 }
 
-TEST_F(ArithSimplificationPassTest, SDivBy2) {
+TEST_F(ArithSimplificationPassTest, SDivBy1) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn mul_zero(x:bits[16]) -> bits[16] {
-        literal.1: bits[16] = literal(value=2)
+     fn sdiv_by_1(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=1)
         ret result: bits[16] = sdiv(x, literal.1)
      }
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::SignExt(m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/15)));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(ArithSimplificationPassTest, OneBitSDivDivByMinus1) {
+  // 0b1 is -1 for a bits[1] type so sdiv by literal one should not apply.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn one_bit_sdiv(x:bits[1]) -> bits[1] {
+        literal.1: bits[1] = literal(value=1)
+        ret result: bits[1] = sdiv(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(false));
+  EXPECT_THAT(f->return_value(), m::SDiv());
+}
+
+TEST_F(ArithSimplificationPassTest, SDivWithLiteralDivisorSweep) {
+  // Sweep all possible values for a Bits[3] SDIV with a literal divisor.
+  for (int64_t divisor = -4; divisor <= 3; ++divisor) {
+    for (int64_t dividend = -4; dividend <= 3; ++dividend) {
+      auto p = CreatePackage();
+      Type* u3 = p->GetBitsType(3);
+      FunctionBuilder fb(TestName(), p.get());
+      fb.SDiv(fb.Param("dividend", u3), fb.Literal(SBits(divisor, 3)));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+      Value expected;
+      // XLS divide by zero semantics are to return the maximal
+      // positive/negative value.
+      if (divisor == 0) {
+        expected = Value(SBits(dividend >= 0 ? 3 : -4, 3));
+      } else if (dividend == -4 && divisor == -1) {
+        // Overflow. In this case we just return the truncated twos-complement
+        // result (0b0100 => 0b100).
+        expected = Value(SBits(-4, 3));
+      } else {
+        expected = Value(SBits(dividend / divisor, 3));
+      }
+      XLS_VLOG(1) << absl::StreamFormat("%d / %d = %d (%s)", dividend, divisor,
+                                        expected.bits().ToInt64().value(),
+                                        expected.ToString());
+      XLS_ASSERT_OK_AND_ASSIGN(
+          InterpreterResult<Value> before_result,
+          InterpretFunction(f, {Value(SBits(dividend, 3))}));
+      XLS_ASSERT_OK_AND_ASSIGN(Value before_value,
+                               InterpreterResultToStatusOrValue(before_result));
+      EXPECT_EQ(before_value, expected)
+          << absl::StreamFormat("Before: %d / %d", dividend, divisor);
+
+      XLS_ASSERT_OK(Run(p.get()));
+
+      XLS_ASSERT_OK_AND_ASSIGN(
+          InterpreterResult<Value> after_result,
+          InterpretFunction(f, {Value(SBits(dividend, 3))}));
+      XLS_ASSERT_OK_AND_ASSIGN(Value after_value,
+                               InterpreterResultToStatusOrValue(after_result));
+      EXPECT_EQ(after_result.value, expected)
+          << absl::StreamFormat("After: %d / %d", dividend, divisor);
+    }
+  }
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {

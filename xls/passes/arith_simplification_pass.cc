@@ -382,12 +382,20 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
         /*new_bit_count=*/bit_count, is_signed ? Op::kSignExt : Op::kZeroExt);
   };
 
-  // Pattern: Div/Mul by a positive power of two.
-  if ((n->op() == Op::kSMul || n->op() == Op::kUMul || n->op() == Op::kSDiv ||
-       n->op() == Op::kUDiv) &&
+  // Pattern: SDiv where the divisor is a positive one. Skip the case where the
+  // divisor has width 1 because a bits[1]:0b1 value is -1.
+  if (n->op() == Op::kSDiv && n->operand(1)->Is<Literal>() &&
+      n->operand(1)->As<Literal>()->value().bits().IsOne() &&
+      n->operand(1)->BitCountOrDie() > 1) {
+    XLS_RETURN_IF_ERROR(n->ReplaceUsesWith(n->operand(0)));
+    return true;
+  }
+
+  // Pattern: UDiv/UMul/SMul by a positive power of two.
+  if ((n->op() == Op::kSMul || n->op() == Op::kUMul || n->op() == Op::kUDiv) &&
       n->operand(1)->Is<Literal>()) {
     const Bits& rhs = n->operand(1)->As<Literal>()->value().bits();
-    const bool is_signed = n->op() == Op::kSMul || n->op() == Op::kSDiv;
+    const bool is_signed = n->op() == Op::kSMul;
     if (rhs.IsPowerOfTwo() &&
         (!is_signed || (is_signed && bits_ops::SGreaterThan(rhs, 0)))) {
       XLS_VLOG(2) << "FOUND: Div/Mul by positive power of two";
@@ -405,9 +413,8 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
         // Multiply operation is replaced with shift left;
         shift_op = Op::kShll;
       } else {
-        // Divide operation is replaced with shift right (arithmetic or logical
-        // depending on signedness).
-        shift_op = is_signed ? Op::kShra : Op::kShrl;
+        // Unsigned divide operation is replaced with shift right logical.
+        shift_op = Op::kShrl;
       }
       XLS_VLOG(2) << "FOUND: div/mul of positive power of two";
       XLS_RETURN_IF_ERROR(

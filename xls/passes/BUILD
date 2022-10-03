@@ -122,6 +122,7 @@ cc_test(
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/interpreter:ir_interpreter",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",
