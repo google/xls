@@ -115,7 +115,7 @@ documented largely as a historical note of an early / simple optimization
 approach.
 
 With the addition of the `one_hot_select` and its corresponding optimizations, a
-larger amount of boolean logic appears in XLS' optimized graphs (e.g. or-ing
+larger amount of boolean logic appears in XLS's optimized graphs (e.g. or-ing
 together bits in the selector to eliminate duplicate `one_hot_select` operands).
 Un-simplified boolean operations compound their delay on the critical path; with
 the process independent constant $\tau$ a single bit `or` might be $6\tau$,
@@ -570,6 +570,253 @@ single IR node has been DCE'ed:
 }
 ```
 
+### Common Subexpression Elimination (CSE)
+
+Common subexpression elimination is another example of a classic compiler
+optimization that equally applies to high-level synthesis. The heuristics on
+which specific expressions to commonize may differ, given that commonizing
+expressions can increase fan-out and connectivity of the IR, complicating place
+and route. Currently, XLS is greedy and does not apply heuristics. It commonizes
+any and all common expressions it can find. The CSE implementation can be found
+in files `xls/passes/cse_pass.*`.
+
+What does CSE actually do? The principles are quite simple and similar in
+classic control-flow based compilers. Yet, as mentioned, the heuristics may be
+moderately different. In CFG-based IRs, CSE would look for common expressions
+and substitute in temporary variables.  For example, for code like this with the
+common expression `a+b`:
+
+```c++
+   x = a + b + c;
+   if (cond) {
+      ...
+   } else {
+      y = b + a;
+   }
+```
+
+The compiler would first determine that addition is commutative and that hence
+the expressions `a+b` and `b+a` can be canonicalized, eg., by ordering the
+operands alphabetically. Then the compiler would introduce a temporary variable
+for the expression and forward-substitute it into all occurances. For the
+example, the resulting code would be something like this:
+
+```c++
+   t1 = a + b
+   x = t1 + c;
+   if (cond) {
+      ...
+   } else {
+      y = t1;
+   }
+```
+
+In effect, an arithmetic operation has been traded against a register (or cache)
+access. Even in classic compilers, the CSE heuristics may consider factors such
+as the length and number of live ranges (and corresponding register pressure) to
+determine whether or not it may be better to just recompute the expression.
+
+In XLS's "sea of nodes" IR, this transformation is quite simple. Given a graph
+that contains multiple common subexpressions, for example:
+
+```
+   A   B
+    \ /
+     C1      A   B
+      \       \ /
+       ...     C2
+               /
+             op(C2)
+```
+
+XLS would find that `C1` and `C2` compute identical expressions and would
+simply replace the use of `C2` with `C1`, as in this graph (which will result
+in `C2` being dead-code eliminated):
+
+```
+   A   B
+    \ /
+     C1      A   B
+      \       \ /
+       ...     C2
+         \
+        op(C1)
+```
+
+Now let's see how this is implemented in XLS.  CSE is a function-level
+transformation and accordingly the pass is derived from `FunctionBasePass`. In
+the header file:
+
+```c++
+class CsePass : public FunctionBasePass {
+ public:
+  CsePass() : FunctionBasePass("cse", "Common subexpression elimination") {}
+  ~CsePass() override {}
+
+ protected:
+  absl::StatusOr<bool> RunOnFunctionBaseInternal(
+      FunctionBase* f, const PassOptions& options,
+      PassResults* results) const override;
+};
+```
+
+Several other optimizations passes expose new CSE opportunities. To make it easy
+to call CSE from these other passes, we declare a standalone function to call
+it. It accepts as input the function and returns a map containing the potential
+replacements of one node with another:
+
+```c++
+absl::StatusOr<bool> RunCse(FunctionBase* f,
+                            absl::flat_hash_map<Node*, Node*>* replacements);
+```
+
+CSE conceptually has to check for each op and its operands whether or not a
+similar op exists somewhere else in the IR. To make this more efficient, XLS
+first computes a 64-bit hash for each node. It combines the nodes' opcode with
+all operands' IDs into a vector and computes the hash function over this
+vector.
+
+```c++
+  auto hasher = absl::Hash<std::vector<int64_t>>();
+  auto node_hash = [&](Node* n) {
+    std::vector<int64_t> values_to_hash = {static_cast<int64_t>(n->op())};
+    std::vector<Node*> span_backing_store;
+    for (Node* operand : GetOperandsForCse(n, &span_backing_store)) {
+      values_to_hash.push_back(operand->id());
+    }
+    // If this is slow because of many literals, the Literal values could be
+    // combined into the hash. As is, all literals get the same hash value.
+    return hasher(values_to_hash);
+  };
+```
+
+Note that this procedure uses the function `GetOperandsForCse` to collect
+the operands. What does this function do? For nodes to be considered as
+equivalent, the operands must be in the same order. Commutative operands
+are agnostic to operand order. So in order to expand the opportunities for
+CSE, XLS sorts commutative operands by their ID. As an optimization, to
+avoid having to construct and return a full vector for each node and operands,
+the function gets a parameter to a vector of nodes to use as storage and
+returns a `absl::Span<Node * const>` over this backing store. This may look
+a bit confusing in the code but is really just a performance optimization:
+
+```c++
+absl::Span<Node* const> GetOperandsForCse(
+    Node* node, std::vector<Node*>* span_backing_store) {
+  XLS_CHECK(span_backing_store->empty());
+  if (!OpIsCommutative(node->op())) {
+    return node->operands();
+  }
+  span_backing_store->insert(span_backing_store->begin(),
+                             node->operands().begin(), node->operands().end());
+  SortByNodeId(span_backing_store);
+  return *span_backing_store;
+}
+```
+
+Now on to the meat of the optimization pass. As always, we have to maintain
+whether or not the pass modified the IR:
+
+```c++
+bool changed = false;
+```
+
+We store each first occurance of an expression in a map which is indexed by the
+expression's hash value. Since potentially there is no redundancy in the IR, we
+can pre-allocate this map to the size of function's IR. Note that non-common
+expressions may result in the same hash value. Because of that, `node_buckets`
+is a map from the hash value to a vector of nodes with the same hash value:
+
+```c++
+absl::flat_hash_map<int64_t, std::vector<Node*>> node_buckets;
+node_buckets.reserve(f->node_count());
+```
+
+Now we iterate over the nodes in the IR, ignoring nodes that have side
+effects:
+
+```c++
+  for (Node* node : TopoSort(f)) {
+    if (OpIsSideEffecting(node->op())) {
+      continue;
+    }
+```
+
+First thing to check is whether or not the op represents an expression that we
+have potentially already seen. If this is the first occurrance of the
+expression, which is efficient to check via the hash value, we store the op in
+`node_buckets` and continue with the next node.
+
+```c++
+    int64_t hash = node_hash(node);
+    if (!node_buckets.contains(hash)) {
+      node_buckets[hash].push_back(node);
+      continue;
+    }
+```
+
+Now it is getting more interesting. We may have found a node that is common with
+a previously seen node. We collect the nodes operands (again, this looks a bit
+complicated because of the performance optimization):
+
+```c++
+    std::vector<Node*> node_span_backing_store;
+    absl::Span<Node* const> node_operands_for_cse =
+        GetOperandsForCse(node, &node_span_backing_store);
+```
+
+Then we iterate over all previously seen nodes with the same hash value which
+are stored in `node_buckets`. Again, the may be multiple expressions with the
+same hash value, hence we have to iterate over all candidates with that
+hash value.
+
+For each candidate, we collect the operands and then check whether the node is
+*definitely* identical to a previously seen node. In this case the node's uses
+can be replaced:
+
+```c++
+    for (Node* candidate : node_buckets.at(hash)) {
+      std::vector<Node*> candidate_span_backing_store;
+      if (node_operands_for_cse ==
+              GetOperandsForCse(candidate, &candidate_span_backing_store) &&
+          node->IsDefinitelyEqualTo(candidate)) {
+          [...]
+```
+
+If it was a match we replace the nodes, fill in the resulting replacement map,
+and mark the IR as modified. We also note whether a true match was found (via
+`replaced`):
+
+```c++
+        XLS_VLOG(3) << absl::StreamFormat(
+            "Replacing %s with equivalent node %s", node->GetName(),
+            candidate->GetName());
+        XLS_RETURN_IF_ERROR(node->ReplaceUsesWith(candidate));
+        if (replacements != nullptr) {
+          (*replacements)[node] = candidate;
+        }
+        changed = true;
+        replaced = true;
+        break;
+      }
+    }
+```
+
+If, however, it turns out that while the hash value was identical but the
+ops were not identical, we have to update `node_buckets` and insert the
+new candidate.
+
+```c++
+    if (!replaced) {
+      node_buckets[hash].push_back(node);
+    }
+```
+
+As a final step, we return whether or not the IR was modified:
+
+```c++
+  return changed;
+```
 
 ### IO simplifications
 
@@ -580,10 +827,6 @@ their input token and a literal representing the zero value of the appropriate
 channel (in the case of receives). Conditional sends and receives that have a
 condition known to be true are replaced with unconditional sends and receives.
 
-
-### Common Subexpression Elimination (CSE)
-
-TODO: Finish.
 
 ### Constant Folding
 
@@ -620,3 +863,4 @@ This can be reassociated into:
 
 The right-most add of the two literals can be folded reducing the number of adds
 in the expression to two.
+
