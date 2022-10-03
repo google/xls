@@ -443,7 +443,7 @@ hardware optimization of reducing delay and area.
 ### Dead Code Elimination (DCE)
 
 Dead Code Elimination (DCE for short) is usually one of the easiest
-and most straight-forward optimization passes in compilers. The same is
+and most straightforward optimization passes in compilers. The same is
 true for XLS (the implementation is in
 `xls/passes/dce_pass.*`). Understanding the pass is also a good way to
 familiarize yourself with basics of the compiler IR, how to implement
@@ -457,14 +457,14 @@ disconnected from the function return ops. Certain optimization passes
 may also result in dead nodes.
 
 Let's look at the structure of the pass. The header file is
-straight-forward, The `DeadCodeEliminationPass` is a function-level
+straightforward, The `DeadCodeEliminationPass` is a function-level
 pass and hence derived from `FunctionBasePass`. Every function-level
 pass must implement the function `RunOnFunctionBaseInternal` and
 return a status indicating whether or not the pass made a change to
 the IR:
 
 
-```
+```c++
 class DeadCodeEliminationPass : public FunctionBasePass {
  public:
   DeadCodeEliminationPass()
@@ -513,7 +513,7 @@ deletable nodes with no users to a worklist. Those are leaf nodes,
 they are the initial candidates for deletion:
 
 
-```
+```c++
   std::deque<Node*> worklist;
   for (Node* n : f->nodes()) {
     if (n->users().empty() && is_deletable(n)) {
@@ -526,7 +526,7 @@ Now on to the heart of the DCE algorithm. The algorithm iterates over
 nodes in the worklist until it is empty, popping elements from the
 front of the list and potentially adding new elements to the list. For
 example, assume there was a leaf node A with no further users. Further
-assume that its operand(s) only have node A has user, then the operand
+assume that its operand(s) only have node A as user, then the operand
 will be added to the worklist and visited in the next iteration over
 the worklist. There is a minor subtlety here - the code has to ensure
 that operands are only visited once, hence the use of a
@@ -537,7 +537,7 @@ After all operands have been visited and potentially added to the
 worklist, the original leaf node A is being removed and a
 corresponding logging statement (level 3) is generated.
 
-```
+```c++
   int64_t removed_count = 0;
   absl::flat_hash_set<Node*> unique_operands;
   while (!worklist.empty()) {
@@ -564,7 +564,7 @@ Finally, a pass has to indicate whether or not it made any changes to
 the IR. For this pass, this amounts to returning whether or not a
 single IR node has been DCE'ed:
 
-```
+```c++
   XLS_VLOG(2) << "Removed " << removed_count << " dead nodes";
   return removed_count > 0;
 }
