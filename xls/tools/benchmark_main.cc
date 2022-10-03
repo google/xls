@@ -407,7 +407,8 @@ absl::Status PrintProcInfo(Proc* p) {
   return absl::OkStatus();
 }
 
-absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
+absl::Status RunInterpeterAndJit(FunctionBase* function_base,
+                                 std::string_view description) {
   std::minstd_rand rng_engine;
   if (function_base->IsFunction()) {
     Function* function = function_base->AsFunctionOrDie();
@@ -415,7 +416,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
                          FunctionJit::Create(function));
     std::cout << absl::StreamFormat(
-        "JIT compile time: %dms\n",
+        "JIT compile time (%s): %dms\n", description,
         DurationToMs(absl::Now() - start_jit_compile));
 
     const int64_t kInputCount = 100;
@@ -434,7 +435,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
         XLS_RETURN_IF_ERROR(jit->Run(args).status());
       }
     }
-    std::cout << absl::StreamFormat("JIT run time: %dms\n",
+    std::cout << absl::StreamFormat("JIT run time (%s): %dms\n", description,
                                     DurationToMs(absl::Now() - start_jit_run));
 
     absl::Time start_interpreter = absl::Now();
@@ -442,7 +443,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
       XLS_RETURN_IF_ERROR(InterpretFunction(function, args).status());
     }
     std::cout << absl::StreamFormat(
-        "Interpreter time: %dms\n",
+        "Interpreter time (%s): %dms\n", description,
         DurationToMs(absl::Now() - start_interpreter));
     return absl::OkStatus();
   }
@@ -459,7 +460,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
       std::unique_ptr<ProcJit> jit,
       ProcJit::Create(proc, queue_manager.get(), std::move(orc_jit)));
   std::cout << absl::StreamFormat(
-      "JIT compile time: %dms\n",
+      "JIT compile time (%s): %dms\n", description,
       DurationToMs(absl::Now() - start_jit_compile));
   // TODO(meheff): 2022/5/16 Run the proc as well.
 
@@ -478,13 +479,16 @@ absl::Status RealMain(std::string_view path,
     XLS_RETURN_IF_ERROR(package->SetTopByName(absl::GetFlag(FLAGS_top)));
   }
 
-  XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
-  std::optional<FunctionBase*> top = package->GetTop();
-  if (!top.has_value()) {
+  if (!package->GetTop().has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
   }
-  FunctionBase* f = top.value();
+  XLS_RETURN_IF_ERROR(
+      RunInterpeterAndJit(package->GetTop().value(), "unoptimized"));
+
+  XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
+
+  FunctionBase* f = package->GetTop().value();
   BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);
@@ -533,7 +537,7 @@ absl::Status RealMain(std::string_view path,
     }
   }
 
-  XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f));
+  XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f, "optimized"));
   return absl::OkStatus();
 }
 
