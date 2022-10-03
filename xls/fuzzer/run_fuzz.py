@@ -248,7 +248,8 @@ def minimize_ir(smp: sample.Sample,
 
 
 def _save_crasher(run_dir: str, smp: sample.Sample,
-                  exception: sample_runner.SampleError, crasher_dir: str):
+                  exception: sample_runner.SampleError,
+                  crasher_dir: str) -> str:
   """Saves the sample into a new directory in the crasher directory."""
   digest = hashlib.sha256(smp.input_text.encode('utf-8')).hexdigest()[:8]
   sample_crasher_dir = os.path.join(crasher_dir, digest)
@@ -263,6 +264,7 @@ def _save_crasher(run_dir: str, smp: sample.Sample,
                                digest[:4]))
   with gfile.open(crasher_path, 'w') as f:
     f.write(smp.to_crasher(str(exception)))
+  return sample_crasher_dir
 
 
 def generate_sample_and_run(
@@ -288,11 +290,11 @@ def generate_sample_and_run(
   except sample_runner.SampleError as e:
     logging.error('Sample failed: %s', str(e))
     if crasher_dir is not None:
-      _save_crasher(run_dir, smp, e, crasher_dir)
+      sample_crasher_dir = _save_crasher(run_dir, smp, e, crasher_dir)
       if not e.is_timeout:
         logging.info('Attempting to minimize IR...')
         ir_minimized = minimize_ir(
-            smp, crasher_dir, timeout=sample_options.timeout_seconds)
+            smp, sample_crasher_dir, timeout=sample_options.timeout_seconds)
         if ir_minimized:
           logging.info('...minimization successful.')
         else:
