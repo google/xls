@@ -142,6 +142,20 @@ class AstGenerator {
   static bool IsToken(TypeAnnotation* t);
   static bool IsChannel(TypeAnnotation* t);
   static bool IsNil(TypeAnnotation* t);
+  static bool IsBuiltinBool(TypeAnnotation* type) {
+    if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+      return builtin_type->GetBitCount() == 1;
+    }
+    return false;
+  }
+  // Helper that returns the signedness of type when converted to a builtin bits
+  // type. Returns an error status if the type is not a builtin bits type.
+  static absl::StatusOr<bool> BitsTypeIsSigned(TypeAnnotation* type);
+
+  // Helper that returns the bit count of type when converted to a builtin bits
+  // type. Returns an error status if the type is not a builtin bits type.
+  static absl::StatusOr<int64_t> BitsTypeGetBitCount(TypeAnnotation* type);
+
   static std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>> Unzip(
       absl::Span<const TypedExpr> typed_exprs);
 
@@ -391,6 +405,8 @@ class AstGenerator {
   // Generates a shift operation AST node.
   absl::StatusOr<TypedExpr> GenerateShift(Env* env);
 
+  absl::StatusOr<TypedExpr> GenerateSynthesizableDiv(Env* env);
+
   // Generates a group of operations containing PartialProduct ops. The output
   // of the group will be deterministic (e.g. a smulp followed by an add).
   absl::StatusOr<TypedExpr> GeneratePartialProductDeterministicGroup(Env* env);
@@ -436,13 +452,6 @@ class AstGenerator {
     return module_->Make<TupleTypeAnnotation>(
         fake_span_,
         std::vector<TypeAnnotation*>(members.begin(), members.end()));
-  }
-
-  static bool IsBuiltinBool(TypeAnnotation* type) {
-    if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
-      return builtin_type->GetBitCount() == 1;
-    }
-    return false;
   }
 
   // Creates a `Range` AST node.

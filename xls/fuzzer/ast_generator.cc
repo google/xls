@@ -63,6 +63,24 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   return false;
 }
 
+/* static */ absl::StatusOr<bool> AstGenerator::BitsTypeIsSigned(
+    TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    return builtin_type->GetSignedness();
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Type annotation %s is not a builtin bits type", type->ToString()));
+}
+
+/* static */ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
+    TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    return builtin_type->GetBitCount();
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Type annotation %s is not a builtin bits type", type->ToString()));
+}
+
 /* static */ bool AstGenerator::IsBits(TypeAnnotation* t) {
   if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
     return builtin->GetBitCount() != 0;
@@ -267,6 +285,8 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
           .requires_payload = true,
           .requires_predicate = true};
   }
+
+  XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
 }
 
 }  // namespace
@@ -348,6 +368,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
                                 predicate.value().expr, payload.value().expr),
           token.type};
   }
+
+  XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Env* env) {
@@ -380,6 +402,23 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    MakeTypeAnnotation(false, 1)};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
+  // Divide by a power of two that fits in the type of the LHS.
+  // e.g. if we selected a u2 we can divide by 1
+  // e.g. if we selected a u3 we can divide by 1 2
+  // e.g. if we selected a u4 we can divide by 1 2 4 or 8
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
+  XLS_ASSIGN_OR_RETURN(bool is_signed, BitsTypeIsSigned(lhs.type));
+  int64_t available_bits = bit_count - static_cast<int64_t>(is_signed);
+  int64_t exponent = available_bits == 0 ? 0 : RandRange(available_bits);
+  Bits divisor = Bits::PowerOfTwo(exponent, bit_count);
+  Number* divisor_node = MakeNumberFromBits(divisor, lhs.type);
+  return TypedExpr{
+      module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),
+      lhs.type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
@@ -457,8 +496,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   absl::btree_set<BinopKind> bin_ops = GetBinopSameTypeKinds();
-  bin_ops.erase(BinopKind::kDiv);
   BinopKind op = RandomSetChoice(bin_ops);
+  if (op == BinopKind::kDiv) {
+    return GenerateSynthesizableDiv(env);
+  }
   if (GetBinopShifts().contains(op)) {
     return GenerateShift(env);
   }
