@@ -1592,6 +1592,38 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectArray) {
                   AsValue("[bits[4]:0b1101, bits[4]:0b0111, bits[4]:0b1110]")));
 }
 
+TEST_P(IrEvaluatorTestBase, InterpretOneHotSelect2DArray) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn one_hot(p: bits[2], x: bits[4][2][2], y: bits[4][2][2]) -> bits[4][2][2] {
+    ret one_hot_sel.1: bits[4][2][2] = one_hot_sel(p, cases=[x, y])
+  }
+  )"));
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x",
+       Value::UBits2DArray({{0b1100, 0b1010}, {0b0001, 0b0010}}, 4).value()},
+      {"y",
+       Value::UBits2DArray({{0b1000, 0b0100}, {0b1001, 0b0100}}, 4).value()}};
+
+  args["p"] = AsValue("bits[2]: 0b00");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[[bits[4]:0, bits[4]:0], [bits[4]:0, bits[4]:0]]")));
+  args["p"] = AsValue("bits[2]: 0b01");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue(
+                  "[[bits[4]:12, bits[4]:10], [bits[4]:1, bits[4]:2]]")));
+  args["p"] = AsValue("bits[2]: 0b10");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[[bits[4]:8, bits[4]:4], [bits[4]:9, bits[4]:4]]")));
+  args["p"] = AsValue("bits[2]: 0b11");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue(
+                  "[[bits[4]:12, bits[4]:14], [bits[4]:9, bits[4]:6]]")));
+}
+
 TEST_P(IrEvaluatorTestBase, InterpretPrioritySelect) {
   Package package("my_package");
   XLS_ASSERT_OK_AND_ASSIGN(Function * function,
