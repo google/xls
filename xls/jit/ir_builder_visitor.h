@@ -24,6 +24,11 @@
 
 namespace xls {
 
+// Returns whether the given node should be materialized at is uses rather than
+// being written to a buffer to pass to the JITted node function. Only possible
+// for nodes whose value is known at compile time (e.g., Literals).
+bool ShouldMaterializeAtUse(Node* node);
+
 // An object gathering necessary information for jitting XLS functions, procs,
 // etc.
 class JitBuilderContext {

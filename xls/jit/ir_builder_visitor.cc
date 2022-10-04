@@ -36,6 +36,15 @@
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
+
+bool ShouldMaterializeAtUse(Node* node) {
+  // Only materialize Bits typed literals at their use. Array and tuple typed
+  // literals are typically manipulated via pointer in the JITted code so these
+  // values would have to be put in an alloca'd buffer anyway so there is no
+  // advantage to doing this at their uses vs in HandleLiteral.
+  return node->Is<Literal>() && node->GetType()->IsBits();
+}
+
 namespace {
 
 // Abstraction representing a simple loop in LLVM.
@@ -600,12 +609,10 @@ class NodeIrContext {
 
   // Loads the given operand value from the pointer passed in as the respective
   // operand.
-  llvm::Value* LoadOperand(int64_t i) const;
+  llvm::Value* LoadOperand(int64_t i);
 
   // Returns the pointer to the `i-th` operand of `node_`.
-  llvm::Value* GetOperandPtr(int64_t i) const {
-    return llvm_function_->getArg(operand_to_arg_.at(node_->operand(i)));
-  }
+  llvm::Value* GetOperandPtr(int64_t i);
 
   // Returns the output pointer arguments.
   absl::Span<llvm::Value* const> GetOutputPtrs() const { return output_ptrs_; }
@@ -663,6 +670,10 @@ class NodeIrContext {
   // Vector of nodes which should be passed in as the operand values of
   // `node_`. This is a deduplicated list of the operands of `node_`.
   std::vector<Node*> operand_args_;
+
+  // Cache of calls to GetOperandPtr for values which are materialized at their
+  // use.
+  absl::flat_hash_map<Node*, llvm::Value*> materialized_cache_;
 };
 
 absl::StatusOr<NodeIrContext> NodeIrContext::Create(
@@ -674,7 +685,13 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
 
   // Deduplicate the operands. If an operand appears more than once in the IR
   // node, map them to a single argument in the llvm Function for the mode.
-  for (Node* operand : node->operands()) {
+  absl::flat_hash_map<Node*, int64_t> operand_to_operand_index;
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
+    Node* operand = node->operand(i);
+    operand_to_operand_index[operand] = i;
+    if (ShouldMaterializeAtUse(operand)) {
+      continue;
+    }
     if (nc.operand_to_arg_.contains(operand)) {
       continue;
     }
@@ -704,12 +721,11 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   // IR. Operands are deduplicated so some names passed in via `operand_names`
   // may not appear as argument names.
   XLS_RET_CHECK_EQ(operand_names.size(), node->operand_count());
-  for (int64_t i = 0; i < nc.node_->operand_count(); ++i) {
-    Node* operand = nc.node_->operand(i);
-    nc.llvm_function_->getArg(nc.operand_to_arg_.at(operand))
-        ->setName(absl::StrCat(operand_names[i], "_ptr"));
+  int64_t arg_no = 0;
+  for (Node* operand : nc.operand_args_) {
+    nc.llvm_function_->getArg(arg_no++)->setName(absl::StrCat(
+        operand_names[operand_to_operand_index.at(operand)], "_ptr"));
   }
-  int64_t arg_no = nc.operand_args_.size();
   for (int64_t i = 0; i < output_arg_count; ++i) {
     nc.llvm_function_->getArg(arg_no++)->setName(
         absl::StrFormat("output_%d_ptr", i));
@@ -735,12 +751,13 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   return nc;
 }
 
-llvm::Value* NodeIrContext::LoadOperand(int64_t i) const {
+llvm::Value* NodeIrContext::LoadOperand(int64_t i) {
   Node* operand = node()->operand(i);
 
-  if (operand->Is<Literal>() && operand->GetType()->IsBits()) {
+  if (ShouldMaterializeAtUse(operand)) {
     // If the operand is a bits constant, just return the constant as an
     // optimization.
+    XLS_CHECK(operand->Is<Literal>());
     return type_converter()
         .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
         .value();
@@ -752,6 +769,26 @@ llvm::Value* NodeIrContext::LoadOperand(int64_t i) const {
   llvm::Value* load = entry_builder().CreateLoad(operand_type, operand_ptr);
   load->setName(operand->GetName());
   return load;
+}
+
+llvm::Value* NodeIrContext::GetOperandPtr(int64_t i) {
+  Node* operand = node()->operand(i);
+
+  if (ShouldMaterializeAtUse(operand)) {
+    if (materialized_cache_.contains(operand)) {
+      return materialized_cache_.at(operand);
+    }
+    llvm::Value* alloca = entry_builder().CreateAlloca(
+        type_converter().ConvertToLlvmType(operand->GetType()));
+    entry_builder().CreateStore(
+        type_converter()
+            .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
+            .value(),
+        alloca);
+    materialized_cache_[operand] = alloca;
+    return alloca;
+  }
+  return llvm_function_->getArg(operand_to_arg_.at(operand));
 }
 
 void NodeIrContext::FinalizeWithValue(

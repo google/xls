@@ -251,42 +251,70 @@ class LlvmFunctionWrapper {
   absl::flat_hash_map<Node*, std::vector<int64_t>> output_indices_;
 };
 
-// Allocator for the temporary buffer used within jitted functions. The
-// temporary buffer holds node values which are not inputs or outputs and must
-// be passed between partition functions and so cannot be allocated on the stack
-// with alloca.
-class TempBufferAllocator {
+// The kinds of allocations assigned to xls::Nodes by BufferAllocator.
+enum class AllocationKind {
+  // The node should be allocated a buffer in the temp block. The temp block is
+  // passed in to the top-level JITted functions so temp buffers persist across
+  // partitions and continuation points.
+  kTempBlock,
+
+  // The node should be allocated a buffer using alloca. These buffers are
+  // scoped within a partition function.
+  kAlloca,
+
+  // The node needs no buffer to be allocated. Examples include Params which are
+  // passed in via already-allocated input buffers and some Bits-typed literals
+  // which are materialized as LLVM constants at their uses.
+  kNone,
+};
+
+// Allocator for the buffers used to hold xls::Node values within jitted
+// functions.
+class BufferAllocator {
  public:
-  explicit TempBufferAllocator(const LlvmTypeConverter* type_converter)
+  explicit BufferAllocator(const LlvmTypeConverter* type_converter)
       : type_converter_(type_converter) {}
 
-  // Allocate a buffer for `node`. Returns the offset within the temporary
-  // buffer.
-  int64_t Allocate(Node* node) {
-    XLS_CHECK(!node_offsets_.contains(node));
-    int64_t offset = current_offset_;
-    int64_t node_size = type_converter_->GetTypeByteSize(node->GetType());
-    node_offsets_[node] = offset;
-    current_offset_ += RoundUpToNearest<int64_t>(node_size, 4);
-    XLS_VLOG(3) << absl::StreamFormat(
-        "Allocated %s at offset %d (size = %d): total size %d", node->GetName(),
-        offset, node_size, current_offset_);
-    return offset;
+  void SetAllocationKind(Node* node, AllocationKind kind) {
+    XLS_CHECK(!allocation_kinds_.contains(node));
+    allocation_kinds_[node] = kind;
+    if (kind == AllocationKind::kTempBlock) {
+      AllocateTempBuffer(node);
+    }
   }
 
-  // Returns true if `node` has a allocated buffer.
-  bool IsAllocated(Node* node) const { return node_offsets_.contains(node); }
+  AllocationKind GetAllocationKind(Node* node) const {
+    return allocation_kinds_.at(node);
+  }
 
-  // Returns the offset of the buffer allocated for `node`.
-  int64_t GetOffset(Node* node) const { return node_offsets_.at(node); }
+  // Returns the offset within the temp block for the buffer allocated for
+  // `node`. Node must be assigned allocation kind kTempblock.
+  int64_t GetOffset(Node* node) const {
+    XLS_CHECK(allocation_kinds_.at(node) == AllocationKind::kTempBlock);
+    return temp_block_offsets_.at(node);
+  }
 
   // Returns the total size of the allocated memory.
   int64_t size() const { return current_offset_; }
 
  private:
+  void AllocateTempBuffer(Node* node) {
+    XLS_CHECK(!temp_block_offsets_.contains(node));
+    int64_t offset = current_offset_;
+    int64_t node_size = type_converter_->GetTypeByteSize(node->GetType());
+    temp_block_offsets_[node] = offset;
+    current_offset_ += RoundUpToNearest<int64_t>(node_size, kMinAlignment);
+    XLS_VLOG(3) << absl::StreamFormat(
+        "Allocated %s at offset %d (size = %d): total size %d", node->GetName(),
+        offset, node_size, current_offset_);
+  }
+  // The minimum alignment of any temp allocation.
+  static constexpr int64_t kMinAlignment = 8;
+
   const LlvmTypeConverter* type_converter_;
-  absl::flat_hash_map<Node*, int64_t> node_offsets_;
+  absl::flat_hash_map<Node*, int64_t> temp_block_offsets_;
   int64_t current_offset_ = 0;
+  absl::flat_hash_map<Node*, AllocationKind> allocation_kinds_;
 };
 
 // The maximum number of xls::Nodes in a partition.
@@ -422,7 +450,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     std::string_view name, const Partition& partition,
     absl::Span<Node* const> global_input_nodes,
     absl::Span<Node* const> global_output_nodes,
-    const TempBufferAllocator& allocator, JitBuilderContext& jit_context) {
+    const BufferAllocator& allocator, JitBuilderContext& jit_context) {
   LlvmFunctionWrapper wrapper = LlvmFunctionWrapper::Create(
       name, global_input_nodes, global_output_nodes,
       llvm::Type::getInt1Ty(jit_context.context()), jit_context);
@@ -439,7 +467,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       // Node is an input node. There is no need to generate a node function for
       // this node (its value is an input and already computed). Simply copy the
       // value to output buffers associated with `node` (if any).
-      XLS_RET_CHECK(!allocator.IsAllocated(node));
+      XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       if (wrapper.IsOutputNode(node)) {
         // `node` is also an output node. This can occur, for example, if a
         // state param is the next state value for a proc.
@@ -457,18 +485,26 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
     // Gather the buffers to which the value of `node` must be written.
     std::vector<llvm::Value*> output_buffers;
     if (wrapper.IsOutputNode(node)) {
-      XLS_RET_CHECK(!allocator.IsAllocated(node));
+      XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
       output_buffers = wrapper.GetOutputBuffers(node, b);
-    } else if (allocator.IsAllocated(node)) {
+    } else if (allocator.GetAllocationKind(node) ==
+               AllocationKind::kTempBlock) {
       output_buffers = {
           wrapper.GetOffsetIntoTempBuffer(allocator.GetOffset(node), b)};
-    } else {
+    } else if (allocator.GetAllocationKind(node) == AllocationKind::kAlloca) {
       // `node` is used exclusively inside this partition (not an input, output,
       // nor has a temp buffer). Allocate a buffer on the stack with alloca.
       output_buffers = {b.CreateAlloca(
           jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
               node->GetType()))};
+    } else {
+      // Node has no allocation and is not an output buffer. Nothing to emit for
+      // this node.
+      XLS_RET_CHECK(allocator.GetAllocationKind(node) == AllocationKind::kNone);
+      XLS_RET_CHECK(!OpIsSideEffecting(node->op()));
+      continue;
     }
+
     value_buffers[node] = output_buffers.front();
 
     // Create the function which computes the node value.
@@ -494,9 +530,10 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
         // argument. Arbitrarily choose the first.
         arg = wrapper.GetFirstOutputBuffer(operand, b);
       } else {
-        // `operand` is stored inside the temporary buffer. These are values
-        // which are passed between partitions but are not global inputs or
-        // outputs.
+        // `operand` is stored inside the temporary buffer.
+        XLS_RET_CHECK(allocator.GetAllocationKind(operand) ==
+                      AllocationKind::kTempBlock)
+            << operand;
         arg = wrapper.GetOffsetIntoTempBuffer(allocator.GetOffset(operand), b);
       }
       operand_buffers.push_back(arg);
@@ -534,22 +571,26 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
   return wrapper.function();
 }
 
-// Allocates the temporary buffers for nodes in the given partitions. A node
-// needs a temporary buffer iff it is not an input or output node and its value
-// is used in more than one partition.
-absl::Status AllocateTempBuffers(absl::Span<const Partition> partitions,
-                                 const LlvmFunctionWrapper& wrapper,
-                                 TempBufferAllocator& allocator) {
+// Determine the type of buffers required by each node. Allocates the temporary
+// buffers for nodes as needed.
+absl::Status AllocateBuffers(absl::Span<const Partition> partitions,
+                             const LlvmFunctionWrapper& wrapper,
+                             BufferAllocator& allocator) {
   for (const Partition& partition : partitions) {
     absl::flat_hash_set<Node*> partition_set(partition.nodes.begin(),
                                              partition.nodes.end());
     for (Node* node : partition.nodes) {
-      if (wrapper.IsInputNode(node) || wrapper.IsOutputNode(node)) {
-        continue;
-      }
-      if (!std::all_of(node->users().begin(), node->users().end(),
-                       [&](Node* u) { return partition_set.contains(u); })) {
-        allocator.Allocate(node);
+      if (wrapper.IsInputNode(node) || wrapper.IsOutputNode(node) ||
+          ShouldMaterializeAtUse(node)) {
+        allocator.SetAllocationKind(node, AllocationKind::kNone);
+      } else if (std::all_of(
+                     node->users().begin(), node->users().end(),
+                     [&](Node* u) { return partition_set.contains(u); })) {
+        // All of the uses of node are in the partition.
+        allocator.SetAllocationKind(node, AllocationKind::kAlloca);
+      } else {
+        // Node has a use in another partition.
+        allocator.SetAllocationKind(node, AllocationKind::kTempBlock);
       }
     }
   }
@@ -626,7 +667,7 @@ struct PartitionedFunction {
   std::vector<Partition> partitions;
 };
 absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
-    FunctionBase* xls_function, TempBufferAllocator& allocator,
+    FunctionBase* xls_function, BufferAllocator& allocator,
     JitBuilderContext& jit_context, bool unpoison_outputs) {
   XLS_VLOG(4) << "BuildFunction:";
   XLS_VLOG(4) << xls_function->DumpIr();
@@ -641,7 +682,7 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
           .name = "continuation_point",
           .type = llvm::Type::getInt64Ty(jit_context.context())});
 
-  XLS_RETURN_IF_ERROR(AllocateTempBuffers(partitions, wrapper, allocator));
+  XLS_RETURN_IF_ERROR(AllocateBuffers(partitions, wrapper, allocator));
 
   std::vector<llvm::Function*> partition_functions;
   for (int64_t i = 0; i < partitions.size(); ++i) {
@@ -1055,7 +1096,7 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
     FunctionBase* xls_function, JitBuilderContext& jit_context,
     bool build_packed_wrapper) {
   std::vector<FunctionBase*> functions = GetDependentFunctions(xls_function);
-  TempBufferAllocator allocator(&jit_context.orc_jit().GetTypeConverter());
+  BufferAllocator allocator(&jit_context.orc_jit().GetTypeConverter());
   llvm::Function* top_function = nullptr;
   std::vector<Partition> top_partitions;
   for (FunctionBase* f : functions) {

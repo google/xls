@@ -17,12 +17,9 @@
 
 #include <cstdint>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
-#include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
-#include "llvm/include/llvm/IR/Module.h"
-#include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 

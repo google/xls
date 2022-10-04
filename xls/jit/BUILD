@@ -250,11 +250,10 @@ cc_library(
     srcs = ["llvm_type_converter.cc"],
     hdrs = ["llvm_type_converter.h"],
     deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/types:span",
         "//xls/common/logging",
-        "//xls/ir",
-        "//xls/ir:ir_parser",
+        "//xls/common/status:status_macros",
         "//xls/ir:type",
         "//xls/ir:value",
         "@llvm-project//llvm:Core",
@@ -291,6 +290,8 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/logging:vlog_is_on",
+        "//xls/common/status:ret_check",
+        "//xls/common/status:status_macros",
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Analysis",
