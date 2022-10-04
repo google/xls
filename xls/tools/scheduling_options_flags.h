@@ -33,8 +33,8 @@ namespace xls {
 
 // If you don't have a `Package` at hand, you can pass in `nullptr` and it will
 // skip some checks.
-absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p);
-absl::StatusOr<DelayEstimator*> SetupDelayEstimator();
+absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p);
+absl::StatusOr<DelayEstimator*> SetUpDelayEstimator();
 
 }  // namespace xls
 

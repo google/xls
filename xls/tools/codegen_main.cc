@@ -169,9 +169,9 @@ absl::Status RealMain(std::string_view ir_path) {
         << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetupSchedulingOptions(p.get()));
+                         SetUpSchedulingOptions(p.get()));
     XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
-                         SetupDelayEstimator());
+                         SetUpDelayEstimator());
     XLS_ASSIGN_OR_RETURN(
         PipelineSchedule schedule,
         RunSchedulingPipeline(main, scheduling_options, delay_estimator));

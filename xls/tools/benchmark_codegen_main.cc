@@ -102,8 +102,8 @@ absl::Status RealMain(std::string_view opt_ir_path,
 
   if (absl::GetFlag(FLAGS_schedule)) {
     XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                         SetupSchedulingOptions(block_package.get()));
-    XLS_ASSIGN_OR_RETURN(delay_estimator, SetupDelayEstimator());
+                         SetUpSchedulingOptions(block_package.get()));
+    XLS_ASSIGN_OR_RETURN(delay_estimator, SetUpDelayEstimator());
 
     XLS_RETURN_IF_ERROR(ScheduleAndPrintStats(
         opt_package.get(), *delay_estimator.value(), scheduling_options));

@@ -65,7 +65,7 @@ ABSL_FLAG(bool, receives_first_sends_last, false,
 
 namespace xls {
 
-absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p) {
+absl::StatusOr<SchedulingOptions> SetUpSchedulingOptions(Package* p) {
   SchedulingOptions scheduling_options;
 
   if (absl::GetFlag(FLAGS_pipeline_stages) != 0) {
@@ -157,7 +157,7 @@ absl::StatusOr<SchedulingOptions> SetupSchedulingOptions(Package* p) {
   return scheduling_options;
 }
 
-absl::StatusOr<DelayEstimator*> SetupDelayEstimator() {
+absl::StatusOr<DelayEstimator*> SetUpDelayEstimator() {
   return GetDelayEstimator(absl::GetFlag(FLAGS_delay_model));
 }
 
