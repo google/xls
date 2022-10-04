@@ -19,6 +19,8 @@ import os
 import subprocess
 from typing import Optional
 
+from absl import flags
+
 from absl.testing import parameterized
 from xls.common import runfiles
 from xls.common import test_base
@@ -32,7 +34,10 @@ from xls.fuzzer.python import cpp_sample as sample
 PARSE_IR = runfiles.get_path('xls/tools/parse_ir')
 
 _CALLS_PER_SAMPLE = 8
-_SAMPLE_COUNT = 96
+_SAMPLE_COUNT = 200
+
+_WIDE = flags.DEFINE_boolean(
+    'wide', default=False, help='Run with wide bits types.')
 
 
 def _get_crasher_dir() -> Optional[str]:
@@ -56,7 +61,8 @@ class RunFuzzTest(parameterized.TestCase):
     self._crasher_dir = _get_crasher_dir()
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions()
+    return ast_generator.AstGeneratorOptions(
+        max_width_bits_types=128 if _WIDE.value else 64)
 
   def _get_sample_options(self) -> sample.SampleOptions:
     return sample.SampleOptions(
