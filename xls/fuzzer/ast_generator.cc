@@ -63,19 +63,47 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   return false;
 }
 
+// Returns whether the element type of the given array type annotation is a
+// "bits" style type; i.e. uN, sN, or bits.
+static bool ElemIsBitVectorType(ArrayTypeAnnotation* ata) {
+  if (auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(ata->element_type());
+      elem != nullptr && (elem->builtin_type() == BuiltinType::kUN ||
+                          elem->builtin_type() == BuiltinType::kSN ||
+                          elem->builtin_type() == BuiltinType::kBits)) {
+    return true;
+  }
+  return false;
+}
+
 /* static */ absl::StatusOr<bool> AstGenerator::BitsTypeIsSigned(
     TypeAnnotation* type) {
   if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
     return builtin_type->GetSignedness();
   }
+  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type);
+      array != nullptr && ElemIsBitVectorType(array)) {
+    auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(array->element_type());
+    // This is guaranteed by ElemIsBitVectorType() call above.
+    XLS_CHECK(elem != nullptr);
+    return elem->GetSignedness();
+  }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Type annotation %s is not a builtin bits type", type->ToString()));
 }
 
-/* static */ absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
+absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
     TypeAnnotation* type) {
   if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
     return builtin_type->GetBitCount();
+  }
+  // Implementation note: this method is not static because we want to reuse the
+  // GetArraySize() helper, which looks into the constants_ mapping. We could
+  // make both of these methods static by leaning harder on AST inspection, but
+  // this gives us a shortcut and we expect to typically have an AstGenerator
+  // instance in hand for fuzz generation and testing.
+  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type);
+      array != nullptr && ElemIsBitVectorType(array)) {
+    return GetArraySize(array);
   }
   return absl::InvalidArgumentError(absl::StrFormat(
       "Type annotation %s is not a builtin bits type", type->ToString()));
@@ -86,19 +114,7 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
     return builtin->GetBitCount() != 0;
   }
   if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
-    if (auto* builtin =
-            dynamic_cast<BuiltinTypeAnnotation*>(array->element_type())) {
-      switch (builtin->builtin_type()) {
-        case BuiltinType::kBits:
-          return true;
-        case BuiltinType::kUN:
-          return true;
-        case BuiltinType::kSN:
-          return true;
-        default:
-          return false;
-      }
-    }
+    return ElemIsBitVectorType(array);
   }
   if (auto* def = dynamic_cast<TypeDef*>(t)) {
     return IsBits(def->type_annotation());
@@ -564,7 +580,8 @@ int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
   return type_bit_counts_.at(type_str);
 }
 
-int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
+/* static */ int64_t AstGenerator::GetArraySize(
+    const ArrayTypeAnnotation* type) {
   Expr* dim = type->dim();
   if (auto* number = dynamic_cast<Number*>(dim)) {
     return number->GetAsUint64().value();

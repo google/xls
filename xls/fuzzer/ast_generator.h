@@ -134,6 +134,7 @@ class AstGenerator {
 
  private:
   friend class AstGeneratorTest_GeneratesParametricBindings_Test;
+  friend class AstGeneratorTest_BitsTypeGetMetadata_Test;
 
   static bool IsBits(TypeAnnotation* t);
   static bool IsUBits(TypeAnnotation* t);
@@ -154,7 +155,7 @@ class AstGenerator {
 
   // Helper that returns the bit count of type when converted to a builtin bits
   // type. Returns an error status if the type is not a builtin bits type.
-  static absl::StatusOr<int64_t> BitsTypeGetBitCount(TypeAnnotation* type);
+  absl::StatusOr<int64_t> BitsTypeGetBitCount(TypeAnnotation* type);
 
   static std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>> Unzip(
       absl::Span<const TypedExpr> typed_exprs);
