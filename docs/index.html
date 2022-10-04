@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/">
       
       <link rel="icon" href="assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.4">
+      <meta name="generator" content="mkdocs-1.4.0, mkdocs-material-8.5.6">
     
     
       
@@ -19,13 +19,14 @@
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.6b80c2a2.min.css">
+      <link rel="stylesheet" href="assets/stylesheets/main.20d9efc8.min.css">
       
         
         <link rel="stylesheet" href="assets/stylesheets/palette.cbb835fc.min.css">
         
       
       
+
     
     
     
@@ -42,6 +43,7 @@
     
       
 
+    
     
     
   </head>
@@ -118,7 +120,7 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
-        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
         </button>
       </nav>
@@ -1299,10 +1301,11 @@
               </div>
             
           
-          <div class="md-content" data-md-component="content">
-            <article class="md-content__inner md-typeset">
-              
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
                 
+                  
 
   <a href="https://github.com/google/xls/tree/main/docs_src/README.md" title="Edit this page" class="md-content__button md-icon">
     
@@ -1317,6 +1320,10 @@
 <h1 id="xls-accelerated-hw-synthesis"><strong>XLS</strong>: Accelerated HW Synthesis</h1>
 <!-- nav -->
 <h2 id="what-is-xls">What is XLS?</h2>
+<p>XLS implements a High Level Synthesis (HLS) toolchain which produces
+synthesizable designs (Verilog and SystemVerilog) from flexible, high-level
+descriptions of functionality. It is fully Open Source: Apache 2 licensed and
+developed via GitHub.</p>
 <p>XLS (Accelerated HW Synthesis) aims to be the Software Development Kit (SDK) for
 the End of Moore's Law (EoML) era. In this "age of specialization", software and
 hardware engineers must do more co-design across their domain boundaries --
@@ -1329,9 +1336,6 @@ program runs at native speeds for use in host software or a simulator, but that
 source can also be used to generate hardware block output -- the XLS tools'
 correctness ensures (and provides tools to help formally verify) that they are
 functionally identical.</p>
-<p>XLS implements a High Level Synthesis (HLS) toolchain which produces
-synthesizable designs from flexible, high-level descriptions of functionality.
-It is fully Open Source: Apache 2 licensed and developed via GitHub.</p>
 <p>XLS is used inside of Google for generating feed-forward pipelines from
 "building block" routines / libraries that can be easily retargeted, reused, and
 composed in a latency-insensitive manner.</p>
@@ -1353,7 +1357,10 @@ we hope to enable them via continuous integration,
 <p>The following instructions are for the Ubuntu 20.04 (Focal Fossa) and Ubuntu
 22.04 (Jammy Jellyfish) Linux distributions.</p>
 <p>We start by assuming
-<a href="https://bazel.build/install/ubuntu">Bazel has been installed</a>.</p>
+<a href="https://bazel.build/install/ubuntu">Bazel has been installed</a>.
+On an average 8-core VM, a full initial build (including the C++ frontend) may take up to 6 hours.
+A build without the C++ frontend may take about 2 hours. Please see the two corresponding
+command lines below:</p>
 <div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
 <span class="go">~$ cd xls</span>
 
@@ -1365,10 +1372,16 @@ we hope to enable them via continuous integration,
 
 <span class="go">~/xls$ # Note we&#39;re going to tell Ubuntu that `/usr/bin/env python` is actually python3</span>
 <span class="go">~/xls$ # here, since that is not the case by default on Ubuntu 20.04.</span>
+<span class="go">~/xls$ # This is important. Without this step, you may experience cryptic error messages:</span>
 <span class="go">~/xls$ sudo apt install python3-distutils python3-dev libtinfo5 python-is-python3</span>
 
-<span class="go">~/xls$ # Now build/test everything in optimized build mode.</span>
-<span class="go">~/xls$ bazel test -c opt //...</span>
+<span class="go">~/xls$ # Now build/test in optimized build mode.</span>
+<span class="go">~/xls$ # If you don&#39;t plan on using the C++ frontend, which is not needed to get started,</span>
+<span class="go">~/xls$ # use this command line:</span>
+<span class="go">~/xls$ bazel test -c opt -- //xls/... -//xls/contrib/xlscc/...</span>
+
+<span class="go">~/xls$ # To build everything, including the C++ frontend:</span>
+<span class="go">~/xls$ bazel test -c opt -- //xls/...</span>
 </code></pre></div>
 <p>Reference build/test environment setups are also provided via <code>Dockerfile</code>s:</p>
 <div class="highlight"><pre><span></span><code><span class="go">~$ git clone https://github.com/google/xls.git</span>
@@ -1541,10 +1554,11 @@ project, see our
 
 
 
-              
-            </article>
-            
-          </div>
+                
+              </article>
+            </div>
+          
+          
         </div>
         
       </main>
@@ -1593,10 +1607,10 @@ project, see our
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.ecf98df9.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.2ab50757.min.js"></script>
+      <script src="assets/javascripts/bundle.078830c0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

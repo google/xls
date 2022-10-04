@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/bazel_rules_macros/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.4">
+      <meta name="generator" content="mkdocs-1.4.0, mkdocs-material-8.5.6">
     
     
       
@@ -19,13 +19,14 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6b80c2a2.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
       
       
+
     
     
     
@@ -42,6 +43,7 @@
     
       
 
+    
     
     
   </head>
@@ -118,7 +120,7 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
-        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
         </button>
       </nav>
@@ -1497,10 +1499,11 @@
               </div>
             
           
-          <div class="md-content" data-md-component="content">
-            <article class="md-content__inner md-typeset">
-              
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
                 
+                  
 
   <a href="https://github.com/google/xls/tree/main/docs_src/bazel_rules_macros.md" title="Edit this page" class="md-content__button md-icon">
     
@@ -1843,7 +1846,7 @@ xls_benchmark_verilog(<a href="#xls_benchmark_verilog-name">name</a>, <a href="#
 <p><a id="#xls_dslx_library"></a></p>
 <h2 id="xls_dslx_library">xls_dslx_library</h2>
 <pre>
-xls_dslx_library(<a href="#xls_dslx_library-name">name</a>, <a href="#xls_dslx_library-deps">deps</a>, <a href="#xls_dslx_library-srcs">srcs</a>)
+xls_dslx_library(<a href="#xls_dslx_library-name">name</a>, <a href="#xls_dslx_library-deps">deps</a>, <a href="#xls_dslx_library-srcs">srcs</a>, <a href="#xls_dslx_library-warnings_as_errors">warnings_as_errors</a>)
 </pre>
 
 <p>A build rule that parses and type checks DSLX source files.</p>
@@ -1916,6 +1919,13 @@ xls_dslx_library(
 <td align="left"><a href="https://bazel.build/concepts/labels">List of labels</a></td>
 <td align="left">optional</td>
 <td align="left">[]</td>
+</tr>
+<tr>
+<td align="left"><a id="xls_dslx_library-warnings_as_errors"></a>warnings_as_errors</td>
+<td align="left">Whether warnings are errors within this library definition.</td>
+<td align="left">Boolean</td>
+<td align="left">optional</td>
+<td align="left">False</td>
 </tr>
 </tbody>
 </table>
@@ -2763,7 +2773,7 @@ generated files are listed in the outs attribute of the rule.</p>
     name = &quot;a_opt_ir&quot;,
     src = &quot;a.ir&quot;,
     opt_ir_args = {
-        &quot;top&quot; : &quot;a&quot;,
+        &quot;inline_procs&quot; : &quot;true&quot;,
     },
 )
 </code></pre></div>
@@ -2886,10 +2896,11 @@ xls_ir_verilog(
 
 
 
-              
-            </article>
-            
-          </div>
+                
+              </article>
+            </div>
+          
+          
         </div>
         
       </main>
@@ -2953,10 +2964,10 @@ xls_ir_verilog(
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.ecf98df9.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.2ab50757.min.js"></script>
+      <script src="../assets/javascripts/bundle.078830c0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
