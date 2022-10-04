@@ -95,6 +95,10 @@ struct NodeFunction {
   Node* node;
   llvm::Function* function;
 
+  // Vector of nodes which should be passed in as the operand arguments. This is
+  // a deduplicated list of the operands of the node.
+  std::vector<Node*> operand_arguments;
+
   // The number of output pointer arguments.
   int64_t output_arg_count;
 

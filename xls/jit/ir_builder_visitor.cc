@@ -602,13 +602,10 @@ class NodeIrContext {
   // operand.
   llvm::Value* LoadOperand(int64_t i) const;
 
-  // Returns the operand pointer arguments.
-  absl::Span<llvm::Value* const> GetOperandPtrs() const {
-    return operand_ptrs_;
+  // Returns the pointer to the `i-th` operand of `node_`.
+  llvm::Value* GetOperandPtr(int64_t i) const {
+    return llvm_function_->getArg(operand_to_arg_.at(node_->operand(i)));
   }
-
-  // Returns the `i-th` operand pointer argument.
-  llvm::Value* GetOperandPtr(int64_t i) const { return operand_ptrs_.at(i); }
 
   // Returns the output pointer arguments.
   absl::Span<llvm::Value* const> GetOutputPtrs() const { return output_ptrs_; }
@@ -643,6 +640,11 @@ class NodeIrContext {
     return llvm_function_->getArg(llvm_function_->arg_size() - 1);
   }
 
+  // Returns the operands whose values should be passed into the node
+  // function. This may contain fewer elements than node()->operands() because
+  // operands are deduplicated.
+  absl::Span<Node* const> GetOperandArgs() const { return operand_args_; }
+
  private:
   NodeIrContext(Node* node, bool has_metadata_args, OrcJit& orc_jit)
       : node_(node), has_metadata_args_(has_metadata_args), orc_jit_(orc_jit) {}
@@ -653,8 +655,14 @@ class NodeIrContext {
 
   llvm::Function* llvm_function_;
   std::unique_ptr<llvm::IRBuilder<>> entry_builder_;
-  std::vector<llvm::Value*> operand_ptrs_;
   std::vector<llvm::Value*> output_ptrs_;
+
+  // Map from operand to argument number in the LLVM function. Operands
+  // are deduplicated so some operands may map to the same argument.
+  absl::flat_hash_map<Node*, int64_t> operand_to_arg_;
+  // Vector of nodes which should be passed in as the operand values of
+  // `node_`. This is a deduplicated list of the operands of `node_`.
+  std::vector<Node*> operand_args_;
 };
 
 absl::StatusOr<NodeIrContext> NodeIrContext::Create(
@@ -663,8 +671,17 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     JitBuilderContext& jit_context) {
   XLS_RET_CHECK_GT(output_arg_count, 0);
   NodeIrContext nc(node, include_wrapper_args, jit_context.orc_jit());
-  nc.node_ = node;
-  int64_t param_count = node->operand_count() + output_arg_count;
+
+  // Deduplicate the operands. If an operand appears more than once in the IR
+  // node, map them to a single argument in the llvm Function for the mode.
+  for (Node* operand : node->operands()) {
+    if (nc.operand_to_arg_.contains(operand)) {
+      continue;
+    }
+    nc.operand_to_arg_[operand] = nc.operand_args_.size();
+    nc.operand_args_.push_back(operand);
+  }
+  int64_t param_count = nc.operand_args_.size() + output_arg_count;
   if (include_wrapper_args) {
     param_count += 6;
   }
@@ -683,11 +700,16 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   // Mark as private so function can be deleted after inlining.
   nc.llvm_function_->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
+  // Set names of LLVM function arguments to improve readability of LLVM
+  // IR. Operands are deduplicated so some names passed in via `operand_names`
+  // may not appear as argument names.
   XLS_RET_CHECK_EQ(operand_names.size(), node->operand_count());
-  int64_t arg_no = 0;
-  for (const std::string& name : operand_names) {
-    nc.llvm_function_->getArg(arg_no++)->setName(absl::StrCat(name, "_ptr"));
+  for (int64_t i = 0; i < nc.node_->operand_count(); ++i) {
+    Node* operand = nc.node_->operand(i);
+    nc.llvm_function_->getArg(nc.operand_to_arg_.at(operand))
+        ->setName(absl::StrCat(operand_names[i], "_ptr"));
   }
+  int64_t arg_no = nc.operand_args_.size();
   for (int64_t i = 0; i < output_arg_count; ++i) {
     nc.llvm_function_->getArg(arg_no++)->setName(
         absl::StrFormat("output_%d_ptr", i));
@@ -706,13 +728,9 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
           jit_context.module()->getContext(), "entry", nc.llvm_function_,
           /*InsertBefore=*/nullptr));
 
-  for (int64_t i = 0; i < node->operand_count(); ++i) {
-    llvm::Value* operand_ptr = nc.llvm_function_->getArg(i);
-    nc.operand_ptrs_.push_back(operand_ptr);
-  }
   for (int64_t i = 0; i < output_arg_count; ++i) {
     nc.output_ptrs_.push_back(
-        nc.llvm_function_->getArg(node->operand_count() + i));
+        nc.llvm_function_->getArg(nc.operand_args_.size() + i));
   }
   return nc;
 }
@@ -730,7 +748,7 @@ llvm::Value* NodeIrContext::LoadOperand(int64_t i) const {
 
   llvm::Type* operand_type =
       type_converter().ConvertToLlvmType(operand->GetType());
-  llvm::Value* operand_ptr = llvm_function_->getArg(i);
+  llvm::Value* operand_ptr = GetOperandPtr(i);
   llvm::Value* load = entry_builder().CreateLoad(operand_type, operand_ptr);
   load->setName(operand->GetName());
   return load;
@@ -1778,8 +1796,11 @@ absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
                        GetFunction(invoke->to_apply()));
 
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
-  XLS_RETURN_IF_ERROR(CallFunction(function, node_context.GetOperandPtrs(),
-                                   {output_buffer},
+  std::vector<llvm::Value*> operand_ptrs;
+  for (int64_t i = 0; i < invoke->operand_count(); ++i) {
+    operand_ptrs.push_back(node_context.GetOperandPtr(i));
+  }
+  XLS_RETURN_IF_ERROR(CallFunction(function, operand_ptrs, {output_buffer},
                                    node_context.GetTempBufferArg(),
                                    node_context.GetInterpreterEventsArg(),
                                    node_context.GetUserDataArg(),
@@ -2768,6 +2789,9 @@ absl::StatusOr<NodeFunction> CreateNodeFunction(
   NodeIrContext node_context = visitor.ConsumeNodeIrContext();
   return NodeFunction{.node = node,
                       .function = node_context.llvm_function(),
+                      .operand_arguments = std::vector<Node*>(
+                          node_context.GetOperandArgs().begin(),
+                          node_context.GetOperandArgs().end()),
                       .output_arg_count = output_arg_count,
                       .has_metadata_args = node_context.has_metadata_args()};
 }

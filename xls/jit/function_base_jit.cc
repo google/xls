@@ -454,9 +454,31 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       continue;
     }
 
-    // Gather the pointers to the operands of `node`.
+    // Gather the buffers to which the value of `node` must be written.
+    std::vector<llvm::Value*> output_buffers;
+    if (wrapper.IsOutputNode(node)) {
+      XLS_RET_CHECK(!allocator.IsAllocated(node));
+      output_buffers = wrapper.GetOutputBuffers(node, b);
+    } else if (allocator.IsAllocated(node)) {
+      output_buffers = {
+          wrapper.GetOffsetIntoTempBuffer(allocator.GetOffset(node), b)};
+    } else {
+      // `node` is used exclusively inside this partition (not an input, output,
+      // nor has a temp buffer). Allocate a buffer on the stack with alloca.
+      output_buffers = {b.CreateAlloca(
+          jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
+              node->GetType()))};
+    }
+    value_buffers[node] = output_buffers.front();
+
+    // Create the function which computes the node value.
+    XLS_ASSIGN_OR_RETURN(
+        NodeFunction node_function,
+        CreateNodeFunction(node, output_buffers.size(), jit_context));
+
+    // Gather the operand values to be passed to the node function.
     std::vector<llvm::Value*> operand_buffers;
-    for (Node* operand : node->operands()) {
+    for (Node* operand : node_function.operand_arguments) {
       if (value_buffers.contains(operand)) {
         operand_buffers.push_back(value_buffers.at(operand));
         continue;
@@ -480,28 +502,6 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       operand_buffers.push_back(arg);
       value_buffers[operand] = arg;
     }
-
-    // Gather the buffers to which the value of `node` must be written.
-    std::vector<llvm::Value*> output_buffers;
-    if (wrapper.IsOutputNode(node)) {
-      XLS_RET_CHECK(!allocator.IsAllocated(node));
-      output_buffers = wrapper.GetOutputBuffers(node, b);
-    } else if (allocator.IsAllocated(node)) {
-      output_buffers = {
-          wrapper.GetOffsetIntoTempBuffer(allocator.GetOffset(node), b)};
-    } else {
-      // `node` is used exclusively inside this partition (not an input, output,
-      // nor has a temp buffer). Allocate a buffer on the stack with alloca.
-      output_buffers = {b.CreateAlloca(
-          jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
-              node->GetType()))};
-    }
-    value_buffers[node] = output_buffers.front();
-
-    // Create the function which computes the node value.
-    XLS_ASSIGN_OR_RETURN(
-        NodeFunction node_function,
-        CreateNodeFunction(node, output_buffers.size(), jit_context));
 
     // Call the node function.
     std::vector<llvm::Value*> args;
@@ -742,147 +742,207 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
                              .partitions = std::move(partitions)};
 }
 
-// Unpacks the packed bit vector representation in `packed_value` into a
-// LLVM native data layout.
-absl::StatusOr<llvm::Value*> UnpackValue(
-    Type* param_type, llvm::Value* packed_value,
-    const LlvmTypeConverter& type_converter, llvm::IRBuilder<>* builder) {
-  switch (param_type->kind()) {
-    case TypeKind::kBits:
-      return builder->CreateZExt(
-          builder->CreateTrunc(
-              packed_value, type_converter.ConvertToPackedLlvmType(param_type)),
-          type_converter.ConvertToLlvmType(param_type));
-    case TypeKind::kArray: {
-      // Create an empty array and plop in every element.
-      ArrayType* array_type = param_type->AsArrayOrDie();
-      Type* element_type = array_type->element_type();
+// Unpacks the packed value in `packed_buffer` and writes it to
+// `unpacked_buffer`. `bit_offset` is a value maintained across recursive
+// calls of this function indicating the offset within `packed_buffer` to read
+// the packed value.
+// TODO(meheff): 2022/10/03 Consider loading values in granuality larger than
+// bytes when unpacking values.
+absl::Status UnpackValue(llvm::Value* packed_buffer,
+                         llvm::Value* unpacked_buffer, Type* xls_type,
+                         int64_t bit_offset,
+                         const LlvmTypeConverter& type_converter,
+                         llvm::IRBuilder<>* builder) {
+  switch (xls_type->kind()) {
+    case TypeKind::kBits: {
+      // Compute the byte offset into `packed_buffer` where first bit of data
+      // for this Bits value lives.
+      llvm::Type* byte_array_type =
+          llvm::ArrayType::get(llvm::Type::getInt8Ty(builder->getContext()), 0);
+      int64_t byte_offset = FloorOfRatio(bit_offset, int64_t{8});
+      llvm::Value* byte_ptr = builder->CreateGEP(
+          byte_array_type, packed_buffer,
+          {builder->getInt32(0), builder->getInt32(byte_offset)});
 
-      llvm::Value* array = LlvmTypeConverter::ZeroOfType(
-          type_converter.ConvertToLlvmType(array_type));
+      // Determine how many bytes need to be loaded to capture all of the bits
+      // for this Bits value.
+      int64_t remainder = bit_offset - byte_offset * 8;
+      int64_t bytes_to_load =
+          CeilOfRatio(xls_type->GetFlatBitCount() + remainder, int64_t{8});
+
+      // Load the bits and shift by the remainder.
+      llvm::Value* loaded_value = builder->CreateLShr(
+          builder->CreateLoad(builder->getIntNTy(bytes_to_load * 8), byte_ptr),
+          remainder);
+
+      // Convert to the native type and mask off any extra bits.
+      llvm::Value* value = builder->CreateAnd(
+          type_converter.PaddingMask(xls_type, *builder),
+          builder->CreateIntCast(loaded_value,
+                                 type_converter.ConvertToLlvmType(xls_type),
+                                 /*isSigned=*/false));
+      builder->CreateStore(value, unpacked_buffer);
+      return absl::OkStatus();
+    }
+    case TypeKind::kArray: {
+      ArrayType* array_type = xls_type->AsArrayOrDie();
+      Type* element_xls_type = array_type->element_type();
+      llvm::Type* array_llvm_type =
+          type_converter.ConvertToLlvmType(array_type);
       for (uint32_t i = 0; i < array_type->size(); i++) {
-        XLS_ASSIGN_OR_RETURN(
-            llvm::Value * element,
-            UnpackValue(element_type, packed_value, type_converter, builder));
-        array = builder->CreateInsertValue(array, element, {i});
-        packed_value =
-            builder->CreateLShr(packed_value, element_type->GetFlatBitCount());
+        llvm::Value* unpacked_element_ptr =
+            builder->CreateGEP(array_llvm_type, unpacked_buffer,
+                               {
+                                   builder->getInt32(0),
+                                   builder->getInt32(i),
+                               });
+        XLS_RETURN_IF_ERROR(UnpackValue(packed_buffer, unpacked_element_ptr,
+                                        element_xls_type, bit_offset,
+                                        type_converter, builder));
+        bit_offset += element_xls_type->GetFlatBitCount();
       }
-      return array;
+      return absl::OkStatus();
     }
     case TypeKind::kTuple: {
-      // Create an empty tuple and plop in every element.
-      TupleType* tuple_type = param_type->AsTupleOrDie();
-      llvm::Value* tuple = LlvmTypeConverter::ZeroOfType(
-          type_converter.ConvertToLlvmType(tuple_type));
+      TupleType* tuple_type = xls_type->AsTupleOrDie();
+      llvm::Type* tuple_llvm_type =
+          type_converter.ConvertToLlvmType(tuple_type);
       for (int32_t i = tuple_type->size() - 1; i >= 0; i--) {
         // Tuple elements are stored MSB -> LSB, so we need to extract in
         // reverse order to match native layout.
         Type* element_type = tuple_type->element_type(i);
-        XLS_ASSIGN_OR_RETURN(
-            llvm::Value * element,
-            UnpackValue(element_type, packed_value, type_converter, builder));
-        tuple = builder->CreateInsertValue(tuple, element,
-                                           {static_cast<uint32_t>(i)});
-        packed_value =
-            builder->CreateLShr(packed_value, element_type->GetFlatBitCount());
+        llvm::Value* unpacked_element_ptr =
+            builder->CreateGEP(tuple_llvm_type, unpacked_buffer,
+                               {
+                                   builder->getInt32(0),
+                                   builder->getInt32(i),
+                               });
+        XLS_RETURN_IF_ERROR(UnpackValue(packed_buffer, unpacked_element_ptr,
+                                        element_type, bit_offset,
+                                        type_converter, builder));
+        bit_offset += element_type->GetFlatBitCount();
       }
-      return tuple;
+      return absl::OkStatus();
     }
     default:
       return absl::InvalidArgumentError(absl::StrCat(
-          "Unhandled type kind: ", TypeKindToString(param_type->kind())));
+          "Unhandled type kind: ", TypeKindToString(xls_type->kind())));
   }
 }
 
-// Load the `index`-th packed argument from the given arg array. The argument is
-// unpacked into the LLVM native data layout and returned.
-absl::StatusOr<llvm::Value*> LoadAndUnpackArgument(
-    int64_t arg_index, Type* xls_type, llvm::Value* arg_array,
-    const LlvmTypeConverter& type_converter, llvm::IRBuilder<>* builder) {
+// Loads the value in `unpacked_buffer`, packs it and writes it to
+// `packed_buffer`. `bit_offset` is a value maintained across recursive calls of
+// this function indicating the offset within `packed_buffer` to wite the packed
+// value.
+absl::Status PackValue(llvm::Value* unpacked_buffer, llvm::Value* packed_buffer,
+                       Type* xls_type, int64_t bit_offset,
+                       const LlvmTypeConverter& type_converter,
+                       llvm::IRBuilder<>* builder) {
   if (xls_type->GetFlatBitCount() == 0) {
-    // Create an empty structure, etc.
-    return LlvmTypeConverter::ZeroOfType(
-        type_converter.ConvertToLlvmType(xls_type));
+    return absl::OkStatus();
   }
+  switch (xls_type->kind()) {
+    case TypeKind::kBits: {
+      // Compute the byte offset into `packed_buffer` where this data should be
+      // written to.
+      llvm::Type* byte_array_type =
+          llvm::ArrayType::get(llvm::Type::getInt8Ty(builder->getContext()), 0);
+      int64_t byte_offset = FloorOfRatio(bit_offset, int64_t{8});
+      llvm::Value* byte_ptr = builder->CreateGEP(
+          byte_array_type, packed_buffer,
+          {builder->getInt32(0), builder->getInt32(byte_offset)});
 
-  llvm::Type* packed_type = type_converter.ConvertToPackedLlvmType(xls_type);
-  llvm::Value* packed_value =
-      LoadFromPointerArray(arg_index, packed_type, arg_array, builder);
+      // Determine how many bytes will be touched when writing this Bits value.
+      int64_t remainder = bit_offset - byte_offset * 8;
+      int64_t bytes_to_load =
+          CeilOfRatio(xls_type->GetFlatBitCount() + remainder, int64_t{8});
+      llvm::IntegerType* loaded_type = builder->getIntNTy(bytes_to_load * 8);
 
-  // Now populate an Value of Param's type with the packed buffer contents.
-  XLS_ASSIGN_OR_RETURN(
-      llvm::Value * unpacked_param,
-      UnpackValue(xls_type, packed_value, type_converter, builder));
-  return unpacked_param;
-}
+      // Load the unpacked value and cast it to the type used for loading and
+      // storing to the packed buffer.
+      llvm::Value* unpacked_value = builder->CreateIntCast(
+          builder->CreateLoad(type_converter.ConvertToLlvmType(xls_type),
+                              unpacked_buffer),
+          loaded_type, /*isSigned=*/false);
 
-// Recursive helper for packing LLVM values representing structured XLS types
-// into a flat bit vector.
-absl::StatusOr<llvm::Value*> PackValueHelper(llvm::Value* element,
-                                             Type* element_type,
-                                             llvm::Value* buffer,
-                                             int64_t bit_offset,
-                                             llvm::IRBuilder<>* builder) {
-  switch (element_type->kind()) {
-    case TypeKind::kBits:
-      if (element->getType() != buffer->getType()) {
-        if (element->getType()->getIntegerBitWidth() >
-            buffer->getType()->getIntegerBitWidth()) {
-          // The LLVM type of the subelement is wider than the packed value of
-          // the entire type. This can happen because bits types are padded up
-          // to powers of two.
-          element = builder->CreateTrunc(element, buffer->getType());
-        } else {
-          element = builder->CreateZExt(element, buffer->getType());
-        }
+      if (remainder == 0) {
+        // The packed value is on a byte boundary. Just write the value into the
+        // buffer.
+        builder->CreateStore(unpacked_value, byte_ptr);
+      } else {
+        // Packed value is not on a byte boundary. Load in the packed value at
+        // the location and do some masking and shifting. First load the packed
+        // bits in the location to be written to.
+        llvm::Value* loaded_packed_value =
+            builder->CreateLoad(loaded_type, byte_ptr);
+
+        // Mask off any beyond the remainder bits.
+        llvm::Value* remainder_mask =
+            builder->CreateLShr(llvm::ConstantInt::getSigned(loaded_type, -1),
+                                loaded_type->getBitWidth() - remainder);
+        llvm::Value* masked_loaded_packed_value =
+            builder->CreateAnd(remainder_mask, loaded_packed_value);
+
+        // Shift the unpacked value over by the remainder.
+        llvm::Value* shifted_unpacked_value =
+            builder->CreateShl(unpacked_value, remainder);
+
+        // Or the value to write with the existing bits in the loaded value.
+        llvm::Value* value = builder->CreateOr(shifted_unpacked_value,
+                                               masked_loaded_packed_value);
+        builder->CreateStore(value, byte_ptr);
       }
-      element = builder->CreateShl(element, bit_offset);
-      return builder->CreateOr(buffer, element);
+      return absl::OkStatus();
+    }
     case TypeKind::kArray: {
-      ArrayType* array_type = element_type->AsArrayOrDie();
-      Type* array_element_type = array_type->element_type();
+      ArrayType* array_type = xls_type->AsArrayOrDie();
+      Type* element_xls_type = array_type->element_type();
+      llvm::Type* array_llvm_type =
+          type_converter.ConvertToLlvmType(array_type);
       for (uint32_t i = 0; i < array_type->size(); i++) {
-        XLS_ASSIGN_OR_RETURN(
-            buffer,
-            PackValueHelper(
-                builder->CreateExtractValue(element, {i}), array_element_type,
-                buffer, bit_offset + i * array_element_type->GetFlatBitCount(),
-                builder));
+        llvm::Value* unpacked_element_ptr =
+            builder->CreateGEP(array_llvm_type, unpacked_buffer,
+                               {
+                                   builder->getInt32(0),
+                                   builder->getInt32(i),
+                               });
+        XLS_RETURN_IF_ERROR(PackValue(unpacked_element_ptr, packed_buffer,
+                                      element_xls_type, bit_offset,
+                                      type_converter, builder));
+        bit_offset += element_xls_type->GetFlatBitCount();
       }
-      return buffer;
+      return absl::OkStatus();
     }
     case TypeKind::kTuple: {
-      // Reverse tuple packing order to match native layout.
-      TupleType* tuple_type = element_type->AsTupleOrDie();
-      for (int64_t i = tuple_type->size() - 1; i >= 0; i--) {
-        XLS_ASSIGN_OR_RETURN(
-            buffer, PackValueHelper(builder->CreateExtractValue(
-                                        element, {static_cast<uint32_t>(i)}),
-                                    tuple_type->element_type(i), buffer,
-                                    bit_offset, builder));
-        bit_offset += tuple_type->element_type(i)->GetFlatBitCount();
+      // Write the unpacked elements into the buffer one-by-one.
+      TupleType* tuple_type = xls_type->AsTupleOrDie();
+      llvm::Type* tuple_llvm_type =
+          type_converter.ConvertToLlvmType(tuple_type);
+      for (int32_t i = tuple_type->size() - 1; i >= 0; i--) {
+        // Tuple elements are stored MSB -> LSB, so we need to extract in
+        // reverse order to match native layout.
+        Type* element_type = tuple_type->element_type(i);
+        llvm::Value* unpacked_element_ptr =
+            builder->CreateGEP(tuple_llvm_type, unpacked_buffer,
+                               {
+                                   builder->getInt32(0),
+                                   builder->getInt32(i),
+                               });
+        XLS_RETURN_IF_ERROR(PackValue(unpacked_element_ptr, packed_buffer,
+                                      element_type, bit_offset, type_converter,
+                                      builder));
+        bit_offset += element_type->GetFlatBitCount();
       }
-      return buffer;
+      return absl::OkStatus();
     }
     case TypeKind::kToken: {
       // Tokens are zero-bit constructs, so there's nothing to do!
-      return buffer;
+      return absl::OkStatus();
     }
     default:
       return absl::InvalidArgumentError(absl::StrCat(
-          "Unhandled element kind: ", TypeKindToString(element_type->kind())));
+          "Unhandled element kind: ", TypeKindToString(xls_type->kind())));
   }
-}
-
-// Packs the given `value` in LLVM native data layout for XLS type
-// `xls_type` into a flat bit vector and returns it.
-absl::StatusOr<llvm::Value*> PackValue(llvm::Value* value, Type* xls_type,
-                                       const LlvmTypeConverter& type_converter,
-                                       llvm::IRBuilder<>* builder) {
-  llvm::Value* packed_buffer = llvm::ConstantInt::get(
-      type_converter.ConvertToPackedLlvmType(xls_type), 0);
-  return PackValueHelper(value, xls_type, packed_buffer, 0, builder);
 }
 
 // Builds a wrapper around the jitted function `callee` which accepts inputs and
@@ -922,12 +982,13 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
         });
     wrapper.entry_builder().CreateStore(input_buffer, gep);
 
-    XLS_ASSIGN_OR_RETURN(
-        llvm::Value * unpacked_arg,
-        LoadAndUnpackArgument(i, input->GetType(), wrapper.GetInputsArg(),
-                              jit_context.orc_jit().GetTypeConverter(),
-                              &wrapper.entry_builder()));
-    wrapper.entry_builder().CreateStore(unpacked_arg, input_buffer);
+    if (input->GetType()->GetFlatBitCount() > 0) {
+      llvm::Value* packed_buffer = LoadPointerFromPointerArray(
+          i, wrapper.GetInputsArg(), &wrapper.entry_builder());
+      XLS_RETURN_IF_ERROR(UnpackValue(
+          packed_buffer, input_buffer, input->GetType(), /*bit_offset=*/0,
+          jit_context.orc_jit().GetTypeConverter(), &wrapper.entry_builder()));
+    }
   }
 
   llvm::Value* output_arg_array =
@@ -965,24 +1026,21 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
 
     // Declare the return argument as an iX, and pack the actual data as such
     // an integer.
-    llvm::Value* output_value = LoadFromPointerArray(
-        i,
-        jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
-            output->GetType()),
-        output_arg_array, &wrapper.entry_builder());
-
-    XLS_ASSIGN_OR_RETURN(llvm::Value * packed_output,
-                         PackValue(output_value, output->GetType(),
-                                   jit_context.orc_jit().GetTypeConverter(),
-                                   &wrapper.entry_builder()));
+    llvm::Value* unpacked_output_buffer = LoadPointerFromPointerArray(
+        i, output_arg_array, &wrapper.entry_builder());
     llvm::Value* packed_output_buffer = LoadPointerFromPointerArray(
         i, wrapper.GetOutputsArg(), &wrapper.entry_builder());
-    wrapper.entry_builder().CreateStore(packed_output, packed_output_buffer);
 
-    UnpoisonBuffer(packed_output_buffer,
-                   jit_context.orc_jit().GetTypeConverter().GetTypeByteSize(
-                       output->GetType()),
-                   &wrapper.entry_builder());
+    XLS_RETURN_IF_ERROR(PackValue(
+        unpacked_output_buffer, packed_output_buffer, output->GetType(),
+        /*bit_offset=*/0, jit_context.orc_jit().GetTypeConverter(),
+        &wrapper.entry_builder()));
+
+    UnpoisonBuffer(
+        packed_output_buffer,
+        jit_context.orc_jit().GetTypeConverter().GetPackedTypeByteSize(
+            output->GetType()),
+        &wrapper.entry_builder());
   }
 
   // Return value of zero means that the functoinbase completed execution.
@@ -994,7 +1052,8 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
 // Jits a function implementing `xls_function`. Also jits all transitively
 // dependent xls::Functions which may be called by `xls_function`.
 absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
-    FunctionBase* xls_function, JitBuilderContext& jit_context) {
+    FunctionBase* xls_function, JitBuilderContext& jit_context,
+    bool build_packed_wrapper) {
   std::vector<FunctionBase*> functions = GetDependentFunctions(xls_function);
   TempBufferAllocator allocator(&jit_context.orc_jit().GetTypeConverter());
   llvm::Function* top_function = nullptr;
@@ -1013,10 +1072,13 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
   XLS_RET_CHECK(top_function != nullptr);
 
   std::string function_name = top_function->getName().str();
-  XLS_ASSIGN_OR_RETURN(
-      llvm::Function * packed_wrapper_function,
-      BuildPackedWrapper(xls_function, top_function, jit_context));
-  std::string packed_wrapper_name = packed_wrapper_function->getName().str();
+  std::string packed_wrapper_name;
+  if (build_packed_wrapper) {
+    XLS_ASSIGN_OR_RETURN(
+        llvm::Function * packed_wrapper_function,
+        BuildPackedWrapper(xls_function, top_function, jit_context));
+    packed_wrapper_name = packed_wrapper_function->getName().str();
+  }
 
   XLS_RETURN_IF_ERROR(
       jit_context.orc_jit().CompileModule(jit_context.ConsumeModule()));
@@ -1028,11 +1090,13 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
                        jit_context.orc_jit().LoadSymbol(function_name));
   jitted_function.function = absl::bit_cast<JitFunctionType>(fn_address);
 
-  jitted_function.packed_function_name = packed_wrapper_name;
-  XLS_ASSIGN_OR_RETURN(auto packed_fn_address,
-                       jit_context.orc_jit().LoadSymbol(packed_wrapper_name));
-  jitted_function.packed_function =
-      absl::bit_cast<JitFunctionType>(packed_fn_address);
+  if (build_packed_wrapper) {
+    jitted_function.packed_function_name = packed_wrapper_name;
+    XLS_ASSIGN_OR_RETURN(auto packed_fn_address,
+                         jit_context.orc_jit().LoadSymbol(packed_wrapper_name));
+    jitted_function.packed_function =
+        absl::bit_cast<JitFunctionType>(packed_fn_address);
+  }
 
   for (const Node* input : GetJittedFunctionInputs(xls_function)) {
     jitted_function.input_buffer_sizes.push_back(
@@ -1064,13 +1128,15 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
 absl::StatusOr<JittedFunctionBase> BuildFunction(Function* xls_function,
                                                  OrcJit& orc_jit) {
   JitBuilderContext jit_context(orc_jit);
-  return BuildFunctionAndDependencies(xls_function, jit_context);
+  return BuildFunctionAndDependencies(xls_function, jit_context,
+                                      /*build_packed_wrapper=*/true);
 }
 
 absl::StatusOr<JittedFunctionBase> BuildProcFunction(
     Proc* proc, JitChannelQueueManager* queue_mgr, OrcJit& orc_jit) {
   JitBuilderContext jit_context(orc_jit, queue_mgr);
-  return BuildFunctionAndDependencies(proc, jit_context);
+  return BuildFunctionAndDependencies(proc, jit_context,
+                                      /*build_packed_wrapper=*/false);
 }
 
 }  // namespace xls

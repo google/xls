@@ -105,6 +105,7 @@ class FunctionJit {
   // TODO(rspringer): Add user data support here.
   template <typename... ArgsT>
   absl::Status RunWithPackedViews(ArgsT... args) {
+    XLS_RET_CHECK(jitted_function_base_.packed_function.has_value());
     uint8_t* arg_buffers[sizeof...(ArgsT)];
     uint8_t* result_buffer;
     // Walk the type tree to get each arg's data buffer into our view/arg list.
@@ -112,11 +113,16 @@ class FunctionJit {
 
     InterpreterEvents events;
     uint8_t* output_buffers[1] = {result_buffer};
-    jitted_function_base_.packed_function(
+    jitted_function_base_.packed_function.value()(
         arg_buffers, output_buffers, temp_buffer_.data(), &events,
         /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 
     return InterpreterEventsToStatus(events);
+  }
+
+  // Returns the size in bytes of a packed value of the given type.
+  int64_t GetPackedSizeBytes(Type* type) const {
+    return type_converter()->PackedLlvmTypeWidth(type) / 8;
   }
 
   // Returns the function that the JIT executes.

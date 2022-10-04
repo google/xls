@@ -47,6 +47,11 @@ class LlvmTypeConverter {
   // (LLVM integer type).
   llvm::Type* ConvertToPackedLlvmType(const Type* type) const;
 
+  // Returns the width of the LLVM packed type in bits.
+  int64_t PackedLlvmTypeWidth(const Type* type) const;
+
+  int64_t GetPackedTypeByteSize(const Type* type) const;
+
   // Converts the input XLS Value to an LLVM Constant of the specified type.
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
                                                  const Value& value) const;

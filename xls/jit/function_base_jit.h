@@ -64,9 +64,10 @@ struct JittedFunctionBase {
   JitFunctionType function;
 
   // Name and function pointer for the jitted function which accepts/produces
-  // arguments/results in a packed format.
-  std::string packed_function_name;
-  JitFunctionType packed_function;
+  // arguments/results in a packed format. Only exists for JITted
+  // xls::Functions, not procs.
+  std::optional<std::string> packed_function_name;
+  std::optional<JitFunctionType> packed_function;
 
   // Sizes of the inputs (native LLVM format) passed to `function`.
   std::vector<int64_t> input_buffer_sizes;
