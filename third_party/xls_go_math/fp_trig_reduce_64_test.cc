@@ -75,7 +75,7 @@ double IndexToInput(uint64_t index) {
   return a;
 }
 
-ResultT ComputeExpected(fp::FpTrigReduce* jit_wrapper, double x) {
+ResultT ComputeExpected(FpTrigReduce* jit_wrapper, double x) {
   // Bits of 4/Pi.
   constexpr uint64_t MPI4[] = {
       0x0000000000000001, 0x45f306dc9c882a53, 0xf84eafa3ea69bb81,
@@ -171,7 +171,7 @@ ResultT ComputeExpected(fp::FpTrigReduce* jit_wrapper, double x) {
 }
 
 // Computes FP addition via DSLX & the JIT.
-ResultT ComputeActual(fp::FpTrigReduce* jit_wrapper, double x) {
+ResultT ComputeActual(FpTrigReduce* jit_wrapper, double x) {
   PackedFloat64 packed_x(reinterpret_cast<uint8_t*>(&x), 5);
   ResultT result;
   result.j = 0x0;
@@ -188,9 +188,9 @@ bool CompareResults(ResultT a, ResultT b) {
 }
 
 absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<double, ResultT, fp::FpTrigReduce> builder(
+  TestbenchBuilder<double, ResultT, FpTrigReduce> builder(
       ComputeExpected, ComputeActual,
-      []() { return fp::FpTrigReduce::Create().value(); });
+      []() { return FpTrigReduce::Create().value(); });
   builder.SetIndexToInputFn(IndexToInput).SetCompareResultsFn(CompareResults);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

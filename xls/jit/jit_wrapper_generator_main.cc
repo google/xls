@@ -18,6 +18,8 @@
 
 #include "absl/flags/flag.h"
 #include "absl/status/status.h"
+#include "absl/strings/str_join.h"
+#include "absl/strings/str_split.h"
 #include "absl/strings/strip.h"
 #include "xls/common/case_converters.h"
 #include "xls/common/file/filesystem.h"
@@ -44,8 +46,6 @@ ABSL_FLAG(std::string, output_dir, "",
 ABSL_FLAG(std::string, genfiles_dir, "",
           "The directory into which generated files are placed. "
           "This prefix will be removed from the header guards.");
-ABSL_FLAG(std::string, wrapper_namespace, "xls",
-          "C++ namespace to put the wrapper in.");
 
 namespace xls {
 
@@ -53,8 +53,7 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
                       const std::filesystem::path& output_path,
                       const std::filesystem::path& genfiles_dir,
                       std::string class_name, std::string output_name,
-                      std::string function_name,
-                      std::string wrapper_namespace) {
+                      std::string function_name) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
@@ -82,8 +81,8 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
     output_name = function_name;
   }
   header_path.append(absl::StrCat(output_name, ".h"));
-  GeneratedJitWrapper wrapper = GenerateJitWrapper(
-      *function, class_name, wrapper_namespace, header_path, genfiles_dir);
+  GeneratedJitWrapper wrapper =
+      GenerateJitWrapper(*function, class_name, header_path, genfiles_dir);
 
   XLS_RETURN_IF_ERROR(SetFileContents(header_path, wrapper.header));
 
@@ -108,7 +107,7 @@ int main(int argc, char* argv[]) {
   XLS_QCHECK_OK(xls::RealMain(
       ir_path, output_dir, absl::GetFlag(FLAGS_genfiles_dir),
       absl::GetFlag(FLAGS_class_name), absl::GetFlag(FLAGS_output_name),
-      absl::GetFlag(FLAGS_function), absl::GetFlag(FLAGS_wrapper_namespace)));
+      absl::GetFlag(FLAGS_function)));
 
   return 0;
 }

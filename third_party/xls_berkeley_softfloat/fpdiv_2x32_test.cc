@@ -81,14 +81,14 @@ Float2x32 IndexToInput(uint64_t index) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(fp::Fpdiv2x32* jit_wrapper, Float2x32 input) {
+float ComputeExpected(Fpdiv2x32* jit_wrapper, Float2x32 input) {
   float x = FlushSubnormals(std::get<0>(input));
   float y = FlushSubnormals(std::get<1>(input));
   return x / y;
 }
 
 // Computes FP addition via DSLX & the JIT.
-float ComputeActual(fp::Fpdiv2x32* jit_wrapper, Float2x32 input) {
+float ComputeActual(Fpdiv2x32* jit_wrapper, Float2x32 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
@@ -100,12 +100,10 @@ bool CompareResults(float a, float b) {
          (ZeroOrSubnormal(a) && ZeroOrSubnormal(b));
 }
 
-std::unique_ptr<fp::Fpdiv2x32> CreateJit() {
-  return fp::Fpdiv2x32::Create().value();
-}
+std::unique_ptr<Fpdiv2x32> CreateJit() { return Fpdiv2x32::Create().value(); }
 
 absl::Status RealMain(bool use_opt_ir, uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float2x32, float, fp::Fpdiv2x32> builder(
+  TestbenchBuilder<Float2x32, float, Fpdiv2x32> builder(
       ComputeExpected, ComputeActual, CreateJit);
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {

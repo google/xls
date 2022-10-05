@@ -87,28 +87,13 @@ def _xls_ir_jit_wrapper_impl(ctx):
     JIT_WRAPPER_FLAGS = (
         "class_name",
         "function",
-        "namespace",
     )
-
-    # TODO(meheff): 2022/10/05 Make `namespace` non-optional by uncommenting
-    # these lines:
-    #    if "namespace" not in jit_wrapper_args:
-    #        fail("Must specify 'namespace' in jit_wrapper_args")
-
     for flag_name in jit_wrapper_args:
         if flag_name in JIT_WRAPPER_FLAGS:
-            if flag_name == "namespace":
-                # `namespace` is a C++ keyword which prevents its use as a flag
-                # name.
-                jit_wrapper_flags.add(
-                    "--wrapper_namespace",
-                    jit_wrapper_args[flag_name],
-                )
-            else:
-                jit_wrapper_flags.add(
-                    "--{}".format(flag_name),
-                    jit_wrapper_args[flag_name],
-                )
+            jit_wrapper_flags.add(
+                "--{}".format(flag_name),
+                jit_wrapper_args[flag_name],
+            )
         else:
             fail("Unrecognized argument: %s." % flag_name)
 
@@ -246,7 +231,6 @@ def xls_ir_jit_wrapper_macro(
     string_type_check("src", src)
     string_type_check("source_file", source_file)
     string_type_check("header_file", header_file)
-    string_type_check("namespace", header_file)
     dictionary_type_check("jit_wrapper_args", jit_wrapper_args)
     bool_type_check("enable_generated_file", enable_generated_file)
     bool_type_check("enable_presubmit_generated_file", enable_presubmit_generated_file)

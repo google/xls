@@ -23,7 +23,7 @@ namespace {
 
 TEST(IdctChenJitWrapperTest, SmokeTest) {
   std::array<int32_t, 64> empty = {0};
-  XLS_ASSERT_OK_AND_ASSIGN(auto idct, xls::jpeg::IdctChen::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto idct, IdctChen::Create());
   std::array<int32_t, 64> result;
   XLS_ASSERT_OK(idct->Run(PackedArrayView<PackedBitsView<32>, 64>(&empty),
                           PackedArrayView<PackedBitsView<32>, 64>(&result)));

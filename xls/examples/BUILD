@@ -116,7 +116,6 @@ cc_xls_ir_jit_wrapper(
     src = ":crc32.opt.ir",
     jit_wrapper_args = {
         "class_name": "crc32",
-        "namespace": "xls::examples",
     },
 )
 
@@ -231,7 +230,6 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "sha256",
         "function": "main",
-        "namespace": "xls::examples",
     },
 )
 

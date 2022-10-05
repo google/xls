@@ -93,7 +93,9 @@ cc_library(
     srcs = ["jit_wrapper_generator.cc"],
     hdrs = ["jit_wrapper_generator.h"],
     deps = [
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "//xls/common/status:ret_check",
         "//xls/ir",
     ],
 )

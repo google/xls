@@ -32,7 +32,6 @@ TEST(JitWrapperGeneratorTest, GeneratesHeaderGuards) {
   constexpr const char kClassName[] = "MyClass";
   const std::filesystem::path kHeaderPath =
       "some/silly/genfiles/path/this_is_myclass.h";
-  constexpr const char kNamespace[] = "my_namespace";
 
   const std::string program = R"(package p
 fn foo(x: bits[4]) -> bits[4] {
@@ -42,7 +41,7 @@ fn foo(x: bits[4]) -> bits[4] {
                            Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("foo"));
   GeneratedJitWrapper generated = GenerateJitWrapper(
-      *f, kClassName, kNamespace, kHeaderPath, "some/silly/genfiles/path");
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
   int64_t pos = generated.header.find("THIS_IS_MYCLASS_H_");
   EXPECT_NE(pos, std::string::npos);
 
@@ -59,7 +58,6 @@ TEST(JitWrapperGeneratorTest, GeneratesNativeInts) {
   constexpr const char kClassName[] = "MyClass";
   const std::filesystem::path kHeaderPath =
       "some/silly/genfiles/path/this_is_myclass.h";
-  constexpr const char kNamespace[] = "my_namespace";
 
   const std::string program = R"(package p
 fn foo8(x: bits[8]) -> bits[8] {
@@ -82,25 +80,25 @@ fn foo64(x: bits[64]) -> bits[64] {
                            Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("foo8"));
   GeneratedJitWrapper generated = GenerateJitWrapper(
-      *f, kClassName, kNamespace, kHeaderPath, "some/silly/genfiles/path");
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
   int64_t pos =
       generated.header.find("absl::StatusOr<uint8_t> Run(uint8_t x);");
   EXPECT_NE(pos, std::string::npos);
 
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo16"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint16_t> Run(uint16_t x);");
   EXPECT_NE(pos, std::string::npos);
 
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo32"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint32_t> Run(uint32_t x);");
   EXPECT_NE(pos, std::string::npos);
 
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo64"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint64_t> Run(uint64_t x);");
   EXPECT_NE(pos, std::string::npos);
@@ -110,7 +108,6 @@ TEST(JitWrapperGeneratorTest, GeneratesNonnativeInts) {
   constexpr const char kClassName[] = "MyClass";
   const std::filesystem::path kHeaderPath =
       "some/silly/genfiles/path/this_is_myclass.h";
-  constexpr const char kNamespace[] = "my_namespace";
 
   const std::string program = R"(package p
 
@@ -139,25 +136,25 @@ fn foo65(x: bits[65]) -> bits[65] {
                            Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("foo5"));
   GeneratedJitWrapper generated = GenerateJitWrapper(
-      *f, kClassName, kNamespace, kHeaderPath, "some/silly/genfiles/path");
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
   int64_t pos =
       generated.header.find("absl::StatusOr<uint8_t> Run(uint8_t x);");
   EXPECT_NE(pos, std::string::npos);
 
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo13"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint16_t> Run(uint16_t x);");
   EXPECT_NE(pos, std::string::npos);
 
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo22"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint32_t> Run(uint32_t x);");
   EXPECT_NE(pos, std::string::npos);
 
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo63"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint64_t> Run(uint64_t x);");
   EXPECT_NE(pos, std::string::npos);
@@ -165,7 +162,7 @@ fn foo65(x: bits[65]) -> bits[65] {
   // Verify we stop at 64 bits (we'll handle 128b integers once they're part of
   // a standard).
   XLS_ASSERT_OK_AND_ASSIGN(f, p->GetFunction("foo65"));
-  generated = GenerateJitWrapper(*f, kClassName, kNamespace, kHeaderPath,
+  generated = GenerateJitWrapper(*f, kClassName, kHeaderPath,
                                  "some/silly/genfiles/path");
   pos = generated.header.find("absl::StatusOr<uint64_t> Run(uint64_t x);");
   EXPECT_EQ(pos, std::string::npos);
@@ -175,7 +172,6 @@ TEST(JitWrapperGeneratorTest, GeneratesTokenActivatedFunction) {
   constexpr const char kClassName[] = "MyClass";
   const std::filesystem::path kHeaderPath =
       "some/silly/genfiles/path/this_is_myclass.h";
-  constexpr const char kNamespace[] = "my_namespace";
 
   const std::string program = R"(package p
 
@@ -188,13 +184,12 @@ fn main(t: token, activated: bits[1], x: bits[32]) -> (token, bits[32]) {
                            Parser::ParsePackage(program));
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, p->GetFunction("main"));
   GeneratedJitWrapper generated = GenerateJitWrapper(
-      *f, kClassName, kNamespace, kHeaderPath, "some/silly/genfiles/path");
+      *f, kClassName, kHeaderPath, "some/silly/genfiles/path");
   EXPECT_THAT(
       generated.header,
-      HasSubstr(
-          "Run(xls::PackedBitsView<32> x, xls::PackedBitsView<32> result)"));
+      HasSubstr("Run(PackedBitsView<32> x, PackedBitsView<32> result)"));
   EXPECT_THAT(generated.header,
-              HasSubstr("absl::StatusOr<xls::Value> Run(xls::Value x)"));
+              HasSubstr("absl::StatusOr<Value> Run(Value x)"));
 }
 
 }  // namespace

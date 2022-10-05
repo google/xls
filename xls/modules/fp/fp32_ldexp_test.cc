@@ -48,14 +48,14 @@ Float32xint IndexToInput(uint64_t index) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(fp::Fp32Ldexp* jit_wrapper, Float32xint input) {
+float ComputeExpected(Fp32Ldexp* jit_wrapper, Float32xint input) {
   float fraction = FlushSubnormal(std::get<0>(input));
   int exp = std::get<1>(input);
   return FlushSubnormal(ldexpf(fraction, exp));
 }
 
 // Computes FP ldexp via DSLX & the JIT.
-float ComputeActual(fp::Fp32Ldexp* jit_wrapper, Float32xint input) {
+float ComputeActual(Fp32Ldexp* jit_wrapper, Float32xint input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
@@ -82,9 +82,9 @@ void LogMismatch(uint64_t index, Float32xint input, float expected,
 }
 
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float32xint, float, fp::Fp32Ldexp> builder(
+  TestbenchBuilder<Float32xint, float, Fp32Ldexp> builder(
       ComputeExpected, ComputeActual,
-      []() { return fp::Fp32Ldexp::Create().value(); });
+      []() { return Fp32Ldexp::Create().value(); });
   builder.SetIndexToInputFn(IndexToInput)
       .SetCompareResultsFn(CompareResults)
       .SetLogErrorsFn(LogMismatch)

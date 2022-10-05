@@ -58,11 +58,11 @@ Float3x64 IndexToInput(uint64_t index) {
                    absl::bit_cast<double>(c));
 }
 
-double ComputeExpected(fp::Fp64Fma* jit_wrapper, Float3x64 input) {
+double ComputeExpected(Fp64Fma* jit_wrapper, Float3x64 input) {
   return fma(std::get<0>(input), std::get<1>(input), std::get<2>(input));
 }
 
-double ComputeActual(fp::Fp64Fma* jit_wrapper, Float3x64 input) {
+double ComputeActual(Fp64Fma* jit_wrapper, Float3x64 input) {
   double result =
       jit_wrapper
           ->Run(std::get<0>(input), std::get<1>(input), std::get<2>(input))
@@ -91,9 +91,9 @@ std::string PrintInput(const Float3x64& input) {
 }
 
 absl::Status RealMain(int64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float3x64, double, fp::Fp64Fma> builder(
+  TestbenchBuilder<Float3x64, double, Fp64Fma> builder(
       ComputeExpected, ComputeActual,
-      []() { return fp::Fp64Fma::Create().value(); });
+      []() { return Fp64Fma::Create().value(); });
   builder.SetCompareResultsFn(CompareResults)
       .SetIndexToInputFn(IndexToInput)
       .SetPrintInputFn(PrintInput)
