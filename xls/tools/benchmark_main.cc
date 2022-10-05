@@ -443,7 +443,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base,
       XLS_RETURN_IF_ERROR(InterpretFunction(function, args).status());
     }
     std::cout << absl::StreamFormat(
-        "Interpreter time (%s): %dms\n", description,
+        "Interpreter run time (%s): %dms\n", description,
         DurationToMs(absl::Now() - start_interpreter));
     return absl::OkStatus();
   }
