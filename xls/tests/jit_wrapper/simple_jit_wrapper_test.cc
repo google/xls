@@ -29,8 +29,8 @@ using ::testing::HasSubstr;
 
 TEST(SimpleJitWrapperTest, InvokeIdentity) {
   constexpr float kInput = 1.0;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<F32Identity> f,
-                           F32Identity::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::test::F32Identity> f,
+                           xls::test::F32Identity::Create());
   XLS_ASSERT_OK_AND_ASSIGN(float output, f->Run(kInput));
   EXPECT_EQ(output, kInput);
 
@@ -40,7 +40,8 @@ TEST(SimpleJitWrapperTest, InvokeIdentity) {
 }
 
 TEST(SimpleJitWrapperTest, IsInf) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<F32IsInf> f, F32IsInf::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::test::F32IsInf> f,
+                           xls::test::F32IsInf::Create());
   EXPECT_THAT(f->Run(1.0), IsOkAndHolds(false));
   EXPECT_THAT(f->Run(F32ToTuple(1.0)), IsOkAndHolds(Value(UBits(false, 1))));
 
@@ -51,7 +52,8 @@ TEST(SimpleJitWrapperTest, IsInf) {
 }
 
 TEST(SimpleJitWrapperTest, FailOn42) {
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<FailOn42> f, FailOn42::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<xls::test::FailOn42> f,
+                           xls::test::FailOn42::Create());
 
   EXPECT_THAT(f->Run(0), IsOkAndHolds(0));
   EXPECT_THAT(f->Run(Value(UBits(0, 32))), IsOkAndHolds(Value(UBits(0, 32))));
