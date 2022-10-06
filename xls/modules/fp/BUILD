@@ -601,6 +601,7 @@ cc_test(
         ":fp32_mul_2.ir",
         ":fp32_mul_2.opt.ir",
     ],
+    tags = ["optonly"],
     deps = [
         ":fp32_mul_2_jit_wrapper",
         "@com_google_absl//absl/random",
