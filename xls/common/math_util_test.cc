@@ -212,5 +212,67 @@ TEST(MathUtil, FloorOfLog2) {
   EXPECT_EQ(FloorOfLog2(std::numeric_limits<uint64_t>::max()), 63);
 }
 
+TEST(MathUtil, IsEven) {
+  EXPECT_EQ(IsEven(0u), true);
+  EXPECT_EQ(IsEven(1u), false);
+  EXPECT_EQ(IsEven(2u), true);
+  EXPECT_EQ(IsEven(3u), false);
+  EXPECT_EQ(IsEven((1ULL << 63) - 1ULL), false);
+  EXPECT_EQ(IsEven(1ULL << 63), true);
+}
+
+TEST(MathUtil, Exp2) {
+  EXPECT_EQ(Exp2<uint>(0), 1);
+  EXPECT_EQ(Exp2<uint>(1), 2);
+  EXPECT_EQ(Exp2<uint>(2), 4);
+  EXPECT_EQ(Exp2<uint>(3), 8);
+  EXPECT_EQ(Exp2<uint>(31), 2147483648);
+  EXPECT_EQ(Exp2<uint64_t>(63), 1ULL << 63);
+}
+
+TEST(MathUtil, FactorizePowerOfTwo) {
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(0u);
+    EXPECT_EQ(odd, 0);
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(1u);
+    EXPECT_EQ(odd, 1);
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(2u);
+    EXPECT_EQ(odd, 1);
+    EXPECT_EQ(exponent, 1);
+  }
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(3u);
+    EXPECT_EQ(odd, 3);
+    EXPECT_EQ(exponent, 0);
+  }
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(4u);
+    EXPECT_EQ(odd, 1);
+    EXPECT_EQ(exponent, 2);
+  }
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(6u);
+    EXPECT_EQ(odd, 3);
+    EXPECT_EQ(exponent, 1);
+  }
+  {
+    auto [odd, exponent] = FactorizePowerOfTwo(40u);
+    EXPECT_EQ(odd, 5);
+    EXPECT_EQ(exponent, 3);
+  }
+  {
+    auto [odd, exponent] =
+        FactorizePowerOfTwo(uint64_t{7} * Exp2<uint64_t>(55));
+    EXPECT_EQ(odd, 7);
+    EXPECT_EQ(exponent, 55);
+  }
+}
+
 }  // namespace
 }  // namespace xls

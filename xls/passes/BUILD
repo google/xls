@@ -119,7 +119,9 @@ cc_test(
     srcs = ["arith_simplification_pass_test.cc"],
     deps = [
         ":arith_simplification_pass",
+        ":dce_pass",
         "@com_google_absl//absl/status:statusor",
+        "//xls/common:bits_util",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/interpreter:ir_interpreter",

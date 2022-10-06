@@ -118,6 +118,7 @@ cc_library(
     srcs = ["math_util.cc"],
     hdrs = ["math_util.h"],
     deps = [
+        "@com_google_absl//absl/numeric:int128",
         "@com_google_absl//absl/types:span",
         "//xls/common/logging",
     ],
