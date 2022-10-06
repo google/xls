@@ -165,6 +165,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp32_fma.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp32_fma",
+        "namespace": "xls::fp",
     },
 )
 
@@ -225,6 +226,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp64_fma.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp64_fma",
+        "namespace": "xls::fp",
     },
 )
 
@@ -336,6 +338,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp32_add_2.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp32_add_2",
+        "namespace": "xls::fp",
     },
 )
 
@@ -421,6 +424,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp64_add_2.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp64_add_2",
+        "namespace": "xls::fp",
     },
 )
 
@@ -518,6 +522,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp32_ldexp.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp32_ldexp",
+        "namespace": "xls::fp",
     },
 )
 
@@ -585,6 +590,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp32_mul_2.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp32_mul_2",
+        "namespace": "xls::fp",
     },
 )
 
@@ -658,6 +664,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp64_mul_2.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp64_mul_2",
+        "namespace": "xls::fp",
     },
 )
 
@@ -725,6 +732,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fp32_fast_rsqrt.opt.ir",
     jit_wrapper_args = {
         "class_name": "fp32_fast_rsqrt",
+        "namespace": "xls::fp",
     },
 )
 

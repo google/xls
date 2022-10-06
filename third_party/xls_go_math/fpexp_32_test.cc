@@ -58,13 +58,13 @@ float IndexToInput(uint64_t index) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-float ComputeExpected(Fpexp32* jit_wrapper, float input) {
+float ComputeExpected(fp::Fpexp32* jit_wrapper, float input) {
   input = FlushSubnormal(input);
   return expf(input);
 }
 
 // Computes FP ldexp via DSLX & the JIT.
-float ComputeActual(Fpexp32* jit_wrapper, float input) {
+float ComputeActual(fp::Fpexp32* jit_wrapper, float input) {
   return jit_wrapper->Run(input).value();
 }
 
@@ -80,9 +80,9 @@ bool CompareResults(float a, float b) {
 }
 
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<float, float, Fpexp32> builder(
+  TestbenchBuilder<float, float, fp::Fpexp32> builder(
       ComputeExpected, ComputeActual,
-      []() { return Fpexp32::Create().value(); });
+      []() { return fp::Fpexp32::Create().value(); });
   builder.SetIndexToInputFn(IndexToInput)
       .SetCompareResultsFn(CompareResults)
       .SetNumSamples(num_samples);

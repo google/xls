@@ -43,6 +43,7 @@ cc_xls_ir_jit_wrapper(
     src = ":fpdiv_2x32.opt.ir",
     jit_wrapper_args = {
         "class_name": "fpdiv_2x32",
+        "namespace": "xls::fp",
     },
 )
 

@@ -54,14 +54,14 @@ bool ZeroOrSubnormal(double value) {
 // to call fesetround().
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-double ComputeExpected(Fp64Mul2* jit_wrapper, Float2x64 input) {
+double ComputeExpected(fp::Fp64Mul2* jit_wrapper, Float2x64 input) {
   double x = FlushSubnormals(std::get<0>(input));
   double y = FlushSubnormals(std::get<1>(input));
   return x * y;
 }
 
 // Computes FP addition via DSLX & the JIT.
-double ComputeActual(Fp64Mul2* jit_wrapper, Float2x64 input) {
+double ComputeActual(fp::Fp64Mul2* jit_wrapper, Float2x64 input) {
   return jit_wrapper->Run(std::get<0>(input), std::get<1>(input)).value();
 }
 
@@ -74,9 +74,9 @@ bool CompareResults(double a, double b) {
 }
 
 absl::Status RealMain(uint64_t num_samples, int num_threads) {
-  TestbenchBuilder<Float2x64, double, Fp64Mul2> builder(
+  TestbenchBuilder<Float2x64, double, fp::Fp64Mul2> builder(
       ComputeActual, ComputeExpected,
-      []() { return Fp64Mul2::Create().value(); });
+      []() { return fp::Fp64Mul2::Create().value(); });
   builder.SetCompareResultsFn(CompareResults).SetNumSamples(num_samples);
   if (num_threads != 0) {
     builder.SetNumThreads(num_threads);

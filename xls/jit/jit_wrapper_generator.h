@@ -17,7 +17,6 @@
 #include <filesystem>
 #include <string>
 
-#include "absl/status/status.h"
 #include "xls/ir/function.h"
 
 namespace xls {
@@ -33,10 +32,12 @@ struct GeneratedJitWrapper {
 // Args:
 //   function: The function for which to generate the wrapper.
 //   class_name: The name to give to the generated class.
+//   wrapper_namespace: C++ namespace to put the wrapper in.
 //   header_path: Path to the eventual location of the class header.
 // TODO(rspringer): 2020-08-19 Add support for non-opt IR.
 GeneratedJitWrapper GenerateJitWrapper(
-    const Function& function, const std::string& class_name,
+    const Function& function, std::string_view class_name,
+    std::string_view wrapper_namespace,
     const std::filesystem::path& header_path,
     const std::filesystem::path& genfiles_path);
 

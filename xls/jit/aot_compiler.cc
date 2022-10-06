@@ -55,10 +55,6 @@ namespace xls {
 // target function (with the package name prefix removed).
 absl::StatusOr<std::string> GenerateHeader(
     Package* p, Function* f, const std::vector<std::string>& namespaces) {
-  // $0: Opening namespace(s)
-  // $1: Closing namespace(s)
-  // $2: Function name
-  // $3: Function parameters
   constexpr std::string_view kTemplate =
       R"(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "absl/status/statusor.h"

@@ -66,7 +66,7 @@ float IndexToInput(uint32_t index) {
 
 // The DSLX implementation also flushes input subnormals to 0, so we do that
 // here as well.
-ResultT ComputeExpected(FpSincos32* jit_wrapper, float input) {
+ResultT ComputeExpected(fp::FpSincos32* jit_wrapper, float input) {
   ResultT result;
   result.sin = sin(input);
   result.cos = cos(input);
@@ -74,7 +74,7 @@ ResultT ComputeExpected(FpSincos32* jit_wrapper, float input) {
 }
 
 // Computes FP addition via DSLX & the JIT.
-ResultT ComputeActual(FpSincos32* jit_wrapper, float input) {
+ResultT ComputeActual(fp::FpSincos32* jit_wrapper, float input) {
   PackedFloat32 packed_input(reinterpret_cast<uint8_t*>(&input), 0);
   ResultT result;
   PackedFloat2x32 packed_result(reinterpret_cast<uint8_t*>(&result), 0);
@@ -100,9 +100,9 @@ std::string PrintResult(const ResultT& result) {
 }
 
 absl::Status RealMain(uint32_t num_samples, int num_threads) {
-  TestbenchBuilder<float, ResultT, FpSincos32> builder(
+  TestbenchBuilder<float, ResultT, fp::FpSincos32> builder(
       ComputeExpected, ComputeActual,
-      []() { return FpSincos32::Create().value(); });
+      []() { return fp::FpSincos32::Create().value(); });
   builder.SetIndexToInputFn(IndexToInput)
       .SetCompareResultsFn(CompareResults)
       .SetPrintResultFn(PrintResult);
