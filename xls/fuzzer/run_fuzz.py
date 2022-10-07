@@ -294,7 +294,10 @@ def generate_sample_and_run(
       if not e.is_timeout:
         logging.info('Attempting to minimize IR...')
         ir_minimized = minimize_ir(
-            smp, sample_crasher_dir, timeout=sample_options.timeout_seconds)
+            smp,
+            sample_crasher_dir,
+            timeout=datetime.timedelta(seconds=sample_options.timeout_seconds)
+            if sample_options.timeout_seconds else None)
         if ir_minimized:
           logging.info('...minimization successful.')
         else:
