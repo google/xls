@@ -524,7 +524,8 @@ absl::StatusOr<bool> MatchSignedDivide(Node* original_div_op) {
 //
 // Return 'true' if the IR was modified (uses of node was replaced with a
 // different expression).
-absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
+absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
+                                        bool optimize_divides) {
   // Pattern: Add/Sub/Or/Xor/Shift a value with 0 on the RHS.
   if ((n->op() == Op::kAdd || n->op() == Op::kSub || n->op() == Op::kShll ||
        n->op() == Op::kShrl || n->op() == Op::kShra) &&
@@ -835,14 +836,16 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
     }
   }
 
-  XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n));
-  if (udiv_matched) {
-    return true;
-  }
+  if (optimize_divides) {
+    XLS_ASSIGN_OR_RETURN(bool udiv_matched, MatchUnsignedDivide(n));
+    if (udiv_matched) {
+      return true;
+    }
 
-  XLS_ASSIGN_OR_RETURN(bool sdiv_matched, MatchSignedDivide(n));
-  if (sdiv_matched) {
-    return true;
+    XLS_ASSIGN_OR_RETURN(bool sdiv_matched, MatchSignedDivide(n));
+    if (sdiv_matched) {
+      return true;
+    }
   }
 
   // Pattern: Mul by 0
@@ -1168,8 +1171,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n) {
 
 absl::StatusOr<bool> ArithSimplificationPass::RunOnFunctionBaseInternal(
     FunctionBase* f, const PassOptions& options, PassResults* results) const {
-  return TransformNodesToFixedPoint(
-      f, [this](Node* n) { return MatchArithPatterns(opt_level_, n); });
+  return TransformNodesToFixedPoint(f, [this](Node* n) {
+    return MatchArithPatterns(opt_level_, n, optimize_divides_);
+  });
 }
 
 }  // namespace xls

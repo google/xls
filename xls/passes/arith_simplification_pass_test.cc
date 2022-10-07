@@ -40,7 +40,11 @@ class ArithSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return ArithSimplificationPass().Run(p, PassOptions(), &results);
+    // Some tests cover the divide by literal optimization so set
+    // `optimize_divides` to true. However, it is not yet safe to enable
+    // generally because bad code can be produced.
+    return ArithSimplificationPass(kMaxOptLevel, /*optimize_divides=*/true)
+        .Run(p, PassOptions(), &results);
   }
 
   void CheckUnsignedDivide(int n, int divisor);

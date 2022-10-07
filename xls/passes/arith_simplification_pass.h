@@ -26,13 +26,22 @@ namespace xls {
 // add of 0, etc.
 class ArithSimplificationPass : public FunctionBasePass {
  public:
-  ArithSimplificationPass(int64_t opt_level = kMaxOptLevel)
+  // `optimize_divides` indicates whether to replace divide by literals with
+  // multiply and shift(s).
+
+  // TODO(https://github.com/google/xls/issues/736): Remove `optimize_divides`
+  // when optimization bugs are worked out.
+  ArithSimplificationPass(int64_t opt_level = kMaxOptLevel,
+                          bool optimize_divides = false)
       : FunctionBasePass("arith_simp", "Arithmetic Simplifications"),
-        opt_level_(opt_level) {}
+        opt_level_(opt_level),
+        optimize_divides_(optimize_divides) {}
   ~ArithSimplificationPass() override {}
 
  protected:
   int64_t opt_level_;
+  bool optimize_divides_;
+
   absl::StatusOr<bool> RunOnFunctionBaseInternal(
       FunctionBase* f, const PassOptions& options,
       PassResults* results) const override;
