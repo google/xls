@@ -3,8 +3,8 @@
 [TOC]
 
 The XLS IR is a pure dataflow-oriented IR that has the static-single-assignment
-property, but is specialized for generating circuitry. Notably, it includes high
-level parallel patterns. The aim is to create effective circuit designs through
+property, but is specialized for generating circuitry.
+The aim is to create effective circuit designs through
 a "lifted" understanding of the high-level operations and their semantics,
 instead of trying to reverse all relevant properties via dependence analysis,
 which often cannot take advantage of high level knowledge that the designer
