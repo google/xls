@@ -116,7 +116,8 @@ absl::StatusOr<InterpreterResult<Value>> FunctionJit::Run(
 }
 
 absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
-                                       absl::Span<uint8_t> result_buffer) {
+                                       absl::Span<uint8_t> result_buffer,
+                                       InterpreterEvents* events) {
   absl::Span<Param* const> params = xls_function_->params();
   if (args.size() != params.size()) {
     return absl::InvalidArgumentError(
@@ -130,9 +131,8 @@ absl::Status FunctionJit::RunWithViews(absl::Span<uint8_t* const> args,
                      GetReturnTypeSize()));
   }
 
-  InterpreterEvents events;
-  InvokeJitFunction(args, result_buffer.data(), &events);
-  return InterpreterEventsToStatus(events);
+  InvokeJitFunction(args, result_buffer.data(), events);
+  return absl::OkStatus();
 }
 
 void FunctionJit::InvokeJitFunction(absl::Span<uint8_t* const> arg_buffers,

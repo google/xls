@@ -409,6 +409,10 @@ absl::Status PrintProcInfo(Proc* p) {
 
 absl::Status RunInterpeterAndJit(FunctionBase* function_base,
                                  std::string_view description) {
+  // TODO(meheff): 2022/10/10 Run interpreter / jit for a fixed amount of time
+  // (1s?) and report the rate (iterations per second). Currently, many of the
+  // benchmarks do not run long enough to produce statistically significant
+  // results.
   std::minstd_rand rng_engine;
   if (function_base->IsFunction()) {
     Function* function = function_base->AsFunctionOrDie();
@@ -427,12 +431,32 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base,
       }
     }
 
+    // To avoid being dominated by xls::Value conversion to native
+    // format, preconvert the arguments.
+    std::vector<std::vector<std::vector<uint8_t>>> jit_arg_buffers;
+    std::vector<std::vector<uint8_t*>> jit_arg_pointers;
+    for (const std::vector<Value>& args : arg_set) {
+      std::vector<std::vector<uint8_t>> buffers;
+      std::vector<uint8_t*> pointers;
+      for (int64_t i = 0; i < args.size(); ++i) {
+        buffers.push_back(std::vector<uint8_t>(jit->GetArgTypeSize(i), 0));
+        pointers.push_back(buffers.back().data());
+      }
+      jit_arg_buffers.push_back(std::move(buffers));
+      jit_arg_pointers.push_back(pointers);
+      XLS_RETURN_IF_ERROR(jit->runtime()->PackArgs(
+          args, function->GetType()->parameters(), jit_arg_pointers.back()));
+    }
+
     // The JIT is much faster so run many times.
     const int64_t kJitRunMultiplier = 1000;
+    InterpreterEvents events;
+    std::vector<uint8_t> result_buffer(jit->GetReturnTypeSize());
     absl::Time start_jit_run = absl::Now();
     for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
-      for (const std::vector<Value>& args : arg_set) {
-        XLS_RETURN_IF_ERROR(jit->Run(args).status());
+      for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
+        XLS_RETURN_IF_ERROR(jit->RunWithViews(
+            pointers, absl::MakeSpan(result_buffer), &events));
       }
     }
     std::cout << absl::StreamFormat("JIT run time (%s): %dms\n", description,

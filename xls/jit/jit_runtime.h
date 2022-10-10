@@ -40,7 +40,7 @@ class JitRuntime {
   // "args", with a matching amount of space allocated.
   absl::Status PackArgs(absl::Span<const Value> args,
                         absl::Span<Type* const> arg_types,
-                        absl::Span<uint8_t*> arg_buffers);
+                        absl::Span<uint8_t* const> arg_buffers);
 
   // Returns a Value constructed from the data inside "buffer" whose
   // contents are laid out according to the LLVM interpretation of the passed-in

@@ -76,13 +76,12 @@ class FunctionJit {
   // (and applying views) can eliminate this overhead and still give access tor
   // result data. Users needing less performance can still use the
   // Value-returning methods above for code simplicity.
-  // Drops any events collected during evaluation (except assertion failures
-  // which turn into errors).
   // TODO(https://github.com/google/xls/issues/506): 2021-10-13 Figure out
   // if we want a way to return events in the view and packed view interfaces
   // (or if their performance-focused execution means events are unimportant).
   absl::Status RunWithViews(absl::Span<uint8_t* const> args,
-                            absl::Span<uint8_t> result_buffer);
+                            absl::Span<uint8_t> result_buffer,
+                            InterpreterEvents* events);
 
   // Similar to RunWithViews(), except the arguments here are _packed_views_ -
   // views whose data elements are tightly packed, with no padding bits or bytes

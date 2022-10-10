@@ -31,7 +31,7 @@ JitRuntime::JitRuntime(const llvm::DataLayout& data_layout,
 
 absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
                                   absl::Span<Type* const> arg_types,
-                                  absl::Span<uint8_t*> arg_buffers) {
+                                  absl::Span<uint8_t* const> arg_buffers) {
   if (arg_buffers.size() < args.size()) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "Input buffer is not large enough to hold all arguments: %d vs. %d",
