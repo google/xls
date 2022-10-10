@@ -90,10 +90,8 @@ def _xls_ir_jit_wrapper_impl(ctx):
         "namespace",
     )
 
-    # TODO(meheff): 2022/10/05 Make `namespace` non-optional by uncommenting
-    # these lines:
-    #    if "namespace" not in jit_wrapper_args:
-    #        fail("Must specify 'namespace' in jit_wrapper_args")
+    if "namespace" not in jit_wrapper_args:
+        fail("Must specify 'namespace' in jit_wrapper_args")
 
     for flag_name in jit_wrapper_args:
         if flag_name in JIT_WRAPPER_FLAGS:
