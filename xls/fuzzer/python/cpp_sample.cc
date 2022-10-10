@@ -138,19 +138,23 @@ PYBIND11_MODULE(cpp_sample, m) {
           }));
 
   py::class_<Sample>(m, "Sample")
-      .def(py::init(
-               [](std::string input_text, SampleOptions options,
-                  std::optional<std::vector<std::vector<dslx::InterpValue>>>
-                      args_batch) {
-                 std::vector<std::vector<dslx::InterpValue>> args_batch_vec;
-                 if (args_batch.has_value()) {
-                   args_batch_vec = std::move(*args_batch);
-                 }
-                 return Sample(std::move(input_text), std::move(options),
-                               std::move(args_batch_vec));
-               }),
-           py::arg("input_text"), py::arg("options"),
-           py::arg("args_batch") = absl::nullopt)
+      .def(
+          py::init([](std::string input_text, SampleOptions options,
+                      std::optional<std::vector<std::vector<dslx::InterpValue>>>
+                          args_batch,
+                      std::optional<std::vector<dslx::InterpValue>>
+                          proc_initial_values) {
+            std::vector<std::vector<dslx::InterpValue>> args_batch_vec;
+            if (args_batch.has_value()) {
+              args_batch_vec = std::move(*args_batch);
+            }
+            return Sample(std::move(input_text), std::move(options),
+                          std::move(args_batch_vec),
+                          std::move(proc_initial_values));
+          }),
+          py::arg("input_text"), py::arg("options"),
+          py::arg("args_batch") = absl::nullopt,
+          py::arg("proc_initial_values") = absl::nullopt)
       .def(py::pickle(
           [](const Sample& self) { return py::make_tuple(self.Serialize()); },
           [](const py::tuple& t) {
@@ -169,7 +173,8 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_static("deserialize", &Sample::Deserialize)
       .def_property_readonly("options", &Sample::options)
       .def_property_readonly("input_text", &Sample::input_text)
-      .def_property_readonly("args_batch", &Sample::args_batch);
+      .def_property_readonly("args_batch", &Sample::args_batch)
+      .def_property_readonly("proc_init_values", &Sample::proc_initial_values);
 
   m.def("parse_args",
         [](std::string_view args_text) -> absl::StatusOr<py::tuple> {
@@ -183,6 +188,8 @@ PYBIND11_MODULE(cpp_sample, m) {
         });
   m.def("parse_args_batch", &ParseArgsBatch);
   m.def("args_batch_to_text", &ArgsBatchToText);
+  m.def("parse_proc_init_values", &ParseArgs);
+  m.def("proc_init_values_to_text", &ProcInitValuesToText);
 }
 
 }  // namespace xls::dslx

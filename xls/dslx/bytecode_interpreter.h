@@ -243,22 +243,23 @@ class ProcConfigBytecodeInterpreter : public BytecodeInterpreter {
 
   virtual ~ProcConfigBytecodeInterpreter() = default;
 
+  // Implementation of Spawn handling common to both InitializeProcNetwork
+  // and EvalSpawn. `next_args` should not include Proc members or the
+  // obligatory Token; they're added to the arg list internally.
+  static absl::Status EvalSpawn(ImportData* import_data,
+                                const TypeInfo* type_info,
+                                const std::optional<SymbolicBindings>& bindings,
+                                std::optional<const Spawn*> maybe_spawn,
+                                Proc* proc,
+                                const std::vector<InterpValue>& config_args,
+                                const std::vector<InterpValue>& next_args,
+                                std::vector<ProcInstance>* proc_instances);
+
  private:
   ProcConfigBytecodeInterpreter(ImportData* import_data, BytecodeFunction* bf,
                                 std::vector<ProcInstance>* proc_instances);
 
   absl::Status EvalSpawn(const Bytecode& bytecode) override;
-
-  // Implementation of Spawn handling common to both InitializeProcNetwork
-  // and EvalSpawn. `next_args` should not include Proc members or the
-  // obligatory Token; they're added to the arg list internally.
-  static absl::Status EvalSpawnInternal(
-      ImportData* import_data, const TypeInfo* type_info,
-      const std::optional<SymbolicBindings>& bindings,
-      std::optional<const Spawn*> maybe_spawn, Proc* proc,
-      const std::vector<InterpValue>& config_args,
-      const std::vector<InterpValue>& next_args,
-      std::vector<ProcInstance>* proc_instances);
 
   std::vector<ProcInstance>* proc_instances_;
 };

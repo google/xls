@@ -37,12 +37,14 @@ from xls.fuzzer import sample_runner
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string('options_file', None,
-                    'File to load sample runner options from.')
-flags.DEFINE_string('input_file', None, 'Code input file.')
-flags.DEFINE_string(
+_OPTIONS_FILE = flags.DEFINE_string('options_file', None,
+                                    'File to load sample runner options from.')
+_INPUT_FILE = flags.DEFINE_string('input_file', None, 'Code input file.')
+_ARGS_FILE = flags.DEFINE_string(
     'args_file', None,
     'Optional arguments to use for interpretation and simulation.')
+_PROC_INIT_VALUES_FILE = flags.DEFINE_string(
+    'proc_init_values_file', None, 'Optional initial values for proc.')
 
 
 def maybe_copy_file(file_path: Text, dir_path: Text) -> Text:
@@ -63,13 +65,17 @@ def maybe_copy_file(file_path: Text, dir_path: Text) -> Text:
 def run(run_dir: Text):
   """Runs the sample in the given run directory."""
   runner = sample_runner.SampleRunner(run_dir)
-  input_filename = maybe_copy_file(FLAGS.input_file, run_dir)
-  options_filename = maybe_copy_file(FLAGS.options_file, run_dir)
-  if FLAGS.args_file:
-    args_filename = maybe_copy_file(FLAGS.args_file, run_dir)
-  else:
-    args_filename = None
-  runner.run_from_files(input_filename, options_filename, args_filename)
+  input_filename = maybe_copy_file(_INPUT_FILE.value, run_dir)
+  options_filename = maybe_copy_file(_OPTIONS_FILE.value, run_dir)
+  args_filename = None
+  if _ARGS_FILE.value:
+    args_filename = maybe_copy_file(_ARGS_FILE.value, run_dir)
+  proc_init_values_filename = None
+  if _PROC_INIT_VALUES_FILE.value:
+    proc_init_values_filename = maybe_copy_file(_PROC_INIT_VALUES_FILE.value,
+                                                run_dir)
+  runner.run_from_files(input_filename, options_filename, args_filename,
+                        proc_init_values_filename)
 
 
 def main(argv):

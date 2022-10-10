@@ -96,20 +96,26 @@ def run_sample(smp: sample.Sample,
 
   """
   start = time.time()
-
-  _write_to_file(run_dir, 'sample.x', smp.input_text)
-  _write_to_file(run_dir, 'options.json', smp.options.to_json())
-  if smp.args_batch:
-    _write_to_file(run_dir, 'args.txt',
-                   sample.args_batch_to_text(smp.args_batch))
-
   # Create a script named 'run.sh' for rerunning the sample.
   args = [
       SAMPLE_RUNNER_MAIN_PATH, '--logtostderr', '--input_file=sample.x',
       '--options_file=options.json'
   ]
+
+  _write_to_file(run_dir, 'sample.x', smp.input_text)
+  _write_to_file(run_dir, 'options.json', smp.options.to_json())
+  args_filename = None
   if smp.args_batch:
+    args_filename = 'args.txt'
+    _write_to_file(run_dir, args_filename,
+                   sample.args_batch_to_text(smp.args_batch))
     args.append('--args_file=args.txt')
+  proc_init_values_filename = None
+  if smp.proc_init_values:
+    proc_init_values_filename = 'proc_init_values.txt'
+    _write_to_file(run_dir, proc_init_values_filename,
+                   sample.proc_init_values_to_text(smp.proc_init_values))
+    args.append('--proc_init_values_file=proc_init_values.txt')
   args.append(run_dir)
   _write_to_file(
       run_dir,
@@ -119,7 +125,8 @@ def run_sample(smp: sample.Sample,
   logging.vlog(1, 'Starting to run sample')
   logging.vlog(2, smp.input_text)
   runner = sample_runner.SampleRunner(run_dir)
-  runner.run_from_files('sample.x', 'options.json', 'args.txt')
+  runner.run_from_files('sample.x', 'options.json', args_filename,
+                        proc_init_values_filename)
   timing = runner.timing
 
   timing.total_ns = int((time.time() - start) * 1e9)

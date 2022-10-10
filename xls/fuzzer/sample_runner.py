@@ -42,6 +42,7 @@ SIMULATE_MODULE_MAIN_PATH = runfiles.get_path('xls/tools/simulate_module_main')
 
 
 ArgsBatch = List[List[Value]]
+ProcInitValues = List[Value]
 
 
 class SampleError(XlsError):
@@ -110,14 +111,20 @@ class SampleRunner:
     json_options_filename = self._write_file('options.json',
                                              smp.options.to_json())
     args_filename = None
+    proc_init_values_filename = None
     if smp.args_batch:
       args_filename = self._write_file(
           'args.txt', sample.args_batch_to_text(smp.args_batch))
+    if smp.proc_init_values is not None:
+      proc_init_values_filename = self._write_file(
+          'proc_init_values.txt',
+          sample.proc_init_values_to_text(smp.proc_init_values))
 
-    self.run_from_files(input_filename, json_options_filename, args_filename)
+    self.run_from_files(input_filename, json_options_filename, args_filename,
+                        proc_init_values_filename)
 
   def run_from_files(self, input_filename: Text, json_options_filename: Text,
-                     args_filename: Text):
+                     args_filename: Text, proc_init_values_filename: Text):
     """Runs a sample which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -127,6 +134,8 @@ class SampleRunner:
       input_filename: The filename of the sample code.
       json_options_filename: The filename of the JSON-serialized SampleOptions.
       args_filename: The optional filename of the serialized ArgsBatch.
+      proc_init_values_filename: The optional filename of the serialized
+        ProcInitValues.
 
     Raises:
       SampleError: If an error was encountered.
@@ -136,8 +145,12 @@ class SampleRunner:
     options = sample.SampleOptions.from_json(
         self._read_file(json_options_filename))
     args_batch: Optional[ArgsBatch] = None
+    proc_init_values: Optional[ProcInitValues] = None
     if args_filename:
       args_batch = sample.parse_args_batch(self._read_file(args_filename))
+    if proc_init_values_filename:
+      proc_init_values = sample.parse_proc_init_values(
+          self._read_file(proc_init_values_filename))
 
     self._write_file('revision.txt', revision.get_revision())
 
@@ -151,7 +164,7 @@ class SampleRunner:
           logging.vlog(1, 'Interpreting DSLX file.')
           with Timer() as t:
             results['interpreted DSLX'] = self._interpret_dslx(
-                input_text, 'main', args_batch)
+                input_text, 'main', args_batch, proc_init_values)
           logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                        t.elapsed_ns / 1e9)
           self.timing.interpret_dslx_ns = t.elapsed_ns
@@ -342,12 +355,18 @@ class SampleRunner:
                               f'\n{", ".join(values_matches)} ='
                               f'\n   {values[i].to_ir_str()}')
 
-  def _interpret_dslx(self, text: str, function_name: str,
-                      args_batch: ArgsBatch) -> Tuple[Value, ...]:
+  def _interpret_dslx(
+      self, text: str, top_name: str, args_batch: ArgsBatch,
+      proc_init_values: Optional[ProcInitValues]) -> Tuple[Value, ...]:
     """Interprets the DSLX module returns the result Values."""
-    dslx_results = interpreter.run_batched(
-        text, function_name, args_batch,
-        runtime_build_actions.get_default_dslx_stdlib_path())
+    if proc_init_values is None:
+      dslx_results = interpreter.run_function_batched(
+          text, top_name, args_batch,
+          runtime_build_actions.get_default_dslx_stdlib_path())
+    else:
+      dslx_results = interpreter.run_proc(
+          text, top_name, args_batch, proc_init_values,
+          runtime_build_actions.get_default_dslx_stdlib_path())
     self._write_file('sample.x.results',
                      '\n'.join(r.to_ir_str() for r in dslx_results))
     return tuple(dslx_results)

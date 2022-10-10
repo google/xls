@@ -29,6 +29,9 @@ namespace xls {
 // Returns a string representation of the args_batch.
 std::string ArgsBatchToText(
     const std::vector<std::vector<dslx::InterpValue>>& args_batch);
+// Returns a string representation of the proc_init_values.
+std::string ProcInitValuesToText(
+    const std::vector<dslx::InterpValue>& proc_init_values);
 
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
@@ -153,33 +156,46 @@ class Sample {
   //  <code sample>
   std::string ToCrasher(std::string_view error_message) const;
 
+  // TODO(https://github.com/google/xls/issues/681): Remove
+  // 'proc_initial_values'.
   Sample(std::string input_text, SampleOptions options,
-         std::vector<std::vector<dslx::InterpValue>> args_batch)
+         std::vector<std::vector<dslx::InterpValue>> args_batch,
+         std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
+             std::nullopt)
       : input_text_(std::move(input_text)),
         options_(std::move(options)),
-        args_batch_(std::move(args_batch)) {}
+        args_batch_(std::move(args_batch)),
+        proc_initial_values_(std::move(proc_initial_values)) {}
 
   const SampleOptions& options() const { return options_; }
   const std::string& input_text() const { return input_text_; }
   const std::vector<std::vector<dslx::InterpValue>>& args_batch() const {
     return args_batch_;
   }
+  const std::optional<std::vector<dslx::InterpValue>>& proc_initial_values()
+      const {
+    return proc_initial_values_;
+  }
 
   bool operator==(const Sample& other) const {
     return input_text_ == other.input_text_ && options_ == other.options_ &&
-           ArgsBatchEqual(other);
+           ArgsBatchEqual(other) && ProcInitValuesEqual(other);
   }
   bool operator!=(const Sample& other) const { return !((*this) == other); }
 
  private:
   // Returns whether the argument batch is the same as in "other".
   bool ArgsBatchEqual(const Sample& other) const;
+  // Returns whether the proc initial values is the same as in "other".
+  bool ProcInitValuesEqual(const Sample& other) const;
 
   std::string input_text_;  // Code sample as text.
   SampleOptions options_;   // How to run the sample.
 
   // Argument values to use for interpretation and simulation.
   std::vector<std::vector<dslx::InterpValue>> args_batch_;
+  // Initial values for proc.
+  std::optional<std::vector<dslx::InterpValue>> proc_initial_values_;
 };
 
 }  // namespace xls

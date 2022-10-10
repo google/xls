@@ -1639,7 +1639,7 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     next_arg_values.push_back(arg_value);
   }
 
-  return EvalSpawnInternal(
+  return EvalSpawn(
       import_data, type_info, absl::nullopt, absl::nullopt, root_proc,
       /*config_args=*/{terminator}, next_arg_values, proc_instances);
 }
@@ -1649,13 +1649,13 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   Frame& frame = frames().back();
   XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
                        bytecode.spawn_data());
-  return EvalSpawnInternal(import_data(), frame.type_info(),
-                           spawn_data->caller_bindings, spawn_data->spawn,
-                           spawn_data->proc, spawn_data->config_args,
-                           spawn_data->next_args, proc_instances_);
+  return EvalSpawn(import_data(), frame.type_info(),
+                   spawn_data->caller_bindings, spawn_data->spawn,
+                   spawn_data->proc, spawn_data->config_args,
+                   spawn_data->next_args, proc_instances_);
 }
 
-/* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawnInternal(
+/* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<SymbolicBindings>& caller_bindings,
     std::optional<const Spawn*> maybe_spawn, Proc* proc,
