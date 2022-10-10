@@ -87,7 +87,6 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "//xls/ir:value",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:proc_jit",
         "@boringssl//:crypto",

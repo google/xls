@@ -27,7 +27,6 @@
 #include "xls/ir/value.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/llvm_type_converter.h"
 
 namespace xls {
 
@@ -43,7 +42,7 @@ absl::StatusOr<JitObjectCode> FunctionJit::CreateObjectCode(
       CreateInternal(xls_function, opt_level, /*emit_object_code=*/true));
   return JitObjectCode{
       .function_name = std::string{jit->GetJittedFunctionName()},
-      .object_code = jit->GetOrcJit().GetObjectCode(),
+      .object_code = jit->orc_jit_->GetObjectCode(),
       .parameter_buffer_sizes = jit->jitted_function_base_.input_buffer_sizes,
       .return_buffer_size = jit->jitted_function_base_.output_buffer_sizes[0],
       .temp_buffer_size = jit->GetTempBufferSize(),
@@ -55,21 +54,19 @@ absl::StatusOr<std::unique_ptr<FunctionJit>> FunctionJit::CreateInternal(
   auto jit = absl::WrapUnique(new FunctionJit(xls_function));
   XLS_ASSIGN_OR_RETURN(jit->orc_jit_,
                        OrcJit::Create(opt_level, emit_object_code));
-
-  jit->jit_runtime_ = std::make_unique<JitRuntime>(
-      jit->orc_jit_->GetDataLayout(), &jit->orc_jit_->GetTypeConverter());
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
+                       OrcJit::CreateDataLayout());
+  jit->jit_runtime_ = std::make_unique<JitRuntime>(data_layout);
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
-                       BuildFunction(xls_function, jit->GetOrcJit()));
+                       BuildFunction(xls_function, *jit->orc_jit_));
 
   // Pre-allocate argument, result, and temporary buffers.
-  for (const Param* param : xls_function->params()) {
-    jit->arg_buffers_.push_back(std::vector<uint8_t>(
-        jit->orc_jit_->GetTypeConverter().GetTypeByteSize(param->GetType())));
+  for (int64_t i = 0; i < xls_function->params().size(); ++i) {
+    jit->arg_buffers_.push_back(std::vector<uint8_t>(jit->GetArgTypeSize(i)));
     jit->arg_buffer_ptrs_.push_back(jit->arg_buffers_.back().data());
   }
-  jit->result_buffer_.resize(
-      jit->jitted_function_base_.output_buffer_sizes.front());
-  jit->temp_buffer_.resize(jit->jitted_function_base_.temp_buffer_size);
+  jit->result_buffer_.resize(jit->GetReturnTypeSize());
+  jit->temp_buffer_.resize(jit->GetTempBufferSize());
 
   return jit;
 }

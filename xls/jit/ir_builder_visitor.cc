@@ -642,7 +642,7 @@ class NodeIrContext {
 
   Node* node() const { return node_; }
   LlvmTypeConverter& type_converter() const {
-    return orc_jit_.GetTypeConverter();
+    return jit_context_.type_converter();
   }
 
   // Returns true if the underlying llvm::Function takes the top-level metadata
@@ -705,12 +705,15 @@ class NodeIrContext {
   absl::Span<Node* const> GetOperandArgs() const { return operand_args_; }
 
  private:
-  NodeIrContext(Node* node, bool has_metadata_args, OrcJit& orc_jit)
-      : node_(node), has_metadata_args_(has_metadata_args), orc_jit_(orc_jit) {}
+  NodeIrContext(Node* node, bool has_metadata_args,
+                JitBuilderContext& jit_context)
+      : node_(node),
+        has_metadata_args_(has_metadata_args),
+        jit_context_(jit_context) {}
 
   Node* node_;
   bool has_metadata_args_;
-  OrcJit& orc_jit_;
+  JitBuilderContext& jit_context_;
 
   llvm::Function* llvm_function_;
   std::unique_ptr<llvm::IRBuilder<>> entry_builder_;
@@ -735,7 +738,7 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     int64_t output_arg_count, bool include_wrapper_args,
     JitBuilderContext& jit_context) {
   XLS_RET_CHECK_GT(output_arg_count, 0);
-  NodeIrContext nc(node, include_wrapper_args, jit_context.orc_jit());
+  NodeIrContext nc(node, include_wrapper_args, jit_context);
 
   // Deduplicate the operands. If an operand appears more than once in the IR
   // node, map them to a single argument in the llvm Function for the mode.
@@ -964,9 +967,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // Returns the top-level builder for the function. This builder is initialized
   // to the entry block of `dispatch_function()`.
   //  llvm::IRBuilder<>* dispatch_builder() { return dispatch_builder_.get(); }
-  LlvmTypeConverter* type_converter() {
-    return &jit_context_.orc_jit().GetTypeConverter();
-  }
+  LlvmTypeConverter* type_converter() { return &jit_context_.type_converter(); }
 
   // Common handler for binary, unary, and nary nodes. `build_results` produces
   // the llvm Value to use as the result.

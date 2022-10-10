@@ -769,7 +769,6 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -777,7 +776,6 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
-        "//xls/jit:jit_runtime",
         "//xls/jit:orc_jit",
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:IRReader",

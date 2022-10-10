@@ -238,7 +238,7 @@ absl::Status TestPackedBits(std::minstd_rand& bitgen) {
   v = RandomValue(package.GetBitsType(kBitWidth), &bitgen);
   Bits b(v.bits());
   Bits expected = bits_ops::Add(a, b);
-  int64_t byte_width = jit->GetPackedSizeBytes(package.GetBitsType(kBitWidth));
+  int64_t byte_width = jit->GetPackedReturnTypeSize();
   auto output_data = std::make_unique<uint8_t[]>(byte_width);
   bzero(output_data.get(), byte_width);
 

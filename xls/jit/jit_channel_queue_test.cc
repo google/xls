@@ -30,22 +30,24 @@ namespace {
 using status_testing::StatusIs;
 using ::testing::HasSubstr;
 
-OrcJit* GetOrcJit() {
-  static std::unique_ptr<OrcJit> orc_jit = OrcJit::Create().value();
-  return orc_jit.get();
+JitRuntime* GetJitRuntime() {
+  static auto jit_runtime =
+      std::make_unique<JitRuntime>(OrcJit::CreateDataLayout().value());
+  return jit_runtime.get();
 }
 
 INSTANTIATE_TEST_SUITE_P(
     ThreadSafeJitChannelQueueTest, ChannelQueueTestBase,
     testing::Values(ChannelQueueTestParam([](Channel* channel) {
-      return std::make_unique<ThreadSafeJitChannelQueue>(channel, GetOrcJit());
+      return std::make_unique<ThreadSafeJitChannelQueue>(channel,
+                                                         GetJitRuntime());
     })));
 
 INSTANTIATE_TEST_SUITE_P(
     LockLessJitChannelQueueTest, ChannelQueueTestBase,
     testing::Values(ChannelQueueTestParam([](Channel* channel) {
       return std::make_unique<ThreadUnsafeJitChannelQueue>(channel,
-                                                           GetOrcJit());
+                                                           GetJitRuntime());
     })));
 
 template <typename QueueT>
@@ -61,7 +63,7 @@ TYPED_TEST(JitChannelQueueTest, BasicAccess) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  TypeParam queue(channel, GetOrcJit());
+  TypeParam queue(channel, GetJitRuntime());
 
   EXPECT_TRUE(queue.IsEmpty());
   std::vector<uint8_t> send_buffer(4);
@@ -96,7 +98,7 @@ TYPED_TEST(JitChannelQueueTest, IotaGeneratorWithRawApi) {
       Channel * channel,
       package.CreateStreamingChannel("my_channel", ChannelOps::kSendReceive,
                                      package.GetBitsType(32)));
-  TypeParam queue(channel, GetOrcJit());
+  TypeParam queue(channel, GetJitRuntime());
 
   int64_t counter = 42;
   XLS_ASSERT_OK(queue.AttachGenerator(

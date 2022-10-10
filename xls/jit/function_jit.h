@@ -25,7 +25,6 @@
 #include "xls/ir/value_view.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -119,20 +118,24 @@ class FunctionJit {
     return InterpreterEventsToStatus(events);
   }
 
-  // Returns the size in bytes of a packed value of the given type.
-  int64_t GetPackedSizeBytes(Type* type) const {
-    return type_converter()->PackedLlvmTypeWidth(type) / 8;
-  }
-
   // Returns the function that the JIT executes.
   Function* function() { return xls_function_; }
 
   // Gets the size of the compiled function's arguments (or return value) in the
   // native LLVM data layout (not the packed layout).
   int64_t GetArgTypeSize(int arg_index) const {
-    return jitted_function_base_.input_buffer_sizes[arg_index];
+    return jitted_function_base_.input_buffer_sizes.at(arg_index);
   }
   int64_t GetReturnTypeSize() const {
+    return jitted_function_base_.output_buffer_sizes[0];
+  }
+
+  // Gets the size of the compiled function's arguments (or return value) in the
+  // packed layout.
+  int64_t GetPackedArgTypeSize(int arg_index) const {
+    return jitted_function_base_.packed_input_buffer_sizes.at(arg_index);
+  }
+  int64_t GetPackedReturnTypeSize() const {
     return jitted_function_base_.output_buffer_sizes[0];
   }
 
@@ -149,12 +152,6 @@ class FunctionJit {
   }
 
   JitRuntime* runtime() const { return jit_runtime_.get(); }
-
-  LlvmTypeConverter* type_converter() const {
-    return &orc_jit_->GetTypeConverter();
-  }
-
-  OrcJit& GetOrcJit() const { return *orc_jit_; }
 
  private:
   explicit FunctionJit(Function* xls_function) : xls_function_(xls_function) {}

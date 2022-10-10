@@ -39,6 +39,7 @@ cc_library(
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir",
         "//xls/jit:function_jit",
+        "//xls/jit:jit_runtime",
         "//xls/jit:proc_jit",
         "//xls/passes:standard_pipeline",
     ],

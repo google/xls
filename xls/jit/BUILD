@@ -56,14 +56,12 @@ cc_library(
     srcs = ["aot_runtime.cc"],
     hdrs = ["aot_runtime.h"],
     deps = [
-        ":llvm_type_converter",
+        ":jit_runtime",
+        ":orc_jit",
         "@com_google_absl//absl/strings",
         "//xls/ir",
         "//xls/ir:type",
         "@com_google_protobuf//:protobuf",
-        "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:OrcJIT",
-        "@llvm-project//llvm:Support",
     ],
 )
 
@@ -137,7 +135,6 @@ cc_library(
     deps = [
         ":function_base_jit",
         ":jit_runtime",
-        ":llvm_type_converter",
         ":orc_jit",
         "@com_google_absl//absl/memory",
         "@com_google_absl//absl/status",
@@ -224,20 +221,18 @@ cc_library(
     hdrs = ["jit_runtime.h"],
     deps = [
         ":llvm_type_converter",
+        ":orc_jit",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/types:span",
-        "//xls/interpreter:channel_queue",
-        "//xls/ir:format_preference",
+        "//xls/common/status:status_macros",
+        "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
         "//xls/ir:value",
         "@llvm-project//llvm:AArch64AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:AArch64CodeGen",  # build_cleaner: keep
         "@llvm-project//llvm:Core",
-        "@llvm-project//llvm:OrcJIT",
-        "@llvm-project//llvm:Support",
-        "@llvm-project//llvm:Target",
         "@llvm-project//llvm:X86AsmParser",  # build_cleaner: keep
         "@llvm-project//llvm:X86CodeGen",  # build_cleaner: keep
     ],
@@ -252,6 +247,7 @@ cc_library(
         "@com_google_absl//absl/status:statusor",
         "//xls/common/logging",
         "//xls/common/status:status_macros",
+        "//xls/ir",
         "//xls/ir:type",
         "//xls/ir:value",
         "@llvm-project//llvm:Core",
@@ -264,7 +260,6 @@ cc_library(
     hdrs = ["serial_proc_runtime.h"],
     deps = [
         ":jit_channel_queue",
-        ":orc_jit",
         ":proc_jit",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -322,10 +317,8 @@ cc_library(
         "//xls/common/status:status_macros",
         "//xls/interpreter:proc_interpreter",
         "//xls/ir",
-        "//xls/ir:format_preference",
         "//xls/ir:type",
         "//xls/ir:value",
-        "//xls/ir:value_helpers",
     ],
 )
 
@@ -352,7 +345,7 @@ cc_test(
     srcs = ["proc_jit_test.cc"],
     deps = [
         ":jit_channel_queue",
-        ":orc_jit",
+        ":jit_runtime",
         ":proc_jit",
         "@com_google_absl//absl/status:statusor",
         "//xls/common:xls_gunit_main",

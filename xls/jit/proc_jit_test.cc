@@ -29,7 +29,7 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/orc_jit.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 namespace {
@@ -49,17 +49,20 @@ uint32_t ReadU32(ChannelQueue* queue) {
 
 class ProcJitTest : public IrTestBase {
  protected:
+  ProcJitTest() : jit_runtime_(JitRuntime::Create().value()) {}
+
   // Creates a queue manager and ProcJit for the given proc.
   std::pair<std::unique_ptr<JitChannelQueueManager>, std::unique_ptr<ProcJit>>
   CreateQueueManagerAndJit(Proc* proc) {
-    std::unique_ptr<OrcJit> orc_jit = OrcJit::Create().value();
-    auto queue_mgr =
-        JitChannelQueueManager::CreateThreadSafe(proc->package(), orc_jit.get())
-            .value();
+    auto queue_mgr = JitChannelQueueManager::CreateThreadSafe(
+                         proc->package(), jit_runtime_.get())
+                         .value();
     std::unique_ptr<ProcJit> jit =
-        ProcJit::Create(proc, queue_mgr.get(), std ::move(orc_jit)).value();
+        ProcJit::Create(proc, jit_runtime_.get(), queue_mgr.get()).value();
     return {std::move(queue_mgr), std::move(jit)};
   }
+
+  std::unique_ptr<JitRuntime> jit_runtime_;
 };
 
 TEST_F(ProcJitTest, SendOnly) {

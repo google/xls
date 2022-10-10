@@ -69,11 +69,13 @@ struct JittedFunctionBase {
   std::optional<std::string> packed_function_name;
   std::optional<JitFunctionType> packed_function;
 
-  // Sizes of the inputs (native LLVM format) passed to `function`.
+  // Sizes of the inputs/outputs in native LLVM format for `function_base`.
   std::vector<int64_t> input_buffer_sizes;
-
-  // Sizes of the output buffers (native LLVM format) for `function`.
   std::vector<int64_t> output_buffer_sizes;
+
+  // Sizes of the inputs/outputs in packed format for `function_base`.
+  std::vector<int64_t> packed_input_buffer_sizes;
+  std::vector<int64_t> packed_output_buffer_sizes;
 
   // Size of the temporary buffer required by `function`.
   int64_t temp_buffer_size;

@@ -119,27 +119,25 @@ class ByteQueue {
 // xls::Values.
 class JitChannelQueue : public ChannelQueue {
  public:
-  JitChannelQueue(Channel* channel, OrcJit* orc_jit)
-      : ChannelQueue(channel),
-        jit_runtime_(orc_jit->GetDataLayout(), &orc_jit->GetTypeConverter()) {}
+  JitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
+      : ChannelQueue(channel), jit_runtime_(jit_runtime) {}
   virtual ~JitChannelQueue() = default;
 
   virtual void WriteRaw(const uint8_t* data) = 0;
   virtual bool ReadRaw(uint8_t* buffer) = 0;
 
  protected:
-  JitRuntime jit_runtime_;
+  JitRuntime* jit_runtime_;
 };
 
 // A thread-safe version of the JIT channel queue. All accesses are guarded by a
 // mutex.
 class ThreadSafeJitChannelQueue : public JitChannelQueue {
  public:
-  ThreadSafeJitChannelQueue(Channel* channel, OrcJit* orc_jit)
-      : JitChannelQueue(channel, orc_jit),
-        byte_queue_(
-            orc_jit->GetTypeConverter().GetTypeByteSize(channel->type()),
-            channel->kind() == ChannelKind::kSingleValue) {}
+  ThreadSafeJitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
+      : JitChannelQueue(channel, jit_runtime),
+        byte_queue_(jit_runtime->GetTypeByteSize(channel->type()),
+                    channel->kind() == ChannelKind::kSingleValue) {}
   virtual ~ThreadSafeJitChannelQueue() = default;
 
   // Write raw bytes representing a value in LLVM's native format.
@@ -174,11 +172,10 @@ class ThreadSafeJitChannelQueue : public JitChannelQueue {
 // A thread-unsafe version of the JIT channel queue.
 class ThreadUnsafeJitChannelQueue : public JitChannelQueue {
  public:
-  ThreadUnsafeJitChannelQueue(Channel* channel, OrcJit* orc_jit)
-      : JitChannelQueue(channel, orc_jit),
-        byte_queue_(
-            orc_jit->GetTypeConverter().GetTypeByteSize(channel->type()),
-            channel->kind() == ChannelKind::kSingleValue) {}
+  ThreadUnsafeJitChannelQueue(Channel* channel, JitRuntime* jit_runtime)
+      : JitChannelQueue(channel, jit_runtime),
+        byte_queue_(jit_runtime->GetTypeByteSize(channel->type()),
+                    channel->kind() == ChannelKind::kSingleValue) {}
   virtual ~ThreadUnsafeJitChannelQueue() = default;
 
   void WriteRaw(const uint8_t* data) override { byte_queue_.Write(data); }
@@ -206,9 +203,9 @@ class JitChannelQueueManager : public ChannelQueueManager {
   // Factories which create a queue manager with exclusively ThreadSafe/Unsafe
   // queues.
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadSafe(Package* package, OrcJit* orc_jit);
+  CreateThreadSafe(Package* package, JitRuntime* jit_runtime);
   static absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-  CreateThreadUnsafe(Package* package, OrcJit* orc_jit);
+  CreateThreadUnsafe(Package* package, JitRuntime* jit_runtime);
 
   JitChannelQueue& GetJitQueue(Channel* channel);
 

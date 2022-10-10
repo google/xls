@@ -473,10 +473,9 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
         // state param is the next state value for a proc.
         llvm::Value* input_buffer = wrapper.GetInputBuffer(node, b);
         for (llvm::Value* output_buffer : wrapper.GetOutputBuffers(node, b)) {
-          LlvmMemcpy(output_buffer, input_buffer,
-                     jit_context.orc_jit().GetTypeConverter().GetTypeByteSize(
-                         node->GetType()),
-                     b);
+          LlvmMemcpy(
+              output_buffer, input_buffer,
+              jit_context.type_converter().GetTypeByteSize(node->GetType()), b);
         }
       }
       continue;
@@ -495,8 +494,7 @@ absl::StatusOr<llvm::Function*> BuildPartitionFunction(
       // `node` is used exclusively inside this partition (not an input, output,
       // nor has a temp buffer). Allocate a buffer on the stack with alloca.
       output_buffers = {b.CreateAlloca(
-          jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
-              node->GetType()))};
+          jit_context.type_converter().ConvertToLlvmType(node->GetType()))};
     } else {
       // Node has no allocation and is not an output buffer. Nothing to emit for
       // this node.
@@ -757,10 +755,10 @@ absl::StatusOr<PartitionedFunction> BuildFunctionInternal(
       int64_t index = wrapper.GetOutputArgIndices(output).front();
       llvm::Value* output_buffer = LoadPointerFromPointerArray(
           index, wrapper.GetOutputsArg(), builder.get());
-      UnpoisonBuffer(output_buffer,
-                     jit_context.orc_jit().GetTypeConverter().GetTypeByteSize(
-                         output->GetType()),
-                     builder.get());
+      UnpoisonBuffer(
+          output_buffer,
+          jit_context.type_converter().GetTypeByteSize(output->GetType()),
+          builder.get());
     }
   }
   // Return zero indicating that the execution of the FunctionBase completed.
@@ -1013,8 +1011,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   for (int64_t i = 0; i < inputs.size(); ++i) {
     Node* input = inputs[i];
     llvm::Value* input_buffer = wrapper.entry_builder().CreateAlloca(
-        jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
-            input->GetType()));
+        jit_context.type_converter().ConvertToLlvmType(input->GetType()));
     llvm::Value* gep = wrapper.entry_builder().CreateGEP(
         pointer_array_type, input_arg_array,
         {
@@ -1028,7 +1025,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
           i, wrapper.GetInputsArg(), &wrapper.entry_builder());
       XLS_RETURN_IF_ERROR(UnpackValue(
           packed_buffer, input_buffer, input->GetType(), /*bit_offset=*/0,
-          jit_context.orc_jit().GetTypeConverter(), &wrapper.entry_builder()));
+          jit_context.type_converter(), &wrapper.entry_builder()));
     }
   }
 
@@ -1038,8 +1035,7 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
   for (int64_t i = 0; i < outputs.size(); ++i) {
     Node* output = outputs[i];
     llvm::Value* output_buffer = wrapper.entry_builder().CreateAlloca(
-        jit_context.orc_jit().GetTypeConverter().ConvertToLlvmType(
-            output->GetType()));
+        jit_context.type_converter().ConvertToLlvmType(output->GetType()));
     llvm::Value* gep = wrapper.entry_builder().CreateGEP(
         pointer_array_type, output_arg_array,
         {
@@ -1074,13 +1070,12 @@ absl::StatusOr<llvm::Function*> BuildPackedWrapper(
 
     XLS_RETURN_IF_ERROR(PackValue(
         unpacked_output_buffer, packed_output_buffer, output->GetType(),
-        /*bit_offset=*/0, jit_context.orc_jit().GetTypeConverter(),
+        /*bit_offset=*/0, jit_context.type_converter(),
         &wrapper.entry_builder()));
 
     UnpoisonBuffer(
         packed_output_buffer,
-        jit_context.orc_jit().GetTypeConverter().GetPackedTypeByteSize(
-            output->GetType()),
+        jit_context.type_converter().GetPackedTypeByteSize(output->GetType()),
         &wrapper.entry_builder());
   }
 
@@ -1096,7 +1091,7 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
     FunctionBase* xls_function, JitBuilderContext& jit_context,
     bool build_packed_wrapper) {
   std::vector<FunctionBase*> functions = GetDependentFunctions(xls_function);
-  BufferAllocator allocator(&jit_context.orc_jit().GetTypeConverter());
+  BufferAllocator allocator(&jit_context.type_converter());
   llvm::Function* top_function = nullptr;
   std::vector<Partition> top_partitions;
   for (FunctionBase* f : functions) {
@@ -1141,13 +1136,15 @@ absl::StatusOr<JittedFunctionBase> BuildFunctionAndDependencies(
 
   for (const Node* input : GetJittedFunctionInputs(xls_function)) {
     jitted_function.input_buffer_sizes.push_back(
-        jit_context.orc_jit().GetTypeConverter().GetTypeByteSize(
-            input->GetType()));
+        jit_context.type_converter().GetTypeByteSize(input->GetType()));
+    jitted_function.packed_input_buffer_sizes.push_back(
+        jit_context.type_converter().GetPackedTypeByteSize(input->GetType()));
   }
   for (const Node* output : GetJittedFunctionOutputs(xls_function)) {
     jitted_function.output_buffer_sizes.push_back(
-        jit_context.orc_jit().GetTypeConverter().GetTypeByteSize(
-            output->GetType()));
+        jit_context.type_converter().GetTypeByteSize(output->GetType()));
+    jitted_function.packed_output_buffer_sizes.push_back(
+        jit_context.type_converter().GetPackedTypeByteSize(output->GetType()));
   }
   jitted_function.temp_buffer_size = allocator.size();
 

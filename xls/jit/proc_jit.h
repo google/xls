@@ -93,8 +93,7 @@ class ProcJit : public ProcEvaluator {
   // Returns an object containing a host-compiled version of the specified XLS
   // proc.
   static absl::StatusOr<std::unique_ptr<ProcJit>> Create(
-      Proc* proc, JitChannelQueueManager* queue_mgr,
-      std::unique_ptr<OrcJit> orc_jit);
+      Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr);
 
   virtual ~ProcJit() = default;
 
@@ -103,21 +102,18 @@ class ProcJit : public ProcEvaluator {
       ProcContinuation& continuation) const override;
   Proc* proc() const override { return proc_; }
 
-  JitRuntime* runtime() const { return ir_runtime_.get(); }
+  JitRuntime* runtime() const { return jit_runtime_; }
 
   OrcJit& GetOrcJit() { return *orc_jit_; }
 
-  LlvmTypeConverter* type_converter() const {
-    return &orc_jit_->GetTypeConverter();
-  }
-
  private:
-  explicit ProcJit(Proc* proc, std::unique_ptr<OrcJit> orc_jit)
-      : proc_(proc), orc_jit_(std::move(orc_jit)) {}
+  explicit ProcJit(Proc* proc, JitRuntime* jit_runtime,
+                   std::unique_ptr<OrcJit> orc_jit)
+      : proc_(proc), jit_runtime_(jit_runtime), orc_jit_(std::move(orc_jit)) {}
 
   Proc* proc_;
+  JitRuntime* jit_runtime_;
   std::unique_ptr<OrcJit> orc_jit_;
-  std::unique_ptr<JitRuntime> ir_runtime_;
   JittedFunctionBase jitted_function_base_;
 };
 

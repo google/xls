@@ -205,6 +205,9 @@ class IrWrapper {
   // IR Package.
   std::unique_ptr<Package> package_;
 
+  // JIT runtime.
+  std::unique_ptr<JitRuntime> jit_runtime_;
+
   // Holds pre-compiled IR Function Jit.
   absl::flat_hash_map<Function*, std::unique_ptr<FunctionJit>>
       pre_compiled_function_jit_;

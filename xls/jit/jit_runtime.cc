@@ -15,19 +15,27 @@
 #include "xls/jit/jit_runtime.h"
 
 #include "absl/strings/str_format.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
-#include "llvm/include/llvm/Support/TargetSelect.h"
-#include "llvm/include/llvm/Target/TargetMachine.h"
-#include "xls/ir/format_preference.h"
+#include "llvm/include/llvm/IR/DataLayout.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/package.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls {
 
-JitRuntime::JitRuntime(const llvm::DataLayout& data_layout,
-                       LlvmTypeConverter* type_converter)
-    : data_layout_(data_layout), type_converter_(type_converter) {}
+JitRuntime::JitRuntime(llvm::DataLayout data_layout)
+    : data_layout_(std::move(data_layout)),
+      context_(std::make_unique<llvm::LLVMContext>()),
+      type_converter_(
+          std::make_unique<LlvmTypeConverter>(context_.get(), data_layout_)) {}
+
+/* static */ absl::StatusOr<std::unique_ptr<JitRuntime>> JitRuntime::Create() {
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
+                       xls::OrcJit::CreateDataLayout());
+  return std::make_unique<JitRuntime>(data_layout);
+}
 
 absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
                                   absl::Span<Type* const> arg_types,
@@ -41,8 +49,7 @@ absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
     for (int i = 0; i < args.size(); ++i) {
       BlitValueToBuffer(
           args[i], arg_types[i],
-          absl::MakeSpan(arg_buffers[i],
-                         type_converter_->GetTypeByteSize(arg_types[i])));
+          absl::MakeSpan(arg_buffers[i], GetTypeByteSize(arg_types[i])));
     }
   }
 
@@ -51,6 +58,12 @@ absl::Status JitRuntime::PackArgs(absl::Span<const Value> args,
 
 Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type,
                                bool unpoison) {
+  absl::MutexLock lock(&mutex_);
+  return UnpackBufferInternal(buffer, result_type, unpoison);
+}
+
+Value JitRuntime::UnpackBufferInternal(const uint8_t* buffer,
+                                       const Type* result_type, bool unpoison) {
   switch (result_type->kind()) {
     case TypeKind::kBits: {
       const BitsType* bits_type = result_type->AsBitsOrDie();
@@ -86,8 +99,9 @@ Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type,
       std::vector<Value> values;
       values.reserve(tuple_type->size());
       for (int i = 0; i < tuple_type->size(); ++i) {
-        Value value = UnpackBuffer(buffer + layout->getElementOffset(i),
-                                   tuple_type->element_type(i));
+        Value value =
+            UnpackBufferInternal(buffer + layout->getElementOffset(i),
+                                 tuple_type->element_type(i), unpoison);
         values.push_back(value);
       }
       return Value::TupleOwned(std::move(values));
@@ -112,7 +126,8 @@ Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type,
                 .value();
         int64_t offset =
             data_layout_.getIndexedOffsetInType(llvm_element_type, index);
-        Value value = UnpackBuffer(buffer + offset, element_type);
+        Value value =
+            UnpackBufferInternal(buffer + offset, element_type, unpoison);
         values.push_back(value);
       }
 
@@ -127,6 +142,12 @@ Value JitRuntime::UnpackBuffer(const uint8_t* buffer, const Type* result_type,
 
 void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
                                    absl::Span<uint8_t> buffer) {
+  absl::MutexLock lock(&mutex_);
+  BlitValueToBufferInternal(value, type, buffer);
+}
+
+void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,
+                                           absl::Span<uint8_t> buffer) {
   if (value.IsBits()) {
     const Bits& bits = value.bits();
     int64_t byte_count = CeilOfRatio(bits.bit_count(), kCharBit);
@@ -146,7 +167,8 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
     int64_t element_size =
         type_converter_->GetTypeByteSize(array_type->element_type());
     for (int i = 0; i < value.size(); ++i) {
-      BlitValueToBuffer(value.element(i), array_type->element_type(), buffer);
+      BlitValueToBufferInternal(value.element(i), array_type->element_type(),
+                                buffer);
       buffer = buffer.subspan(element_size);
     }
   } else if (value.IsTuple()) {
@@ -160,8 +182,8 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
 
     const TupleType* tuple_type = type->AsTupleOrDie();
     for (int i = 0; i < value.size(); ++i) {
-      BlitValueToBuffer(value.element(i), tuple_type->element_type(i),
-                        buffer.subspan(layout->getElementOffset(i)));
+      BlitValueToBufferInternal(value.element(i), tuple_type->element_type(i),
+                                buffer.subspan(layout->getElementOffset(i)));
     }
   } else if (value.IsToken()) {
     // Tokens contain no data.
@@ -170,60 +192,14 @@ void JitRuntime::BlitValueToBuffer(const Value& value, const Type* type,
   }
 }
 
-}  // namespace xls
-
 extern "C" {
 
-// One-time initialization of LLVM targets.
-absl::once_flag xls_jit_llvm_once;
-void XlsJitLlvmOnceInit() {
-  llvm::InitializeNativeTarget();
-  llvm::InitializeNativeTargetAsmPrinter();
-  llvm::InitializeNativeTargetAsmParser();
-}
-
-// Simple container struct to hold the resources needed by the below functions.
-struct RuntimeState {
-  std::unique_ptr<llvm::LLVMContext> context;
-  std::unique_ptr<llvm::TargetMachine> target_machine;
-  std::unique_ptr<xls::LlvmTypeConverter> type_converter;
-  std::unique_ptr<xls::JitRuntime> runtime;
-};
-
-// Note: Returned pointer is owned by the caller.
-//
-// Implementation note: normally we'd return a unique_ptr from this, but this is
-// exposed via C ABI, so LLVM warns/errors if we do. Be sure to immediately wrap
-// in unique_ptr in C++ callers.
-RuntimeState* GetRuntimeState() {
-  absl::call_once(xls_jit_llvm_once, XlsJitLlvmOnceInit);
-  auto state = std::make_unique<RuntimeState>();
-  state->context = std::make_unique<llvm::LLVMContext>();
-  auto error_or_target_builder =
-      llvm::orc::JITTargetMachineBuilder::detectHost();
-  if (!error_or_target_builder) {
-    absl::PrintF("Unable to create TargetMachineBuilder!\n");
-    return nullptr;
-  }
-
-  auto error_or_target_machine = error_or_target_builder->createTargetMachine();
-  if (!error_or_target_machine) {
-    absl::PrintF("Unable to create TargetMachine!\n");
-    return nullptr;
-  }
-
-  state->target_machine = std::move(error_or_target_machine.get());
-  llvm::DataLayout data_layout = state->target_machine->createDataLayout();
-  state->type_converter = std::make_unique<xls::LlvmTypeConverter>(
-      state->context.get(), data_layout);
-  state->runtime = std::make_unique<xls::JitRuntime>(
-      data_layout, state->type_converter.get());
-  return state.release();
-}
-
-int64_t GetArgBufferSize(int arg_count, const char** input_args) {
-  std::unique_ptr<RuntimeState> state(GetRuntimeState());
-  if (state == nullptr) {
+int64_t XlsJitGetArgBufferSize(int arg_count, const char** input_args) {
+  absl::StatusOr<std::unique_ptr<xls::JitRuntime>> runtime_or =
+      xls::JitRuntime::Create();
+  if (!runtime_or.ok()) {
+    XLS_LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: % s\n ",
+                                         runtime_or.status().message());
     return -1;
   }
 
@@ -232,27 +208,32 @@ int64_t GetArgBufferSize(int arg_count, const char** input_args) {
   for (int i = 1; i < arg_count; i++) {
     auto status_or_value = xls::Parser::ParseTypedValue(input_args[i]);
     if (!status_or_value.ok()) {
+      XLS_LOG(ERROR) << absl::StreamFormat("Unable to parse value: %s\n",
+                                           status_or_value.status().message());
       return -2;
     }
 
     xls::Value value = status_or_value.value();
     xls::Type* type = package.GetTypeForValue(value);
-    args_size += state->type_converter->GetTypeByteSize(type);
+    args_size += runtime_or.value()->GetTypeByteSize(type);
   }
 
   return args_size;
 }
 
-// It's a little bit wasteful to re-do all the work above in this function,
-// but it's a whole lot easier to write this way. If we tried to do this all in
-// one function, we'd run into weirdness with LLVM IR return types or handling
-// new/free in the context of LLVM, and how those would map to allocas.
-// Since LLVM "main" execution isn't a throughput case, it's really not a
-// problem to be a bit wasteful, especially when it makes things that much
-// simpler.
-int64_t PackArgs(int arg_count, const char** input_args, uint8_t** buffer) {
-  std::unique_ptr<RuntimeState> state(GetRuntimeState());
-  if (state == nullptr) {
+// It's a little bit wasteful to re-do all the work above in this function, but
+// it's a whole lot easier to write this way. If we tried to do this all in one
+// function, we'd run into weirdness with LLVM IR return types or handling
+// new/free in the context of LLVM, and how those would map to allocas.  Since
+// LLVM "main" execution isn't a throughput case, it's really not a problem to
+// be a bit wasteful, especially when it makes things that much simpler.
+int64_t XlsJitPackArgs(int arg_count, const char** input_args,
+                       uint8_t** buffer) {
+  absl::StatusOr<std::unique_ptr<xls::JitRuntime>> runtime_or =
+      xls::JitRuntime::Create();
+  if (!runtime_or.ok()) {
+    XLS_LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: %s\n",
+                                         runtime_or.status().message());
     return -1;
   }
 
@@ -274,25 +255,29 @@ int64_t PackArgs(int arg_count, const char** input_args, uint8_t** buffer) {
     types.push_back(package.GetTypeForValue(values.back()));
   }
 
-  XLS_CHECK_OK(state->runtime->PackArgs(values, types,
-                                        absl::MakeSpan(buffer, arg_count)));
+  XLS_CHECK_OK(runtime_or.value()->PackArgs(values, types,
+                                            absl::MakeSpan(buffer, arg_count)));
   return 0;
 }
 
-int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
-                         const char** input_args, const uint8_t* buffer) {
-  std::unique_ptr<RuntimeState> state(GetRuntimeState());
-  if (state == nullptr) {
+int XlsJitUnpackAndPrintBuffer(const char* output_type_string, int arg_count,
+                               const char** input_args, const uint8_t* buffer) {
+  absl::StatusOr<std::unique_ptr<xls::JitRuntime>> runtime_or =
+      xls::JitRuntime::Create();
+  if (!runtime_or.ok()) {
+    XLS_LOG(ERROR) << absl::StreamFormat("Unable to create JitRuntime: %s\n",
+                                         runtime_or.status().message());
     return -1;
   }
 
   xls::Package package("oink oink oink");
   xls::Type* output_type =
       xls::Parser::ParseType(output_type_string, &package).value();
-  xls::Value output = state->runtime->UnpackBuffer(buffer, output_type);
+  xls::Value output = runtime_or.value()->UnpackBuffer(buffer, output_type);
   absl::PrintF("%s\n", output.ToString());
 
   return 0;
 }
+}
 
-}  // extern "C"
+}  // namespace xls

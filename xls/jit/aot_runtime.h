@@ -24,7 +24,7 @@
 #include "absl/strings/string_view.h"
 #include "xls/ir/package.h"
 #include "xls/ir/type.h"
-#include "xls/jit/llvm_type_converter.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls::aot_compile {
 
@@ -33,22 +33,15 @@ namespace xls::aot_compile {
 // itself. Rather than derive these statically-determinable values on every
 // invocation, we one-time initialize and cache them.
 struct GlobalData {
-  // The overall LLVM context.
-  std::unique_ptr<llvm::LLVMContext> ctx;
-  // The LLVM understanding of how data is laid out in registers and memory.
-  llvm::DataLayout data_layout;
-  // Needed for converting between XLS and LLVM types.
-  std::unique_ptr<::xls::LlvmTypeConverter> type_converter;
+  std::unique_ptr<JitRuntime> jit_runtime;
   // The IR package that will own fn_type below.
-  ::xls::Package package;
+  std::unique_ptr<::xls::Package> package;
   // The type of the [AOT-compiled] function being managed by this GlobalData.
   ::xls::FunctionType* fn_type;
-  // Holds the types of the fn's args.
-  std::vector<std::unique_ptr<::xls::Type>> param_types;
   // Pointers to the types above (needed to pack the arguments into a buffer).
-  std::vector<::xls::Type*> borrowed_param_types;
+  std::vector<::xls::Type*> param_types;
   // The return type of the function.
-  std::unique_ptr<::xls::Type> return_type;
+  ::xls::Type* return_type;
 };
 
 // Performs [what should be] one-time initialization of a GlobalData function,

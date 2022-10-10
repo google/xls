@@ -38,12 +38,14 @@ class JitBuilderContext {
       std::optional<JitChannelQueueManager*> queue_mgr = std::nullopt)
       : module_(orc_jit.NewModule("__module")),
         orc_jit_(orc_jit),
+        type_converter_(orc_jit.GetContext(),
+                        orc_jit.CreateDataLayout().value()),
         queue_manager_(queue_mgr) {}
 
   llvm::Module* module() const { return module_.get(); }
   llvm::LLVMContext& context() const { return module_->getContext(); }
   OrcJit& orc_jit() { return orc_jit_; }
-  const OrcJit& orc_jit() const { return orc_jit_; }
+  LlvmTypeConverter& type_converter() { return type_converter_; }
 
   // Destructively returns the underlying llvm::Module.
   std::unique_ptr<llvm::Module> ConsumeModule() { return std::move(module_); }
@@ -66,9 +68,10 @@ class JitBuilderContext {
  private:
   std::unique_ptr<llvm::Module> module_;
   OrcJit& orc_jit_;
-
+  LlvmTypeConverter type_converter_;
   std::optional<JitChannelQueueManager*> queue_manager_;
 
+  // Map from FunctionBase to the associated JITed llvm::Function.
   absl::flat_hash_map<FunctionBase*, llvm::Function*> llvm_functions_;
 };
 

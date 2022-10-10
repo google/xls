@@ -141,26 +141,22 @@ void OnceInit() {
 absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   absl::call_once({{private_ns}}::once, {{private_ns}}::OnceInit);
 
-  ::xls::JitRuntime runtime(
-      {{private_ns}}::global_data->data_layout,
-      {{private_ns}}::global_data->type_converter.get());
-
 {{arg_buffer_decls}}
   uint8_t* arg_buffers[] = {{arg_buffer_collector}};
   uint8_t result_buffer[{{result_size}}] = { 0 };
   XLS_RETURN_IF_ERROR(
-      runtime.PackArgs(
+          {{private_ns}}::global_data->jit_runtime->PackArgs(
           {{{param_names}}},
-          {{private_ns}}::global_data->borrowed_param_types,
+          {{private_ns}}::global_data->param_types,
           absl::MakeSpan(arg_buffers)));
 
   uint8_t* output_buffers[1] = {result_buffer};
   std::vector<uint8_t> temp_buffers({{temp_buffer_size}});
   ::xls::InterpreterEvents events;
   {{extern_fn}}(arg_buffers, output_buffers, temp_buffers.data(),
-                &events, &runtime);
+                &events, {{private_ns}}::global_data->jit_runtime.get());
 
-  ::xls::Value result = runtime.UnpackBuffer(
+  ::xls::Value result = {{private_ns}}::global_data->jit_runtime->UnpackBuffer(
       result_buffer, {{private_ns}}::global_data->fn_type->return_type());
   return result;
 }

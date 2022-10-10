@@ -27,6 +27,7 @@
 #include "xls/dslx/ir_converter.h"
 #include "xls/dslx/mangle.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/jit/jit_runtime.h"
 #include "xls/passes/standard_pipeline.h"
 
 namespace xls {
@@ -42,7 +43,7 @@ absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
 
   wrapper.type_ = queue->channel()->type();
 
-  int64_t buffer_size = jit->type_converter()->GetTypeByteSize(wrapper.type_);
+  int64_t buffer_size = jit->runtime()->GetTypeByteSize(wrapper.type_);
   wrapper.buffer_.resize(buffer_size);
 
   return wrapper;
@@ -276,22 +277,25 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
 
 absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
     std::string_view name) {
+  if (jit_runtime_ == nullptr) {
+    XLS_ASSIGN_OR_RETURN(jit_runtime_, JitRuntime::Create());
+  }
+
   XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
 
   if (pre_compiled_proc_jit_.contains(p)) {
     return pre_compiled_proc_jit_.at(p).get();
   }
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
   if (jit_channel_manager_ == nullptr) {
     XLS_ASSIGN_OR_RETURN(jit_channel_manager_,
                          JitChannelQueueManager::CreateThreadUnsafe(
-                             package_.get(), orc_jit.get()));
+                             package_.get(), jit_runtime_.get()));
   }
 
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(p, jit_channel_manager_.get(), std::move(orc_jit)));
+      ProcJit::Create(p, jit_runtime_.get(), jit_channel_manager_.get()));
   pre_compiled_proc_jit_[p] = std::move(jit);
   jit_continuations_[p] = pre_compiled_proc_jit_[p]->NewContinuation();
 

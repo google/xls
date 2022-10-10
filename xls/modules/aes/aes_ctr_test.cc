@@ -59,6 +59,7 @@ struct SampleData {
 // Holds together all the data needed for ProcJit management.
 struct JitData {
   std::unique_ptr<Package> package;
+  std::unique_ptr<JitRuntime> jit_runtime;
   std::unique_ptr<ProcJit> jit;
   std::unique_ptr<ProcContinuation> continuation;
   std::unique_ptr<JitChannelQueueManager> queue_mgr;
@@ -270,19 +271,21 @@ absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(Proc * proc,
                        package->GetProc("__aes_ctr__aes_ctr_0_next"));
 
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<JitChannelQueueManager> queue_mgr,
-      JitChannelQueueManager::CreateThreadSafe(package.get(), orc_jit.get()));
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> jit_runtime,
+                       JitRuntime::Create());
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_mgr,
+                       JitChannelQueueManager::CreateThreadSafe(
+                           package.get(), jit_runtime.get()));
 
   XLS_VLOG(1) << "JIT compiling.";
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_mgr.get(), std::move(orc_jit)));
+      ProcJit::Create(proc, jit_runtime.get(), queue_mgr.get()));
   XLS_VLOG(1) << "Created JIT!";
 
   JitData jit_data;
   jit_data.jit = std::move(jit);
+  jit_data.jit_runtime = std::move(jit_runtime);
   jit_data.continuation = jit_data.jit->NewContinuation();
   jit_data.package = std::move(package);
   jit_data.queue_mgr = std::move(queue_mgr);

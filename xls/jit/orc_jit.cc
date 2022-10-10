@@ -32,7 +32,9 @@
 #include "llvm/include/llvm/Analysis/LoopAnalysisManager.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/CompileUtils.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ExecutionUtils.h"
+#include "llvm/include/llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
+#include "llvm/include/llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/include/llvm/IR/LegacyPassManager.h"
 #include "llvm/include/llvm/IR/PassManager.h"
 #include "llvm/include/llvm/Passes/OptimizationLevel.h"
@@ -182,7 +184,15 @@ absl::StatusOr<std::unique_ptr<OrcJit>> OrcJit::Create(int64_t opt_level,
   return std::move(jit);
 }
 
-absl::Status OrcJit::Init() {
+/* static */ absl::StatusOr<llvm::DataLayout> OrcJit::CreateDataLayout() {
+  absl::call_once(once, OnceInit);
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<llvm::TargetMachine> target_machine,
+                       CreateTargetMachine());
+  return target_machine->createDataLayout();
+}
+
+/* static */ absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
+OrcJit::CreateTargetMachine() {
   auto error_or_target_builder =
       llvm::orc::JITTargetMachineBuilder::detectHost();
   if (!error_or_target_builder) {
@@ -199,11 +209,12 @@ absl::Status OrcJit::Init() {
                      llvm::toString(error_or_target_machine.takeError())));
   }
 
-  target_machine_ = std::move(error_or_target_machine.get());
-  data_layout_ = target_machine_->createDataLayout();
+  return std::move(error_or_target_machine.get());
+}
 
-  type_converter_ =
-      std::make_unique<LlvmTypeConverter>(context_.getContext(), data_layout_);
+absl::Status OrcJit::Init() {
+  XLS_ASSIGN_OR_RETURN(target_machine_, CreateTargetMachine());
+  data_layout_ = target_machine_->createDataLayout();
 
   execution_session_.runSessionLocked([this]() {
     dylib_.addGenerator(

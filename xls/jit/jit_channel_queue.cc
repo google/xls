@@ -82,11 +82,11 @@ int64_t ThreadSafeJitChannelQueue::GetSizeInternal() const {
 }
 
 void ThreadSafeJitChannelQueue::WriteInternal(const Value& value) {
-  WriteValueOnQueue(value, channel()->type(), jit_runtime_, byte_queue_);
+  WriteValueOnQueue(value, channel()->type(), *jit_runtime_, byte_queue_);
 }
 
 std::optional<Value> ThreadSafeJitChannelQueue::ReadInternal() {
-  return ReadValueFromQueue(channel()->type(), jit_runtime_, byte_queue_);
+  return ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
 }
 
 int64_t ThreadUnsafeJitChannelQueue::GetSizeInternal() const {
@@ -94,30 +94,32 @@ int64_t ThreadUnsafeJitChannelQueue::GetSizeInternal() const {
 }
 
 void ThreadUnsafeJitChannelQueue::WriteInternal(const Value& value) {
-  WriteValueOnQueue(value, channel()->type(), jit_runtime_, byte_queue_);
+  WriteValueOnQueue(value, channel()->type(), *jit_runtime_, byte_queue_);
 }
 
 std::optional<Value> ThreadUnsafeJitChannelQueue::ReadInternal() {
-  return ReadValueFromQueue(channel()->type(), jit_runtime_, byte_queue_);
+  return ReadValueFromQueue(channel()->type(), *jit_runtime_, byte_queue_);
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadSafe(Package* package, OrcJit* orc_jit) {
+JitChannelQueueManager::CreateThreadSafe(Package* package,
+                                         JitRuntime* jit_runtime) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (Channel* channel : package->channels()) {
     queues.push_back(
-        std::make_unique<ThreadSafeJitChannelQueue>(channel, orc_jit));
+        std::make_unique<ThreadSafeJitChannelQueue>(channel, jit_runtime));
   }
   return absl::WrapUnique(
       new JitChannelQueueManager(package, std::move(queues)));
 }
 
 /* static */ absl::StatusOr<std::unique_ptr<JitChannelQueueManager>>
-JitChannelQueueManager::CreateThreadUnsafe(Package* package, OrcJit* orc_jit) {
+JitChannelQueueManager::CreateThreadUnsafe(Package* package,
+                                           JitRuntime* jit_runtime) {
   std::vector<std::unique_ptr<ChannelQueue>> queues;
   for (Channel* channel : package->channels()) {
     queues.push_back(
-        std::make_unique<ThreadUnsafeJitChannelQueue>(channel, orc_jit));
+        std::make_unique<ThreadUnsafeJitChannelQueue>(channel, jit_runtime));
   }
   return absl::WrapUnique(
       new JitChannelQueueManager(package, std::move(queues)));

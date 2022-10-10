@@ -32,8 +32,7 @@ ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
     : proc_(proc), continuation_point_(0), jit_runtime_(jit_runtime) {
   // Pre-allocate input, output, and temporary buffers.
   for (Param* param : proc->params()) {
-    int64_t param_size =
-        jit_runtime_->type_converter()->GetTypeByteSize(param->GetType());
+    int64_t param_size = jit_runtime_->GetTypeByteSize(param->GetType());
     input_buffers_.push_back(std::vector<uint8_t>(param_size));
     output_buffers_.push_back(std::vector<uint8_t>(param_size));
     input_ptrs_.push_back(input_buffers_.back().data());
@@ -73,11 +72,10 @@ void ProcJitContinuation::NextTick() {
 }
 
 absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
-    Proc* proc, JitChannelQueueManager* queue_mgr,
-    std::unique_ptr<OrcJit> orc_jit) {
-  auto jit = absl::WrapUnique(new ProcJit(proc, std::move(orc_jit)));
-  jit->ir_runtime_ = std::make_unique<JitRuntime>(
-      jit->GetOrcJit().GetDataLayout(), &jit->GetOrcJit().GetTypeConverter());
+    Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  auto jit =
+      absl::WrapUnique(new ProcJit(proc, jit_runtime, std::move(orc_jit)));
   XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
                        BuildProcFunction(proc, queue_mgr, jit->GetOrcJit()));
   return jit;
@@ -85,7 +83,7 @@ absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
 
 std::unique_ptr<ProcContinuation> ProcJit::NewContinuation() const {
   return std::make_unique<ProcJitContinuation>(
-      proc(), jitted_function_base_.temp_buffer_size, ir_runtime_.get());
+      proc(), jitted_function_base_.temp_buffer_size, jit_runtime_);
 }
 
 absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
