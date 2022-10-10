@@ -445,14 +445,19 @@ cc_library(
     deps = [
         ":ast_generator",
         ":cpp_sample",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/dslx:ast",
         "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -473,6 +478,7 @@ cc_test(
         ":cpp_sample_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:concrete_type",
         "@com_google_googletest//:gtest",
     ],
 )

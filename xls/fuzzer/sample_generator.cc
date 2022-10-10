@@ -15,12 +15,18 @@
 #include "xls/fuzzer/sample_generator.h"
 
 #include <memory>
+#include <variant>
 
+#include "absl/status/status.h"
 #include "absl/strings/match.h"
+#include "absl/strings/str_format.h"
+#include "absl/types/span.h"
+#include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/create_import_data.h"
 #include "xls/dslx/import_data.h"
+#include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/bits_ops.h"
 
@@ -30,12 +36,14 @@ using dslx::ArrayType;
 using dslx::AstGenerator;
 using dslx::AstGeneratorOptions;
 using dslx::BitsType;
+using dslx::ChannelType;
 using dslx::ConcreteType;
 using dslx::FunctionType;
 using dslx::ImportData;
 using dslx::InterpValue;
 using dslx::InterpValueTag;
 using dslx::Module;
+using dslx::ModuleMember;
 using dslx::TupleType;
 using dslx::TypecheckedModule;
 
@@ -87,6 +95,10 @@ static absl::StatusOr<InterpValue> GenerateUnbiasedArgument(
 static absl::StatusOr<InterpValue> GenerateArgument(
     const ConcreteType& arg_type, RngState* rng,
     absl::Span<const InterpValue> prior) {
+  if (auto* channel_type = dynamic_cast<const ChannelType*>(&arg_type)) {
+    // For channels, the argument must be of its payload type.
+    return GenerateArgument(channel_type->payload_type(), rng, prior);
+  }
   if (auto* tuple_type = dynamic_cast<const TupleType*>(&arg_type)) {
     std::vector<InterpValue> members;
     for (const std::unique_ptr<ConcreteType>& t : tuple_type->members()) {
@@ -195,25 +207,128 @@ static absl::StatusOr<std::string> Generate(
   return module->ToString();
 }
 
-static absl::StatusOr<std::unique_ptr<FunctionType>> GetFunctionType(
-    std::string_view dslx_text, std::string_view fn_name) {
-  ImportData import_data(
-      dslx::CreateImportData(/*stdlib_path=*/"",
-                             /*additional_search_paths=*/{}));
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ParseAndTypecheck(dslx_text, "get_function_type.x",
-                                         "get_function_type", &import_data));
-  XLS_ASSIGN_OR_RETURN(dslx::Function * f,
-                       tm.module->GetMemberOrError<dslx::Function>(fn_name));
+// The function translates a list of ConcreteType unique_ptrs to a list of
+// pointers to ConcreteType. The latter is used as a parameter to the
+// GenerateArguments.
+static std::vector<const ConcreteType*> TranslateConcreteTypeList(
+    absl::Span<const std::unique_ptr<ConcreteType>> list) {
+  std::vector<const ConcreteType*> translation(list.size());
+  auto translation_iter = translation.begin();
+  for (const auto& element : list) {
+    *translation_iter = element.get();
+    translation_iter++;
+  }
+  return translation;
+}
+
+// Returns the parameter types of a Function.
+static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
+GetParamTypesOfFunction(dslx::Function* function, const TypecheckedModule& tm) {
+  std::vector<std::unique_ptr<ConcreteType>> params;
   XLS_ASSIGN_OR_RETURN(FunctionType * fn_type,
-                       tm.type_info->GetItemAs<FunctionType>(f));
-  std::unique_ptr<ConcreteType> cloned = fn_type->CloneToUnique();
-  return absl::WrapUnique(down_cast<FunctionType*>(cloned.release()));
+                       tm.type_info->GetItemAs<FunctionType>(function));
+  for (const auto& param : fn_type->params()) {
+    params.push_back(param->CloneToUnique());
+  }
+  return params;
+}
+
+// Returns the member types of a Proc.
+static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
+GetMemberTypesOfProc(dslx::Proc* proc, const TypecheckedModule& tm) {
+  std::vector<std::unique_ptr<ConcreteType>> params;
+  XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
+                       tm.type_info->GetTopLevelProcTypeInfo(proc));
+  for (dslx::Param* member : proc->members()) {
+    XLS_CHECK(proc_type_info->GetItem(member).has_value());
+    params.push_back(proc_type_info->GetItem(member).value()->CloneToUnique());
+  }
+  return params;
+}
+
+// Returns the types of the parameters for a Proc's Next function.
+static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
+GetProcInitValueTypes(dslx::Proc* proc, const TypecheckedModule& tm) {
+  XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
+                       tm.type_info->GetTopLevelProcTypeInfo(proc));
+  std::vector<std::unique_ptr<ConcreteType>> proc_init_values;
+  for (dslx::Param* param : proc->next()->params()) {
+    XLS_CHECK(proc_type_info->GetItem(param).has_value());
+    // Tokens do not have an initial value.
+    if (proc_type_info->GetItem(param).value()->IsToken()) {
+      continue;
+    }
+    proc_init_values.push_back(
+        proc_type_info->GetItem(param).value()->CloneToUnique());
+  }
+  return proc_init_values;
+}
+
+absl::StatusOr<Sample> GenerateFunctionSample(
+    dslx::Function* function, const TypecheckedModule& tm,
+    const SampleOptions& sample_options, RngState* rng,
+    const std::string& dslx_text) {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> top_params,
+                       GetParamTypesOfFunction(function, tm));
+  std::vector<const ConcreteType*> params =
+      TranslateConcreteTypeList(top_params);
+
+  std::vector<std::vector<InterpValue>> args_batch;
+  for (int64_t i = 0; i < sample_options.calls_per_sample(); ++i) {
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
+                         GenerateArguments(params, rng));
+    args_batch.push_back(std::move(args));
+  }
+
+  return Sample(std::move(dslx_text), std::move(sample_options),
+                std::move(args_batch));
+}
+
+absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
+                                          const TypecheckedModule& tm,
+                                          const SampleOptions& sample_options,
+                                          RngState* rng,
+                                          const std::string& dslx_text) {
+  XLS_ASSIGN_OR_RETURN(std::vector<std::unique_ptr<ConcreteType>> top_params,
+                       GetMemberTypesOfProc(proc, tm));
+  std::vector<const ConcreteType*> params =
+      TranslateConcreteTypeList(top_params);
+
+  std::vector<std::vector<InterpValue>> channel_values_batch;
+  for (int64_t i = 0; i < sample_options.proc_ticks().value(); ++i) {
+    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> channel_values,
+                         GenerateArguments(params, rng));
+    channel_values_batch.push_back(std::move(channel_values));
+  }
+
+  XLS_ASSIGN_OR_RETURN(
+      std::vector<std::unique_ptr<ConcreteType>> proc_init_value_types,
+      GetProcInitValueTypes(proc, tm));
+  std::vector<const ConcreteType*> proc_init_value =
+      TranslateConcreteTypeList(proc_init_value_types);
+
+  XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> proc_init_values,
+                       GenerateArguments(proc_init_value, rng));
+
+  return Sample(std::move(dslx_text), std::move(sample_options),
+                std::move(channel_values_batch), std::move(proc_init_values));
 }
 
 absl::StatusOr<Sample> GenerateSample(
     const AstGeneratorOptions& generator_options,
     const SampleOptions& sample_options, RngState* rng) {
+  constexpr std::string_view top_name = "main";
+  if (generator_options.generate_proc) {
+    XLS_CHECK_EQ(sample_options.calls_per_sample(), 0)
+        << "calls per sample must be zero when generating a proc sample.";
+    XLS_CHECK(sample_options.proc_ticks().has_value())
+        << "proc ticks must have a value when generating a proc sample.";
+  } else {
+    XLS_CHECK(!sample_options.proc_ticks().has_value() ||
+              sample_options.proc_ticks().value() == 0)
+        << "proc ticks must not be set or have a zero value when generating a "
+           "function sample.";
+  }
   // Generate the sample options which is how to *run* the generated
   // sample. AstGeneratorOptions 'options' is how to *generate* the sample.
   SampleOptions sample_options_copy = sample_options;
@@ -229,20 +344,28 @@ absl::StatusOr<Sample> GenerateSample(
         GenerateCodegenArgs(sample_options_copy.use_system_verilog(), rng));
   }
   XLS_ASSIGN_OR_RETURN(std::string dslx_text, Generate(generator_options, rng));
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionType> fn_type,
-                       GetFunctionType(dslx_text, "main"));
-  std::vector<std::vector<InterpValue>> args_batch;
-  for (int64_t i = 0; i < sample_options_copy.calls_per_sample(); ++i) {
-    std::vector<const ConcreteType*> params;
-    for (const auto& param : fn_type->params()) {
-      params.push_back(param.get());
-    }
-    XLS_ASSIGN_OR_RETURN(std::vector<InterpValue> args,
-                         GenerateArguments(params, rng));
-    args_batch.push_back(std::move(args));
+
+  // Parse and type check the DSLX input to retrieve the top entity. The top
+  // member must be a proc or a function.
+  ImportData import_data(
+      dslx::CreateImportData(/*stdlib_path=*/"",
+                             /*additional_search_paths=*/{}));
+  XLS_ASSIGN_OR_RETURN(
+      TypecheckedModule tm,
+      ParseAndTypecheck(dslx_text, "sample.x", "sample", &import_data));
+  std::optional<ModuleMember*> module_member =
+      tm.module->FindMemberWithName(top_name);
+  XLS_CHECK(module_member.has_value());
+  ModuleMember* member = module_member.value();
+
+  if (generator_options.generate_proc) {
+    XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
+    return GenerateProcSample(std::get<dslx::Proc*>(*member), tm,
+                              sample_options_copy, rng, dslx_text);
   }
-  return Sample(std::move(dslx_text), std::move(sample_options_copy),
-                std::move(args_batch));
+  XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
+  return GenerateFunctionSample(std::get<dslx::Function*>(*member), tm,
+                                sample_options_copy, rng, dslx_text);
 }
 
 }  // namespace xls

@@ -99,6 +99,9 @@ std::string ProcInitValuesToText(
   if (!parsed["calls_per_sample"].is_null()) {
     options.calls_per_sample_ = parsed["calls_per_sample"].int_value();
   }
+  if (!parsed["proc_ticks"].is_null()) {
+    options.proc_ticks_ = parsed["proc_ticks"].int_value();
+  }
   return options;
 }
 
@@ -142,6 +145,12 @@ json11::Json SampleOptions::ToJson() const {
   }
 
   json["calls_per_sample"] = static_cast<int>(calls_per_sample_);
+
+  if (proc_ticks_) {
+    json["proc_ticks"] = static_cast<int>(*proc_ticks_);
+  } else {
+    json["proc_ticks"] = nullptr;
+  }
 
   return json11::Json(json);
 }
