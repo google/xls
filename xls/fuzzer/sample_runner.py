@@ -163,8 +163,15 @@ class SampleRunner:
         if args_batch:
           logging.vlog(1, 'Interpreting DSLX file.')
           with Timer() as t:
-            results['interpreted DSLX'] = self._interpret_dslx(
-                input_text, 'main', args_batch, proc_init_values)
+            if options.top_type == sample.TopType.function:
+              results['interpreted DSLX'] = self._interpret_dslx_function(
+                  input_text, 'main', args_batch)
+            elif options.top_type == sample.TopType.proc:
+              results['interpreted DSLX'] = self._interpret_dslx_proc(
+                  input_text, 'main', args_batch, proc_init_values)
+            else:
+              raise SampleError(
+                  f'Unsupported type for interpretation {options.top_type}')
           logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                        t.elapsed_ns / 1e9)
           self.timing.interpret_dslx_ns = t.elapsed_ns
@@ -355,18 +362,25 @@ class SampleRunner:
                               f'\n{", ".join(values_matches)} ='
                               f'\n   {values[i].to_ir_str()}')
 
-  def _interpret_dslx(
+  def _interpret_dslx_function(self, text: str, top_name: str,
+                               args_batch: ArgsBatch) -> Tuple[Value, ...]:
+    """Interprets a DSLX module with a function as the top returns the result Values.
+    """
+    dslx_results = interpreter.run_function_batched(
+        text, top_name, args_batch,
+        runtime_build_actions.get_default_dslx_stdlib_path())
+    self._write_file('sample.x.results',
+                     '\n'.join(r.to_ir_str() for r in dslx_results))
+    return tuple(dslx_results)
+
+  def _interpret_dslx_proc(
       self, text: str, top_name: str, args_batch: ArgsBatch,
       proc_init_values: Optional[ProcInitValues]) -> Tuple[Value, ...]:
-    """Interprets the DSLX module returns the result Values."""
-    if proc_init_values is None:
-      dslx_results = interpreter.run_function_batched(
-          text, top_name, args_batch,
-          runtime_build_actions.get_default_dslx_stdlib_path())
-    else:
-      dslx_results = interpreter.run_proc(
-          text, top_name, args_batch, proc_init_values,
-          runtime_build_actions.get_default_dslx_stdlib_path())
+    """Interprets a DSLX module with proc as the top returns the result Values.
+    """
+    dslx_results = interpreter.run_proc(
+        text, top_name, args_batch, proc_init_values,
+        runtime_build_actions.get_default_dslx_stdlib_path())
     self._write_file('sample.x.results',
                      '\n'.join(r.to_ir_str() for r in dslx_results))
     return tuple(dslx_results)

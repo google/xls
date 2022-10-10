@@ -511,6 +511,7 @@ class SampleRunnerTest(test_base.TestCase):
             sample.SampleOptions(
                 convert_to_ir=False,
                 ir_converter_args=['--top=main'],
+                top_type=sample.TopType.proc,
             ),
             [  # args_batch
                 [
@@ -533,6 +534,7 @@ class SampleRunnerTest(test_base.TestCase):
             sample.SampleOptions(
                 convert_to_ir=False,
                 ir_converter_args=['--top=main'],
+                top_type=sample.TopType.proc,
             ),
             [  # args_batch
                 [interp_value_from_ir_string('bits[1]:1')],

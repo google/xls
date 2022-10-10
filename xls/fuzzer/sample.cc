@@ -102,6 +102,9 @@ std::string ProcInitValuesToText(
   if (!parsed["proc_ticks"].is_null()) {
     options.proc_ticks_ = parsed["proc_ticks"].int_value();
   }
+  if (!parsed["top_type"].is_null()) {
+    options.top_type_ = static_cast<TopType>(parsed["top_type"].int_value());
+  }
   return options;
 }
 
@@ -151,7 +154,7 @@ json11::Json SampleOptions::ToJson() const {
   } else {
     json["proc_ticks"] = nullptr;
   }
-
+  json["top_type"] = static_cast<int>(top_type_);
   return json11::Json(json);
 }
 

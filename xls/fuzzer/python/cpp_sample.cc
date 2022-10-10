@@ -29,6 +29,10 @@ namespace py = pybind11;
 namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_sample, m) {
+  py::enum_<TopType>(m, "TopType")
+      .value("function", TopType::kFunction)
+      .value("proc", TopType::kProc);
+
   py::class_<SampleOptions>(m, "SampleOptions")
       .def(
           py::init([](std::optional<bool> input_is_dslx,
@@ -42,7 +46,8 @@ PYBIND11_MODULE(cpp_sample, m) {
                       std::optional<bool> use_system_verilog,
                       std::optional<int64_t> timeout_seconds,
                       std::optional<int64_t> calls_per_sample,
-                      std::optional<int64_t> proc_ticks) {
+                      std::optional<int64_t> proc_ticks,
+                      std::optional<TopType> top_type) {
             std::map<std::string, json11::Json> json;
             if (input_is_dslx) {
               json["input_is_dslx"] = *input_is_dslx;
@@ -83,6 +88,9 @@ PYBIND11_MODULE(cpp_sample, m) {
             if (proc_ticks) {
               json["proc_ticks"] = static_cast<int>(*proc_ticks);
             }
+            if (top_type) {
+              json["top_type"] = static_cast<int>(*top_type);
+            }
             return SampleOptions::FromJson(json11::Json(json).dump()).value();
           }),
           py::arg("input_is_dslx") = absl::nullopt,
@@ -97,7 +105,8 @@ PYBIND11_MODULE(cpp_sample, m) {
           py::arg("use_system_verilog") = absl::nullopt,
           py::arg("timeout_seconds") = absl::nullopt,
           py::arg("calls_per_sample") = absl::nullopt,
-          py::arg("proc_ticks") = absl::nullopt)
+          py::arg("proc_ticks") = absl::nullopt,
+          py::arg("top_type") = absl::nullopt)
       .def("__eq__", &SampleOptions::operator==)
       .def("__ne__", &SampleOptions::operator!=)
       .def_static("from_json", &SampleOptions::FromJson)
@@ -118,6 +127,7 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_property_readonly("calls_per_sample",
                              &SampleOptions::calls_per_sample)
       .def_property_readonly("proc_ticks", &SampleOptions::proc_ticks)
+      .def_property_readonly("top_type", &SampleOptions::top_type)
       .def(
           "replace",
           [](const SampleOptions& self, std::optional<bool> input_is_dslx,

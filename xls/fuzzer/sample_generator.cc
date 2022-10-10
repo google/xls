@@ -28,6 +28,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/fuzzer/sample.h"
 #include "xls/ir/bits_ops.h"
 
 namespace xls {
@@ -360,10 +361,12 @@ absl::StatusOr<Sample> GenerateSample(
 
   if (generator_options.generate_proc) {
     XLS_CHECK(std::holds_alternative<dslx::Proc*>(*member));
+    sample_options_copy.set_top_type(TopType::kProc);
     return GenerateProcSample(std::get<dslx::Proc*>(*member), tm,
                               sample_options_copy, rng, dslx_text);
   }
   XLS_CHECK(std::holds_alternative<dslx::Function*>(*member));
+  sample_options_copy.set_top_type(TopType::kFunction);
   return GenerateFunctionSample(std::get<dslx::Function*>(*member), tm,
                                 sample_options_copy, rng, dslx_text);
 }

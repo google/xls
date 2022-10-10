@@ -33,6 +33,12 @@ std::string ArgsBatchToText(
 std::string ProcInitValuesToText(
     const std::vector<dslx::InterpValue>& proc_init_values);
 
+enum class TopType : int {
+  kFunction = 0,
+  kProc,
+  // TODO(vmirian): 10-7-2022 Add block support.
+};
+
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
  public:
@@ -55,6 +61,7 @@ class SampleOptions {
   json11::Json ToJson() const;
 
   bool input_is_dslx() const { return input_is_dslx_; }
+  TopType top_type() const { return top_type_; }
   const std::optional<std::vector<std::string>>& ir_converter_args() const {
     return ir_converter_args_;
   }
@@ -73,6 +80,7 @@ class SampleOptions {
   std::optional<int64_t> proc_ticks() const { return proc_ticks_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
+  void set_top_type(TopType value) { top_type_ = value; }
   void set_ir_converter_args(const std::vector<std::string>& value) {
     ir_converter_args_ = value;
   }
@@ -96,6 +104,8 @@ class SampleOptions {
  private:
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
   bool input_is_dslx_ = true;
+  // The type of the top.
+  TopType top_type_ = TopType::kFunction;
   // Arguments to pass to ir_converter_main. Requires input_is_dslx_ to be true.
   std::optional<std::vector<std::string>> ir_converter_args_;
   // Convert the input code sample to XLS IR. Only meaningful if input_is_dslx
