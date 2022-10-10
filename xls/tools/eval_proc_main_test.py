@@ -477,5 +477,104 @@ bits[64]:55
     self.assertNotEqual(comp.returncode, 0)
     self.assertIn("Block didn't produce output", comp.stderr)
 
+  def test_all_channels_in_a_single_file_proc(self):
+    ir_file = self.create_tempfile(content=PROC_IR)
+    input_file = self.create_tempfile(content="""
+in_ch : {
+  bits[64]:42
+  bits[64]:101
+}
+in_ch_2 : {
+  bits[64]:10
+  bits[64]:6
+}
+""")
+    output_file = self.create_tempfile(content="""
+out_ch : {
+  bits[64]:62
+  bits[64]:127
+}
+out_ch_2 : {
+  bits[64]:55
+  bits[64]:55
+}
+""")
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--logtostderr", "--inputs_for_all_channels", input_file.full_path,
+        "--expected_outputs_for_all_channels", output_file.full_path
+    ]
+
+    output = run_command(shared_args + ["--backend", "ir_interpreter"])
+    self.assertIn("Proc test_proc", output.stderr)
+
+    output = run_command(shared_args + ["--backend", "serial_jit"])
+    self.assertIn("Proc test_proc", output.stderr)
+
+  def test_all_channels_in_a_single_file_block(self):
+    ir_file = self.create_tempfile(content=BLOCK_IR)
+    signature_file = self.create_tempfile(content=BLOCK_SIGNATURE_TEXT)
+    input_file = self.create_tempfile(content="""
+in_ch : {
+  bits[64]:42
+  bits[64]:101
+}
+in_ch_2 : {
+  bits[64]:10
+  bits[64]:6
+}
+""")
+    output_file = self.create_tempfile(content="""
+out_ch : {
+  bits[64]:62
+  bits[64]:127
+}
+out_ch_2 : {
+  bits[64]:55
+  bits[64]:55
+}
+""")
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--logtostderr", "--block_signature_proto", signature_file.full_path,
+        "--backend", "block_interpreter", "--inputs_for_all_channels",
+        input_file.full_path, "--expected_outputs_for_all_channels",
+        output_file.full_path
+    ]
+
+    output = run_command(shared_args)
+    self.assertIn("Cycle[6]: resetting? false", output.stderr)
+
+  def test_output_channels_stdout_display_proc(self):
+    ir_file = self.create_tempfile(content=PROC_IR)
+    input_file = self.create_tempfile(content="""
+in_ch : {
+  bits[64]:42
+  bits[64]:101
+}
+in_ch_2 : {
+  bits[64]:10
+  bits[64]:6
+}
+""")
+
+    shared_args = [
+        EVAL_PROC_MAIN_PATH, ir_file.full_path, "--ticks", "2", "-v=3",
+        "--logtostderr", "--inputs_for_all_channels", input_file.full_path
+    ]
+
+    output = run_command(shared_args + ["--backend", "ir_interpreter"])
+    self.assertIn("Proc test_proc", output.stderr)
+    self.assertIn("out_ch : {", output.stdout)
+    self.assertIn("out_ch_2 : {", output.stdout)
+
+    output = run_command(shared_args + ["--backend", "serial_jit"])
+    self.assertIn("Proc test_proc", output.stderr)
+    self.assertIn("out_ch : {", output.stdout)
+    self.assertIn("out_ch_2 : {", output.stdout)
+
+
 if __name__ == "__main__":
   absltest.main()

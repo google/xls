@@ -589,7 +589,9 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:indent",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -602,6 +604,7 @@ cc_binary(
         "//xls/ir:value_helpers",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:serial_proc_runtime",
+        "@com_github_google_re2//:re2",
     ],
 )
 
