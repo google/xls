@@ -133,9 +133,6 @@ class LlvmTypeConverter {
 
   llvm::LLVMContext& context_;
   llvm::DataLayout data_layout_;
-
-  // Cache of XLS -> LLVM type conversions.
-  mutable TypeCache type_cache_;
 };
 
 }  // namespace xls

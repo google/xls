@@ -39,10 +39,6 @@ int64_t LlvmTypeConverter::GetLlvmBitCount(int64_t xls_bit_count) const {
 }
 
 llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
-  auto it = type_cache_.find(xls_type);
-  if (it != type_cache_.end()) {
-    return it->second;
-  }
   llvm::Type* llvm_type;
   if (xls_type->IsBits()) {
     llvm_type = llvm::IntegerType::get(
@@ -70,7 +66,6 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
     XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
                                    xls_type->ToString());
   }
-  type_cache_.insert({xls_type, llvm_type});
   return llvm_type;
 }
 
