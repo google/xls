@@ -54,8 +54,8 @@ void XlsccTestBase::Run(const absl::flat_hash_map<std::string, uint64_t>& args,
 
 void XlsccTestBase::Run(
     const absl::flat_hash_map<std::string, xls::Value>& args,
-    xls::Value expected, std::string_view cpp_source,
-    xabsl::SourceLocation loc, std::vector<std::string_view> clang_argv) {
+    xls::Value expected, std::string_view cpp_source, xabsl::SourceLocation loc,
+    std::vector<std::string_view> clang_argv) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(), "Run failed");
   XLS_ASSERT_OK_AND_ASSIGN(std::string ir,
                            SourceToIr(cpp_source, nullptr, clang_argv));
@@ -64,8 +64,8 @@ void XlsccTestBase::Run(
 
 void XlsccTestBase::RunWithStatics(
     const absl::flat_hash_map<std::string, xls::Value>& args,
-    const absl::Span<xls::Value>& expected_outputs,
-    std::string_view cpp_source, xabsl::SourceLocation loc) {
+    const absl::Span<xls::Value>& expected_outputs, std::string_view cpp_source,
+    xabsl::SourceLocation loc) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "RunWithStatics failed");
 
@@ -216,111 +216,6 @@ absl::StatusOr<std::string> XlsccTestBase::SourceToIr(
     EXPECT_EQ(text, ret_text) << "Failed determinism test";
   }
   return ret_text;
-}
-
-void XlsccTestBase::IOTest(std::string content, std::list<IOOpTest> inputs,
-                           std::list<IOOpTest> outputs,
-                           absl::flat_hash_map<std::string, xls::Value> args) {
-  xlscc::GeneratedFunction* func;
-  XLS_ASSERT_OK_AND_ASSIGN(std::string ir_src,
-                           SourceToIr(content, &func, /* clang_argv= */ {},
-                                      /* io_test_mode= */ true));
-
-  XLS_ASSERT_OK_AND_ASSIGN(package_, ParsePackage(ir_src));
-  XLS_ASSERT_OK_AND_ASSIGN(xls::Function * entry, package_->GetTopAsFunction());
-
-  const int total_test_ops = inputs.size() + outputs.size();
-  ASSERT_EQ(func->io_ops.size(), total_test_ops);
-
-  std::list<IOOpTest> input_ops_orig = inputs;
-  for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string ch_name = op.channel->unique_name;
-
-    if (op.op == xlscc::OpType::kRecv) {
-      const std::string arg_name =
-          absl::StrFormat("%s_op%i", ch_name, op.channel_op_index);
-
-      const IOOpTest test_op = inputs.front();
-      inputs.pop_front();
-
-      XLS_CHECK_EQ(ch_name, test_op.name);
-
-      const xls::Value& new_val = test_op.value;
-
-      if (!args.contains(arg_name)) {
-        args[arg_name] = new_val;
-        continue;
-      }
-
-      if (args[arg_name].IsBits()) {
-        args[arg_name] = xls::Value::Tuple({args[arg_name], new_val});
-      } else {
-        XLS_CHECK(args[arg_name].IsTuple());
-        const xls::Value prev_val = args[arg_name];
-        XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> values,
-                                 prev_val.GetElements());
-        values.push_back(new_val);
-        args[arg_name] = xls::Value::Tuple(values);
-      }
-    }
-  }
-
-  XLS_ASSERT_OK_AND_ASSIGN(
-      xls::Value actual,
-      DropInterpreterEvents(xls::InterpretFunctionKwargs(entry, args)));
-
-  std::vector<xls::Value> returns;
-
-  if (total_test_ops > 1) {
-    ASSERT_TRUE(actual.IsTuple());
-    XLS_ASSERT_OK_AND_ASSIGN(returns, actual.GetElements());
-  } else {
-    returns.push_back(actual);
-  }
-
-  ASSERT_EQ(returns.size(), total_test_ops);
-
-  inputs = input_ops_orig;
-
-  int op_idx = 0;
-  for (const xlscc::IOOp& op : func->io_ops) {
-    const std::string ch_name = op.channel->unique_name;
-
-    if (op.op == xlscc::OpType::kRecv) {
-      const IOOpTest test_op = inputs.front();
-      inputs.pop_front();
-
-      XLS_CHECK(ch_name == test_op.name);
-
-      ASSERT_TRUE(returns[op_idx].IsBits());
-      XLS_ASSERT_OK_AND_ASSIGN(uint64_t val, returns[op_idx].bits().ToUint64());
-      ASSERT_EQ(val, test_op.condition ? 1 : 0);
-
-    } else if (op.op == xlscc::OpType::kSend) {
-      const IOOpTest test_op = outputs.front();
-      outputs.pop_front();
-
-      XLS_CHECK(ch_name == test_op.name);
-
-      ASSERT_TRUE(returns[op_idx].IsTuple());
-      XLS_ASSERT_OK_AND_ASSIGN(std::vector<xls::Value> elements,
-                               returns[op_idx].GetElements());
-      ASSERT_EQ(elements.size(), 2);
-      ASSERT_TRUE(elements[1].IsBits());
-      XLS_ASSERT_OK_AND_ASSIGN(uint64_t val1, elements[1].bits().ToUint64());
-      ASSERT_EQ(val1, test_op.condition ? 1 : 0);
-      // Don't check data if it wasn't sent
-      if (val1 != 0u) {
-        ASSERT_EQ(elements[0], test_op.value);
-      }
-    } else {
-      FAIL() << "IOOp was neither send nor recv: " << static_cast<int>(op.op);
-    }
-    ++op_idx;
-  }
-
-  ASSERT_EQ(inputs.size(), 0);
-  ASSERT_EQ(outputs.size(), 0);
 }
 
 void XlsccTestBase::ProcTest(

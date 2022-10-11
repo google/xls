@@ -72,13 +72,11 @@ class XlsccTestBase : public xls::IrTestBase {
 
   absl::StatusOr<std::string> SourceToIr(
       xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<std::string_view> clang_argv = {},
-      bool io_test_mode = false);
+      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false);
 
   absl::StatusOr<std::string> SourceToIr(
       std::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<std::string_view> clang_argv = {},
-      bool io_test_mode = false);
+      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false);
 
   struct IOOpTest {
     IOOpTest(std::string name, int value, bool condition)
@@ -92,10 +90,6 @@ class XlsccTestBase : public xls::IrTestBase {
     xls::Value value;
     bool condition;
   };
-
-  void IOTest(std::string content, std::list<IOOpTest> inputs,
-              std::list<IOOpTest> outputs,
-              absl::flat_hash_map<std::string, xls::Value> args = {});
 
   void ProcTest(std::string content, const xlscc::HLSBlock& block_spec,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&
