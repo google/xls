@@ -119,7 +119,14 @@ cc_library(
 
 cc_library(
     name = "translator",
-    srcs = ["translator.cc"],
+    srcs = [
+        "translate_block.cc",
+        "translate_io.cc",
+        "translate_loops.cc",
+        "translate_metadata.cc",
+        "translator.cc",
+        "translator_types.cc",
+    ],
     hdrs = ["translator.h"],
     deps = [
         ":cc_parser",

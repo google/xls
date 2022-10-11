@@ -39,6 +39,7 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -771,7 +772,13 @@ class Translator {
   template <typename... Args>
   std::string ErrorMessage(const xls::SourceInfo& loc,
                            const absl::FormatSpec<Args...>& format,
-                           const Args&... args);
+                           const Args&... args) {
+    std::string result = absl::StrFormat(format, args...);
+    for (const xls::SourceLocation& location : loc.locations) {
+      absl::StrAppend(&result, "\n", PrintCaret(LookUpInPackage(), location));
+    }
+    return result;
+  }
 
   // This object is used to push a new translation context onto the stack
   //  and then to pop it via RAII. This guard provides options for which bits of
