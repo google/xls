@@ -171,7 +171,7 @@ class SampleRunner:
                   input_text, 'main', args_batch, proc_init_values)
             else:
               raise SampleError(
-                  f'Unsupported type for interpretation {options.top_type}')
+                  f'Unsupported type for interpretation: {options.top_type}.')
           logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
                        t.elapsed_ns / 1e9)
           self.timing.interpret_dslx_ns = t.elapsed_ns
@@ -180,7 +180,14 @@ class SampleRunner:
           return
 
         with Timer() as t:
-          ir_filename = self._dslx_to_ir(input_filename, options)
+          if options.top_type == sample.TopType.function:
+            ir_filename = self._dslx_to_ir_function(input_filename, options)
+          elif options.top_type == sample.TopType.proc:
+            ir_filename = self._dslx_to_ir_proc(input_filename,
+                                                proc_init_values, options)
+          else:
+            raise SampleError(
+                f'Unsupported type for IR conversion: {options.top_type}.')
         self.timing.convert_ir_ns = t.elapsed_ns
       else:
         ir_filename = self._write_file('sample.ir', input_text)
@@ -416,12 +423,28 @@ class SampleRunner:
     self._write_file(ir_filename + '.results', results_text)
     return self._parse_values(results_text)
 
-  def _dslx_to_ir(self, dslx_filename: Text,
-                  options: sample.SampleOptions) -> Text:
+  def _dslx_to_ir_function(self, dslx_filename: Text,
+                           options: sample.SampleOptions) -> Text:
     """Converts the DSLX file to an IR file whose filename is returned."""
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
+    args.append(dslx_filename)
+    ir_text = self._run_command('Converting DSLX to IR', args, options)
+    return self._write_file('sample.ir', ir_text)
+
+  def _dslx_to_ir_proc(self, dslx_filename: Text,
+                       proc_init_values: ProcInitValues,
+                       options: sample.SampleOptions) -> Text:
+    """Converts the DSLX file to an IR file whose filename is returned."""
+    args = [IR_CONVERTER_MAIN_PATH]
+    if options.ir_converter_args:
+      args.extend(options.ir_converter_args)
+    proc_init_values_str_list = [
+        value.to_human_str() for value in proc_init_values
+    ]
+    proc_init_values_str = ','.join(proc_init_values_str_list)
+    args.append('--top_proc_initial_state=' + proc_init_values_str)
     args.append(dslx_filename)
     ir_text = self._run_command('Converting DSLX to IR', args, options)
     return self._write_file('sample.ir', ir_text)
