@@ -122,7 +122,8 @@ void {{extern_fn}}(const uint8_t* const* inputs,
                    uint8_t* const* outputs,
                    uint8_t* temp_buffer,
                    ::xls::InterpreterEvents* events,
-                   ::xls::JitRuntime* runtime);
+                   ::xls::JitRuntime* runtime,
+                   int64_t continuation_point);
 }
 {{open_ns}}
 constexpr std::string_view kFnTypeProto = R"({{type_textproto}})";
@@ -154,7 +155,8 @@ absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   std::vector<uint8_t> temp_buffers({{temp_buffer_size}});
   ::xls::InterpreterEvents events;
   {{extern_fn}}(arg_buffers, output_buffers, temp_buffers.data(),
-                &events, {{private_ns}}::global_data->jit_runtime.get());
+                &events, {{private_ns}}::global_data->jit_runtime.get(),
+                /*continuation_point=*/0);
 
   ::xls::Value result = {{private_ns}}::global_data->jit_runtime->UnpackBuffer(
       result_buffer, {{private_ns}}::global_data->fn_type->return_type());
