@@ -154,13 +154,17 @@ void JitRuntime::BlitValueToBufferInternal(const Value& value, const Type* type,
     bits.ToBytes(absl::MakeSpan(buffer.data(), byte_count),
                  data_layout_.isBigEndian());
 
-    // Clear out any bits in storage above that indicated by the data type -
-    // LLVM requires this for safe operation, e.g., bit 127 in the 128-bit
-    // actual allocated storage for a i127 must be 0.
-    // Max of 7 bits of remainder on the [little-endian] most-significant byte.
+    // Zero out any padding bits and bytes. Bits type are stored in the JIT as
+    // the next power of two size.  LLVM requires all padding bits to be zero
+    // for safe operation, e.g., for a 42 bit type (which is padded out to a
+    // 64-bit word in the jit) bits 42 through 64 must be zero.
     int remainder_bits = bits.bit_count() % kCharBit;
     if (remainder_bits != 0) {
       buffer[byte_count - 1] &= static_cast<uint8_t>(Mask(remainder_bits));
+    }
+    int64_t allocated_size = type_converter_->GetTypeByteSize(type);
+    for (int64_t i = byte_count; i < allocated_size; ++i) {
+      buffer[i] = 0;
     }
   } else if (value.IsArray()) {
     const ArrayType* array_type = type->AsArrayOrDie();
