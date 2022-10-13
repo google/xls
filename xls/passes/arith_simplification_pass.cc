@@ -776,33 +776,6 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
     return true;
   }
 
-  // Returns a value which is extended or narrowed to the given bit count.
-  // Possible cases:
-  //
-  //  (1) node width == bit_count: return node
-  //
-  //  (2) node width < bit_count: return node truncated to bit_count
-  //
-  //  (3) node width > bit_count and is_signed: return node sign-extended to
-  //  bit_count
-  //
-  //  (4) node width > bit_count and !is_signed: return node zero-extended to
-  //  bit_count
-  auto maybe_extend_or_trunc = [](Node* node, int64_t bit_count,
-                                  bool is_signed) -> absl::StatusOr<Node*> {
-    if (node->BitCountOrDie() == bit_count) {
-      return node;
-    }
-    if (node->BitCountOrDie() > bit_count) {
-      return node->function_base()->MakeNode<BitSlice>(node->loc(), node,
-                                                       /*start=*/0,
-                                                       /*width=*/bit_count);
-    }
-    return node->function_base()->MakeNode<ExtendOp>(
-        node->loc(), node,
-        /*new_bit_count=*/bit_count, is_signed ? Op::kSignExt : Op::kZeroExt);
-  };
-
   // Pattern: UDiv/UMul/SMul by a positive power of two.
   if ((n->op() == Op::kSMul || n->op() == Op::kUMul || n->op() == Op::kUDiv) &&
       n->operand(1)->Is<Literal>()) {
@@ -815,7 +788,7 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
       // div/mul then shift by a constant amount.
       XLS_ASSIGN_OR_RETURN(
           Node * adjusted_lhs,
-          maybe_extend_or_trunc(n->operand(0), n->BitCountOrDie(), is_signed));
+          NarrowOrExtend(n->operand(0), is_signed, n->BitCountOrDie()));
       XLS_ASSIGN_OR_RETURN(Node * shift_amount,
                            n->function_base()->MakeNode<Literal>(
                                n->loc(), Value(UBits(rhs.CountTrailingZeros(),
@@ -865,10 +838,9 @@ absl::StatusOr<bool> MatchArithPatterns(int64_t opt_level, Node* n,
       XLS_VLOG(2) << "FOUND: UMod by a power of two";
       // Extend/trunc operand 0 (the non-literal operand) to the width of the
       // mod then mask off the high bits.
-      XLS_ASSIGN_OR_RETURN(
-          Node * adjusted_lhs,
-          maybe_extend_or_trunc(n->operand(0), n->BitCountOrDie(),
-                                /*is_signed=*/false));
+      XLS_ASSIGN_OR_RETURN(Node * adjusted_lhs,
+                           NarrowOrExtend(n->operand(0), /*n_is_signed=*/false,
+                                          n->BitCountOrDie()));
       Bits one = UBits(1, adjusted_lhs->BitCountOrDie());
       Bits bits_mask = bits_ops::Sub(
           bits_ops::ShiftLeftLogical(one, rhs.CountTrailingZeros()), one);
