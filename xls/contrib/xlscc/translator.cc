@@ -2023,37 +2023,57 @@ absl::StatusOr<const clang::Stmt*> Translator::GetFunctionBody(
   return body;
 }
 
+absl::StatusOr<IOChannel*> Translator::GetChannelForExprOrNull(
+    const clang::Expr* object) {
+  XLS_ASSIGN_OR_RETURN(const clang::ParmVarDecl* channel_param,
+                       GetChannelParamForExprOrNull(object));
+
+  if (channel_param == nullptr) {
+    return nullptr;
+  }
+
+  return context().sf->io_channels_by_param.at(channel_param);
+}
+
+absl::StatusOr<const clang::ParmVarDecl*>
+Translator::GetChannelParamForExprOrNull(const clang::Expr* object) {
+  const xls::SourceInfo loc = GetLoc(*object);
+
+  XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, loc));
+  if (!is_channel) {
+    return nullptr;
+  }
+  if (!clang::isa<clang::DeclRefExpr>(object)) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "IO ops should be on direct DeclRefs"));
+  }
+  auto object_ref = clang::dyn_cast<const clang::DeclRefExpr>(object);
+  auto channel_param =
+      clang::dyn_cast<const clang::ParmVarDecl>(object_ref->getDecl());
+  if (channel_param == nullptr) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "IO ops should be on channel parameters"));
+  }
+  return channel_param;
+}
+
 // this_inout can be nullptr for non-members
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
     const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
-  (void)body;
+  // Ensure callee has been translated
+  XLS_RETURN_IF_ERROR(GetFunctionBody(funcdecl).status());
 
   // Translate external channels
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* callee_param = funcdecl->getParamDecl(pi);
 
-    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(callee_param->getType(),
-                                                        GetLoc(*callee_param)));
-    if (!is_channel) {
-      continue;
-    }
+    XLS_ASSIGN_OR_RETURN(const clang::ParmVarDecl* caller_channel_param,
+                         GetChannelParamForExprOrNull(expr_args[pi]));
 
-    const clang::Expr* call_arg = expr_args[pi];
-    auto call_decl_ref_arg =
-        clang::dyn_cast<const clang::DeclRefExpr>(call_arg);
-    if (call_decl_ref_arg == nullptr) {
-      return absl::UnimplementedError(ErrorMessage(
-          GetLoc(*callee_param), "IO operations should be DeclRefs"));
-    }
-
-    auto caller_channel_param =
-        clang::dyn_cast<const clang::ParmVarDecl>(call_decl_ref_arg->getDecl());
     if (caller_channel_param == nullptr) {
-      return absl::UnimplementedError(ErrorMessage(
-          GetLoc(*callee_param), "IO operations should be on parameters"));
+      continue;
     }
 
     if (!external_channels_by_param_.contains(caller_channel_param)) {
@@ -2201,50 +2221,27 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
 
   // Map callee IO ops
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
-    const clang::ParmVarDecl* callee_channel = funcdecl->getParamDecl(pi);
+    const clang::ParmVarDecl* callee_channel_param = funcdecl->getParamDecl(pi);
 
-    if (!func->io_channels_by_param.contains(callee_channel)) {
+    if (!func->io_channels_by_param.contains(callee_channel_param)) {
       continue;
     }
 
-    const clang::Expr* call_arg = expr_args[pi];
+    XLS_ASSIGN_OR_RETURN(IOChannel * caller_channel,
+                         GetChannelForExprOrNull(expr_args[pi]));
+    XLS_CHECK_NE(caller_channel, nullptr);
 
-    auto call_decl_ref_arg =
-        clang::dyn_cast<const clang::DeclRefExpr>(call_arg);
-    // Duplicated code in InterceptIOOp()?
-    if (call_decl_ref_arg == nullptr) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be DeclRefs"));
+    IOChannel* callee_channel =
+        func->io_channels_by_param.at(callee_channel_param);
+
+    if (!context().sf->caller_channels_by_callee_channel.contains(
+            caller_channel)) {
+      context().sf->caller_channels_by_callee_channel[callee_channel] =
+          caller_channel;
     }
-
-    auto caller_channel_param =
-        clang::dyn_cast<const clang::ParmVarDecl>(call_decl_ref_arg->getDecl());
-    if (caller_channel_param == nullptr) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be on parameters"));
-    }
-
-    IOChannel* caller_channel =
-        context().sf->io_channels_by_param.at(caller_channel_param);
-
-    for (IOOp& callee_op : func->io_ops) {
-      // Skip internal channels
-      if (!func->params_by_io_channel.contains(callee_op.channel)) {
-        continue;
-      }
-
-      const clang::ParmVarDecl* callee_op_channel =
-          func->params_by_io_channel.at(callee_op.channel);
-      if (callee_op_channel != callee_channel) {
-        continue;
-      }
-      if (!context().sf->caller_channels_by_callee_op.contains(&callee_op)) {
-        context().sf->caller_channels_by_callee_op[&callee_op] = caller_channel;
-      } else {
-        XLS_CHECK_EQ(context().sf->caller_channels_by_callee_op.at(&callee_op),
-                     caller_channel);
-      }
-    }
+    XLS_CHECK_EQ(
+        context().sf->caller_channels_by_callee_channel.at(callee_channel),
+        caller_channel);
   }
 
   // Translate generated channels
@@ -2252,14 +2249,15 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     if (callee_op.channel->generated == nullptr) {
       continue;
     }
-    if (context().sf->caller_channels_by_callee_op.contains(&callee_op)) {
+    if (context().sf->caller_channels_by_callee_channel.contains(
+            callee_op.channel)) {
       continue;
     }
     IOChannel* callee_generated_channel = callee_op.channel;
     context().sf->io_channels.push_back(*callee_generated_channel);
     IOChannel* caller_generated_channel = &context().sf->io_channels.back();
     caller_generated_channel->total_ops = 0;
-    context().sf->caller_channels_by_callee_op[&callee_op] =
+    context().sf->caller_channels_by_callee_channel[callee_op.channel] =
         caller_generated_channel;
   }
 
@@ -2285,7 +2283,7 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     }
 
     IOChannel* caller_channel =
-        context().sf->caller_channels_by_callee_op.at(&callee_op);
+        context().sf->caller_channels_by_callee_channel.at(callee_op.channel);
 
     // Add super op
     caller_op.op = callee_op.op;

@@ -133,24 +133,12 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
           clang::dyn_cast<const clang::CXXMemberCallExpr>(expr)) {
     const clang::Expr* object = member_call->getImplicitObjectArgument();
 
-    XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, loc));
-    if (is_channel) {
-      // Duplicated code in GenerateIR_Call()?
-      if (!clang::isa<clang::DeclRefExpr>(object)) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "IO ops should be on direct DeclRefs"));
-      }
-      auto object_ref = clang::dyn_cast<const clang::DeclRefExpr>(object);
-      auto channel_param =
-          clang::dyn_cast<const clang::ParmVarDecl>(object_ref->getDecl());
-      if (channel_param == nullptr) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "IO ops should be on channel parameters"));
-      }
+    XLS_ASSIGN_OR_RETURN(IOChannel * channel, GetChannelForExprOrNull(object));
+
+    if (channel != nullptr) {
       const clang::FunctionDecl* funcdecl = member_call->getDirectCallee();
       const std::string op_name = funcdecl->getNameAsString();
 
-      IOChannel* channel = context().sf->io_channels_by_param.at(channel_param);
       xls::BValue op_condition = context().full_condition_bval(loc);
       XLS_CHECK(op_condition.valid());
 

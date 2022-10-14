@@ -310,6 +310,8 @@ class CPointerType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
+struct IOChannel;
+
 // In general, the original clang::Expr used to assign the pointer is saved
 // as an lvalue. However, it's necessary to create synthetic selects for
 // conditional assignments to pointers. Ternaries are also generated this way
@@ -323,6 +325,7 @@ class LValue {
     XLS_CHECK(static_cast<const clang::UnaryOperator*>(leaf_)->getOpcode() ==
               clang::UO_AddrOf);
   }
+  LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
          std::shared_ptr<LValue> lvalue_false)
       : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
@@ -339,9 +342,11 @@ class LValue {
   std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }
 
   const clang::Expr* leaf() const { return leaf_; }
+  IOChannel* channel_leaf() const { return channel_leaf_; }
 
  private:
   const clang::Expr* leaf_ = nullptr;
+  IOChannel* channel_leaf_ = nullptr;
 
   xls::BValue cond_;
   std::shared_ptr<LValue> lvalue_true_ = nullptr;
@@ -513,7 +518,7 @@ struct GeneratedFunction {
 
   // Used for translating IO ops from callee to caller. Needs to be here
   // to map ops to the same channel across multiple calls to the same callee.
-  absl::flat_hash_map<IOOp*, IOChannel*> caller_channels_by_callee_op;
+  absl::flat_hash_map<IOChannel*, IOChannel*> caller_channels_by_callee_channel;
 
   // Not all IO channels will be in these maps
   absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel*>
@@ -1045,6 +1050,12 @@ class Translator {
                                      const xls::SourceInfo& loc);
   absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
                                      const xls::SourceInfo& loc);
+  // Returns nullptr if the parameter isn't a channel
+  absl::StatusOr<IOChannel*> GetChannelForExprOrNull(
+      const clang::Expr* object);
+  // Returns nullptr if the parameter isn't a channel
+  absl::StatusOr<const clang::ParmVarDecl*> GetChannelParamForExprOrNull(
+      const clang::Expr* object);
 
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
