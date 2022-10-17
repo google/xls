@@ -172,8 +172,13 @@ pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N] {
 
 #[test]
 fn convert_to_bits_test() {
+  let _ = assert_eq(u3:0b000, convert_to_bits(bool[3]:[false, false, false]));
+  let _ = assert_eq(u3:0b001, convert_to_bits(bool[3]:[false, false, true]));
   let _ = assert_eq(u3:0b010, convert_to_bits(bool[3]:[false, true, false]));
   let _ = assert_eq(u3:0b011, convert_to_bits(bool[3]:[false, true, true]));
+  let _ = assert_eq(u3:0b100, convert_to_bits(bool[3]:[true, false, false]));
+  let _ = assert_eq(u3:0b110, convert_to_bits(bool[3]:[true, true, false]));
+  let _ = assert_eq(u3:0b111, convert_to_bits(bool[3]:[true, true, true]));
   ()
 }
 
