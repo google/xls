@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 
 using std::shared_ptr;
@@ -237,6 +238,10 @@ absl::Status Translator::GenerateIR_PipelinedLoop(
 
     // Create a deterministic field order
     for (const auto& [decl, _] : context().variables) {
+      const CValue& cvalue = context().variables.at(decl);
+      if (dynamic_cast<CChannelType*>(cvalue.type().get()) != nullptr) {
+        continue;
+      }
       XLS_CHECK(context().sf->declaration_order_by_name_.contains(decl));
       variable_fields_order.push_back(decl);
     }
@@ -370,22 +375,7 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
   generated_func.clang_decl = context().sf->clang_decl;
   uint64_t extra_return_count = 0;
   {
-    // Inherit explicit channels
     GeneratedFunction& enclosing_func = *context().sf;
-    for (IOChannel& enclosing_channel : enclosing_func.io_channels) {
-      if (enclosing_channel.generated != nullptr) {
-        continue;
-      }
-      const clang::ParmVarDecl* channel_param =
-          enclosing_func.params_by_io_channel.at(&enclosing_channel);
-
-      generated_func.io_channels.push_back(enclosing_channel);
-      IOChannel* inner_channel = &generated_func.io_channels.back();
-      generated_func.io_channels_by_param[channel_param] = inner_channel;
-      generated_func.params_by_io_channel[inner_channel] = channel_param;
-
-      inner_channel->total_ops = 0;
-    }
 
     // Set up IR generation
     xls::FunctionBuilder body_builder(absl::StrFormat("%s_func", name_prefix),
@@ -405,6 +395,25 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     context().in_pipelined_for_body = true;
     context().outer_pipelined_loop_init_interval = init_interval;
 
+    // Inherit external channels
+    for (IOChannel& enclosing_channel : enclosing_func.io_channels) {
+      if (enclosing_channel.generated != nullptr) {
+        continue;
+      }
+      generated_func.io_channels.push_back(enclosing_channel);
+      IOChannel* inner_channel = &generated_func.io_channels.back();
+      inner_channel->total_ops = 0;
+
+      auto channel_type =
+          std::make_shared<CChannelType>(inner_channel->item_type);
+      auto lvalue = std::make_shared<LValue>(inner_channel);
+      XLS_RETURN_IF_ERROR(DeclareVariable(
+          enclosing_func.decls_by_io_channel.at(&enclosing_channel),
+          CValue(/*rvalue=*/xls::BValue(), channel_type,
+                 /*disable_type_check=*/true, lvalue),
+          loc, /*check_unique_ids=*/false));
+    }
+
     // Context in
     absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> prev_vars;
 
@@ -422,6 +431,8 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
     }
 
     xls::BValue do_break = context().fb->Literal(xls::UBits(0, 1));
+
+    XLS_RETURN_IF_ERROR(ExtractExternalIOChannelDecls());
 
     // Generate body
     // Don't apply continue conditions to increment
@@ -584,10 +595,10 @@ absl::Status Translator::GenerateIR_PipelinedLoopBody(
       continue;
     }
 
-    const clang::ParmVarDecl* param =
-        generated_func.params_by_io_channel.at(op.channel);
+    const clang::NamedDecl* param =
+        generated_func.decls_by_io_channel.at(op.channel);
 
-    XLS_CHECK(io_test_mode_ || external_channels_by_param_.contains(param));
+    XLS_CHECK(io_test_mode_ || external_channels_by_decl_.contains(param));
   }
 
   // Invoke loop over IOs

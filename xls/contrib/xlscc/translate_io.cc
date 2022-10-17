@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "absl/status/status.h"
 #include "clang/include/clang/AST/Expr.h"
 #include "clang/include/clang/AST/ExprCXX.h"
+#include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/translator.h"
 
 namespace xlscc {
@@ -106,7 +108,7 @@ absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
 
 absl::Status Translator::CreateChannelParam(
     const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
-  XLS_CHECK(!context().sf->io_channels_by_param.contains(channel_param));
+  XLS_CHECK(!context().variables.contains(channel_param));
 
   XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
                        GetChannelType(channel_param, loc));
@@ -117,12 +119,14 @@ absl::Status Translator::CreateChannelParam(
   new_channel.unique_name = channel_param->getNameAsString();
 
   context().sf->io_channels.push_back(new_channel);
-  context().sf->io_channels_by_param[channel_param] =
-      &context().sf->io_channels.back();
-  context().sf->params_by_io_channel[&context().sf->io_channels.back()] =
-      channel_param;
 
-  context().channel_params.insert(channel_param);
+  auto channel_type = std::make_shared<CChannelType>(ctype);
+  auto lvalue = std::make_shared<LValue>(&context().sf->io_channels.back());
+  XLS_RETURN_IF_ERROR(
+      DeclareVariable(channel_param,
+                      CValue(/*rvalue=*/xls::BValue(), channel_type,
+                             /*disable_type_check=*/true, lvalue),
+                      loc));
 
   return absl::OkStatus();
 }
@@ -209,6 +213,20 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
   IOOpReturn ret;
   ret.generate_expr = true;
   return ret;
+}
+
+absl::Status Translator::ExtractExternalIOChannelDecls() {
+  for (const auto& [decl, cval] : context().variables) {
+    auto channel_type = dynamic_cast<const CChannelType*>(cval.type().get());
+    if (channel_type == nullptr) {
+      continue;
+    }
+    XLS_CHECK_NE(cval.lvalue(), nullptr);
+    XLS_CHECK_NE(cval.lvalue()->channel_leaf(), nullptr);
+    context().sf->io_channels_by_decl[decl] = cval.lvalue()->channel_leaf();
+    context().sf->decls_by_io_channel[cval.lvalue()->channel_leaf()] = decl;
+  }
+  return absl::OkStatus();
 }
 
 }  // namespace xlscc

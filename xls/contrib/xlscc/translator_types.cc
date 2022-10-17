@@ -540,4 +540,37 @@ absl::Status CPointerType::GetMetadataValue(
   return absl::OkStatus();
 }
 
+CChannelType::CChannelType(std::shared_ptr<CType> item_type)
+    : item_type_(item_type) {}
+
+bool CChannelType::operator==(const CType& o) const {
+  if (!o.Is<CChannelType>()) return false;
+  const auto* o_derived = o.As<CChannelType>();
+  return *item_type_ == *o_derived->item_type_;
+}
+
+int CChannelType::GetBitWidth() const { return item_type_->GetBitWidth(); }
+
+std::shared_ptr<CType> CChannelType::GetItemType() const {
+  return item_type_;
+}
+
+CChannelType::operator std::string() const {
+  return absl::StrFormat("%s*", string(*item_type_));
+}
+
+absl::Status CChannelType::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  XLS_CHECK(false) << "TODO: Metadata for channels";
+  return absl::OkStatus();
+}
+
+absl::Status CChannelType::GetMetadataValue(
+    Translator& translator, const ConstValue const_value,
+    xlscc_metadata::Value* output) const {
+  XLS_CHECK(false) << "TODO: Metadata for channels";
+  return absl::OkStatus();
+}
+
 }  //  namespace xlscc

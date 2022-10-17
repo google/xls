@@ -310,6 +310,26 @@ class CPointerType : public CType {
   std::shared_ptr<CType> pointee_type_;
 };
 
+// __xls_channel in C/C++
+class CChannelType : public CType {
+ public:
+  CChannelType(std::shared_ptr<CType> item_type);
+  bool operator==(const CType& o) const override;
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  std::shared_ptr<CType> GetItemType() const;
+
+ private:
+  std::shared_ptr<CType> item_type_;
+};
+
 struct IOChannel;
 
 // In general, the original clang::Expr used to assign the pointer is saved
@@ -341,8 +361,14 @@ class LValue {
   std::shared_ptr<LValue> lvalue_true() const { return lvalue_true_; }
   std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }
 
-  const clang::Expr* leaf() const { return leaf_; }
-  IOChannel* channel_leaf() const { return channel_leaf_; }
+  const clang::Expr* leaf() const {
+    XLS_CHECK_NE(leaf_, nullptr);
+    return leaf_;
+  }
+  IOChannel* channel_leaf() const {
+    XLS_CHECK_NE(channel_leaf_, nullptr);
+    return channel_leaf_;
+  }
 
  private:
   const clang::Expr* leaf_ = nullptr;
@@ -369,18 +395,20 @@ class CValue {
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
     XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
               rvalue.BitCountOrDie() == type_->GetBitWidth());
-    XLS_CHECK(!(lvalue && !dynamic_cast<CPointerType*>(type_.get())));
+    XLS_CHECK(!(lvalue && !dynamic_cast<CPointerType*>(type_.get()) &&
+                !dynamic_cast<CChannelType*>(type_.get())));
     XLS_CHECK(!(lvalue && rvalue.valid()));
     // Only supporting lvalues of the form &... for pointers
     if (dynamic_cast<CPointerType*>(type_.get()) != nullptr) {
       // Always get rvalue from lvalue, otherwise changes to the original won't
       //  be reflected when the pointer is dereferenced.
       XLS_CHECK(!rvalue.valid());
-    } else if (dynamic_cast<CVoidType*>(type_.get()) == nullptr) {
-      XLS_CHECK(rvalue.valid());
+    } else if (dynamic_cast<CChannelType*>(type_.get()) != nullptr) {
+      XLS_CHECK(!rvalue.valid() && lvalue != nullptr);
+    } else if (dynamic_cast<CVoidType*>(type_.get()) != nullptr) {
+      XLS_CHECK(!rvalue.valid());
     } else {
-      // It's a void
-      XLS_CHECK(!rvalue.valid() && lvalue == nullptr);
+      XLS_CHECK(rvalue.valid());
     }
   }
 
@@ -521,10 +549,8 @@ struct GeneratedFunction {
   absl::flat_hash_map<IOChannel*, IOChannel*> caller_channels_by_callee_channel;
 
   // Not all IO channels will be in these maps
-  absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel*>
-      io_channels_by_param;
-  absl::flat_hash_map<IOChannel*, const clang::ParmVarDecl*>
-      params_by_io_channel;
+  absl::flat_hash_map<const clang::NamedDecl*, IOChannel*> io_channels_by_decl;
+  absl::flat_hash_map<IOChannel*, const clang::NamedDecl*> decls_by_io_channel;
 
   // All the IO Ops occurring within the function. Order matters here,
   //  as it is assumed that write() ops will depend only on values produced
@@ -656,9 +682,6 @@ struct TranslationContext {
   xls::BValue full_condition;
   xls::BValue full_condition_on_enter_block;
   xls::BValue relative_condition;
-
-  // Remember channel parameter names for generating descriptive errors
-  absl::flat_hash_set<const clang::NamedDecl*> channel_params;
 
   // These flags control the behavior of break and continue statements
   bool in_for_body = false;
@@ -934,8 +957,8 @@ class Translator {
 
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
-  absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*>
-      external_channels_by_param_;
+  absl::flat_hash_map<const clang::NamedDecl*, xls::Channel*>
+      external_channels_by_decl_;
 
   // Used as a stack, but need to peek 2nd to top
   std::list<TranslationContext> context_stack_;
@@ -1044,6 +1067,8 @@ class Translator {
                                        bool mask = false);
   absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
                                   const xls::SourceInfo& loc);
+  // Examines variables in context to update GeneratedFunction io channels maps
+  absl::Status ExtractExternalIOChannelDecls();
   absl::StatusOr<std::shared_ptr<CType>> GetChannelType(
       const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
@@ -1051,8 +1076,7 @@ class Translator {
   absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
                                      const xls::SourceInfo& loc);
   // Returns nullptr if the parameter isn't a channel
-  absl::StatusOr<IOChannel*> GetChannelForExprOrNull(
-      const clang::Expr* object);
+  absl::StatusOr<IOChannel*> GetChannelForExprOrNull(const clang::Expr* object);
   // Returns nullptr if the parameter isn't a channel
   absl::StatusOr<const clang::ParmVarDecl*> GetChannelParamForExprOrNull(
       const clang::Expr* object);

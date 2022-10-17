@@ -60,8 +60,8 @@ absl::Status Translator::GenerateExternalChannels(
                                                 : xls::ChannelOps::kSendOnly,
                                             data_type));
     }
-    XLS_CHECK(!external_channels_by_param_.contains(param));
-    external_channels_by_param_[param] = new_channel;
+    XLS_CHECK(!external_channels_by_decl_.contains(param));
+    external_channels_by_decl_[param] = new_channel;
   }
   return absl::OkStatus();
 }
@@ -310,7 +310,7 @@ absl::Status Translator::GenerateIRBlockPrepare(
       XLS_ASSIGN_OR_RETURN(StrippedType stripped,
                            StripTypeQualifiers(param->getType()));
 
-      xls::Channel* xls_channel = external_channels_by_param_.at(param);
+      xls::Channel* xls_channel = external_channels_by_decl_.at(param);
 
       xls::BValue receive = pb.Receive(xls_channel, prepared.token);
       prepared.token = pb.TupleIndex(receive, 0);
@@ -337,11 +337,11 @@ absl::Status Translator::GenerateIRBlockPrepare(
       continue;
     }
 
-    const clang::ParmVarDecl* param =
-        prepared.xls_func->params_by_io_channel.at(op.channel);
+    const clang::NamedDecl* param =
+        prepared.xls_func->decls_by_io_channel.at(op.channel);
 
     if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      xls::Channel* xls_channel = external_channels_by_param_.at(param);
+      xls::Channel* xls_channel = external_channels_by_decl_.at(param);
       prepared.xls_channel_by_function_channel[op.channel] = xls_channel;
     }
   }
