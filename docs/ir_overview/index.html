@@ -8,21 +8,21 @@
       
       
       
-        <link rel="canonical" href="https://google.github.io/xls/tutorials/xlscc_state/">
+        <link rel="canonical" href="https://google.github.io/xls/ir_overview/">
       
-      <link rel="icon" href="../../assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.4.1, mkdocs-material-8.5.6">
     
     
       
-        <title>State - XLS: Accelerated HW Synthesis</title>
+        <title>Overview - XLS: Accelerated HW Synthesis</title>
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.20d9efc8.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.cbb835fc.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
       
       
@@ -39,7 +39,7 @@
       
     
     
-    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -64,7 +64,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#tutorial-xlscc-state" class="md-skip">
+        <a href="#xls-ir-overview" class="md-skip">
           Skip to content
         </a>
       
@@ -78,7 +78,7 @@
 
 <header class="md-header" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-header__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -97,7 +97,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              State
+              Overview
             
           </span>
         </div>
@@ -176,7 +176,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
+    <a href=".." title="XLS: Accelerated HW Synthesis" class="md-nav__button md-logo" aria-label="XLS: Accelerated HW Synthesis" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
@@ -207,7 +207,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../.." class="md-nav__link">
+      <a href=".." class="md-nav__link">
         Overview
       </a>
     </li>
@@ -220,14 +220,12 @@
 
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2" type="checkbox" id="__nav_2" >
       
       
       
@@ -250,7 +248,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../" class="md-nav__link">
+      <a href="../tutorials/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -290,7 +288,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../hello_xls/" class="md-nav__link">
+      <a href="../tutorials/hello_xls/" class="md-nav__link">
         Hello, XLS!
       </a>
     </li>
@@ -304,7 +302,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../float_to_int/" class="md-nav__link">
+      <a href="../tutorials/float_to_int/" class="md-nav__link">
         Basic logic
       </a>
     </li>
@@ -318,7 +316,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../intro_to_parametrics/" class="md-nav__link">
+      <a href="../tutorials/intro_to_parametrics/" class="md-nav__link">
         Intro to parameterics
       </a>
     </li>
@@ -332,7 +330,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../crc32/" class="md-nav__link">
+      <a href="../tutorials/crc32/" class="md-nav__link">
         For expressions
       </a>
     </li>
@@ -346,7 +344,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../prefix_scan/" class="md-nav__link">
+      <a href="../tutorials/prefix_scan/" class="md-nav__link">
         Enumerate and match
       </a>
     </li>
@@ -365,14 +363,12 @@
               
   
   
-    
-  
   
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_3" type="checkbox" id="__nav_2_3" checked>
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_2_3" type="checkbox" id="__nav_2_3" >
       
       
       
@@ -395,7 +391,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_overview/" class="md-nav__link">
+      <a href="../tutorials/xlscc_overview/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -409,7 +405,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../xlscc_channels/" class="md-nav__link">
+      <a href="../tutorials/xlscc_channels/" class="md-nav__link">
         Channels
       </a>
     </li>
@@ -421,73 +417,11 @@
               
   
   
-    
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          State
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../tutorials/xlscc_state/" class="md-nav__link">
         State
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c-source" class="md-nav__link">
-    C++ Source
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate-optimized-xls-ir" class="md-nav__link">
-    Generate optimized XLS IR.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
-    Perform code-generation into a pipelined Verilog block.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-xlscc-examples" class="md-nav__link">
-    Additional XLS[cc] examples.
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -512,12 +446,14 @@
 
   
   
+    
+  
   
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3" type="checkbox" id="__nav_3" checked>
       
       
       
@@ -538,11 +474,21 @@
               
   
   
+    
   
-    <li class="md-nav__item">
-      <a href="../../ir_overview/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" data-md-toggle="toc" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         Overview
       </a>
+      
     </li>
   
 
@@ -554,7 +500,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_semantics/" class="md-nav__link">
+      <a href="../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
     </li>
@@ -568,7 +514,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../optimizations/" class="md-nav__link">
+      <a href="../optimizations/" class="md-nav__link">
         Optimizations
       </a>
     </li>
@@ -608,7 +554,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../scheduling/" class="md-nav__link">
+      <a href="../scheduling/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -622,7 +568,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../delay_estimation/" class="md-nav__link">
+      <a href="../delay_estimation/" class="md-nav__link">
         Delay Estimation
       </a>
     </li>
@@ -643,7 +589,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_visualization/" class="md-nav__link">
+      <a href="../ir_visualization/" class="md-nav__link">
         Visualizer
       </a>
     </li>
@@ -683,7 +629,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../ir_jit/" class="md-nav__link">
+      <a href="../ir_jit/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -697,7 +643,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data_layout/" class="md-nav__link">
+      <a href="../data_layout/" class="md-nav__link">
         Data Layout
       </a>
     </li>
@@ -718,7 +664,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../solvers/" class="md-nav__link">
+      <a href="../solvers/" class="md-nav__link">
         Formal
       </a>
     </li>
@@ -766,7 +712,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_reference/" class="md-nav__link">
+      <a href="../dslx_reference/" class="md-nav__link">
         Reference
       </a>
     </li>
@@ -780,7 +726,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_std/" class="md-nav__link">
+      <a href="../dslx_std/" class="md-nav__link">
         Standard Library
       </a>
     </li>
@@ -794,7 +740,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../floating_point/" class="md-nav__link">
+      <a href="../floating_point/" class="md-nav__link">
         Floating Point
       </a>
     </li>
@@ -808,7 +754,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../fuzzer/" class="md-nav__link">
+      <a href="../fuzzer/" class="md-nav__link">
         Fuzzer
       </a>
     </li>
@@ -822,7 +768,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../dslx_bytecode_interpreter/" class="md-nav__link">
+      <a href="../dslx_bytecode_interpreter/" class="md-nav__link">
         Interpreter
       </a>
     </li>
@@ -870,7 +816,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../vast/" class="md-nav__link">
+      <a href="../vast/" class="md-nav__link">
         VAST
       </a>
     </li>
@@ -918,7 +864,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../build_system/" class="md-nav__link">
+      <a href="../build_system/" class="md-nav__link">
         Build System
       </a>
     </li>
@@ -932,7 +878,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../bazel_rules_macros/" class="md-nav__link">
+      <a href="../bazel_rules_macros/" class="md-nav__link">
         Bazel Rules And Macros
       </a>
     </li>
@@ -946,7 +892,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools_quick_start/" class="md-nav__link">
+      <a href="../tools_quick_start/" class="md-nav__link">
         Quick Start
       </a>
     </li>
@@ -960,7 +906,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../tools/" class="md-nav__link">
+      <a href="../tools/" class="md-nav__link">
         Listing
       </a>
     </li>
@@ -974,7 +920,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../interpreters/" class="md-nav__link">
+      <a href="../interpreters/" class="md-nav__link">
         Interpreters
       </a>
     </li>
@@ -1022,7 +968,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../contributing/" class="md-nav__link">
+      <a href="../contributing/" class="md-nav__link">
         Contributing
       </a>
     </li>
@@ -1036,7 +982,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_style/" class="md-nav__link">
+      <a href="../xls_style/" class="md-nav__link">
         Style Guide
       </a>
     </li>
@@ -1050,7 +996,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../adding_ir_operation/" class="md-nav__link">
+      <a href="../adding_ir_operation/" class="md-nav__link">
         Adding a new IR operation
       </a>
     </li>
@@ -1098,7 +1044,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_readme/" class="md-nav__link">
+      <a href="../xls_noc_readme/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -1138,7 +1084,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_topologies/" class="md-nav__link">
+      <a href="../xls_noc_topologies/" class="md-nav__link">
         Overview
       </a>
     </li>
@@ -1152,7 +1098,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_dimension_order_topology/" class="md-nav__link">
+      <a href="../xls_noc_dimension_order_topology/" class="md-nav__link">
         Dimension Order
       </a>
     </li>
@@ -1166,7 +1112,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_tree_topology/" class="md-nav__link">
+      <a href="../xls_noc_tree_topology/" class="md-nav__link">
         Tree
       </a>
     </li>
@@ -1180,7 +1126,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_butterfly_topology/" class="md-nav__link">
+      <a href="../xls_noc_butterfly_topology/" class="md-nav__link">
         k-ary n-fly Butterfly
       </a>
     </li>
@@ -1194,7 +1140,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_fully_connected_topology/" class="md-nav__link">
+      <a href="../xls_noc_fully_connected_topology/" class="md-nav__link">
         Fully Connected
       </a>
     </li>
@@ -1208,7 +1154,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_star_topology/" class="md-nav__link">
+      <a href="../xls_noc_star_topology/" class="md-nav__link">
         Star
       </a>
     </li>
@@ -1229,7 +1175,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../xls_noc_glossary/" class="md-nav__link">
+      <a href="../xls_noc_glossary/" class="md-nav__link">
         Glossary
       </a>
     </li>
@@ -1263,42 +1209,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#c-source" class="md-nav__link">
-    C++ Source
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#generate-optimized-xls-ir" class="md-nav__link">
-    Generate optimized XLS IR.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#perform-code-generation-into-a-pipelined-verilog-block" class="md-nav__link">
-    Perform code-generation into a pipelined Verilog block.
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#additional-xlscc-examples" class="md-nav__link">
-    Additional XLS[cc] examples.
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -1311,116 +1221,49 @@
                 
                   
 
-  <a href="https://github.com/google/xls/tree/main/docs_src/tutorials/xlscc_state.md" title="Edit this page" class="md-content__button md-icon">
+  <a href="https://github.com/google/xls/tree/main/docs_src/ir_overview.md" title="Edit this page" class="md-content__button md-icon">
     
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg>
   </a>
 
 
-<h1 id="tutorial-xlscc-state">Tutorial: XLS[cc] state.</h1>
+<h1 id="xls-ir-overview">XLS: IR Overview</h1>
 <div class="toc">
 <ul>
-<li><a href="#tutorial-xlscc-state">Tutorial: XLS[cc] state.</a><ul>
-<li><a href="#c-source">C++ Source</a></li>
-<li><a href="#generate-optimized-xls-ir">Generate optimized XLS IR.</a></li>
-<li><a href="#perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</a></li>
-<li><a href="#additional-xlscc-examples">Additional XLS[cc] examples.</a></li>
-</ul>
-</li>
+<li><a href="#xls-ir-overview">XLS: IR Overview</a></li>
 </ul>
 </div>
-<p>This tutorial is aimed at walking you through the implementation and synthesis
-into Verilog of a C++ function containing state.</p>
-<p>XLS[cc] may infer that in order to achieve a particular implementation of a C++
-function, operations may occur over multiple cycles and require additional proc
-state to be kept. Common constructs that may require this are static variables,
-or loops that aren't unrolled. In this tutorial we give an example using static
-variables.</p>
-<h2 id="c-source">C++ Source</h2>
-<p>Create a file named <code>test_state.cc</code> with the following contents.</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#include</span><span class="w"> </span><span class="cpf">&quot;/xls_builtin.h&quot;</span><span class="cp"></span>
-
-<span class="cp">#pragma hls_top</span>
-<span class="kt">void</span><span class="w"> </span><span class="nf">test_state</span><span class="p">(</span><span class="n">__xls_channel</span><span class="o">&lt;</span><span class="kt">int</span><span class="o">&gt;&amp;</span><span class="w"> </span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
-<span class="w">  </span><span class="k">static</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
-<span class="w">  </span><span class="n">out</span><span class="p">.</span><span class="n">write</span><span class="p">(</span><span class="n">count</span><span class="p">);</span><span class="w"></span>
-<span class="w">  </span><span class="o">++</span><span class="n">count</span><span class="p">;</span><span class="w"></span>
-<span class="p">}</span><span class="w"></span>
-</code></pre></div>
-<p>As the above function uses channels, a proto detailing the type of interface is
-required. Create a file named <code>test_state.textproto</code> with the following
-contents to configure <code>out</code> as an output FIFO (ready/valid) interface.</p>
-<div class="highlight"><pre><span></span><code>channels {
-  name: &quot;out&quot;
-  is_input: false
-  type: FIFO
-}
-name: &quot;xls_test_state&quot;
-</code></pre></div>
-<h2 id="generate-optimized-xls-ir">Generate optimized XLS IR.</h2>
-<p>Use a combination of <code>proto2bin</code>, <code>xlscc</code> and <code>opt_main</code> to generate optimized
-XLS IR.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/proto2bin test_state.textproto --message xlscc.HLSBlock --output test_state.pb
-$ ./bazel-bin/xls/contrib/xlscc/xlscc test_state.cc <span class="se">\</span>
-  --block_pb test_state.pb <span class="se">\</span>
-  &gt; test_state.ir
-$ ./bazel-bin/xls/tools/opt_main test_state.ir &gt; test_state.opt.ir
-</code></pre></div>
-<h2 id="perform-code-generation-into-a-pipelined-verilog-block">Perform code-generation into a pipelined Verilog block.</h2>
-<p>In this case, we will generate a single-stage pipeline without input and output
-flops. This will result in a module with a 32-bit increment adder along with
-32-bit of state.</p>
-<div class="highlight"><pre><span></span><code>$ ./bazel-bin/xls/tools/codegen_main test_state.opt.ir <span class="se">\</span>
-  --generator<span class="o">=</span>pipeline <span class="se">\</span>
-  --delay_model<span class="o">=</span><span class="s2">&quot;sky130&quot;</span> <span class="se">\</span>
-  --output_verilog_path<span class="o">=</span>xls_counter.v <span class="se">\</span>
-  --module_name<span class="o">=</span>xls_counter <span class="se">\</span>
-  --top<span class="o">=</span>xls_test_state_proc <span class="se">\</span>
-  --reset<span class="o">=</span>rst <span class="se">\</span>
-  --reset_active_low<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
-  --reset_asynchronous<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
-  --reset_data_path<span class="o">=</span><span class="nb">true</span> <span class="se">\</span>
-  --pipeline_stages<span class="o">=</span><span class="m">1</span>  <span class="se">\</span>
-  --flop_inputs<span class="o">=</span><span class="nb">false</span> <span class="se">\</span>
-  --flop_outputs<span class="o">=</span><span class="nb">false</span>
-</code></pre></div>
-<p>After running codegen, you should see a file named <code>xls_counter.v</code> with contents
-similar to the following.</p>
-<div class="highlight"><pre><span></span><code>module xls_counter(
-  input wire clk,
-  input wire rst,
-  input wire out_rdy,
-  output wire [31:0] out,
-  output wire out_vld
-);
-  reg [31:0] __st__1;
-  wire literal_43;
-  wire literal_40;
-  wire [31:0] add_37;
-  wire pipeline_enable;
-  assign literal_43 = 1&#39;h1;
-  assign literal_40 = 1&#39;h1;
-  assign add_37 = __st__1 + 32&#39;h0000_0001;
-  assign pipeline_enable = literal_43 &amp; literal_40 &amp; out_rdy &amp; (literal_43 &amp; literal_40 &amp; out_rdy);
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      __st__1 &lt;= 32&#39;h0000_0000;
-    end else begin
-      __st__1 &lt;= pipeline_enable ? add_37 : __st__1;
-    end 
-  end 
-  assign out = __st__1;
-  assign out_vld = literal_40 &amp; literal_43 &amp; 1&#39;h1;
-endmodule
-</code></pre></div>
-<h2 id="additional-xlscc-examples">Additional XLS[cc] examples.</h2>
-<p>The above tutorials only touches upon the capabilities of XLS[cc]. XLS[cc] is
-based on libclang and supports many C++17 features. Notable <em>unsupported</em>
-features include pointers, function pointers, and virtual methods.</p>
-<p>For developers, it is possible to check if a specific feature is supported by
-checking
-<a href="https://github.com/google/xls/tree/main/xls/contrib/xlscc/translator_test.cc">translator_test.cc</a>
-for unit tests.</p>
+<p>Before providing a detailed specification of the IR, in this section we briefly
+outline the ideas and philosophy behind the IR design and explain how to build,
+modify, and navigate the IR.</p>
+<p>The XLS IR is a dataflow-oriented IR that has the static-single-assignment (SSA)
+property, but is specialized for generating circuitry. It started out as a
+purely functional IR but over time more and more side-effecting operations had
+to be introduced. Specifically:</p>
+<ul>
+<li>XLS has a single IR representation which is used from the front-end down to
+    the RTL-level. A single representation throughout the compiler enables
+    maximal resuse of analysis and transformation components. Often compilers
+    have different specialized IRs (or "dialects") for different levels of
+    abstraction which can add complexity and inhibit reusability. However, in
+    XLS this tradeoff between specialization and reusability is unnecessary
+    because we start with a dataflow representation in the front end and can
+    smoothly lower the IR down to the RTL-level which is itself dataflow.</li>
+</ul>
+<ul>
+<li>XLS IR is <em>not</em> control-flow graph (CFG) based, as many other compiler
+    infrastructures. The insight is that the CFG abstraction was developed to
+    model serial execution on a CPU. In hardware, however, everything happens at
+    all times and in parallel. A <em>sea-of-nodes</em> (SoN) representation much more
+    closely resembles this reality, which is why we have chosen it.<p>It further turns out that many optimization passes are rather trivial to
+  implement in the SoN representation, in particular as it requires no
+  explicit SSA updates. The SSA property is automatically maintained by the IR
+  being functional.</p>
+</li>
+</ul>
+<p>TODO: High-level structure, package -&gt; func,proc,block -&gt; sea of nodes</p>
+<p>TODO: How to navigate</p>
+<p>TODO: Talk about basic types</p>
 
 
 
@@ -1441,7 +1284,7 @@ for unit tests.</p>
     <nav class="md-footer__inner md-grid" aria-label="Footer" >
       
         
-        <a href="../xlscc_channels/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Channels" rel="prev">
+        <a href="../tutorials/xlscc_state/" class="md-footer__link md-footer__link--prev" aria-label="Previous: State" rel="prev">
           <div class="md-footer__button md-icon">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
           </div>
@@ -1450,20 +1293,20 @@ for unit tests.</p>
               <span class="md-footer__direction">
                 Previous
               </span>
-              Channels
+              State
             </div>
           </div>
         </a>
       
       
         
-        <a href="../../ir_overview/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview" rel="next">
+        <a href="../ir_semantics/" class="md-footer__link md-footer__link--next" aria-label="Next: Semantics" rel="next">
           <div class="md-footer__title">
             <div class="md-ellipsis">
               <span class="md-footer__direction">
                 Next
               </span>
-              Overview
+              Semantics
             </div>
           </div>
           <div class="md-footer__button md-icon">
@@ -1494,10 +1337,10 @@ for unit tests.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.078830c0.min.js"></script>
+      <script src="../assets/javascripts/bundle.078830c0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       
