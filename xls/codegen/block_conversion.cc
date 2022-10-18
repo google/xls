@@ -1003,6 +1003,9 @@ static absl::Status UpdateRegisterLoadEn(Node* load_en, Register* reg,
 static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
     std::string_view name_prefix, const ResetInfo& reset_info,
     std::optional<Node*> load_enable, Node* node, Block* block) {
+  XLS_RET_CHECK(reset_info.behavior.has_value());
+  XLS_RET_CHECK(reset_info.input_port.has_value());
+
   Type* node_type = node->GetType();
 
   xls::Reset reset_behavior = reset_info.behavior.value();

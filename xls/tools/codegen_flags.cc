@@ -108,6 +108,7 @@ ABSL_FLAG(std::string, umulp_format, "", "Format string to use for smulp.");
 namespace xls {
 namespace {
 
+// Converts flag-provided values for I/O kinds to its proto enum value.
 absl::StatusOr<IOKindProto> IOKindProtoFromString(std::string_view s) {
   if (s == "flop") {
     return IO_KIND_FLOP;

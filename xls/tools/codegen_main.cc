@@ -53,6 +53,20 @@ Emit a feed-forward pipelined module:
 namespace xls {
 namespace {
 
+verilog::CodegenOptions::IOKind ToIOKind(IOKindProto p) {
+  switch (p) {
+    case IO_KIND_INVALID:
+    case IO_KIND_FLOP:
+      return verilog::CodegenOptions::IOKind::kFlop;
+    case IO_KIND_SKID_BUFFER:
+      return verilog::CodegenOptions::IOKind::kSkidBuffer;
+    case IO_KIND_ZERO_LATENCY_BUFFER:
+      return verilog::CodegenOptions::IOKind::kZeroLatencyBuffer;
+    default:
+      XLS_LOG(FATAL) << "Invalid IOKindProto value: " << static_cast<int>(p);
+  }
+}
+
 absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     const CodegenFlagsProto& p) {
   verilog::CodegenOptions options;
@@ -69,6 +83,13 @@ absl::StatusOr<verilog::CodegenOptions> CodegenOptionsFromProto(
     } else if (!p.manual_load_enable_signal().empty()) {
       options.manual_control(p.manual_load_enable_signal());
     }
+    options.flop_inputs(p.flop_inputs());
+    options.flop_outputs(p.flop_outputs());
+    options.flop_inputs_kind(ToIOKind(p.flop_inputs_kind()));
+    options.flop_outputs_kind(ToIOKind(p.flop_outputs_kind()));
+
+    options.flop_single_value_channels(p.flop_single_value_channels());
+    options.add_idle_output(p.add_idle_output());
 
     if (!p.reset().empty()) {
       options.reset(p.reset(), p.reset_asynchronous(), p.reset_active_low(),

@@ -31,6 +31,44 @@ signature which includes metadata about the block. The tool does not run any XLS
 passes so unoptimized IR may fail if the IR contains constructs not expected by
 the backend.
 
+### I/O Configuration Options
+
+#### `--flop_inputs=true --flop_inputs_kind=zerolatency`
+
+For each ready-valid-data channel on the input, an additional register is added
+so that the XLS pipeline need not stall a specific input channel while waiting
+for all to become ready. A single set of registers permits storage of one
+channel `write()`. (These are input-side channels, so the external `write()` can
+proceed even if the pipeline is not ready to `read()`.)
+
+Being a zero-latency buffer, the additional input logic does not increase the
+pipeline latency, but there remains a combinational path from the input ports to
+the pipeline register after the first stage.
+
+#### `--flop_outputs=true --flop_outputs_kind=skid`
+
+A 1-cycle skid buffer is added to the output to break up output timing paths.
+(The output stage does contribute one additional cycle of latency.)
+
+### `--add_idle_output=true`
+
+An additional output port is generated named `idle`. Idle is the `NOR` of:
+
+1. Pipeline registers storing the "valid" bit for that particular stage.
+1. All valid registers stored for the input/output buffers.
+1. All valid signals for the input channels.
+
+### `--reset_data_path=true`
+
+With this option, all pipeline registers (both data and valid registers) are
+reset to their initial state upon reset. This results in the reset signal
+fanning out to all registers in the block.
+
+### `--flop_single_value_channels=false`
+
+With this option, the port for any single-value channels are not flopped, but
+taken as direct wires.
+
 ## [`delay_info_main`](https://github.com/google/xls/tree/main/xls/tools/delay_info_main.cc)
 
 Dumps delay information about an XLS function including per-node delay
