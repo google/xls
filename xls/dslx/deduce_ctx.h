@@ -57,7 +57,7 @@ class FnStackEntry {
   }
   std::optional<const Invocation*> invocation() { return invocation_; }
 
-  bool operator!=(nullptr_t) const { return f_ != nullptr; }
+  bool operator!=(std::nullptr_t) const { return f_ != nullptr; }
 
  private:
   FnStackEntry(Function* f, std::string name, Module* module,

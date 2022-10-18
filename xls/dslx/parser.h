@@ -489,7 +489,8 @@ class Parser : public TokenParser {
       Bindings* bindings, const Span& directive_span);
 
   // Parses DSLX attributes, analogous to Rust's attributes.
-  absl::StatusOr<std::variant<TestFunction*, TestProc*, QuickCheck*, nullptr_t>>
+  absl::StatusOr<
+      std::variant<TestFunction*, TestProc*, QuickCheck*, std::nullptr_t>>
   ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 

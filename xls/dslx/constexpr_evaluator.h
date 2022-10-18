@@ -100,7 +100,7 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleTernary(const Ternary* expr) override;
   absl::Status HandleTupleIndex(const TupleIndex* expr) override;
   absl::Status HandleUnop(const Unop* expr) override;
-  absl::Status HandleUnrollFor(const UnrollFor* expr);
+  absl::Status HandleUnrollFor(const UnrollFor* expr) override;
   absl::Status HandleXlsTuple(const XlsTuple* expr) override;
 
   static absl::StatusOr<InterpValue> CreateChannelValue(
