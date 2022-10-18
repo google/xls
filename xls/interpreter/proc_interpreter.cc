@@ -1,4 +1,4 @@
-  // Copyright 2020 The XLS Authors
+// Copyright 2020 The XLS Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_join.h"
-#include "xls/common/logging/log_lines.h"
 #include "xls/interpreter/ir_interpreter.h"
+#include "xls/ir/node_iterator.h"
 #include "xls/ir/value_helpers.h"
 
 namespace xls {
@@ -33,7 +33,7 @@ class ProcIrInterpreter : public IrInterpreter {
   //   node_values: map from Node to Value for already computed values in this
   //     tick of the proc. Used for continuations.
   //   events: events object to record events in (e.g, traces).
-  //   queue_manager: manger for channel queues.
+  //   queue_manager: manager for channel queues.
   ProcIrInterpreter(absl::Span<const Value> state,
                     absl::flat_hash_map<Node*, Value>* node_values,
                     InterpreterEvents* events,
@@ -49,14 +49,15 @@ class ProcIrInterpreter : public IrInterpreter {
     if (receive->predicate().has_value()) {
       const Bits& pred = ResolveAsBits(receive->predicate().value());
       if (pred.IsZero()) {
-        // If the predicate is false, nothing is dequeued from the channel.
+        // If the predicate is false, nothing is read from the channel.
         // Rather the result of the receive is the zero values of the
         // respective type.
         return SetValueResult(receive, ZeroOfType(receive->GetType()));
       }
     }
 
-    if (queue->empty()) {
+    std::optional<Value> value = queue->Read();
+    if (!value.has_value()) {
       if (receive->is_blocking()) {
         // Record the channel this receive instruction is blocked on and exit.
         blocked_channel_ = queue->channel();
@@ -67,14 +68,12 @@ class ProcIrInterpreter : public IrInterpreter {
       return SetValueResult(receive, ZeroOfType(receive->GetType()));
     }
 
-    XLS_ASSIGN_OR_RETURN(Value value, queue->Dequeue());
-
     if (receive->is_blocking()) {
-      return SetValueResult(receive, Value::Tuple({Value::Token(), value}));
+      return SetValueResult(receive, Value::Tuple({Value::Token(), *value}));
     }
 
     return SetValueResult(
-        receive, Value::Tuple({Value::Token(), value, Value(UBits(1, 1))}));
+        receive, Value::Tuple({Value::Token(), *value, Value(UBits(1, 1))}));
   }
 
   absl::Status HandleSend(Send* send) override {
@@ -89,7 +88,7 @@ class ProcIrInterpreter : public IrInterpreter {
     // Indicate that data is sent on this channel.
     sent_channel_ = queue->channel();
 
-    XLS_RETURN_IF_ERROR(queue->Enqueue(ResolveAsValue(send->data())));
+    XLS_RETURN_IF_ERROR(queue->Write(ResolveAsValue(send->data())));
 
     // The result of a send is simply a token.
     return SetValueResult(send, Value::Token());
@@ -124,79 +123,50 @@ class ProcIrInterpreter : public IrInterpreter {
   std::vector<Value> state_;
   ChannelQueueManager* queue_manager_;
 
-  // Emphemeral values set by the send/receive handlers indicating the channel
+  // Ephemeral values set by the send/receive handlers indicating the channel
   // execution is blocked on or the channel on which data was sent.
   std::optional<Channel*> blocked_channel_;
   std::optional<Channel*> sent_channel_;
 };
 
-// Computes the node execution order for the interpreter. Due to a bug in the
-// way xlscc emits IR, place receives as late as possible in the order to avoid
-// deadlocks.
-// TODO(https://github.com/google/xls/issues/717): Remove hack for late receive
-// ordering when xlscc is fixed.
-std::vector<Node*> NodeExecutionOrder(Proc* proc) {
-  std::vector<Node*> result;
-  std::list<Node*> ready_list;
-  absl::flat_hash_map<Node*, int64_t> operands_remaining;
-  for (Node* node : proc->nodes()) {
-    absl::flat_hash_set<Node*> unique_operands(node->operands().begin(),
-                                               node->operands().end());
-    operands_remaining[node] = unique_operands.size();
-    if (unique_operands.empty()) {
-      ready_list.push_back(node);
-    }
-  }
-  while (!ready_list.empty()) {
-    auto it = ready_list.begin();
-    // Chose the first node on the ready list which is *not* a receive.
-    for (; it != ready_list.end(); ++it) {
-      if (!(*it)->Is<Receive>()) {
-        break;
-      }
-    }
-    // If all nodes on the ready list are receives, then pick the first one.
-    it = it == ready_list.end() ? ready_list.begin() : it;
-    Node* node = *it;
-    ready_list.erase(it);
-
-    result.push_back(node);
-
-    for (Node* user : node->users()) {
-      if (--operands_remaining[user] == 0) {
-        ready_list.push_back(user);
-      }
-    }
-  }
-  XLS_CHECK_EQ(result.size(), proc->node_count());
-  return result;
-}
-
 }  // namespace
 
-bool ProcInterpreter::TickResult::operator==(
-    const ProcInterpreter::TickResult& other) const {
+bool TickResult::operator==(const TickResult& other) const {
   return tick_complete == other.tick_complete &&
          progress_made == other.progress_made &&
          blocked_channel == other.blocked_channel &&
          sent_channels == other.sent_channels;
 }
 
-bool ProcInterpreter::TickResult::operator!=(
-    const ProcInterpreter::TickResult& other) const {
+bool TickResult::operator!=(const TickResult& other) const {
   return !(*this == other);
+}
+
+std::string TickResult::ToString() const {
+  return absl::StrFormat(
+      "{ tick_complete=%s, progress_made=%s, "
+      "blocked_channel=%s, sent_channels={%s} }",
+      tick_complete ? "true" : "false", progress_made ? "true" : "false",
+      blocked_channel.has_value() ? blocked_channel.value()->ToString()
+                                  : "(none)",
+      absl::StrJoin(sent_channels, ", ", ChannelFormatter));
+}
+
+std::ostream& operator<<(std::ostream& os, const TickResult& result) {
+  os << result.ToString();
+  return os;
 }
 
 ProcInterpreter::ProcInterpreter(Proc* proc, ChannelQueueManager* queue_manager)
     : proc_(proc),
       queue_manager_(queue_manager),
-      execution_order_(NodeExecutionOrder(proc)) {}
+      execution_order_(TopoSort(proc).AsVector()) {}
 
 std::unique_ptr<ProcContinuation> ProcInterpreter::NewContinuation() const {
   return std::make_unique<ProcInterpreterContinuation>(proc());
 }
 
-absl::StatusOr<ProcInterpreter::TickResult> ProcInterpreter::Tick(
+absl::StatusOr<TickResult> ProcInterpreter::Tick(
     ProcContinuation& continuation) const {
   ProcInterpreterContinuation* cont =
       dynamic_cast<ProcInterpreterContinuation*>(&continuation);
@@ -248,22 +218,6 @@ absl::StatusOr<ProcInterpreter::TickResult> ProcInterpreter::Tick(
                     .progress_made = true,
                     .blocked_channel = std::nullopt,
                     .sent_channels = sent_channels};
-}
-
-std::string ProcInterpreter::TickResult::ToString() const {
-  return absl::StrFormat(
-      "{ tick_complete=%s, progress_made=%s, "
-      "blocked_channel=%s, sent_channels={%s} }",
-      tick_complete ? "true" : "false", progress_made ? "true" : "false",
-      blocked_channel.has_value() ? blocked_channel.value()->ToString()
-                                  : "(none)",
-      absl::StrJoin(sent_channels, ", ", ChannelFormatter));
-}
-
-std::ostream& operator<<(std::ostream& os,
-                         const ProcInterpreter::TickResult& result) {
-  os << result.ToString();
-  return os;
 }
 
 }  // namespace xls

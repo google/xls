@@ -35,50 +35,48 @@
 class XlsccTestBase : public xls::IrTestBase {
  public:
   void Run(const absl::flat_hash_map<std::string, uint64_t>& args,
-           uint64_t expected, absl::string_view cpp_source,
+           uint64_t expected, std::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
-           std::vector<absl::string_view> clang_argv = {});
+           std::vector<std::string_view> clang_argv = {});
 
   void Run(const absl::flat_hash_map<std::string, xls::Value>& args,
-           xls::Value expected, absl::string_view cpp_source,
+           xls::Value expected, std::string_view cpp_source,
            xabsl::SourceLocation loc = xabsl::SourceLocation::current(),
-           std::vector<absl::string_view> clang_argv = {});
+           std::vector<std::string_view> clang_argv = {});
 
   void RunWithStatics(
       const absl::flat_hash_map<std::string, xls::Value>& args,
       const absl::Span<xls::Value>& expected_outputs,
-      absl::string_view cpp_source,
+      std::string_view cpp_source,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   absl::Status ScanFile(xls::TempFile& temp,
-                        std::vector<absl::string_view> clang_argv = {},
+                        std::vector<std::string_view> clang_argv = {},
                         bool io_test_mode = false,
                         bool error_on_init_interval = false);
 
-  absl::Status ScanFile(absl::string_view cpp_src,
-                        std::vector<absl::string_view> clang_argv = {},
+  absl::Status ScanFile(std::string_view cpp_src,
+                        std::vector<std::string_view> clang_argv = {},
                         bool io_test_mode = false,
                         bool error_on_init_interval = false);
 
   // Overload which takes a translator as a parameter rather than constructing
   // and using the translator_ data member.
   static absl::Status ScanTempFileWithContent(
-      xls::TempFile& temp, std::vector<absl::string_view> argv,
+      xls::TempFile& temp, std::vector<std::string_view> argv,
       xlscc::CCParser* translator, const char* top_name = "my_package");
 
   static absl::Status ScanTempFileWithContent(
-      absl::string_view cpp_src, std::vector<absl::string_view> argv,
+      std::string_view cpp_src, std::vector<std::string_view> argv,
       xlscc::CCParser* translator, const char* top_name = "my_package");
 
   absl::StatusOr<std::string> SourceToIr(
       xls::TempFile& temp, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<absl::string_view> clang_argv = {},
-      bool io_test_mode = false);
+      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false);
 
   absl::StatusOr<std::string> SourceToIr(
-      absl::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,
-      std::vector<absl::string_view> clang_argv = {},
-      bool io_test_mode = false);
+      std::string_view cpp_src, xlscc::GeneratedFunction** pfunc = nullptr,
+      std::vector<std::string_view> clang_argv = {}, bool io_test_mode = false);
 
   struct IOOpTest {
     IOOpTest(std::string name, int value, bool condition)
@@ -92,10 +90,6 @@ class XlsccTestBase : public xls::IrTestBase {
     xls::Value value;
     bool condition;
   };
-
-  void IOTest(std::string content, std::list<IOOpTest> inputs,
-              std::list<IOOpTest> outputs,
-              absl::flat_hash_map<std::string, xls::Value> args = {});
 
   void ProcTest(std::string content, const xlscc::HLSBlock& block_spec,
                 const absl::flat_hash_map<std::string, std::list<xls::Value>>&

@@ -130,6 +130,7 @@ def _convert_to_ir(ctx, src):
         "dslx_path",
         "emit_fail_as_assert",
         "top_proc_initial_state",
+        "warnings_as_errors",
     )
 
     ir_conv_args = dict(ctx.attr.ir_conv_args)
@@ -169,7 +170,7 @@ def _convert_to_ir(ctx, src):
             ir_file.path,
         ),
         mnemonic = "ConvertDSLX",
-        progress_message = "Converting DSLX file: %s" % (src.path),
+        progress_message = "Converting DSLX file to XLS IR: %s" % (src.path),
     )
     return runfiles, ir_file
 

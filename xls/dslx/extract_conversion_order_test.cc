@@ -25,7 +25,7 @@ namespace xls::dslx {
 namespace {
 
 TEST(ExtractConversionOrderTest, SimpleLinearCallgraph) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn g() -> u32 { u32:42 }
 fn f() -> u32 { g() }
 fn main() -> u32 { f() }
@@ -43,7 +43,7 @@ fn main() -> u32 { f() }
 }
 
 TEST(ExtractConversionOrderTest, Parametric) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn f<N: u32>(x: bits[N]) -> u32 { N }
 fn main() -> u32 { f(u2:0) }
 )";
@@ -63,7 +63,7 @@ fn main() -> u32 { f(u2:0) }
 }
 
 TEST(ExtractConversionOrderTest, TransitiveParametric) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn g<M: u32>(x: bits[M]) -> u32 { M }
 fn f<N: u32>(x: bits[N]) -> u32 { g(x) }
 fn main() -> u32 { f(u2:0) }
@@ -88,7 +88,7 @@ fn main() -> u32 { f(u2:0) }
 }
 
 TEST(ExtractConversionOrderTest, BuiltinIsElided) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 { fail!("failure", u32:0) }
 )";
   auto import_data = CreateImportDataForTest();
@@ -103,7 +103,7 @@ fn main() -> u32 { fail!("failure", u32:0) }
 }
 
 TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionWithFunctions) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn g() -> u32 { u32:42 }
 fn f() -> u32 { g() }
 fn main() -> u32 { f() }
@@ -133,7 +133,7 @@ fn main() -> u32 { f() }
 }
 
 TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionWithConst) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn id(x: u32) -> u32 { x }
 
 const MY_VALUE = id(u32:42);
@@ -154,7 +154,7 @@ fn entry() -> u32 { MY_VALUE }
 }
 
 TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionSingleFunction) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 { u32:42 }
 )";
   auto import_data = CreateImportDataForTest();
@@ -172,7 +172,7 @@ fn main() -> u32 { u32:42 }
 
 TEST(ExtractConversionOrderTest,
      GetOrderForEntryFunctionWithFunctionReoccurence) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn h() -> u32 { u32:42 }
 fn g() -> u32 { h() }
 fn f() -> u32 { let x:u32 = g(); x + h() }
@@ -198,7 +198,7 @@ fn main() -> u32 { f() }
 }
 
 TEST(ExtractConversionOrderTest, GetOrderForEntryFunctionWithDiamondCallGraph) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn i() -> u32 { u32:42 }
 fn h() -> u32 { i() }
 fn g() -> u32 { i() }
@@ -229,7 +229,7 @@ fn main() -> u32 { f() }
 // TODO(vmirian) 2-2-2022 Consider creating a struct containing the program,
 // the golden result to verify for proc order tests.
 TEST(ExtractConversionOrderTest, BasicProcWithEntry) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   config() { () }
   next(tok: token) { () }
@@ -271,7 +271,7 @@ proc main {
 }
 
 TEST(ExtractConversionOrderTest, BasicProc) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   config() { () }
   next(tok: token) { () }
@@ -307,7 +307,7 @@ proc main {
 }
 
 TEST(ExtractConversionOrderTest, ProcNetworkWithEntry) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn f0() -> u32 {
   u32:42
 }
@@ -438,7 +438,7 @@ proc main {
 }
 
 TEST(ExtractConversionOrderTest, ProcNetwork) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn f0() -> u32 {
   u32:42
 }
@@ -549,7 +549,7 @@ proc main {
 }
 
 TEST(ExtractConversionOrderTest, ProcNetworkWithTwoTopLevelProcs) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc p2 {
   config() { () }
   next(tok: token) { () }

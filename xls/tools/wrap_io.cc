@@ -82,7 +82,7 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
 
   // Construct an FSM which matches the ready/valid interfaces of the input and
   // output controllers with the fixed latency of the device function.
-  // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
+  // TODO(meheff): Expose use_system_verilog as an option in the WrapIO API
   // rather than hard-coding it as false.
   VerilogFile* f = m->file();
   FsmBuilder fsm("fixed_latency_fsm", m, clk,
@@ -141,10 +141,10 @@ absl::Status InstantiateFixedLatencyDeviceFunction(
 
 }  // namespace
 
-absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
-                               absl::string_view instance_name,
+absl::StatusOr<Module*> WrapIO(std::string_view module_name,
+                               std::string_view instance_name,
                                const ModuleSignature& signature,
-                               IoStrategy* io_strategy, VerilogFile* f) {
+                               IOStrategy* io_strategy, VerilogFile* f) {
   XLS_ASSIGN_OR_RETURN(Module * input_controller_m,
                        InputControllerModule(signature, f));
   XLS_ASSIGN_OR_RETURN(Module * output_controller_m,
@@ -162,7 +162,7 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
   XLS_RETURN_IF_ERROR(
       io_strategy->AddTopLevelDependencies(clk, reset, io_wrapper));
 
-  IoStrategy::Input input_signals = {
+  IOStrategy::Input input_signals = {
       .rx_byte = io_wrapper->AddWire(
           "rx_byte", f->BitVectorType(8, SourceInfo()), SourceInfo()),
       .rx_byte_valid = io_wrapper->AddWire(
@@ -170,7 +170,7 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
       .rx_byte_done = io_wrapper->AddWire(
           "rx_byte_done", f->ScalarType(SourceInfo()), SourceInfo()),
   };
-  IoStrategy::Output output_signals = {
+  IOStrategy::Output output_signals = {
       .tx_byte = io_wrapper->AddWire(
           "tx_byte", f->BitVectorType(8, SourceInfo()), SourceInfo()),
       .tx_byte_valid = io_wrapper->AddWire(
@@ -178,7 +178,7 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
       .tx_byte_ready = io_wrapper->AddWire(
           "tx_byte_ready", f->ScalarType(SourceInfo()), SourceInfo()),
   };
-  XLS_RETURN_IF_ERROR(io_strategy->InstantiateIoBlocks(
+  XLS_RETURN_IF_ERROR(io_strategy->InstantiateIOBlocks(
       input_signals, output_signals, io_wrapper));
 
   LogicRef* flat_input = io_wrapper->AddWire(
@@ -275,10 +275,10 @@ absl::StatusOr<Module*> InputResetModule(VerilogFile* f) {
 
   LocalParamItemRef* reset_control_code =
       m->Add<LocalParam>(SourceInfo())
-          ->AddItem("ResetControlCode", Hex8Literal(IoControlCode::kReset, f),
+          ->AddItem("ResetControlCode", Hex8Literal(IOControlCode::kReset, f),
                     SourceInfo());
 
-  // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
+  // TODO(meheff): Expose use_system_verilog as an option in the WrapIO API
   // rather than hard-coding it as false.
   FsmBuilder fsm("reset_fsm", m, clk, /*use_system_verilog=*/false,
                  Reset{rst_n_in, /*asynchronous=*/false, /*active_low=*/true});
@@ -395,7 +395,7 @@ absl::StatusOr<Module*> InputShiftRegisterModule(int64_t bit_count,
 
 // Constructs a module which decodes an input byte based on whether the state
 // machine is in an escaped state (previoius input byte was
-// IoControlCode::kEscape). The module is purely combinational.
+// IOControlCode::kEscape). The module is purely combinational.
 static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
   Module* m = f->AddModule("escape_decoder", SourceInfo());
   LogicRef* byte_in =
@@ -407,28 +407,28 @@ static absl::StatusOr<Module*> EscapeDecoderModule(VerilogFile* f) {
 
   // Logic for the counter and shift register:
   //
-  //   if (is_escaped && byte_in == IoEscapeCode::kResetByte) {
-  //     byte_out = IoControlCode::kReset;
-  //   } else if (is_escaped && byte_in == IoEscapeCode::kEscapeByte) {
-  //     byte_out = IoControlCode::kEscape;
+  //   if (is_escaped && byte_in == IOEscapeCode::kResetByte) {
+  //     byte_out = IOControlCode::kReset;
+  //   } else if (is_escaped && byte_in == IOEscapeCode::kEscapeByte) {
+  //     byte_out = IOControlCode::kEscape;
   //   } else {
   //     byte_out = byte_in;
   //   }
   LocalParamItemRef* escaped_reset_byte =
       m->Add<LocalParam>(SourceInfo())
           ->AddItem("EscapedResetByte",
-                    Hex8Literal(IoEscapeCode::kResetByte, f), SourceInfo());
+                    Hex8Literal(IOEscapeCode::kResetByte, f), SourceInfo());
   LocalParamItemRef* escaped_escape_byte =
       m->Add<LocalParam>(SourceInfo())
           ->AddItem("EscapedEscapedByte",
-                    Hex8Literal(IoEscapeCode::kResetByte, f), SourceInfo());
+                    Hex8Literal(IOEscapeCode::kResetByte, f), SourceInfo());
   LocalParamItemRef* reset_control_code =
       m->Add<LocalParam>(SourceInfo())
-          ->AddItem("ResetControlCode", Hex8Literal(IoControlCode::kReset, f),
+          ->AddItem("ResetControlCode", Hex8Literal(IOControlCode::kReset, f),
                     SourceInfo());
   LocalParamItemRef* escape_control_code =
       m->Add<LocalParam>(SourceInfo())
-          ->AddItem("EscapeControlCode", Hex8Literal(IoControlCode::kEscape, f),
+          ->AddItem("EscapeControlCode", Hex8Literal(IOControlCode::kEscape, f),
                     SourceInfo());
   LogicRef* byte_out_reg = m->AddReg(
       "byte_out_reg", f->BitVectorType(8, SourceInfo()), SourceInfo());
@@ -535,7 +535,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
                           connections);
   }
 
-  // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
+  // TODO(meheff): Expose use_system_verilog as an option in the WrapIO API
   // rather than hard-coding it as false.
   FsmBuilder fsm("rx_fsm", m, clk, /*use_system_verilog=*/false,
                  Reset{rst_n_out, /*asynchronous=*/false, /*active_low=*/true});
@@ -570,7 +570,7 @@ absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
       // escaped state.
       .OnCondition(f->LogicalAnd(
           f->LogicalNot(is_escaped_reg->logic_ref, SourceInfo()),
-          f->Equals(byte_in, Hex8Literal(IoControlCode::kEscape, f),
+          f->Equals(byte_in, Hex8Literal(IOControlCode::kEscape, f),
                     SourceInfo()),
           SourceInfo()))
       .SetRegisterNext(is_escaped_reg, 1)
@@ -634,7 +634,7 @@ absl::StatusOr<Module*> OutputControllerModule(const ModuleSignature& signature,
   LogicRef* byte_out_valid =
       m->AddOutput("byte_out_valid", f->ScalarType(SourceInfo()), SourceInfo());
 
-  // TODO(meheff): Expose use_system_verilog as an option in the WrapIo API
+  // TODO(meheff): Expose use_system_verilog as an option in the WrapIO API
   // rather than hard-coding it as false.
   FsmBuilder fsm("output_controller", m, clk, /*use_system_verilog=*/false,
                  Reset{rst_n, /*asynchronous=*/false, /*active_low=*/true});

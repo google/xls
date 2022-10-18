@@ -89,7 +89,7 @@ absl::StatusOr<std::string> GetFileContents(
 //  * StatusCode::kPermissionDenied (file not writable)
 //  * StatusCode::kUnknown (a Write or Open error occurred)
 absl::Status SetFileContents(const std::filesystem::path& file_name,
-                             absl::string_view content);
+                             std::string_view content);
 
 // Writes the contents of data into the file file_name, appending to any
 // existing content.
@@ -111,7 +111,7 @@ absl::Status SetFileContents(const std::filesystem::path& file_name,
 //  * StatusCode::kUnknown (a Write error occurred)
 //  * StatusCode::kNotFound (an Open error occurred)
 absl::Status AppendStringToFile(const std::filesystem::path& file_name,
-                                absl::string_view content);
+                                std::string_view content);
 
 // Parses a single text formatted protobuf from the given string which is
 // assumed to have come from the given file.
@@ -126,7 +126,7 @@ absl::Status AppendStringToFile(const std::filesystem::path& file_name,
 // *proto will hold the result of parsing the given string of the file as
 // protobuf only if OK is returned.  Regardless of success, the
 // contents of that protobuf may be modified.
-absl::Status ParseTextProto(absl::string_view contents,
+absl::Status ParseTextProto(std::string_view contents,
                             const std::filesystem::path& file_name,
                             google::protobuf::Message* proto);
 
@@ -174,7 +174,7 @@ inline absl::StatusOr<T> ParseTextProtoFile(
 // *proto will hold the result of parsing the given string of the file as
 // protobuf only if OK is returned.  Regardless of success, the
 // contents of that protobuf may be modified.
-absl::Status ParseProtobin(absl::string_view contents,
+absl::Status ParseProtobin(std::string_view contents,
                            const std::filesystem::path& file_name,
                            google::protobuf::Message* proto);
 

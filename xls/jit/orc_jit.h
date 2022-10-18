@@ -18,12 +18,10 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/Core.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/ExecutorProcessControl.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/IRCompileLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/IRTransformLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h"
 #include "llvm/include/llvm/ExecutionEngine/Orc/ThreadSafeModule.h"
-#include "llvm/include/llvm/ExecutionEngine/SectionMemoryManager.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
 #include "llvm/include/llvm/Target/TargetMachine.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -38,32 +36,35 @@ class OrcJit {
   // Create an LLVM ORC JIT instance which compiles at the given optimization
   // level. If `emit_object_code` is true then `GetObjectCode` can be called
   // after compilation to get the object code.
-  static absl::StatusOr<std::unique_ptr<OrcJit>> Create(int64_t opt_level,
-                                                        bool emit_object_code);
+  static absl::StatusOr<std::unique_ptr<OrcJit>> Create(
+      int64_t opt_level = 3, bool emit_object_code = false);
 
   // Creates and returns a new LLVM module of the given name.
-  std::unique_ptr<llvm::Module> NewModule(absl::string_view name);
+  std::unique_ptr<llvm::Module> NewModule(std::string_view name);
 
   // Compiles the given LLVM module into the JIT's execution session.
   absl::Status CompileModule(std::unique_ptr<llvm::Module>&& module);
 
   // Returns the address of the given JIT'ed function.
   absl::StatusOr<llvm::JITTargetAddress> LoadSymbol(
-      absl::string_view function_name);
+      std::string_view function_name);
 
-  // Accessors to underlying LLVM guts.
-  const llvm::DataLayout& GetDataLayout() const { return data_layout_; }
-  LlvmTypeConverter& GetTypeConverter() { return *type_converter_; }
+  // Return the underlying LLVM context.
   llvm::LLVMContext* GetContext() { return context_.getContext(); }
 
   // Returns the object code which was created in the previous CompileModule
   // call (if `emit_object_code` is true).
   const std::vector<uint8_t>& GetObjectCode() { return object_code_; }
 
+  // Creates and returns a data layout object.
+  static absl::StatusOr<llvm::DataLayout> CreateDataLayout();
+
  private:
   OrcJit(int64_t opt_level, bool emit_object_code);
-
   absl::Status Init();
+
+  static absl::StatusOr<std::unique_ptr<llvm::TargetMachine>>
+  CreateTargetMachine();
 
   // Method which optimizes the given module. Used within the JIT to form an IR
   // transform layer.
@@ -86,8 +87,6 @@ class OrcJit {
   std::unique_ptr<llvm::orc::IRTransformLayer> transform_layer_;
   // If set, this contains the logic to emit object code.
   std::unique_ptr<llvm::orc::IRTransformLayer> object_code_layer_;
-
-  std::unique_ptr<LlvmTypeConverter> type_converter_;
 
   // When `CompileModule` is called and `emit_object_code` is true, this vector
   // will be allocated and filled with the object code of the compiled module.

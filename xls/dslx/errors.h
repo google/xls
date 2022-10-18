@@ -26,20 +26,20 @@ namespace xls::dslx {
 // Returned when an incorrect number of args is given to a function
 // invocation [in a design].
 absl::Status ArgCountMismatchErrorStatus(const Span& span,
-                                         absl::string_view message);
+                                         std::string_view message);
 
 // Returned when interpretation of a design fails.
-absl::Status FailureErrorStatus(const Span& span, absl::string_view message);
+absl::Status FailureErrorStatus(const Span& span, std::string_view message);
 
 // Returned when an invalid identifier (invalid at some position in the
 // compilation chain, DSLX, IR, or Verilog) is encountered.
 absl::Status InvalidIdentifierErrorStatus(const Span& span,
-                                          absl::string_view message);
+                                          std::string_view message);
 
 // To be raised when an error occurs during type inference.
 absl::Status TypeInferenceErrorStatus(const Span& span,
                                       const ConcreteType* type,
-                                      absl::string_view message);
+                                      std::string_view message);
 
 // Creates a TypeMissingError status value referencing the given node (which has
 // its type missing) and user (which found that its type was missing).
@@ -48,7 +48,7 @@ absl::Status TypeMissingErrorStatus(const AstNode* node, const AstNode* user);
 // To be raised when a type mismatch is encountered.
 absl::Status XlsTypeErrorStatus(const Span& span, const ConcreteType& lhs,
                                 const ConcreteType& rhs,
-                                absl::string_view message);
+                                std::string_view message);
 
 }  // namespace xls::dslx
 

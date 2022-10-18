@@ -33,7 +33,7 @@ std::string InstantiationKindToString(InstantiationKind kind) {
 }
 
 absl::StatusOr<InstantiationKind> StringToInstantiationKind(
-    absl::string_view str) {
+    std::string_view str) {
   if (str == "block") {
     return InstantiationKind::kBlock;
   } else if (str == "fifo") {
@@ -56,7 +56,7 @@ std::string BlockInstantiation::ToString() const {
 }
 
 absl::StatusOr<InstantiationPort> BlockInstantiation::GetInputPort(
-    absl::string_view name) {
+    std::string_view name) {
   for (InputPort* input_port : instantiated_block()->GetInputPorts()) {
     if (input_port->GetName() == name) {
       return InstantiationPort{std::string{name}, input_port->GetType()};
@@ -66,7 +66,7 @@ absl::StatusOr<InstantiationPort> BlockInstantiation::GetInputPort(
 }
 
 absl::StatusOr<InstantiationPort> BlockInstantiation::GetOutputPort(
-    absl::string_view name) {
+    std::string_view name) {
   for (OutputPort* output_port : instantiated_block()->GetOutputPorts()) {
     if (output_port->GetName() == name) {
       return InstantiationPort{std::string{name},

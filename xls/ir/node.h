@@ -161,7 +161,7 @@ class Node {
 
   // Sets the name of this node. After this method is called. HasAssignedName
   // will return true.
-  void SetName(absl::string_view name);
+  void SetName(std::string_view name);
 
   // Clears the name of this node. The node will have a generate name based on
   // the opcode and ID. After this method is called. HasAssignedName will return
@@ -254,7 +254,7 @@ class Node {
   // uniquifying prefix).
   friend class Block;
 
-  Node(Op op, Type* type, const SourceInfo& loc, absl::string_view name,
+  Node(Op op, Type* type, const SourceInfo& loc, std::string_view name,
        FunctionBase* function);
 
   std::string ToStringInternal(bool include_operand_types) const;

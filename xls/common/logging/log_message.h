@@ -57,11 +57,11 @@ class LogMessage {
   // our streaming inside a chainable method call instead of explicitly in the
   // macro expansion.  Streaming decays the type of the expression from
   // `LogMessage&` to `std::ostream&`.
-  LogMessage& WithCheckFailureMessage(absl::string_view msg);
+  LogMessage& WithCheckFailureMessage(std::string_view msg);
 
   // Overrides the location inferred from the callsite.  The string pointed to
   // by `file` must be valid until the end of the statement.
-  LogMessage& AtLocation(absl::string_view file, int line);
+  LogMessage& AtLocation(std::string_view file, int line);
   // `loc` doesn't default to `SourceLocation::current()` here since the
   // callsite is already the default location for `LOG` statements.
   LogMessage& AtLocation(xabsl::SourceLocation loc) {
@@ -272,7 +272,7 @@ extern template LogMessage& LogMessage::operator<<(const float& v);
 extern template LogMessage& LogMessage::operator<<(const double& v);
 extern template LogMessage& LogMessage::operator<<(const bool& v);
 extern template LogMessage& LogMessage::operator<<(const std::string& v);
-extern template LogMessage& LogMessage::operator<<(const absl::string_view& v);
+extern template LogMessage& LogMessage::operator<<(const std::string_view& v);
 
 // `LogMessageFatal` ensures the process will exit in failure after logging this
 // message.
@@ -280,7 +280,7 @@ class LogMessageFatal : public LogMessage {
  public:
   LogMessageFatal(const char* file, int line) ABSL_ATTRIBUTE_COLD;
   LogMessageFatal(const char* file, int line,
-                  absl::string_view failure_msg) ABSL_ATTRIBUTE_COLD;
+                  std::string_view failure_msg) ABSL_ATTRIBUTE_COLD;
   ABSL_ATTRIBUTE_NORETURN ~LogMessageFatal();
 };
 
@@ -288,7 +288,7 @@ class LogMessageQuietlyFatal : public LogMessage {
  public:
   LogMessageQuietlyFatal(const char* file, int line) ABSL_ATTRIBUTE_COLD;
   LogMessageQuietlyFatal(const char* file, int line,
-                         absl::string_view failure_msg) ABSL_ATTRIBUTE_COLD;
+                         std::string_view failure_msg) ABSL_ATTRIBUTE_COLD;
   ABSL_ATTRIBUTE_NORETURN ~LogMessageQuietlyFatal();
 };
 

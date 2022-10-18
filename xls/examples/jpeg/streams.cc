@@ -45,7 +45,7 @@ ByteStream::ByteStream(
     : pop_(std::move(pop)) {}
 
 absl::Status ByteStream::DropExpectedMulti(absl::Span<const uint8_t> want,
-                                           absl::string_view message) {
+                                           std::string_view message) {
   for (int i = 0; i < want.size(); ++i) {
     XLS_RETURN_IF_ERROR(DropExpected(want[i], message));
   }
@@ -86,7 +86,7 @@ absl::StatusOr<std::pair<uint8_t, uint8_t>> ByteStream::Pop2xU4() {
   return std::make_pair(b >> 4, b & 0xf);
 }
 
-absl::Status ByteStream::DropExpected(uint8_t want, absl::string_view message) {
+absl::Status ByteStream::DropExpected(uint8_t want, std::string_view message) {
   XLS_ASSIGN_OR_RETURN(uint8_t got, Peek());
   if (got == want) {
     XLS_RETURN_IF_ERROR(Drop());

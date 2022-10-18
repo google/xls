@@ -19,6 +19,7 @@
 #include "absl/strings/match.h"
 #include "absl/types/variant.h"
 #include "xls/common/status/status_macros.h"
+#include "xls/common/visitor.h"
 #include "xls/dslx/ast_utils.h"
 #include "xls/dslx/builtins_metadata.h"
 #include "xls/dslx/bytecode_emitter.h"
@@ -225,14 +226,14 @@ absl::StatusOr<std::unique_ptr<BitsType>> InstantiateParametricNumberType(
   }
   ParametricExpression::Evaluated e =
       bits_type->size().parametric().Evaluate(parametric_env);
-  if (!absl::holds_alternative<InterpValue>(e)) {
+  if (!std::holds_alternative<InterpValue>(e)) {
     return absl::InternalError(
         absl::StrCat("Parametric number size did not evaluate to a constant: ",
                      bits_type->size().ToString()));
   }
   return std::make_unique<BitsType>(
       bits_type->is_signed(),
-      absl::get<InterpValue>(e).GetBitValueInt64().value());
+      std::get<InterpValue>(e).GetBitValueInt64().value());
 }
 
 }  // namespace
@@ -402,52 +403,80 @@ absl::Status ConstexprEvaluator::HandleChannelDecl(const ChannelDecl* expr) {
 absl::Status ConstexprEvaluator::HandleColonRef(const ColonRef* expr) {
   XLS_ASSIGN_OR_RETURN(auto subject,
                        ResolveColonRefSubject(import_data_, type_info_, expr));
+  return absl::visit(
+      Visitor{
+          [&](EnumDef* enum_def) -> absl::Status {
+            // LHS is an EnumDef! Extract the value of the attr being
+            // referenced.
+            XLS_ASSIGN_OR_RETURN(Expr * member_value_expr,
+                                 enum_def->GetValue(expr->attr()));
 
-  if (absl::holds_alternative<EnumDef*>(subject)) {
-    // LHS is an EnumDef! Extract the value of the attr being referenced.
-    EnumDef* enum_def = absl::get<EnumDef*>(subject);
-    XLS_ASSIGN_OR_RETURN(Expr * member_value_expr,
-                         enum_def->GetValue(expr->attr()));
+            // Since enum defs can't [currently] be parameterized, this is safe.
+            XLS_ASSIGN_OR_RETURN(
+                TypeInfo * type_info,
+                import_data_->GetRootTypeInfoForNode(enum_def));
 
-    // Since enum defs can't [currently] be parameterized, this is safe.
-    XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                         import_data_->GetRootTypeInfoForNode(enum_def));
+            XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info, bindings_,
+                                         member_value_expr));
+            XLS_RET_CHECK(type_info->IsKnownConstExpr(member_value_expr));
+            type_info_->NoteConstExpr(
+                expr, type_info->GetConstExpr(member_value_expr).value());
+            return absl::OkStatus();
+          },
+          [&](BuiltinNameDef* builtin_name_def) -> absl::Status {
+            XLS_ASSIGN_OR_RETURN(
+                InterpValue value,
+                GetBuiltinNameDefColonAttr(builtin_name_def, expr->attr()));
+            type_info_->NoteConstExpr(expr, value);
+            return absl::OkStatus();
+          },
+          [&](ArrayTypeAnnotation* array_type_annotation) -> absl::Status {
+            XLS_ASSIGN_OR_RETURN(
+                TypeInfo * type_info,
+                import_data_->GetRootTypeInfoForNode(array_type_annotation));
+            XLS_RET_CHECK(
+                type_info->IsKnownConstExpr(array_type_annotation->dim()));
+            XLS_ASSIGN_OR_RETURN(
+                InterpValue dim,
+                type_info->GetConstExpr(array_type_annotation->dim()));
+            XLS_ASSIGN_OR_RETURN(uint64_t dim_u64, dim.GetBitValueUint64());
+            XLS_ASSIGN_OR_RETURN(InterpValue value,
+                                 GetArrayTypeColonAttr(array_type_annotation,
+                                                       dim_u64, expr->attr()));
+            type_info_->NoteConstExpr(expr, value);
+            return absl::OkStatus();
+          },
+          [&](Module* module) -> absl::Status {
+            // Ok! The subject is a module. The only case we care about here is
+            // if the attr is a constant.
+            std::optional<ModuleMember*> maybe_member =
+                module->FindMemberWithName(expr->attr());
+            if (!maybe_member.has_value()) {
+              return absl::InternalError(
+                  absl::StrFormat("\"%s\" is not a member of module \"%s\".",
+                                  expr->attr(), module->name()));
+            }
 
-    XLS_RETURN_IF_ERROR(
-        Evaluate(import_data_, type_info, bindings_, member_value_expr));
-    XLS_RET_CHECK(type_info->IsKnownConstExpr(member_value_expr));
-    type_info_->NoteConstExpr(
-        expr, type_info->GetConstExpr(member_value_expr).value());
-    return absl::OkStatus();
-  }
+            if (!std::holds_alternative<ConstantDef*>(*maybe_member.value())) {
+              XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
+                          << "\" is not constexpr evaluatable.";
+              return absl::OkStatus();
+            }
 
-  // Ok! The subject is a module. The only case we care about here is if the
-  // attr is a constant.
-  Module* module = absl::get<Module*>(subject);
-  std::optional<ModuleMember*> maybe_member =
-      module->FindMemberWithName(expr->attr());
-  if (!maybe_member.has_value()) {
-    return absl::InternalError(
-        absl::StrFormat("\"%s\" is not a member of module \"%s\".",
-                        expr->attr(), module->name()));
-  }
+            XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
+                                 import_data_->GetRootTypeInfo(module));
 
-  if (!absl::holds_alternative<ConstantDef*>(*maybe_member.value())) {
-    XLS_VLOG(3) << "ConstRef \"" << expr->ToString()
-                << "\" is not constexpr evaluatable.";
-    return absl::OkStatus();
-  }
-
-  XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       import_data_->GetRootTypeInfo(module));
-
-  ConstantDef* constant_def = absl::get<ConstantDef*>(*maybe_member.value());
-  XLS_RETURN_IF_ERROR(
-      Evaluate(import_data_, type_info, bindings_, constant_def->value()));
-  XLS_RET_CHECK(type_info->IsKnownConstExpr(constant_def->value()));
-  type_info_->NoteConstExpr(
-      expr, type_info->GetConstExpr(constant_def->value()).value());
-  return absl::OkStatus();
+            ConstantDef* constant_def =
+                std::get<ConstantDef*>(*maybe_member.value());
+            XLS_RETURN_IF_ERROR(Evaluate(import_data_, type_info, bindings_,
+                                         constant_def->value()));
+            XLS_RET_CHECK(type_info->IsKnownConstExpr(constant_def->value()));
+            type_info_->NoteConstExpr(
+                expr, type_info->GetConstExpr(constant_def->value()).value());
+            return absl::OkStatus();
+          },
+      },
+      subject);
 }
 
 absl::Status ConstexprEvaluator::HandleConstantArray(
@@ -503,10 +532,10 @@ absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
   XLS_VLOG(3) << "ConstexprEvaluator::HandleIndex : " << expr->ToString();
   EVAL_AS_CONSTEXPR_OR_RETURN(expr->lhs());
 
-  if (absl::holds_alternative<Expr*>(expr->rhs())) {
-    EVAL_AS_CONSTEXPR_OR_RETURN(absl::get<Expr*>(expr->rhs()));
-  } else if (absl::holds_alternative<Slice*>(expr->rhs())) {
-    Slice* slice = absl::get<Slice*>(expr->rhs());
+  if (std::holds_alternative<Expr*>(expr->rhs())) {
+    EVAL_AS_CONSTEXPR_OR_RETURN(std::get<Expr*>(expr->rhs()));
+  } else if (std::holds_alternative<Slice*>(expr->rhs())) {
+    Slice* slice = std::get<Slice*>(expr->rhs());
     if (slice->start() != nullptr) {
       EVAL_AS_CONSTEXPR_OR_RETURN(slice->start());
     }
@@ -514,7 +543,7 @@ absl::Status ConstexprEvaluator::HandleIndex(const Index* expr) {
       EVAL_AS_CONSTEXPR_OR_RETURN(slice->limit());
     }
   } else {
-    WidthSlice* width_slice = absl::get<WidthSlice*>(expr->rhs());
+    WidthSlice* width_slice = std::get<WidthSlice*>(expr->rhs());
     EVAL_AS_CONSTEXPR_OR_RETURN(width_slice->start());
   }
 
@@ -579,7 +608,7 @@ absl::StatusOr<InterpValue> EvaluateNumber(const Number* expr,
       bits_type->is_signed() ? InterpValueTag::kSBits : InterpValueTag::kUBits;
   XLS_ASSIGN_OR_RETURN(
       int64_t bit_count,
-      absl::get<InterpValue>(bits_type->size().value()).GetBitValueInt64());
+      std::get<InterpValue>(bits_type->size().value()).GetBitValueInt64());
   XLS_ASSIGN_OR_RETURN(Bits bits, expr->GetBits(bit_count));
   return InterpValue::MakeBits(tag, std::move(bits));
 }

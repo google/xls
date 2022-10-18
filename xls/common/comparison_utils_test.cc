@@ -151,7 +151,7 @@ static bool operator!=(const UserDefinedType& lhs, const UserDefinedType& rhs) {
   return !(lhs == rhs);
 }
 
-std::string Compare(absl::string_view element_name,
+std::string Compare(std::string_view element_name,
                     const UserDefinedType& expected,
                     const UserDefinedType& computed) {
   std::string comparison;

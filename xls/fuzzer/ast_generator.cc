@@ -63,24 +63,58 @@ AstGenerator::Unzip(absl::Span<const TypedExpr> typed_exprs) {
   return false;
 }
 
+// Returns whether the element type of the given array type annotation is a
+// "bits" style type; i.e. uN, sN, or bits.
+static bool ElemIsBitVectorType(ArrayTypeAnnotation* ata) {
+  if (auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(ata->element_type());
+      elem != nullptr && (elem->builtin_type() == BuiltinType::kUN ||
+                          elem->builtin_type() == BuiltinType::kSN ||
+                          elem->builtin_type() == BuiltinType::kBits)) {
+    return true;
+  }
+  return false;
+}
+
+/* static */ absl::StatusOr<bool> AstGenerator::BitsTypeIsSigned(
+    TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    return builtin_type->GetSignedness();
+  }
+  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type);
+      array != nullptr && ElemIsBitVectorType(array)) {
+    auto* elem = dynamic_cast<BuiltinTypeAnnotation*>(array->element_type());
+    // This is guaranteed by ElemIsBitVectorType() call above.
+    XLS_CHECK(elem != nullptr);
+    return elem->GetSignedness();
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Type annotation %s is not a builtin bits type", type->ToString()));
+}
+
+absl::StatusOr<int64_t> AstGenerator::BitsTypeGetBitCount(
+    TypeAnnotation* type) {
+  if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+    return builtin_type->GetBitCount();
+  }
+  // Implementation note: this method is not static because we want to reuse the
+  // GetArraySize() helper, which looks into the constants_ mapping. We could
+  // make both of these methods static by leaning harder on AST inspection, but
+  // this gives us a shortcut and we expect to typically have an AstGenerator
+  // instance in hand for fuzz generation and testing.
+  if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(type);
+      array != nullptr && ElemIsBitVectorType(array)) {
+    return GetArraySize(array);
+  }
+  return absl::InvalidArgumentError(absl::StrFormat(
+      "Type annotation %s is not a builtin bits type", type->ToString()));
+}
+
 /* static */ bool AstGenerator::IsBits(TypeAnnotation* t) {
   if (auto* builtin = dynamic_cast<BuiltinTypeAnnotation*>(t)) {
     return builtin->GetBitCount() != 0;
   }
   if (auto* array = dynamic_cast<ArrayTypeAnnotation*>(t)) {
-    if (auto* builtin =
-            dynamic_cast<BuiltinTypeAnnotation*>(array->element_type())) {
-      switch (builtin->builtin_type()) {
-        case BuiltinType::kBits:
-          return true;
-        case BuiltinType::kUN:
-          return true;
-        case BuiltinType::kSN:
-          return true;
-        default:
-          return false;
-      }
-    }
+    return ElemIsBitVectorType(array);
   }
   if (auto* def = dynamic_cast<TypeDef*>(t)) {
     return IsBits(def->type_annotation());
@@ -187,18 +221,23 @@ std::vector<ParametricBinding*> AstGenerator::GenerateParametricBindings(
 }
 
 BuiltinTypeAnnotation* AstGenerator::MakeTokenType() {
-  return module_->Make<BuiltinTypeAnnotation>(fake_span_, BuiltinType::kToken);
+  return module_->Make<BuiltinTypeAnnotation>(
+      fake_span_, BuiltinType::kToken,
+      module_->GetOrCreateBuiltinNameDef("token"));
 }
 
 TypeAnnotation* AstGenerator::MakeTypeAnnotation(bool is_signed,
                                                  int64_t width) {
   XLS_CHECK_GT(width, 0);
   if (width <= 64) {
+    BuiltinType type = GetBuiltinType(is_signed, width).value();
     return module_->Make<BuiltinTypeAnnotation>(
-        fake_span_, GetBuiltinType(is_signed, width).value());
+        fake_span_, type,
+        module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
   }
   auto* element_type = module_->Make<BuiltinTypeAnnotation>(
-      fake_span_, is_signed ? BuiltinType::kSN : BuiltinType::kUN);
+      fake_span_, is_signed ? BuiltinType::kSN : BuiltinType::kUN,
+      module_->GetOrCreateBuiltinNameDef(is_signed ? "sN" : "uN"));
   Number* dim = MakeNumber(width);
   return module_->Make<ArrayTypeAnnotation>(fake_span_, element_type, dim);
 }
@@ -262,6 +301,8 @@ ChannelOpInfo GetChannelOpInfo(ChannelOpType chan_op) {
           .requires_payload = true,
           .requires_predicate = true};
   }
+
+  XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op);
 }
 
 }  // namespace
@@ -343,6 +384,8 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateChannelOp(Env* env) {
                                 predicate.value().expr, payload.value().expr),
           token.type};
   }
+
+  XLS_LOG(FATAL) << "Invalid ChannelOpType: " << static_cast<int>(chan_op_type);
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateJoinOp(Env* env) {
@@ -375,6 +418,23 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
   BinopKind op = RandomBool() ? BinopKind::kEq : BinopKind::kNe;
   return TypedExpr{module_->Make<Binop>(fake_span_, op, lhs.expr, rhs.expr),
                    MakeTypeAnnotation(false, 1)};
+}
+
+absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
+  // Divide by a power of two that fits in the type of the LHS.
+  // e.g. if we selected a u2 we can divide by 1
+  // e.g. if we selected a u3 we can divide by 1 2
+  // e.g. if we selected a u4 we can divide by 1 2 4 or 8
+  XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
+  XLS_ASSIGN_OR_RETURN(bool is_signed, BitsTypeIsSigned(lhs.type));
+  int64_t available_bits = bit_count - static_cast<int64_t>(is_signed);
+  int64_t exponent = available_bits == 0 ? 0 : RandRange(available_bits);
+  Bits divisor = Bits::PowerOfTwo(exponent, bit_count);
+  Number* divisor_node = MakeNumberFromBits(divisor, lhs.type);
+  return TypedExpr{
+      module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),
+      lhs.type};
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateShift(Env* env) {
@@ -452,8 +512,10 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBinop(Env* env) {
   TypedExpr lhs = pair.first;
   TypedExpr rhs = pair.second;
   absl::btree_set<BinopKind> bin_ops = GetBinopSameTypeKinds();
-  bin_ops.erase(BinopKind::kDiv);
   BinopKind op = RandomSetChoice(bin_ops);
+  if (op == BinopKind::kDiv) {
+    return GenerateSynthesizableDiv(env);
+  }
   if (GetBinopShifts().contains(op)) {
     return GenerateShift(env);
   }
@@ -518,7 +580,8 @@ int64_t AstGenerator::GetTypeBitCount(TypeAnnotation* type) {
   return type_bit_counts_.at(type_str);
 }
 
-int64_t AstGenerator::GetArraySize(const ArrayTypeAnnotation* type) {
+/* static */ int64_t AstGenerator::GetArraySize(
+    const ArrayTypeAnnotation* type) {
   Expr* dim = type->dim();
   if (auto* number = dynamic_cast<Number*>(dim)) {
     return number->GetAsUint64().value();
@@ -860,7 +923,9 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
   int64_t integral = RandRange(
       std::min(kConcreteBuiltinTypeLimit, options_.max_width_bits_types + 1));
   auto type = static_cast<BuiltinType>(integral);
-  return module_->Make<BuiltinTypeAnnotation>(fake_span_, type);
+  return module_->Make<BuiltinTypeAnnotation>(
+      fake_span_, type,
+      module_->GetOrCreateBuiltinNameDef(BuiltinTypeToString(type)));
 }
 
 TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
@@ -1229,7 +1294,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateBitSlice(Env* env) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateBitwiseReduction(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr arg, ChooseEnvValueUBits(env));
-  absl::string_view op = RandomChoice<absl::string_view>(
+  std::string_view op = RandomChoice<std::string_view>(
       {"and_reduce", "or_reduce", "xor_reduce"});
   NameRef* callee = MakeBuiltinNameRef(std::string(op));
   TypeAnnotation* type = MakeTypeAnnotation(false, 1);

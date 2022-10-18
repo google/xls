@@ -25,8 +25,8 @@
 namespace xls::dslx {
 
 absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
-    absl::string_view text, absl::string_view path,
-    absl::string_view module_name, ImportData* import_data) {
+    std::string_view text, std::string_view path,
+    std::string_view module_name, ImportData* import_data) {
   XLS_RET_CHECK(import_data != nullptr);
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
@@ -35,15 +35,15 @@ absl::StatusOr<TypecheckedModule> ParseAndTypecheck(
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModule(
-    absl::string_view text, absl::string_view path,
-    absl::string_view module_name) {
+    std::string_view text, std::string_view path,
+    std::string_view module_name) {
   Scanner scanner{std::string{path}, std::string{text}};
   Parser parser(std::string{module_name}, &scanner);
   return parser.ParseModule();
 }
 
 absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
-    absl::string_view file_path, absl::string_view module_name) {
+    std::string_view file_path, std::string_view module_name) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path path,
                        GetXlsRunfilePath(file_path));
   XLS_ASSIGN_OR_RETURN(std::string text_dslx, GetFileContents(path));
@@ -51,16 +51,17 @@ absl::StatusOr<std::unique_ptr<Module>> ParseModuleFromFileAtPath(
 }
 
 absl::StatusOr<TypecheckedModule> TypecheckModule(
-    std::unique_ptr<Module> module, absl::string_view path,
+    std::unique_ptr<Module> module, std::string_view path,
     ImportData* import_data) {
   XLS_RET_CHECK(module.get() != nullptr);
   XLS_RET_CHECK(import_data != nullptr);
 
-  absl::string_view module_name = module->name();
+  std::string_view module_name = module->name();
 
+  WarningCollector warnings;
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
-                       CheckModule(module.get(), import_data));
-  TypecheckedModule result{module.get(), type_info};
+                       CheckModule(module.get(), import_data, &warnings));
+  TypecheckedModule result{module.get(), type_info, std::move(warnings)};
   XLS_ASSIGN_OR_RETURN(ImportTokens subject,
                        ImportTokens::FromString(module_name));
   XLS_RETURN_IF_ERROR(import_data

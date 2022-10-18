@@ -117,7 +117,7 @@ template <typename IrT, typename OptionsT = PassOptions,
           typename ResultsT = PassResults>
 class PassBase {
  public:
-  PassBase(absl::string_view short_name, absl::string_view long_name)
+  PassBase(std::string_view short_name, std::string_view long_name)
       : short_name_(short_name), long_name_(long_name) {}
 
   virtual ~PassBase() = default;
@@ -176,7 +176,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   using Pass = PassBase<IrT, OptionsT, ResultsT>;
   using InvariantChecker = InvariantCheckerBase<IrT, OptionsT, ResultsT>;
 
-  CompoundPassBase(absl::string_view short_name, absl::string_view long_name)
+  CompoundPassBase(std::string_view short_name, std::string_view long_name)
       : Pass(short_name, long_name) {}
   ~CompoundPassBase() override = default;
 
@@ -230,7 +230,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   // checkers and name of the top-level pass to nested compound passes.
   virtual absl::StatusOr<bool> RunNested(
       IrT* ir, const OptionsT& options, ResultsT* results,
-      absl::string_view top_level_name,
+      std::string_view top_level_name,
       absl::Span<const InvariantChecker* const> invariant_checkers) const;
 
   bool IsCompound() const override { return true; }
@@ -240,7 +240,7 @@ class CompoundPassBase : public PassBase<IrT, OptionsT, ResultsT> {
   // various arguments passed in. File names will be lexographically ordered by
   // package name and ordinal.
   absl::Status DumpIr(const std::filesystem::path& ir_dump_path, IrT* ir,
-                      absl::string_view top_level_name, absl::string_view tag,
+                      std::string_view top_level_name, std::string_view tag,
                       int64_t ordinal, bool changed) const {
     std::filesystem::path path =
         ir_dump_path / absl::StrFormat("%s.%s.%05d.%s.%s.ir", ir->name(),
@@ -262,13 +262,13 @@ template <typename IrT, typename OptionsT = PassOptions,
 class FixedPointCompoundPassBase
     : public CompoundPassBase<IrT, OptionsT, ResultsT> {
  public:
-  FixedPointCompoundPassBase(absl::string_view short_name,
-                             absl::string_view long_name)
+  FixedPointCompoundPassBase(std::string_view short_name,
+                             std::string_view long_name)
       : CompoundPassBase<IrT, OptionsT, ResultsT>(short_name, long_name) {}
 
   absl::StatusOr<bool> RunNested(
       IrT* ir, const OptionsT& options, ResultsT* results,
-      absl::string_view top_level_name,
+      std::string_view top_level_name,
       absl::Span<const typename CompoundPassBase<
           IrT, OptionsT, ResultsT>::InvariantChecker* const>
           invariant_checkers) const override {
@@ -288,7 +288,7 @@ class FixedPointCompoundPassBase
 template <typename IrT, typename OptionsT, typename ResultsT>
 absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
     IrT* ir, const OptionsT& options, ResultsT* results,
-    absl::string_view top_level_name,
+    std::string_view top_level_name,
     absl::Span<const InvariantChecker* const> invariant_checkers) const {
   XLS_VLOG(1) << "Running " << this->short_name()
               << " compound pass on package " << ir->name();
@@ -302,7 +302,7 @@ absl::StatusOr<bool> CompoundPassBase<IrT, OptionsT, ResultsT>::RunNested(
   checkers.insert(checkers.end(), invariant_checker_ptrs_.begin(),
                   invariant_checker_ptrs_.end());
   auto run_invariant_checkers =
-      [&](absl::string_view str_context) -> absl::Status {
+      [&](std::string_view str_context) -> absl::Status {
     for (const auto& checker : checkers) {
       absl::Status status = checker->Run(ir, options, results);
       if (!status.ok()) {

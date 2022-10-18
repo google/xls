@@ -101,15 +101,15 @@ class Value {
   ValueKind kind() const { return kind_; }
   bool IsTuple() const { return kind_ == ValueKind::kTuple; }
   bool IsArray() const { return kind_ == ValueKind::kArray; }
-  bool IsBits() const { return absl::holds_alternative<Bits>(payload_); }
+  bool IsBits() const { return std::holds_alternative<Bits>(payload_); }
   bool IsToken() const { return kind_ == ValueKind::kToken; }
-  const Bits& bits() const { return absl::get<Bits>(payload_); }
+  const Bits& bits() const { return std::get<Bits>(payload_); }
   absl::StatusOr<Bits> GetBitsWithStatus() const;
 
   absl::StatusOr<std::vector<Value>> GetElements() const;
 
   absl::Span<const Value> elements() const {
-    return absl::get<std::vector<Value>>(payload_);
+    return std::get<std::vector<Value>>(payload_);
   }
   const Value& element(int64_t i) const { return elements().at(i); }
   int64_t size() const { return elements().size(); }
@@ -155,7 +155,7 @@ class Value {
       : kind_(kind), payload_(std::move(elements)) {}
 
   ValueKind kind_;
-  absl::variant<std::nullptr_t, std::vector<Value>, Bits> payload_;
+  std::variant<std::nullptr_t, std::vector<Value>, Bits> payload_;
 };
 
 inline std::ostream& operator<<(std::ostream& os, const Value& value) {

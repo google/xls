@@ -62,11 +62,11 @@ void RealMain() {
   verilog::VerilogFile f(verilog::FileType::kVerilog);
   f.AddInclude(include, SourceInfo());
 
-  absl::StatusOr<std::unique_ptr<verilog::IoStrategy>> io_strategy_status =
-      verilog::IoStrategyFactory::CreateForDevice(target_device, &f);
+  absl::StatusOr<std::unique_ptr<verilog::IOStrategy>> io_strategy_status =
+      verilog::IOStrategyFactory::CreateForDevice(target_device, &f);
   XLS_QCHECK_OK(io_strategy_status.status());
   auto io_strategy = std::move(io_strategy_status).value();
-  absl::StatusOr<verilog::Module*> module_status = verilog::WrapIo(
+  absl::StatusOr<verilog::Module*> module_status = verilog::WrapIO(
       wrapped_module_name, instance_name, signature, io_strategy.get(), &f);
   XLS_QCHECK_OK(module_status.status());
   std::cout << f.Emit() << std::endl;

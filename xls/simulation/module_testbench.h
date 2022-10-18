@@ -39,13 +39,13 @@ class ModuleTestbench {
   // Constructor for testing a VAST-defined module with the given clock and
   // reset signal.
   ModuleTestbench(Module* module, const VerilogSimulator* simulator,
-                  std::optional<absl::string_view> clk_name = absl::nullopt,
+                  std::optional<std::string_view> clk_name = absl::nullopt,
                   std::optional<ResetProto> reset = absl::nullopt,
                   absl::Span<const VerilogInclude> includes = {});
 
   // Constructor for testing a module defined in Verilog text with an interface
   // described with a ModuleSignature.
-  ModuleTestbench(absl::string_view verilog_text, FileType file_type,
+  ModuleTestbench(std::string_view verilog_text, FileType file_type,
                   const ModuleSignature& signature,
                   const VerilogSimulator* simulator,
                   absl::Span<const VerilogInclude> includes = {});
@@ -53,12 +53,12 @@ class ModuleTestbench {
   // Sets the given module input port to the given value in the current
   // cycle. The value is sticky and remains driven to this value across cycle
   // boundaries until it is Set again (if ever).
-  ModuleTestbench& Set(absl::string_view input_port, const Bits& value);
-  ModuleTestbench& Set(absl::string_view input_port, uint64_t value);
+  ModuleTestbench& Set(std::string_view input_port, const Bits& value);
+  ModuleTestbench& Set(std::string_view input_port, uint64_t value);
 
   // Sets the given module input to the unknown value in the current cycle. As
   // with Set() this is sticky.
-  ModuleTestbench& SetX(absl::string_view input_port);
+  ModuleTestbench& SetX(std::string_view input_port);
 
   // Advances the simulation the given number of cycles.
   ModuleTestbench& AdvanceNCycles(int64_t n_cycles);
@@ -66,21 +66,21 @@ class ModuleTestbench {
   // Wait for an given single-bit output port to be asserted (unasserted). If
   // the signal is already asserted (unasserted), this action takes no simulator
   // time.
-  ModuleTestbench& WaitFor(absl::string_view output_port);
-  ModuleTestbench& WaitForNot(absl::string_view output_port);
+  ModuleTestbench& WaitFor(std::string_view output_port);
+  ModuleTestbench& WaitForNot(std::string_view output_port);
 
   // Wait for the given outputs to have X or non-X values. The output is
   // considered to have an X value if *any* bit is X. The outputs may have
   // arbitrary width.
-  ModuleTestbench& WaitForX(absl::string_view output_port);
-  ModuleTestbench& WaitForNotX(absl::string_view output_port);
+  ModuleTestbench& WaitForX(std::string_view output_port);
+  ModuleTestbench& WaitForNotX(std::string_view output_port);
 
   // Advances the simulation a single cycle. Equivalent to AdvanceNCycles(1).
   ModuleTestbench& NextCycle();
 
   // Captures the value of the output port at the current cycle. The given
   // pointer value is written with the output port value when Run is called.
-  ModuleTestbench& Capture(absl::string_view output_port, Bits* value);
+  ModuleTestbench& Capture(std::string_view output_port, Bits* value);
 
   // Expects the given output port is the given value (or X) in the current
   // cycle. An error is returned during Run if this expectation is not met.
@@ -88,15 +88,15 @@ class ModuleTestbench {
   // "loc" indicates the source position in the test where the expectation was
   // created, and is displayed on expectation failure.
   ModuleTestbench& ExpectEq(
-      absl::string_view output_port, const Bits& expected,
+      std::string_view output_port, const Bits& expected,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
   ModuleTestbench& ExpectEq(
-      absl::string_view output_port, uint64_t expected,
+      std::string_view output_port, uint64_t expected,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
   // Similar to ExpectEq, but expects the given output port to be X. For this
   // purpose an output port is considered to have the value X if *any* bit is X.
   ModuleTestbench& ExpectX(
-      absl::string_view output_port,
+      std::string_view output_port,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Expect to find a particular string in the simulation output,
@@ -105,21 +105,21 @@ class ModuleTestbench {
   // TODO(amfv): 2021-09-02 Figure out how to associate dut traces with
   // significant events during the test (e.g. the activation of a trace
   // because an input changed).
-  ModuleTestbench& ExpectTrace(absl::string_view trace_message);
+  ModuleTestbench& ExpectTrace(std::string_view trace_message);
 
   // Runs the simulation.
   absl::Status Run();
 
  private:
   // Checks the stdout of a simulation run against expectations.
-  absl::Status CheckOutput(absl::string_view stdout_str) const;
+  absl::Status CheckOutput(std::string_view stdout_str) const;
 
   // Returns the width of the given port.
-  int64_t GetPortWidth(absl::string_view port);
+  int64_t GetPortWidth(std::string_view port);
 
   // CHECKs whether the given name is an input/output port.
-  void CheckIsInput(absl::string_view name);
-  void CheckIsOutput(absl::string_view name);
+  void CheckIsInput(std::string_view name);
+  void CheckIsOutput(std::string_view name);
 
   std::string verilog_text_;
   FileType file_type_;
@@ -160,7 +160,7 @@ class ModuleTestbench {
   // Waits for an output port to equal a certain value.
   struct WaitForOutput {
     std::string port;
-    absl::variant<Bits, IsX, IsNotX> value;
+    std::variant<Bits, IsX, IsNotX> value;
   };
 
   // Inserts a Verilog display statement which prints the value of the given
@@ -174,8 +174,8 @@ class ModuleTestbench {
   };
 
   // The list of actions to perform during simulation.
-  using Action = absl::variant<AdvanceCycle, SetInput, SetInputX, WaitForOutput,
-                               DisplayOutput>;
+  using Action = std::variant<AdvanceCycle, SetInput, SetInputX, WaitForOutput,
+                              DisplayOutput>;
   std::vector<Action> actions_;
 
   // A pair of instance number and port name used as a key for associating a
@@ -189,7 +189,7 @@ class ModuleTestbench {
   // A map containing the expected values passed in to each ExpectEq call. Use
   // std::map for stable iteration order.
   struct Expectation {
-    absl::variant<Bits, IsX> expected;
+    std::variant<Bits, IsX> expected;
     xabsl::SourceLocation loc;
   };
   std::map<InstancePort, Expectation> expectations_;

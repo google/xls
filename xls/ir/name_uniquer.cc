@@ -27,7 +27,7 @@ bool IsAllowed(char c) { return (absl::ascii_isalnum(c) != 0) || c == '_'; }
 // '_'. The result will match the regexp "[a-zA-Z_][a-zA-Z0-9_]*". Names which
 // collide with `reserved_names` will be prefixed with an underscore.
 std::string SanitizeName(
-    absl::string_view name,
+    std::string_view name,
     const absl::flat_hash_set<std::string>& reserved_names) {
   if (name.empty()) {
     return "";
@@ -54,7 +54,7 @@ std::string SanitizeName(
 
 }  // namespace
 
-std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
+std::string NameUniquer::GetSanitizedUniqueName(std::string_view prefix) {
   std::string root = SanitizeName(prefix, reserved_names_);
 
   // Strip away a numeric suffix. For example, grab "foo" from "foo__42". This
@@ -100,7 +100,7 @@ std::string NameUniquer::GetSanitizedUniqueName(absl::string_view prefix) {
   }
 }
 
-/* static */ bool NameUniquer::IsValidIdentifier(absl::string_view str) {
+/* static */ bool NameUniquer::IsValidIdentifier(std::string_view str) {
   if (str.empty()) {
     return false;
   }

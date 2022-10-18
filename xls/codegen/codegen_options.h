@@ -39,18 +39,7 @@ class CodegenOptions {
   enum class IOKind { kFlop = 0, kSkidBuffer, kZeroLatencyBuffer };
 
   // Convert IOKind enum to a string.
-  static absl::string_view IOKindToString(IOKind kind) {
-    switch (kind) {
-      case IOKind::kFlop:
-        return "kFlop";
-      case IOKind::kSkidBuffer:
-        return "kSkidBuffer";
-      case IOKind::kZeroLatencyBuffer:
-        return "kZeroLatencyBuffer";
-      default:
-        return "UnknownKind";
-    }
-  }
+  static std::string_view IOKindToString(IOKind kind);
 
   // Added latency for each IOKind.
   static int64_t IOKindLatency(IOKind kind) {
@@ -70,29 +59,29 @@ class CodegenOptions {
   // for. Required.
   // TODO(meheff): 2021/04/21 As this is required, perhaps this should be made a
   // constructor argument.
-  CodegenOptions& entry(absl::string_view name);
-  std::optional<absl::string_view> entry() const { return entry_; }
+  CodegenOptions& entry(std::string_view name);
+  std::optional<std::string_view> entry() const { return entry_; }
 
   // Name to use for the generated module. If not given, the name of the XLS
   // function/proc is used.
-  CodegenOptions& module_name(absl::string_view name);
+  CodegenOptions& module_name(std::string_view name);
   const std::optional<std::string_view> module_name() const {
     return module_name_;
   }
 
   // Reset signal to use for any registers with initial values. Required if the
   // proc contains any registers with initial values.
-  CodegenOptions& reset(absl::string_view name, bool asynchronous,
+  CodegenOptions& reset(std::string_view name, bool asynchronous,
                         bool active_low, bool reset_data_path);
   const std::optional<ResetProto>& reset() const { return reset_proto_; }
 
   // Specifies manual pipeline register load-enable control.
-  CodegenOptions& manual_control(absl::string_view input_name);
+  CodegenOptions& manual_control(std::string_view input_name);
   std::optional<ManualPipelineControl> manual_control() const;
 
   // Specifies pipeline register load-enable controlled by a valid signal.
-  CodegenOptions& valid_control(absl::string_view input_name,
-                                std::optional<absl::string_view> output_name);
+  CodegenOptions& valid_control(std::string_view input_name,
+                                std::optional<std::string_view> output_name);
   std::optional<ValidProto> valid_control() const;
 
   // Returns the proto describing the pipeline control scheme.
@@ -101,8 +90,8 @@ class CodegenOptions {
   }
 
   // Name of the clock signal. Required if the block has any registers.
-  CodegenOptions& clock_name(absl::string_view clock_name);
-  std::optional<absl::string_view> clock_name() const { return clock_name_; }
+  CodegenOptions& clock_name(std::string_view clock_name);
+  std::optional<std::string_view> clock_name() const { return clock_name_; }
 
   // Whether to use SystemVerilog in the generated code otherwise Verilog is
   // used. The default is to use SystemVerilog.
@@ -182,8 +171,8 @@ class CodegenOptions {
   // signals corresponding to data.
   //
   // Default is no suffix so that the signal name matches the channel name.
-  CodegenOptions& streaming_channel_data_suffix(absl::string_view value);
-  absl::string_view streaming_channel_data_suffix() const {
+  CodegenOptions& streaming_channel_data_suffix(std::string_view value);
+  std::string_view streaming_channel_data_suffix() const {
     return streaming_channel_data_suffix_;
   }
 
@@ -191,8 +180,8 @@ class CodegenOptions {
   // channel's name for the signals corresponding to valid.
   //
   // Default is "_vld"
-  CodegenOptions& streaming_channel_valid_suffix(absl::string_view value);
-  absl::string_view streaming_channel_valid_suffix() const {
+  CodegenOptions& streaming_channel_valid_suffix(std::string_view value);
+  std::string_view streaming_channel_valid_suffix() const {
     return streaming_channel_valid_suffix_;
   }
 
@@ -200,8 +189,8 @@ class CodegenOptions {
   // channel's name for the signals corresponding to ready.
   //
   // Default is "_rdy"
-  CodegenOptions& streaming_channel_ready_suffix(absl::string_view value);
-  absl::string_view streaming_channel_ready_suffix() const {
+  CodegenOptions& streaming_channel_ready_suffix(std::string_view value);
+  std::string_view streaming_channel_ready_suffix() const {
     return streaming_channel_ready_suffix_;
   }
 

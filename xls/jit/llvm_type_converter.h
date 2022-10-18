@@ -17,12 +17,9 @@
 
 #include <cstdint>
 
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/statusor.h"
-#include "absl/types/span.h"
-#include "llvm/include/llvm/IR/Constants.h"
 #include "llvm/include/llvm/IR/IRBuilder.h"
-#include "llvm/include/llvm/IR/Module.h"
-#include "xls/ir/function.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 
@@ -46,6 +43,11 @@ class LlvmTypeConverter {
   // type. A packed representation has all bits flattened into a bit vector
   // (LLVM integer type).
   llvm::Type* ConvertToPackedLlvmType(const Type* type) const;
+
+  // Returns the width of the LLVM packed type in bits.
+  int64_t PackedLlvmTypeWidth(const Type* type) const;
+
+  int64_t GetPackedTypeByteSize(const Type* type) const;
 
   // Converts the input XLS Value to an LLVM Constant of the specified type.
   absl::StatusOr<llvm::Constant*> ToLlvmConstant(llvm::Type* type,
@@ -131,9 +133,6 @@ class LlvmTypeConverter {
 
   llvm::LLVMContext& context_;
   llvm::DataLayout data_layout_;
-
-  // Cache of XLS -> LLVM type conversions.
-  mutable TypeCache type_cache_;
 };
 
 }  // namespace xls

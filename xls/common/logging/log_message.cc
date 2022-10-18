@@ -51,7 +51,7 @@ std::atomic_flag seen_fatal = ATOMIC_FLAG_INIT;
 
 // Copies into `dst` as many bytes of `src` as will fit, then truncates the
 // copied bytes from the front of `dst` and returns the number of bytes written.
-size_t AppendTruncated(absl::string_view src, absl::Span<char>* dst) {
+size_t AppendTruncated(std::string_view src, absl::Span<char>* dst) {
   if (src.size() > dst->size()) src = src.substr(0, dst->size());
   memcpy(dst->data(), src.data(), src.size());
   dst->remove_prefix(src.size());
@@ -73,8 +73,8 @@ class SpanStreambuf : public std::streambuf {
   SpanStreambuf(SpanStreambuf&&) = default;
   SpanStreambuf& operator=(SpanStreambuf&&) = default;
 
-  absl::string_view data() const {
-    return absl::string_view(pbase(), pptr() - pbase());
+  std::string_view data() const {
+    return std::string_view(pbase(), pptr() - pbase());
   }
 
  protected:
@@ -126,11 +126,11 @@ struct LogMessage::LogMessageData {
   // number, timestamp, etc. about the logged message.  It may be empty if the
   // prefix has been disabled, and in any case it will not be nul-terminated
   // since the message itself follows directly.
-  absl::string_view prefix;
+  std::string_view prefix;
   // `message` is the prefix of `string_buf` containing the log prefix (if any)
   // and the logged message.  It always ends in a newline and always points into
   // a buffer that contains a nul-terminator in the following byte.
-  absl::string_view message;
+  std::string_view message;
 
   // A `std::streambuf` that stores into `string_buf`.
   SpanStreambuf streambuf;
@@ -172,12 +172,12 @@ LogMessage::LogMessage(const char* file, int line, absl::LogSeverity severity)
 
 LogMessage::~LogMessage() { Flush(); }
 
-LogMessage& LogMessage::WithCheckFailureMessage(absl::string_view msg) {
+LogMessage& LogMessage::WithCheckFailureMessage(std::string_view msg) {
   stream() << "Check failed: " << msg << " ";
   return *this;
 }
 
-LogMessage& LogMessage::AtLocation(absl::string_view file, int line) {
+LogMessage& LogMessage::AtLocation(std::string_view file, int line) {
   data_->entry.set_source_filename(file);
   data_->entry.set_source_line(line);
   LogBacktraceIfNeeded();
@@ -336,8 +336,8 @@ namespace {
 // this very hot codepath.
 ABSL_CONST_INIT std::atomic<size_t> log_backtrace_at_hash{0};
 
-size_t HashSiteForLogBacktraceAt(absl::string_view file, int line) {
-  using HashTuple = std::tuple<absl::string_view, int>;
+size_t HashSiteForLogBacktraceAt(std::string_view file, int line) {
+  using HashTuple = std::tuple<std::string_view, int>;
   return absl::Hash<HashTuple>()(HashTuple(file, line));
 }
 }  // namespace
@@ -364,7 +364,7 @@ void LogMessage::PrepareToDieIfFatal() {
   // someone else can use them (as long as they flush afterwards)
   if (data_->first_fatal) {
     // Store shortened fatal message for other logs and GWQ status.
-    absl::string_view message = data_->streambuf.data();
+    std::string_view message = data_->streambuf.data();
     auto fatal_message_remaining = absl::MakeSpan(fatal_message);
     // We may need to write a newline and nul-terminator at the end of the
     // copied message (i.e. if it was truncated).  Rather than worry about
@@ -455,12 +455,12 @@ template LogMessage& LogMessage::operator<<(const float& v);
 template LogMessage& LogMessage::operator<<(const double& v);
 template LogMessage& LogMessage::operator<<(const bool& v);
 template LogMessage& LogMessage::operator<<(const std::string& v);
-template LogMessage& LogMessage::operator<<(const absl::string_view& v);
+template LogMessage& LogMessage::operator<<(const std::string_view& v);
 LogMessageFatal::LogMessageFatal(const char* file, int line)
     : LogMessage(file, line, absl::LogSeverity::kFatal) {}
 
 LogMessageFatal::LogMessageFatal(const char* file, int line,
-                                 absl::string_view failure_msg)
+                                 std::string_view failure_msg)
     : LogMessage(file, line, absl::LogSeverity::kFatal) {
   WithCheckFailureMessage(failure_msg);
 }
@@ -485,7 +485,7 @@ LogMessageQuietlyFatal::LogMessageQuietlyFatal(const char* file, int line)
 }
 
 LogMessageQuietlyFatal::LogMessageQuietlyFatal(const char* file, int line,
-                                               absl::string_view failure_msg)
+                                               std::string_view failure_msg)
     : LogMessage(file, line, absl::LogSeverity::kFatal) {
   SetFailQuietly();
   WithCheckFailureMessage(failure_msg);

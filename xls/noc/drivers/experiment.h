@@ -96,42 +96,42 @@ class ExperimentSweeps {
 class ExperimentMetrics {
  public:
   // Sets/overrides the integer metric.
-  void SetIntegerMetric(absl::string_view metric, int64_t value) {
+  void SetIntegerMetric(std::string_view metric, int64_t value) {
     integer_metrics_[metric] = value;
   }
 
   // Retrieve the value of said integer point metric.
-  absl::StatusOr<int64_t> GetIntegerMetric(absl::string_view metric) const {
+  absl::StatusOr<int64_t> GetIntegerMetric(std::string_view metric) const {
     XLS_RET_CHECK(integer_metrics_.contains(metric));
     return integer_metrics_.at(metric);
   }
 
   // Sets/overrides the floating point metric.
-  void SetFloatMetric(absl::string_view metric, double value) {
+  void SetFloatMetric(std::string_view metric, double value) {
     float_metrics_[metric] = value;
   }
 
   // Retrieve the value of said floating point metric.
-  absl::StatusOr<double> GetFloatMetric(absl::string_view metric) const {
+  absl::StatusOr<double> GetFloatMetric(std::string_view metric) const {
     XLS_RET_CHECK(float_metrics_.contains(metric));
     return float_metrics_.at(metric);
   }
 
   // Sets/overrides the integer metric.
   void SetIntegerIntegerMapMetric(
-      absl::string_view metric,
+      std::string_view metric,
       const absl::flat_hash_map<int64_t, int64_t>&& value) {
     integer_integer_map_metrics_[metric] = std::move(value);
   }
   void SetIntegerIntegerMapMetric(
-      absl::string_view metric,
+      std::string_view metric,
       const absl::flat_hash_map<int64_t, int64_t>& value) {
     integer_integer_map_metrics_[metric] = value;
   }
 
   // Retrieve the value of said integer point metric.
   absl::StatusOr<absl::flat_hash_map<int64_t, int64_t>>
-  GetIntegerIntegerMapMetric(absl::string_view metric) const {
+  GetIntegerIntegerMapMetric(std::string_view metric) const {
     XLS_RET_CHECK(integer_integer_map_metrics_.contains(metric));
     return integer_integer_map_metrics_.at(metric);
   }
@@ -172,18 +172,18 @@ using SinkVcPairPacketCount = absl::flat_hash_map<SinkVcPair, int64_t>;
 class ExperimentInfo {
  public:
   // Append a timed route info.
-  void AppendTimedRouteInfo(absl::string_view metric,
+  void AppendTimedRouteInfo(std::string_view metric,
                             TimedRouteInfo&& timed_route_info) {
     timed_route_info_[metric].emplace_back(std::move(timed_route_info));
   }
-  void AppendTimedRouteInfo(absl::string_view metric,
+  void AppendTimedRouteInfo(std::string_view metric,
                             const TimedRouteInfo& timed_route_info) {
     timed_route_info_[metric].emplace_back(timed_route_info);
   }
 
   // Retrieve timed route infos.
   absl::StatusOr<std::vector<TimedRouteInfo>> GetTimedRouteInfo(
-      absl::string_view info) const {
+      std::string_view info) const {
     if (!timed_route_info_.contains(info)) {
       return absl::NotFoundError(absl::StrFormat("%s not found.", info));
     }
@@ -232,7 +232,7 @@ class ExperimentRunner {
     return *this;
   }
 
-  ExperimentRunner& SetTrafficMode(absl::string_view mode_name) {
+  ExperimentRunner& SetTrafficMode(std::string_view mode_name) {
     mode_name_ = mode_name;
     return *this;
   }
@@ -248,7 +248,7 @@ class ExperimentRunner {
   int64_t GetCycleTimeInPs() const { return cycle_time_in_ps_; }
 
   int16_t GetSeed() const { return seed_; }
-  absl::string_view GetTrafficMode() const { return mode_name_; }
+  std::string_view GetTrafficMode() const { return mode_name_; }
 
  private:
   int64_t total_simulation_cycle_count_;

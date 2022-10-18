@@ -62,9 +62,9 @@ namespace {
 
 class YosysSynthesisServiceImpl : public SynthesisService::Service {
  public:
-  explicit YosysSynthesisServiceImpl(absl::string_view yosys_path,
-                                     absl::string_view nextpnr_path,
-                                     absl::string_view synthesis_target)
+  explicit YosysSynthesisServiceImpl(std::string_view yosys_path,
+                                     std::string_view nextpnr_path,
+                                     std::string_view synthesis_target)
       : yosys_path_(yosys_path),
         nextpnr_path_(nextpnr_path),
         synthesis_target_(synthesis_target) {}
@@ -98,7 +98,7 @@ class YosysSynthesisServiceImpl : public SynthesisService::Service {
     if (!stdout_stderr_status.ok()) {
       XLS_LOG(ERROR) << stdout_stderr_status.status();
       const int64_t kMaxMessageSize = 1024;
-      auto prune_error_message = [](absl::string_view message) -> std::string {
+      auto prune_error_message = [](std::string_view message) -> std::string {
         if (message.size() >= kMaxMessageSize) {
           return absl::StrFormat(
               "%s\n...\n%s", message.substr(0, kMaxMessageSize),

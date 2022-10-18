@@ -33,7 +33,7 @@ using ::testing::ElementsAre;
 // A test delay estimator that returns a fixed delay for every node.
 class TestDelayEstimator : public DelayEstimator {
  public:
-  explicit TestDelayEstimator(int64_t delay, absl::string_view name)
+  explicit TestDelayEstimator(int64_t delay, std::string_view name)
       : DelayEstimator(name), delay_(delay) {}
 
   absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const override {
@@ -102,6 +102,28 @@ TEST_F(DelayEstimatorTest, LogicalEffortForXors) {
         DelayEstimator::GetLogicalEffortDelayInPs(f->return_value(), 10),
         IsOkAndHolds(280));
   }
+}
+
+TEST_F(DelayEstimatorTest, DecoratingDelayEstimator) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  BValue x = fb.Param("x", p->GetBitsType(1));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f,
+                           fb.BuildWithReturnValue(fb.Xor({x, x})));
+  DelayEstimatorManager manager;
+  XLS_ASSERT_OK(manager.RegisterDelayEstimator(
+      std::make_unique<TestDelayEstimator>(1, "one"),
+      DelayEstimatorPrecedence::kLow));
+  XLS_ASSERT_OK_AND_ASSIGN(DelayEstimator * one,
+                           manager.GetDelayEstimator("one"));
+  DecoratingDelayEstimator decorating("decorating", *one,
+                                      [](Node* n, int64_t original) -> int64_t {
+                                        EXPECT_EQ(n->GetName(), "xor.2");
+                                        EXPECT_EQ(original, 1);
+                                        return 42;
+                                      });
+  EXPECT_THAT(decorating.GetOperationDelayInPs(f->return_value()),
+              IsOkAndHolds(42));
 }
 
 }  // namespace

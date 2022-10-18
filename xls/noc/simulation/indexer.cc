@@ -28,7 +28,7 @@ namespace {
 // that that points to a std::pair<T, int64_t>.
 template <typename T, typename IndexTPairCollection>
 absl::StatusOr<std::vector<T>> ConstructOrderedIndex(
-    absl::string_view id_name, const IndexTPairCollection& unordered_index) {
+    std::string_view id_name, const IndexTPairCollection& unordered_index) {
   int64_t count = unordered_index.size();
   if (count == 0) {
     return std::vector<T>();
@@ -281,7 +281,7 @@ absl::StatusOr<int64_t> VirtualChannelIndexMap::GetVirtualChannelIndex(
 }
 
 absl::StatusOr<int64_t> VirtualChannelIndexMap::GetVirtualChannelIndexByName(
-    PortId port_id, absl::string_view vc_name) const {
+    PortId port_id, std::string_view vc_name) const {
   if (!port_to_vcs_.contains(port_id)) {
     return absl::OutOfRangeError(
         absl::StrFormat("Port %d has not been indexed", port_id.AsUInt64()));

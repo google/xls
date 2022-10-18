@@ -33,7 +33,7 @@ class OpOverride {
   virtual std::unique_ptr<OpOverride> Clone() const = 0;
 
   virtual absl::StatusOr<NodeRepresentation> Emit(
-      Node* node, absl::string_view name,
+      Node* node, std::string_view name,
       absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) = 0;
 
   template <typename OpCCT>

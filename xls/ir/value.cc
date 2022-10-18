@@ -235,7 +235,7 @@ void Value::FlattenTo(BitPushBuffer* buffer) const {
 }
 
 absl::StatusOr<std::vector<Value>> Value::GetElements() const {
-  if (!absl::holds_alternative<std::vector<Value>>(payload_)) {
+  if (!std::holds_alternative<std::vector<Value>>(payload_)) {
     return absl::InvalidArgumentError("Value does not hold elements.");
   }
   return std::vector<Value>(elements().begin(), elements().end());

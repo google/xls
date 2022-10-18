@@ -32,13 +32,13 @@ namespace xls {
 namespace verilog {
 
 absl::Status VerilogTestBase::ValidateVerilog(
-    absl::string_view text, absl::Span<const VerilogInclude> includes) {
+    std::string_view text, absl::Span<const VerilogInclude> includes) {
   return GetDefaultVerilogSimulator().RunSyntaxChecking(text, GetFileType(),
                                                         includes);
 }
 
 void VerilogTestBase::ExpectVerilogEqual(
-    absl::string_view expected, absl::string_view actual,
+    std::string_view expected, std::string_view actual,
     absl::Span<const VerilogInclude> includes) {
   XLS_VLOG_LINES(1, absl::StrCat("Actual Verilog:\n", actual));
   XLS_VLOG_LINES(1, absl::StrCat("Expected Verilog:\n", expected));
@@ -47,14 +47,14 @@ void VerilogTestBase::ExpectVerilogEqual(
 }
 
 void VerilogTestBase::ExpectVerilogEqualToGoldenFile(
-    const std::filesystem::path& golden_file_path, absl::string_view text,
+    const std::filesystem::path& golden_file_path, std::string_view text,
     absl::Span<const VerilogInclude> includes, xabsl::SourceLocation loc) {
   ExpectEqualToGoldenFile(golden_file_path, text, loc);
   XLS_EXPECT_OK(ValidateVerilog(text, includes));
 }
 
 std::filesystem::path VerilogTestBase::GoldenFilePath(
-    absl::string_view test_file_name,
+    std::string_view test_file_name,
     const std::filesystem::path& testdata_dir) {
   // We suffix the golden reference files with "txt" on top of the extension
   // just to indicate they're compiler byproduct comparison points and not

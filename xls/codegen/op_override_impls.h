@@ -28,17 +28,17 @@ namespace xls::verilog {
 
 class OpOverrideAssignment : public OpOverride {
  public:
-  explicit OpOverrideAssignment(absl::string_view fmt_string)
+  explicit OpOverrideAssignment(std::string_view fmt_string)
       : assignment_format_string_(fmt_string), placeholder_aliases_({}) {}
   explicit OpOverrideAssignment(
-      absl::string_view fmt_string,
+      std::string_view fmt_string,
       absl::flat_hash_map<std::string, std::string> placeholder_aliases)
       : assignment_format_string_(fmt_string),
         placeholder_aliases_(std::move(placeholder_aliases)) {}
 
   std::unique_ptr<OpOverride> Clone() const override;
   absl::StatusOr<NodeRepresentation> Emit(
-      Node* node, absl::string_view name,
+      Node* node, std::string_view name,
       absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) override;
 
  private:
@@ -81,7 +81,7 @@ class OpOverrideAssignment : public OpOverride {
 //   assign the_result = {32{the_cond}} & the_data;
 class OpOverrideGateAssignment : public OpOverrideAssignment {
  public:
-  explicit OpOverrideGateAssignment(absl::string_view fmt_string);
+  explicit OpOverrideGateAssignment(std::string_view fmt_string);
 };
 
 // Uses format string to override assert statement codegen.
@@ -106,12 +106,12 @@ class OpOverrideGateAssignment : public OpOverrideAssignment {
 //    my_label: `MY_ASSERT(foo < 8'h42, "Oh noes!");
 class OpOverrideAssertion : public OpOverride {
  public:
-  explicit OpOverrideAssertion(absl::string_view fmt_string)
+  explicit OpOverrideAssertion(std::string_view fmt_string)
       : assertion_format_string_(fmt_string) {}
 
   std::unique_ptr<OpOverride> Clone() const override;
   absl::StatusOr<NodeRepresentation> Emit(
-      Node* node, absl::string_view name,
+      Node* node, std::string_view name,
       absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) override;
 
  private:
@@ -120,12 +120,12 @@ class OpOverrideAssertion : public OpOverride {
 
 class OpOverrideInstantiation : public OpOverride {
  public:
-  explicit OpOverrideInstantiation(absl::string_view fmt_string)
+  explicit OpOverrideInstantiation(std::string_view fmt_string)
       : instantiation_format_string_(fmt_string) {}
 
   std::unique_ptr<OpOverride> Clone() const override;
   absl::StatusOr<NodeRepresentation> Emit(
-      Node* node, absl::string_view name,
+      Node* node, std::string_view name,
       absl::Span<NodeRepresentation const> inputs, ModuleBuilder& mb) override;
 
  private:

@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "absl/container/flat_hash_map.h"
+#include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
@@ -38,6 +39,7 @@
 #include "xls/contrib/xlscc/hls_block.pb.h"
 #include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/ir/bits.h"
+#include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
@@ -66,8 +68,9 @@ class CType {
   virtual explicit operator std::string() const;
   virtual xls::Type* GetXLSType(xls::Package* package) const;
   virtual bool StoredAsXLSBits() const;
-  virtual absl::Status GetMetadata(Translator& translator,
-                                   xlscc_metadata::Type* output) const;
+  virtual absl::Status GetMetadata(
+      Translator& translator, xlscc_metadata::Type* output,
+      absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const;
   virtual absl::Status GetMetadataValue(Translator& translator,
                                         const ConstValue const_value,
                                         xlscc_metadata::Value* output) const;
@@ -91,8 +94,9 @@ class CVoidType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -108,8 +112,9 @@ class CBitsType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -129,8 +134,9 @@ class CIntType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -163,8 +169,9 @@ class CBoolType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -180,8 +187,9 @@ class CField {
   const clang::NamedDecl* name() const;
   int index() const;
   std::shared_ptr<CType> type() const;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::StructField* output) const;
+  absl::Status GetMetadata(
+      Translator& translator, xlscc_metadata::StructField* output,
+      absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const;
   absl::Status GetMetadataValue(Translator* t, const ConstValue const_value,
                                 xlscc_metadata::StructFieldValue* output) const;
 
@@ -199,14 +207,16 @@ class CStructType : public CType {
 
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
   bool operator==(const CType& o) const override;
 
-  // Returns true if the #pragma no_notuple directive was given for the struct
+  // Returns true if the #pragma hls_notuple or hls_synthetic_int directive was
+  // given for the struct
   bool no_tuple_flag() const;
   bool synthetic_int_flag() const;
   const std::vector<std::shared_ptr<CField>>& fields() const;
@@ -245,8 +255,9 @@ class CInstantiableTypeAlias : public CType {
   const clang::NamedDecl* base() const;
 
   bool operator==(const CType& o) const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -264,8 +275,9 @@ class CArrayType : public CType {
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -285,8 +297,9 @@ class CPointerType : public CType {
   bool operator==(const CType& o) const override;
   int GetBitWidth() const override;
   explicit operator std::string() const override;
-  absl::Status GetMetadata(Translator& translator,
-                           xlscc_metadata::Type* output) const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
   absl::Status GetMetadataValue(Translator& translator,
                                 const ConstValue const_value,
                                 xlscc_metadata::Value* output) const override;
@@ -296,6 +309,28 @@ class CPointerType : public CType {
  private:
   std::shared_ptr<CType> pointee_type_;
 };
+
+// __xls_channel in C/C++
+class CChannelType : public CType {
+ public:
+  CChannelType(std::shared_ptr<CType> item_type);
+  bool operator==(const CType& o) const override;
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+
+  std::shared_ptr<CType> GetItemType() const;
+
+ private:
+  std::shared_ptr<CType> item_type_;
+};
+
+struct IOChannel;
 
 // In general, the original clang::Expr used to assign the pointer is saved
 // as an lvalue. However, it's necessary to create synthetic selects for
@@ -310,6 +345,7 @@ class LValue {
     XLS_CHECK(static_cast<const clang::UnaryOperator*>(leaf_)->getOpcode() ==
               clang::UO_AddrOf);
   }
+  LValue(IOChannel* channel_leaf) : channel_leaf_(channel_leaf) {}
   LValue(xls::BValue cond, std::shared_ptr<LValue> lvalue_true,
          std::shared_ptr<LValue> lvalue_false)
       : cond_(cond), lvalue_true_(lvalue_true), lvalue_false_(lvalue_false) {
@@ -325,10 +361,18 @@ class LValue {
   std::shared_ptr<LValue> lvalue_true() const { return lvalue_true_; }
   std::shared_ptr<LValue> lvalue_false() const { return lvalue_false_; }
 
-  const clang::Expr* leaf() const { return leaf_; }
+  const clang::Expr* leaf() const {
+    XLS_CHECK_NE(leaf_, nullptr);
+    return leaf_;
+  }
+  IOChannel* channel_leaf() const {
+    XLS_CHECK_NE(channel_leaf_, nullptr);
+    return channel_leaf_;
+  }
 
  private:
   const clang::Expr* leaf_ = nullptr;
+  IOChannel* channel_leaf_ = nullptr;
 
   xls::BValue cond_;
   std::shared_ptr<LValue> lvalue_true_ = nullptr;
@@ -351,18 +395,20 @@ class CValue {
       : rvalue_(rvalue), lvalue_(lvalue), type_(std::move(type)) {
     XLS_CHECK(disable_type_check || !type_->StoredAsXLSBits() ||
               rvalue.BitCountOrDie() == type_->GetBitWidth());
-    XLS_CHECK(!(lvalue && !dynamic_cast<CPointerType*>(type_.get())));
+    XLS_CHECK(!(lvalue && !dynamic_cast<CPointerType*>(type_.get()) &&
+                !dynamic_cast<CChannelType*>(type_.get())));
     XLS_CHECK(!(lvalue && rvalue.valid()));
     // Only supporting lvalues of the form &... for pointers
     if (dynamic_cast<CPointerType*>(type_.get()) != nullptr) {
       // Always get rvalue from lvalue, otherwise changes to the original won't
       //  be reflected when the pointer is dereferenced.
       XLS_CHECK(!rvalue.valid());
-    } else if (dynamic_cast<CVoidType*>(type_.get()) == nullptr) {
-      XLS_CHECK(rvalue.valid());
+    } else if (dynamic_cast<CChannelType*>(type_.get()) != nullptr) {
+      XLS_CHECK(!rvalue.valid() && lvalue != nullptr);
+    } else if (dynamic_cast<CVoidType*>(type_.get()) != nullptr) {
+      XLS_CHECK(!rvalue.valid());
     } else {
-      // It's a void
-      XLS_CHECK(!rvalue.valid() && lvalue == nullptr);
+      XLS_CHECK(rvalue.valid());
     }
   }
 
@@ -466,6 +512,10 @@ struct IOOp {
 
   // Source location for messages
   xls::SourceInfo op_location;
+
+  // Must be sequenced after these ops via tokens
+  // Ops be in GeneratedFunction::io_ops respecting this order
+  std::vector<const IOOp*> after_ops;
 };
 
 enum class SideEffectingParameterType { kNull = 0, kIOOp, kStatic };
@@ -496,13 +546,11 @@ struct GeneratedFunction {
 
   // Used for translating IO ops from callee to caller. Needs to be here
   // to map ops to the same channel across multiple calls to the same callee.
-  absl::flat_hash_map<IOOp*, IOChannel*> caller_channels_by_callee_op;
+  absl::flat_hash_map<IOChannel*, IOChannel*> caller_channels_by_callee_channel;
 
   // Not all IO channels will be in these maps
-  absl::flat_hash_map<const clang::ParmVarDecl*, IOChannel*>
-      io_channels_by_param;
-  absl::flat_hash_map<IOChannel*, const clang::ParmVarDecl*>
-      params_by_io_channel;
+  absl::flat_hash_map<const clang::NamedDecl*, IOChannel*> io_channels_by_decl;
+  absl::flat_hash_map<IOChannel*, const clang::NamedDecl*> decls_by_io_channel;
 
   // All the IO Ops occurring within the function. Order matters here,
   //  as it is assumed that write() ops will depend only on values produced
@@ -635,9 +683,6 @@ struct TranslationContext {
   xls::BValue full_condition_on_enter_block;
   xls::BValue relative_condition;
 
-  // Remember channel parameter names for generating descriptive errors
-  absl::flat_hash_set<const clang::NamedDecl*> channel_params;
-
   // These flags control the behavior of break and continue statements
   bool in_for_body = false;
   bool in_switch_body = false;
@@ -708,14 +753,14 @@ class Translator {
   //
   // source_filename must be .cc
   // Retains references to the TU until ~Translator()
-  absl::Status ScanFile(absl::string_view source_filename,
-                        absl::Span<absl::string_view> command_line_args);
+  absl::Status ScanFile(std::string_view source_filename,
+                        absl::Span<std::string_view> command_line_args);
 
   // Call after ScanFile, as the top function may be specified by #pragma
   // If none was found, an error is returned
   absl::StatusOr<std::string> GetEntryFunctionName() const;
 
-  absl::Status SelectTop(absl::string_view top_function_name);
+  absl::Status SelectTop(std::string_view top_function_name);
 
   // Generates IR as an XLS function, that is, a pure function without
   //  IO / state / side effects.
@@ -741,19 +786,27 @@ class Translator {
   absl::StatusOr<xlscc_metadata::MetadataOutput> GenerateMetadata();
   absl::Status GenerateFunctionMetadata(
       const clang::FunctionDecl* func,
-      xlscc_metadata::FunctionPrototype* output);
+      xlscc_metadata::FunctionPrototype* output,
+      absl::flat_hash_set<const clang::NamedDecl*>& aliases_used);
   void AddSourceInfoToPackage(xls::Package& package);
 
   inline void SetIOTestMode() { io_test_mode_ = true; }
 
  private:
   friend class CInstantiableTypeAlias;
+  friend class CStructType;
 
   std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
   template <typename... Args>
   std::string ErrorMessage(const xls::SourceInfo& loc,
                            const absl::FormatSpec<Args...>& format,
-                           const Args&... args);
+                           const Args&... args) {
+    std::string result = absl::StrFormat(format, args...);
+    for (const xls::SourceLocation& location : loc.locations) {
+      absl::StrAppend(&result, "\n", PrintCaret(LookUpInPackage(), location));
+    }
+    return result;
+  }
 
   // This object is used to push a new translation context onto the stack
   //  and then to pop it via RAII. This guard provides options for which bits of
@@ -904,8 +957,8 @@ class Translator {
 
   // Initially contains keys for the parameters of the top function,
   // then subroutine parameters are added as they are translated.
-  absl::flat_hash_map<const clang::ParmVarDecl*, xls::Channel*>
-      external_channels_by_param_;
+  absl::flat_hash_map<const clang::NamedDecl*, xls::Channel*>
+      external_channels_by_decl_;
 
   // Used as a stack, but need to peek 2nd to top
   std::list<TranslationContext> context_stack_;
@@ -1014,12 +1067,19 @@ class Translator {
                                        bool mask = false);
   absl::Status CreateChannelParam(const clang::ParmVarDecl* channel_param,
                                   const xls::SourceInfo& loc);
+  // Examines variables in context to update GeneratedFunction io channels maps
+  absl::Status ExtractExternalIOChannelDecls();
   absl::StatusOr<std::shared_ptr<CType>> GetChannelType(
       const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc);
   absl::StatusOr<bool> ExprIsChannel(const clang::Expr* object,
                                      const xls::SourceInfo& loc);
   absl::StatusOr<bool> TypeIsChannel(clang::QualType param,
                                      const xls::SourceInfo& loc);
+  // Returns nullptr if the parameter isn't a channel
+  absl::StatusOr<IOChannel*> GetChannelForExprOrNull(const clang::Expr* object);
+  // Returns nullptr if the parameter isn't a channel
+  absl::StatusOr<const clang::ParmVarDecl*> GetChannelParamForExprOrNull(
+      const clang::Expr* object);
 
   absl::Status GenerateIR_Compound(const clang::Stmt* body,
                                    clang::ASTContext& ctx);
@@ -1125,7 +1185,7 @@ class Translator {
   absl::StatusOr<const clang::Stmt*> GetFunctionBody(
       const clang::FunctionDecl*& funcdecl);
   absl::StatusOr<GeneratedFunction*> GenerateIR_Function(
-      const clang::FunctionDecl* funcdecl, absl::string_view name_override = "",
+      const clang::FunctionDecl* funcdecl, std::string_view name_override = "",
       bool force_static = false);
 
   struct StrippedType {
@@ -1200,8 +1260,12 @@ class Translator {
   absl::Status GenerateMetadataCPPName(const clang::NamedDecl* decl_in,
                                        xlscc_metadata::CPPName* name_out);
 
-  absl::Status GenerateMetadataType(clang::QualType type_in,
-                                    xlscc_metadata::Type* type_out);
+  absl::Status GenerateMetadataType(
+      const clang::QualType& type_in, xlscc_metadata::Type* type_out,
+      absl::flat_hash_set<const clang::NamedDecl*>& aliases_used);
+
+  absl::StatusOr<xlscc_metadata::IntType> GenerateSyntheticInt(
+      std::shared_ptr<CType> ctype);
 
   // StructUpdate builds and returns a new BValue for a struct with the
   // value of one field changed. The other fields, if any, take their values

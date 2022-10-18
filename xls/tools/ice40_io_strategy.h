@@ -23,14 +23,14 @@
 namespace xls {
 namespace verilog {
 
-class Ice40IoStrategy : public IoStrategy {
+class Ice40IoStrategy : public IOStrategy {
  public:
   explicit Ice40IoStrategy(VerilogFile* f);
 
   absl::Status AddTopLevelDependencies(LogicRef* clk, Reset reset,
                                        Module* m) override;
 
-  absl::Status InstantiateIoBlocks(Input input, Output output,
+  absl::Status InstantiateIOBlocks(Input input, Output output,
                                    Module* m) override;
 
   absl::StatusOr<std::vector<VerilogInclude>> GetIncludes() override;

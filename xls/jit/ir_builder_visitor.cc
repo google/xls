@@ -23,7 +23,6 @@
 #include "llvm/include/llvm/IR/LLVMContext.h"
 #include "llvm/include/llvm/IR/Module.h"
 #include "xls/common/logging/logging.h"
-#include "xls/common/math_util.h"
 #include "xls/ir/bits_ops.h"
 #include "xls/ir/dfs_visitor.h"
 #include "xls/ir/events.h"
@@ -37,75 +36,154 @@
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
+
+bool ShouldMaterializeAtUse(Node* node) {
+  // Only materialize Bits typed literals at their use. Array and tuple typed
+  // literals are typically manipulated via pointer in the JITted code so these
+  // values would have to be put in an alloca'd buffer anyway so there is no
+  // advantage to doing this at their uses vs in HandleLiteral.
+  return node->Is<Literal>() && node->GetType()->IsBits();
+}
+
 namespace {
 
 // Abstraction representing a simple loop in LLVM.
-struct LlvmIrLoop {
-  // Index value ranging from 0 ... (N-1) * stride. Type is i64.
-  llvm::Value* index;
+class LlvmIrLoop {
+ public:
+  LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder, int64_t stride = 1,
+             llvm::BasicBlock* insert_before = nullptr);
+  ~LlvmIrLoop() { XLS_CHECK(finalized_); }
 
-  // IRBuilder for the loop body basic block. Insertion point is right before
-  // the back edge branch.
-  std::unique_ptr<llvm::IRBuilder<>> body_builder;
+  // Index value ranging from 0 ... (N-1) * stride. Type is i64.
+  llvm::Value* index() { return index_; }
+
+  // Builders for the loop body block and the exit block.
+  llvm::IRBuilder<>& body_builder() { return *body_builder_; }
+  llvm::IRBuilder<>& exit_builder() { return *exit_builder_; }
+
+  // Consume body/exit builders. The `body_builder`/`exit_builder`
+  // methods should not be called after this.
+  std::unique_ptr<llvm::IRBuilder<>> ConsumeBodyBuilder() {
+    return std::move(body_builder_);
+  }
+  std::unique_ptr<llvm::IRBuilder<>> ConsumeExitBuilder() {
+    return std::move(exit_builder_);
+  }
+
+  // Finish constructing the loop by adding the backedge.
+  // `final_body_block_builder` if specified is the builder for the final basic
+  // block in the loop body. If not specified, then `body_builder` will be
+  // used. This builder will be used to construct the back edge of the loop.
+  void Finalize(std::optional<llvm::IRBuilder<>*> final_body_block_builder =
+                    std::nullopt) {
+    XLS_CHECK(!finalized_);
+    llvm::IRBuilder<>* b = final_body_block_builder.has_value()
+                               ? final_body_block_builder.value()
+                               : body_builder_.get();
+    llvm::Value* next_index = b->CreateAdd(index_, b->getInt64(stride_));
+    next_index->setName("next_index");
+    b->CreateBr(preheader_block_);
+    index_->addIncoming(next_index, b->GetInsertBlock());
+    finalized_ = true;
+  }
+
+ private:
+  // The stride of the loop.
+  int64_t stride_;
+
+  // Preheader basic block. The preheader looks like:
+  //
+  //   preheader:
+  //     index = phi(0, next_index)
+  //     cond = eq(index, loop_count)
+  //     br(cond, exit, body)
+  llvm::BasicBlock* preheader_block_;
+
+  // IRBuilder for the loop body basic block.
+  std::unique_ptr<llvm::IRBuilder<>> body_builder_;
 
   // IRBuilder for the exit basic block of the loop.
-  std::unique_ptr<llvm::IRBuilder<>> exit_builder;
+  std::unique_ptr<llvm::IRBuilder<>> exit_builder_;
+
+  // The index value (induction variable) for the loop. It may be accessed
+  // anywhere in the preheader or body.
+  llvm::PHINode* index_;
+
+  bool finalized_ = false;
 };
 
 // Creates a simple loop in LLVM IR which interates `loop_count` times.
-LlvmIrLoop CreateLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
-                      int64_t stride = 1) {
+LlvmIrLoop::LlvmIrLoop(int64_t loop_count, llvm::IRBuilder<>& builder,
+                       int64_t stride, llvm::BasicBlock* insert_before)
+    : stride_(stride) {
   llvm::Function* function = builder.GetInsertBlock()->getParent();
   llvm::LLVMContext& context = builder.getContext();
   llvm::BasicBlock* entry_block = builder.GetInsertBlock();
 
-  LlvmIrLoop ir_loop;
-  llvm::BasicBlock* preheader_block =
-      llvm::BasicBlock::Create(context, "preheader", function);
-  auto preheader_builder = std::make_unique<llvm::IRBuilder<>>(preheader_block);
-  llvm::BasicBlock* loop_block =
-      llvm::BasicBlock::Create(context, "loop", function);
-  ir_loop.body_builder = std::make_unique<llvm::IRBuilder<>>(loop_block);
-  llvm::BasicBlock* exit_block =
-      llvm::BasicBlock::Create(context, "exit", function);
-  ir_loop.exit_builder = std::make_unique<llvm::IRBuilder<>>(exit_block);
+  preheader_block_ =
+      llvm::BasicBlock::Create(context, "preheader", function, insert_before);
+  auto preheader_builder =
+      std::make_unique<llvm::IRBuilder<>>(preheader_block_);
+  body_builder_ = std::make_unique<llvm::IRBuilder<>>(
+      llvm::BasicBlock::Create(context, "loop", function, insert_before));
+  exit_builder_ = std::make_unique<llvm::IRBuilder<>>(
+      llvm::BasicBlock::Create(context, "exit", function, insert_before));
 
-  builder.CreateBr(preheader_block);
+  builder.CreateBr(preheader_block_);
 
-  // preheader:
-  //   index = phi(0, next_index)
-  //   cond = eq(index, loop_count)
-  //   br(cond, exit, body)
-  llvm::Type* i64 = llvm::Type::getInt64Ty(context);
-  llvm::Value* init_index = llvm::ConstantInt::get(i64, 0);
-  llvm::Value* index_limit = llvm::ConstantInt::get(i64, loop_count * stride);
+  llvm::Value* init_index = preheader_builder->getInt64(0);
+  llvm::Value* index_limit = preheader_builder->getInt64(loop_count * stride);
 
-  llvm::PHINode* index_phi = preheader_builder->CreatePHI(i64, 2);
-  index_phi->setName("index");
-  ir_loop.index = index_phi;
-  llvm::Value* loop_done =
-      preheader_builder->CreateICmpEQ(index_phi, index_limit);
+  index_ = preheader_builder->CreatePHI(llvm::Type::getInt64Ty(context), 2);
+  index_->setName("index");
+  llvm::Value* loop_done = preheader_builder->CreateICmpEQ(index_, index_limit);
   loop_done->setName("loop_done");
-  preheader_builder->CreateCondBr(loop_done, exit_block, loop_block);
+  preheader_builder->CreateCondBr(loop_done, exit_builder_->GetInsertBlock(),
+                                  body_builder_->GetInsertBlock());
+  index_->addIncoming(init_index, entry_block);
+}
 
-  // body:
-  //   next_index = add(index, 1)
-  //   ===> body insertion point
-  //   br(preheader)
-  llvm::Value* next_index = ir_loop.body_builder->CreateAdd(
-      index_phi, llvm::ConstantInt::get(i64, stride));
-  next_index->setName("next_index");
-  llvm::Instruction* br = ir_loop.body_builder->CreateBr(preheader_block);
-  ir_loop.body_builder->SetInsertPoint(br);
+// Abstraction representing a if-then construct in LLVM.
+struct LlvmIfThen {
+  // Builder for the "then" block.
+  std::unique_ptr<llvm::IRBuilder<>> then_builder;
 
-  index_phi->addIncoming(init_index, entry_block);
-  index_phi->addIncoming(next_index, loop_block);
-  return ir_loop;
+  // Builder for the join block.
+  std::unique_ptr<llvm::IRBuilder<>> join_builder;
+
+  // Finalizes construction by creating a branch from the `then` block to the
+  // `join` block. `builder`, if specified, is used to construct the branch. If
+  // not specified, then the builder for the `then` block is used.
+  void Finalize(std::optional<llvm::IRBuilder<>*> builder = std::nullopt) {
+    if (builder.has_value()) {
+      (*builder)->CreateBr(join_builder->GetInsertBlock());
+    } else {
+      then_builder->CreateBr(join_builder->GetInsertBlock());
+    }
+  }
+};
+
+LlvmIfThen CreateIfThen(llvm::Value* condition, llvm::IRBuilder<>& builder,
+                        std::string_view prefix) {
+  llvm::Function* function = builder.GetInsertBlock()->getParent();
+  llvm::LLVMContext& context = builder.getContext();
+  llvm::BasicBlock* then_block = llvm::BasicBlock::Create(
+      context, absl::StrFormat("%s_then", prefix), function);
+  llvm::BasicBlock* join_block = llvm::BasicBlock::Create(
+      context, absl::StrFormat("%s_join", prefix), function);
+
+  builder.CreateCondBr(condition, then_block, join_block);
+
+  LlvmIfThen if_then;
+  if_then.then_builder = std::make_unique<llvm::IRBuilder<>>(then_block);
+
+  if_then.join_builder = std::make_unique<llvm::IRBuilder<>>(join_block);
+  return if_then;
 }
 
 // Returns a sequence of numbered strings. Example: NumberedStrings("foo", 3)
 // returns: {"foo_0", "foo_1", "foo_2"}
-std::vector<std::string> NumberedStrings(absl::string_view s, int64_t count) {
+std::vector<std::string> NumberedStrings(std::string_view s, int64_t count) {
   std::vector<std::string> result(count);
   for (int64_t i = 0; i < count; ++i) {
     result[i] = absl::StrFormat("%s_%d", s, i);
@@ -235,28 +313,6 @@ llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed,
   return builder->CreateSelect(rhs_eq_zero, zero,
                                is_signed ? builder->CreateSRem(lhs, rhs)
                                          : builder->CreateURem(lhs, rhs));
-}
-
-// ORs together all elements in the two given values, be they Bits, Arrays, or
-// Tuples.
-llvm::Value* CreateAggregateOr(llvm::Value* lhs, llvm::Value* rhs,
-                               llvm::IRBuilder<>* builder) {
-  llvm::Type* arg_type = lhs->getType();
-  if (arg_type->isIntegerTy()) {
-    return builder->CreateOr(lhs, rhs);
-  }
-
-  llvm::Value* result = LlvmTypeConverter::ZeroOfType(arg_type);
-  int num_elements = arg_type->isArrayTy() ? arg_type->getArrayNumElements()
-                                           : arg_type->getNumContainedTypes();
-  for (uint32_t i = 0; i < num_elements; ++i) {
-    llvm::Value* iter_result =
-        CreateAggregateOr(builder->CreateExtractValue(lhs, {i}),
-                          builder->CreateExtractValue(rhs, {i}), builder);
-    result = builder->CreateInsertValue(result, iter_result, {i});
-  }
-
-  return result;
 }
 
 // Local struct to hold the individual elements of a (possibly) compound
@@ -525,7 +581,7 @@ absl::Status InvokeAssertCallback(llvm::IRBuilder<>* builder,
 }
 
 absl::StatusOr<llvm::Function*> CreateLlvmFunction(
-    absl::string_view name, llvm::FunctionType* function_type,
+    std::string_view name, llvm::FunctionType* function_type,
     llvm::Module* module) {
   XLS_RET_CHECK_EQ(module->getFunction(name), nullptr) << absl::StreamFormat(
       "Function named `%s` already exists in LLVM module", name);
@@ -542,10 +598,10 @@ class NodeIrContext {
  public:
   // Possible node function signatures:
   //
-  // void f(operand_ptr_0, ..., operand_ptr_n,
-  //        output_ptr_0, ..., output_ptr_m)
+  // bool f(void* operand_ptr_0, ..., void* operand_ptr_n,
+  //        void* output_ptr_0,  ..., void* output_ptr_m)
   //
-  // void f(void* operand_ptr_0, ... , void* operand_ptr_n,
+  // bool f(void* operand_ptr_0, ... , void* operand_ptr_n,
   //        void* output_ptr_0,  ... , void* output_ptr_m,
   //        void* global_inputs, void* global_outputs, void* tmp_buffer,
   //        void* events, void* user_data, void* runtime)
@@ -561,6 +617,11 @@ class NodeIrContext {
   //     InterpreterEvents*, JitRuntime*, etc) in the node function. This is
   //     required when the node calls a top-level function (e.g, map, invoke,
   //     etc).
+  //
+  // The return value of the function indicates whether the execution of the
+  // FunctionBase should be interrupted (return true) or continue (return
+  // false). The return value is only used for continuation point nodes (ie,
+  // blocking receives).
   static absl::StatusOr<NodeIrContext> Create(
       Node* node, absl::Span<const std::string> operand_names,
       int64_t output_arg_count, bool include_wrapper_args,
@@ -569,15 +630,19 @@ class NodeIrContext {
   // Completes the LLVM function by adding a return statement with the given
   // result (or pointer to result). If `exit_builder` is specified then it is
   // used to build the return statement. Otherwise `entry_builder()` is used.
+  // If `return_value` is not specified then false is returned by the node
+  // function.
   void FinalizeWithValue(llvm::Value* result,
-                         std::optional<llvm::IRBuilder<>*> exit_builder);
+                         std::optional<llvm::IRBuilder<>*> exit_builder,
+                         std::optional<llvm::Value*> return_value);
   void FinalizeWithPointerToValue(
       llvm::Value* result_buffer,
-      std::optional<llvm::IRBuilder<>*> exit_builder);
+      std::optional<llvm::IRBuilder<>*> exit_builder,
+      std::optional<llvm::Value*> return_value);
 
   Node* node() const { return node_; }
   LlvmTypeConverter& type_converter() const {
-    return orc_jit_.GetTypeConverter();
+    return jit_context_.type_converter();
   }
 
   // Returns true if the underlying llvm::Function takes the top-level metadata
@@ -591,16 +656,15 @@ class NodeIrContext {
   llvm::IRBuilder<>& entry_builder() const { return *entry_builder_; }
 
   // Loads the given operand value from the pointer passed in as the respective
-  // operand.
-  llvm::Value* LoadOperand(int64_t i) const;
+  // operand. `builder` is the builder used to construct any IR required to get
+  // the operand ptr. If `builder` is not specified then the entry builder is
+  // used.
+  llvm::Value* LoadOperand(int64_t i, llvm::IRBuilder<>* builder = nullptr);
 
-  // Returns the operand pointer arguments.
-  absl::Span<llvm::Value* const> GetOperandPtrs() const {
-    return operand_ptrs_;
-  }
-
-  // Returns the `i-th` operand pointer argument.
-  llvm::Value* GetOperandPtr(int64_t i) const { return operand_ptrs_.at(i); }
+  // Returns the pointer to the `i-th` operand of `node_`. `builder` is the
+  // builder used to construct any IR required to get the operand ptr. If
+  // `builder` is not specified then the entry builder is used.
+  llvm::Value* GetOperandPtr(int64_t i, llvm::IRBuilder<>* builder = nullptr);
 
   // Returns the output pointer arguments.
   absl::Span<llvm::Value* const> GetOutputPtrs() const { return output_ptrs_; }
@@ -635,18 +699,38 @@ class NodeIrContext {
     return llvm_function_->getArg(llvm_function_->arg_size() - 1);
   }
 
+  // Returns the operands whose values should be passed into the node
+  // function. This may contain fewer elements than node()->operands() because
+  // operands are deduplicated.
+  absl::Span<Node* const> GetOperandArgs() const { return operand_args_; }
+
  private:
-  NodeIrContext(Node* node, bool has_metadata_args, OrcJit& orc_jit)
-      : node_(node), has_metadata_args_(has_metadata_args), orc_jit_(orc_jit) {}
+  NodeIrContext(Node* node, bool has_metadata_args,
+                JitBuilderContext& jit_context)
+      : node_(node),
+        has_metadata_args_(has_metadata_args),
+        jit_context_(jit_context) {}
 
   Node* node_;
   bool has_metadata_args_;
-  OrcJit& orc_jit_;
+  JitBuilderContext& jit_context_;
 
   llvm::Function* llvm_function_;
   std::unique_ptr<llvm::IRBuilder<>> entry_builder_;
-  std::vector<llvm::Value*> operand_ptrs_;
   std::vector<llvm::Value*> output_ptrs_;
+
+  // Map from operand to argument number in the LLVM function. Operands
+  // are deduplicated so some operands may map to the same argument.
+  absl::flat_hash_map<Node*, int64_t> operand_to_arg_;
+  // Vector of nodes which should be passed in as the operand values of
+  // `node_`. This is a deduplicated list of the operands of `node_`.
+  std::vector<Node*> operand_args_;
+
+  // Cache of calls to GetOperandPtr for values which are materialized at their
+  // use. Indexed by node, and the LLVM basic block that the GetOperandPtr code
+  // was generated in.
+  absl::flat_hash_map<std::pair<Node*, llvm::BasicBlock*>, llvm::Value*>
+      materialized_cache_;
 };
 
 absl::StatusOr<NodeIrContext> NodeIrContext::Create(
@@ -654,9 +738,24 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
     int64_t output_arg_count, bool include_wrapper_args,
     JitBuilderContext& jit_context) {
   XLS_RET_CHECK_GT(output_arg_count, 0);
-  NodeIrContext nc(node, include_wrapper_args, jit_context.orc_jit());
-  nc.node_ = node;
-  int64_t param_count = node->operand_count() + output_arg_count;
+  NodeIrContext nc(node, include_wrapper_args, jit_context);
+
+  // Deduplicate the operands. If an operand appears more than once in the IR
+  // node, map them to a single argument in the llvm Function for the mode.
+  absl::flat_hash_map<Node*, int64_t> operand_to_operand_index;
+  for (int64_t i = 0; i < node->operand_count(); ++i) {
+    Node* operand = node->operand(i);
+    operand_to_operand_index[operand] = i;
+    if (ShouldMaterializeAtUse(operand)) {
+      continue;
+    }
+    if (nc.operand_to_arg_.contains(operand)) {
+      continue;
+    }
+    nc.operand_to_arg_[operand] = nc.operand_args_.size();
+    nc.operand_args_.push_back(operand);
+  }
+  int64_t param_count = nc.operand_args_.size() + output_arg_count;
   if (include_wrapper_args) {
     param_count += 6;
   }
@@ -664,7 +763,7 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
       param_count,
       llvm::PointerType::get(jit_context.module()->getContext(), 0));
   llvm::FunctionType* function_type = llvm::FunctionType::get(
-      llvm::Type::getVoidTy(jit_context.module()->getContext()), param_types,
+      llvm::Type::getInt1Ty(jit_context.module()->getContext()), param_types,
       /*isVarArg=*/false);
   std::string function_name = absl::StrFormat(
       "__%s_%s_%d", node->function_base()->name(), node->GetName(), node->id());
@@ -675,10 +774,14 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
   // Mark as private so function can be deleted after inlining.
   nc.llvm_function_->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
+  // Set names of LLVM function arguments to improve readability of LLVM
+  // IR. Operands are deduplicated so some names passed in via `operand_names`
+  // may not appear as argument names.
   XLS_RET_CHECK_EQ(operand_names.size(), node->operand_count());
   int64_t arg_no = 0;
-  for (const std::string& name : operand_names) {
-    nc.llvm_function_->getArg(arg_no++)->setName(absl::StrCat(name, "_ptr"));
+  for (Node* operand : nc.operand_args_) {
+    nc.llvm_function_->getArg(arg_no++)->setName(absl::StrCat(
+        operand_names[operand_to_operand_index.at(operand)], "_ptr"));
   }
   for (int64_t i = 0; i < output_arg_count; ++i) {
     nc.llvm_function_->getArg(arg_no++)->setName(
@@ -698,52 +801,74 @@ absl::StatusOr<NodeIrContext> NodeIrContext::Create(
           jit_context.module()->getContext(), "entry", nc.llvm_function_,
           /*InsertBefore=*/nullptr));
 
-  for (int64_t i = 0; i < node->operand_count(); ++i) {
-    llvm::Value* operand_ptr = nc.llvm_function_->getArg(i);
-    nc.operand_ptrs_.push_back(operand_ptr);
-  }
   for (int64_t i = 0; i < output_arg_count; ++i) {
     nc.output_ptrs_.push_back(
-        nc.llvm_function_->getArg(node->operand_count() + i));
+        nc.llvm_function_->getArg(nc.operand_args_.size() + i));
   }
   return nc;
 }
 
-llvm::Value* NodeIrContext::LoadOperand(int64_t i) const {
+llvm::Value* NodeIrContext::LoadOperand(int64_t i, llvm::IRBuilder<>* builder) {
   Node* operand = node()->operand(i);
 
-  if (operand->Is<Literal>() && operand->GetType()->IsBits()) {
+  if (ShouldMaterializeAtUse(operand)) {
     // If the operand is a bits constant, just return the constant as an
     // optimization.
+    XLS_CHECK(operand->Is<Literal>());
     return type_converter()
         .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
         .value();
   }
-
+  llvm::IRBuilder<>& b = builder == nullptr ? entry_builder() : *builder;
   llvm::Type* operand_type =
       type_converter().ConvertToLlvmType(operand->GetType());
-  llvm::Value* operand_ptr = llvm_function_->getArg(i);
-  llvm::Value* load = entry_builder().CreateLoad(operand_type, operand_ptr);
+  llvm::Value* operand_ptr = GetOperandPtr(i, &b);
+  llvm::Value* load = b.CreateLoad(operand_type, operand_ptr);
   load->setName(operand->GetName());
   return load;
 }
 
+llvm::Value* NodeIrContext::GetOperandPtr(int64_t i,
+                                          llvm::IRBuilder<>* builder) {
+  Node* operand = node()->operand(i);
+  llvm::IRBuilder<>& b = builder == nullptr ? entry_builder() : *builder;
+
+  std::pair<Node*, llvm::BasicBlock*> cache_key = {operand, b.GetInsertBlock()};
+  if (ShouldMaterializeAtUse(operand)) {
+    if (materialized_cache_.contains(cache_key)) {
+      return materialized_cache_.at(cache_key);
+    }
+    llvm::Value* alloca =
+        b.CreateAlloca(type_converter().ConvertToLlvmType(operand->GetType()));
+    b.CreateStore(
+        type_converter()
+            .ToLlvmConstant(operand->GetType(), operand->As<Literal>()->value())
+            .value(),
+        alloca);
+    materialized_cache_[cache_key] = alloca;
+    return alloca;
+  }
+  return llvm_function_->getArg(operand_to_arg_.at(operand));
+}
+
 void NodeIrContext::FinalizeWithValue(
-    llvm::Value* result, std::optional<llvm::IRBuilder<>*> exit_builder) {
+    llvm::Value* result, std::optional<llvm::IRBuilder<>*> exit_builder,
+    std::optional<llvm::Value*> return_value) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &entry_builder();
   result = type_converter().ClearPaddingBits(result, node()->GetType(), *b);
   if (GetOutputPtrs().empty()) {
-    b->CreateRetVoid();
+    b->CreateRet(b->getFalse());
     return;
   }
   b->CreateStore(result, GetOutputPtr(0));
-  return FinalizeWithPointerToValue(GetOutputPtr(0), exit_builder);
+  return FinalizeWithPointerToValue(GetOutputPtr(0), exit_builder,
+                                    return_value);
 }
 
 void NodeIrContext::FinalizeWithPointerToValue(
-    llvm::Value* result_buffer,
-    std::optional<llvm::IRBuilder<>*> exit_builder) {
+    llvm::Value* result_buffer, std::optional<llvm::IRBuilder<>*> exit_builder,
+    std::optional<llvm::Value*> return_value) {
   llvm::IRBuilder<>* b =
       exit_builder.has_value() ? exit_builder.value() : &entry_builder();
   for (int64_t i = 0; i < output_ptrs_.size(); ++i) {
@@ -752,7 +877,7 @@ void NodeIrContext::FinalizeWithPointerToValue(
                  type_converter().GetTypeByteSize(node()->GetType()), *b);
     }
   }
-  b->CreateRetVoid();
+  b->CreateRet(return_value.has_value() ? *return_value : b->getFalse());
 }
 
 // Visitor to construct and LLVM function implementing an XLS IR node.
@@ -842,9 +967,7 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // Returns the top-level builder for the function. This builder is initialized
   // to the entry block of `dispatch_function()`.
   //  llvm::IRBuilder<>* dispatch_builder() { return dispatch_builder_.get(); }
-  LlvmTypeConverter* type_converter() {
-    return &jit_context_.orc_jit().GetTypeConverter();
-  }
+  LlvmTypeConverter* type_converter() { return &jit_context_.type_converter(); }
 
   // Common handler for binary, unary, and nary nodes. `build_results` produces
   // the llvm Value to use as the result.
@@ -884,10 +1007,12 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // function.
   absl::Status FinalizeNodeIrContextWithValue(
       NodeIrContext&& node_context, llvm::Value* result,
-      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt);
+      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
+      std::optional<llvm::Value*> return_value = std::nullopt);
   absl::Status FinalizeNodeIrContextWithPointerToValue(
       NodeIrContext&& node_context, llvm::Value* result_buffer,
-      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt);
+      std::optional<llvm::IRBuilder<>*> exit_builder = std::nullopt,
+      std::optional<llvm::Value*> return_value = std::nullopt);
 
   llvm::Value* MaybeAsSigned(llvm::Value* v, Type* xls_type,
                              llvm::IRBuilder<>& builder, bool is_signed) {
@@ -909,16 +1034,14 @@ class IrBuilderVisitor : public DfsVisitorWithDefault {
   // Invokes the receive callback function. The received data is written into
   // the buffer pointer to be `output_ptr`. Returns an i1 value indicating
   // whether the receive fired.
-  absl::StatusOr<llvm::Value*> InvokeRecvCallback(llvm::IRBuilder<>* builder,
-                                                  JitChannelQueue* queue,
-                                                  Receive* receive,
-                                                  llvm::Value* output_ptr,
-                                                  llvm::Value* user_data);
-
-  absl::Status InvokeSendCallback(llvm::IRBuilder<>* builder,
-                                  JitChannelQueue* queue, Send* send,
-                                  llvm::Value* send_data_ptr,
-                                  llvm::Value* user_data);
+  absl::StatusOr<llvm::Value*> ReceiveFromQueue(llvm::IRBuilder<>* builder,
+                                                JitChannelQueue* queue,
+                                                Receive* receive,
+                                                llvm::Value* output_ptr,
+                                                llvm::Value* user_data);
+  absl::Status SendToQueue(llvm::IRBuilder<>* builder, JitChannelQueue* queue,
+                           Send* send, llvm::Value* send_data_ptr,
+                           llvm::Value* user_data);
 
   int64_t output_arg_count_;
   JitBuilderContext& jit_context_;
@@ -1060,9 +1183,9 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
 
   size_t operand_index = 2;
   for (const FormatStep& step : trace_op->format()) {
-    if (absl::holds_alternative<std::string>(step)) {
+    if (std::holds_alternative<std::string>(step)) {
       XLS_RETURN_IF_ERROR(InvokeStringStepCallback(
-          &print_builder, absl::get<std::string>(step), buffer_ptr));
+          &print_builder, std::get<std::string>(step), buffer_ptr));
     } else {
       xls::Node* o = trace_op->operand(operand_index);
       llvm::Value* operand = node_context.LoadOperand(operand_index);
@@ -1072,7 +1195,7 @@ absl::Status IrBuilderVisitor::HandleTrace(Trace* trace_op) {
       // the next operand after formatting this one.
       operand_index += 1;
       XLS_RETURN_IF_ERROR(InvokeFormatStepCallback(
-          &print_builder, absl::get<FormatPreference>(step), o->GetType(),
+          &print_builder, std::get<FormatPreference>(step), o->GetType(),
           alloca, buffer_ptr, jit_runtime_ptr));
     }
   }
@@ -1144,21 +1267,22 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   clamped_start->setName("clamped_start");
 
   // Create a loop which copies one array element at a time.
-  LlvmIrLoop loop = CreateLoop(width, node_context.entry_builder());
+  LlvmIrLoop loop(width, node_context.entry_builder());
 
   // Compute the index of the element in the operand array. The index should be
   // clamped to the maximum index value.
-  llvm::Value* index = loop.body_builder->CreateAdd(clamped_start, loop.index);
+  llvm::Value* index =
+      loop.body_builder().CreateAdd(clamped_start, loop.index());
   llvm::Value* max_index = llvm::ConstantInt::get(i64, input_array_size - 1);
-  llvm::Value* clamped_index = loop.body_builder->CreateSelect(
-      loop.body_builder->CreateICmpULE(index, max_index), index, max_index);
+  llvm::Value* clamped_index = loop.body_builder().CreateSelect(
+      loop.body_builder().CreateICmpULE(index, max_index), index, max_index);
   clamped_index->setName("clamped_index");
 
   // Compute the address of the element in the operand array.
   llvm::Value* operand_buffer = node_context.GetOperandPtr(0);
   llvm::Type* src_array_type =
       type_converter()->ConvertToLlvmType(input_array_type);
-  llvm::Value* src_element = loop.body_builder->CreateGEP(
+  llvm::Value* src_element = loop.body_builder().CreateGEP(
       src_array_type, operand_buffer,
       {llvm::ConstantInt::get(i32, 0), clamped_index});
   src_element->setName("src_element");
@@ -1167,18 +1291,20 @@ absl::Status IrBuilderVisitor::HandleArraySlice(ArraySlice* slice) {
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   llvm::Type* tgt_array_type =
       type_converter()->ConvertToLlvmType(slice->GetType());
-  llvm::Value* tgt_element = loop.body_builder->CreateGEP(
+  llvm::Value* tgt_element = loop.body_builder().CreateGEP(
       tgt_array_type, output_buffer,
-      {llvm::ConstantInt::get(i32, 0), loop.index});
+      {llvm::ConstantInt::get(i32, 0), loop.index()});
   tgt_element->setName("tgt_element");
 
   // Copy the element from the operand buffer to the result buffer.
   int64_t element_size = type_converter()->GetTypeByteSize(
       slice->array()->GetType()->AsArrayOrDie()->element_type());
-  LlvmMemcpy(tgt_element, src_element, element_size, *loop.body_builder);
+  LlvmMemcpy(tgt_element, src_element, element_size, loop.body_builder());
+
+  loop.Finalize();
 
   return FinalizeNodeIrContextWithPointerToValue(
-      std::move(node_context), output_buffer, loop.exit_builder.get());
+      std::move(node_context), output_buffer, &loop.exit_builder());
 }
 
 absl::Status IrBuilderVisitor::HandleArrayUpdate(ArrayUpdate* update) {
@@ -1460,16 +1586,15 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
     invariant_arg_buffers.push_back(node_context.GetOperandPtr(i));
   }
 
-  LlvmIrLoop loop =
-      CreateLoop(counted_for->trip_count(), node_context.entry_builder(),
-                 counted_for->stride());
+  LlvmIrLoop loop(counted_for->trip_count(), node_context.entry_builder(),
+                  counted_for->stride());
 
   llvm::Type* index_type = type_converter()->ConvertToLlvmType(
       counted_for->body()->param(0)->GetType());
-  llvm::Value* cast_index = loop.body_builder->CreateIntCast(
-      loop.index, index_type, /*isSigned=*/false);
-  llvm::Value* index_buffer = loop.body_builder->CreateAlloca(index_type);
-  loop.body_builder->CreateStore(cast_index, index_buffer);
+  llvm::Value* cast_index = loop.body_builder().CreateIntCast(
+      loop.index(), index_type, /*isSigned=*/false);
+  llvm::Value* index_buffer = loop.body_builder().CreateAlloca(index_type);
+  loop.body_builder().CreateStore(cast_index, index_buffer);
 
   // Signature of body function is:
   //
@@ -1482,23 +1607,25 @@ absl::Status IrBuilderVisitor::HandleCountedFor(CountedFor* counted_for) {
   input_arg_ptrs.insert(input_arg_ptrs.end(), invariant_arg_buffers.begin(),
                         invariant_arg_buffers.end());
 
-  llvm::Value* next_state_buffer = loop.body_builder->CreateAlloca(state_type);
+  llvm::Value* next_state_buffer = loop.body_builder().CreateAlloca(state_type);
   XLS_RETURN_IF_ERROR(CallFunction(body, input_arg_ptrs, {next_state_buffer},
                                    node_context.GetTempBufferArg(),
                                    node_context.GetInterpreterEventsArg(),
                                    node_context.GetUserDataArg(),
                                    node_context.GetJitRuntimeArg(),
-                                   *loop.body_builder)
+                                   loop.body_builder())
                           .status());
   // TODO(meheff): 2022/09/09 Rather than loading the state and storing it in
   // the state buffer for the next iteration, simply swap the state and
   // next-state buffer pointers passed to the loop body function.
   llvm::Value* next_state =
-      loop.body_builder->CreateLoad(state_type, next_state_buffer);
-  loop.body_builder->CreateStore(next_state, loop_state_buffer);
+      loop.body_builder().CreateLoad(state_type, next_state_buffer);
+  loop.body_builder().CreateStore(next_state, loop_state_buffer);
+
+  loop.Finalize();
 
   return FinalizeNodeIrContextWithPointerToValue(
-      std::move(node_context), loop_state_buffer, loop.exit_builder.get());
+      std::move(node_context), loop_state_buffer, &loop.exit_builder());
 }
 
 absl::Status IrBuilderVisitor::HandleCover(Cover* cover) {
@@ -1768,8 +1895,11 @@ absl::Status IrBuilderVisitor::HandleInvoke(Invoke* invoke) {
                        GetFunction(invoke->to_apply()));
 
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
-  XLS_RETURN_IF_ERROR(CallFunction(function, node_context.GetOperandPtrs(),
-                                   {output_buffer},
+  std::vector<llvm::Value*> operand_ptrs;
+  for (int64_t i = 0; i < invoke->operand_count(); ++i) {
+    operand_ptrs.push_back(node_context.GetOperandPtr(i));
+  }
+  XLS_RETURN_IF_ERROR(CallFunction(function, operand_ptrs, {output_buffer},
                                    node_context.GetTempBufferArg(),
                                    node_context.GetInterpreterEventsArg(),
                                    node_context.GetUserDataArg(),
@@ -1807,15 +1937,15 @@ absl::Status IrBuilderVisitor::HandleMap(Map* map) {
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
 
   // Loop through each index of the arrays.
-  LlvmIrLoop loop =
-      CreateLoop(result_array_type->size(), node_context.entry_builder());
+  LlvmIrLoop loop(result_array_type->size(), node_context.entry_builder());
 
   // Compute address of input and output elements.
   llvm::Type* i32 = llvm::Type::getInt32Ty(ctx());
-  llvm::Value* input_element = loop.body_builder->CreateGEP(
-      input_type, input_buffer, {llvm::ConstantInt::get(i32, 0), loop.index});
-  llvm::Value* output_element = loop.body_builder->CreateGEP(
-      output_type, output_buffer, {llvm::ConstantInt::get(i32, 0), loop.index});
+  llvm::Value* input_element = loop.body_builder().CreateGEP(
+      input_type, input_buffer, {llvm::ConstantInt::get(i32, 0), loop.index()});
+  llvm::Value* output_element = loop.body_builder().CreateGEP(
+      output_type, output_buffer,
+      {llvm::ConstantInt::get(i32, 0), loop.index()});
 
   // Call map function to compute the output element in situ.
   XLS_ASSIGN_OR_RETURN(llvm::Function * to_apply, GetFunction(map->to_apply()));
@@ -1824,11 +1954,12 @@ absl::Status IrBuilderVisitor::HandleMap(Map* map) {
                                    node_context.GetInterpreterEventsArg(),
                                    node_context.GetUserDataArg(),
                                    node_context.GetJitRuntimeArg(),
-                                   *loop.body_builder)
+                                   loop.body_builder())
                           .status());
+  loop.Finalize();
 
   return FinalizeNodeIrContextWithPointerToValue(
-      std::move(node_context), output_buffer, loop.exit_builder.get());
+      std::move(node_context), output_buffer, &loop.exit_builder());
 }
 
 absl::Status IrBuilderVisitor::HandleSMul(ArithOp* mul) {
@@ -2039,41 +2170,116 @@ absl::Status IrBuilderVisitor::HandleOneHot(OneHot* one_hot) {
   return FinalizeNodeIrContextWithValue(std::move(node_context), result);
 }
 
+// Bitwise ORs the value in `src_buffer` with the value in `tgt_buffer` of type
+// `xls_type` and writes the result back to `tgt_buffer`. Any newly created
+// basic blocks are added before `insert_before` (if non-null). This can be used
+// to properly nest the basic blocks which form loops. `builder` is consumed and
+// used for building the IR. Returns a builder which inserts after the entire OR
+// operation.
+std::unique_ptr<llvm::IRBuilder<>> OrInPlace(
+    llvm::Value* src_buffer, llvm::Value* tgt_buffer, Type* xls_type,
+    LlvmTypeConverter* type_converter, llvm::BasicBlock* insert_before,
+    std::unique_ptr<llvm::IRBuilder<>> builder) {
+  if (xls_type->GetFlatBitCount() == 0) {
+    return builder;
+  }
+  if (xls_type->IsBits()) {
+    llvm::Value* src = builder->CreateLoad(
+        type_converter->ConvertToLlvmType(xls_type), src_buffer);
+    llvm::Value* tgt = builder->CreateLoad(
+        type_converter->ConvertToLlvmType(xls_type), tgt_buffer);
+    llvm::Value* result = builder->CreateOr(src, tgt);
+    builder->CreateStore(result, tgt_buffer);
+    return builder;
+  }
+  if (xls_type->IsArray()) {
+    // Create a loop in LLVM and iterate through each element.
+    ArrayType* array_type = xls_type->AsArrayOrDie();
+    LlvmIrLoop loop(array_type->size(), *builder, /*stride=*/1, insert_before);
+    llvm::Value* element_src_buffer = loop.body_builder().CreateGEP(
+        type_converter->ConvertToLlvmType(array_type), src_buffer,
+        {
+            loop.body_builder().getInt32(0),
+            loop.index(),
+        });
+    llvm::Value* element_tgt_buffer = loop.body_builder().CreateGEP(
+        type_converter->ConvertToLlvmType(array_type), tgt_buffer,
+        {
+            loop.body_builder().getInt32(0),
+            loop.index(),
+        });
+    builder = OrInPlace(element_src_buffer, element_tgt_buffer,
+                        array_type->element_type(), type_converter,
+                        /*insert_before=*/loop.exit_builder().GetInsertBlock(),
+                        loop.ConsumeBodyBuilder());
+    loop.Finalize(builder.get());
+    return loop.ConsumeExitBuilder();
+  }
+  // Iterate through each tuple element (unrolled).
+  XLS_CHECK(xls_type->IsTuple());
+  TupleType* tuple_type = xls_type->AsTupleOrDie();
+  for (int64_t i = 0; i < tuple_type->size(); ++i) {
+    llvm::Value* element_src_buffer = builder->CreateGEP(
+        type_converter->ConvertToLlvmType(tuple_type), src_buffer,
+        {
+            builder->getInt32(0),
+            builder->getInt32(i),
+        });
+    llvm::Value* element_tgt_buffer = builder->CreateGEP(
+        type_converter->ConvertToLlvmType(tuple_type), tgt_buffer,
+        {
+            builder->getInt32(0),
+            builder->getInt32(i),
+        });
+    builder = OrInPlace(element_src_buffer, element_tgt_buffer,
+                        tuple_type->element_type(i), type_converter,
+                        insert_before, std::move(builder));
+  }
+  return builder;
+}
+
 absl::Status IrBuilderVisitor::HandleOneHotSel(OneHotSelect* sel) {
   XLS_ASSIGN_OR_RETURN(
       NodeIrContext node_context,
       NewNodeIrContext(
           sel, ConcatVectors({"selector"},
                              NumberedStrings("case", sel->cases().size()))));
-  // TODO(meheff): 2022/09/09 Only load operands which are actually selected.
-  llvm::IRBuilder<>& b = node_context.entry_builder();
+
+  llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   llvm::Value* selector = node_context.LoadOperand(0);
-  std::vector<llvm::Value*> cases;
-  for (int64_t i = 1; i < sel->operand_count(); ++i) {
-    cases.push_back(node_context.LoadOperand(i));
+
+  // To make management of the builders easier, create a new block with a
+  // std::unique_ptr builder. This builder variable will be updated as the IR
+  // is built.
+  llvm::BasicBlock* start_block =
+      llvm::BasicBlock::Create(ctx(), "start", node_context.llvm_function());
+  node_context.entry_builder().CreateBr(start_block);
+  auto builder = std::make_unique<llvm::IRBuilder<>>(start_block);
+
+  // Initially store a zero value in the output buffer then OR in any selected
+  // cases.
+  builder->CreateStore(LlvmTypeConverter::ZeroOfType(
+                           type_converter()->ConvertToLlvmType(sel->GetType())),
+                       output_buffer);
+  for (int64_t i = 0; i < sel->cases().size(); ++i) {
+    // Create a if-then construct where the `then` block is executed if the case
+    // is selected. This `then` block ORs in the case value.
+    llvm::Value* select_bit = builder->CreateTrunc(
+        builder->CreateLShr(selector, i), llvm::Type::getInt1Ty(ctx()));
+    LlvmIfThen if_then =
+        CreateIfThen(select_bit, *builder, absl::StrFormat("case_%d", i));
+    llvm::Value* case_buffer =
+        node_context.GetOperandPtr(i + 1, if_then.then_builder.get());
+    std::unique_ptr<llvm::IRBuilder<>> b =
+        OrInPlace(case_buffer, output_buffer, sel->GetType(), type_converter(),
+                  /*insert_before=*/if_then.join_builder->GetInsertBlock(),
+                  std::move(if_then.then_builder));
+    if_then.Finalize(b.get());
+    builder = std::move(if_then.join_builder);
   }
-  llvm::Type* input_type = cases.front()->getType();
 
-  llvm::Value* result;
-  result = LlvmTypeConverter::ZeroOfType(input_type);
-
-  llvm::Value* typed_zero = LlvmTypeConverter::ZeroOfType(input_type);
-  llvm::Value* llvm_one = llvm::ConstantInt::get(selector->getType(), 1);
-
-  for (llvm::Value* cse : cases) {
-    // Extract the current selector bit & see if set (CreateSelect requires an
-    // i1 argument, or we could directly use the AND result.
-    llvm::Value* is_hot =
-        b.CreateICmpEQ(b.CreateAnd(selector, llvm_one), llvm_one);
-
-    // OR with zero might be slower than doing an if/else construct - if
-    // it turns out to be performance-critical, we can update it.
-    llvm::Value* or_value = b.CreateSelect(is_hot, cse, typed_zero);
-    result = CreateAggregateOr(result, or_value, &b);
-    selector = b.CreateLShr(selector, llvm_one);
-  }
-
-  return FinalizeNodeIrContextWithValue(std::move(node_context), result);
+  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
+                                                 output_buffer, builder.get());
 }
 
 absl::Status IrBuilderVisitor::HandlePrioritySel(PrioritySelect* sel) {
@@ -2457,16 +2663,19 @@ absl::StatusOr<NodeIrContext> IrBuilderVisitor::NewNodeIrContext(
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithValue(
     NodeIrContext&& node_context, llvm::Value* result,
-    std::optional<llvm::IRBuilder<>*> exit_builder) {
-  node_context.FinalizeWithValue(result, exit_builder);
+    std::optional<llvm::IRBuilder<>*> exit_builder,
+    std::optional<llvm::Value*> return_value) {
+  node_context.FinalizeWithValue(result, exit_builder, return_value);
   node_context_.emplace(std::move(node_context));
   return absl::OkStatus();
 }
 
 absl::Status IrBuilderVisitor::FinalizeNodeIrContextWithPointerToValue(
     NodeIrContext&& node_context, llvm::Value* result_buffer,
-    std::optional<llvm::IRBuilder<>*> exit_builder) {
-  node_context.FinalizeWithPointerToValue(result_buffer, exit_builder);
+    std::optional<llvm::IRBuilder<>*> exit_builder,
+    std::optional<llvm::Value*> return_value) {
+  node_context.FinalizeWithPointerToValue(result_buffer, exit_builder,
+                                          return_value);
   node_context_.emplace(std::move(node_context));
   return absl::OkStatus();
 }
@@ -2507,48 +2716,41 @@ absl::StatusOr<llvm::Value*> IrBuilderVisitor::CallFunction(
     builder.CreateStore(output_buffer, gep);
   }
 
-  std::vector<llvm::Value*> args = {input_arg_array, output_arg_array,
-                                    temp_buffer,     events,
-                                    user_data,       runtime};
+  std::vector<llvm::Value*> args = {input_arg_array,
+                                    output_arg_array,
+                                    temp_buffer,
+                                    events,
+                                    user_data,
+                                    runtime,
+                                    /*continuation_point=*/builder.getInt64(0)};
   return builder.CreateCall(f, args);
 }
 
-absl::StatusOr<llvm::Value*> IrBuilderVisitor::InvokeRecvCallback(
+bool QueueReceiveWrapper(JitChannelQueue* queue, uint8_t* buffer) {
+  return queue->ReadRaw(buffer);
+}
+
+absl::StatusOr<llvm::Value*> IrBuilderVisitor::ReceiveFromQueue(
     llvm::IRBuilder<>* builder, JitChannelQueue* queue, Receive* receive,
     llvm::Value* output_ptr, llvm::Value* user_data) {
   llvm::Type* bool_type = llvm::Type::getInt1Ty(ctx());
-  llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
-  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
-
   llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
   // Call the user-provided function of type ProcJit::RecvFnT to receive the
   // value.
-  std::vector<llvm::Type*> params = {int64_type, int64_type, int8_ptr_type,
-                                     int64_type, ptr_type};
+  std::vector<llvm::Type*> params = {ptr_type, ptr_type};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(bool_type, params, /*isVarArg=*/false);
 
-  // recv_payload_bytes is just the size of the payload.
-  //
-  // As token is zero size, it can also be considered the size of the
-  // token + payload.
-  int64_t recv_payload_bytes =
-      type_converter()->GetTypeByteSize(receive->GetPayloadType());
-
-  // Call the user-provided receive function.
+  // Call the wrapper to JitChannelQueue::Recv.
+  llvm::Value* queue_address = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(queue));
   std::vector<llvm::Value*> args = {
-      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
-      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(receive)),
-      output_ptr,
-      llvm::ConstantInt::get(int64_type, recv_payload_bytes),
-      user_data,
-  };
+      builder->CreateIntToPtr(queue_address, ptr_type), output_ptr};
 
-  XLS_RET_CHECK(jit_context_.recv_fn().has_value());
-  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()),
-      absl::bit_cast<uint64_t>(jit_context_.recv_fn().value()));
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             absl::bit_cast<uint64_t>(&QueueReceiveWrapper));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   llvm::Value* receive_fired = builder->CreateCall(fn_type, fn_ptr, args);
@@ -2566,9 +2768,10 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
   llvm::Value* user_data = node_context.GetUserDataArg();
 
   XLS_RET_CHECK(jit_context_.queue_manager().has_value());
-  XLS_ASSIGN_OR_RETURN(
-      JitChannelQueue * queue,
-      jit_context_.queue_manager().value()->GetQueueById(recv->channel_id()));
+  XLS_ASSIGN_OR_RETURN(Channel * channel,
+                       recv->package()->GetChannel(recv->channel_id()));
+  JitChannelQueue& queue =
+      jit_context_.queue_manager().value()->GetJitQueue(channel);
 
   llvm::Value* output_buffer = node_context.GetOutputPtr(0);
   // The data buffer is element 1 of the output tuple.
@@ -2595,7 +2798,7 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
     llvm::IRBuilder<> true_builder(true_block);
     XLS_ASSIGN_OR_RETURN(
         llvm::Value * true_receive_fired,
-        InvokeRecvCallback(&true_builder, queue, recv, data_buffer, user_data));
+        ReceiveFromQueue(&true_builder, &queue, recv, data_buffer, user_data));
     true_builder.CreateBr(join_block);
 
     // And the same for a false predicate - this will store a zero
@@ -2617,15 +2820,14 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
     // then join the two branches back together.
     llvm::IRBuilder<> join_builder(join_block);
 
+    llvm::PHINode* receive_fired = join_builder.CreatePHI(
+        llvm::Type::getInt1Ty(ctx()), /*NumReservedValues=*/2);
+    receive_fired->addIncoming(true_receive_fired, true_block);
+    receive_fired->addIncoming(llvm::ConstantInt::getFalse(ctx()), false_block);
+    receive_fired->setName("receive_fired");
     if (!recv->is_blocking()) {
       // If the receive is non-blocking, the output of the receive has an
       // additional element (index 2) which indicates whether the receive fired.
-      llvm::PHINode* receive_fired = join_builder.CreatePHI(
-          llvm::Type::getInt1Ty(ctx()), /*NumReservedValues=*/2);
-      receive_fired->addIncoming(true_receive_fired, true_block);
-      receive_fired->addIncoming(llvm::ConstantInt::getFalse(ctx()),
-                                 false_block);
-      receive_fired->setName("receive_fired");
       llvm::Value* receive_fired_buffer = join_builder.CreateGEP(
           receive_type, output_buffer,
           {llvm::ConstantInt::get(llvm::Type::getInt32Ty(ctx()), 0),
@@ -2634,11 +2836,15 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
     }
     return FinalizeNodeIrContextWithPointerToValue(
         std::move(node_context), output_buffer,
-        /*exit_builder=*/&join_builder);
+        /*exit_builder=*/&join_builder,
+        /*return_value=*/recv->is_blocking()
+            ? join_builder.CreateAnd(predicate,
+                                     join_builder.CreateNot(receive_fired))
+            : join_builder.getFalse());
   }
   XLS_ASSIGN_OR_RETURN(llvm::Value * receive_fired,
-                       InvokeRecvCallback(&node_context.entry_builder(), queue,
-                                          recv, data_buffer, user_data));
+                       ReceiveFromQueue(&node_context.entry_builder(), &queue,
+                                        recv, data_buffer, user_data));
   receive_fired->setName("receive_fired");
   if (!recv->is_blocking()) {
     // If the receive is non-blocking, the output of the receive has an
@@ -2650,44 +2856,40 @@ absl::Status IrBuilderVisitor::HandleReceive(Receive* recv) {
     node_context.entry_builder().CreateStore(receive_fired,
                                              receive_fired_buffer);
   }
-  return FinalizeNodeIrContextWithPointerToValue(std::move(node_context),
-                                                 output_buffer);
+  return FinalizeNodeIrContextWithPointerToValue(
+      std::move(node_context), output_buffer,
+      /*exit_builder=*/&node_context.entry_builder(),
+      /*return_value=*/
+      recv->is_blocking()
+          ? node_context.entry_builder().CreateNot(receive_fired)
+          : node_context.entry_builder().getFalse());
 }
 
-absl::Status IrBuilderVisitor::InvokeSendCallback(llvm::IRBuilder<>* builder,
-                                                  JitChannelQueue* queue,
-                                                  Send* send,
-                                                  llvm::Value* send_data_ptr,
-                                                  llvm::Value* user_data) {
-  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
-  llvm::Type* int64_type = llvm::Type::getInt64Ty(ctx());
-  llvm::Type* int8_ptr_type = llvm::Type::getInt8PtrTy(ctx(), 0);
+void QueueSendWrapper(JitChannelQueue* queue, const uint8_t* data) {
+  queue->WriteRaw(data);
+}
 
+absl::Status IrBuilderVisitor::SendToQueue(llvm::IRBuilder<>* builder,
+                                           JitChannelQueue* queue, Send* send,
+                                           llvm::Value* send_data_ptr,
+                                           llvm::Value* user_data) {
+  llvm::Type* void_type = llvm::Type::getVoidTy(ctx());
   llvm::Type* ptr_type = llvm::PointerType::get(ctx(), 0);
 
-  // We do the same for sending/enqueuing as we do for receiving/dequeueing
+  // We do the same for sending/writing as we do for receiving/reading
   // above (set up and call an external function).
-  std::vector<llvm::Type*> params = {
-      int64_type, int64_type, int8_ptr_type, int64_type, ptr_type,
-  };
+  std::vector<llvm::Type*> params = {ptr_type, ptr_type};
   llvm::FunctionType* fn_type =
       llvm::FunctionType::get(void_type, params, /*isVarArg=*/false);
 
-  int64_t send_type_size =
-      type_converter()->GetTypeByteSize(send->data()->GetType());
-
+  llvm::Value* queue_address = llvm::ConstantInt::get(
+      llvm::Type::getInt64Ty(ctx()), absl::bit_cast<uint64_t>(queue));
   std::vector<llvm::Value*> args = {
-      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(queue)),
-      llvm::ConstantInt::get(int64_type, absl::bit_cast<uint64_t>(send)),
-      send_data_ptr,
-      llvm::ConstantInt::get(int64_type, send_type_size),
-      user_data,
-  };
+      builder->CreateIntToPtr(queue_address, ptr_type), send_data_ptr};
 
-  XLS_RET_CHECK(jit_context_.send_fn().has_value());
-  llvm::ConstantInt* fn_addr = llvm::ConstantInt::get(
-      llvm::Type::getInt64Ty(ctx()),
-      absl::bit_cast<uint64_t>(jit_context_.send_fn().value()));
+  llvm::ConstantInt* fn_addr =
+      llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx()),
+                             absl::bit_cast<uint64_t>(&QueueSendWrapper));
   llvm::Value* fn_ptr =
       builder->CreateIntToPtr(fn_addr, llvm::PointerType::get(fn_type, 0));
   builder->CreateCall(fn_type, fn_ptr, args);
@@ -2707,9 +2909,10 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
   llvm::Value* user_data = node_context.GetUserDataArg();
 
   XLS_RET_CHECK(jit_context_.queue_manager().has_value());
-  XLS_ASSIGN_OR_RETURN(
-      JitChannelQueue * queue,
-      jit_context_.queue_manager().value()->GetQueueById(send->channel_id()));
+  XLS_ASSIGN_OR_RETURN(Channel * channel,
+                       send->package()->GetChannel(send->channel_id()));
+  JitChannelQueue& queue =
+      jit_context_.queue_manager().value()->GetJitQueue(channel);
   if (send->predicate().has_value()) {
     llvm::Value* predicate = node_context.LoadOperand(2);
 
@@ -2723,7 +2926,7 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
                                  node_context.llvm_function(), join_block);
     llvm::IRBuilder<> true_builder(true_block);
     XLS_RETURN_IF_ERROR(
-        InvokeSendCallback(&true_builder, queue, send, data_ptr, user_data));
+        SendToQueue(&true_builder, &queue, send, data_ptr, user_data));
     true_builder.CreateBr(join_block);
 
     llvm::BasicBlock* false_block =
@@ -2740,7 +2943,7 @@ absl::Status IrBuilderVisitor::HandleSend(Send* send) {
                                           exit_builder.get());
   }
   // Unconditional send.
-  XLS_RETURN_IF_ERROR(InvokeSendCallback(&b, queue, send, data_ptr, user_data));
+  XLS_RETURN_IF_ERROR(SendToQueue(&b, &queue, send, data_ptr, user_data));
 
   return FinalizeNodeIrContextWithValue(std::move(node_context),
                                         type_converter()->GetToken());
@@ -2761,6 +2964,9 @@ absl::StatusOr<NodeFunction> CreateNodeFunction(
   NodeIrContext node_context = visitor.ConsumeNodeIrContext();
   return NodeFunction{.node = node,
                       .function = node_context.llvm_function(),
+                      .operand_arguments = std::vector<Node*>(
+                          node_context.GetOperandArgs().begin(),
+                          node_context.GetOperandArgs().end()),
                       .output_arg_count = output_arg_count,
                       .has_metadata_args = node_context.has_metadata_args()};
 }

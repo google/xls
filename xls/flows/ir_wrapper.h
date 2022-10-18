@@ -44,28 +44,28 @@ class JitChannelQueueWrapper {
   Type* GetType() const { return type_; }
 
   // Returns if the queue is empty.
-  bool Empty() const { return (queue_ == nullptr) || (queue_->Empty()); }
+  bool Empty() const { return (queue_ == nullptr) || (queue_->IsEmpty()); }
 
-  // Enqueue on the channel the value v.
-  absl::Status Enqueue(const Value& v);
+  // Write on the channel the value v.
+  absl::Status Write(const Value& v);
 
-  // Dequeue on the channel the value v.
-  absl::StatusOr<Value> Dequeue();
+  // Read on the channel the value v.
+  absl::StatusOr<Value> Read();
 
-  // Convenience function to enqueue uint64.
-  absl::Status EnqueueWithUint64(uint64_t v);
+  // Convenience function to write a uint64.
+  absl::Status WriteWithUint64(uint64_t v);
 
-  // Convenience function to dequeue uint64.
-  absl::StatusOr<uint64_t> DequeueWithUint64();
+  // Convenience function to read a uint64.
+  absl::StatusOr<uint64_t> ReadWithUint64();
 
   // Return the buffer of the instance.
   absl::Span<uint8_t> buffer() { return absl::MakeSpan(buffer_); }
 
-  // Enqueue the buffer on the channel.
-  absl::Status Enqueue(absl::Span<uint8_t> buffer);
+  // Write the data in the buffer to the channel.
+  absl::Status Write(absl::Span<uint8_t> buffer);
 
-  // Dequeue the content of the channel in the buffer.
-  absl::Status Dequeue(absl::Span<uint8_t> buffer);
+  // Read the content of the channel into the buffer.
+  absl::Status Read(absl::Span<uint8_t> buffer);
 
  private:
   // Pointer to the jit.
@@ -105,15 +105,15 @@ class DslxModuleAndPath {
   std::string GetFilePath() const { return file_path_; }
 
   // Set new path of the dslx module.
-  void SetFilePath(absl::string_view path) { file_path_ = path; }
+  void SetFilePath(std::string_view path) { file_path_ = path; }
 
   // Take ownership of the dslx module and create a new object.
   static absl::StatusOr<DslxModuleAndPath> Create(
-      std::unique_ptr<dslx::Module> module, absl::string_view file_path);
+      std::unique_ptr<dslx::Module> module, std::string_view file_path);
 
   // Parse dslx file from path and create a new object.
-  static absl::StatusOr<DslxModuleAndPath> Create(absl::string_view module_name,
-                                                  absl::string_view file_path);
+  static absl::StatusOr<DslxModuleAndPath> Create(std::string_view module_name,
+                                                  std::string_view file_path);
 
  private:
   DslxModuleAndPath() = default;
@@ -131,61 +131,64 @@ class DslxModuleAndPath {
 class IrWrapper {
  public:
   // Retrieve a specific dslx module.
-  absl::StatusOr<dslx::Module*> GetDslxModule(absl::string_view name) const;
+  absl::StatusOr<dslx::Module*> GetDslxModule(std::string_view name) const;
 
   // Retrieve a specific top-level function from the compiled BOP IR.
   //
   // name is the unmangled name.
-  absl::StatusOr<Function*> GetIrFunction(absl::string_view name) const;
+  absl::StatusOr<Function*> GetIrFunction(std::string_view name) const;
 
   // Retrieve a specific top-level proc from the compiled BOP IR.
   //
   // name is the unmangled name.
-  absl::StatusOr<Proc*> GetIrProc(absl::string_view name) const;
+  absl::StatusOr<Proc*> GetIrProc(std::string_view name) const;
 
   // Retrieve top level package.
   absl::StatusOr<Package*> GetIrPackage() const;
 
   // Retrieve and create (if needed) the JIT for the given function name.
   absl::StatusOr<FunctionJit*> GetAndMaybeCreateFunctionJit(
-      absl::string_view name);
+      std::string_view name);
 
   // Retrieve and create (if needed) the JIT for the given proc.
-  absl::StatusOr<ProcJit*> GetAndMaybeCreateProcJit(absl::string_view name);
+  absl::StatusOr<ProcJit*> GetAndMaybeCreateProcJit(std::string_view name);
+
+  // Retrieve the execution state of the JIT for this proc.
+  absl::StatusOr<ProcContinuation*> GetJitContinuation(std::string_view name);
 
   // Retrieve JIT channel queue for the given channel name.
   absl::StatusOr<JitChannelQueue*> GetJitChannelQueue(
-      absl::string_view name) const;
+      std::string_view name) const;
 
   // Retrieve JIT channel queue wrapper for the given channel name and jit
   absl::StatusOr<JitChannelQueueWrapper> CreateJitChannelQueueWrapper(
-      absl::string_view name, ProcJit* jit) const;
+      std::string_view name, ProcJit* jit) const;
 
   // Takes ownership of a set of DSLX modules, converts to IR and creates
   // an IrWrapper object.
   static absl::StatusOr<IrWrapper> Create(
-      absl::string_view ir_package_name, DslxModuleAndPath top_module,
+      std::string_view ir_package_name, DslxModuleAndPath top_module,
       std::vector<DslxModuleAndPath> import_modules);
 
   static absl::StatusOr<IrWrapper> Create(
-      absl::string_view ir_package_name,
+      std::string_view ir_package_name,
       std::unique_ptr<dslx::Module> top_module,
-      absl::string_view top_module_path,
+      std::string_view top_module_path,
       std::unique_ptr<dslx::Module> other_module,
-      absl::string_view other_module_path);
+      std::string_view other_module_path);
 
   static absl::StatusOr<IrWrapper> Create(
-      absl::string_view ir_package_name,
+      std::string_view ir_package_name,
       std::unique_ptr<dslx::Module> top_module,
-      absl::string_view top_module_path,
+      std::string_view top_module_path,
       absl::Span<std::unique_ptr<dslx::Module>> other_modules =
           absl::Span<std::unique_ptr<dslx::Module>>{},
-      absl::Span<absl::string_view> other_modules_path =
-          absl::Span<absl::string_view>{});
+      absl::Span<std::string_view> other_modules_path =
+          absl::Span<std::string_view>{});
 
  private:
   // Construct this object with a default ImportData.
-  explicit IrWrapper(absl::string_view package_name)
+  explicit IrWrapper(std::string_view package_name)
       : import_data_(dslx::CreateImportData(xls::kDefaultDslxStdlibPath,
                                             /*additional_search_paths=*/{})),
         package_(std::make_unique<Package>(package_name)) {}
@@ -202,12 +205,19 @@ class IrWrapper {
   // IR Package.
   std::unique_ptr<Package> package_;
 
+  // JIT runtime.
+  std::unique_ptr<JitRuntime> jit_runtime_;
+
   // Holds pre-compiled IR Function Jit.
   absl::flat_hash_map<Function*, std::unique_ptr<FunctionJit>>
       pre_compiled_function_jit_;
 
   // Holds pre-compiled IR Proc Jit.
   absl::flat_hash_map<Proc*, std::unique_ptr<ProcJit>> pre_compiled_proc_jit_;
+
+  // Holds the execution state of the Proc Jit.
+  absl::flat_hash_map<Proc*, std::unique_ptr<ProcContinuation>>
+      jit_continuations_;
 
   // Holds set of queues for each channel in the top-level package.
   std::unique_ptr<JitChannelQueueManager> jit_channel_manager_;

@@ -40,7 +40,7 @@ class ExperimentFactory {
   }
 
   // Given a tag, returns a new experiment object.
-  absl::StatusOr<Experiment> BuildExperiment(absl::string_view tag) const {
+  absl::StatusOr<Experiment> BuildExperiment(std::string_view tag) const {
     if (!experiments_.contains(tag)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("%s tag has not been registered", tag));
@@ -55,7 +55,7 @@ class ExperimentFactory {
   // Note: The returned pointer points to the newly created object and can
   //       be used to provide additional parameters to the builder.
   template <class ExperimentBuilder>
-  absl::StatusOr<ExperimentBuilder*> RegisterNewBuilder(absl::string_view tag) {
+  absl::StatusOr<ExperimentBuilder*> RegisterNewBuilder(std::string_view tag) {
     if (experiments_.contains(tag)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("%s tag already registered", tag));

@@ -22,7 +22,7 @@
 namespace xls {
 
 // Not all nodes have direct representations in the Verilog. To handle these
-// cases, use an absl::variant type which holds one of the two possible
+// cases, use an std::variant type which holds one of the two possible
 // representations for a Node:
 //
 //  1) Expression* : node is represented directly by a Verilog expression. This

@@ -69,7 +69,7 @@ ABSL_FLAG(bool, inline_procs, false,
 namespace xls::tools {
 namespace {
 
-absl::Status RealMain(absl::string_view input_path) {
+absl::Status RealMain(std::string_view input_path) {
   if (input_path == "-") {
     input_path = "/dev/stdin";
   }
@@ -104,7 +104,7 @@ absl::Status RealMain(absl::string_view input_path) {
 }  // namespace xls::tools
 
 int main(int argc, char **argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty()) {

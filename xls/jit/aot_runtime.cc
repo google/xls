@@ -14,54 +14,28 @@
 #include "xls/jit/aot_runtime.h"
 
 #include "google/protobuf/text_format.h"
-#include "llvm/include/llvm/ExecutionEngine/Orc/JITTargetMachineBuilder.h"
-#include "llvm/include/llvm/IR/DataLayout.h"
-#include "llvm/include/llvm/IR/LLVMContext.h"
-#include "llvm/include/llvm/Support/TargetSelect.h"
+#include "xls/jit/orc_jit.h"
 
 namespace xls::aot_compile {
 
 std::unique_ptr<GlobalData> InitGlobalData(
-    absl::string_view fn_type_textproto) {
-  llvm::InitializeNativeTarget();
-  auto ctx = std::make_unique<llvm::LLVMContext>();
-  auto error_or_target_builder =
-      llvm::orc::JITTargetMachineBuilder::detectHost();
-  if (!error_or_target_builder) {
-    std::cerr << absl::StrCat(
-        "Unable to detect host: ",
-        llvm::toString(error_or_target_builder.takeError()));
-    exit(1);
-  }
-
-  auto error_or_target_machine = error_or_target_builder->createTargetMachine();
-  if (!error_or_target_machine) {
-    std::cerr << absl::StrCat(
-        "Unable to create target machine: ",
-        llvm::toString(error_or_target_machine.takeError()));
-    exit(1);
-  }
-
-  std::unique_ptr<llvm::TargetMachine> target_machine =
-      std::move(error_or_target_machine.get());
-  llvm::DataLayout data_layout = target_machine->createDataLayout();
-  auto type_converter =
-      std::make_unique<::xls::LlvmTypeConverter>(ctx.get(), data_layout);
-  auto global_data = absl::WrapUnique(
-      new GlobalData{std::move(ctx), data_layout, std::move(type_converter),
-                     ::xls::Package("dummy")});
+    std::string_view fn_type_textproto) {
+  auto package = std::make_unique<Package>("dummy");
+  auto jit_runtime =
+      std::make_unique<JitRuntime>(OrcJit::CreateDataLayout().value());
   ::xls::FunctionTypeProto fn_type_proto;
   google::protobuf::TextFormat::ParseFromString(std::string(fn_type_textproto),
                                       &fn_type_proto);
-  global_data->fn_type =
-      global_data->package.GetFunctionTypeFromProto(fn_type_proto).value();
-
-  std::vector<::xls::Type*> param_types;
-  for (const auto& param_type : global_data->fn_type->parameters()) {
-    global_data->borrowed_param_types.push_back(param_type);
-  }
-
-  return global_data;
+  FunctionType* fn_type =
+      package->GetFunctionTypeFromProto(fn_type_proto).value();
+  std::vector<::xls::Type*> param_types(fn_type->parameters().begin(),
+                                        fn_type->parameters().end());
+  return std::make_unique<GlobalData>(
+      GlobalData{.jit_runtime = std::move(jit_runtime),
+                 .package = std::move(package),
+                 .fn_type = fn_type,
+                 .param_types = std::move(param_types),
+                 .return_type = fn_type->return_type()});
 }
 
 }  // namespace xls::aot_compile

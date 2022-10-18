@@ -107,6 +107,42 @@ inline bool IsPowerOfTwo(T x) {
   return x != 0 && (x & (x - 1)) == 0;
 }
 
+// Returns true when x is even.
+template <typename T>
+inline bool IsEven(T x) {
+  static_assert(!std::numeric_limits<T>::is_signed, "unsigned types only");
+  return (x & 0b1) == 0;
+}
+
+// Returns 2ⁿ. Assumes n >= 0. Assumes 2ⁿ fits in the result type (could produce
+// a negative result for large n and signed type).
+template <typename Int>
+static constexpr Int Exp2(int n) {
+  static_assert(std::numeric_limits<Int>::is_integer, "integral types only");
+  XLS_CHECK_LT(n, std::numeric_limits<Int>::digits);
+  XLS_CHECK_GE(n, 0);
+
+  Int one = 1;
+  return one << n;
+}
+
+// Returns (odd, y) such that x = odd * 2^y.
+//
+// That is, factorizes x into an odd number and a power of two. Returns the odd
+// number and the exponent.
+//
+// Special case:
+// FactorizePowerOfTwo(0) = 0 * 2^0
+template <typename T>
+std::tuple<T, int> FactorizePowerOfTwo(T x) {
+  int power = 0;
+  while (IsEven(x) && x > 0) {
+    x /= 2;
+    power += 1;
+  }
+  return std::make_tuple(x, power);
+}
+
 // Returns ceil(log2(value)). Returns zero for the value zero.
 int64_t CeilOfLog2(uint64_t value);
 

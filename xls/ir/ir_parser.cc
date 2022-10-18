@@ -168,10 +168,10 @@ struct QuotedString {
 // Variant which gathers all the possible keyword argument types. New
 // keywords arguments which require a new type should be added here.
 using KeywordVariant =
-    absl::variant<KeywordValue<int64_t>, KeywordValue<IdentifierString>,
-                  KeywordValue<QuotedString>, KeywordValue<BValue>,
-                  KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
-                  KeywordValue<SourceInfo>, KeywordValue<bool>>;
+    std::variant<KeywordValue<int64_t>, KeywordValue<IdentifierString>,
+                 KeywordValue<QuotedString>, KeywordValue<BValue>,
+                 KeywordValue<std::vector<BValue>>, KeywordValue<Value>,
+                 KeywordValue<SourceInfo>, KeywordValue<bool>>;
 
 // Abstraction for parsing the arguments of a node. The arguments include
 // positional and keyword arguments. The positional arguments are exclusively
@@ -200,7 +200,7 @@ class ArgParser {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
-    auto& keyword_value = absl::get<KeywordValue<T>>(*pair.first->second);
+    auto& keyword_value = std::get<KeywordValue<T>>(*pair.first->second);
     keyword_value.is_optional = false;
     // Return a pointer into the KeywordValue which will be filled in when Run
     // is called.
@@ -211,11 +211,11 @@ class ArgParser {
   // std::optional pointed to by the returned pointer will (optionally) contain
   // the keyword argument value.
   template <typename T>
-  std::optional<T>* AddOptionalKeywordArg(absl::string_view key) {
+  std::optional<T>* AddOptionalKeywordArg(std::string_view key) {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
-    auto& keyword_value = absl::get<KeywordValue<T>>(*keywords_.at(key));
+    auto& keyword_value = std::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.is_optional = true;
     // Return a pointer into the KeywordValue which will be filled in when Run
     // is called.
@@ -223,11 +223,11 @@ class ArgParser {
   }
 
   template <typename T>
-  T* AddOptionalKeywordArg(absl::string_view key, T default_value) {
+  T* AddOptionalKeywordArg(std::string_view key, T default_value) {
     auto pair = keywords_.emplace(
         key, std::make_unique<KeywordVariant>(KeywordValue<T>()));
     XLS_CHECK(pair.second);
-    auto& keyword_value = absl::get<KeywordValue<T>>(*keywords_.at(key));
+    auto& keyword_value = std::get<KeywordValue<T>>(*keywords_.at(key));
     keyword_value.optional_value = default_value;
     keyword_value.is_optional = true;
     // Return a pointer into the KeywordValue which may be filled in when Run is
@@ -290,7 +290,7 @@ class ArgParser {
   // Parses the keyword argument with the given key. The expected type of the
   // keyword argument value is determined by the template parameter type T used
   // when Add(Optional)KeywordArgument<T> was called.
-  absl::Status ParseKeywordArg(absl::string_view key) {
+  absl::Status ParseKeywordArg(std::string_view key) {
     KeywordVariant& keyword_variant = *keywords_.at(key);
     return absl::visit(
         Visitor{[&](KeywordValue<bool>& v) {
@@ -552,7 +552,7 @@ absl::StatusOr<SourceInfo> Parser::ParseSourceInfo() {
 
 absl::StatusOr<BValue> Parser::BuildBinaryOrUnaryOp(Op op, BuilderBase* fb,
                                                     SourceInfo* loc,
-                                                    absl::string_view node_name,
+                                                    std::string_view node_name,
                                                     ArgParser* arg_parser) {
   std::vector<BValue> operands;
 
@@ -595,8 +595,8 @@ struct SplitName {
   std::string op_name;
   int64_t node_id;
 };
-std::optional<SplitName> SplitNodeName(absl::string_view name) {
-  std::vector<absl::string_view> pieces = absl::StrSplit(name, '.');
+std::optional<SplitName> SplitNodeName(std::string_view name) {
+  std::vector<std::string_view> pieces = absl::StrSplit(name, '.');
   if (pieces.empty()) {
     return absl::nullopt;
   }
@@ -609,7 +609,7 @@ std::optional<SplitName> SplitNodeName(absl::string_view name) {
 }
 
 absl::StatusOr<BlockBuilder*> CastToBlockBuilderOrError(
-    BuilderBase* base_builder, absl::string_view error_message, TokenPos pos) {
+    BuilderBase* base_builder, std::string_view error_message, TokenPos pos) {
   if (BlockBuilder* bb = dynamic_cast<BlockBuilder*>(base_builder)) {
     return bb;
   }
@@ -618,7 +618,7 @@ absl::StatusOr<BlockBuilder*> CastToBlockBuilderOrError(
 }
 
 absl::StatusOr<ProcBuilder*> CastToProcBuilderOrError(
-    BuilderBase* base_builder, absl::string_view error_message, TokenPos pos) {
+    BuilderBase* base_builder, std::string_view error_message, TokenPos pos) {
   if (ProcBuilder* pb = dynamic_cast<ProcBuilder*>(base_builder)) {
     return pb;
   }
@@ -1666,8 +1666,8 @@ absl::StatusOr<Function*> Parser::ParseFunction(Package* package) {
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(fb, &name_to_value, package));
 
-  XLS_RET_CHECK(absl::holds_alternative<BValue>(body_result));
-  BValue return_value = absl::get<BValue>(body_result);
+  XLS_RET_CHECK(std::holds_alternative<BValue>(body_result));
+  BValue return_value = std::get<BValue>(body_result);
 
   if (return_value.valid() &&
       return_value.node()->GetType() != function_data.second) {
@@ -1697,8 +1697,8 @@ absl::StatusOr<Proc*> Parser::ParseProc(Package* package) {
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(pb.get(), &name_to_value, package));
 
-  XLS_RET_CHECK(absl::holds_alternative<ProcNext>(body_result));
-  ProcNext proc_next = absl::get<ProcNext>(body_result);
+  XLS_RET_CHECK(std::holds_alternative<ProcNext>(body_result));
+  ProcNext proc_next = std::get<ProcNext>(body_result);
 
   return pb->Build(proc_next.next_token, proc_next.next_state);
 }
@@ -1718,7 +1718,7 @@ absl::StatusOr<Block*> Parser::ParseBlock(Package* package) {
   absl::flat_hash_map<std::string, BValue> name_to_value;
   XLS_ASSIGN_OR_RETURN(BodyResult body_result,
                        ParseBody(bb.get(), &name_to_value, package));
-  XLS_RET_CHECK(absl::holds_alternative<BValue>(body_result));
+  XLS_RET_CHECK(std::holds_alternative<BValue>(body_result));
 
   XLS_ASSIGN_OR_RETURN(Block * block, bb->Build());
 
@@ -1902,7 +1902,7 @@ absl::StatusOr<Channel*> Parser::ParseChannel(Package* package) {
   XLS_RETURN_IF_ERROR(scanner_.DropTokenOrError(LexicalTokenType::kParenClose,
                                                 "')' in channel definition"));
 
-  auto error = [&](absl::string_view message) {
+  auto error = [&](std::string_view message) {
     return absl::InvalidArgumentError(absl::StrFormat(
         "%s @ %s", message, channel_name.pos().ToHumanString()));
   };
@@ -1964,14 +1964,14 @@ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(Package* package) {
 }
 
 /* static */ absl::StatusOr<FunctionType*> Parser::ParseFunctionType(
-    absl::string_view input_string, Package* package) {
+    std::string_view input_string, Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseFunctionType(package);
 }
 
 /* static */ absl::StatusOr<Type*> Parser::ParseType(
-    absl::string_view input_string, Package* package) {
+    std::string_view input_string, Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseType(package);
@@ -1988,7 +1988,7 @@ static absl::Status VerifyAndSwapError(Package* package) {
 }
 
 /* static */
-absl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
+absl::StatusOr<Function*> Parser::ParseFunction(std::string_view input_string,
                                                 Package* package,
                                                 bool verify_function_only) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
@@ -2007,7 +2007,7 @@ absl::StatusOr<Function*> Parser::ParseFunction(absl::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
+absl::StatusOr<Proc*> Parser::ParseProc(std::string_view input_string,
                                         Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
@@ -2020,7 +2020,7 @@ absl::StatusOr<Proc*> Parser::ParseProc(absl::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Block*> Parser::ParseBlock(absl::string_view input_string,
+absl::StatusOr<Block*> Parser::ParseBlock(std::string_view input_string,
                                           Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
@@ -2033,7 +2033,7 @@ absl::StatusOr<Block*> Parser::ParseBlock(absl::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Channel*> Parser::ParseChannel(absl::string_view input_string,
+absl::StatusOr<Channel*> Parser::ParseChannel(std::string_view input_string,
                                               Package* package) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
@@ -2042,8 +2042,8 @@ absl::StatusOr<Channel*> Parser::ParseChannel(absl::string_view input_string,
 
 /* static */
 absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
-    absl::string_view input_string,
-    std::optional<absl::string_view> filename) {
+    std::string_view input_string,
+    std::optional<std::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackageNoVerify(input_string, filename));
   XLS_RETURN_IF_ERROR(VerifyAndSwapError(package.get()));
@@ -2052,8 +2052,8 @@ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackage(
 
 /* static */
 absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageWithEntry(
-    absl::string_view input_string, absl::string_view entry,
-    std::optional<absl::string_view> filename) {
+    std::string_view input_string, std::string_view entry,
+    std::optional<std::string_view> filename) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        ParsePackageNoVerify(input_string, filename, entry));
   XLS_RETURN_IF_ERROR(VerifyPackage(package.get()));
@@ -2062,13 +2062,13 @@ absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageWithEntry(
 
 /* static */
 absl::StatusOr<std::unique_ptr<Package>> Parser::ParsePackageNoVerify(
-    absl::string_view input_string, std::optional<absl::string_view> filename,
-    std::optional<absl::string_view> entry) {
+    std::string_view input_string, std::optional<std::string_view> filename,
+    std::optional<std::string_view> entry) {
   return ParseDerivedPackageNoVerify<Package>(input_string, filename, entry);
 }
 
 /* static */
-absl::StatusOr<Value> Parser::ParseValue(absl::string_view input_string,
+absl::StatusOr<Value> Parser::ParseValue(std::string_view input_string,
                                          Type* expected_type) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
@@ -2076,7 +2076,7 @@ absl::StatusOr<Value> Parser::ParseValue(absl::string_view input_string,
 }
 
 /* static */
-absl::StatusOr<Value> Parser::ParseTypedValue(absl::string_view input_string) {
+absl::StatusOr<Value> Parser::ParseTypedValue(std::string_view input_string) {
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser p(std::move(scanner));
   return p.ParseValueInternal(/*expected_type=*/absl::nullopt);

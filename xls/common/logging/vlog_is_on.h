@@ -84,7 +84,7 @@ namespace xls {
 //       one needs to supply the exact --vmodule pattern that applied to them.
 //       (If no --vmodule pattern applied to them
 //       the value of FLAGS_v will continue to control them.)
-int SetVLOGLevel(absl::string_view module_pattern, int log_level);
+int SetVLOGLevel(std::string_view module_pattern, int log_level);
 
 // Private implementation details.  No user-serviceable parts inside.
 namespace logging_internal {
@@ -118,11 +118,11 @@ inline int SiteLevel(int32_t site) { return site >> 16; }
 // or fails.
 //   site: The address of the log site's state.
 //   fname: The filename of the current source file.
-int InitVLOG(std::atomic<int32_t>* site, absl::string_view full_path);
+int InitVLOG(std::atomic<int32_t>* site, std::string_view full_path);
 
 // Slow path version of VLogEnabled.
 bool VLogEnabledSlow(std::atomic<int32_t>* site, int32_t level,
-                     absl::string_view file);
+                     std::string_view file);
 
 // Determine whether verbose logging should occur at a given log site. Fast path
 // is inlined, slow path is delegated to VLogEnabledSlow.
@@ -134,7 +134,7 @@ bool VLogEnabledSlow(std::atomic<int32_t>* site, int32_t level,
 ABSL_ATTRIBUTE_ALWAYS_INLINE
 #endif
 inline bool VLogEnabled(std::atomic<int32_t>* site, int32_t level,
-                        absl::string_view file) {
+                        std::string_view file) {
   const int32_t site_copy = site->load(std::memory_order_acquire);
   if (ABSL_PREDICT_TRUE(SiteEpoch(site_copy) == GlobalEpoch())) {
     int32_t site_level = SiteLevel(site_copy);
@@ -155,7 +155,7 @@ inline bool VLogEnabled(std::atomic<int32_t>* site, int32_t level,
 // Helper libraries that provide vlog like functionality should use this to
 // efficiently handle -vmodule.
 //
-// Notionally the site also includes a `absl::string_view` file, but putting
+// Notionally the site also includes a `std::string_view` file, but putting
 // that in the class would increase the size, so the consistency invariant is
 // pushed onto callers of `IsEnabled()`.
 class VLogSite {
@@ -172,7 +172,7 @@ class VLogSite {
   // Returns true if logging is enabled.  Like XLS_VLOG_IS_ON(2), this uses
   // internal atomics to be fast in the common case.  For any given instance of
   // `VLogSite`, all calls to `IsEnabled` must use the same value for `file`.
-  bool IsEnabled(int32_t level, absl::string_view file) const {
+  bool IsEnabled(int32_t level, std::string_view file) const {
     return logging_internal::VLogEnabled(&site_, level, file);
   }
 
@@ -184,7 +184,7 @@ class VLogSite {
 
 namespace base_logging {
 namespace logging_internal {
-bool SafeFNMatch(absl::string_view pattern, absl::string_view str);
+bool SafeFNMatch(std::string_view pattern, std::string_view str);
 }  // namespace logging_internal
 }  // namespace base_logging
 

@@ -31,7 +31,7 @@ namespace xls {
 class Proc : public FunctionBase {
  public:
   // Creates a proc with no state elements.
-  Proc(absl::string_view name, absl::string_view token_param_name,
+  Proc(std::string_view name, std::string_view token_param_name,
        Package* package)
       : FunctionBase(name, package),
         next_token_(AddNode(std::make_unique<Param>(
@@ -110,7 +110,7 @@ class Proc : public FunctionBase {
   // next state node for this state element is set to the newly created state
   // parameter node. Returns the newly created parameter node.
   absl::StatusOr<Param*> ReplaceStateElement(
-      int64_t index, absl::string_view state_param_name,
+      int64_t index, std::string_view state_param_name,
       const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 
   // Remove the state element at the given index. All state elements higher than
@@ -123,14 +123,14 @@ class Proc : public FunctionBase {
   // for this state element is set to the newly created state parameter node.
   // Returns the newly created parameter node.
   absl::StatusOr<Param*> AppendStateElement(
-      absl::string_view state_param_name, const Value& init_value,
+      std::string_view state_param_name, const Value& init_value,
       std::optional<Node*> next_state = std::nullopt);
 
   // Adds a state element at the given index. Current state elements at the
   // given index or higher will be shifted up. Returns the newly created
   // parameter node.
   absl::StatusOr<Param*> InsertStateElement(
-      int64_t index, absl::string_view state_param_name,
+      int64_t index, std::string_view state_param_name,
       const Value& init_value, std::optional<Node*> next_state = std::nullopt);
 
   bool HasImplicitUse(Node* node) const override {
@@ -144,7 +144,7 @@ class Proc : public FunctionBase {
   // IDs to new channel IDs in the cloned version; if a key is unavailable in
   // `channel_remapping` it is assumed to be the identity mapping at that key.
   absl::StatusOr<Proc*> Clone(
-      absl::string_view new_name, Package* target_package = nullptr,
+      std::string_view new_name, Package* target_package = nullptr,
       absl::flat_hash_map<int64_t, int64_t> channel_remapping = {}) const;
 
   std::string DumpIr() const override;

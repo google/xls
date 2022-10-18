@@ -54,7 +54,7 @@ class ModuleInfo {
 // Hashable (usable in a flat hash map).
 class ImportTokens {
  public:
-  static absl::StatusOr<ImportTokens> FromString(absl::string_view module_name);
+  static absl::StatusOr<ImportTokens> FromString(std::string_view module_name);
 
   explicit ImportTokens(std::vector<std::string> pieces)
       : pieces_(std::move(pieces)) {}

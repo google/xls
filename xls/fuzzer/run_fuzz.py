@@ -96,20 +96,26 @@ def run_sample(smp: sample.Sample,
 
   """
   start = time.time()
-
-  _write_to_file(run_dir, 'sample.x', smp.input_text)
-  _write_to_file(run_dir, 'options.json', smp.options.to_json())
-  if smp.args_batch:
-    _write_to_file(run_dir, 'args.txt',
-                   sample.args_batch_to_text(smp.args_batch))
-
   # Create a script named 'run.sh' for rerunning the sample.
   args = [
       SAMPLE_RUNNER_MAIN_PATH, '--logtostderr', '--input_file=sample.x',
       '--options_file=options.json'
   ]
+
+  _write_to_file(run_dir, 'sample.x', smp.input_text)
+  _write_to_file(run_dir, 'options.json', smp.options.to_json())
+  args_filename = None
   if smp.args_batch:
+    args_filename = 'args.txt'
+    _write_to_file(run_dir, args_filename,
+                   sample.args_batch_to_text(smp.args_batch))
     args.append('--args_file=args.txt')
+  proc_init_values_filename = None
+  if smp.proc_init_values:
+    proc_init_values_filename = 'proc_init_values.txt'
+    _write_to_file(run_dir, proc_init_values_filename,
+                   sample.proc_init_values_to_text(smp.proc_init_values))
+    args.append('--proc_init_values_file=proc_init_values.txt')
   args.append(run_dir)
   _write_to_file(
       run_dir,
@@ -119,7 +125,8 @@ def run_sample(smp: sample.Sample,
   logging.vlog(1, 'Starting to run sample')
   logging.vlog(2, smp.input_text)
   runner = sample_runner.SampleRunner(run_dir)
-  runner.run_from_files('sample.x', 'options.json', 'args.txt')
+  runner.run_from_files('sample.x', 'options.json', args_filename,
+                        proc_init_values_filename)
   timing = runner.timing
 
   timing.total_ns = int((time.time() - start) * 1e9)
@@ -248,7 +255,8 @@ def minimize_ir(smp: sample.Sample,
 
 
 def _save_crasher(run_dir: str, smp: sample.Sample,
-                  exception: sample_runner.SampleError, crasher_dir: str):
+                  exception: sample_runner.SampleError,
+                  crasher_dir: str) -> str:
   """Saves the sample into a new directory in the crasher directory."""
   digest = hashlib.sha256(smp.input_text.encode('utf-8')).hexdigest()[:8]
   sample_crasher_dir = os.path.join(crasher_dir, digest)
@@ -263,6 +271,7 @@ def _save_crasher(run_dir: str, smp: sample.Sample,
                                digest[:4]))
   with gfile.open(crasher_path, 'w') as f:
     f.write(smp.to_crasher(str(exception)))
+  return sample_crasher_dir
 
 
 def generate_sample_and_run(
@@ -288,11 +297,14 @@ def generate_sample_and_run(
   except sample_runner.SampleError as e:
     logging.error('Sample failed: %s', str(e))
     if crasher_dir is not None:
-      _save_crasher(run_dir, smp, e, crasher_dir)
+      sample_crasher_dir = _save_crasher(run_dir, smp, e, crasher_dir)
       if not e.is_timeout:
         logging.info('Attempting to minimize IR...')
         ir_minimized = minimize_ir(
-            smp, crasher_dir, timeout=sample_options.timeout_seconds)
+            smp,
+            sample_crasher_dir,
+            timeout=datetime.timedelta(seconds=sample_options.timeout_seconds)
+            if sample_options.timeout_seconds else None)
         if ir_minimized:
           logging.info('...minimization successful.')
         else:

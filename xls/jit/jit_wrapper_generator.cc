@@ -13,9 +13,8 @@
 // limitations under the License.
 #include "xls/jit/jit_wrapper_generator.h"
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_replace.h"
-#include "absl/strings/substitute.h"
-#include "xls/common/status/ret_check.h"
 
 namespace xls {
 namespace {
@@ -136,12 +135,12 @@ bool MatchDouble(const Type& type) {
 // the given Type.
 std::string PackedTypeString(const Type& type) {
   if (type.IsBits()) {
-    return absl::StrCat("PackedBitsView<", type.GetFlatBitCount(), ">");
+    return absl::StrCat("xls::PackedBitsView<", type.GetFlatBitCount(), ">");
   } else if (type.IsArray()) {
     const ArrayType* array_type = type.AsArrayOrDie();
     std::string element_type_str =
         PackedTypeString(*array_type->element_type());
-    return absl::StrFormat("PackedArrayView<%s, %d>", element_type_str,
+    return absl::StrFormat("xls::PackedArrayView<%s, %d>", element_type_str,
                            array_type->size());
   } else {
     // Is tuple!
@@ -151,36 +150,36 @@ std::string PackedTypeString(const Type& type) {
     for (const Type* element_type : tuple_type->element_types()) {
       element_type_strs.push_back(PackedTypeString(*element_type));
     }
-    return absl::StrFormat("PackedTupleView<%s>",
+    return absl::StrFormat("xls::PackedTupleView<%s>",
                            absl::StrJoin(element_type_strs, ", "));
   }
 }
 
 // Emits the code necessary to convert a u32/i32 value to its corresponding
 // packed view.
-std::string ConvertUint(absl::string_view name, const Type& type) {
+std::string ConvertUint(std::string_view name, const Type& type) {
   XLS_CHECK(type.IsBits());
 
   return absl::StrFormat(
-      "PackedBitsView<%d> %s_view(absl::bit_cast<uint8_t*>(&%s), 0)",
+      "xls::PackedBitsView<%d> %s_view(absl::bit_cast<uint8_t*>(&%s), 0)",
       type.GetFlatBitCount(), name, name);
 }
 
 // Emits the code necessary to convert a float value to its corresponding
 // packed view.
-std::string ConvertFloat(absl::string_view name) {
+std::string ConvertFloat(std::string_view name) {
   return absl::StrCat(
-      "PackedTupleView<PackedBitsView<1>, PackedBitsView<8>, "
-      "PackedBitsView<23>> ",
+      "xls::PackedTupleView<xls::PackedBitsView<1>, xls::PackedBitsView<8>, "
+      "xls::PackedBitsView<23>> ",
       name, "_view(absl::bit_cast<uint8_t*>(&", name, "), 0)");
 }
 
 // Emits the code necessary to convert a double value to its corresponding
 // packed view.
-std::string ConvertDouble(absl::string_view name) {
+std::string ConvertDouble(std::string_view name) {
   return absl::StrCat(
-      "PackedTupleView<PackedBitsView<1>, PackedBitsView<11>, "
-      "PackedBitsView<52>> ",
+      "xls::PackedTupleView<xls::PackedBitsView<1>, xls::PackedBitsView<11>, "
+      "xls::PackedBitsView<52>> ",
       name, "_view(absl::bit_cast<uint8_t*>(&", name, "), 0)");
 }
 
@@ -207,7 +206,7 @@ std::optional<std::string> MatchTypeSpecialization(const Type& type) {
 // Simple matching "driver" for emitting logic to convert a simple type into an
 // XLS view.
 // Pretty bare-bones at present, but will be expanded depending on need.
-std::optional<std::string> CreateConversion(absl::string_view name,
+std::optional<std::string> CreateConversion(std::string_view name,
                                              const Type& type) {
   std::string type_string;
   if (MatchUint(type, &type_string)) {
@@ -267,7 +266,7 @@ std::string CreateDeclSpecialization(const Function& function,
 }
 
 std::string CreateImplSpecialization(const Function& function,
-                                     absl::string_view class_name) {
+                                     std::string_view class_name) {
   if (!IsSpecializable(function)) {
     return "";
   }
@@ -286,10 +285,10 @@ std::string CreateImplSpecialization(const Function& function,
 
   if (implicit_token_convention) {
     param_conversions.push_back(
-        "  uint8_t token = 0; PackedBitsView<0> token_view(&token, 0)");
+        "  uint8_t token = 0; xls::PackedBitsView<0> token_view(&token, 0)");
     param_conversions.push_back(
-        "  uint8_t activated = 1; PackedBitsView<1> activated_view(&activated, "
-        "0)");
+        "  uint8_t activated = 1; xls::PackedBitsView<1> "
+        "activated_view(&activated, 0)");
     param_names.push_back("token_view");
     param_names.push_back("activated_view");
   }
@@ -322,20 +321,23 @@ std::string CreateImplSpecialization(const Function& function,
 }  // namespace
 
 std::string GenerateWrapperHeader(const Function& function,
-                                  absl::string_view class_name,
+                                  std::string_view class_name,
+                                  std::string_view wrapper_namespace,
                                   const std::filesystem::path& header_path,
                                   const std::filesystem::path& genfiles_path) {
-  // $0 : Class name
-  // $1 : Function params
-  // $2 : Function name
-  // $3 : Packed view params
-  // $4 : Any interfaces for specially-matched types, e.g., an interface that
-  //      takes a float for a PackedTupleView<PackedBitsView<1>, ...>.
-  // $5 : Header guard.
-  constexpr const char header_template[] =
+  // Template substitution strings:
+  //  {{class_name}} : Class name
+  //  {{params}} : Function params
+  //  {{function_name}} : Function name
+  //  {{packed_params}} : Packed view params
+  //  {{specialization}} : Any interfaces for specially-matched types, e.g., an
+  //       interface that takes a float for a
+  //       PackedTupleView<PackedBitsView<1>,...>.
+  //  {{header_guard}} : Header guard.
+  constexpr const char kHeaderTemplate[] =
       R"(// Automatically-generated file! DO NOT EDIT!
-#ifndef $5
-#define $5
+#ifndef {{header_guard}}
+#define {{header_guard}}
 #include <memory>
 
 #include "absl/status/status.h"
@@ -343,35 +345,36 @@ std::string GenerateWrapperHeader(const Function& function,
 #include "xls/jit/function_jit.h"
 #include "xls/public/value.h"
 
-namespace xls {
+namespace {{namespace}} {
 
-// JIT execution wrapper for the $2 XLS IR module.
-class $0 {
+// JIT execution wrapper for the {{function_name}} XLS IR module.
+class {{class_name}} {
  public:
-  static absl::StatusOr<std::unique_ptr<$0>> Create();
-  FunctionJit* jit() { return jit_.get(); }
+  static absl::StatusOr<std::unique_ptr<{{class_name}}>> Create();
+  xls::FunctionJit* jit() { return jit_.get(); }
 
-  absl::StatusOr<Value> Run($1);
-  absl::Status Run($3);
-  $4
+  absl::StatusOr<xls::Value> Run({{params}});
+  absl::Status Run({{packed_params}});
+  {{specialization}}
 
  private:
-  $0(std::unique_ptr<Package> package, std::unique_ptr<FunctionJit> jit);
+  {{class_name}}(std::unique_ptr<xls::Package> package,
+                 std::unique_ptr<xls::FunctionJit> jit);
 
-  std::unique_ptr<Package> package_;
-  std::unique_ptr<FunctionJit> jit_;
+  std::unique_ptr<xls::Package> package_;
+  std::unique_ptr<xls::FunctionJit> jit_;
 };
 
-}  // namespace xls
+}  // namespace {{namespace}}
 
-#endif  // $5
+#endif  // {{header_guard}}
 )";
 
   std::vector<std::string> param_strs;
   std::vector<std::string> packed_param_strs;
   auto [params, return_type] = GetSignature(function);
   for (const Param* param : params) {
-    param_strs.push_back(absl::StrCat("Value ", param->name()));
+    param_strs.push_back(absl::StrCat("xls::Value ", param->name()));
     packed_param_strs.push_back(
         absl::StrCat(PackedTypeString(*param->GetType()), " ", param->name()));
   }
@@ -389,72 +392,78 @@ class $0 {
       });
   header_guard = absl::StrCat(absl::AsciiStrToUpper(header_guard), "_");
 
-  return absl::Substitute(header_template, class_name,
-                          absl::StrJoin(param_strs, ", "), function.name(),
-                          absl::StrJoin(packed_param_strs, ", "),
-                          CreateDeclSpecialization(function), header_guard);
+  absl::flat_hash_map<std::string, std::string> substitution_map;
+  substitution_map["{{class_name}}"] = class_name;
+  substitution_map["{{namespace}}"] = wrapper_namespace;
+  substitution_map["{{params}}"] = absl::StrJoin(param_strs, ", ");
+  substitution_map["{{function_name}}"] = function.name();
+  substitution_map["{{packed_params}}"] =
+      absl::StrJoin(packed_param_strs, ", ");
+  substitution_map["{{specialization}}"] = CreateDeclSpecialization(function);
+  substitution_map["{{header_guard}}"] = header_guard;
+  return absl::StrReplaceAll(kHeaderTemplate, substitution_map);
 }
 
 std::string GenerateWrapperSource(const Function& function,
-                                  absl::string_view class_name,
+                                  std::string_view class_name,
+                                  std::string_view wrapper_namespace,
                                   const std::filesystem::path& header_path) {
   // Use an extra '-' delimiter so we can embed a traditional-looking raw string
-  // in the source.
-  //  $0 : Class name
-  //  $1 : IR text
-  //  $2 : Param list
-  //  $3 : Arg list
-  //  $4 : Arg list size
-  //  $5 : Header path
-  //  $6 : Function name (not camelized)
-  //  $7 : Packed Run() params
-  //  $8 : Packed RunWithPackedViews() arguments
-  //  $9 : Specially-matched type implementations (if any)
-  //
-  // Note that Substitute() only supports up to $9, so we need a second pass
-  // that uses escaped values to exceed that number.
-  //
-  //  $$0: "Value" routine locals.
-  //  $$1: "Value" routine postprocessing.
-  //  $$2: "Packed" routine locals.
-  constexpr const char source_template[] =
+  // in the source. Template substitution strings:
+  //  {{class_name}} : Class name
+  //  {{ir_text}} : IR text
+  //  {{params}} : Param list
+  //  {{args}} : Arg list
+  //  {{args_size}} : Arg list size
+  //  {{header_path}} : Header path
+  //  {{function_name}} : Function name (not camelized)
+  //  {{run_params}} : Packed Run() params
+  //  {{run_packed_params}} : Packed RunWithPackedViews() arguments
+  //  {{specialization}} : Specially-matched type implementations (if any)
+  //  {{value_locals}}: "Value" routine locals.
+  //  {{value_postprocessing}}: "Value" routine postprocessing.
+  //  {{packed_locals}}: "Packed" routine locals.
+  constexpr const char kSourceTemplate[] =
       R"-(// Automatically-generated file! DO NOT EDIT!
-#include "$5"
+#include "{{header_path}}"
 #include "xls/common/status/status_macros.h"
 #include "xls/ir/ir_parser.h"
 
-namespace xls {
+namespace {{wrapper_namespace}} {
 
-constexpr const char ir_text[] = R"($1
+constexpr const char ir_text[] = R"({{ir_text}}
 )";
 
-absl::StatusOr<std::unique_ptr<$0>> $0::Create() {
-  XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(Function* function, package->GetFunction("$6"));
-  XLS_ASSIGN_OR_RETURN(auto jit, FunctionJit::Create(function));
-  return absl::WrapUnique(new $0(std::move(package), std::move(jit)));
+absl::StatusOr<std::unique_ptr<{{class_name}}>> {{class_name}}::Create() {
+  XLS_ASSIGN_OR_RETURN(auto package, xls::Parser::ParsePackage(ir_text));
+  XLS_ASSIGN_OR_RETURN(xls::Function* function,
+                       package->GetFunction("{{function_name}}"));
+  XLS_ASSIGN_OR_RETURN(auto jit, xls::FunctionJit::Create(function));
+  return absl::WrapUnique(new {{class_name}}(std::move(package), std::move(jit)));
 }
 
-$0::$0(std::unique_ptr<Package> package, std::unique_ptr<FunctionJit> jit)
+{{class_name}}::{{class_name}}(std::unique_ptr<xls::Package> package,
+                               std::unique_ptr<xls::FunctionJit> jit)
     : package_(std::move(package)), jit_(std::move(jit)) { }
 
-absl::StatusOr<Value> $0::Run($2) {
-  $$0
-  Value args[$4] = { $3 };
+absl::StatusOr<xls::Value> {{class_name}}::Run({{params}}) {
+  {{value_locals}}
+  xls::Value args[{{args_size}}] = { {{args}} };
   // Special form to handle zero-argument spans.
-  XLS_ASSIGN_OR_RETURN(Value _retval, DropInterpreterEvents(jit_->Run(absl::MakeSpan(args, $4))));
-  $$1
+  XLS_ASSIGN_OR_RETURN(xls::Value _retval,
+                       DropInterpreterEvents(jit_->Run(absl::MakeSpan(args, {{args_size}}))));
+  {{value_postprocessing}}
   return _retval;
 }
 
-absl::Status $0::Run($7) {
-  $$2
-  return jit_->RunWithPackedViews($8);
+absl::Status {{class_name}}::Run({{run_params}}) {
+  {{packed_locals}}
+  return jit_->RunWithPackedViews({{run_packed_params}});
 }
 
-$9
+{{specialization}}
 
-}  // namespace xls
+}  // namespace {{wrapper_namespace}}
 )-";
   std::vector<std::string> param_list;
   std::vector<std::string> packed_param_list;
@@ -462,7 +471,7 @@ $9
   auto [params, return_type] =
       GetSignature(function, &implicit_token_convention);
   for (const Param* param : params) {
-    param_list.push_back(absl::StrCat("Value ", param->name()));
+    param_list.push_back(absl::StrCat("xls::Value ", param->name()));
     packed_param_list.push_back(
         absl::StrCat(PackedTypeString(*param->GetType()), " ", param->name()));
   }
@@ -480,12 +489,13 @@ $9
     arg_list.push_back("_token");
     arg_list.push_back("_activated");
     value_locals =
-        "Value _token = Value::Token();\n"
-        "  Value _activated = Value::Bool(true);";
+        "xls::Value _token = xls::Value::Token();\n"
+        "  xls::Value _activated = xls::Value::Bool(true);";
     packed_locals =
-        "uint8_t _token_value = 0; PackedBitsView<0> _token(&_token_value, "
+        "uint8_t _token_value = 0; xls::PackedBitsView<0> "
+        "_token(&_token_value, "
         "0);\n"
-        "  uint8_t _activated_value = 1; PackedBitsView<1> "
+        "  uint8_t _activated_value = 1; xls::PackedBitsView<1> "
         "_activated(&_activated_value, 1);";
     retval_handling = "_retval = _retval.elements()[1];";
   }
@@ -498,23 +508,34 @@ $9
   std::string packed_args = absl::StrJoin(arg_list, ", ");
 
   std::string specialization = CreateImplSpecialization(function, class_name);
-
-  std::string substituted = absl::Substitute(
-      source_template, class_name, function.package()->DumpIr(), params_str,
-      unpacked_args, num_unpacked_args, header_path.string(), function.name(),
-      packed_params_str, packed_args, specialization);
-  return absl::Substitute(substituted, value_locals, retval_handling,
-                          packed_locals);
+  absl::flat_hash_map<std::string, std::string> substitution_map;
+  substitution_map["{{class_name}}"] = class_name;
+  substitution_map["{{ir_text}}"] = function.package()->DumpIr();
+  substitution_map["{{params}}"] = params_str;
+  substitution_map["{{args}}"] = unpacked_args;
+  substitution_map["{{args_size}}"] = absl::StrCat(num_unpacked_args);
+  substitution_map["{{header_path}}"] = header_path.string();
+  substitution_map["{{function_name}}"] = function.name();
+  substitution_map["{{run_params}}"] = packed_params_str;
+  substitution_map["{{run_packed_params}}"] = packed_args;
+  substitution_map["{{specialization}}"] = specialization;
+  substitution_map["{{value_locals}}"] = value_locals;
+  substitution_map["{{value_postprocessing}}"] = retval_handling;
+  substitution_map["{{packed_locals}}"] = packed_locals;
+  substitution_map["{{wrapper_namespace}}"] = wrapper_namespace;
+  return absl::StrReplaceAll(kSourceTemplate, substitution_map);
 }
 
 GeneratedJitWrapper GenerateJitWrapper(
-    const Function& function, const std::string& class_name,
+    const Function& function, std::string_view class_name,
+    std::string_view wrapper_namespace,
     const std::filesystem::path& header_path,
     const std::filesystem::path& genfiles_path) {
   GeneratedJitWrapper wrapper;
-  wrapper.header =
-      GenerateWrapperHeader(function, class_name, header_path, genfiles_path);
-  wrapper.source = GenerateWrapperSource(function, class_name, header_path);
+  wrapper.header = GenerateWrapperHeader(
+      function, class_name, wrapper_namespace, header_path, genfiles_path);
+  wrapper.source = GenerateWrapperSource(function, class_name,
+                                         wrapper_namespace, header_path);
   return wrapper;
 }
 

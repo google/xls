@@ -17,6 +17,7 @@
 
 #include <random>
 
+#include "absl/types/span.h"
 #include "xls/dslx/concrete_type.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample.h"

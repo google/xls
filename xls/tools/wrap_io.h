@@ -27,7 +27,7 @@ namespace verilog {
 // Control codes of the I/O state machine. These codes are not interpreted as
 // data, but rather initiate actions within the state machine. Passing data
 // bytes equal to these values requires an escape sequnce.
-enum IoControlCode : uint8_t {
+enum IOControlCode : uint8_t {
   // Resets the I/O state machine and the device function. This control code
   // cannot be escaped (a reset is initiated even if the previous character
   // is the escape control code).
@@ -41,13 +41,13 @@ enum IoControlCode : uint8_t {
 // Escape codes of the I/O state machine. These bytes are sent immediately
 // following the escape control code. An unrecognized escaped byte will be
 // interpretted as a data byte of that value.
-enum IoEscapeCode : uint8_t {
+enum IOEscapeCode : uint8_t {
   // Interpreted as a data byte equal to the "reset" control code value
-  // (IoControlCode::kReset).
+  // (IOControlCode::kReset).
   kResetByte = 0x00,
 
   // Interpreted as a data byte equal to the "escape" control code value
-  // (IoControlCode::kEscape).
+  // (IOControlCode::kEscape).
   kEscapeByte = 0xff,
 };
 
@@ -66,7 +66,7 @@ enum IoEscapeCode : uint8_t {
 //  module_name: Name of the module being instantiated as the "device function"
 //    that we're going to invoke. This should already be defined in the Verilog
 //    file f (we refer to it as a free variable).
-//  instance_name: The resulting WrapIo module instantiates the "device
+//  instance_name: The resulting WrapIO module instantiates the "device
 //    function" -- instance_name is the name that we should give to the "device
 //    function" instance that is created.
 //  latency: Latency for the "device function" module to produce a result, in
@@ -75,10 +75,10 @@ enum IoEscapeCode : uint8_t {
 // TODO(leary): 2019-03-25 We'll want to change the I/O mechanism into a
 // pluggable strategy, right now this assumes ICE40 UART, but just as easily we
 // should be able to plug in something like PCIe TLP handling.
-absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
-                               absl::string_view instance_name,
+absl::StatusOr<Module*> WrapIO(std::string_view module_name,
+                               std::string_view instance_name,
                                const ModuleSignature& signature,
-                               IoStrategy* io_strategy, VerilogFile* f);
+                               IOStrategy* io_strategy, VerilogFile* f);
 
 // Creates and returns a module which controls the input to the I/O state
 // machine. This module has a byte-wide input with ready/valid flow control and
@@ -86,14 +86,14 @@ absl::StatusOr<Module*> WrapIo(absl::string_view module_name,
 // byte-by-byte and shifted into the (potentially larger) arbitrary width output
 // where the first byte is the MSB.
 //
-// This module is intended to be used within WrapIo and is exposed in the header
+// This module is intended to be used within WrapIO and is exposed in the header
 // for testing purposes.
-// TODO(meheff): Hook up this module into WrapIo.
+// TODO(meheff): Hook up this module into WrapIO.
 absl::StatusOr<Module*> InputControllerModule(const ModuleSignature& signature,
                                               VerilogFile* f);
 
 // Creates and returns the module which controls the reset of the I/O state
-// machine via the reset control code (IoControlCode::kReset). This is
+// machine via the reset control code (IOControlCode::kReset). This is
 // instantiated within the InputControlModule and is exposed in the header for
 // testing purposes.
 absl::StatusOr<Module*> InputResetModule(VerilogFile* f);

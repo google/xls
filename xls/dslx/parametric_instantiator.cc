@@ -64,8 +64,7 @@ ParametricInstantiator::ParametricInstantiator(
       const std::string& identifier = constraint.identifier();
       constraint_order_.push_back(identifier);
       ConcreteTypeDim bit_count = constraint.type().GetTotalBitCount().value();
-      bit_widths_.emplace(identifier,
-                          absl::get<InterpValue>(bit_count.value()));
+      bit_widths_.emplace(identifier, std::get<InterpValue>(bit_count.value()));
       constraints_[identifier] = constraint.expr();
     }
   }
@@ -101,12 +100,12 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> ParametricInstantiator::Resolve(
       std::unique_ptr<ConcreteType> resolved,
       annotated.MapSize([this](ConcreteTypeDim dim)
                             -> absl::StatusOr<ConcreteTypeDim> {
-        if (!absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(
+        if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(
                 dim.value())) {
           return dim;
         }
         const auto& parametric_expr =
-            absl::get<ConcreteTypeDim::OwnedParametric>(dim.value());
+            std::get<ConcreteTypeDim::OwnedParametric>(dim.value());
         ParametricExpression::Evaluated evaluated = parametric_expr->Evaluate(
             ToParametricEnv(SymbolicBindings(symbolic_bindings_)));
         return ConcreteTypeDim(std::move(evaluated));
@@ -172,11 +171,11 @@ absl::Status ParametricInstantiator::VerifyConstraints() {
 
 static const ParametricSymbol* TryGetParametricSymbol(
     const ConcreteTypeDim& dim) {
-  if (!absl::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
+  if (!std::holds_alternative<ConcreteTypeDim::OwnedParametric>(dim.value())) {
     return nullptr;
   }
   const ParametricExpression* parametric =
-      absl::get<ConcreteTypeDim::OwnedParametric>(dim.value()).get();
+      std::get<ConcreteTypeDim::OwnedParametric>(dim.value()).get();
   return dynamic_cast<const ParametricSymbol*>(parametric);
 }
 

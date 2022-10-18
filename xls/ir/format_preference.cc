@@ -18,7 +18,7 @@
 
 namespace xls {
 
-absl::string_view FormatPreferenceToString(FormatPreference preference) {
+std::string_view FormatPreferenceToString(FormatPreference preference) {
   switch (preference) {
     case FormatPreference::kDefault:
       return "default";
@@ -39,7 +39,7 @@ absl::string_view FormatPreferenceToString(FormatPreference preference) {
   return "<invalid format preference>";
 }
 
-absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
+std::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
   switch (preference) {
     case FormatPreference::kDefault:
       return "{}";
@@ -60,7 +60,7 @@ absl::string_view FormatPreferenceToXlsSpecifier(FormatPreference preference) {
   return "<invalid format preference>";
 }
 
-absl::string_view FormatPreferenceToVerilogSpecifier(
+std::string_view FormatPreferenceToVerilogSpecifier(
     FormatPreference preference) {
   switch (preference) {
     case FormatPreference::kDefault:
@@ -92,7 +92,7 @@ absl::string_view FormatPreferenceToVerilogSpecifier(
 }
 
 absl::StatusOr<FormatPreference> FormatPreferenceFromString(
-    absl::string_view s) {
+    std::string_view s) {
   if (s == "default") {
     return FormatPreference::kDefault;
   } else if (s == "binary") {

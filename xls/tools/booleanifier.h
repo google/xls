@@ -42,10 +42,10 @@ class Booleanifier {
   // function is placed in the same Package as f. boolean_function_name, if
   // given, is the name of the generated boolean function.
   static absl::StatusOr<Function*> Booleanify(
-      Function* f, absl::string_view boolean_function_name = "");
+      Function* f, std::string_view boolean_function_name = "");
 
  private:
-  Booleanifier(Function* f, absl::string_view boolean_function_name);
+  Booleanifier(Function* f, std::string_view boolean_function_name);
 
   // Driver for doing the actual conversion.
   absl::StatusOr<Function*> Run();

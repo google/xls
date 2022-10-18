@@ -93,11 +93,11 @@ absl::StatusOr<InterpValue> ValueToInterpValue(
 // values that we're converting into InterpValues. Things like enums or structs
 // (via named tuples) can't be parsed via this mechanism, it's fairly
 // specialized for the scenario we've created in our fuzzing process.
-absl::StatusOr<std::vector<InterpValue>> ParseArgs(absl::string_view args_text);
+absl::StatusOr<std::vector<InterpValue>> ParseArgs(std::string_view args_text);
 
 // Does the above, but for a series of argument strings, one per line of input.
 absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
-    absl::string_view args_text);
+    std::string_view args_text);
 
 }  // namespace xls::dslx
 

@@ -168,6 +168,18 @@ absl::StatusOr<ScheduleCycleMap> MinCutScheduler(
     }
   }
 
+  // The state backedge must be in the first cycle.
+  if (Proc* proc = dynamic_cast<Proc*>(f)) {
+    for (Node* node : proc->params()) {
+      XLS_RETURN_IF_ERROR(bounds->TightenNodeUb(node, 0));
+      XLS_RETURN_IF_ERROR(bounds->PropagateUpperBounds());
+    }
+    for (Node* node : proc->NextState()) {
+      XLS_RETURN_IF_ERROR(bounds->TightenNodeUb(node, 0));
+      XLS_RETURN_IF_ERROR(bounds->PropagateUpperBounds());
+    }
+  }
+
   // Try a number of different orderings of cycle boundary at which the min-cut
   // is performed and keep the best one.
   int64_t best_register_count = std::numeric_limits<int64_t>::max();

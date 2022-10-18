@@ -23,7 +23,7 @@
 
 namespace xls::tools {
 
-absl::StatusOr<std::string> OptimizeIrForTop(absl::string_view ir,
+absl::StatusOr<std::string> OptimizeIrForTop(std::string_view ir,
                                              const OptOptions& options) {
   if (!options.top.empty()) {
     XLS_VLOG(3) << "OptimizeIrForEntry; top: '" << options.top

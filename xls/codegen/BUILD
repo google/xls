@@ -732,6 +732,7 @@ cc_test(
         "//xls/ir:ir_matcher",
         "//xls/ir:ir_test_base",
         "//xls/scheduling:pipeline_schedule",
+        "//xls/scheduling:scheduling_options",
         "@com_google_googletest//:gtest",
     ],
 )

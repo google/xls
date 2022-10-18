@@ -78,4 +78,53 @@ class XlsFixed<Width, Width, Signed, Quantization, ac_datatypes::AC_SAT> {
   XlsInt<Width, Signed> val_;
 };
 
+template<typename O, int Width, int IntegerWidth, bool Signed,
+          ac_datatypes::ac_q_mode Quantization,
+          ac_datatypes::ac_o_mode Overflow>
+inline O operator+(const XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>& o, const O &op) {
+  (void)__xlscc_unimplemented();
+  return O();
+}
+
+template<typename O, int Width, int IntegerWidth, bool Signed,
+          ac_datatypes::ac_q_mode Quantization,
+          ac_datatypes::ac_o_mode Overflow>
+inline O operator+(const O &op, const XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>& o) {
+  (void)__xlscc_unimplemented();
+  return O();
+}
+
+
+template<typename O, int Width, int IntegerWidth, bool Signed,
+          ac_datatypes::ac_q_mode Quantization,
+          ac_datatypes::ac_o_mode Overflow>
+inline O operator-(const XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>& o, const O &op) {
+  (void)__xlscc_unimplemented();
+  return O();
+}
+
+template<typename O, int Width, int IntegerWidth, bool Signed,
+          ac_datatypes::ac_q_mode Quantization,
+          ac_datatypes::ac_o_mode Overflow>
+inline O operator-(const O &op, const XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>& o) {
+  (void)__xlscc_unimplemented();
+  return O();
+}
+
+template<typename O, int Width, int IntegerWidth, bool Signed,
+          ac_datatypes::ac_q_mode Quantization,
+          ac_datatypes::ac_o_mode Overflow>
+inline O operator*(const XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>& o, const O &op) {
+  (void)__xlscc_unimplemented();
+  return O();
+}
+
+template<typename O, int Width, int IntegerWidth, bool Signed,
+          ac_datatypes::ac_q_mode Quantization,
+          ac_datatypes::ac_o_mode Overflow>
+inline O operator*(const O &op, const XlsFixed<Width, IntegerWidth, Signed, Quantization, Overflow>& o) {
+  (void)__xlscc_unimplemented();
+  return O();
+}
+
 #endif  // XLS_FIXED_H

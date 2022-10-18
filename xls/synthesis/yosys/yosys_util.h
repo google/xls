@@ -27,7 +27,7 @@ namespace synthesis {
 // Parses the given string output of nextpnr and returns the maximum frequency
 // in Hz.
 // TODO(meheff): Extract more information from the nextpnr output.
-absl::StatusOr<int64_t> ParseNextpnrOutput(absl::string_view nextpnr_output);
+absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output);
 
 // Parses the given string output of yosys and returns information about the
 // synthesis results.
@@ -36,7 +36,7 @@ struct YosysSynthesisStatistics {
   absl::flat_hash_map<std::string, int64_t> cell_histogram;
 };
 absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
-    absl::string_view yosys_output);
+    std::string_view yosys_output);
 
 }  // namespace synthesis
 }  // namespace xls

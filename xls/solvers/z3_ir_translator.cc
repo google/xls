@@ -147,7 +147,7 @@ class Z3OpTranslator {
   }
 
   // Makes a bit count parameter.
-  Z3_ast MakeBvParam(int64_t bit_count, absl::string_view name) {
+  Z3_ast MakeBvParam(int64_t bit_count, std::string_view name) {
     Z3_sort type = Z3_mk_bv_sort(z3_ctx_, bit_count);
     return Z3_mk_const(
         z3_ctx_, Z3_mk_string_symbol(z3_ctx_, std::string(name).c_str()), type);
@@ -530,7 +530,7 @@ Z3_ast IrTranslator::CreateTuple(Type* tuple_type,
 }
 
 absl::StatusOr<Z3_ast> IrTranslator::CreateZ3Param(
-    Type* type, absl::string_view param_name) {
+    Type* type, std::string_view param_name) {
   return Z3_mk_const(ctx_,
                      Z3_mk_string_symbol(ctx_, std::string(param_name).c_str()),
                      TypeToSort(ctx_, *type));

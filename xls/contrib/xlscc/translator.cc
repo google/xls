@@ -19,10 +19,12 @@
 #include <memory>
 #include <regex>  // NOLINT
 #include <sstream>
+#include <string>
 #include <typeinfo>
 #include <vector>
 
 #include "absl/base/casts.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -52,10 +54,8 @@
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/contrib/xlscc/cc_parser.h"
-#include "xls/contrib/xlscc/metadata_output.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/caret.h"
 #include "xls/ir/channel.h"
 #include "xls/ir/fileno.h"
 #include "xls/ir/function.h"
@@ -77,486 +77,7 @@ using std::shared_ptr;
 using std::string;
 using std::vector;
 
-namespace {
-
-// Returns monotonically increasing time in seconds
-double doubletime() {
-  struct timeval tv;
-  struct timezone tz;
-  gettimeofday(&tv, &tz);
-  return tv.tv_sec + static_cast<double>(tv.tv_usec) / 1000000.0;
-}
-
-}  // namespace
-
 namespace xlscc {
-
-CType::~CType() {}
-
-bool CType::operator!=(const CType& o) const { return !(*this == o); }
-
-int CType::GetBitWidth() const { return 0; }
-
-CType::operator std::string() const { return "CType"; }
-
-xls::Type* CType::GetXLSType(xls::Package* /*package*/) const {
-  XLS_LOG(FATAL) << "GetXLSType() unsupported in CType base class";
-  return nullptr;
-}
-
-bool CType::StoredAsXLSBits() const { return false; }
-
-absl::Status CType::GetMetadata(Translator& translator,
-                                xlscc_metadata::Type* output) const {
-  return absl::UnimplementedError(
-      "GetMetadata unsupported in CType base class");
-}
-
-absl::Status CType::GetMetadataValue(Translator& translator,
-                                     const ConstValue const_value,
-                                     xlscc_metadata::Value* output) const {
-  return absl::UnimplementedError(
-      "GetMetadataValue unsupported in CType base class");
-}
-
-CVoidType::~CVoidType() {}
-
-int CVoidType::GetBitWidth() const {
-  XLS_CHECK(false);
-  return 0;
-}
-
-absl::Status CVoidType::GetMetadata(Translator& translator,
-                                    xlscc_metadata::Type* output) const {
-  (void)output->mutable_as_void();
-  return absl::OkStatus();
-}
-
-absl::Status CVoidType::GetMetadataValue(Translator& translator,
-                                         const ConstValue const_value,
-                                         xlscc_metadata::Value* output) const {
-  return absl::OkStatus();
-}
-
-CVoidType::operator std::string() const { return "void"; }
-
-bool CVoidType::operator==(const CType& o) const { return o.Is<CVoidType>(); }
-
-CBitsType::CBitsType(int width) : width_(width) {}
-
-CBitsType::~CBitsType() {}
-
-int CBitsType::GetBitWidth() const { return width_; }
-
-CBitsType::operator std::string() const {
-  return absl::StrFormat("bits[%d]", width_);
-}
-
-absl::Status CBitsType::GetMetadata(Translator& translator,
-                                    xlscc_metadata::Type* output) const {
-  output->mutable_as_bits()->set_width(width_);
-  return absl::OkStatus();
-}
-
-absl::Status CBitsType::GetMetadataValue(Translator& translator,
-                                         const ConstValue const_value,
-                                         xlscc_metadata::Value* output) const {
-  vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
-  output->set_as_bits(bytes.data(), bytes.size());
-  return absl::OkStatus();
-}
-
-bool CBitsType::StoredAsXLSBits() const { return true; }
-
-bool CBitsType::operator==(const CType& o) const {
-  if (!o.Is<CBitsType>()) return false;
-  const auto* o_derived = o.As<CBitsType>();
-  return width_ == o_derived->width_;
-}
-
-CIntType::~CIntType() {}
-
-CIntType::CIntType(int width, bool is_signed, bool is_declared_as_char)
-    : width_(width),
-      is_signed_(is_signed),
-      is_declared_as_char_(is_declared_as_char) {}
-
-xls::Type* CIntType::GetXLSType(xls::Package* package) const {
-  return package->GetBitsType(width_);
-}
-
-bool CIntType::operator==(const CType& o) const {
-  if (!o.Is<CIntType>()) return false;
-  const auto* o_derived = o.As<CIntType>();
-  if (width_ != o_derived->width_) return false;
-  return is_signed_ == o_derived->is_signed_;
-}
-
-int CIntType::GetBitWidth() const { return width_; }
-
-bool CIntType::StoredAsXLSBits() const { return true; }
-
-CIntType::operator std::string() const {
-  const std::string pre = is_signed_ ? "" : "unsigned_";
-  if (width_ == 32) {
-    return pre + "int";
-  }
-  if (width_ == 1) {
-    return pre + "pseudobool";
-  }
-  if (width_ == 64) {
-    return pre + "int64_t";
-  }
-  if (width_ == 16) {
-    return pre + "short";
-  }
-  if (width_ == 8) {
-    return pre + (is_declared_as_char() ? "char" : "int8_t");
-  }
-  XLS_CHECK(0);
-  return "Unsupported";
-}
-
-absl::Status CIntType::GetMetadata(Translator& translator,
-                                   xlscc_metadata::Type* output) const {
-  output->mutable_as_int()->set_width(width_);
-  output->mutable_as_int()->set_is_signed(is_signed_);
-  if (width_ == 8) {
-    output->mutable_as_int()->set_is_declared_as_char(is_declared_as_char_);
-  }
-  return absl::OkStatus();
-}
-
-absl::Status CIntType::GetMetadataValue(Translator& translator,
-                                        const ConstValue const_value,
-                                        xlscc_metadata::Value* output) const {
-  auto value = const_value.rvalue();
-  XLS_CHECK(value.IsBits());
-  if (is_signed()) {
-    XLS_ASSIGN_OR_RETURN(int64_t signed_value, value.bits().ToInt64());
-    output->mutable_as_int()->set_signed_value(signed_value);
-  } else {
-    XLS_ASSIGN_OR_RETURN(uint64_t unsigned_value, value.bits().ToUint64());
-    output->mutable_as_int()->set_unsigned_value(unsigned_value);
-  }
-  return absl::OkStatus();
-}
-
-CBoolType::~CBoolType() {}
-
-int CBoolType::GetBitWidth() const { return 1; }
-
-CBoolType::operator std::string() const { return "bool"; }
-
-absl::Status CBoolType::GetMetadata(Translator& translator,
-                                    xlscc_metadata::Type* output) const {
-  (void)output->mutable_as_bool();
-  return absl::OkStatus();
-}
-
-absl::Status CBoolType::GetMetadataValue(Translator& translator,
-                                         const ConstValue const_value,
-                                         xlscc_metadata::Value* output) const {
-  auto value = const_value.rvalue();
-  XLS_CHECK(value.IsBits());
-  XLS_ASSIGN_OR_RETURN(uint64_t bool_value, value.bits().ToUint64());
-  output->set_as_bool(bool_value == 1);
-  return absl::OkStatus();
-}
-
-bool CBoolType::operator==(const CType& o) const { return o.Is<CBoolType>(); }
-
-bool CBoolType::StoredAsXLSBits() const { return true; }
-
-CInstantiableTypeAlias::CInstantiableTypeAlias(const clang::NamedDecl* base)
-    : base_(base) {}
-
-const clang::NamedDecl* CInstantiableTypeAlias::base() const { return base_; }
-
-CInstantiableTypeAlias::operator std::string() const {
-  return absl::StrFormat("{%s}", base_->getNameAsString());
-}
-
-absl::Status CInstantiableTypeAlias::GetMetadata(
-    Translator& translator, xlscc_metadata::Type* output) const {
-  output->mutable_as_inst()->mutable_name()->set_name(base_->getNameAsString());
-  output->mutable_as_inst()->mutable_name()->set_fully_qualified_name(
-      base_->getQualifiedNameAsString());
-  output->mutable_as_inst()->mutable_name()->set_id(
-      reinterpret_cast<uint64_t>(base_));
-
-  if (auto special =
-          clang::dyn_cast<const clang::ClassTemplateSpecializationDecl>(
-              base_)) {
-    const clang::TemplateArgumentList& arguments = special->getTemplateArgs();
-    for (int argi = 0; argi < arguments.size(); ++argi) {
-      const clang::TemplateArgument& arg = arguments.get(argi);
-      xlscc_metadata::TemplateArgument* proto_arg =
-          output->mutable_as_inst()->add_args();
-      switch (arg.getKind()) {
-        case clang::TemplateArgument::ArgKind::Integral:
-          proto_arg->set_as_integral(arg.getAsIntegral().getExtValue());
-          break;
-        case clang::TemplateArgument::ArgKind::Type: {
-          xls::SourceInfo loc = translator.GetLoc(*base_);
-          XLS_ASSIGN_OR_RETURN(
-              std::shared_ptr<CType> arg_ctype,
-              translator.TranslateTypeFromClang(arg.getAsType(), loc));
-          XLS_RETURN_IF_ERROR(
-              arg_ctype->GetMetadata(translator, proto_arg->mutable_as_type()));
-          break;
-        }
-        default:
-          return absl::UnimplementedError(
-              absl::StrFormat("Unimplemented template argument kind %i",
-                              static_cast<int>(arg.getKind())));
-      }
-    }
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status CInstantiableTypeAlias::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
-    xlscc_metadata::Value* output) const {
-  std::shared_ptr<CInstantiableTypeAlias> inst(
-      new CInstantiableTypeAlias(base_));
-  auto found = translator.inst_types_.find(inst);
-  XLS_CHECK(found != translator.inst_types_.end());
-  auto struct_type =
-      std::dynamic_pointer_cast<const CStructType>(found->second);
-
-  // Handle __xls_bits
-  if (struct_type == nullptr) {
-    XLS_CHECK_EQ(base_->getNameAsString(), "__xls_bits");
-
-    vector<uint8_t> bytes = const_value.rvalue().bits().ToBytes();
-    output->set_as_bits(bytes.data(), bytes.size());
-
-    return absl::OkStatus();
-  }
-
-  XLS_RETURN_IF_ERROR(
-      struct_type->GetMetadataValue(translator, const_value, output));
-  return absl::OkStatus();
-}
-
-int CInstantiableTypeAlias::GetBitWidth() const {
-  XLS_LOG(FATAL) << "GetBitWidth() unsupported for CInstantiableTypeAlias";
-  return 0;
-}
-
-bool CInstantiableTypeAlias::operator==(const CType& o) const {
-  if (!o.Is<CInstantiableTypeAlias>()) return false;
-  const auto* o_derived = o.As<CInstantiableTypeAlias>();
-  return base_ == o_derived->base_;
-}
-
-CStructType::CStructType(std::vector<std::shared_ptr<CField>> fields,
-                         bool no_tuple_flag, bool synthetic_int_flag)
-    : no_tuple_flag_(no_tuple_flag),
-      synthetic_int_flag_(synthetic_int_flag),
-      fields_(fields) {
-  for (const std::shared_ptr<CField>& pf : fields) {
-    XLS_CHECK(!fields_by_name_.contains(pf->name()));
-    fields_by_name_[pf->name()] = pf;
-  }
-}
-
-absl::Status CStructType::GetMetadata(Translator& translator,
-                                      xlscc_metadata::Type* output) const {
-  output->mutable_as_struct()->set_no_tuple(no_tuple_flag_);
-
-  absl::flat_hash_map<
-      int, std::pair<const clang::NamedDecl*, std::shared_ptr<CField>>>
-      fields_by_index;
-
-  auto size = fields_by_name_.size();
-  for (std::pair<const clang::NamedDecl*, std::shared_ptr<CField>> field :
-       fields_by_name_) {
-    fields_by_index[size - 1 - field.second->index()] = field;
-  }
-
-  for (int i = 0; i < fields_by_name_.size(); ++i) {
-    std::pair<const clang::NamedDecl*, std::shared_ptr<CField>> field =
-        fields_by_index[i];
-    XLS_RETURN_IF_ERROR(field.second->GetMetadata(
-        translator, output->mutable_as_struct()->add_fields()));
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status CStructType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
-    xlscc_metadata::Value* output) const {
-  output->mutable_as_struct()->set_no_tuple(no_tuple_flag_);
-
-  absl::flat_hash_map<
-      int, std::pair<const clang::NamedDecl*, std::shared_ptr<CField>>>
-      fields_by_index;
-
-  for (auto field : fields_by_name_) {
-    fields_by_index[field.second->index()] = field;
-  }
-  for (int i = 0; i < fields_by_name_.size(); ++i) {
-    auto field = fields_by_index[i];
-    auto struct_field_value = output->mutable_as_struct()->add_fields();
-    auto name_out = struct_field_value->mutable_name();
-    name_out->set_fully_qualified_name(field.first->getNameAsString());
-    name_out->set_name(field.first->getNameAsString());
-    name_out->set_id(reinterpret_cast<uint64_t>(field.first));
-    XLS_ASSIGN_OR_RETURN(
-        xls::Value elem_value,
-        Translator::GetStructFieldXLS(const_value.rvalue(), i, *this));
-    XLS_RETURN_IF_ERROR(field.second->type()->GetMetadataValue(
-        translator, ConstValue(elem_value, field.second->type()),
-        struct_field_value->mutable_value()));
-  }
-  return absl::OkStatus();
-}
-
-bool CStructType::no_tuple_flag() const { return no_tuple_flag_; }
-
-bool CStructType::synthetic_int_flag() const { return synthetic_int_flag_; }
-
-int CStructType::GetBitWidth() const {
-  int ret = 0;
-  for (const std::shared_ptr<CField>& field : fields_) {
-    ret += field->type()->GetBitWidth();
-  }
-  return ret;
-}
-
-CStructType::operator std::string() const {
-  std::ostringstream ostr;
-  ostr << "{";
-  if (no_tuple_flag_) {
-    ostr << " notuple ";
-  }
-  for (const std::shared_ptr<CField>& it : fields_) {
-    ostr << "[" << it->index() << "] "
-         << (it->name() != nullptr ? it->name()->getNameAsString()
-                                   : std::string("nullptr"))
-         << ": " << string(*it->type());
-  }
-  ostr << "}";
-  return ostr.str();
-}
-
-bool CStructType::operator==(const CType& o) const {
-  XLS_LOG(FATAL) << "operator== unsupported on structs";
-  return false;
-}
-
-const std::vector<std::shared_ptr<CField>>& CStructType::fields() const {
-  return fields_;
-}
-
-const absl::flat_hash_map<const clang::NamedDecl*, std::shared_ptr<CField>>&
-CStructType::fields_by_name() const {
-  return fields_by_name_;
-}
-
-std::shared_ptr<CField> CStructType::get_field(
-    const clang::NamedDecl* name) const {
-  auto found = fields_by_name_.find(name);
-  if (found == fields_by_name_.end()) {
-    return std::shared_ptr<CField>();
-  }
-  return found->second;
-}
-
-CField::CField(const clang::NamedDecl* name, int index,
-               std::shared_ptr<CType> type)
-    : name_(name), index_(index), type_(type) {}
-
-int CField::index() const { return index_; }
-
-const clang::NamedDecl* CField::name() const { return name_; }
-
-std::shared_ptr<CType> CField::type() const { return type_; }
-
-CArrayType::CArrayType(std::shared_ptr<CType> element, int size)
-    : element_(element), size_(size) {
-  XLS_CHECK(size_ > 0);
-}
-
-bool CArrayType::operator==(const CType& o) const {
-  if (!o.Is<CArrayType>()) return false;
-  const auto* o_derived = o.As<CArrayType>();
-  return *element_ == *o_derived->element_ && size_ == o_derived->size_;
-}
-
-int CArrayType::GetBitWidth() const { return size_ * element_->GetBitWidth(); }
-
-absl::Status CField::GetMetadata(Translator& translator,
-                                 xlscc_metadata::StructField* output) const {
-  output->set_name(name_->getNameAsString());
-  XLS_RETURN_IF_ERROR(type_->GetMetadata(translator, output->mutable_type()));
-  return absl::OkStatus();
-}
-
-int CArrayType::GetSize() const { return size_; }
-
-std::shared_ptr<CType> CArrayType::GetElementType() const { return element_; }
-
-CArrayType::operator std::string() const {
-  return absl::StrFormat("%s[%i]", string(*element_), size_);
-}
-
-absl::Status CArrayType::GetMetadata(Translator& translator,
-                                     xlscc_metadata::Type* output) const {
-  output->mutable_as_array()->set_size(size_);
-  XLS_RETURN_IF_ERROR(element_->GetMetadata(
-      translator, output->mutable_as_array()->mutable_element_type()));
-  return absl::OkStatus();
-}
-
-absl::Status CArrayType::GetMetadataValue(Translator& translator,
-                                          const ConstValue const_value,
-                                          xlscc_metadata::Value* output) const {
-  vector<xls::Value> values = const_value.rvalue().GetElements().value();
-  for (auto& val : values) {
-    XLS_RETURN_IF_ERROR(element_->GetMetadataValue(
-        translator, ConstValue(val, element_),
-        output->mutable_as_array()->add_element_values()));
-  }
-  return absl::OkStatus();
-}
-
-CPointerType::CPointerType(std::shared_ptr<CType> pointee_type)
-    : pointee_type_(pointee_type) {}
-
-bool CPointerType::operator==(const CType& o) const {
-  if (!o.Is<CPointerType>()) return false;
-  const auto* o_derived = o.As<CPointerType>();
-  return *pointee_type_ == *o_derived->pointee_type_;
-}
-
-int CPointerType::GetBitWidth() const { return pointee_type_->GetBitWidth(); }
-
-std::shared_ptr<CType> CPointerType::GetPointeeType() const {
-  return pointee_type_;
-}
-
-CPointerType::operator std::string() const {
-  return absl::StrFormat("%s*", string(*pointee_type_));
-}
-
-absl::Status CPointerType::GetMetadata(Translator& translator,
-                                       xlscc_metadata::Type* output) const {
-  XLS_CHECK(false) << "TODO: Metadata for pointers";
-  return absl::OkStatus();
-}
-
-absl::Status CPointerType::GetMetadataValue(
-    Translator& translator, const ConstValue const_value,
-    xlscc_metadata::Value* output) const {
-  XLS_CHECK(false) << "TODO: Metadata for pointers";
-  return absl::OkStatus();
-}
 
 Translator::Translator(bool error_on_init_interval, int64_t max_unroll_iters,
                        int64_t warn_unroll_iters,
@@ -680,17 +201,6 @@ Translator::LookUpInPackage() {
     AddSourceInfoToPackage(*package_);
     return package_->GetFilename(file_number);
   };
-}
-
-template <typename... Args>
-std::string Translator::ErrorMessage(const xls::SourceInfo& loc,
-                                     const absl::FormatSpec<Args...>& format,
-                                     const Args&... args) {
-  std::string result = absl::StrFormat(format, args...);
-  for (const xls::SourceLocation& location : loc.locations) {
-    absl::StrAppend(&result, "\n", PrintCaret(LookUpInPackage(), location));
-  }
-  return result;
 }
 
 void Translator::AddSourceInfoToPackage(xls::Package& package) {
@@ -893,213 +403,8 @@ std::string Translator::XLSNameMangle(clang::GlobalDecl decl) const {
   return res;
 }
 
-absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
-                                                 const xls::SourceInfo& loc,
-                                                 bool mask) {
-  context().any_side_effects_requested = true;
-
-  if (context().mask_side_effects || mask) {
-    IOOpReturn ret;
-    ret.generate_expr = false;
-    XLS_ASSIGN_OR_RETURN(xls::BValue default_bval,
-                         CreateDefaultValue(channel->item_type, loc));
-    op.input_value = CValue(default_bval, channel->item_type);
-    return &op;
-  }
-  XLS_CHECK_NE(channel, nullptr);
-  XLS_CHECK_EQ(op.channel, nullptr);
-  op.channel_op_index = channel->total_ops++;
-  op.channel = channel;
-  op.op_location = loc;
-
-  // Operation type is added late, as it's only known from the read()/write()
-  // call(s)
-  if (channel->channel_op_type == OpType::kNull) {
-    channel->channel_op_type = op.op;
-  } else {
-    if (channel->channel_op_type != op.op) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "Channels should be either input or output"));
-    }
-  }
-
-  // Channel must be inserted first by AddOpToChannel
-  if (op.op == OpType::kRecv) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * xls_item_type,
-                         TranslateTypeToXLS(channel->item_type, loc));
-
-    const int64_t channel_op_index = op.channel_op_index;
-
-    std::string safe_param_name =
-        absl::StrFormat("%s_op%i", op.channel->unique_name, channel_op_index);
-
-    xls::BValue pbval =
-        context().fb->Param(safe_param_name, xls_item_type, loc);
-
-    // Check for duplicate params
-    if (!pbval.valid()) {
-      return absl::InternalError(ErrorMessage(
-          loc,
-          "Failed to create implicit parameter %s, duplicate? See b/239861050",
-          safe_param_name.c_str()));
-    }
-
-    op.input_value = CValue(pbval, channel->item_type);
-  }
-
-  context().sf->io_ops.push_back(op);
-
-  if (op.op == OpType::kRecv) {
-    SideEffectingParameter side_effecting_param;
-    side_effecting_param.type = SideEffectingParameterType::kIOOp;
-    side_effecting_param.param_name =
-        op.input_value.rvalue().node()->As<xls::Param>()->GetName();
-    side_effecting_param.io_op = &context().sf->io_ops.back();
-    context().sf->side_effecting_parameters.push_back(side_effecting_param);
-  }
-
-  return &context().sf->io_ops.back();
-}
-
-absl::StatusOr<std::shared_ptr<CType>> Translator::GetChannelType(
-    const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                       StripTypeQualifiers(channel_param->getType()));
-  auto template_spec = clang::dyn_cast<const clang::TemplateSpecializationType>(
-      stripped.base.getTypePtr());
-  if (template_spec == nullptr) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Channel type should be a template specialization"));
-  }
-  if (template_spec->getNumArgs() != 1) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Channel should have 1 template args"));
-  }
-  const clang::TemplateArgument& arg = template_spec->getArg(0);
-  return TranslateTypeFromClang(arg.getAsType(), loc);
-}
-
-absl::Status Translator::CreateChannelParam(
-    const clang::ParmVarDecl* channel_param, const xls::SourceInfo& loc) {
-  XLS_CHECK(!context().sf->io_channels_by_param.contains(channel_param));
-
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       GetChannelType(channel_param, loc));
-
-  IOChannel new_channel;
-
-  new_channel.item_type = ctype;
-  new_channel.unique_name = channel_param->getNameAsString();
-
-  context().sf->io_channels.push_back(new_channel);
-  context().sf->io_channels_by_param[channel_param] =
-      &context().sf->io_channels.back();
-  context().sf->params_by_io_channel[&context().sf->io_channels.back()] =
-      channel_param;
-
-  context().channel_params.insert(channel_param);
-
-  return absl::OkStatus();
-}
-
-absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
-    const clang::Expr* expr, const xls::SourceInfo& loc) {
-  if (auto member_call =
-          clang::dyn_cast<const clang::CXXMemberCallExpr>(expr)) {
-    const clang::Expr* object = member_call->getImplicitObjectArgument();
-
-    XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, loc));
-    if (is_channel) {
-      // Duplicated code in GenerateIR_Call()?
-      if (!clang::isa<clang::DeclRefExpr>(object)) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "IO ops should be on direct DeclRefs"));
-      }
-      auto object_ref = clang::dyn_cast<const clang::DeclRefExpr>(object);
-      auto channel_param =
-          clang::dyn_cast<const clang::ParmVarDecl>(object_ref->getDecl());
-      if (channel_param == nullptr) {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "IO ops should be on channel parameters"));
-      }
-      const clang::FunctionDecl* funcdecl = member_call->getDirectCallee();
-      const std::string op_name = funcdecl->getNameAsString();
-
-      IOChannel* channel = context().sf->io_channels_by_param.at(channel_param);
-      xls::BValue op_condition = context().full_condition_bval(loc);
-      XLS_CHECK(op_condition.valid());
-
-      // Short circuit the op condition if possible
-      XLS_RETURN_IF_ERROR(ShortCircuitBVal(op_condition, loc));
-
-      // Ignore IO ops that are definitely condition = 0
-      // XLS opt also does this down-stream, but we try to do it here
-      // for cases like "if(constexpr) {ch.read();} else {ch.write();}
-      // which otherwise confuse XLS[cc] itself.
-      bool do_default = false;
-
-      absl::StatusOr<xls::Value> eval_result =
-          EvaluateBVal(op_condition, loc, /*do_check=*/false);
-      if (eval_result.ok()) {
-        if (eval_result.value().IsAllZeros()) {
-          do_default = true;
-        }
-      }
-
-      auto call = clang::dyn_cast<const clang::CallExpr>(expr);
-
-      IOOpReturn ret;
-      ret.generate_expr = false;
-
-      IOOp op;
-      const clang::Expr* assign_ret_value_to = nullptr;
-
-      if (op_name == "read") {
-        if (call->getNumArgs() == 1) {
-          assign_ret_value_to = call->getArg(0);
-        } else if (call->getNumArgs() != 0) {
-          return absl::UnimplementedError(ErrorMessage(
-              loc, "IO read() should have one or zero argument(s)"));
-        }
-        op.op = OpType::kRecv;
-        op.ret_value = op_condition;
-      } else if (op_name == "write") {
-        if (call->getNumArgs() != 1) {
-          return absl::UnimplementedError(
-              ErrorMessage(loc, "IO write() should have one argument"));
-        }
-
-        XLS_ASSIGN_OR_RETURN(CValue out_val,
-                             GenerateIR_Expr(call->getArg(0), loc));
-        std::vector<xls::BValue> sp = {out_val.rvalue(), op_condition};
-        op.ret_value = context().fb->Tuple(sp, loc);
-        op.op = OpType::kSend;
-
-      } else {
-        return absl::UnimplementedError(
-            ErrorMessage(loc, "Unsupported IO op: %s", op_name));
-      }
-
-      XLS_ASSIGN_OR_RETURN(
-          IOOp * op_ptr, AddOpToChannel(op, channel, loc, /*mask=*/do_default));
-      (void)op_ptr;
-
-      ret.value = op.input_value;
-      if (assign_ret_value_to != nullptr) {
-        XLS_RETURN_IF_ERROR(Assign(assign_ret_value_to, ret.value, loc));
-      }
-
-      return ret;
-    }
-  }
-
-  IOOpReturn ret;
-  ret.generate_expr = true;
-  return ret;
-}
-
 absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
-    const clang::FunctionDecl* funcdecl, absl::string_view name_override,
+    const clang::FunctionDecl* funcdecl, std::string_view name_override,
     bool force_static) {
   XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
 
@@ -1307,6 +612,8 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Function(
     XLS_RETURN_IF_ERROR(Assign(this_decl, new_this_val, body_loc));
   }
 
+  XLS_RETURN_IF_ERROR(ExtractExternalIOChannelDecls());
+
   // Extra context layer to generate selects
   {
     PushContextGuard top_select_guard(*this, GetLoc(*funcdecl));
@@ -1465,6 +772,7 @@ absl::Status Translator::ScanStruct(const clang::RecordDecl* sd) {
   XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(GetPresumedLoc(*sd)));
   const bool no_tuple_pragma = pragma.type() == Pragma_NoTuples;
   const bool synthetic_int_pragma = pragma.type() == Pragma_SyntheticInt;
+
   new_type.reset(new CStructType(
       fields, synthetic_int_pragma || no_tuple_pragma, synthetic_int_pragma));
 
@@ -1630,12 +938,6 @@ absl::StatusOr<bool> Translator::DeclIsOnReset(const clang::NamedDecl* decl) {
 
 absl::StatusOr<CValue> Translator::GetIdentifier(const clang::NamedDecl* decl,
                                                  const xls::SourceInfo& loc) {
-  if (context().channel_params.contains(decl)) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "Channel parameter reference unsupported %s",
-                     decl->getNameAsString()));
-  }
-
   XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(decl));
   if (is_on_reset) {
     return GetOnReset(loc);
@@ -2717,57 +2019,90 @@ absl::StatusOr<const clang::Stmt*> Translator::GetFunctionBody(
   return body;
 }
 
+absl::StatusOr<IOChannel*> Translator::GetChannelForExprOrNull(
+    const clang::Expr* object) {
+  XLS_ASSIGN_OR_RETURN(const clang::ParmVarDecl* channel_param,
+                       GetChannelParamForExprOrNull(object));
+
+  if (channel_param == nullptr) {
+    return nullptr;
+  }
+
+  XLS_ASSIGN_OR_RETURN(CValue cval,
+                       GetIdentifier(channel_param, GetLoc(*object)));
+  auto channel_type = dynamic_cast<CChannelType*>(cval.type().get());
+  if (channel_type == nullptr) {
+    return nullptr;
+  }
+  XLS_CHECK(cval.lvalue() != nullptr);
+  // TODO(seanhaskell): Selects on channel references
+  if (cval.lvalue()->is_select()) {
+    return absl::UnimplementedError(ErrorMessage(
+        GetLoc(*object), "Selects on channel references unimplemented"));
+  }
+  XLS_CHECK_NE(cval.lvalue()->channel_leaf(), nullptr);
+  return cval.lvalue()->channel_leaf();
+}
+
+absl::StatusOr<const clang::ParmVarDecl*>
+Translator::GetChannelParamForExprOrNull(const clang::Expr* object) {
+  const xls::SourceInfo loc = GetLoc(*object);
+
+  XLS_ASSIGN_OR_RETURN(bool is_channel, ExprIsChannel(object, loc));
+  if (!is_channel) {
+    return nullptr;
+  }
+  if (!clang::isa<clang::DeclRefExpr>(object)) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "IO ops should be on direct DeclRefs"));
+  }
+  auto object_ref = clang::dyn_cast<const clang::DeclRefExpr>(object);
+  auto channel_param =
+      clang::dyn_cast<const clang::ParmVarDecl>(object_ref->getDecl());
+  if (channel_param == nullptr) {
+    return absl::UnimplementedError(
+        ErrorMessage(loc, "IO ops should be on channel parameters"));
+  }
+  return channel_param;
+}
+
 // this_inout can be nullptr for non-members
 absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::FunctionDecl* funcdecl,
     std::vector<const clang::Expr*> expr_args, xls::BValue* this_inout,
     const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(const clang::Stmt* body, GetFunctionBody(funcdecl));
-  (void)body;
+  // Ensure callee has been translated
+  XLS_RETURN_IF_ERROR(GetFunctionBody(funcdecl).status());
 
   // Translate external channels
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* callee_param = funcdecl->getParamDecl(pi);
 
-    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(callee_param->getType(),
-                                                        GetLoc(*callee_param)));
-    if (!is_channel) {
+    XLS_ASSIGN_OR_RETURN(const clang::ParmVarDecl* caller_channel_param,
+                         GetChannelParamForExprOrNull(expr_args[pi]));
+
+    if (caller_channel_param == nullptr) {
       continue;
     }
 
-    const clang::Expr* call_arg = expr_args[pi];
-    auto call_decl_ref_arg =
-        clang::dyn_cast<const clang::DeclRefExpr>(call_arg);
-    if (call_decl_ref_arg == nullptr) {
-      return absl::UnimplementedError(ErrorMessage(
-          GetLoc(*callee_param), "IO operations should be DeclRefs"));
-    }
-
-    auto caller_channel_param =
-        clang::dyn_cast<const clang::ParmVarDecl>(call_decl_ref_arg->getDecl());
-    if (caller_channel_param == nullptr) {
-      return absl::UnimplementedError(ErrorMessage(
-          GetLoc(*callee_param), "IO operations should be on parameters"));
-    }
-
-    if (!external_channels_by_param_.contains(caller_channel_param)) {
+    if (!external_channels_by_decl_.contains(caller_channel_param)) {
       XLS_CHECK(io_test_mode_)
           << "Caller channel param " << caller_channel_param->getNameAsString()
           << " not in external_channels_by_param_ map";
     }
 
-    if (external_channels_by_param_.contains(callee_param) &&
-        (external_channels_by_param_.at(callee_param) !=
-         external_channels_by_param_.at(caller_channel_param))) {
+    if (external_channels_by_decl_.contains(callee_param) &&
+        (external_channels_by_decl_.at(callee_param) !=
+         external_channels_by_decl_.at(caller_channel_param))) {
       return absl::UnimplementedError(
           ErrorMessage(GetLoc(*callee_param),
                        "IO ops in pipelined loops in subroutines called "
                        "with multiple different channel arguments"));
     }
 
-    if (external_channels_by_param_.contains(caller_channel_param)) {
-      external_channels_by_param_[callee_param] =
-          external_channels_by_param_.at(caller_channel_param);
+    if (external_channels_by_decl_.contains(caller_channel_param)) {
+      external_channels_by_decl_[callee_param] =
+          external_channels_by_decl_.at(caller_channel_param);
     }
   }
 
@@ -2815,8 +2150,23 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
 
-    // Map callee IO ops last
-    if (func->io_channels_by_param.contains(p)) {
+    // Map callee IO channels
+    XLS_ASSIGN_OR_RETURN(CValue argv, GenerateIR_Expr(expr_args[pi], loc));
+
+    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), loc));
+    if (is_channel) {
+      IOChannel* callee_channel = func->io_channels_by_decl.at(p);
+      XLS_CHECK_NE(argv.lvalue(), nullptr);
+      IOChannel* caller_channel = argv.lvalue()->channel_leaf();
+
+      if (!context().sf->caller_channels_by_callee_channel.contains(
+              caller_channel)) {
+        context().sf->caller_channels_by_callee_channel[callee_channel] =
+            caller_channel;
+      }
+      XLS_CHECK_EQ(
+          context().sf->caller_channels_by_callee_channel.at(callee_channel),
+          caller_channel);
       continue;
     }
 
@@ -2828,7 +2178,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       ++expected_returns;
     }
 
-    XLS_ASSIGN_OR_RETURN(CValue argv, GenerateIR_Expr(expr_args[pi], loc));
     XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> argt,
                          TranslateTypeFromClang(stripped.base, loc));
 
@@ -2893,80 +2242,48 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     args.push_back(pass_bval);
   }
 
-  // Map callee IO ops
-  for (int pi = 0; pi < funcdecl->getNumParams(); ++pi) {
-    const clang::ParmVarDecl* callee_channel = funcdecl->getParamDecl(pi);
-
-    if (!func->io_channels_by_param.contains(callee_channel)) {
-      continue;
-    }
-
-    const clang::Expr* call_arg = expr_args[pi];
-
-    auto call_decl_ref_arg =
-        clang::dyn_cast<const clang::DeclRefExpr>(call_arg);
-    // Duplicated code in InterceptIOOp()?
-    if (call_decl_ref_arg == nullptr) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be DeclRefs"));
-    }
-
-    auto caller_channel_param =
-        clang::dyn_cast<const clang::ParmVarDecl>(call_decl_ref_arg->getDecl());
-    if (caller_channel_param == nullptr) {
-      return absl::UnimplementedError(
-          absl::StrFormat("IO operations should be on parameters"));
-    }
-
-    IOChannel* caller_channel =
-        context().sf->io_channels_by_param.at(caller_channel_param);
-
-    for (IOOp& callee_op : func->io_ops) {
-      // Skip internal channels
-      if (!func->params_by_io_channel.contains(callee_op.channel)) {
-        continue;
-      }
-
-      const clang::ParmVarDecl* callee_op_channel =
-          func->params_by_io_channel.at(callee_op.channel);
-      if (callee_op_channel != callee_channel) {
-        continue;
-      }
-      if (!context().sf->caller_channels_by_callee_op.contains(&callee_op)) {
-        context().sf->caller_channels_by_callee_op[&callee_op] = caller_channel;
-      } else {
-        XLS_CHECK_EQ(context().sf->caller_channels_by_callee_op.at(&callee_op),
-                     caller_channel);
-      }
-    }
-  }
-
   // Translate generated channels
   for (IOOp& callee_op : func->io_ops) {
     if (callee_op.channel->generated == nullptr) {
       continue;
     }
-    if (context().sf->caller_channels_by_callee_op.contains(&callee_op)) {
+    if (context().sf->caller_channels_by_callee_channel.contains(
+            callee_op.channel)) {
       continue;
     }
     IOChannel* callee_generated_channel = callee_op.channel;
     context().sf->io_channels.push_back(*callee_generated_channel);
     IOChannel* caller_generated_channel = &context().sf->io_channels.back();
     caller_generated_channel->total_ops = 0;
-    context().sf->caller_channels_by_callee_op[&callee_op] =
+    context().sf->caller_channels_by_callee_channel[callee_op.channel] =
         caller_generated_channel;
   }
 
   // Map callee ops. There can be multiple for one channel
-  std::multimap<IOOp*, IOOp*> caller_ops_by_callee_op;
+  std::multimap<const IOOp*, IOOp*> caller_ops_by_callee_op;
 
   for (IOOp& callee_op : func->io_ops) {
-    IOChannel* caller_channel =
-        context().sf->caller_channels_by_callee_op.at(&callee_op);
+    XLS_CHECK(caller_ops_by_callee_op.find(&callee_op) ==
+              caller_ops_by_callee_op.end());
 
-    // Add super op
     IOOp caller_op;
 
+    // Translate ops that must be sequenced before first
+    for (const IOOp* after_op : callee_op.after_ops) {
+      XLS_CHECK(caller_ops_by_callee_op.find(after_op) !=
+                caller_ops_by_callee_op.end());
+      auto range = caller_ops_by_callee_op.equal_range(after_op);
+      for (auto caller_it = range.first; caller_it != range.second;
+           ++caller_it) {
+        IOOp* after_caller_op = caller_it->second;
+        caller_op.after_ops.push_back(after_caller_op);
+      }
+    }
+
+    IOChannel* caller_channel =
+        context().sf->caller_channels_by_callee_channel.at(callee_op.channel);
+
+    // Add super op
     caller_op.op = callee_op.op;
     caller_op.sub_op = &callee_op;
 
@@ -2974,7 +2291,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
         IOOp * caller_op_ptr,
         AddOpToChannel(caller_op, caller_channel, callee_op.op_location));
     caller_ops_by_callee_op.insert(
-        std::pair<IOOp*, IOOp*>(&callee_op, caller_op_ptr));
+        std::pair<const IOOp*, IOOp*>(&callee_op, caller_op_ptr));
+
+    XLS_CHECK_EQ(caller_op_ptr->after_ops.size(), callee_op.after_ops.size());
 
     // Count expected IO returns
     ++expected_returns;
@@ -3022,7 +2341,9 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
       }
     }
   }
+
   xls::BValue raw_return = context().fb->Invoke(args, func->xls_func, loc);
+
   XLS_CHECK(expected_returns == 0 || raw_return.valid());
 
   list<xls::BValue> unpacked_returns;
@@ -3080,7 +2401,8 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
     const clang::ParmVarDecl* p = funcdecl->getParamDecl(pi);
 
     // IO returns are later
-    if (func->io_channels_by_param.contains(p)) {
+    XLS_ASSIGN_OR_RETURN(bool is_channel, TypeIsChannel(p->getType(), loc));
+    if (is_channel) {
       continue;
     }
 
@@ -4140,42 +3462,6 @@ absl::Status Translator::GenerateIR_Stmt(const clang::Stmt* stmt,
   return absl::OkStatus();
 }
 
-absl::Status Translator::GenerateIR_Loop(
-    bool always_first_iter, const clang::Stmt* init,
-    const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, const clang::PresumedLoc& presumed_loc,
-    const xls::SourceInfo& loc, clang::ASTContext& ctx) {
-  if (cond_expr != nullptr && cond_expr->isIntegerConstantExpr(ctx)) {
-    // special case for "for (;0;) {}" (essentially no op)
-    XLS_ASSIGN_OR_RETURN(auto constVal, EvaluateInt64(*cond_expr, ctx, loc));
-    if (constVal == 0) {
-      return absl::OkStatus();
-    }
-  }
-  XLS_ASSIGN_OR_RETURN(Pragma pragma, FindPragmaForLoc(presumed_loc));
-  if (pragma.type() == Pragma_Unroll || context().for_loops_default_unroll) {
-    return GenerateIR_UnrolledLoop(always_first_iter, init, cond_expr, inc,
-                                   body, ctx, loc);
-  }
-  // Pipelined loops can inherit their initiation interval from enclosing
-  // loops, so they can be allowed not to have a #pragma.
-  int init_interval = pragma.int_argument();
-  // Pragma might not be null, because labels get searched backwards
-  if (pragma.type() != Pragma_InitInterval) {
-    XLS_CHECK(!context().in_pipelined_for_body ||
-              (context().outer_pipelined_loop_init_interval > 0));
-    init_interval = context().outer_pipelined_loop_init_interval;
-  }
-  if (init_interval <= 0) {
-    return absl::UnimplementedError(
-        ErrorMessage(loc, "For loop missing #pragma"));
-  }
-
-  // Pipelined do-while
-  return GenerateIR_PipelinedLoop(always_first_iter, init, cond_expr, inc, body,
-                                  init_interval, ctx, loc);
-}
-
 int Debug_CountNodes(const xls::Node* node,
                      std::set<const xls::Node*>& visited) {
   if (visited.find(node) != visited.end()) {
@@ -4290,140 +3576,6 @@ absl::StatusOr<Z3_lbool> Translator::IsBitSatisfiable(
   return seh.status();
 }
 
-absl::Status Translator::GenerateIR_UnrolledLoop(bool always_first_iter,
-                                                 const clang::Stmt* init,
-                                                 const clang::Expr* cond_expr,
-                                                 const clang::Stmt* inc,
-                                                 const clang::Stmt* body,
-                                                 clang::ASTContext& ctx,
-                                                 const xls::SourceInfo& loc) {
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator_parent,
-      xls::solvers::z3::IrTranslator::CreateAndTranslate(
-          /*source=*/nullptr,
-          /*allow_unsupported=*/true));
-
-  Z3_solver solver =
-      xls::solvers::z3::CreateSolver(z3_translator_parent->ctx(), 1);
-
-  class SolverDeref {
-   public:
-    SolverDeref(Z3_context ctx, Z3_solver solver)
-        : ctx_(ctx), solver_(solver) {}
-    ~SolverDeref() { Z3_solver_dec_ref(ctx_, solver_); }
-
-   private:
-    Z3_context ctx_;
-    Z3_solver solver_;
-  };
-
-  // Generate the declaration within a private context
-  PushContextGuard for_init_guard(*this, loc);
-  context().propagate_break_up = false;
-  context().propagate_continue_up = false;
-  context().in_for_body = true;
-  context().in_switch_body = false;
-
-  if (init != nullptr) {
-    XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
-  }
-
-  // Loop unrolling causes duplicate NamedDecls which fail the soundness
-  // check. Reset the known set before each iteration.
-  auto saved_check_ids = unique_decl_ids_;
-
-  double slowest_iter = 0;
-
-  for (int64_t nIters = 0;; ++nIters) {
-    const bool first_iter = nIters == 0;
-    const bool always_this_iter = always_first_iter && first_iter;
-
-    const double iter_start = doubletime();
-
-    unique_decl_ids_ = saved_check_ids;
-
-    if (nIters >= max_unroll_iters_) {
-      return absl::ResourceExhaustedError(
-          ErrorMessage(loc, "Loop unrolling broke at maximum %i iterations",
-                       max_unroll_iters_));
-    }
-    if (nIters == warn_unroll_iters_) {
-      XLS_LOG(WARNING) << ErrorMessage(
-          loc, "Loop unrolling has reached %i iterations", warn_unroll_iters_);
-    }
-
-    // Generate condition.
-    //
-    // Outside of body context guard so it applies to increment
-    // Also, if this is inside the body context guard then the break condition
-    // feeds back on itself in an explosion of complexity
-    // via assignments to any variables used in the condition.
-    if (!always_this_iter && cond_expr != nullptr) {
-      XLS_ASSIGN_OR_RETURN(CValue cond_expr_cval,
-                           GenerateIR_Expr(cond_expr, loc));
-      XLS_CHECK(cond_expr_cval.type()->Is<CBoolType>());
-      context().or_condition_util(
-          context().fb->Not(cond_expr_cval.rvalue(), loc),
-          context().relative_break_condition, loc);
-      XLS_RETURN_IF_ERROR(and_condition(cond_expr_cval.rvalue(), loc));
-    }
-
-    // Generate body
-    {
-      PushContextGuard for_body_guard(*this, loc);
-      context().propagate_break_up = true;
-      context().propagate_continue_up = false;
-
-      // Check condition first
-      if (context().relative_break_condition.valid() && !always_this_iter) {
-        // Simplify break logic in easy ways;
-        // Z3 fails to solve some cases without this.
-        XLS_RETURN_IF_ERROR(
-            ShortCircuitBVal(context().relative_break_condition, loc));
-
-        // Use Z3 to check if another loop iteration is possible.
-        xls::BValue not_break =
-            context().fb->Not(context().relative_break_condition);
-
-        XLS_ASSIGN_OR_RETURN(
-            std::unique_ptr<xls::solvers::z3::IrTranslator> z3_translator,
-            xls::solvers::z3::IrTranslator::CreateAndTranslate(
-                /*ctx=*/z3_translator_parent->ctx(),
-                /*source=*/not_break.node(),
-                /*allow_unsupported=*/true));
-
-        XLS_ASSIGN_OR_RETURN(
-            Z3_lbool result,
-            IsBitSatisfiable(not_break.node(), solver, *z3_translator));
-
-        // No combination of variables can satisfy !break condition.
-        if (result == Z3_L_FALSE) {
-          break;
-        }
-      }
-
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
-    }
-
-    // Generate increment
-    // Outside of body guard because continue would skip.
-    if (inc != nullptr) {
-      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
-    }
-    // Print slow unrolling warning
-    const double iter_end = doubletime();
-    const double iter_seconds = iter_end - iter_start;
-
-    if (iter_seconds > 0.1 && iter_seconds > slowest_iter) {
-      XLS_LOG(WARNING) << ErrorMessage(
-          loc, "Slow loop unrolling iteration %i: %fms", nIters, iter_seconds);
-      slowest_iter = iter_seconds;
-    }
-  }
-
-  return absl::OkStatus();
-}
-
 void GeneratedFunction::SortNamesDeterministically(
     std::vector<const clang::NamedDecl*>& names) const {
   std::sort(names.begin(), names.end(),
@@ -4455,443 +3607,6 @@ absl::Status Translator::CheckInitIntervalValidity(int initiation_interval_arg,
     }
     XLS_LOG(WARNING) << message;
   }
-  return absl::OkStatus();
-}
-
-absl::Status Translator::GenerateIR_PipelinedLoop(
-    bool always_first_iter, const clang::Stmt* init,
-    const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, int64_t initiation_interval_arg,
-    clang::ASTContext& ctx, const xls::SourceInfo& loc) {
-  XLS_RETURN_IF_ERROR(CheckInitIntervalValidity(initiation_interval_arg, loc));
-
-  // Generate the loop counter declaration within a private context
-  // By doing this here, it automatically gets rolled into proc state
-  // This causes it to be automatically reset on break
-  PushContextGuard for_init_guard(*this, loc);
-
-  if (init != nullptr) {
-    XLS_RETURN_IF_ERROR(GenerateIR_Stmt(init, ctx));
-  }
-
-  // Condition must be checked at the start
-  if (!always_first_iter && cond_expr != nullptr) {
-    XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
-    XLS_CHECK(cond_cval.type()->Is<CBoolType>());
-
-    XLS_RETURN_IF_ERROR(and_condition(cond_cval.rvalue(), loc));
-  }
-
-  // Pack context tuple
-  CValue context_tuple_out;
-  std::shared_ptr<CStructType> context_struct_type;
-  absl::flat_hash_map<const clang::NamedDecl*, uint64_t> variable_field_indices;
-  std::vector<const clang::NamedDecl*> variable_fields_order;
-  {
-    std::vector<std::shared_ptr<CField>> fields;
-    std::vector<xls::BValue> tuple_values;
-
-    // Create a deterministic field order
-    for (const auto& [decl, _] : context().variables) {
-      XLS_CHECK(context().sf->declaration_order_by_name_.contains(decl));
-      variable_fields_order.push_back(decl);
-    }
-
-    context().sf->SortNamesDeterministically(variable_fields_order);
-
-    for (const clang::NamedDecl* decl : variable_fields_order) {
-      const CValue& cvalue = context().variables.at(decl);
-      XLS_CHECK(cvalue.rvalue().valid());
-      const uint64_t field_idx = tuple_values.size();
-      variable_field_indices[decl] = field_idx;
-      tuple_values.push_back(cvalue.rvalue());
-      auto field_ptr = std::make_shared<CField>(decl, field_idx, cvalue.type());
-      fields.push_back(field_ptr);
-    }
-
-    context_struct_type = std::make_shared<CStructType>(
-        fields, /*no_tuple=*/false, /*synthetic_int=*/false);
-    context_tuple_out =
-        CValue(MakeStructXLS(tuple_values, *context_struct_type, loc),
-               context_struct_type);
-  }
-
-  // Create synthetic channels and IO ops
-  xls::Type* context_xls_type = context_tuple_out.rvalue().GetType();
-
-  const std::string name_prefix =
-      absl::StrFormat("__for_%i", next_for_number_++);
-
-  IOChannel* context_out_channel = nullptr;
-  {
-    std::string ch_name = absl::StrFormat("%s_ctx_out", name_prefix);
-    XLS_ASSIGN_OR_RETURN(
-        xls::Channel * xls_channel,
-        package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, context_xls_type,
-            /*initial_values=*/{}, /*fifo_depth=*/0,
-            xls::FlowControl::kReadyValid));
-    IOChannel new_channel;
-    new_channel.item_type = context_tuple_out.type();
-    new_channel.unique_name = ch_name;
-    new_channel.channel_op_type = OpType::kSend;
-    new_channel.generated = xls_channel;
-    context().sf->io_channels.push_back(new_channel);
-    context_out_channel = &context().sf->io_channels.back();
-  }
-  IOChannel* context_in_channel = nullptr;
-  {
-    std::string ch_name = absl::StrFormat("%s_ctx_in", name_prefix);
-    XLS_ASSIGN_OR_RETURN(
-        xls::Channel * xls_channel,
-        package_->CreateStreamingChannel(
-            ch_name, xls::ChannelOps::kSendReceive, context_xls_type,
-            /*initial_values=*/{}, /*fifo_depth=*/0,
-            xls::FlowControl::kReadyValid));
-    IOChannel new_channel;
-    new_channel.item_type = context_tuple_out.type();
-    new_channel.unique_name = ch_name;
-    new_channel.channel_op_type = OpType::kRecv;
-    new_channel.generated = xls_channel;
-    context().sf->io_channels.push_back(new_channel);
-    context_in_channel = &context().sf->io_channels.back();
-  }
-
-  {
-    IOOp op;
-    op.op = OpType::kSend;
-    std::vector<xls::BValue> sp = {context_tuple_out.rvalue(),
-                                   context().full_condition_bval(loc)};
-    op.ret_value = context().fb->Tuple(sp, loc);
-    XLS_RETURN_IF_ERROR(AddOpToChannel(op, context_out_channel, loc).status());
-  }
-
-  IOOp* ctx_in_op_ptr;
-  {
-    IOOp op;
-    op.op = OpType::kRecv;
-    op.ret_value = context().full_condition_bval(loc);
-    XLS_ASSIGN_OR_RETURN(ctx_in_op_ptr,
-                         AddOpToChannel(op, context_in_channel, loc));
-  }
-
-  // Create loop body proc
-  std::vector<const clang::NamedDecl*> vars_changed_in_body;
-  XLS_RETURN_IF_ERROR(GenerateIR_PipelinedLoopBody(
-      cond_expr, inc, body, initiation_interval_arg, ctx, name_prefix,
-      context_out_channel, context_in_channel, context_xls_type,
-      context_struct_type, variable_field_indices, variable_fields_order,
-      vars_changed_in_body, loc));
-
-  // Unpack context tuple
-  xls::BValue context_tuple_recvd = ctx_in_op_ptr->input_value.rvalue();
-  {
-    // Don't assign to variables that aren't changed in the loop body,
-    // as this creates extra state
-    for (const clang::NamedDecl* decl : vars_changed_in_body) {
-      const uint64_t field_idx = variable_field_indices.at(decl);
-      const CValue cval(GetStructFieldXLS(context_tuple_recvd, field_idx,
-                                          *context_struct_type, loc),
-                        context().variables.at(decl).type());
-      XLS_RETURN_IF_ERROR(Assign(decl, cval, loc));
-    }
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status Translator::GenerateIR_PipelinedLoopBody(
-    const clang::Expr* cond_expr, const clang::Stmt* inc,
-    const clang::Stmt* body, int64_t init_interval, clang::ASTContext& ctx,
-    std::string_view name_prefix, IOChannel* context_out_channel,
-    IOChannel* context_in_channel, xls::Type* context_xls_type,
-    std::shared_ptr<CStructType> context_ctype,
-    const absl::flat_hash_map<const clang::NamedDecl*, uint64_t>&
-        variable_field_indices,
-    const std::vector<const clang::NamedDecl*>& variable_fields_order,
-    std::vector<const clang::NamedDecl*>& vars_changed_in_body,
-    const xls::SourceInfo& loc) {
-  const uint64_t total_context_values = context_ctype->fields().size();
-
-  std::vector<const clang::NamedDecl*> vars_to_save_between_iters;
-
-  // Generate body function
-  GeneratedFunction generated_func;
-  XLS_CHECK_NE(context().sf, nullptr);
-  XLS_CHECK_NE(context().sf->clang_decl, nullptr);
-  generated_func.clang_decl = context().sf->clang_decl;
-  uint64_t extra_return_count = 0;
-  {
-    // Inherit explicit channels
-    GeneratedFunction& enclosing_func = *context().sf;
-    for (IOChannel& enclosing_channel : enclosing_func.io_channels) {
-      if (enclosing_channel.generated != nullptr) {
-        continue;
-      }
-      const clang::ParmVarDecl* channel_param =
-          enclosing_func.params_by_io_channel.at(&enclosing_channel);
-
-      generated_func.io_channels.push_back(enclosing_channel);
-      IOChannel* inner_channel = &generated_func.io_channels.back();
-      generated_func.io_channels_by_param[channel_param] = inner_channel;
-      generated_func.params_by_io_channel[inner_channel] = channel_param;
-
-      inner_channel->total_ops = 0;
-    }
-
-    // Set up IR generation
-    xls::FunctionBuilder body_builder(absl::StrFormat("%s_func", name_prefix),
-                                      package_);
-
-    xls::BValue context_param = body_builder.Param(
-        absl::StrFormat("%s_context", name_prefix), context_xls_type, loc);
-
-    TranslationContext& prev_context = context();
-    PushContextGuard context_guard(*this, loc);
-
-    context() = TranslationContext();
-    context().propagate_up = false;
-
-    context().fb = absl::implicit_cast<xls::BuilderBase*>(&body_builder);
-    context().sf = &generated_func;
-    context().in_pipelined_for_body = true;
-    context().outer_pipelined_loop_init_interval = init_interval;
-
-    // Context in
-    absl::flat_hash_map<const clang::NamedDecl*, xls::BValue> prev_vars;
-
-    for (const clang::NamedDecl* decl : variable_fields_order) {
-      const uint64_t field_idx = variable_field_indices.at(decl);
-      const CValue& outer_value = prev_context.variables.at(decl);
-      xls::BValue param_bval =
-          GetStructFieldXLS(context_param, field_idx, *context_ctype, loc);
-
-      XLS_RETURN_IF_ERROR(
-          DeclareVariable(decl, CValue(param_bval, outer_value.type()), loc,
-                          /*check_unique_ids=*/false));
-
-      prev_vars[decl] = param_bval;
-    }
-
-    xls::BValue do_break = context().fb->Literal(xls::UBits(0, 1));
-
-    // Generate body
-    // Don't apply continue conditions to increment
-    // This context pop will top generate selects
-    {
-      PushContextGuard context_guard(*this, loc);
-      context().propagate_break_up = false;
-      context().propagate_continue_up = false;
-      context().in_for_body = true;
-
-      XLS_CHECK_GT(context().outer_pipelined_loop_init_interval, 0);
-
-      XLS_CHECK_NE(body, nullptr);
-      XLS_RETURN_IF_ERROR(GenerateIR_Compound(body, ctx));
-
-      // break_condition is the assignment condition
-      if (context().relative_break_condition.valid()) {
-        xls::BValue break_cond = context().relative_break_condition;
-        do_break = context().fb->Or(do_break, break_cond, loc);
-      }
-    }
-
-    // Increment
-    // Break condition skips increment
-    if (inc != nullptr) {
-      // This context pop will top generate selects
-      PushContextGuard context_guard(*this, loc);
-      XLS_RETURN_IF_ERROR(and_condition(context().fb->Not(do_break, loc), loc));
-      XLS_RETURN_IF_ERROR(GenerateIR_Stmt(inc, ctx));
-    }
-
-    // Check condition
-    if (cond_expr != nullptr) {
-      // This context pop will top generate selects
-      PushContextGuard context_guard(*this, loc);
-
-      XLS_ASSIGN_OR_RETURN(CValue cond_cval, GenerateIR_Expr(cond_expr, loc));
-      XLS_CHECK(cond_cval.type()->Is<CBoolType>());
-      xls::BValue break_on_cond_val = context().fb->Not(cond_cval.rvalue());
-
-      do_break = context().fb->Or(do_break, break_on_cond_val, loc);
-    }
-
-    // Context out
-    std::vector<xls::BValue> tuple_values;
-    tuple_values.resize(total_context_values);
-    for (const clang::NamedDecl* decl : variable_fields_order) {
-      const uint64_t field_idx = variable_field_indices.at(decl);
-      tuple_values[field_idx] = context().variables.at(decl).rvalue();
-    }
-
-    xls::BValue ret_ctx = MakeStructXLS(tuple_values, *context_ctype, loc);
-    std::vector<xls::BValue> return_bvals = {ret_ctx, do_break};
-
-    // For GenerateIRBlock_Prepare() / GenerateIOInvokes()
-    extra_return_count += return_bvals.size();
-
-    // First static returns
-    for (const clang::NamedDecl* decl :
-         generated_func.GetDeterministicallyOrderedStaticValues()) {
-      XLS_ASSIGN_OR_RETURN(CValue value, GetIdentifier(decl, loc));
-      return_bvals.push_back(value.rvalue());
-    }
-
-    // IO returns
-    for (IOOp& op : generated_func.io_ops) {
-      XLS_CHECK(op.ret_value.valid());
-      return_bvals.push_back(op.ret_value);
-    }
-
-    xls::BValue ret_val = MakeFlexTuple(return_bvals, loc);
-    generated_func.return_value_count = return_bvals.size();
-    XLS_ASSIGN_OR_RETURN(generated_func.xls_func,
-                         body_builder.BuildWithReturnValue(ret_val));
-
-    // Analyze context variables changed
-    for (const clang::NamedDecl* decl : variable_fields_order) {
-      const xls::BValue& prev_bval = prev_vars.at(decl);
-      const xls::BValue& curr_bval = context().variables.at(decl).rvalue();
-      if (prev_bval.node() != curr_bval.node()) {
-        vars_changed_in_body.push_back(decl);
-      }
-    }
-
-    context().sf->SortNamesDeterministically(vars_changed_in_body);
-
-    // All variables now are saved in state, because a streaming channel
-    // is used for the context
-    vars_to_save_between_iters = variable_fields_order;
-  }
-
-  // Generate body proc
-
-  // Construct initial state
-  std::vector<xls::Value> init_values = {// First tick is the first iteration
-                                         xls::Value(xls::UBits(1, 1))};
-  for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
-    const CValue& prev_value = context().variables.at(decl);
-    XLS_ASSIGN_OR_RETURN(xls::Value def, CreateDefaultRawValue(
-                                             prev_value.type(), GetLoc(*decl)));
-    init_values.push_back(def);
-  }
-
-  const int64_t extra_state_count = init_values.size();
-
-  for (const clang::NamedDecl* namedecl :
-       generated_func.GetDeterministicallyOrderedStaticValues()) {
-    const ConstValue& initval = generated_func.static_values.at(namedecl);
-    init_values.push_back(initval.rvalue());
-  }
-
-  xls::ProcBuilder pb(absl::StrFormat("%s_proc", name_prefix),
-                      /*token_name=*/"tkn", package_);
-  pb.StateElement("st", xls::Value::Tuple(init_values));
-
-  // For utility functions like MakeStructXls()
-  PushContextGuard pb_guard(*this, loc);
-  context().fb = absl::implicit_cast<xls::BuilderBase*>(&pb);
-
-  xls::BValue token = pb.GetTokenParam();
-
-  xls::BValue first_iter_state_in = pb.TupleIndex(pb.GetStateParam(0), 0, loc);
-
-  xls::BValue recv_condition = first_iter_state_in;
-  XLS_CHECK_EQ(recv_condition.GetType()->GetFlatBitCount(), 1);
-
-  xls::BValue receive =
-      pb.ReceiveIf(context_out_channel->generated, token, recv_condition, loc);
-  xls::BValue token_ctx = pb.TupleIndex(receive, 0);
-  xls::BValue received_context = pb.TupleIndex(receive, 1);
-
-  token = token_ctx;
-
-  // Add selects for changed context variables
-  xls::BValue selected_context;
-  {
-    std::vector<xls::BValue> context_values;
-    for (uint64_t fi = 0; fi < total_context_values; ++fi) {
-      context_values.push_back(
-          GetStructFieldXLS(received_context, fi, *context_ctype, loc));
-    }
-
-    // After first flag
-    uint64_t state_tup_idx = 1;
-    for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
-      const uint64_t field_idx = variable_field_indices.at(decl);
-      XLS_CHECK_LT(field_idx, context_values.size());
-      xls::BValue context_val =
-          GetStructFieldXLS(received_context, field_idx, *context_ctype, loc);
-      xls::BValue prev_state_val =
-          pb.TupleIndex(pb.GetStateParam(0), state_tup_idx++, loc);
-      context_values[field_idx] =
-          pb.Select(first_iter_state_in, context_val, prev_state_val, loc);
-    }
-    selected_context = MakeStructXLS(context_values, *context_ctype, loc);
-  }
-
-  for (const IOOp& op : generated_func.io_ops) {
-    if (op.channel->generated != nullptr) {
-      continue;
-    }
-
-    const clang::ParmVarDecl* param =
-        generated_func.params_by_io_channel.at(op.channel);
-
-    XLS_CHECK(io_test_mode_ || external_channels_by_param_.contains(param));
-  }
-
-  // Invoke loop over IOs
-  PreparedBlock prepared;
-  prepared.xls_func = &generated_func;
-  prepared.args.push_back(selected_context);
-  prepared.token = token;
-
-  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(
-      prepared, pb,
-      /*next_return_index=*/extra_return_count,
-      /*next_state_index=*/extra_state_count,
-      /*definition =*/nullptr, /*channels_by_name=*/nullptr, loc));
-
-  XLS_ASSIGN_OR_RETURN(xls::BValue ret_tup,
-                       GenerateIOInvokes(prepared, pb, loc));
-
-  token = prepared.token;
-
-  xls::BValue updated_context = pb.TupleIndex(ret_tup, 0, loc);
-  xls::BValue do_break = pb.TupleIndex(ret_tup, 1, loc);
-
-  // Send back context on break
-  token = pb.SendIf(context_in_channel->generated, token, do_break,
-                    updated_context, loc);
-
-  // Construct next state
-  std::vector<xls::BValue> next_state_values = {// First iteration next tick?
-                                                do_break};
-  for (const clang::NamedDecl* decl : vars_to_save_between_iters) {
-    const uint64_t field_idx = variable_field_indices.at(decl);
-    xls::BValue val =
-        GetStructFieldXLS(updated_context, field_idx, *context_ctype, loc);
-    next_state_values.push_back(val);
-  }
-  for (const clang::NamedDecl* namedecl :
-       prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    XLS_CHECK(context().fb == &pb);
-
-    XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
-    if (is_on_reset) {
-      return absl::UnimplementedError(
-          ErrorMessage(loc, "__xlscc_on_reset unsupported in pipelined loops"));
-    }
-
-    next_state_values.push_back(pb.TupleIndex(
-        ret_tup, prepared.return_index_for_static.at(namedecl), loc));
-  }
-
-  xls::BValue next_state = pb.Tuple(next_state_values);
-  XLS_RETURN_IF_ERROR(pb.Build(token, {next_state}).status());
-
   return absl::OkStatus();
 }
 
@@ -5211,8 +3926,8 @@ absl::StatusOr<Translator::StrippedType> Translator::StripTypeQualifiers(
 }
 
 absl::Status Translator::ScanFile(
-    absl::string_view source_filename,
-    absl::Span<absl::string_view> command_line_args) {
+    std::string_view source_filename,
+    absl::Span<std::string_view> command_line_args) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->ScanFile(source_filename, command_line_args);
 }
@@ -5222,7 +3937,7 @@ absl::StatusOr<std::string> Translator::GetEntryFunctionName() const {
   return parser_->GetEntryFunctionName();
 }
 
-absl::Status Translator::SelectTop(absl::string_view top_function_name) {
+absl::Status Translator::SelectTop(std::string_view top_function_name) {
   XLS_CHECK_NE(parser_.get(), nullptr);
   return parser_->SelectTop(top_function_name);
 }
@@ -5249,345 +3964,6 @@ absl::StatusOr<GeneratedFunction*> Translator::GenerateIR_Top_Function(
   }
 
   return ret;
-}
-
-absl::Status Translator::GenerateExternalChannels(
-    const absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
-    const HLSBlock& block, const clang::FunctionDecl* definition,
-    const xls::SourceInfo& loc) {
-  for (int pidx = 0; pidx < definition->getNumParams(); ++pidx) {
-    const clang::ParmVarDecl* param = definition->getParamDecl(pidx);
-
-    xls::Channel* new_channel = nullptr;
-
-    const HLSChannel& hls_channel =
-        channels_by_name.at(param->getNameAsString());
-    if (hls_channel.type() == ChannelType::FIFO) {
-      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                           GetChannelType(param, loc));
-      XLS_ASSIGN_OR_RETURN(xls::Type * data_type,
-                           TranslateTypeToXLS(ctype, loc));
-
-      XLS_ASSIGN_OR_RETURN(
-          new_channel,
-          package_->CreateStreamingChannel(
-              hls_channel.name(),
-              hls_channel.is_input() ? xls::ChannelOps::kReceiveOnly
-                                     : xls::ChannelOps::kSendOnly,
-              data_type, /*initial_values=*/{}, /*fifo_depth=*/absl::nullopt,
-              xls::FlowControl::kReadyValid));
-    } else {
-      XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                           StripTypeQualifiers(param->getType()));
-      XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                           TranslateTypeFromClang(stripped.base, loc));
-
-      XLS_ASSIGN_OR_RETURN(xls::Type * data_type,
-                           TranslateTypeToXLS(ctype, loc));
-      XLS_ASSIGN_OR_RETURN(new_channel, package_->CreateSingleValueChannel(
-                                            hls_channel.name(),
-                                            hls_channel.is_input()
-                                                ? xls::ChannelOps::kReceiveOnly
-                                                : xls::ChannelOps::kSendOnly,
-                                            data_type));
-    }
-    XLS_CHECK(!external_channels_by_param_.contains(param));
-    external_channels_by_param_[param] = new_channel;
-  }
-  return absl::OkStatus();
-}
-
-absl::StatusOr<xls::Proc*> Translator::GenerateIR_Block(
-    xls::Package* package, const HLSBlock& block, int top_level_init_interval) {
-  // Create external channels
-  const clang::FunctionDecl* top_function = nullptr;
-
-  XLS_CHECK_NE(parser_.get(), nullptr);
-  XLS_ASSIGN_OR_RETURN(top_function, parser_->GetTopFunction());
-
-  const clang::FunctionDecl* definition = nullptr;
-  top_function->getBody(definition);
-  xls::SourceInfo body_loc = GetLoc(*definition);
-  package_ = package;
-
-  XLS_RETURN_IF_ERROR(
-      CheckInitIntervalValidity(top_level_init_interval, body_loc));
-
-  absl::flat_hash_map<std::string, HLSChannel> channels_by_name;
-
-  XLS_RETURN_IF_ERROR(
-      GenerateIRBlockCheck(channels_by_name, block, definition, body_loc));
-  XLS_RETURN_IF_ERROR(
-      GenerateExternalChannels(channels_by_name, block, definition, body_loc));
-
-  // Generate function without FIFO channel parameters
-  // Force top function in block to be static.
-  PreparedBlock prepared;
-  XLS_ASSIGN_OR_RETURN(
-      prepared.xls_func,
-      GenerateIR_Top_Function(package, true, top_level_init_interval));
-
-  std::vector<xls::Value> static_init_values;
-  for (const clang::NamedDecl* namedecl :
-       prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    const ConstValue& initval = prepared.xls_func->static_values.at(namedecl);
-    static_init_values.push_back(initval.rvalue());
-  }
-
-  xls::ProcBuilder pb(block.name() + "_proc", /*token_name=*/"tkn", package);
-  pb.StateElement("st", xls::Value::Tuple(static_init_values));
-
-  prepared.token = pb.GetTokenParam();
-
-  XLS_RETURN_IF_ERROR(GenerateIRBlockPrepare(prepared, pb,
-                                             /*next_return_index=*/0,
-                                             /*next_state_index=*/0, definition,
-                                             &channels_by_name, body_loc));
-
-  XLS_ASSIGN_OR_RETURN(xls::BValue last_ret_val,
-                       GenerateIOInvokes(prepared, pb, body_loc));
-
-  // Create next state value
-  std::vector<xls::BValue> static_next_values;
-  XLS_CHECK_GE(prepared.xls_func->return_value_count,
-               prepared.xls_func->static_values.size());
-  for (const clang::NamedDecl* namedecl :
-       prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-    XLS_CHECK(context().fb == &pb);
-    xls::BValue next_val = GetFlexTupleField(
-        last_ret_val, prepared.return_index_for_static[namedecl],
-        prepared.xls_func->return_value_count, body_loc);
-
-    XLS_ASSIGN_OR_RETURN(bool is_on_reset, DeclIsOnReset(namedecl));
-    if (is_on_reset) {
-      next_val = pb.Literal(xls::Value(xls::UBits(0, 1)), body_loc);
-    }
-    static_next_values.push_back(next_val);
-  }
-  const xls::BValue next_state = pb.Tuple(static_next_values);
-
-  return pb.Build(prepared.token, {next_state});
-}
-
-absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
-    PreparedBlock& prepared, xls::ProcBuilder& pb,
-    const xls::SourceInfo& body_loc) {
-  XLS_CHECK(&pb == context().fb);
-
-  XLS_CHECK_GE(prepared.xls_func->return_value_count,
-               prepared.xls_func->io_ops.size());
-
-  std::vector<xls::BValue> fan_out_tokens;
-
-  // The function is first invoked with defaults for any
-  //  read() IO Ops.
-  // If there are any read() IO Ops, then it will be invoked again
-  //  for each read Op below.
-  // Statics don't need to generate additional invokes, since they need not
-  //  exchange any data with the outside world between iterations.
-  xls::BValue last_ret_val =
-      pb.Invoke(prepared.args, prepared.xls_func->xls_func, body_loc);
-  for (const IOOp& op : prepared.xls_func->io_ops) {
-    xls::Channel* xls_channel =
-        prepared.xls_channel_by_function_channel.at(op.channel);
-    const int return_index = prepared.return_index_for_op.at(&op);
-
-    xls::SourceInfo op_loc = op.op_location;
-
-    if (op.op == OpType::kRecv) {
-      const int arg_index = prepared.arg_index_for_op.at(&op);
-      XLS_CHECK(arg_index >= 0 && arg_index < prepared.args.size());
-
-      xls::BValue condition = GetFlexTupleField(
-          last_ret_val, return_index, prepared.xls_func->return_value_count,
-          op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
-
-      XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      xls::BValue receive =
-          pb.ReceiveIf(xls_channel, prepared.token, condition, op_loc);
-      const xls::BValue new_token = pb.TupleIndex(receive, 0);
-      fan_out_tokens.push_back(new_token);
-
-      xls::BValue in_val = pb.TupleIndex(receive, 1);
-
-      prepared.args[arg_index] = in_val;
-
-      // The function is invoked again with the value received from the channel
-      //  for each read() Op. The final invocation will produce all complete
-      //  outputs.
-      last_ret_val =
-          pb.Invoke(prepared.args, prepared.xls_func->xls_func, op_loc);
-    } else if (op.op == OpType::kSend) {
-      xls::BValue send_tup =
-          GetFlexTupleField(last_ret_val, return_index,
-                            prepared.xls_func->return_value_count, op_loc);
-      xls::BValue val = pb.TupleIndex(send_tup, 0, op_loc);
-      xls::BValue condition = pb.TupleIndex(
-          send_tup, 1, op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
-
-      const xls::BValue new_token =
-          pb.SendIf(xls_channel, prepared.token, condition, {val}, op_loc);
-
-      fan_out_tokens.push_back(new_token);
-    }
-  }
-
-  if (!fan_out_tokens.empty()) {
-    prepared.token = pb.AfterAll(fan_out_tokens, body_loc);
-  }
-
-  return last_ret_val;
-}
-
-absl::Status Translator::GenerateIRBlockCheck(
-    absl::flat_hash_map<std::string, HLSChannel>& channels_by_name,
-    const HLSBlock& block, const clang::FunctionDecl* definition,
-    const xls::SourceInfo& body_loc) {
-  if (!block.has_name()) {
-    return absl::InvalidArgumentError(absl::StrFormat("HLSBlock has no name"));
-  }
-
-  absl::flat_hash_set<string> channel_names_in_block;
-  for (const HLSChannel& channel : block.channels()) {
-    if (!channel.has_name() || !channel.has_is_input() || !channel.has_type()) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Channel is incomplete in proto"));
-    }
-
-    if (channels_by_name.contains(channel.name())) {
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Duplicate channel name %s", channel.name()));
-    }
-
-    channels_by_name[channel.name()] = channel;
-    channel_names_in_block.insert(channel.name());
-  }
-
-  if (definition->parameters().size() != block.channels_size()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Top function has %i parameters, but block proto defines %i channels",
-        definition->parameters().size(), block.channels_size()));
-  }
-
-  for (const clang::ParmVarDecl* param : definition->parameters()) {
-    if (!channel_names_in_block.contains(param->getNameAsString())) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Block proto does not contain channels '%s' in function prototype",
-          param->getNameAsString()));
-    }
-    channel_names_in_block.erase(param->getNameAsString());
-  }
-
-  if (!channel_names_in_block.empty()) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Block proto contains %i channels not in function prototype",
-        channel_names_in_block.size()));
-  }
-
-  return absl::OkStatus();
-}
-
-absl::Status Translator::GenerateIRBlockPrepare(
-    PreparedBlock& prepared, xls::ProcBuilder& pb, int64_t next_return_index,
-    int64_t next_state_index, const clang::FunctionDecl* definition,
-    const absl::flat_hash_map<std::string, HLSChannel>* channels_by_name,
-    const xls::SourceInfo& body_loc) {
-  // For defaults, updates, invokes
-  context().fb = dynamic_cast<xls::BuilderBase*>(&pb);
-
-  // Add returns for static locals
-  {
-    for (const clang::NamedDecl* namedecl :
-         prepared.xls_func->GetDeterministicallyOrderedStaticValues()) {
-      prepared.return_index_for_static[namedecl] = next_return_index++;
-      prepared.state_index_for_static[namedecl] = next_state_index++;
-    }
-  }
-
-  // Prepare direct-ins
-  if (definition != nullptr) {
-    XLS_CHECK_NE(channels_by_name, nullptr);
-
-    for (int pidx = 0; pidx < definition->getNumParams(); ++pidx) {
-      const clang::ParmVarDecl* param = definition->getParamDecl(pidx);
-
-      const HLSChannel& hls_channel =
-          channels_by_name->at(param->getNameAsString());
-      if (hls_channel.type() != ChannelType::DIRECT_IN) {
-        continue;
-      }
-
-      XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                           StripTypeQualifiers(param->getType()));
-
-      xls::Channel* xls_channel = external_channels_by_param_.at(param);
-
-      xls::BValue receive = pb.Receive(xls_channel, prepared.token);
-      prepared.token = pb.TupleIndex(receive, 0);
-      xls::BValue direct_in_value = pb.TupleIndex(receive, 1);
-
-      prepared.args.push_back(direct_in_value);
-
-      // If it's const or not a reference, then there's no return
-      if (stripped.is_ref && !stripped.base.isConstQualified()) {
-        ++next_return_index;
-      }
-    }
-  }
-
-  // Initialize parameters to defaults, handle direct-ins, create channels
-  // Add channels in order of function prototype
-  // Find return indices for ops
-  for (const IOOp& op : prepared.xls_func->io_ops) {
-    prepared.return_index_for_op[&op] = next_return_index++;
-
-    if (op.channel->generated != nullptr) {
-      prepared.xls_channel_by_function_channel[op.channel] =
-          op.channel->generated;
-      continue;
-    }
-
-    const clang::ParmVarDecl* param =
-        prepared.xls_func->params_by_io_channel.at(op.channel);
-
-    if (!prepared.xls_channel_by_function_channel.contains(op.channel)) {
-      xls::Channel* xls_channel = external_channels_by_param_.at(param);
-      prepared.xls_channel_by_function_channel[op.channel] = xls_channel;
-    }
-  }
-
-  // Params
-  for (const xlscc::SideEffectingParameter& param :
-       prepared.xls_func->side_effecting_parameters) {
-    switch (param.type) {
-      case xlscc::SideEffectingParameterType::kIOOp: {
-        const IOOp& op = *param.io_op;
-        if (op.channel->channel_op_type == OpType::kRecv) {
-          XLS_ASSIGN_OR_RETURN(
-              xls::BValue val,
-              CreateDefaultValue(op.channel->item_type, body_loc));
-
-          prepared.arg_index_for_op[&op] = prepared.args.size();
-          prepared.args.push_back(val);
-        }
-        break;
-      }
-      case xlscc::SideEffectingParameterType::kStatic: {
-        const uint64_t static_idx =
-            prepared.state_index_for_static.at(param.static_value);
-        prepared.args.push_back(
-            pb.TupleIndex(pb.GetStateParam(0), static_idx, body_loc));
-        break;
-      }
-      default: {
-        return absl::InternalError(
-            ErrorMessage(body_loc, "Unknown type of SideEffectingParameter"));
-        break;
-      }
-    }
-  }
-
-  return absl::OkStatus();
 }
 
 absl::StatusOr<bool> Translator::ExprIsChannel(const clang::Expr* object,
@@ -5638,144 +4014,6 @@ absl::Status Translator::InlineAllInvokes(xls::Package* package) {
 
   XLS_RETURN_IF_ERROR(pipeline->Run(package, options, &results).status());
   return absl::OkStatus();
-}
-
-absl::Status Translator::GenerateFunctionMetadata(
-    const clang::FunctionDecl* func,
-    xlscc_metadata::FunctionPrototype* output) {
-  output->mutable_name()->set_name(func->getNameAsString());
-  XLS_CHECK(xls_names_for_functions_generated_.contains(func));
-  output->mutable_name()->set_xls_name(
-      xls_names_for_functions_generated_.at(func));
-  output->mutable_name()->set_fully_qualified_name(
-      func->getQualifiedNameAsString());
-  output->mutable_name()->set_id(
-      reinterpret_cast<uint64_t>(dynamic_cast<const clang::NamedDecl*>(func)));
-
-  FillLocationRangeProto(func->getReturnTypeSourceRange(),
-                         output->mutable_return_location());
-  FillLocationRangeProto(func->getParametersSourceRange(),
-                         output->mutable_parameters_location());
-  FillLocationRangeProto(func->getSourceRange(),
-                         output->mutable_whole_declaration_location());
-
-  XLS_RETURN_IF_ERROR(GenerateMetadataType(func->getReturnType(),
-                                           output->mutable_return_type()));
-
-  for (int64_t pi = 0; pi < func->getNumParams(); ++pi) {
-    const clang::ParmVarDecl* p = func->getParamDecl(pi);
-    xlscc_metadata::FunctionParameter* proto_param = output->add_params();
-    proto_param->set_name(p->getNameAsString());
-
-    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                         StripTypeQualifiers(p->getType()));
-
-    XLS_RETURN_IF_ERROR(
-        GenerateMetadataType(stripped.base, proto_param->mutable_type()));
-
-    proto_param->set_is_reference(stripped.is_ref);
-    proto_param->set_is_const(stripped.base.isConstQualified());
-  }
-
-  auto found = inst_functions_.find(func);
-  if (found == inst_functions_.end()) {
-    return absl::NotFoundError(
-        "GenerateFunctionMetadata called for FuncDecl that has not been "
-        "processed for IR generation.");
-  }
-  for (const clang::NamedDecl* namedecl :
-       found->second->GetDeterministicallyOrderedStaticValues()) {
-    const ConstValue& initval = found->second->static_values.at(namedecl);
-    auto p = clang::cast<const clang::ValueDecl>(namedecl);
-    xlscc_metadata::FunctionValue* proto_static_value =
-        output->add_static_values();
-    XLS_RETURN_IF_ERROR(
-        GenerateMetadataCPPName(namedecl, proto_static_value->mutable_name()));
-    XLS_ASSIGN_OR_RETURN(StrippedType stripped,
-                         StripTypeQualifiers(p->getType()));
-    XLS_RETURN_IF_ERROR(GenerateMetadataType(
-        stripped.base, proto_static_value->mutable_type()));
-    XLS_ASSIGN_OR_RETURN(
-        std::shared_ptr<CType> ctype,
-        TranslateTypeFromClang(stripped.base, xls::SourceInfo()));
-    XLS_RETURN_IF_ERROR(ctype->GetMetadataValue(
-        *this, initval, proto_static_value->mutable_value()));
-  }
-
-  return absl::OkStatus();
-}
-
-absl::StatusOr<xlscc_metadata::MetadataOutput> Translator::GenerateMetadata() {
-  XLS_CHECK_NE(parser_.get(), nullptr);
-  XLS_ASSIGN_OR_RETURN(const clang::FunctionDecl* top_function,
-                       parser_->GetTopFunction());
-
-  xlscc_metadata::MetadataOutput ret;
-
-  parser_->AddSourceInfoToMetadata(ret);
-
-  // Top function proto
-  XLS_RETURN_IF_ERROR(
-      GenerateFunctionMetadata(top_function, ret.mutable_top_func_proto()));
-
-  for (auto const& [decl, xls_name] : xls_names_for_functions_generated_) {
-    XLS_RETURN_IF_ERROR(
-        GenerateFunctionMetadata(decl, ret.add_all_func_protos()));
-  }
-
-  // Struct types
-  for (std::pair<std::shared_ptr<CInstantiableTypeAlias>,
-                 std::shared_ptr<CType>>
-           type : inst_types_) {
-    auto ctype_as_struct = static_cast<const CStructType*>(type.second.get());
-    if (ctype_as_struct == nullptr) {
-      continue;
-    }
-
-    xlscc_metadata::Type* struct_out = ret.add_structs();
-    XLS_RETURN_IF_ERROR(type.first->GetMetadata(
-        *this, struct_out->mutable_as_struct()->mutable_name()));
-    XLS_RETURN_IF_ERROR(ctype_as_struct->GetMetadata(*this, struct_out));
-  }
-
-  return ret;
-}
-
-void Translator::FillLocationProto(
-    const clang::SourceLocation& location,
-    xlscc_metadata::SourceLocation* location_out) {
-  // Check that the location exists
-  // this may be invalid if the function has no parameters
-  if (location.isInvalid()) {
-    return;
-  }
-  const clang::PresumedLoc& presumed = parser_->sm_->getPresumedLoc(location);
-  location_out->set_filename(presumed.getFilename());
-  location_out->set_line(presumed.getLine());
-  location_out->set_column(presumed.getColumn());
-}
-
-void Translator::FillLocationRangeProto(
-    const clang::SourceRange& range,
-    xlscc_metadata::SourceLocationRange* range_out) {
-  FillLocationProto(range.getBegin(), range_out->mutable_begin());
-  FillLocationProto(range.getEnd(), range_out->mutable_end());
-}
-
-absl::Status Translator::GenerateMetadataCPPName(
-    const clang::NamedDecl* decl_in, xlscc_metadata::CPPName* name_out) {
-  name_out->set_fully_qualified_name(decl_in->getQualifiedNameAsString());
-  name_out->set_name(decl_in->getNameAsString());
-  name_out->set_id(reinterpret_cast<uint64_t>(decl_in));
-  return absl::OkStatus();
-}
-
-absl::Status Translator::GenerateMetadataType(clang::QualType type_in,
-                                              xlscc_metadata::Type* type_out) {
-  XLS_ASSIGN_OR_RETURN(std::shared_ptr<CType> ctype,
-                       TranslateTypeFromClang(type_in, xls::SourceInfo(),
-                                              /*allow_references=*/true));
-  return ctype->GetMetadata(*this, type_out);
 }
 
 absl::StatusOr<xls::BValue> Translator::GenTypeConvert(

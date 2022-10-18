@@ -45,13 +45,13 @@ bool IsRepresentable(Type* type) {
 absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
     Node* node, ModuleBuilder* mb,
     const absl::flat_hash_map<Node*, NodeRepresentation>& node_exprs,
-    absl::string_view name, bool emit_as_assignment) {
+    std::string_view name, bool emit_as_assignment) {
   if (node->Is<Tuple>()) {
     // A tuple may have unrepresentable inputs such as empty tuples.  Walk
     // through and gather non-zero-width inputs and flatten them.
     std::vector<Expression*> nonempty_elements;
     for (Node* operand : node->operands()) {
-      if (!absl::holds_alternative<Expression*>(node_exprs.at(operand))) {
+      if (!std::holds_alternative<Expression*>(node_exprs.at(operand))) {
         if (operand->GetType()->GetFlatBitCount() != 0) {
           return absl::UnimplementedError(absl::StrFormat(
               "Unable to generate code for: %s", node->ToString()));
@@ -59,7 +59,7 @@ absl::StatusOr<NodeRepresentation> CodegenNodeWithUnrepresentedOperands(
         continue;
       }
       nonempty_elements.push_back(
-          absl::get<Expression*>(node_exprs.at(operand)));
+          std::get<Expression*>(node_exprs.at(operand)));
     }
     XLS_ASSIGN_OR_RETURN(
         Expression * expr,
@@ -346,8 +346,8 @@ class BlockGenerator {
 
   absl::Status EmitInputPorts() {
     for (const Block::Port& port : block_->GetPorts()) {
-      if (absl::holds_alternative<InputPort*>(port)) {
-        InputPort* input_port = absl::get<InputPort*>(port);
+      if (std::holds_alternative<InputPort*>(port)) {
+        InputPort* input_port = std::get<InputPort*>(port);
         if (reset_proto_.has_value() &&
             input_port->GetName() == reset_proto_->name()) {
           // The reset signal is implicitly added by ModuleBuilder.
@@ -430,10 +430,10 @@ class BlockGenerator {
         case Op::kRegisterWrite: {
           RegisterWrite* reg_write = node->As<RegisterWrite>();
           mb_registers_.at(reg_write->GetRegister()).next =
-              absl::get<Expression*>(node_exprs_.at(reg_write->data()));
+              std::get<Expression*>(node_exprs_.at(reg_write->data()));
           if (reg_write->load_enable().has_value()) {
             mb_registers_.at(reg_write->GetRegister()).load_enable =
-                absl::get<Expression*>(
+                std::get<Expression*>(
                     node_exprs_.at(reg_write->load_enable().value()));
           }
           node_exprs_[node] = UnrepresentedSentinel();
@@ -455,7 +455,7 @@ class BlockGenerator {
           }
           XLS_ASSIGN_OR_RETURN(
               node_exprs_[node],
-              mb_.EmitAssert(asrt, absl::get<Expression*>(condition)));
+              mb_.EmitAssert(asrt, std::get<Expression*>(condition)));
           continue;
         }
         case Op::kCover: {
@@ -469,7 +469,7 @@ class BlockGenerator {
           }
           XLS_ASSIGN_OR_RETURN(
               node_exprs_[node],
-              mb_.EmitCover(cover, absl::get<Expression*>(condition)));
+              mb_.EmitCover(cover, std::get<Expression*>(condition)));
           continue;
         }
         case Op::kTrace: {
@@ -494,7 +494,7 @@ class BlockGenerator {
           }
           XLS_ASSIGN_OR_RETURN(
               node_exprs_[node],
-              mb_.EmitTrace(trace, absl::get<Expression*>(condition),
+              mb_.EmitTrace(trace, std::get<Expression*>(condition),
                             trace_args));
           continue;
         }
@@ -546,7 +546,7 @@ class BlockGenerator {
       // handle the node specially.
       if (std::any_of(
               node->operands().begin(), node->operands().end(), [&](Node* n) {
-                return !absl::holds_alternative<Expression*>(node_exprs_.at(n));
+                return !std::holds_alternative<Expression*>(node_exprs_.at(n));
               })) {
         XLS_ASSIGN_OR_RETURN(
             node_exprs_[node],
@@ -569,7 +569,7 @@ class BlockGenerator {
 
       if (std::any_of(
               node->operands().begin(), node->operands().end(), [&](Node* n) {
-                return !absl::holds_alternative<Expression*>(node_exprs_.at(n));
+                return !std::holds_alternative<Expression*>(node_exprs_.at(n));
               })) {
         return absl::InvalidArgumentError(absl::StrFormat(
             "Unable to generate code for node %s, has unrepresentable operand",
@@ -652,11 +652,11 @@ class BlockGenerator {
     // Iterate through GetPorts and pick out the output ports because GetPorts
     // contains the desired port ordering.
     for (const Block::Port& port : block_->GetPorts()) {
-      if (absl::holds_alternative<OutputPort*>(port)) {
-        OutputPort* output_port = absl::get<OutputPort*>(port);
+      if (std::holds_alternative<OutputPort*>(port)) {
+        OutputPort* output_port = std::get<OutputPort*>(port);
         XLS_RETURN_IF_ERROR(mb_.AddOutputPort(
             output_port->GetName(), output_port->operand(0)->GetType(),
-            absl::get<Expression*>(node_exprs_.at(output_port->operand(0)))));
+            std::get<Expression*>(node_exprs_.at(output_port->operand(0)))));
         node_exprs_[output_port] = UnrepresentedSentinel();
       }
     }
@@ -688,19 +688,19 @@ class BlockGenerator {
         std::vector<Connection> connections;
         for (InstantiationInput* input :
              block_->GetInstantiationInputs(instantiation)) {
-          XLS_RET_CHECK(absl::holds_alternative<Expression*>(
+          XLS_RET_CHECK(std::holds_alternative<Expression*>(
               node_exprs_.at(input->operand(0))));
           connections.push_back(Connection{
               input->port_name(),
-              absl::get<Expression*>(node_exprs_.at(input->operand(0)))});
+              std::get<Expression*>(node_exprs_.at(input->operand(0)))});
         }
         for (InstantiationOutput* output :
              block_->GetInstantiationOutputs(instantiation)) {
           XLS_RET_CHECK(
-              absl::holds_alternative<Expression*>(node_exprs_.at(output)));
+              std::holds_alternative<Expression*>(node_exprs_.at(output)));
           connections.push_back(
               Connection{output->port_name(),
-                         absl::get<Expression*>(node_exprs_.at(output))});
+                         std::get<Expression*>(node_exprs_.at(output))});
         }
         mb_.instantiation_section()->Add<Instantiation>(
             SourceInfo(), block_instantiation->instantiated_block()->name(),

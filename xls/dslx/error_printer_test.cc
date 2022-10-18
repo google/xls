@@ -41,13 +41,13 @@ line 7)",
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "my error message", ss,
                                      /*get_file_contents=*/nullptr,
-                                     /*color=*/false,
+                                     /*color=*/PositionalErrorColor::kNoColor,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   // Note: we split lines and compare instead of doing a full string comparison
   // because the leader is a tempfile path, seems a bit clearer than regex this
   // way.
-  std::vector<absl::string_view> output_lines = absl::StrSplit(output, '\n');
+  std::vector<std::string_view> output_lines = absl::StrSplit(output, '\n');
   ASSERT_EQ(output_lines.size(), 6);
   EXPECT_THAT(output_lines[0], testing::HasSubstr("some_file.x:6:1-6:5"));
   EXPECT_EQ(output_lines[1], "0005: line 5");
@@ -76,13 +76,13 @@ TEST(PrintPositionalErrorTest, MultiLineErrorTest) {
   std::stringstream ss;
   XLS_ASSERT_OK(PrintPositionalError(error_span, "match not exhaustive", ss,
                                      /*get_file_contents=*/nullptr,
-                                     /*color=*/false,
+                                     /*color=*/PositionalErrorColor::kNoColor,
                                      /*error_context_line_count=*/3));
   std::string output = ss.str();
   // Note: we split lines and compare instead of doing a full string comparison
   // because the leader is a tempfile path, seems a bit clearer than regex this
   // way.
-  std::vector<absl::string_view> output_lines = absl::StrSplit(output, '\n');
+  std::vector<std::string_view> output_lines = absl::StrSplit(output, '\n');
   ASSERT_EQ(output_lines.size(), 9);
   EXPECT_THAT(output_lines[0], testing::HasSubstr("some_file.x:2:11-4:4"));
   EXPECT_EQ(output_lines[1], "0001:   fn f(x: u32) -> u32 {");

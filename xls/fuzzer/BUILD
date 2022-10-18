@@ -69,6 +69,31 @@ py_test(
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/testing:parameterized",
+    ],
+)
+
+py_test(
+    name = "run_fuzz_wide_test",
+    srcs = ["run_fuzz_test.py"],
+    args = ["--wide=true"],
+    data = [
+        "//xls/tools:parse_ir",
+    ],
+    main = "run_fuzz_test.py",
+    python_version = "PY3",
+    shard_count = 50,
+    srcs_version = "PY3",
+    tags = ["optonly"],
+    deps = [
+        ":run_fuzz",
+        ":sample_runner",
+        "//xls/common:runfiles",
+        "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
@@ -85,6 +110,27 @@ py_test(
         "//xls/common:test_base",
         "//xls/fuzzer/python:cpp_ast_generator",
         "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
+        "@com_google_absl_py//absl/testing:parameterized",
+    ],
+)
+
+py_test(
+    name = "run_fuzz_wide_codegen_test",
+    srcs = ["run_fuzz_codegen_test.py"],
+    args = ["--wide=true"],
+    main = "run_fuzz_codegen_test.py",
+    python_version = "PY3",
+    shard_count = 50,
+    srcs_version = "PY3",
+    # Based on run_fuzz_codegen_test, times out in fastbuild TAP 2020-10-20.
+    tags = ["optonly"],
+    deps = [
+        ":run_fuzz",
+        "//xls/common:test_base",
+        "//xls/fuzzer/python:cpp_ast_generator",
+        "//xls/fuzzer/python:cpp_sample",
+        "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/testing:parameterized",
     ],
 )
@@ -189,8 +235,6 @@ cc_library(
         ":scrub_crasher",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
-        "//xls/dslx:ir_converter",
-        "//xls/ir:ir_parser",
         "@at_clifford_yosys//:json11",
         "@com_github_google_re2//:re2",
         "@com_google_absl//absl/status:statusor",
@@ -401,14 +445,19 @@ cc_library(
     deps = [
         ":ast_generator",
         ":cpp_sample",
+        "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/dslx:ast",
         "//xls/dslx:concrete_type",
         "//xls/dslx:create_import_data",
         "//xls/dslx:import_data",
+        "//xls/dslx:interp_value",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
     ],
 )
 
@@ -429,6 +478,7 @@ cc_test(
         ":cpp_sample_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/dslx:concrete_type",
         "@com_google_googletest//:gtest",
     ],
 )

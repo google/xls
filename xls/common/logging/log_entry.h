@@ -32,7 +32,7 @@ class LogEntry {
   // For non-verbose log entries, `verbosity()` returns `kNoVerboseLevel`.
   static constexpr int kNoVerboseLevel = -1;
 
-  LogEntry(absl::string_view full_filename, int line,
+  LogEntry(std::string_view full_filename, int line,
            absl::LogSeverity severity, absl::Time timestamp);
 
   // Format this `LogEntry` as it should appear in a log file.  Most
@@ -47,10 +47,10 @@ class LogEntry {
   // it is nevertheless incorrect and will be broken by statements like
   // `LOG(INFO).AtLocation(...)` (see above).  If you need the data later, you
   // must copy it.
-  absl::string_view source_filename() const { return full_filename_; }
-  absl::string_view source_basename() const { return base_filename_; }
+  std::string_view source_filename() const { return full_filename_; }
+  std::string_view source_basename() const { return base_filename_; }
   // This sets both source_filename and base_filename.
-  void set_source_filename(absl::string_view filename);
+  void set_source_filename(std::string_view filename);
   int source_line() const { return line_; }
   void set_source_line(int source_line) { line_ = source_line; }
 
@@ -91,8 +91,8 @@ class LogEntry {
   // Text-formatted version of the log message.
   // This does not include the prefix or a trailing newline; consider
   // `ToString()` if you require the prefix.
-  absl::string_view text_message() const { return text_message_; }
-  void set_text_message(absl::string_view text_message) {
+  std::string_view text_message() const { return text_message_; }
+  void set_text_message(std::string_view text_message) {
     text_message_ = text_message;
   }
 
@@ -101,8 +101,8 @@ class LogEntry {
   void AppendSeverityTimeAndThreadId(std::string* out) const;
   std::string FormatPrefix() const;
 
-  absl::string_view full_filename_;
-  absl::string_view base_filename_;
+  std::string_view full_filename_;
+  std::string_view base_filename_;
   int line_;
   bool prefix_;
   absl::LogSeverity severity_;
@@ -114,7 +114,7 @@ class LogEntry {
 #else
   pid_t tid_;
 #endif
-  absl::string_view text_message_;
+  std::string_view text_message_;
 
   friend class ::xls::logging_internal::LogMessage;
 };

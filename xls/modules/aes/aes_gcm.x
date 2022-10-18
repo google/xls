@@ -595,3 +595,87 @@ proc aes_128_gcm_zero_block_commands {
         ()
     }
 }
+
+// Test of sample_generator.cc output.
+#[test_proc()]
+proc sample_generator_test {
+    command_out: chan<Command> out;
+    input_out: chan<Block> out;
+    result_in: chan<Block> in;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (command_in, command_out) = chan<Command>;
+        let (input_in, input_out) = chan<Block>;
+        let (result_in, result_out) = chan<Block>;
+        spawn aes_gcm(command_in, input_in, result_out)(initial_state());
+        (command_out, input_out, result_in, terminator)
+    }
+
+    next(tok: token) {
+        let key = Key:[
+            u8:0x66, u8:0x63, u8:0x23, u8:0x41,
+            u8:0x15, u8:0xb9, u8:0x6c, u8:0x76,
+            u8:0xe9, u8:0x52, u8:0xce, u8:0xf2,
+            u8:0x57, u8:0x0e, u8:0xe4, u8:0xf6,
+            u8:0x37, u8:0x4f, u8:0x99, u8:0xb0,
+            u8:0x3a, u8:0x5a, u8:0xea, u8:0x62,
+            u8:0xbb, u8:0x7c, u8:0x8e, u8:0x2e,
+            u8:0x99, u8:0xd8, u8:0x3b, u8:0x0d,
+        ];
+        let iv = InitVector:0xb1b4_01ac_bd3c_eec8_e2b1_dd06;
+        let aad = Block[2]:[
+            Block:[
+                u8[4]:[u8:0xe0, u8:0x25, u8:0x73, u8:0x0b],
+                u8[4]:[u8:0x4e, u8:0xcc, u8:0x88, u8:0x96],
+                u8[4]:[u8:0x19, u8:0x3a, u8:0x0f, u8:0x42],
+                u8[4]:[u8:0x41, u8:0x24, u8:0xbe, u8:0xc6],
+            ],
+            Block:[
+                u8[4]:[u8:0x1b, u8:0xeb, u8:0x89, u8:0x71],
+                u8[4]:[u8:0x26, u8:0xfa, u8:0x2b, u8:0xbb],
+                u8[4]:[u8:0x0b, u8:0x1e, u8:0xb5, u8:0x4e],
+                u8[4]:[u8:0x49, u8:0xc0, u8:0x14, u8:0x36],
+            ],
+        ];
+        let msg = Block:[
+            u8[4]:[u8:0x2f, u8:0x78, u8:0x74, u8:0xd6],
+            u8[4]:[u8:0xc5, u8:0x10, u8:0xc1, u8:0x67],
+            u8[4]:[u8:0x42, u8:0xa6, u8:0xa2, u8:0x91],
+            u8[4]:[u8:0x14, u8:0xc3, u8:0xcb, u8:0xdd],
+        ];
+        let expected_msg = Block:[
+            u8[4]:[u8:0xd9, u8:0x55, u8:0xa2, u8:0xff],
+            u8[4]:[u8:0x63, u8:0x06, u8:0xdb, u8:0x1a],
+            u8[4]:[u8:0x05, u8:0xce, u8:0x45, u8:0x0e],
+            u8[4]:[u8:0xb5, u8:0x74, u8:0x25, u8:0x40],
+        ];
+        let expected_auth_tag = Block:[
+            u8[4]:[u8:0xea, u8:0x5b, u8:0x7c, u8:0xe9],
+            u8[4]:[u8:0x68, u8:0x70, u8:0xdc, u8:0x82],
+            u8[4]:[u8:0x85, u8:0x81, u8:0x7d, u8:0x50],
+            u8[4]:[u8:0x8c, u8:0x91, u8:0xa5, u8:0xd3],
+        ];
+
+        let command = Command {
+            encrypt: true,
+            aad_blocks: u32:2,
+            msg_blocks: u32:1,
+            key: key,
+            key_width: KeyWidth::KEY_256,
+            iv: iv,
+        };
+        let tok = send(tok, command_out, command);
+
+        let tok = send(tok, input_out, aad[0]);
+        let tok = send(tok, input_out, aad[1]);
+        let tok = send(tok, input_out, msg);
+        let (tok, ctxt) = recv(tok, result_in);
+        let _ = assert_eq(ctxt, expected_msg);
+
+        let (tok, tag) = recv(tok, result_in);
+        let _ = assert_eq(tag, expected_auth_tag);
+
+        let _ = send(tok, terminator, true);
+    }
+}

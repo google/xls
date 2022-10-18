@@ -14,12 +14,12 @@
 
 #include "xls/fuzzer/sample.h"
 
+#include <optional>
+
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/dslx/interp_value_helpers.h"
-#include "xls/dslx/ir_converter.h"
 #include "xls/fuzzer/scrub_crasher.h"
-#include "xls/ir/ir_parser.h"
 #include "re2/re2.h"
 
 namespace xls {
@@ -32,21 +32,31 @@ static std::string ToArgString(const InterpValue& v) {
   return v.ConvertToIr().value().ToString(FormatPreference::kHex);
 }
 
+// Converts a list of interpreter values to a string.
+static std::string InterpValueListToString(
+    const std::vector<InterpValue>& interpv_list) {
+  return absl::StrJoin(interpv_list, ";",
+                       [](std::string* out, const InterpValue& v) {
+                         absl::StrAppend(out, ToArgString(v));
+                       });
+}
+
 std::string ArgsBatchToText(
     const std::vector<std::vector<InterpValue>>& args_batch) {
   return absl::StrJoin(
       args_batch, "\n",
       [](std::string* out, const std::vector<InterpValue>& args) {
-        absl::StrAppend(
-            out, absl::StrJoin(args, ";",
-                               [](std::string* out, const InterpValue& v) {
-                                 absl::StrAppend(out, ToArgString(v));
-                               }));
+        absl::StrAppend(out, InterpValueListToString(args));
       });
 }
 
+std::string ProcInitValuesToText(
+    const std::vector<InterpValue>& proc_init_values) {
+  return InterpValueListToString(proc_init_values);
+}
+
 /* static */ absl::StatusOr<SampleOptions> SampleOptions::FromJson(
-    absl::string_view json_text) {
+    std::string_view json_text) {
   std::string err;
   json11::Json parsed = json11::Json::parse(std::string(json_text), err);
   SampleOptions options;
@@ -88,6 +98,12 @@ std::string ArgsBatchToText(
   }
   if (!parsed["calls_per_sample"].is_null()) {
     options.calls_per_sample_ = parsed["calls_per_sample"].int_value();
+  }
+  if (!parsed["proc_ticks"].is_null()) {
+    options.proc_ticks_ = parsed["proc_ticks"].int_value();
+  }
+  if (!parsed["top_type"].is_null()) {
+    options.top_type_ = static_cast<TopType>(parsed["top_type"].int_value());
   }
   return options;
 }
@@ -133,6 +149,12 @@ json11::Json SampleOptions::ToJson() const {
 
   json["calls_per_sample"] = static_cast<int>(calls_per_sample_);
 
+  if (proc_ticks_) {
+    json["proc_ticks"] = static_cast<int>(*proc_ticks_);
+  } else {
+    json["proc_ticks"] = nullptr;
+  }
+  json["top_type"] = static_cast<int>(top_type_);
   return json11::Json(json);
 }
 
@@ -160,14 +182,40 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
   return true;
 }
 
-/* static */ absl::StatusOr<Sample> Sample::Deserialize(absl::string_view s) {
+bool Sample::ProcInitValuesEqual(const Sample& other) const {
+  if (proc_initial_values_.has_value() !=
+      other.proc_initial_values_.has_value()) {
+    return false;
+  }
+  if (!proc_initial_values_.has_value()) {
+    return true;
+  }
+  if (proc_initial_values_.value().size() !=
+      other.proc_initial_values_.value().size()) {
+    return false;
+  }
+  for (int64_t i = 0; i < proc_initial_values_.value().size(); ++i) {
+    if (!proc_initial_values_.value()[i].Eq(
+            other.proc_initial_values_.value()[i])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
   s = absl::StripAsciiWhitespace(s);
   std::optional<SampleOptions> options;
+  std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
+      std::nullopt;
   std::vector<std::vector<InterpValue>> args_batch;
-  std::vector<absl::string_view> input_lines;
-  for (absl::string_view line : absl::StrSplit(s, '\n')) {
+  std::vector<std::string_view> input_lines;
+  for (std::string_view line : absl::StrSplit(s, '\n')) {
     if (RE2::FullMatch(line, "\\s*//\\s*options:(.*)", &line)) {
       XLS_ASSIGN_OR_RETURN(options, SampleOptions::FromJson(line));
+    } else if (RE2::FullMatch(line, "\\s*//\\s*proc_initial_values:(.*)",
+                              &line)) {
+      XLS_ASSIGN_OR_RETURN(proc_initial_values, dslx::ParseArgs(line));
     } else if (RE2::FullMatch(line, "\\s*//\\s*args:(.*)", &line)) {
       XLS_ASSIGN_OR_RETURN(auto args, dslx::ParseArgs(line));
       args_batch.push_back(std::move(args));
@@ -183,12 +231,21 @@ bool Sample::ArgsBatchEqual(const Sample& other) const {
 
   std::string input_text = absl::StrJoin(input_lines, "\n");
   return Sample(std::move(input_text), *std::move(options),
-                std::move(args_batch));
+                std::move(args_batch), std::move(proc_initial_values));
 }
 
 std::string Sample::Serialize() const {
   std::vector<std::string> lines;
   lines.push_back(absl::StrCat("// options: ", options_.ToJsonText()));
+  if (proc_initial_values_.has_value()) {
+    std::string proc_initial_values_str =
+        absl::StrJoin(proc_initial_values_.value(), "; ",
+                      [](std::string* out, const InterpValue& v) {
+                        absl::StrAppend(out, ToArgString(v));
+                      });
+    lines.push_back(
+        absl::StrCat("// proc_initial_values: ", proc_initial_values_str));
+  }
   for (const std::vector<InterpValue>& args : args_batch_) {
     std::string args_str =
         absl::StrJoin(args, "; ", [](std::string* out, const InterpValue& v) {
@@ -200,7 +257,7 @@ std::string Sample::Serialize() const {
   return absl::StrCat(header, "\n", input_text_, "\n");
 }
 
-std::string Sample::ToCrasher(absl::string_view error_message) const {
+std::string Sample::ToCrasher(std::string_view error_message) const {
   absl::civil_year_t year =
       absl::ToCivilYear(absl::Now(), absl::TimeZone()).year();
   std::vector<std::string> lines = {
@@ -220,7 +277,7 @@ std::string Sample::ToCrasher(absl::string_view error_message) const {
 )",
                       year)};
   lines.push_back("// Exception:");
-  for (absl::string_view line : absl::StrSplit(error_message, '\n')) {
+  for (std::string_view line : absl::StrSplit(error_message, '\n')) {
     lines.push_back(absl::StrCat("// ", line));
   }
   // Split the D.N.S string to avoid triggering presubmit checks.

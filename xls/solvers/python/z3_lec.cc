@@ -41,9 +41,9 @@ PYBIND11_MODULE(z3_lec, m) {
   // caster, this should migrate onto it.
   m.def(
       "run",
-      [](absl::string_view ir_text, absl::string_view netlist_text,
-         absl::string_view netlist_module_name,
-         absl::string_view cell_library_textproto) -> absl::StatusOr<bool> {
+      [](std::string_view ir_text, std::string_view netlist_text,
+         std::string_view netlist_module_name,
+         std::string_view cell_library_textproto) -> absl::StatusOr<bool> {
         XLS_ASSIGN_OR_RETURN(auto package, Parser::ParsePackage(ir_text));
 
         netlist::rtl::Scanner scanner(netlist_text);

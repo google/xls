@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/optimizations/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.4">
+      <meta name="generator" content="mkdocs-1.4.1, mkdocs-material-8.5.6">
     
     
       
@@ -19,13 +19,14 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6b80c2a2.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
       
       
+
     
     
     
@@ -42,6 +43,7 @@
     
       
 
+    
     
     
   </head>
@@ -118,7 +120,7 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
-        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
         </button>
       </nav>
@@ -474,6 +476,20 @@
   
   
     <li class="md-nav__item">
+      <a href="../ir_overview/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
@@ -520,6 +536,61 @@
       Table of contents
     </label>
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#traditional-compiler-optimizations" class="md-nav__link">
+    Traditional compiler optimizations
+  </a>
+  
+    <nav class="md-nav" aria-label="Traditional compiler optimizations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dead-code-elimination-dce" class="md-nav__link">
+    Dead Code Elimination (DCE)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-subexpression-elimination-cse" class="md-nav__link">
+    Common Subexpression Elimination (CSE)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#constant-folding" class="md-nav__link">
+    Constant Folding
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-cleanup" class="md-nav__link">
+    Assert Cleanup
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#io-simplifications" class="md-nav__link">
+    IO Simplifications
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reassociation" class="md-nav__link">
+    Reassociation
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#narrowing-optimizations" class="md-nav__link">
@@ -711,54 +782,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#traditional-compiler-optimizations" class="md-nav__link">
-    Traditional compiler optimizations
-  </a>
-  
-    <nav class="md-nav" aria-label="Traditional compiler optimizations">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#common-subexpression-elimination-cse" class="md-nav__link">
-    Common Subexpression Elimination (CSE)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#constant-folding" class="md-nav__link">
-    Constant Folding
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dead-code-elimination-dce" class="md-nav__link">
-    Dead Code Elimination (DCE)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#io-simplifications" class="md-nav__link">
-    IO simplifications
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#reassociation" class="md-nav__link">
-    Reassociation
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -777,18 +800,18 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_4" type="checkbox" id="__nav_3_4" >
       
       
       
       
-        <label class="md-nav__link" for="__nav_3_3">
+        <label class="md-nav__link" for="__nav_3_4">
           Scheduling
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_3">
+        <label class="md-nav__title" for="__nav_3_4">
           <span class="md-nav__icon md-icon"></span>
           Scheduling
         </label>
@@ -852,18 +875,18 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_6" type="checkbox" id="__nav_3_6" >
       
       
       
       
-        <label class="md-nav__link" for="__nav_3_5">
+        <label class="md-nav__link" for="__nav_3_6">
           Native JIT
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_5">
+        <label class="md-nav__title" for="__nav_3_6">
           <span class="md-nav__icon md-icon"></span>
           Native JIT
         </label>
@@ -1462,6 +1485,61 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
+  <a href="#traditional-compiler-optimizations" class="md-nav__link">
+    Traditional compiler optimizations
+  </a>
+  
+    <nav class="md-nav" aria-label="Traditional compiler optimizations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dead-code-elimination-dce" class="md-nav__link">
+    Dead Code Elimination (DCE)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#common-subexpression-elimination-cse" class="md-nav__link">
+    Common Subexpression Elimination (CSE)
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#constant-folding" class="md-nav__link">
+    Constant Folding
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assert-cleanup" class="md-nav__link">
+    Assert Cleanup
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#io-simplifications" class="md-nav__link">
+    IO Simplifications
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reassociation" class="md-nav__link">
+    Reassociation
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#narrowing-optimizations" class="md-nav__link">
     Narrowing Optimizations
   </a>
@@ -1651,54 +1729,6 @@
   
 </li>
       
-        <li class="md-nav__item">
-  <a href="#traditional-compiler-optimizations" class="md-nav__link">
-    Traditional compiler optimizations
-  </a>
-  
-    <nav class="md-nav" aria-label="Traditional compiler optimizations">
-      <ul class="md-nav__list">
-        
-          <li class="md-nav__item">
-  <a href="#common-subexpression-elimination-cse" class="md-nav__link">
-    Common Subexpression Elimination (CSE)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#constant-folding" class="md-nav__link">
-    Constant Folding
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#dead-code-elimination-dce" class="md-nav__link">
-    Dead Code Elimination (DCE)
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#io-simplifications" class="md-nav__link">
-    IO simplifications
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#reassociation" class="md-nav__link">
-    Reassociation
-  </a>
-  
-</li>
-        
-      </ul>
-    </nav>
-  
-</li>
-      
     </ul>
   
 </nav>
@@ -1707,10 +1737,11 @@
               </div>
             
           
-          <div class="md-content" data-md-component="content">
-            <article class="md-content__inner md-typeset">
-              
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
                 
+                  
 
   <a href="https://github.com/google/xls/tree/main/docs_src/optimizations.md" title="Edit this page" class="md-content__button md-icon">
     
@@ -1722,6 +1753,15 @@
 <div class="toc">
 <ul>
 <li><a href="#xls-optimizations">XLS Optimizations</a><ul>
+<li><a href="#traditional-compiler-optimizations">Traditional compiler optimizations</a><ul>
+<li><a href="#dead-code-elimination-dce">Dead Code Elimination (DCE)</a></li>
+<li><a href="#common-subexpression-elimination-cse">Common Subexpression Elimination (CSE)</a></li>
+<li><a href="#constant-folding">Constant Folding</a></li>
+<li><a href="#assert-cleanup">Assert Cleanup</a></li>
+<li><a href="#io-simplifications">IO Simplifications</a></li>
+<li><a href="#reassociation">Reassociation</a></li>
+</ul>
+</li>
 <li><a href="#narrowing-optimizations">Narrowing Optimizations</a><ul>
 <li><a href="#select-operations">Select operations</a></li>
 <li><a href="#arithmetic-and-shift-operations">Arithmetic and shift operations</a></li>
@@ -1756,18 +1796,390 @@
 <li><a href="#onehot-msb-elimination">OneHot MSB elimination</a></li>
 </ul>
 </li>
-<li><a href="#traditional-compiler-optimizations">Traditional compiler optimizations</a><ul>
-<li><a href="#common-subexpression-elimination-cse">Common Subexpression Elimination (CSE)</a></li>
-<li><a href="#constant-folding">Constant Folding</a></li>
-<li><a href="#dead-code-elimination-dce">Dead Code Elimination (DCE)</a></li>
-<li><a href="#io-simplifications">IO simplifications</a></li>
-<li><a href="#reassociation">Reassociation</a></li>
-</ul>
-</li>
 </ul>
 </li>
 </ul>
 </div>
+<h2 id="traditional-compiler-optimizations">Traditional compiler optimizations</h2>
+<p>Many optimizations from traditional compilers targeting CPUs also apply to the
+optimization of hardware. Common objectives of traditional compiler
+optimizations include exposing parallelism, reducing latency, and eliminating
+instructions. Often these translate directly into the primary objectives of
+hardware optimization of reducing delay and area.</p>
+<h3 id="dead-code-elimination-dce">Dead Code Elimination (DCE)</h3>
+<p>Dead Code Elimination (DCE for short) is usually one of the easiest and most
+straightforward optimization passes in compilers. The same is true for XLS (the
+implementation is in <code>xls/passes/dce_pass.*</code>). Understanding the pass is also a
+good way to familiarize yourself with basics of the compiler IR, how to
+implement a pass, how to iterate over the nodes in the IR, how to query for node
+properties and so on.</p>
+<p>In general, DCE removes nodes from the IR that cannot be reached. Nodes can
+become unreachable by construction, for example, when a developer writes
+side-effect-free computations in DSLX that are disconnected from the function
+return ops. Certain optimization passes may also result in dead nodes.</p>
+<p>Let's look at the structure of the pass. The header file is straightforward, The
+<code>DeadCodeEliminationPass</code> is a function-level pass and hence derived from
+<code>FunctionBasePass</code>. Every function-level pass must implement the function
+<code>RunOnFunctionBaseInternal</code> and return a status indicating whether or not the
+pass made a change to the IR:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">DeadCodeEliminationPass</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">DeadCodeEliminationPass</span><span class="p">()</span><span class="w"></span>
+<span class="w">      </span><span class="o">:</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="p">(</span><span class="s">&quot;dce&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Dead Code Elimination&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span><span class="w"></span>
+<span class="w">  </span><span class="o">~</span><span class="n">DeadCodeEliminationPass</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{}</span><span class="w"></span>
+
+<span class="w"> </span><span class="k">protected</span><span class="o">:</span><span class="w"></span>
+<span class="w">  </span><span class="c1">// Iterate all nodes, mark and eliminate the unvisited nodes.</span>
+<span class="w">  </span><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="k">override</span><span class="p">;</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+</code></pre></div>
+<p>Now let's look at the implementation (in file <code>xls/passes/dce_pass.cc</code>). After
+the function declaration:</p>
+<div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">DeadCodeEliminationPass</span><span class="o">::</span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"> </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+</code></pre></div>
+<p>There is a little lambda function testing whether a node is deletable or not:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">is_deletable</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[](</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="o">!</span><span class="n">n</span><span class="o">-&gt;</span><span class="n">function_base</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">HasImplicitUse</span><span class="p">(</span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">           </span><span class="o">!</span><span class="n">OpIsSideEffecting</span><span class="p">(</span><span class="n">n</span><span class="o">-&gt;</span><span class="n">op</span><span class="p">());</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+</code></pre></div>
+<p>This function tests for two special classes of nodes.</p>
+<ul>
+<li>A node with implicit uses (defined in <code>xls/ir/function.h</code>) is a function's
+    return value. In case of procs, the return is not reached and may appear as
+    dead. It must not be removed as XLS expects each function to have a return
+    value.</li>
+</ul>
+<ul>
+<li>There are a number of side-effecting nodes, such as send/receive operations,
+    asserts, covers, input / output ports, register read / writes, or parameters
+    (and a few more). Because of their side effects, they must not be eliminated
+    by DCE.</li>
+</ul>
+<p>Next the pass iterates over all nodes in the function and adds deletable nodes
+with no users to a worklist. Those are leaf nodes, they are the initial
+candidates for deletion:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">std</span><span class="o">::</span><span class="n">deque</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">worklist</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">f</span><span class="o">-&gt;</span><span class="n">nodes</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">n</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">().</span><span class="n">empty</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">is_deletable</span><span class="p">(</span><span class="n">n</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">worklist</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">n</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Now on to the heart of the DCE algorithm. The algorithm iterates over nodes in
+the worklist until it is empty, popping elements from the front of the list and
+potentially adding new elements to the list. For example, assume there was a
+leaf node A with no further users. Further assume that its operand(s) only have
+node A as user, then the operand will be added to the worklist and visited in
+the next iteration over the worklist. There is a minor subtlety here - the code
+has to ensure that operands are only visited once, hence the use of a
+<code>flat_hash_set&lt;Node*&gt;</code> to check whether an operand has been visited already.</p>
+<p>After all operands have been visited and potentially added to the worklist, the
+original leaf node A is being removed and a corresponding logging statement
+(level 3) is generated.</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="kt">int64_t</span><span class="w"> </span><span class="n">removed_count</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="n">absl</span><span class="o">::</span><span class="n">flat_hash_set</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">unique_operands</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">while</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">worklist</span><span class="p">.</span><span class="n">empty</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">worklist</span><span class="p">.</span><span class="n">front</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">worklist</span><span class="p">.</span><span class="n">pop_front</span><span class="p">();</span><span class="w"></span>
+
+<span class="w">    </span><span class="c1">// A node may appear more than once as an operand of &#39;node&#39;. Keep track of</span>
+<span class="w">    </span><span class="c1">// which operands have been handled in a set.</span>
+<span class="w">    </span><span class="n">unique_operands</span><span class="p">.</span><span class="n">clear</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">operand</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">unique_operands</span><span class="p">.</span><span class="n">insert</span><span class="p">(</span><span class="n">operand</span><span class="p">).</span><span class="n">second</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">operand</span><span class="o">-&gt;</span><span class="n">users</span><span class="p">().</span><span class="n">size</span><span class="p">()</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="n">is_deletable</span><span class="p">(</span><span class="n">operand</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">          </span><span class="n">worklist</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">operand</span><span class="p">);</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="n">XLS_VLOG</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;DCE removing &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">ToString</span><span class="p">();</span><span class="w"></span>
+<span class="w">    </span><span class="n">XLS_RETURN_IF_ERROR</span><span class="p">(</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">RemoveNode</span><span class="p">(</span><span class="n">node</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="n">removed_count</span><span class="o">++</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Finally, a pass has to indicate whether or not it made any changes to the IR.
+For this pass, this amounts to returning whether or not a single IR node has
+been DCE'ed:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="n">XLS_VLOG</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;Removed &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">removed_count</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot; dead nodes&quot;</span><span class="p">;</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">removed_count</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<h3 id="common-subexpression-elimination-cse">Common Subexpression Elimination (CSE)</h3>
+<p>Common subexpression elimination is another example of a classic compiler
+optimization that equally applies to high-level synthesis. The heuristics on
+which specific expressions to commonize may differ, given that commonizing
+expressions can increase fan-out and connectivity of the IR, complicating place
+and route. Currently, XLS is greedy and does not apply heuristics. It commonizes
+any and all common expressions it can find. The CSE implementation can be found
+in files <code>xls/passes/cse_pass.*</code>.</p>
+<p>What does CSE actually do? The principles are quite simple and similar in
+classic control-flow based compilers. Yet, as mentioned, the heuristics may be
+moderately different. In CFG-based IRs, CSE would look for common expressions
+and substitute in temporary variables. For example, for code like this with the
+common expression <code>a+b</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="w">   </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span><span class="w"></span>
+<span class="w">   </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cond</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="p">...</span><span class="w"></span>
+<span class="w">   </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">b</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="p">;</span><span class="w"></span>
+<span class="w">   </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>The compiler would first determine that addition is commutative and that hence
+the expressions <code>a+b</code> and <code>b+a</code> can be canonicalized, eg., by ordering the
+operands alphabetically. Then the compiler would introduce a temporary variable
+for the expression and forward-substitute it into all occurances. For the
+example, the resulting code would be something like this:</p>
+<div class="highlight"><pre><span></span><code><span class="w">   </span><span class="n">t1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
+<span class="w">   </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">c</span><span class="p">;</span><span class="w"></span>
+<span class="w">   </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">cond</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="p">...</span><span class="w"></span>
+<span class="w">   </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t1</span><span class="p">;</span><span class="w"></span>
+<span class="w">   </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>In effect, an arithmetic operation has been traded against a register (or cache)
+access. Even in classic compilers, the CSE heuristics may consider factors such
+as the length and number of live ranges (and corresponding register pressure) to
+determine whether or not it may be better to just recompute the expression.</p>
+<p>In XLS's "sea of nodes" IR, this transformation is quite simple. Given a graph
+that contains multiple common subexpressions, for example:</p>
+<div class="highlight"><pre><span></span><code>   A   B
+    \ /
+     C1      A   B
+      \       \ /
+       ...     C2
+               /
+             op(C2)
+</code></pre></div>
+<p>XLS would find that <code>C1</code> and <code>C2</code> compute identical expressions and would simply
+replace the use of <code>C2</code> with <code>C1</code>, as in this graph (which will result in <code>C2</code>
+being dead-code eliminated):</p>
+<div class="highlight"><pre><span></span><code>   A   B
+    \ /
+     C1      A   B
+      \       \ /
+       ...     C2
+         \
+        op(C1)
+</code></pre></div>
+<p>Now let's see how this is implemented in XLS. CSE is a function-level
+transformation and accordingly the pass is derived from <code>FunctionBasePass</code>. In
+the header file:</p>
+<div class="highlight"><pre><span></span><code><span class="k">class</span><span class="w"> </span><span class="nc">CsePass</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w"> </span><span class="k">public</span><span class="o">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">CsePass</span><span class="p">()</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">FunctionBasePass</span><span class="p">(</span><span class="s">&quot;cse&quot;</span><span class="p">,</span><span class="w"> </span><span class="s">&quot;Common subexpression elimination&quot;</span><span class="p">)</span><span class="w"> </span><span class="p">{}</span><span class="w"></span>
+<span class="w">  </span><span class="o">~</span><span class="n">CsePass</span><span class="p">()</span><span class="w"> </span><span class="k">override</span><span class="w"> </span><span class="p">{}</span><span class="w"></span>
+
+<span class="w"> </span><span class="k">protected</span><span class="o">:</span><span class="w"></span>
+<span class="w">  </span><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span><span class="w"></span>
+<span class="w">      </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"></span>
+<span class="w">      </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="k">override</span><span class="p">;</span><span class="w"></span>
+<span class="p">};</span><span class="w"></span>
+</code></pre></div>
+<p>Several other optimizations passes expose new CSE opportunities. To make it easy
+to call CSE from these other passes, we declare a standalone function to call
+it. It accepts as input the function and returns a map containing the potential
+replacements of one node with another:</p>
+<div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">RunCse</span><span class="p">(</span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"></span>
+<span class="w">                            </span><span class="n">absl</span><span class="o">::</span><span class="n">flat_hash_map</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*</span><span class="p">,</span><span class="w"> </span><span class="n">Node</span><span class="o">*&gt;*</span><span class="w"> </span><span class="n">replacements</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+<p>CSE conceptually has to check for each op and its operands whether or not a
+similar op exists somewhere else in the IR. To make this more efficient, XLS
+first computes a 64-bit hash for each node. It combines the nodes' opcode with
+all operands' IDs into a vector and computes the hash function over this vector.</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">hasher</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">absl</span><span class="o">::</span><span class="n">Hash</span><span class="o">&lt;</span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int64_t</span><span class="o">&gt;&gt;</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="k">auto</span><span class="w"> </span><span class="n">node_hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="o">&amp;</span><span class="p">](</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">n</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="kt">int64_t</span><span class="o">&gt;</span><span class="w"> </span><span class="n">values_to_hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="k">static_cast</span><span class="o">&lt;</span><span class="kt">int64_t</span><span class="o">&gt;</span><span class="p">(</span><span class="n">n</span><span class="o">-&gt;</span><span class="n">op</span><span class="p">())};</span><span class="w"></span>
+<span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">span_backing_store</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">operand</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">GetOperandsForCse</span><span class="p">(</span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">span_backing_store</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">values_to_hash</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">operand</span><span class="o">-&gt;</span><span class="n">id</span><span class="p">());</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="c1">// If this is slow because of many literals, the Literal values could be</span>
+<span class="w">    </span><span class="c1">// combined into the hash. As is, all literals get the same hash value.</span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">hasher</span><span class="p">(</span><span class="n">values_to_hash</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="p">};</span><span class="w"></span>
+</code></pre></div>
+<p>Note that this procedure uses the function <code>GetOperandsForCse</code> to collect the
+operands. What does this function do? For nodes to be considered as equivalent,
+the operands must be in the same order. Commutative operands are agnostic to
+operand order. So in order to expand the opportunities for CSE, XLS sorts
+commutative operands by their ID. As an optimization, to avoid having to
+construct and return a full vector for each node and operands, the function gets
+a parameter to a vector of nodes to use as storage and returns a
+<code>absl::Span&lt;Node * const&gt;</code> over this backing store. This may look a bit
+confusing in the code but is really just a performance optimization:</p>
+<div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">Span</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="k">const</span><span class="o">&gt;</span><span class="w"> </span><span class="n">GetOperandsForCse</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;*</span><span class="w"> </span><span class="n">span_backing_store</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="n">XLS_CHECK</span><span class="p">(</span><span class="n">span_backing_store</span><span class="o">-&gt;</span><span class="n">empty</span><span class="p">());</span><span class="w"></span>
+<span class="w">  </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">OpIsCommutative</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">op</span><span class="p">()))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">return</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">();</span><span class="w"></span>
+<span class="w">  </span><span class="p">}</span><span class="w"></span>
+<span class="w">  </span><span class="n">span_backing_store</span><span class="o">-&gt;</span><span class="n">insert</span><span class="p">(</span><span class="n">span_backing_store</span><span class="o">-&gt;</span><span class="n">begin</span><span class="p">(),</span><span class="w"></span>
+<span class="w">                             </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">().</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">().</span><span class="n">end</span><span class="p">());</span><span class="w"></span>
+<span class="w">  </span><span class="n">SortByNodeId</span><span class="p">(</span><span class="n">span_backing_store</span><span class="p">);</span><span class="w"></span>
+<span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="o">*</span><span class="n">span_backing_store</span><span class="p">;</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Now on to the meat of the optimization pass. As always, we have to maintain
+whether or not the pass modified the IR:</p>
+<div class="highlight"><pre><span></span><code><span class="kt">bool</span><span class="w"> </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<p>We store each first occurance of an expression in a map which is indexed by the
+expression's hash value. Since potentially there is no redundancy in the IR, we
+can pre-allocate this map to the size of function's IR. Note that non-common
+expressions may result in the same hash value. Because of that, <code>node_buckets</code>
+is a map from the hash value to a vector of nodes with the same hash value:</p>
+<div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">flat_hash_map</span><span class="o">&lt;</span><span class="kt">int64_t</span><span class="p">,</span><span class="w"> </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;&gt;</span><span class="w"> </span><span class="n">node_buckets</span><span class="p">;</span><span class="w"></span>
+<span class="n">node_buckets</span><span class="p">.</span><span class="n">reserve</span><span class="p">(</span><span class="n">f</span><span class="o">-&gt;</span><span class="n">node_count</span><span class="p">());</span><span class="w"></span>
+</code></pre></div>
+<p>Now we iterate over the nodes in the IR, ignoring nodes that have side effects:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">TopoSort</span><span class="p">(</span><span class="n">f</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">OpIsSideEffecting</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">op</span><span class="p">()))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="k">continue</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>First thing to check is whether or not the op represents an expression that we
+have potentially already seen. If this is the first occurrance of the
+expression, which is efficient to check via the hash value, we store the op in
+<code>node_buckets</code> and continue with the next node.</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="kt">int64_t</span><span class="w"> </span><span class="n">hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">node_hash</span><span class="p">(</span><span class="n">node</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">node_buckets</span><span class="p">.</span><span class="n">contains</span><span class="p">(</span><span class="n">hash</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">node_buckets</span><span class="p">[</span><span class="n">hash</span><span class="p">].</span><span class="n">push_back</span><span class="p">(</span><span class="n">node</span><span class="p">);</span><span class="w"></span>
+<span class="w">      </span><span class="k">continue</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>Now it is getting more interesting. We may have found a node that is common with
+a previously seen node. We collect the nodes operands (again, this looks a bit
+complicated because of the performance optimization):</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">node_span_backing_store</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="n">absl</span><span class="o">::</span><span class="n">Span</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="k">const</span><span class="o">&gt;</span><span class="w"> </span><span class="n">node_operands_for_cse</span><span class="w"> </span><span class="o">=</span><span class="w"></span>
+<span class="w">        </span><span class="n">GetOperandsForCse</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">node_span_backing_store</span><span class="p">);</span><span class="w"></span>
+</code></pre></div>
+<p>Then we iterate over all previously seen nodes with the same hash value which
+are stored in <code>node_buckets</code>. Again, the may be multiple expressions with the
+same hash value, hence we have to iterate over all candidates with that hash
+value.</p>
+<p>For each candidate, we collect the operands and then check whether the node is
+<em>definitely</em> identical to a previously seen node. In this case the node's uses
+can be replaced:</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">candidate</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">node_buckets</span><span class="p">.</span><span class="n">at</span><span class="p">(</span><span class="n">hash</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Node</span><span class="o">*&gt;</span><span class="w"> </span><span class="n">candidate_span_backing_store</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">node_operands_for_cse</span><span class="w"> </span><span class="o">==</span><span class="w"></span>
+<span class="w">              </span><span class="n">GetOperandsForCse</span><span class="p">(</span><span class="n">candidate</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">candidate_span_backing_store</span><span class="p">)</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">          </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">IsDefinitelyEqualTo</span><span class="p">(</span><span class="n">candidate</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">          </span><span class="p">[...]</span><span class="w"></span>
+</code></pre></div>
+<p>If it was a match we replace the nodes, fill in the resulting replacement map,
+and mark the IR as modified. We also note whether a true match was found (via
+<code>replaced</code>):</p>
+<div class="highlight"><pre><span></span><code><span class="w">        </span><span class="n">XLS_VLOG</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">absl</span><span class="o">::</span><span class="n">StreamFormat</span><span class="p">(</span><span class="w"></span>
+<span class="w">            </span><span class="s">&quot;Replacing %s with equivalent node %s&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">GetName</span><span class="p">(),</span><span class="w"></span>
+<span class="w">            </span><span class="n">candidate</span><span class="o">-&gt;</span><span class="n">GetName</span><span class="p">());</span><span class="w"></span>
+<span class="w">        </span><span class="n">XLS_RETURN_IF_ERROR</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">ReplaceUsesWith</span><span class="p">(</span><span class="n">candidate</span><span class="p">));</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">replacements</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="k">nullptr</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">          </span><span class="p">(</span><span class="o">*</span><span class="n">replacements</span><span class="p">)[</span><span class="n">node</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">candidate</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="p">}</span><span class="w"></span>
+<span class="w">        </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="n">replaced</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span><span class="w"></span>
+<span class="w">        </span><span class="k">break</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>If, however, it turns out that while the hash value was identical but the ops
+were not identical, we have to update <code>node_buckets</code> and insert the new
+candidate.</p>
+<div class="highlight"><pre><span></span><code><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">replaced</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">node_buckets</span><span class="p">[</span><span class="n">hash</span><span class="p">].</span><span class="n">push_back</span><span class="p">(</span><span class="n">node</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="p">}</span><span class="w"></span>
+</code></pre></div>
+<p>As a final step, we return whether or not the IR was modified:</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">return</span><span class="w"> </span><span class="n">changed</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<h3 id="constant-folding">Constant Folding</h3>
+<p>Constant folding is another classic compiler optimization that equally applies
+to high-level synthesis. What does it do? Given an arithmetic expression that as
+inputs only as constant values, the compiler computes this expression at compile
+time and replaces it with the result. There are two complexities:</p>
+<ol>
+<li>
+<p>The IR has to be updated after the transformation.</p>
+</li>
+<li>
+<p>More importantly, the evaluation of the expression must match the semantics
+    of the target architecture!</p>
+</li>
+</ol>
+<p>Both problems are solved elegantly in XLS. The IR update itself is trivial to do
+with the sea-of-nodes IR. For expression evaluation, XLS simply re-uses the
+interpreter, which implements the correct semantics. Let's look again at the
+implementation, which is in file <code>xls/passes/constant_folding_pass.*</code>.</p>
+<p>We define the pass as usual and maintain whether or not the pass modified the IR
+in a boolean variable <code>changed</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="n">absl</span><span class="o">::</span><span class="n">StatusOr</span><span class="o">&lt;</span><span class="kt">bool</span><span class="o">&gt;</span><span class="w"> </span><span class="n">ConstantFoldingPass</span><span class="o">::</span><span class="n">RunOnFunctionBaseInternal</span><span class="p">(</span><span class="w"></span>
+<span class="w">    </span><span class="n">FunctionBase</span><span class="o">*</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">PassOptions</span><span class="o">&amp;</span><span class="w"> </span><span class="n">options</span><span class="p">,</span><span class="w"> </span><span class="n">PassResults</span><span class="o">*</span><span class="w"> </span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">  </span><span class="kt">bool</span><span class="w"> </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">false</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<p>We now iterate over all nodes in the IR and check whether the node only has
+literals as operands as well as whether it is safe to replace the node.</p>
+<div class="highlight"><pre><span></span><code><span class="w">  </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">node</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">TopoSort</span><span class="p">(</span><span class="n">f</span><span class="p">))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="p">[...]</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="o">!</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">Is</span><span class="o">&lt;</span><span class="n">Literal</span><span class="o">&gt;</span><span class="p">()</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span><span class="o">!</span><span class="n">TypeHasToken</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">GetType</span><span class="p">())</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">        </span><span class="o">!</span><span class="n">OpIsSideEffecting</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">op</span><span class="p">())</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"></span>
+<span class="w">        </span><span class="n">std</span><span class="o">::</span><span class="n">all_of</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">().</span><span class="n">begin</span><span class="p">(),</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">().</span><span class="n">end</span><span class="p">(),</span><span class="w"></span>
+<span class="w">                    </span><span class="p">[](</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">o</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="k">return</span><span class="w"> </span><span class="n">o</span><span class="o">-&gt;</span><span class="n">Is</span><span class="o">&lt;</span><span class="n">Literal</span><span class="o">&gt;</span><span class="p">();</span><span class="w"> </span><span class="p">}))</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">      </span><span class="n">XLS_VLOG</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="s">&quot;Folding: &quot;</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<p>Here now comes the fun part. If the condition is true, XLS simply collects the
+operands in a vector and calls the interpreter to compute the result. Again,
+the interpreter has to implement the proper semantics, which leads to this
+exceedingly simple implementation.</p>
+<div class="highlight"><pre><span></span><code><span class="w">      </span><span class="n">std</span><span class="o">::</span><span class="n">vector</span><span class="o">&lt;</span><span class="n">Value</span><span class="o">&gt;</span><span class="w"> </span><span class="n">operand_values</span><span class="p">;</span><span class="w"></span>
+<span class="w">      </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="n">Node</span><span class="o">*</span><span class="w"> </span><span class="n">operand</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">node</span><span class="o">-&gt;</span><span class="n">operands</span><span class="p">())</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">        </span><span class="n">operand_values</span><span class="p">.</span><span class="n">push_back</span><span class="p">(</span><span class="n">operand</span><span class="o">-&gt;</span><span class="n">As</span><span class="o">&lt;</span><span class="n">Literal</span><span class="o">&gt;</span><span class="p">()</span><span class="o">-&gt;</span><span class="n">value</span><span class="p">());</span><span class="w"></span>
+<span class="w">      </span><span class="p">}</span><span class="w"></span>
+<span class="w">      </span><span class="n">XLS_ASSIGN_OR_RETURN</span><span class="p">(</span><span class="n">Value</span><span class="w"> </span><span class="n">result</span><span class="p">,</span><span class="w"> </span><span class="n">InterpretNode</span><span class="p">(</span><span class="n">node</span><span class="p">,</span><span class="w"> </span><span class="n">operand_values</span><span class="p">));</span><span class="w"></span>
+<span class="w">      </span><span class="n">XLS_RETURN_IF_ERROR</span><span class="p">(</span><span class="n">node</span><span class="o">-&gt;</span><span class="n">ReplaceUsesWithNew</span><span class="o">&lt;</span><span class="n">Literal</span><span class="o">&gt;</span><span class="p">(</span><span class="n">result</span><span class="p">).</span><span class="n">status</span><span class="p">());</span><span class="w"></span>
+<span class="w">      </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">true</span><span class="p">;</span><span class="w"></span>
+</code></pre></div>
+<h3 id="assert-cleanup">Assert Cleanup</h3>
+<p>Asserts whose condition is known to be true (represented by a 1-bit value of 1)
+are removed as they will never trigger. This pass is implemented in file
+<code>xls/passes/useless_assert_removel_pass.*</code> and is rather trivial. Again,
+it shows in a simple way how to navigate the IR:</p>
+<p>https://github.com/google/xls/blob/main/xls/passes/useless_assert_removal_pass.cc#L27-L43</p>
+<h3 id="io-simplifications">IO Simplifications</h3>
+<p>Conditional sends and receives that have a condition known to be false are
+replaced with their input token (in the case of sends) or a tuple containing
+their input token and a literal representing the zero value of the appropriate
+channel (in the case of receives). Conditional sends and receives that have a
+condition known to be true are replaced with unconditional sends and receives.
+These two transforms are implemented in file
+<code>xls/passes/useless_io_removal_pass.*</code>.</p>
+<h3 id="reassociation">Reassociation</h3>
+<p>Reassociation in XLS uses the associative and commutative property of arithmetic
+operations (such as adds and multiplies) to rearrange expressions of identical
+operations to minimize delay and area. Delay is reduced by transforming chains
+of operations into balanced trees which reduces the critical-path delay. For
+example, given the following expression:</p>
+<p><img alt="drawing" src="../reassoc_before.png" /></p>
+<p>This can be reassociated into the following balanced tree:</p>
+<p><img alt="drawing" src="../reassoc_after.png" /></p>
+<p>The transformation has reduced the critical path through the expression from
+three adds down to two adds.</p>
+<p>Reassociation can also create opportunities for constant folding. If an
+expression contains multiple literal values (constants) the expressions can be
+reassociated to gather literals into the same subexpression which can then be
+folded. Generally this requires the operation to be commutative as well as
+associative. For example, given the following expression:</p>
+<p><img alt="drawing" src="../literal_reassoc_before.png" /></p>
+<p>This can be reassociated into:</p>
+<p><img alt="drawing" src="../literal_reassoc_after.png" /></p>
+<p>The right-most add of the two literals can be folded reducing the number of adds
+in the expression to two.</p>
 <h2 id="narrowing-optimizations">Narrowing Optimizations</h2>
 <p>The XLS compiler performs <strong>bitwise flow analysis</strong>, and so can deduce that
 certain bits in the output of operations are always-zero or always-one. As a
@@ -1859,7 +2271,7 @@ come in the near future that is based on Binary Decision Diagrams. It is
 documented largely as a historical note of an early / simple optimization
 approach.</p>
 <p>With the addition of the <code>one_hot_select</code> and its corresponding optimizations, a
-larger amount of boolean logic appears in XLS' optimized graphs (e.g. or-ing
+larger amount of boolean logic appears in XLS's optimized graphs (e.g. or-ing
 together bits in the selector to eliminate duplicate <code>one_hot_select</code> operands).
 Un-simplified boolean operations compound their delay on the critical path; with
 the process independent constant <span class="arithmatex">\(\tau\)</span> a single bit <code>or</code> might be <span class="arithmatex">\(6\tau\)</span>,
@@ -2114,55 +2526,16 @@ output, so the MSB can safely be replaced with a 0 bit. Note: This approach
 assumes that IR nodes do not have any side effects. When IR nodes with side
 effects are introduced (i.e. channels) the analysis for this optimization will
 have to be adjusted slightly to account for this.</p>
-<h2 id="traditional-compiler-optimizations">Traditional compiler optimizations</h2>
-<p>Many optimizations from traditional compilers targeting CPUs also apply to the
-optimization of hardware. Common objectives of traditional compiler
-optimizations include exposing parallelism, reducing latency, and eliminating
-instructions. Often these translate directly into the primary objectives of
-hardware optimization of reducing delay and area.</p>
-<h3 id="common-subexpression-elimination-cse">Common Subexpression Elimination (CSE)</h3>
-<p>TODO: Finish.</p>
-<h3 id="constant-folding">Constant Folding</h3>
-<p>TODO: Finish.</p>
-<h3 id="dead-code-elimination-dce">Dead Code Elimination (DCE)</h3>
-<p>TODO: Finish.</p>
-<h3 id="io-simplifications">IO simplifications</h3>
-<p>Asserts whose condition is known to be true are removed, as they will never
-trigger. Conditional sends and receives that have a condition known to be false
-are replaced with their input token (in the case of sends) or a tuple containing
-their input token and a literal representing the zero value of the appropriate
-channel (in the case of receives). Conditional sends and receives that have a
-condition known to be true are replaced with unconditional sends and receives.</p>
-<h3 id="reassociation">Reassociation</h3>
-<p>Reassociation in XLS uses the associative and commutative property of arithmetic
-operations (such as adds and multiplies) to rearrange expressions of identical
-operations to minimize delay and area. Delay is reduced by transforming chains
-of operations into balanced trees which reduces the critical-path delay. For
-example, given the following expression:</p>
-<p><img alt="drawing" src="../reassoc_before.png" /></p>
-<p>This can be reassociated into the following balanced tree:</p>
-<p><img alt="drawing" src="../reassoc_after.png" /></p>
-<p>The transformation has reduced the critical path through the expression from
-three adds down to two adds.</p>
-<p>Reassociation can also create opportunities for constant folding. If an
-expression contains multiple literal values (constants) the expressions can be
-reassociated to gather literals into the same subexpression which can then be
-folded. Generally this requires the operation to be commutative as well as
-associative. For example, given the following expression:</p>
-<p><img alt="drawing" src="../literal_reassoc_before.png" /></p>
-<p>This can be reassociated into:</p>
-<p><img alt="drawing" src="../literal_reassoc_after.png" /></p>
-<p>The right-most add of the two literals can be folded reducing the number of adds
-in the expression to two.</p>
 
 
 
 
 
-              
-            </article>
-            
-          </div>
+                
+              </article>
+            </div>
+          
+          
         </div>
         
       </main>
@@ -2226,10 +2599,10 @@ in the expression to two.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.ecf98df9.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.2ab50757.min.js"></script>
+      <script src="../assets/javascripts/bundle.078830c0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

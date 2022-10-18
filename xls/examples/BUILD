@@ -116,6 +116,7 @@ cc_xls_ir_jit_wrapper(
     src = ":crc32.opt.ir",
     jit_wrapper_args = {
         "class_name": "crc32",
+        "namespace": "xls::examples",
     },
 )
 
@@ -230,6 +231,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "sha256",
         "function": "main",
+        "namespace": "xls::examples",
     },
 )
 
@@ -357,6 +359,26 @@ xls_dslx_opt_ir(
     tags = ["optonly"],
 )
 
+# -- tiny_adder sample
+
+xls_dslx_library(
+    name = "tiny_adder_dslx",
+    srcs = ["tiny_adder.x"],
+)
+
+xls_dslx_test(
+    name = "tiny_adder_test",
+    library = ":tiny_adder_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "tiny_adder_opt_ir",
+    srcs = ["tiny_adder.x"],
+    dslx_top = "tiny_adder",
+    ir_file = "tiny_adder.ir",
+    opt_ir_file = "tiny_adder.opt.ir",
+)
+
 # -- find_index sample, with OpenROAD synthesis
 
 xls_dslx_library(
@@ -367,6 +389,14 @@ xls_dslx_library(
 xls_dslx_test(
     name = "find_index_test",
     library = ":find_index_dslx",
+)
+
+xls_dslx_opt_ir(
+    name = "find_index_opt_ir",
+    srcs = ["find_index.x"],
+    dslx_top = "find_index",
+    ir_file = "find_index.ir",
+    opt_ir_file = "find_index.opt.ir",
 )
 
 xls_dslx_verilog(

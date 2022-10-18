@@ -31,12 +31,12 @@ namespace xls {
 namespace {
 
 TEST(IrWrapperTest, DslxToIrOk) {
-  constexpr absl::string_view kParamsDslx = R"(pub struct ParamsProto {
+  constexpr std::string_view kParamsDslx = R"(pub struct ParamsProto {
   latency: sN[64],
 }
 pub const params = ParamsProto { latency: sN[64]:7 };)";
 
-  constexpr absl::string_view kTopDslx = R"(import param
+  constexpr std::string_view kTopDslx = R"(import param
 pub fn GetLatency() -> s64 {
   param::params.latency
 })";
@@ -97,7 +97,7 @@ fn __top__GetLatency() -> bits[64] {
 }
 
 TEST(IrWrapperTest, DslxProcsToIrOk) {
-  constexpr absl::string_view kTopDslx = R"(proc foo {
+  constexpr std::string_view kTopDslx = R"(proc foo {
   in_0: chan<u32> in;
   in_1: chan<u32> in;
   output: chan<u32> out;
@@ -169,23 +169,23 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_TRUE(in_1.Empty());
   EXPECT_TRUE(out.Empty());
 
-  XLS_ASSERT_OK(in_0.EnqueueWithUint64(10));
-  XLS_ASSERT_OK(in_1.EnqueueWithUint64(20));
+  XLS_ASSERT_OK(in_0.WriteWithUint64(10));
+  XLS_ASSERT_OK(in_1.WriteWithUint64(20));
 
   EXPECT_FALSE(in_0.Empty());
   EXPECT_FALSE(in_1.Empty());
   EXPECT_TRUE(out.Empty());
 
   // Run one tick
-  XLS_ASSERT_OK_AND_ASSIGN(std::vector<Value> next_state,
-                           DropInterpreterEvents(jit->Run({})));
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
+  XLS_ASSERT_OK(jit->Tick(*continuation));
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
   EXPECT_FALSE(out.Empty());
 
   // Receive data.
-  XLS_ASSERT_OK_AND_ASSIGN(uint64_t out_value, out.DequeueWithUint64());
+  XLS_ASSERT_OK_AND_ASSIGN(uint64_t out_value, out.ReadWithUint64());
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
@@ -201,14 +201,14 @@ proc __top__foo_0_next(__token: token, init={}) {
   in0_data.SetValue(20);
   auto in1_data = MutableInt32View(in_1_buffer.data());
   in1_data.SetValue(20);
-  XLS_ASSERT_OK(in_0.Enqueue(in_0_buffer));
-  XLS_ASSERT_OK(in_1.Enqueue(in_1_buffer));
+  XLS_ASSERT_OK(in_0.Write(in_0_buffer));
+  XLS_ASSERT_OK(in_1.Write(in_1_buffer));
 
   EXPECT_FALSE(in_0.Empty());
   EXPECT_FALSE(in_1.Empty());
 
   // Run one tick
-  XLS_ASSERT_OK_AND_ASSIGN(next_state, DropInterpreterEvents(jit->Run({})));
+  XLS_ASSERT_OK(jit->Tick(*continuation));
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
@@ -216,7 +216,7 @@ proc __top__foo_0_next(__token: token, init={}) {
 
   // Receive data.
   absl::Span<uint8_t> out_buffer = out.buffer();
-  XLS_ASSERT_OK(out.Dequeue(out_buffer));
+  XLS_ASSERT_OK(out.Read(out_buffer));
 
   EXPECT_TRUE(out.Empty());
 

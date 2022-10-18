@@ -33,7 +33,7 @@ std::string ChannelKindToString(ChannelKind kind) {
   XLS_LOG(FATAL) << "Invalid channel kind: " << static_cast<int64_t>(kind);
 }
 
-absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str) {
+absl::StatusOr<ChannelKind> StringToChannelKind(std::string_view str) {
   if (str == "streaming") {
     return ChannelKind::kStreaming;
   } else if (str == "single_value") {
@@ -95,7 +95,7 @@ std::string FlowControlToString(FlowControl fc) {
   XLS_LOG(FATAL) << "Invalid flow control value: " << static_cast<int64_t>(fc);
 }
 
-absl::StatusOr<FlowControl> StringToFlowControl(absl::string_view str) {
+absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str) {
   if (str == "none") {
     return FlowControl::kNone;
   } else if (str == "ready_valid") {

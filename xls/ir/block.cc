@@ -20,6 +20,7 @@
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "xls/common/logging/vlog_is_on.h"
+#include "xls/common/visitor.h"
 #include "xls/ir/function.h"
 #include "xls/ir/node.h"
 #include "xls/ir/node_iterator.h"
@@ -76,10 +77,10 @@ static absl::flat_hash_map<Node*, int64_t> ComputeRegisterDepthToLeaves(
 static int64_t GetPortPosition(Node* n, const Block* block) {
   int64_t i = 0;
   for (const Block::Port& port : block->GetPorts()) {
-    if ((absl::holds_alternative<InputPort*>(port) &&
-         n == absl::get<InputPort*>(port)) ||
-        (absl::holds_alternative<OutputPort*>(port) &&
-         n == absl::get<OutputPort*>(port))) {
+    if ((std::holds_alternative<InputPort*>(port) &&
+         n == std::get<InputPort*>(port)) ||
+        (std::holds_alternative<OutputPort*>(port) &&
+         n == std::get<OutputPort*>(port))) {
       return i;
     }
     i++;
@@ -195,17 +196,17 @@ std::vector<Node*> Block::DumpOrder() const {
 std::string Block::DumpIr() const {
   std::vector<std::string> port_strings;
   for (const Port& port : GetPorts()) {
-    if (absl::holds_alternative<ClockPort*>(port)) {
+    if (std::holds_alternative<ClockPort*>(port)) {
       port_strings.push_back(
-          absl::StrFormat("%s: clock", absl::get<ClockPort*>(port)->name));
-    } else if (absl::holds_alternative<InputPort*>(port)) {
+          absl::StrFormat("%s: clock", std::get<ClockPort*>(port)->name));
+    } else if (std::holds_alternative<InputPort*>(port)) {
       port_strings.push_back(
-          absl::StrFormat("%s: %s", absl::get<InputPort*>(port)->GetName(),
-                          absl::get<InputPort*>(port)->GetType()->ToString()));
+          absl::StrFormat("%s: %s", std::get<InputPort*>(port)->GetName(),
+                          std::get<InputPort*>(port)->GetType()->ToString()));
     } else {
       port_strings.push_back(absl::StrFormat(
-          "%s: %s", absl::get<OutputPort*>(port)->GetName(),
-          absl::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
+          "%s: %s", std::get<OutputPort*>(port)->GetName(),
+          std::get<OutputPort*>(port)->operand(0)->GetType()->ToString()));
     }
   }
   std::string res = absl::StrFormat("block %s(%s) {\n", name(),
@@ -226,7 +227,7 @@ std::string Block::DumpIr() const {
   return res;
 }
 
-absl::Status Block::SetPortNameExactly(absl::string_view name, Node* node) {
+absl::Status Block::SetPortNameExactly(std::string_view name, Node* node) {
   // TODO(https://github.com/google/xls/issues/477): If this name is an invalid
   // Verilog identifier then an error should be returned.
   XLS_RET_CHECK(node->Is<InputPort>() || node->Is<OutputPort>());
@@ -257,7 +258,7 @@ absl::Status Block::SetPortNameExactly(absl::string_view name, Node* node) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<InputPort*> Block::GetInputPort(absl::string_view name) const {
+absl::StatusOr<InputPort*> Block::GetInputPort(std::string_view name) const {
   auto port_iter = ports_by_name_.find(name);
   if (port_iter == ports_by_name_.end()) {
     return absl::NotFoundError(
@@ -273,7 +274,7 @@ absl::StatusOr<InputPort*> Block::GetInputPort(absl::string_view name) const {
       absl::StrFormat("Port %s is not an input port", name));
 }
 
-absl::StatusOr<OutputPort*> Block::GetOutputPort(absl::string_view name) const {
+absl::StatusOr<OutputPort*> Block::GetOutputPort(std::string_view name) const {
   auto port_iter = ports_by_name_.find(name);
   if (port_iter == ports_by_name_.end()) {
     return absl::NotFoundError(
@@ -289,7 +290,7 @@ absl::StatusOr<OutputPort*> Block::GetOutputPort(absl::string_view name) const {
       absl::StrFormat("Port %s is not an output port", name));
 }
 
-absl::StatusOr<InputPort*> Block::AddInputPort(absl::string_view name,
+absl::StatusOr<InputPort*> Block::AddInputPort(std::string_view name,
                                                Type* type,
                                                const SourceInfo& loc) {
   if (ports_by_name_.contains(name)) {
@@ -311,7 +312,7 @@ absl::StatusOr<InputPort*> Block::AddInputPort(absl::string_view name,
   return port;
 }
 
-absl::StatusOr<OutputPort*> Block::AddOutputPort(absl::string_view name,
+absl::StatusOr<OutputPort*> Block::AddOutputPort(std::string_view name,
                                                  Node* operand,
                                                  const SourceInfo& loc) {
   if (ports_by_name_.contains(name)) {
@@ -334,7 +335,7 @@ absl::StatusOr<OutputPort*> Block::AddOutputPort(absl::string_view name,
   return port;
 }
 
-absl::StatusOr<Register*> Block::AddRegister(absl::string_view name, Type* type,
+absl::StatusOr<Register*> Block::AddRegister(std::string_view name, Type* type,
                                              std::optional<Reset> reset) {
   if (registers_.contains(name)) {
     return absl::InvalidArgumentError(
@@ -377,7 +378,7 @@ absl::Status Block::RemoveRegister(Register* reg) {
   return absl::OkStatus();
 }
 
-absl::StatusOr<Register*> Block::GetRegister(absl::string_view name) const {
+absl::StatusOr<Register*> Block::GetRegister(std::string_view name) const {
   if (!registers_.contains(name)) {
     return absl::NotFoundError(absl::StrFormat(
         "Block %s has no register named %s", this->name(), name));
@@ -385,7 +386,7 @@ absl::StatusOr<Register*> Block::GetRegister(absl::string_view name) const {
   return registers_.at(name).get();
 }
 
-absl::Status Block::AddClockPort(absl::string_view name) {
+absl::Status Block::AddClockPort(std::string_view name) {
   if (clock_port_.has_value()) {
     return absl::InternalError("Block already has clock");
   }
@@ -544,17 +545,16 @@ absl::Status Block::ReorderPorts(absl::Span<const std::string> port_names) {
 }
 
 /*static*/ std::string Block::PortName(const Port& port) {
-  if (absl::holds_alternative<ClockPort*>(port)) {
-    return absl::get<ClockPort*>(port)->name;
-  } else if (absl::holds_alternative<InputPort*>(port)) {
-    return absl::get<InputPort*>(port)->GetName();
-  } else {
-    return absl::get<OutputPort*>(port)->GetName();
-  }
+  return absl::visit(Visitor{
+                         [](ClockPort* p) { return p->name; },
+                         [](InputPort* p) { return p->GetName(); },
+                         [](OutputPort* p) { return p->GetName(); },
+                     },
+                     port);
 }
 
 absl::StatusOr<BlockInstantiation*> Block::AddBlockInstantiation(
-    absl::string_view name, Block* instantiated_block) {
+    std::string_view name, Block* instantiated_block) {
   if (instantiations_.contains(name)) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Instantiation already exists with name %s", name));
@@ -595,7 +595,7 @@ absl::Status Block::RemoveInstantiation(Instantiation* instantiation) {
 }
 
 absl::StatusOr<Instantiation*> Block::GetInstantiation(
-    absl::string_view name) const {
+    std::string_view name) const {
   if (!instantiations_.contains(name)) {
     return absl::NotFoundError(absl::StrFormat(
         "Block %s has no instantiation named %s", this->name(), name));
@@ -619,7 +619,7 @@ absl::Span<InstantiationOutput* const> Block::GetInstantiationOutputs(
   return instantiation_outputs_.at(instantiation);
 }
 
-absl::StatusOr<Block*> Block::Clone(absl::string_view new_name) const {
+absl::StatusOr<Block*> Block::Clone(std::string_view new_name) const {
   absl::flat_hash_map<Node*, Node*> original_to_clone;
   absl::flat_hash_map<Register*, Register*> register_map;
   absl::flat_hash_map<Instantiation*, Instantiation*> instantiation_map;
@@ -716,10 +716,10 @@ absl::StatusOr<Block*> Block::Clone(absl::string_view new_name) const {
     std::vector<std::string> correct_ordering;
     for (const Port& port : GetPorts()) {
       if (std::holds_alternative<InputPort*>(port)) {
-        absl::string_view view = std::get<InputPort*>(port)->name();
+        std::string_view view = std::get<InputPort*>(port)->name();
         correct_ordering.push_back(std::string(view.begin(), view.end()));
       } else if (std::holds_alternative<OutputPort*>(port)) {
-        absl::string_view view = std::get<OutputPort*>(port)->name();
+        std::string_view view = std::get<OutputPort*>(port)->name();
         correct_ordering.push_back(std::string(view.begin(), view.end()));
       } else if (std::holds_alternative<ClockPort*>(port)) {
         correct_ordering.push_back(std::get<ClockPort*>(port)->name);

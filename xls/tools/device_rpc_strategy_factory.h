@@ -34,14 +34,14 @@ class DeviceRpcStrategyFactory {
 
   ~DeviceRpcStrategyFactory() = default;
 
-  void Add(absl::string_view target_device,
+  void Add(std::string_view target_device,
            std::function<std::unique_ptr<DeviceRpcStrategy>()> fcreate) {
     target_device_to_factory_.insert(
         {std::string(target_device), std::move(fcreate)});
   }
 
   absl::StatusOr<std::unique_ptr<DeviceRpcStrategy>> Create(
-      absl::string_view target_device);
+      std::string_view target_device);
 
  private:
   absl::flat_hash_map<std::string,

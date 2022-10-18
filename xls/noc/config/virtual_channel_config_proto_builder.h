@@ -28,7 +28,7 @@ class VirtualChannelConfigProtoBuilder {
       : proto_(XLS_DIE_IF_NULL(proto)) {}
 
   // Adds the name of the virtual channel.
-  VirtualChannelConfigProtoBuilder& WithName(absl::string_view name);
+  VirtualChannelConfigProtoBuilder& WithName(std::string_view name);
 
   // Adds the flit bit width configuration to the virtual channel.
   VirtualChannelConfigProtoBuilder& WithFlitBitWidth(int64_t flit_bit_width);

@@ -51,7 +51,7 @@ class BlockGeneratorTest : public VerilogTestBase {
   }
 
   // Make and return a block which adds two u32 numbers.
-  absl::StatusOr<Block*> MakeSubtractBlock(absl::string_view name,
+  absl::StatusOr<Block*> MakeSubtractBlock(std::string_view name,
                                            Package* package) {
     Type* u32 = package->GetBitsType(32);
     BlockBuilder bb(name, package);
@@ -63,7 +63,7 @@ class BlockGeneratorTest : public VerilogTestBase {
 
   // Make and return a block which instantiates the given block. Given block
   // should take two u32s (`a` and `b`) and return a u32 (`result`).
-  absl::StatusOr<Block*> MakeDelegatingBlock(absl::string_view name,
+  absl::StatusOr<Block*> MakeDelegatingBlock(std::string_view name,
                                              Block* sub_block,
                                              Package* package) {
     Type* u32 = package->GetBitsType(32);

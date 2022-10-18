@@ -113,7 +113,7 @@ pub fn add<EXP_SZ: u32, FRACTION_SZ: u32,
     (true, false) => carry_fraction,
     (false, true) => cancel_fraction,
     (false, false) => abs_fraction as uN[NORMALIZED_FRACTION],
-    _ => fail!("carry_and_cancel", uN[NORMALIZED_FRACTION]:666)
+    _ => fail!("carry_and_cancel", uN[NORMALIZED_FRACTION]:0)
   };
 
   // Step 4: Rounding.

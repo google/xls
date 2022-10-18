@@ -134,6 +134,7 @@ class AstGenerator {
 
  private:
   friend class AstGeneratorTest_GeneratesParametricBindings_Test;
+  friend class AstGeneratorTest_BitsTypeGetMetadata_Test;
 
   static bool IsBits(TypeAnnotation* t);
   static bool IsUBits(TypeAnnotation* t);
@@ -142,6 +143,20 @@ class AstGenerator {
   static bool IsToken(TypeAnnotation* t);
   static bool IsChannel(TypeAnnotation* t);
   static bool IsNil(TypeAnnotation* t);
+  static bool IsBuiltinBool(TypeAnnotation* type) {
+    if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
+      return builtin_type->GetBitCount() == 1;
+    }
+    return false;
+  }
+  // Helper that returns the signedness of type when converted to a builtin bits
+  // type. Returns an error status if the type is not a builtin bits type.
+  static absl::StatusOr<bool> BitsTypeIsSigned(TypeAnnotation* type);
+
+  // Helper that returns the bit count of type when converted to a builtin bits
+  // type. Returns an error status if the type is not a builtin bits type.
+  absl::StatusOr<int64_t> BitsTypeGetBitCount(TypeAnnotation* type);
+
   static std::pair<std::vector<Expr*>, std::vector<TypeAnnotation*>> Unzip(
       absl::Span<const TypedExpr> typed_exprs);
 
@@ -391,6 +406,8 @@ class AstGenerator {
   // Generates a shift operation AST node.
   absl::StatusOr<TypedExpr> GenerateShift(Env* env);
 
+  absl::StatusOr<TypedExpr> GenerateSynthesizableDiv(Env* env);
+
   // Generates a group of operations containing PartialProduct ops. The output
   // of the group will be deterministic (e.g. a smulp followed by an add).
   absl::StatusOr<TypedExpr> GeneratePartialProductDeterministicGroup(Env* env);
@@ -438,13 +455,6 @@ class AstGenerator {
         std::vector<TypeAnnotation*>(members.begin(), members.end()));
   }
 
-  static bool IsBuiltinBool(TypeAnnotation* type) {
-    if (auto* builtin_type = dynamic_cast<BuiltinTypeAnnotation*>(type)) {
-      return builtin_type->GetBitCount() == 1;
-    }
-    return false;
-  }
-
   // Creates a `Range` AST node.
   Range* MakeRange(Expr* zero, Expr* arg);
 
@@ -457,8 +467,8 @@ class AstGenerator {
                                   /*definer=*/nullptr);
   }
   NameRef* MakeBuiltinNameRef(std::string identifier) {
-    return module_->Make<NameRef>(fake_span_, identifier,
-                                  module_->Make<BuiltinNameDef>(identifier));
+    return module_->Make<NameRef>(
+        fake_span_, identifier, module_->GetOrCreateBuiltinNameDef(identifier));
   }
 
   // Generates a unique symbol identifier.
@@ -510,7 +520,7 @@ class AstGenerator {
   // Returns a recoverable status error with the given message. A recoverable
   // error may be raised to indicate that the generation of an individual
   // expression failed but that generation should continue.
-  absl::Status RecoverableError(absl::string_view message) {
+  absl::Status RecoverableError(std::string_view message) {
     return absl::AbortedError(absl::StrFormat("RecoverableError: %s", message));
   }
   bool IsRecoverableError(const absl::Status& status) {

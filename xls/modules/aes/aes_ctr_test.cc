@@ -39,7 +39,7 @@
 #include "xls/jit/proc_jit.h"
 #include "xls/modules/aes/aes_test_common.h"
 
-constexpr absl::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
+constexpr std::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
 
 ABSL_FLAG(int32_t, num_samples, 1000,
           "The number of (randomly-generated) blocks to test.");
@@ -59,7 +59,9 @@ struct SampleData {
 // Holds together all the data needed for ProcJit management.
 struct JitData {
   std::unique_ptr<Package> package;
+  std::unique_ptr<JitRuntime> jit_runtime;
   std::unique_ptr<ProcJit> jit;
+  std::unique_ptr<ProcContinuation> continuation;
   std::unique_ptr<JitChannelQueueManager> queue_mgr;
 };
 
@@ -83,34 +85,9 @@ void PrintTraceMessages(const InterpreterEvents& events) {
 
 absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
                                               JitData* jit_data) {
-  const absl::string_view kCmdChannel = "aes_ctr__command_in";
-  const absl::string_view kInputDataChannel = "aes_ctr__ptxt_in";
-  const absl::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
-
-  // Set initial state: step, command, ctr, and blocks_left.
-  // TODO(rspringer): Get these sizes from the DSLX C++ type transpiler, then
-  // consider using ConvertToXlsValue() to create the aggregate Value.
-  std::vector<Value> state;
-  // Step.
-  state.push_back(Value(UBits(0, 1)));
-  // Command.
-  std::vector<Value> initial_command_elements;
-  {
-    // msg_bytes, key, key_width, init_vector, initial_ctr, and ctr_stride.
-    initial_command_elements.push_back(Value(UBits(0, 32)));
-    std::vector<Value> key_elements(32, Value(UBits(0, 8)));
-    XLS_ASSIGN_OR_RETURN(Value key_value, Value::Array(key_elements));
-    initial_command_elements.push_back(key_value);
-    initial_command_elements.push_back(Value(UBits(0, 2)));
-    initial_command_elements.push_back(Value(UBits(0, 96)));
-    initial_command_elements.push_back(Value(UBits(0, 32)));
-    initial_command_elements.push_back(Value(UBits(0, 32)));
-  }
-  state.push_back(Value::Tuple(initial_command_elements));
-  // Ctr.
-  state.push_back(Value(UBits(0, 32)));
-  // Blocks left.
-  state.push_back(Value(UBits(0, 32)));
+  const std::string_view kCmdChannel = "aes_ctr__command_in";
+  const std::string_view kInputDataChannel = "aes_ctr__ptxt_in";
+  const std::string_view kOutputDataChannel = "aes_ctr__ctxt_out";
 
   // TODO(rspringer): Find a better way to collect queue IDs than IR inspection:
   // numbering is not guaranteed! Perhaps GetQueueByName?
@@ -138,46 +115,34 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
 
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));
-  int cmd_channel_id = cmd_channel->id();
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * cmd_queue,
-                       jit_data->queue_mgr->GetQueueById(cmd_channel_id));
-  cmd_queue->Send(reinterpret_cast<uint8_t*>(&command), sizeof(CtrCommand));
+  JitChannelQueue* cmd_queue = &jit_data->queue_mgr->GetJitQueue(cmd_channel);
+  cmd_queue->WriteRaw(reinterpret_cast<uint8_t*>(&command));
 
   XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
                        jit_data->package->GetChannel(kInputDataChannel));
-  int input_data_channel_id = input_data_channel->id();
-  XLS_ASSIGN_OR_RETURN(
-      JitChannelQueue * input_data_queue,
-      jit_data->queue_mgr->GetQueueById(input_data_channel_id));
-  input_data_queue->Send(sample_data.input_blocks[0].data(), kBlockBytes);
+  JitChannelQueue* input_data_queue =
+      &jit_data->queue_mgr->GetJitQueue(input_data_channel);
+  input_data_queue->WriteRaw(sample_data.input_blocks[0].data());
 
-  // TODO(rspringer): Can we eliminate the need for this tuple wrap?
-  Value bar = Value::Tuple({state});
-  XLS_ASSIGN_OR_RETURN(InterpreterResult<std::vector<Value>> run_result,
-                       jit_data->jit->Run({bar}, jit_data));
-  state = run_result.value;
-  PrintTraceMessages(run_result.events);
+  XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
+  PrintTraceMessages(jit_data->continuation->GetEvents());
 
   // TODO(rspringer): Set this up to handle partial blocks.
   for (int i = 1; i < num_blocks; i++) {
-    input_data_queue->Send(sample_data.input_blocks[i].data(), kBlockBytes);
-    XLS_ASSIGN_OR_RETURN(InterpreterResult<std::vector<Value>> run_result,
-                         jit_data->jit->Run(state, jit_data));
-    state = run_result.value;
-    PrintTraceMessages(run_result.events);
+    input_data_queue->WriteRaw(sample_data.input_blocks[i].data());
+    XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
+    PrintTraceMessages(jit_data->continuation->GetEvents());
   }
 
   // Finally, read out the ciphertext.
   XLS_ASSIGN_OR_RETURN(Channel * output_data_channel,
                        jit_data->package->GetChannel(kOutputDataChannel));
-  int output_data_channel_id = output_data_channel->id();
-  XLS_ASSIGN_OR_RETURN(
-      JitChannelQueue * output_data_queue,
-      jit_data->queue_mgr->GetQueueById(output_data_channel_id));
+  JitChannelQueue* output_data_queue =
+      &jit_data->queue_mgr->GetJitQueue(output_data_channel);
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
-    XLS_QCHECK(output_data_queue->Recv(blocks[i].data(), kBlockBytes));
+    XLS_QCHECK(output_data_queue->ReadRaw(blocks[i].data()));
   }
 
   return blocks;
@@ -296,8 +261,7 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
   return true;
 }
 
-absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path,
-                                      RecvFnT recv_fn, SendFnT send_fn) {
+absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
                        GetXlsRunfilePath(ir_path));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
@@ -307,29 +271,25 @@ absl::StatusOr<JitData> CreateProcJit(absl::string_view ir_path,
   XLS_ASSIGN_OR_RETURN(Proc * proc,
                        package->GetProc("__aes_ctr__aes_ctr_0_next"));
 
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> jit_runtime,
+                       JitRuntime::Create());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_mgr,
-                       JitChannelQueueManager::Create(package.get()));
+                       JitChannelQueueManager::CreateThreadSafe(
+                           package.get(), jit_runtime.get()));
 
   XLS_VLOG(1) << "JIT compiling.";
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_mgr.get(), recv_fn, send_fn));
+      ProcJit::Create(proc, jit_runtime.get(), queue_mgr.get()));
   XLS_VLOG(1) << "Created JIT!";
+
   JitData jit_data;
   jit_data.jit = std::move(jit);
+  jit_data.jit_runtime = std::move(jit_runtime);
+  jit_data.continuation = jit_data.jit->NewContinuation();
   jit_data.package = std::move(package);
   jit_data.queue_mgr = std::move(queue_mgr);
   return jit_data;
-}
-
-bool EncoderJitRecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* buffer,
-                      int64_t buf_sz, void* user_data) {
-  return queue->Recv(buffer, buf_sz);
-}
-
-void EncoderJitSendFn(JitChannelQueue* queue, Send* send, uint8_t* buffer,
-                      int64_t buf_sz, void* user_data) {
-  return queue->Send(buffer, buf_sz);
 }
 
 absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
@@ -338,9 +298,8 @@ absl::Status RunTest(int32_t num_samples, int32_t key_bits) {
   sample_data.key_bytes = key_bytes;
   memset(sample_data.iv.data(), 0, sizeof(sample_data.iv));
 
-  XLS_ASSIGN_OR_RETURN(
-      JitData encrypt_jit_data,
-      CreateProcJit(kEncrypterIrPath, &EncoderJitRecvFn, &EncoderJitSendFn));
+  XLS_ASSIGN_OR_RETURN(JitData encrypt_jit_data,
+                       CreateProcJit(kEncrypterIrPath));
 
   absl::BitGen bitgen;
   absl::Duration xls_encrypt_dur;
@@ -393,7 +352,7 @@ absl::Status RealMain(int num_samples) {
 }  // namespace xls::aes
 
 int32_t main(int32_t argc, char** argv) {
-  std::vector<absl::string_view> args = xls::InitXls(argv[0], argc, argv);
+  std::vector<std::string_view> args = xls::InitXls(argv[0], argc, argv);
   XLS_QCHECK_OK(xls::aes::RealMain(absl::GetFlag(FLAGS_num_samples)));
   return 0;
 }

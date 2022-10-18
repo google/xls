@@ -23,6 +23,7 @@
 #include "xls/dslx/import_routines.h"
 #include "xls/dslx/interp_bindings.h"
 #include "xls/dslx/type_and_bindings.h"
+#include "xls/dslx/warning_collector.h"
 
 namespace xls::dslx {
 
@@ -101,8 +102,8 @@ class DeduceCtx {
   DeduceCtx(TypeInfo* type_info, Module* module, DeduceFn deduce_function,
             TypecheckFunctionFn typecheck_function,
             TypecheckModuleFn typecheck_module,
-            TypecheckInvocationFn typecheck_invocation,
-            ImportData* import_data);
+            TypecheckInvocationFn typecheck_invocation, ImportData* import_data,
+            WarningCollector* warnings);
 
   // Creates a new DeduceCtx reflecting the given type info and module.
   // Uses the same callbacks as this current context.
@@ -112,18 +113,24 @@ class DeduceCtx {
                                      Module* new_module) const {
     return std::make_unique<DeduceCtx>(
         new_type_info, new_module, deduce_function_, typecheck_function_,
-        typecheck_module_, typecheck_invocation_, import_data_);
+        typecheck_module_, typecheck_invocation_, import_data_, warnings_);
   }
 
   // Helper that calls back to the top-level deduce procedure for the given
   // node.
   absl::StatusOr<std::unique_ptr<ConcreteType>> Deduce(const AstNode* node) {
-    XLS_RET_CHECK_EQ(node->owner(), type_info()->module());
+    XLS_RET_CHECK_EQ(node->owner(), type_info()->module())
+        << "node: `" << node->ToString() << "` from module "
+        << node->owner()->name()
+        << " vs type info module: " << type_info()->module()->name();
     return deduce_function_(node, this);
   }
 
   std::vector<FnStackEntry>& fn_stack() { return fn_stack_; }
   const std::vector<FnStackEntry>& fn_stack() const { return fn_stack_; }
+
+  const WarningCollector* warnings() const { return warnings_; }
+  WarningCollector* warnings() { return warnings_; }
 
   Module* module() const { return module_; }
   TypeInfo* type_info() const { return type_info_; }
@@ -202,6 +209,9 @@ class DeduceCtx {
 
   // Cache used for imported modules, may be nullptr.
   ImportData* import_data_;
+
+  // Object used for collecting warnings flagged in the type checking process.
+  WarningCollector* warnings_;
 
   // Set to true if this context is deducing inside a For AST node. It is
   // necessary to disable constexpr evaluation during that time, as a given

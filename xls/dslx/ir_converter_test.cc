@@ -38,7 +38,7 @@ constexpr ConvertOptions kFailNoPos = {
     .emit_positions = false,
 };
 
-void ExpectIr(absl::string_view got, absl::string_view test_name) {
+void ExpectIr(std::string_view got, std::string_view test_name) {
   ExpectEqualToGoldenFile(
       absl::StrFormat("xls/dslx/testdata/ir_converter_test_%s.ir", test_name),
       got);
@@ -49,9 +49,9 @@ std::string TestName() {
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
-    absl::string_view program, absl::string_view fn_name,
+    std::string_view program, std::string_view fn_name,
     ImportData& import_data, const ConvertOptions& options,
-    std::optional<absl::string_view> top_proc_state = std::nullopt) {
+    std::optional<std::string_view> top_proc_state = std::nullopt) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
       ParseAndTypecheck(program, /*path=*/"test_module.x",
@@ -62,14 +62,14 @@ absl::StatusOr<std::string> ConvertOneFunctionForTest(
 }
 
 absl::StatusOr<std::string> ConvertOneFunctionForTest(
-    absl::string_view program, absl::string_view fn_name,
+    std::string_view program, std::string_view fn_name,
     const ConvertOptions& options = ConvertOptions{}) {
   auto import_data = CreateImportDataForTest();
   return ConvertOneFunctionForTest(program, fn_name, import_data, options);
 }
 
 absl::StatusOr<std::string> ConvertModuleForTest(
-    absl::string_view program, const ConvertOptions& options = ConvertOptions{},
+    std::string_view program, const ConvertOptions& options = ConvertOptions{},
     ImportData* import_data = nullptr) {
   std::optional<ImportData> import_data_value;
   if (import_data == nullptr) {
@@ -736,7 +736,7 @@ fn main(x: u8) -> u32 {
 }
 
 TEST(IrConverterTest, SMulp) {
-  constexpr absl::string_view program = R"(
+  constexpr std::string_view program = R"(
 fn main(x: s10, y: s10) -> s10 {
   let product = smulp(x, y);
   product.0 + product.1
@@ -749,7 +749,7 @@ fn main(x: s10, y: s10) -> s10 {
 }
 
 TEST(IrConverterTest, UMulp) {
-  constexpr absl::string_view program = R"(
+  constexpr std::string_view program = R"(
 fn main(x: u10, y: u10) -> u10 {
   let product = umulp(x, y);
   product.0 + product.1
@@ -1306,7 +1306,7 @@ fn main(x: u32, y: u16, z: u8) -> u32 {
 }
 
 TEST(IrConverterTest, TokenIdentityFunction) {
-  absl::string_view program = "fn main(x: token) -> token { x }";
+  std::string_view program = "fn main(x: token) -> token { x }";
   XLS_ASSERT_OK_AND_ASSIGN(
       std::string converted,
       ConvertModuleForTest(program, ConvertOptions{.emit_positions = false}));
@@ -1543,7 +1543,7 @@ proc main {
 }
 
 TEST(IrConverterTest, SendIfRecvIf) {
-  constexpr absl::string_view kProgram = R"(proc producer {
+  constexpr std::string_view kProgram = R"(proc producer {
   c: chan<u32> out;
 
   config(c: chan<u32> out) {
@@ -1591,7 +1591,7 @@ proc main {
 }
 
 TEST(IrConverterTest, Join) {
-  constexpr absl::string_view kProgram = R"(proc foo {
+  constexpr std::string_view kProgram = R"(proc foo {
   p0: chan<u32> out;
   p1: chan<u32> out;
   p2: chan<u32> out;
@@ -1639,7 +1639,7 @@ proc main {
 }
 
 TEST(IrConverterTest, BoundaryChannels) {
-  constexpr absl::string_view kProgram = R"(proc foo {
+  constexpr std::string_view kProgram = R"(proc foo {
   in_0: chan<u32> in;
   in_1: chan<u32> in;
   output: chan<u32> out;
@@ -1668,7 +1668,7 @@ TEST(IrConverterTest, BoundaryChannels) {
 }
 
 TEST(IrConverterTest, TopProcWithState) {
-  constexpr absl::string_view kProgram = R"(proc main {
+  constexpr std::string_view kProgram = R"(proc main {
   config() { () }
 
   next(tok: token, state: (u32, u32[4])) { state }
@@ -1688,7 +1688,7 @@ TEST(IrConverterTest, TopProcWithState) {
 }
 
 TEST(IrConverterTest, FormatMacro) {
-  constexpr absl::string_view kProgram = R"(fn main() {
+  constexpr std::string_view kProgram = R"(fn main() {
   let _ = trace_fmt!("Look! I don't explode!");
   ()
 })";
@@ -1704,7 +1704,7 @@ TEST(IrConverterTest, FormatMacro) {
 }
 
 TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
   const FOO = u32:0;
 
   fn test1<FOO:u32>(x:u32) -> u32 {
@@ -1732,7 +1732,7 @@ TEST(IrConverterTest, ParameterShadowingModuleLevelConstant) {
 }
 
 TEST(IrConverterTest, ChannelDecl) {
-  constexpr absl::string_view kProgram = R"(fn main() {
+  constexpr std::string_view kProgram = R"(fn main() {
   let _ = chan<u8>;
   ()
   })";

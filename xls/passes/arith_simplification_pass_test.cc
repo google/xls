@@ -17,12 +17,15 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/status/statusor.h"
+#include "xls/common/bits_util.h"
 #include "xls/common/status/matchers.h"
+#include "xls/interpreter/function_interpreter.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
 #include "xls/ir/ir_matcher.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
+#include "xls/passes/dce_pass.h"
 
 namespace m = ::xls::op_matchers;
 
@@ -37,8 +40,16 @@ class ArithSimplificationPassTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) {
     PassResults results;
-    return ArithSimplificationPass().Run(p, PassOptions(), &results);
+    // Some tests cover the divide by literal optimization so set
+    // `optimize_divides` to true. However, it is not yet safe to enable
+    // generally because bad code can be produced.
+    return ArithSimplificationPass(kMaxOptLevel, /*optimize_divides=*/true)
+        .Run(p, PassOptions(), &results);
   }
+
+  void CheckUnsignedDivide(int n, int divisor);
+  void CheckSignedDividePowerOfTwo(int n, int divisor);
+  void CheckSignedDivideNotPowerOfTwo(int n, int divisor);
 };
 
 TEST_F(ArithSimplificationPassTest, Arith1) {
@@ -233,19 +244,290 @@ TEST_F(ArithSimplificationPassTest, UDivBy4) {
               m::Concat(m::Literal(UBits(0, 2)), m::BitSlice(m::Param("x"))));
 }
 
-TEST_F(ArithSimplificationPassTest, SDivBy2) {
+TEST_F(ArithSimplificationPassTest, SDivBy1) {
   auto p = CreatePackage();
   XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
-     fn mul_zero(x:bits[16]) -> bits[16] {
-        literal.1: bits[16] = literal(value=2)
+     fn sdiv_by_1(x:bits[16]) -> bits[16] {
+        literal.1: bits[16] = literal(value=1)
         ret result: bits[16] = sdiv(x, literal.1)
      }
   )",
                                                        p.get()));
   ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
-  EXPECT_THAT(
-      f->return_value(),
-      m::SignExt(m::BitSlice(m::Param("x"), /*start=*/1, /*width=*/15)));
+  EXPECT_THAT(f->return_value(), m::Param("x"));
+}
+
+TEST_F(ArithSimplificationPassTest, OneBitSDivByMinus1) {
+  // 0b1 is -1 for a bits[1] type so sdiv by literal one should not apply.
+  auto p = CreatePackage();
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, ParseFunction(R"(
+     fn one_bit_sdiv(x:bits[1]) -> bits[1] {
+        literal.1: bits[1] = literal(value=1)
+        ret result: bits[1] = sdiv(x, literal.1)
+     }
+  )",
+                                                       p.get()));
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+  EXPECT_THAT(f->return_value(), m::Neg());
+
+  auto interp_and_check = [&f](int x, int expected) {
+    constexpr int N = 1;
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> r,
+                             InterpretFunction(f, {Value(SBits(x, N))}));
+    EXPECT_EQ(r.value, Value(SBits(expected, N)));
+  };
+  // Even though the operation is negate, a 1-bit value can't be negated so the
+  // overall effect is no change.
+  interp_and_check(0, 0);
+  interp_and_check(-1, -1);
+}
+
+TEST_F(ArithSimplificationPassTest, SDivWithLiteralDivisorSweep) {
+  // Sweep all possible values for a Bits[3] SDIV with a literal divisor.
+  for (int64_t divisor = -4; divisor <= 3; ++divisor) {
+    for (int64_t dividend = -4; dividend <= 3; ++dividend) {
+      auto p = CreatePackage();
+      Type* u3 = p->GetBitsType(3);
+      FunctionBuilder fb(TestName(), p.get());
+      fb.SDiv(fb.Param("dividend", u3), fb.Literal(SBits(divisor, 3)));
+      XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+
+      Value expected;
+      // XLS divide by zero semantics are to return the maximal
+      // positive/negative value.
+      if (divisor == 0) {
+        expected = Value(SBits(dividend >= 0 ? 3 : -4, 3));
+      } else if (dividend == -4 && divisor == -1) {
+        // Overflow. In this case we just return the truncated twos-complement
+        // result (0b0100 => 0b100).
+        expected = Value(SBits(-4, 3));
+      } else {
+        expected = Value(SBits(dividend / divisor, 3));
+      }
+      XLS_VLOG(1) << absl::StreamFormat("%d / %d = %d (%s)", dividend, divisor,
+                                        expected.bits().ToInt64().value(),
+                                        expected.ToString());
+      XLS_ASSERT_OK_AND_ASSIGN(
+          InterpreterResult<Value> before_result,
+          InterpretFunction(f, {Value(SBits(dividend, 3))}));
+      XLS_ASSERT_OK_AND_ASSIGN(Value before_value,
+                               InterpreterResultToStatusOrValue(before_result));
+      EXPECT_EQ(before_value, expected)
+          << absl::StreamFormat("Before: %d / %d", dividend, divisor);
+
+      XLS_ASSERT_OK(Run(p.get()));
+
+      XLS_ASSERT_OK_AND_ASSIGN(
+          InterpreterResult<Value> after_result,
+          InterpretFunction(f, {Value(SBits(dividend, 3))}));
+      XLS_ASSERT_OK_AND_ASSIGN(Value after_value,
+                               InterpreterResultToStatusOrValue(after_result));
+      EXPECT_EQ(after_result.value, expected)
+          << absl::StreamFormat("After: %d / %d", dividend, divisor);
+    }
+  }
+}
+
+bool Contains(const std::string& haystack, const std::string& needle) {
+  return haystack.find(needle) != std::string::npos;
+}
+
+// Optimizes the IR for an unsigned divide by the given non-power of two. Checks
+// that optimized IR matches expected IR. Numerically validates (via
+// interpretation) the optimized IR, exhaustively up to 2^n.
+void ArithSimplificationPassTest::CheckUnsignedDivide(int n, int divisor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb("UnsignedDivideBy" + std::to_string(divisor), p.get());
+  fb.UDiv(fb.Param("x", p->GetBitsType(n)),
+          fb.Literal(Value(UBits(divisor, n))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Clean up the dumped IR
+  PassResults results;
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+              IsOkAndHolds(true));
+
+  std::string optimized_ir = f->DumpIr();
+
+  // A non-power of two divisor will be rewritten to shifts (which are further
+  // rewritten to slices), mul. No div, add, or sub.
+  EXPECT_TRUE(Contains(optimized_ir, "bit_slice"));
+  EXPECT_TRUE(Contains(optimized_ir, "umul"));
+  EXPECT_FALSE(Contains(optimized_ir, "div"));
+  EXPECT_FALSE(Contains(optimized_ir, "add"));
+  EXPECT_FALSE(Contains(optimized_ir, "sub"));
+
+  // compute x/divisor. assert result == expected
+  auto interp_and_check = [n, &f](int x, int expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> r,
+                             InterpretFunction(f, {Value(UBits(x, n))}));
+    EXPECT_EQ(r.value, Value(UBits(expected, n)));
+  };
+
+  // compute RoundToZero(i/divisor)
+  auto div_rt0 = [=](int i) { return i / divisor; };
+
+  for (int i = 0; i < Exp2<int>(n); ++i) {
+    interp_and_check(i, div_rt0(i));
+  }
+}
+
+// Exhaustively test unsigned division. Vary n and divisor (excluding powers of
+// two).
+TEST_F(ArithSimplificationPassTest, UnsignedDivideAllNonPowersOfTwoExhaustive) {
+  constexpr int kTestUpToN = 10;
+  for (int divisor = 1; divisor < Exp2<int>(kTestUpToN); ++divisor) {
+    if (!IsPowerOfTwo(static_cast<uint>(divisor))) {
+      for (int n = Bits::MinBitCountUnsigned(divisor); n <= kTestUpToN; ++n) {
+        CheckUnsignedDivide(n, divisor);
+      }
+    }
+  }
+}
+
+// Optimizes the IR for a divide by a power of two (which may be negative or
+// positive). Checks that optimized IR matches expected IR. Numerically
+// validates (via interpretation) the optimized IR, exhaustively up to 2^N.
+void ArithSimplificationPassTest::CheckSignedDividePowerOfTwo(int n,
+                                                              int divisor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.SDiv(fb.Param("x", p->GetBitsType(n)),
+          fb.Literal(Value(SBits(divisor, n))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Clean up the dumped IR
+  PassResults results;
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+              IsOkAndHolds(true));
+
+  std::string optimized_ir = f->DumpIr();
+
+  if (std::abs(divisor) > 1) {
+    // A power of two divisor will be rewritten to shifts (which are further
+    // rewritten to slices) and an add. There will be no multiply (unlike other
+    // divisors).
+    EXPECT_TRUE(Contains(optimized_ir, "bit_slice"));
+    EXPECT_TRUE(Contains(optimized_ir, "add"));
+    EXPECT_FALSE(Contains(optimized_ir, "div"));
+    EXPECT_FALSE(Contains(optimized_ir, "mul"));
+  } else if (divisor == 1) {
+    EXPECT_FALSE(Contains(optimized_ir, "neg"));
+    EXPECT_FALSE(Contains(optimized_ir, "bit_slice"));
+    EXPECT_FALSE(Contains(optimized_ir, "add"));
+    EXPECT_FALSE(Contains(optimized_ir, "div"));
+    EXPECT_FALSE(Contains(optimized_ir, "mul"));
+  } else if (divisor == -1) {
+    EXPECT_TRUE(Contains(optimized_ir, "neg"));
+    EXPECT_FALSE(Contains(optimized_ir, "bit_slice"));
+    EXPECT_FALSE(Contains(optimized_ir, "add"));
+    EXPECT_FALSE(Contains(optimized_ir, "div"));
+    EXPECT_FALSE(Contains(optimized_ir, "mul"));
+  }
+
+  // compute x/divisor. assert result == expected
+  auto interp_and_check = [n, &f](int x, int expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> r,
+                             InterpretFunction(f, {Value(SBits(x, n))}));
+    EXPECT_EQ(r.value, Value(SBits(expected, n)));
+  };
+  // compute RoundToZero(i/divisor)
+  auto div_rt0 = [=](int i) {
+    const int q = std::abs(i) / std::abs(divisor);
+    const bool exactly_one_negative =
+        (i < 0 || divisor < 0) && !(i < 0 && divisor < 0);
+    return exactly_one_negative ? -q : q;
+  };
+
+  // N-1 because we create signed values
+  for (int i = 0; i < Exp2<uint>(n - 1); ++i) {
+    interp_and_check(i, div_rt0(i));
+    interp_and_check(-i, div_rt0(-i));
+  }
+
+  // Avoid overflow: -2^(N-1) * -1 = 2^(N-1) which won't fit in a signed N-bit
+  // integer.
+  if (divisor != -1) {
+    const int last = -Exp2<uint>(n - 1);
+    interp_and_check(last, div_rt0(last));
+  }
+}
+
+// Exhaustively test signed division by power of two. Vary N and divisor.
+TEST_F(ArithSimplificationPassTest, SignedDivideAllPowersOfTwoExhaustive) {
+  const int kTestUpToN = 14;
+  // first divisor = 2^0 = 1
+  for (int exp = 0; exp <= kTestUpToN; ++exp) {
+    const int divisor = Exp2<int>(exp);
+    for (int n = Bits::MinBitCountSigned(divisor); n <= kTestUpToN; ++n) {
+      CheckSignedDividePowerOfTwo(n, divisor);
+      CheckSignedDividePowerOfTwo(n, -divisor);
+    }
+  }
+}
+
+void ArithSimplificationPassTest::CheckSignedDivideNotPowerOfTwo(int n,
+                                                                 int divisor) {
+  auto p = CreatePackage();
+  FunctionBuilder fb(TestName(), p.get());
+  fb.SDiv(fb.Param("x", p->GetBitsType(n)),
+          fb.Literal(Value(SBits(divisor, n))));
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  ASSERT_THAT(Run(p.get()), IsOkAndHolds(true));
+
+  // Clean up the dumped IR
+  PassResults results;
+  ASSERT_THAT(DeadCodeEliminationPass().Run(p.get(), PassOptions(), &results),
+              IsOkAndHolds(true));
+
+  std::string optimized_ir = f->DumpIr();
+
+  // A non-power of two divisor will be rewritten to shifts (which are further
+  // rewritten to slices), mul, sub. No div or add.
+  EXPECT_TRUE(Contains(optimized_ir, "bit_slice"));
+  EXPECT_TRUE(Contains(optimized_ir, "smul"));
+  EXPECT_TRUE(Contains(optimized_ir, "sub"));
+  EXPECT_FALSE(Contains(optimized_ir, "div"));
+  EXPECT_FALSE(Contains(optimized_ir, "add"));
+
+  // compute x/divisor. assert result == expected
+  auto interp_and_check = [n, &f](int x, int expected) {
+    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<Value> r,
+                             InterpretFunction(f, {Value(SBits(x, n))}));
+    EXPECT_EQ(r.value, Value(SBits(expected, n)));
+  };
+
+  // compute RoundToZero(i/divisor)
+  auto div_rt0 = [=](int i) {
+    const int q = std::abs(i) / std::abs(divisor);
+    const bool exactly_one_negative =
+        (i < 0 || divisor < 0) && !(i < 0 && divisor < 0);
+    return exactly_one_negative ? -q : q;
+  };
+
+  // N-1 because we create signed values
+  for (int i = 0; i < Exp2<uint>(n - 1); ++i) {
+    interp_and_check(i, div_rt0(i));
+    interp_and_check(-i, div_rt0(-i));
+  }
+  const int last = -Exp2<uint>(n - 1);
+  interp_and_check(last, div_rt0(last));
+}
+
+// Exhaustively test signed division. For divisor, test all non-powers of 2, up
+// to...
+TEST_F(ArithSimplificationPassTest, SignedDivideAllNonPowersOfTwoExhaustive) {
+  constexpr int kTestUpToN = 10;
+  for (int divisor = 1; divisor < Exp2<int>(kTestUpToN - 1); ++divisor) {
+    if (!IsPowerOfTwo(static_cast<uint>(divisor))) {
+      for (int n = Bits::MinBitCountSigned(divisor); n <= kTestUpToN; ++n) {
+        CheckSignedDivideNotPowerOfTwo(n, divisor);
+        CheckSignedDivideNotPowerOfTwo(n, -divisor);
+      }
+    }
+  }
 }
 
 TEST_F(ArithSimplificationPassTest, MulBy1NarrowedResult) {

@@ -54,16 +54,16 @@ class TrafficFlow {
   TrafficFlowId id() const { return id_; }
 
   // Get name of the flow.
-  absl::string_view GetName() const { return name_; }
+  std::string_view GetName() const { return name_; }
 
   // String representation of the ingress port of the this flow.
-  absl::string_view GetSource() const { return source_; }
+  std::string_view GetSource() const { return source_; }
 
   // String representation of the egress port of the this flow.
-  absl::string_view GetDestination() const { return destination_; }
+  std::string_view GetDestination() const { return destination_; }
 
   // String representation of the vc of the this flow.
-  absl::string_view GetVC() const { return vc_; }
+  std::string_view GetVC() const { return vc_; }
 
   // Average bit count moved by this flow in N ps.
   double GetTrafficPerNumPsInBits(int64_t num) const {
@@ -100,22 +100,22 @@ class TrafficFlow {
     return static_cast<double>(burst_percent_in_mils_) / 100'000.0;
   }
 
-  TrafficFlow& SetName(absl::string_view s) {
+  TrafficFlow& SetName(std::string_view s) {
     name_ = s;
     return *this;
   }
 
-  TrafficFlow& SetSource(absl::string_view s) {
+  TrafficFlow& SetSource(std::string_view s) {
     source_ = s;
     return *this;
   }
 
-  TrafficFlow& SetDestination(absl::string_view d) {
+  TrafficFlow& SetDestination(std::string_view d) {
     destination_ = d;
     return *this;
   }
 
-  TrafficFlow& SetVC(absl::string_view vc) {
+  TrafficFlow& SetVC(std::string_view vc) {
     vc_ = vc;
     return *this;
   }
@@ -232,10 +232,10 @@ class TrafficMode {
   }
 
   // Name of this mode.
-  absl::string_view GetName() const { return name_; }
+  std::string_view GetName() const { return name_; }
 
   // Set name.
-  TrafficMode& SetName(absl::string_view s) {
+  TrafficMode& SetName(std::string_view s) {
     name_ = s;
     return *this;
   }
@@ -311,7 +311,7 @@ class NocTrafficManager {
 
   // Retrieves traffic flow id by name.
   absl::StatusOr<TrafficFlowId> GetTrafficFlowIdByName(
-      absl::string_view name) const {
+      std::string_view name) const {
     for (const TrafficFlow& f : traffic_flows_) {
       if (f.GetName() == name) {
         return f.id();
@@ -324,7 +324,7 @@ class NocTrafficManager {
 
   // Retrieves mode id by name.
   absl::StatusOr<TrafficModeId> GetTrafficModeIdByName(
-      absl::string_view name) const {
+      std::string_view name) const {
     for (const TrafficMode& m : traffic_modes_) {
       if (m.GetName() == name) {
         return m.id();

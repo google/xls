@@ -307,29 +307,29 @@ Bytecode::MatchArmItem::MatchArmItem(Kind kind)
 
 Bytecode::MatchArmItem::MatchArmItem(
     Kind kind,
-    absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data)
+    std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data)
     : kind_(kind), data_(std::move(data)) {}
 
 absl::StatusOr<InterpValue> Bytecode::MatchArmItem::interp_value() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("MatchArmItem does not hold data.");
   }
-  if (!absl::holds_alternative<InterpValue>(data_.value())) {
+  if (!std::holds_alternative<InterpValue>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
   }
 
-  return absl::get<InterpValue>(data_.value());
+  return std::get<InterpValue>(data_.value());
 }
 
 absl::StatusOr<Bytecode::SlotIndex> Bytecode::MatchArmItem::slot_index() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("MatchArmItem does not hold data.");
   }
-  if (!absl::holds_alternative<SlotIndex>(data_.value())) {
+  if (!std::holds_alternative<SlotIndex>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
   }
 
-  return absl::get<SlotIndex>(data_.value());
+  return std::get<SlotIndex>(data_.value());
 }
 
 absl::StatusOr<std::vector<Bytecode::MatchArmItem>>
@@ -337,26 +337,25 @@ Bytecode::MatchArmItem::tuple_elements() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("MatchArmItem does not hold data.");
   }
-  if (!absl::holds_alternative<std::vector<MatchArmItem>>(data_.value())) {
+  if (!std::holds_alternative<std::vector<MatchArmItem>>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
   }
 
-  return absl::get<std::vector<MatchArmItem>>(data_.value());
+  return std::get<std::vector<MatchArmItem>>(data_.value());
 }
 
 std::string Bytecode::MatchArmItem::ToString() const {
   switch (kind_) {
     case Kind::kInterpValue:
       return absl::StrCat("value:",
-                          absl::get<InterpValue>(data_.value()).ToString());
+                          std::get<InterpValue>(data_.value()).ToString());
     case Kind::kLoad:
-      return absl::StrCat("load:", absl::get<SlotIndex>(data_.value()).value());
+      return absl::StrCat("load:", std::get<SlotIndex>(data_.value()).value());
     case Kind::kStore:
-      return absl::StrCat("store:",
-                          absl::get<SlotIndex>(data_.value()).value());
+      return absl::StrCat("store:", std::get<SlotIndex>(data_.value()).value());
     case Kind::kTuple: {
       std::vector<MatchArmItem> elements =
-          absl::get<std::vector<MatchArmItem>>(data_.value());
+          std::get<std::vector<MatchArmItem>>(data_.value());
       std::vector<std::string> pieces;
       pieces.reserve(elements.size());
       for (const auto& element : elements) {
@@ -435,104 +434,104 @@ absl::StatusOr<Bytecode::JumpTarget> Bytecode::jump_target() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<JumpTarget>(data_.value())) {
+  if (!std::holds_alternative<JumpTarget>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a JumpTarget.");
   }
 
-  return absl::get<JumpTarget>(data_.value());
+  return std::get<JumpTarget>(data_.value());
 }
 
 absl::StatusOr<const Bytecode::MatchArmItem*> Bytecode::match_arm_item() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<MatchArmItem>(data_.value())) {
+  if (!std::holds_alternative<MatchArmItem>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not MatchArmItem.");
   }
-  return &absl::get<MatchArmItem>(data_.value());
+  return &std::get<MatchArmItem>(data_.value());
 }
 
 absl::StatusOr<Bytecode::NumElements> Bytecode::num_elements() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<NumElements>(data_.value())) {
+  if (!std::holds_alternative<NumElements>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a NumElements.");
   }
 
-  return absl::get<NumElements>(data_.value());
+  return std::get<NumElements>(data_.value());
 }
 
 absl::StatusOr<const Bytecode::TraceData*> Bytecode::trace_data() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<TraceData>(data_.value())) {
+  if (!std::holds_alternative<TraceData>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a TraceData.");
   }
-  return &absl::get<TraceData>(data_.value());
+  return &std::get<TraceData>(data_.value());
 }
 
 absl::StatusOr<Bytecode::SlotIndex> Bytecode::slot_index() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<SlotIndex>(data_.value())) {
+  if (!std::holds_alternative<SlotIndex>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a SlotIndex.");
   }
 
-  return absl::get<SlotIndex>(data_.value());
+  return std::get<SlotIndex>(data_.value());
 }
 
 absl::StatusOr<Bytecode::InvocationData> Bytecode::invocation_data() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<InvocationData>(data_.value())) {
+  if (!std::holds_alternative<InvocationData>(data_.value())) {
     return absl::InvalidArgumentError(
         "Bytecode data is not a SymbolicBindings.");
   }
 
-  return absl::get<InvocationData>(data_.value());
+  return std::get<InvocationData>(data_.value());
 }
 
 absl::StatusOr<const Bytecode::SpawnData*> Bytecode::spawn_data() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<SpawnData>(data_.value())) {
+  if (!std::holds_alternative<SpawnData>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
   }
 
-  return &absl::get<SpawnData>(data_.value());
+  return &std::get<SpawnData>(data_.value());
 }
 
 absl::StatusOr<InterpValue> Bytecode::value_data() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<InterpValue>(data_.value())) {
+  if (!std::holds_alternative<InterpValue>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not an InterpValue.");
   }
 
-  return absl::get<InterpValue>(data_.value());
+  return std::get<InterpValue>(data_.value());
 }
 
 absl::StatusOr<const ConcreteType*> Bytecode::type_data() const {
   if (!data_.has_value()) {
     return absl::InvalidArgumentError("Bytecode does not hold data.");
   }
-  if (!absl::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value())) {
+  if (!std::holds_alternative<std::unique_ptr<ConcreteType>>(data_.value())) {
     return absl::InvalidArgumentError("Bytecode data is not a ConcreteType.");
   }
-  return absl::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
+  return std::get<std::unique_ptr<ConcreteType>>(data_.value()).get();
 }
 
 void Bytecode::PatchJumpTarget(int64_t value) {
   XLS_CHECK(op_ == Op::kJumpRelIf || op_ == Op::kJumpRel)
       << "Cannot patch non-jump op: " << OpToString(op_);
   XLS_CHECK(data_.has_value());
-  JumpTarget jump_target = absl::get<JumpTarget>(data_.value());
+  JumpTarget jump_target = std::get<JumpTarget>(data_.value());
   XLS_CHECK_EQ(jump_target, kPlaceholderJumpAmount);
   data_ = JumpTarget(value);
 }
@@ -545,8 +544,8 @@ std::string Bytecode::ToString(bool source_locs) const {
   }
 
   if (op_ == Op::kJumpRel || op_ == Op::kJumpRelIf) {
-    XLS_CHECK(absl::holds_alternative<JumpTarget>(data_.value()));
-    JumpTarget target = absl::get<JumpTarget>(data_.value());
+    XLS_CHECK(std::holds_alternative<JumpTarget>(data_.value()));
+    JumpTarget target = std::get<JumpTarget>(data_.value());
     return absl::StrFormat("%s %+d%s", OpToString(op_), target.value(),
                            loc_string);
   }
@@ -580,11 +579,11 @@ std::string Bytecode::ToString(bool source_locs) const {
         std::vector<std::string> pieces;
         pieces.reserve(trace_data.size());
         for (const auto& step : trace_data) {
-          if (absl::holds_alternative<std::string>(step)) {
-            pieces.push_back(absl::get<std::string>(step));
+          if (std::holds_alternative<std::string>(step)) {
+            pieces.push_back(std::get<std::string>(step));
           } else {
             pieces.push_back(std::string(
-                FormatPreferenceToString(absl::get<FormatPreference>(step))));
+                FormatPreferenceToString(std::get<FormatPreference>(step))));
           }
         }
         return absl::StrCat("trace data: ", absl::StrJoin(pieces, ", "));
@@ -613,7 +612,7 @@ std::string Bytecode::ToString(bool source_locs) const {
   return absl::StrFormat("%s%s", op_string, loc_string);
 }
 
-static absl::StatusOr<InterpValue> ParseInterpValue(absl::string_view text) {
+static absl::StatusOr<InterpValue> ParseInterpValue(std::string_view text) {
   std::vector<std::string_view> pieces =
       absl::StrSplit(text, absl::MaxSplits(':', 1));
   if (pieces.size() != 2) {
@@ -642,7 +641,7 @@ static absl::StatusOr<InterpValue> ParseInterpValue(absl::string_view text) {
 }
 
 absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
-    absl::string_view text) {
+    std::string_view text) {
   std::vector<Bytecode> result;
   std::vector<std::string_view> lines = absl::StrSplit(text, '\n');
   for (std::string_view line : lines) {
@@ -713,17 +712,17 @@ std::vector<Bytecode> BytecodeFunction::CloneBytecodes() const {
   std::vector<Bytecode> bytecodes;
   for (const auto& bc : bytecodes_) {
     if (bc.has_data()) {
-      if (absl::holds_alternative<Bytecode::SlotIndex>(bc.data().value())) {
+      if (std::holds_alternative<Bytecode::SlotIndex>(bc.data().value())) {
         bytecodes.emplace_back(
             Bytecode(bc.source_span(), bc.op(),
-                     absl::get<Bytecode::SlotIndex>(bc.data().value())));
-      } else if (absl::holds_alternative<InterpValue>(bc.data().value())) {
+                     std::get<Bytecode::SlotIndex>(bc.data().value())));
+      } else if (std::holds_alternative<InterpValue>(bc.data().value())) {
         bytecodes.emplace_back(
             Bytecode(bc.source_span(), bc.op(),
-                     absl::get<InterpValue>(bc.data().value())));
+                     std::get<InterpValue>(bc.data().value())));
       } else {
         const std::unique_ptr<ConcreteType>& type =
-            absl::get<std::unique_ptr<ConcreteType>>(bc.data().value());
+            std::get<std::unique_ptr<ConcreteType>>(bc.data().value());
         bytecodes.emplace_back(
             Bytecode(bc.source_span(), bc.op(), type->CloneToUnique()));
       }

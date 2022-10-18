@@ -421,14 +421,13 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
   XLS_ASSIGN_OR_RETURN(InterpValue callee, Pop());
   if (callee.IsBuiltinFunction()) {
     frames_.back().IncrementPc();
-    return RunBuiltinFn(bytecode,
-                        absl::get<Builtin>(callee.GetFunctionOrDie()));
+    return RunBuiltinFn(bytecode, std::get<Builtin>(callee.GetFunctionOrDie()));
   }
 
   XLS_ASSIGN_OR_RETURN(const InterpValue::FnData* fn_data,
                        callee.GetFunction());
   InterpValue::UserFnData user_fn_data =
-      absl::get<InterpValue::UserFnData>(*fn_data);
+      std::get<InterpValue::UserFnData>(*fn_data);
   XLS_ASSIGN_OR_RETURN(Bytecode::InvocationData data,
                        bytecode.invocation_data());
 
@@ -455,7 +454,7 @@ absl::Status BytecodeInterpreter::EvalCall(const Bytecode& bytecode) {
 
 absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode) {
   if (!bytecode.data().has_value() ||
-      !absl::holds_alternative<std::unique_ptr<ConcreteType>>(
+      !std::holds_alternative<std::unique_ptr<ConcreteType>>(
           bytecode.data().value())) {
     return absl::InternalError("Cast op requires ConcreteType data.");
   }
@@ -467,7 +466,7 @@ absl::Status BytecodeInterpreter::EvalCast(const Bytecode& bytecode) {
   }
 
   ConcreteType* to =
-      absl::get<std::unique_ptr<ConcreteType>>(bytecode.data().value()).get();
+      std::get<std::unique_ptr<ConcreteType>>(bytecode.data().value()).get();
   if (from.IsArray()) {
     // From array to bits.
     BitsType* to_bits = dynamic_cast<BitsType*>(to);
@@ -854,7 +853,7 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
 
     XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
     const std::unique_ptr<ConcreteType>& payload_type =
-        absl::get<std::unique_ptr<ConcreteType>>(data);
+        std::get<std::unique_ptr<ConcreteType>>(data);
 
     XLS_ASSIGN_OR_RETURN(InterpValue zero,
                          CreateZeroValueFromType(*payload_type));
@@ -893,7 +892,7 @@ absl::Status BytecodeInterpreter::EvalRecv(const Bytecode& bytecode) {
 
     XLS_RET_CHECK(std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
     const std::unique_ptr<ConcreteType>& payload_type =
-        absl::get<std::unique_ptr<ConcreteType>>(data);
+        std::get<std::unique_ptr<ConcreteType>>(data);
 
     XLS_ASSIGN_OR_RETURN(InterpValue zero,
                          CreateZeroValueFromType(*payload_type));
@@ -1029,15 +1028,15 @@ absl::Status BytecodeInterpreter::EvalSwap(const Bytecode& bytecode) {
     const Bytecode::TraceData& trace_data, std::vector<InterpValue>& stack) {
   std::deque<std::string> pieces;
   for (int i = trace_data.size() - 1; i >= 0; i--) {
-    absl::variant<std::string, FormatPreference> trace_element =
+    std::variant<std::string, FormatPreference> trace_element =
         trace_data.at(i);
-    if (absl::holds_alternative<std::string>(trace_element)) {
-      pieces.push_front(absl::get<std::string>(trace_element));
+    if (std::holds_alternative<std::string>(trace_element)) {
+      pieces.push_front(std::get<std::string>(trace_element));
     } else {
       XLS_RET_CHECK(!stack.empty());
       XLS_ASSIGN_OR_RETURN(InterpValue value, Pop(stack));
       pieces.push_front(value.ToString(
-          /*humanize=*/true, absl::get<FormatPreference>(trace_element)));
+          /*humanize=*/true, std::get<FormatPreference>(trace_element)));
     }
   }
 
@@ -1640,7 +1639,7 @@ absl::Status ProcConfigBytecodeInterpreter::InitializeProcNetwork(
     next_arg_values.push_back(arg_value);
   }
 
-  return EvalSpawnInternal(
+  return EvalSpawn(
       import_data, type_info, absl::nullopt, absl::nullopt, root_proc,
       /*config_args=*/{terminator}, next_arg_values, proc_instances);
 }
@@ -1650,13 +1649,13 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
   Frame& frame = frames().back();
   XLS_ASSIGN_OR_RETURN(const Bytecode::SpawnData* spawn_data,
                        bytecode.spawn_data());
-  return EvalSpawnInternal(import_data(), frame.type_info(),
-                           spawn_data->caller_bindings, spawn_data->spawn,
-                           spawn_data->proc, spawn_data->config_args,
-                           spawn_data->next_args, proc_instances_);
+  return EvalSpawn(import_data(), frame.type_info(),
+                   spawn_data->caller_bindings, spawn_data->spawn,
+                   spawn_data->proc, spawn_data->config_args,
+                   spawn_data->next_args, proc_instances_);
 }
 
-/* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawnInternal(
+/* static */ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
     ImportData* import_data, const TypeInfo* type_info,
     const std::optional<SymbolicBindings>& caller_bindings,
     std::optional<const Spawn*> maybe_spawn, Proc* proc,

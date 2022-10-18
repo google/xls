@@ -35,7 +35,7 @@ class ArbiterSchemeConfigProtoBuilder {
   // assigned to an output port. A higher priority is associated with the
   // element at the lower index within the list.
   ArbiterSchemeConfigProtoBuilder& WithPriorityEntry(
-      absl::string_view output_port_name,
+      std::string_view output_port_name,
       absl::Span<const PortVirtualChannelTuple> priority_list);
 
  private:

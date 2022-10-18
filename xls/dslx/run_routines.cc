@@ -75,8 +75,12 @@ absl::Status RunTestProc(ImportData* import_data, TypeInfo* type_info,
     }
   }
 
-  // TODO(rspringer): 2022-04-12: pass/fail based on the value of term_chan's
-  // entry.
+  InterpValue ret_val = term_chan->front();
+  XLS_RET_CHECK(ret_val.IsBool());
+  if (!ret_val.IsTrue()) {
+    return FailureErrorStatus(
+        tp->proc()->span(), "Proc reported failure upon exit.");
+  }
   return absl::OkStatus();
 }
 
@@ -178,8 +182,8 @@ absl::Status RunComparator::RunComparison(
   return absl::OkStatus();
 }
 
-static bool TestMatchesFilter(absl::string_view test_name,
-                              std::optional<absl::string_view> test_filter) {
+static bool TestMatchesFilter(std::string_view test_name,
+                              std::optional<std::string_view> test_filter) {
   if (!test_filter.has_value()) {
     return true;
   }
@@ -266,7 +270,7 @@ static absl::Status RunQuickCheck(RunComparator* run_comparator,
 }
 
 using HandleError = const std::function<void(
-    const absl::Status&, absl::string_view test_name, bool is_quickcheck)>;
+    const absl::Status&, std::string_view test_name, bool is_quickcheck)>;
 
 static absl::Status RunQuickChecksIfJitEnabled(
     Module* entry_module, TypeInfo* type_info, RunComparator* run_comparator,
@@ -303,16 +307,16 @@ static absl::Status RunQuickChecksIfJitEnabled(
   return absl::OkStatus();
 }
 
-absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
-                                        absl::string_view module_name,
-                                        absl::string_view filename,
+absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
+                                        std::string_view module_name,
+                                        std::string_view filename,
                                         const ParseAndTestOptions& options) {
   int64_t ran = 0;
   int64_t failed = 0;
   int64_t skipped = 0;
 
   auto handle_error = [&](const absl::Status& status,
-                          absl::string_view test_name, bool is_quickcheck) {
+                          std::string_view test_name, bool is_quickcheck) {
     XLS_VLOG(1) << "Handling error; status: " << status
                 << " test_name: " << test_name;
     absl::StatusOr<PositionalErrorData> data_or =
@@ -320,8 +324,9 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     std::string suffix;
     if (data_or.ok()) {
       const auto& data = data_or.value();
-      XLS_CHECK_OK(PrintPositionalError(data.span, data.GetMessageWithType(),
-                                        std::cerr));
+      XLS_CHECK_OK(PrintPositionalError(
+          data.span, data.GetMessageWithType(), std::cerr,
+          /*get_file_contents=*/nullptr, PositionalErrorColor::kErrorColor));
     } else {
       // If we can't extract positional data we log the error and put the error
       // status into the "failed" prompted.
@@ -344,6 +349,18 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
       return TestResult::kSomeFailed;
     }
     return tm_or.status();
+  }
+
+  // If we're not executing, then we're just scanning for errors -- if warnings
+  // are *not* errors, just elide printing them (or e.g. we'd show warnings for
+  // files that had warnings suppressed at build time, which would gunk up build
+  // logs unnecessarily.).
+  if (options.execute || options.warnings_as_errors) {
+    PrintWarnings(tm_or->warnings);
+  }
+
+  if (options.warnings_as_errors && !tm_or->warnings.warnings().empty()) {
+    return TestResult::kFailedWarnings;
   }
 
   // If not executing tests and quickchecks, then return vacuous success.
@@ -396,7 +413,7 @@ absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
     std::cerr << "[ RUN UNITTEST  ] " << test_name << std::endl;
     absl::Status status;
     ModuleMember* member = entry_module->FindMemberWithName(test_name).value();
-    if (absl::holds_alternative<TestFunction*>(*member)) {
+    if (std::holds_alternative<TestFunction*>(*member)) {
       XLS_ASSIGN_OR_RETURN(TestFunction * tf, entry_module->GetTest(test_name));
       status = RunTestFunction(&import_data, tm_or.value().type_info,
                                entry_module, tf, post_fn_eval_hook);

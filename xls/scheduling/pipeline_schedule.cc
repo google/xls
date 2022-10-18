@@ -49,25 +49,11 @@ int64_t MaximumCycle(const ScheduleCycleMap& cycle_map) {
 }
 
 // Returns the nodes of `f` which must be scheduled in the first stage of a
-// pipeline. For functions this is parameters. For procs, this is receive nodes
-// and next state nodes.
+// pipeline. For functions this is parameters.
 std::vector<Node*> FirstStageNodes(FunctionBase* f) {
   if (Function* function = dynamic_cast<Function*>(f)) {
     return std::vector<Node*>(function->params().begin(),
                               function->params().end());
-  }
-  if (Proc* proc = dynamic_cast<Proc*>(f)) {
-    std::vector<Node*> nodes(proc->params().begin(), proc->params().end());
-    for (Node* node : proc->nodes()) {
-      // TODO(tedhong): 2021/10/14 Make this more flexible (ex. for ii>N),
-      // where the next state node must be scheduled before a specific state
-      // but not necessarily the 1st stage.
-      if (std::find(proc->NextState().begin(), proc->NextState().end(), node) !=
-          proc->NextState().end()) {
-        nodes.push_back(node);
-      }
-    }
-    return nodes;
   }
 
   return {};
@@ -184,7 +170,8 @@ absl::StatusOr<int64_t> ComputeCriticalPath(
 // schedule the function into a pipeline with the given number of stages.
 absl::StatusOr<int64_t> FindMinimumClockPeriod(
     FunctionBase* f, int64_t pipeline_stages,
-    const DelayEstimator& delay_estimator) {
+    const DelayEstimator& delay_estimator,
+    absl::Span<const SchedulingConstraint> constraints) {
   XLS_VLOG(4) << "FindMinimumClockPeriod()";
   XLS_VLOG(4) << "  pipeline stages = " << pipeline_stages;
   auto topo_sort_it = TopoSort(f);
@@ -206,12 +193,15 @@ absl::StatusOr<int64_t> FindMinimumClockPeriod(
           search_start, search_end,
           [&](int64_t clk_period_ps) -> absl::StatusOr<bool> {
             absl::StatusOr<sched::ScheduleBounds> bounds_or = ConstructBounds(
-                f, clk_period_ps, topo_sort,
-                /*schedule_length=*/absl::nullopt, delay_estimator);
+                f, clk_period_ps, topo_sort, pipeline_stages, delay_estimator);
             if (!bounds_or.ok()) {
               return false;
             }
-            return bounds_or.value().max_lower_bound() < pipeline_stages;
+            sched::ScheduleBounds bounds = bounds_or.value();
+            absl::StatusOr<ScheduleCycleMap> scm =
+                SDCScheduler(f, pipeline_stages, clk_period_ps, delay_estimator,
+                             &bounds, constraints, /*check_feasibility=*/true);
+            return scm.ok();
           }));
   XLS_VLOG(4) << "minimum clock period = " << min_period;
 
@@ -273,42 +263,39 @@ absl::Span<Node* const> PipelineSchedule::nodes_in_cycle(int64_t cycle) const {
   return absl::Span<Node* const>();
 }
 
+bool PipelineSchedule::IsLiveOutOfCycle(Node* node, int64_t c) const {
+  Function* as_func = dynamic_cast<Function*>(function_base_);
+
+  if (c == length() - 1) {
+    return false;
+  }
+
+  if ((as_func != nullptr) && (node == as_func->return_value())) {
+    return true;
+  }
+
+  for (Node* user : node->users()) {
+    if (cycle(user) > c) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 std::vector<Node*> PipelineSchedule::GetLiveOutOfCycle(int64_t c) const {
   std::vector<Node*> live_out;
+
   for (int64_t i = 0; i <= c; ++i) {
     for (Node* node : nodes_in_cycle(i)) {
-      if (node->function_base()->HasImplicitUse(node) ||
-          absl::c_any_of(node->users(),
-                         [&](Node* u) { return cycle(u) > c; })) {
+      if (IsLiveOutOfCycle(node, c)) {
         live_out.push_back(node);
       }
     }
   }
+
   return live_out;
 }
-
-namespace {
-class DelayEstimatorWithInputDelay : public DelayEstimator {
- public:
-  DelayEstimatorWithInputDelay(const DelayEstimator& base, int64_t input_delay)
-      : DelayEstimator(absl::StrFormat("%s_with_input_delay", base.name())),
-        base_delay_estimator_(&base),
-        input_delay_(input_delay) {}
-
-  virtual absl::StatusOr<int64_t> GetOperationDelayInPs(
-      Node* node) const override {
-    XLS_ASSIGN_OR_RETURN(int64_t base_delay,
-                         base_delay_estimator_->GetOperationDelayInPs(node));
-
-    return (node->op() == Op::kReceive) ? base_delay + input_delay_
-                                        : base_delay;
-  }
-
- private:
-  const DelayEstimator* base_delay_estimator_;
-  int64_t input_delay_;
-};
-}  // namespace
 
 /*static*/ absl::StatusOr<PipelineSchedule> PipelineSchedule::Run(
     FunctionBase* f, const DelayEstimator& delay_estimator,
@@ -317,8 +304,12 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
                             ? options.additional_input_delay_ps().value()
                             : 0;
 
-  DelayEstimatorWithInputDelay delay_estimator_with_delay(delay_estimator,
-                                                          input_delay);
+  DecoratingDelayEstimator input_delay_added(
+      "input_delay_added", delay_estimator,
+      [input_delay](Node* node, int64_t base_delay) {
+        return node->op() == Op::kReceive ? base_delay + input_delay
+                                          : base_delay;
+      });
 
   int64_t clock_period_ps;
   if (options.clock_period_ps().has_value()) {
@@ -341,9 +332,10 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
     // A pipeline length is specified, but no target clock period. Determine
     // the minimum clock period for which the function can be scheduled in the
     // given pipeline length.
-    XLS_ASSIGN_OR_RETURN(clock_period_ps,
-                         FindMinimumClockPeriod(f, *options.pipeline_stages(),
-                                                delay_estimator_with_delay));
+    XLS_ASSIGN_OR_RETURN(
+        clock_period_ps,
+        FindMinimumClockPeriod(f, *options.pipeline_stages(), input_delay_added,
+                               options.constraints()));
 
     if (options.period_relaxation_percent().has_value()) {
       int64_t relaxation_percent = options.period_relaxation_percent().value();
@@ -355,7 +347,7 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
   XLS_ASSIGN_OR_RETURN(
       sched::ScheduleBounds bounds,
       ConstructBounds(f, clock_period_ps, TopoSort(f).AsVector(),
-                      options.pipeline_stages(), delay_estimator_with_delay));
+                      options.pipeline_stages(), input_delay_added));
   int64_t schedule_length = bounds.max_lower_bound() + 1;
   if (options.pipeline_stages().has_value()) {
     schedule_length = options.pipeline_stages().value();
@@ -363,15 +355,15 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
 
   ScheduleCycleMap cycle_map;
   if (options.strategy() == SchedulingStrategy::MIN_CUT) {
-    XLS_ASSIGN_OR_RETURN(cycle_map,
-                         MinCutScheduler(f, schedule_length, clock_period_ps,
-                                         delay_estimator_with_delay, &bounds,
-                                         options.constraints()));
+    XLS_ASSIGN_OR_RETURN(
+        cycle_map,
+        MinCutScheduler(f, schedule_length, clock_period_ps, input_delay_added,
+                        &bounds, options.constraints()));
   } else if (options.strategy() == SchedulingStrategy::SDC) {
-    XLS_ASSIGN_OR_RETURN(cycle_map,
-                         SDCScheduler(f, schedule_length, clock_period_ps,
-                                      delay_estimator_with_delay, &bounds,
-                                      options.constraints()));
+    XLS_ASSIGN_OR_RETURN(
+        cycle_map,
+        SDCScheduler(f, schedule_length, clock_period_ps, input_delay_added,
+                     &bounds, options.constraints()));
   } else if (options.strategy() == SchedulingStrategy::RANDOM) {
     for (Node* node : TopoSort(f)) {
       int64_t lower_bound = bounds.lb(node);
@@ -397,7 +389,7 @@ class DelayEstimatorWithInputDelay : public DelayEstimator {
   auto schedule = PipelineSchedule(f, cycle_map, options.pipeline_stages());
   XLS_RETURN_IF_ERROR(schedule.Verify());
   XLS_RETURN_IF_ERROR(
-      schedule.VerifyTiming(clock_period_ps, delay_estimator_with_delay));
+      schedule.VerifyTiming(clock_period_ps, input_delay_added));
 
   // Verify that scheduling constraints are obeyed.
   {
@@ -553,29 +545,13 @@ PipelineScheduleProto PipelineSchedule::ToProto() const {
 int64_t PipelineSchedule::CountFinalInteriorPipelineRegisters() const {
   int64_t reg_count = 0;
 
-  Function* as_func = dynamic_cast<Function*>(function_base_);
   for (int64_t stage = 0; stage < length(); ++stage) {
     for (Node* function_base_node : function_base_->nodes()) {
       if (cycle(function_base_node) > stage) {
         continue;
       }
 
-      auto is_live_out_of_stage = [&](Node* n) {
-        if (stage == length() - 1) {
-          return false;
-        }
-        if (as_func && (n == as_func->return_value())) {
-          return true;
-        }
-        for (Node* user : n->users()) {
-          if (cycle(user) > stage) {
-            return true;
-          }
-        }
-        return false;
-      };
-
-      if (is_live_out_of_stage(function_base_node)) {
+      if (IsLiveOutOfCycle(function_base_node, stage)) {
         reg_count += function_base_node->GetType()->GetFlatBitCount();
       }
     }

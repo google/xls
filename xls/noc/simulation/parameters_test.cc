@@ -187,19 +187,19 @@ TEST(SimParametersTest, NocParametersMap) {
   param_map.SetNetworkComponentParam(router_id, router_param);
   param_map.SetNetworkComponentParam(link_id, link_param);
 
-  EXPECT_EQ(absl::get<NetworkInterfaceSrcParam>(
+  EXPECT_EQ(std::get<NetworkInterfaceSrcParam>(
                 *param_map.GetNetworkComponentParam(ni_src_id))
                 .GetName(),
             "Ingress0");
-  EXPECT_EQ(absl::get<NetworkInterfaceSinkParam>(
+  EXPECT_EQ(std::get<NetworkInterfaceSinkParam>(
                 *param_map.GetNetworkComponentParam(ni_sink_id))
                 .GetName(),
             "Egress0");
   EXPECT_EQ(
-      absl::get<RouterParam>(*param_map.GetNetworkComponentParam(router_id))
+      std::get<RouterParam>(*param_map.GetNetworkComponentParam(router_id))
           .GetName(),
       "Router0");
-  EXPECT_EQ(absl::get<LinkParam>(*param_map.GetNetworkComponentParam(link_id))
+  EXPECT_EQ(std::get<LinkParam>(*param_map.GetNetworkComponentParam(link_id))
                 .GetName(),
             "Link0");
 

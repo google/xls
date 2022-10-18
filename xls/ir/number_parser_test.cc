@@ -27,7 +27,7 @@ namespace {
 using status_testing::StatusIs;
 
 TEST(NumberParserTest, ParseNumbersAsUint64) {
-  auto expect_uint64_value = [](absl::string_view s, uint64_t expected) {
+  auto expect_uint64_value = [](std::string_view s, uint64_t expected) {
     XLS_ASSERT_OK_AND_ASSIGN(uint64_t value, ParseNumberAsUint64(s));
     EXPECT_EQ(value, expected);
   };
@@ -47,7 +47,7 @@ TEST(NumberParserTest, ParseNumbersAsUint64) {
 }
 
 TEST(NumberParserTest, ParseNumbersAsInt64) {
-  auto expect_int64_value = [](absl::string_view s, int64_t expected) {
+  auto expect_int64_value = [](std::string_view s, int64_t expected) {
     XLS_ASSERT_OK_AND_ASSIGN(int64_t value, ParseNumberAsInt64(s));
     EXPECT_EQ(value, expected);
   };
@@ -72,7 +72,7 @@ TEST(NumberParserTest, ParseNumbersAsInt64) {
 }
 
 TEST(NumberParserTest, ParseNumbersAsBits) {
-  auto expect_bits_value = [](absl::string_view s, const Bits& expected) {
+  auto expect_bits_value = [](std::string_view s, const Bits& expected) {
     XLS_ASSERT_OK_AND_ASSIGN(Bits value, ParseNumber(s));
     EXPECT_EQ(value, expected);
   };
@@ -108,7 +108,7 @@ TEST(NumberParserTest, ParseNumbersAsBits) {
 }
 
 TEST(NumberParserTest, ParseNumbersWithoutPrefix) {
-  auto expect_bits_value = [](absl::string_view s, FormatPreference format,
+  auto expect_bits_value = [](std::string_view s, FormatPreference format,
                               const Bits& expected) {
     XLS_ASSERT_OK_AND_ASSIGN(Bits value,
                              ParseUnsignedNumberWithoutPrefix(s, format));

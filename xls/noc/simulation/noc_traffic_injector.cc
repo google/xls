@@ -98,7 +98,7 @@ absl::Status MatchFlowToSourceAndRunAction(
     XLS_RET_CHECK(flow_id.IsValid());
     const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
 
-    absl::string_view flow_component = flow_component_func(flow);
+    std::string_view flow_component = flow_component_func(flow);
 
     bool matched_flow = false;
     for (int64_t j = 0; j < network_components.size(); ++j) {
@@ -106,13 +106,13 @@ absl::Status MatchFlowToSourceAndRunAction(
           NetworkComponentParam param,
           noc_parameters.GetNetworkComponentParam(network_components[j]));
 
-      if (!absl::holds_alternative<ParamType>(param)) {
+      if (!std::holds_alternative<ParamType>(param)) {
         return absl::InvalidArgumentError(
             absl::StrFormat("Expected all network components to be of type %s",
                             typeid(ParamType).name()));
       }
 
-      absl::string_view port_name = absl::get<ParamType>(param).GetName();
+      std::string_view port_name = std::get<ParamType>(param).GetName();
 
       if (port_name == flow_component) {
         matched_flow = true;
@@ -157,7 +157,7 @@ NocTrafficInjectorBuilder::CalculateMaxPacketSizePerSource(
           packet_size_per_source[source_index] = flow.GetPacketSizeInBits();
         }
       },
-      [](const TrafficFlow& flow) -> absl::string_view {
+      [](const TrafficFlow& flow) -> std::string_view {
         return flow.GetSource();
       }));
 
@@ -182,7 +182,7 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToNetworkSources(
       [&injector](int64_t flow_index, int64_t source_index) -> void {
         injector.flows_index_to_sources_index_map_[flow_index] = source_index;
       },
-      [](const TrafficFlow& flow) -> absl::string_view {
+      [](const TrafficFlow& flow) -> std::string_view {
         return flow.GetSource();
       }));
 
@@ -202,7 +202,7 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToNetworkSinks(
       [&injector](int64_t flow_index, int64_t sink_index) -> void {
         injector.flows_index_to_sinks_index_map_[flow_index] = sink_index;
       },
-      [](const TrafficFlow& flow) -> absl::string_view {
+      [](const TrafficFlow& flow) -> std::string_view {
         return flow.GetDestination();
       }));
 
@@ -225,7 +225,7 @@ absl::Status NocTrafficInjectorBuilder::AssociateFlowsToVCs(
     XLS_RET_CHECK(flow_id.IsValid());
 
     const TrafficFlow& flow = traffic_manager.GetTrafficFlow(flow_id);
-    absl::string_view flow_vc = flow.GetVC();
+    std::string_view flow_vc = flow.GetVC();
 
     // If there are no VCs in use, always map to 0.
     int64_t vc_index = 0;
@@ -331,14 +331,14 @@ absl::Status NocTrafficInjectorBuilder::BuildPerInterfaceDepacketizer(
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam param,
                          noc_parameters.GetNetworkComponentParam(link_id));
 
-    if (!absl::holds_alternative<LinkParam>(param)) {
+    if (!std::holds_alternative<LinkParam>(param)) {
       return absl::InvalidArgumentError(
           absl::StrFormat("Expected Link Parameter for network component %x",
                           link_id.AsUInt64()));
     }
 
     int64_t phit_width_in_bits =
-        absl::get<LinkParam>(param).GetPhitDataBitWidth();
+        std::get<LinkParam>(param).GetPhitDataBitWidth();
     int64_t source_index_bit_count =
         Bits::MinBitCountUnsigned(network_sources.size() - 1);
     int64_t max_packet_bit_count = max_packet_size_per_source[i];

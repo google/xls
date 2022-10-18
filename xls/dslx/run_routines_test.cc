@@ -105,6 +105,31 @@ fn trivial(x: u5) -> bool { false }
   EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
 }
 
+TEST(RunRoutinesTest, FailingProc) {
+  constexpr std::string_view kProgram = R"(
+#[test_proc()]
+proc doomed {
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        (terminator,)
+    }
+
+    next(tok: token) {
+      let tok = send(tok, terminator, false);
+      ()
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr const char* kModuleName = "test";
+  ParseAndTestOptions options;
+  absl::StatusOr<TestResult> result = ParseAndTest(
+      kProgram, kModuleName, std::string(temp_file.path()), options);
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kSomeFailed));
+}
+
 // Verifies that the QuickCheck mechanism can find counter-examples for a simple
 // erroneous function.
 TEST(QuickcheckTest, QuickCheckBits) {

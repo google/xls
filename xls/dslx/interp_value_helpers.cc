@@ -23,7 +23,7 @@
 namespace xls::dslx {
 namespace {
 
-absl::StatusOr<InterpValue> InterpValueFromString(absl::string_view s) {
+absl::StatusOr<InterpValue> InterpValueFromString(std::string_view s) {
   XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(s));
   return dslx::ValueToInterpValue(value);
 }
@@ -323,13 +323,13 @@ absl::StatusOr<InterpValue> ValueToInterpValue(const Value& v,
 }
 
 absl::StatusOr<std::vector<InterpValue>> ParseArgs(
-    absl::string_view args_text) {
+    std::string_view args_text) {
   args_text = absl::StripAsciiWhitespace(args_text);
   std::vector<InterpValue> args;
   if (args_text.empty()) {
     return args;
   }
-  for (absl::string_view piece : absl::StrSplit(args_text, ';')) {
+  for (std::string_view piece : absl::StrSplit(args_text, ';')) {
     piece = absl::StripAsciiWhitespace(piece);
     XLS_ASSIGN_OR_RETURN(InterpValue value, InterpValueFromString(piece));
     args.push_back(value);
@@ -338,13 +338,13 @@ absl::StatusOr<std::vector<InterpValue>> ParseArgs(
 }
 
 absl::StatusOr<std::vector<std::vector<InterpValue>>> ParseArgsBatch(
-    absl::string_view args_text) {
+    std::string_view args_text) {
   args_text = absl::StripAsciiWhitespace(args_text);
   std::vector<std::vector<InterpValue>> args_batch;
   if (args_text.empty()) {
     return args_batch;
   }
-  for (absl::string_view line : absl::StrSplit(args_text, '\n')) {
+  for (std::string_view line : absl::StrSplit(args_text, '\n')) {
     XLS_ASSIGN_OR_RETURN(auto args, ParseArgs(line));
     args_batch.push_back(std::move(args));
   }

@@ -37,7 +37,7 @@ enum class InstantiationKind {
 
 std::string InstantiationKindToString(InstantiationKind kind);
 absl::StatusOr<InstantiationKind> StringToInstantiationKind(
-    absl::string_view str);
+    std::string_view str);
 std::ostream& operator<<(std::ostream& os, InstantiationKind kind);
 
 struct InstantiationPort {
@@ -51,7 +51,7 @@ struct InstantiationPort {
 // defined Verilog module (not yet supported).
 class Instantiation {
  public:
-  Instantiation(absl::string_view name, InstantiationKind kind)
+  Instantiation(std::string_view name, InstantiationKind kind)
       : name_(name), kind_(kind) {}
   virtual ~Instantiation() = default;
 
@@ -62,9 +62,9 @@ class Instantiation {
   virtual std::string ToString() const = 0;
 
   virtual absl::StatusOr<InstantiationPort> GetInputPort(
-      absl::string_view name) = 0;
+      std::string_view name) = 0;
   virtual absl::StatusOr<InstantiationPort> GetOutputPort(
-      absl::string_view name) = 0;
+      std::string_view name) = 0;
 
  protected:
   std::string name_;
@@ -74,7 +74,7 @@ class Instantiation {
 // Abstraction representing the instantiation of an IR block.
 class BlockInstantiation : public Instantiation {
  public:
-  BlockInstantiation(absl::string_view name, Block* instantiated_block)
+  BlockInstantiation(std::string_view name, Block* instantiated_block)
       : Instantiation(name, InstantiationKind::kBlock),
         instantiated_block_(instantiated_block) {}
 
@@ -83,9 +83,9 @@ class BlockInstantiation : public Instantiation {
   std::string ToString() const override;
 
   absl::StatusOr<InstantiationPort> GetInputPort(
-      absl::string_view name) override;
+      std::string_view name) override;
   absl::StatusOr<InstantiationPort> GetOutputPort(
-      absl::string_view name) override;
+      std::string_view name) override;
 
  private:
   Block* instantiated_block_;

@@ -29,6 +29,15 @@ namespace xls {
 // Returns a string representation of the args_batch.
 std::string ArgsBatchToText(
     const std::vector<std::vector<dslx::InterpValue>>& args_batch);
+// Returns a string representation of the proc_init_values.
+std::string ProcInitValuesToText(
+    const std::vector<dslx::InterpValue>& proc_init_values);
+
+enum class TopType : int {
+  kFunction = 0,
+  kProc,
+  // TODO(vmirian): 10-7-2022 Add block support.
+};
 
 // Options describing how to run a code sample. See member comments for details.
 class SampleOptions {
@@ -40,7 +49,7 @@ class SampleOptions {
   //
   // TODO(https://github.com/google/xls/issues/341): 2021-03-12 Rework to be
   // (schemaful) prototext instead.
-  static absl::StatusOr<SampleOptions> FromJson(absl::string_view json_text);
+  static absl::StatusOr<SampleOptions> FromJson(std::string_view json_text);
 
   // Returns a JSON-encoded string describing this object.
   //
@@ -52,6 +61,7 @@ class SampleOptions {
   json11::Json ToJson() const;
 
   bool input_is_dslx() const { return input_is_dslx_; }
+  TopType top_type() const { return top_type_; }
   const std::optional<std::vector<std::string>>& ir_converter_args() const {
     return ir_converter_args_;
   }
@@ -67,8 +77,10 @@ class SampleOptions {
   bool use_system_verilog() const { return use_system_verilog_; }
   std::optional<int64_t> timeout_seconds() const { return timeout_seconds_; }
   int64_t calls_per_sample() const { return calls_per_sample_; }
+  std::optional<int64_t> proc_ticks() const { return proc_ticks_; }
 
   void set_input_is_dslx(bool value) { input_is_dslx_ = value; }
+  void set_top_type(TopType value) { top_type_ = value; }
   void set_ir_converter_args(const std::vector<std::string>& value) {
     ir_converter_args_ = value;
   }
@@ -80,6 +92,7 @@ class SampleOptions {
   void set_use_system_verilog(bool value) { use_system_verilog_ = value; }
   void set_timeout_seconds(int64_t value) { timeout_seconds_ = value; }
   void set_calls_per_sample(int64_t value) { calls_per_sample_ = value; }
+  void set_proc_ticks(int64_t value) { proc_ticks_ = value; }
 
   bool operator==(const SampleOptions& other) const {
     return ToJson() == other.ToJson();
@@ -91,6 +104,8 @@ class SampleOptions {
  private:
   // Whether code sample is DSLX. Otherwise assumed to be XLS IR.
   bool input_is_dslx_ = true;
+  // The type of the top.
+  TopType top_type_ = TopType::kFunction;
   // Arguments to pass to ir_converter_main. Requires input_is_dslx_ to be true.
   std::optional<std::vector<std::string>> ir_converter_args_;
   // Convert the input code sample to XLS IR. Only meaningful if input_is_dslx
@@ -121,6 +136,8 @@ class SampleOptions {
   std::optional<int64_t> timeout_seconds_;
   // Number of times to invoke the generated function.
   int64_t calls_per_sample_ = 1;
+  // Number ticks to execute the generated proc.
+  std::optional<int64_t> proc_ticks_;
 };
 
 // Abstraction describing a fuzzer code sample and how to run it.
@@ -132,7 +149,7 @@ class Sample {
   // TODO(meheff): 2021-03-19 Remove this when we no longer need to
   // pickle/depickle Samples for Python. Deserialize can be replaced with a
   // method FromCrasher.
-  static absl::StatusOr<Sample> Deserialize(absl::string_view s);
+  static absl::StatusOr<Sample> Deserialize(std::string_view s);
   std::string Serialize() const;
 
   // Returns "crasher" text serialization.
@@ -151,35 +168,48 @@ class Sample {
   //  // ...
   //  // args: <argument set 1>
   //  <code sample>
-  std::string ToCrasher(absl::string_view error_message) const;
+  std::string ToCrasher(std::string_view error_message) const;
 
+  // TODO(https://github.com/google/xls/issues/681): Remove
+  // 'proc_initial_values'.
   Sample(std::string input_text, SampleOptions options,
-         std::vector<std::vector<dslx::InterpValue>> args_batch)
+         std::vector<std::vector<dslx::InterpValue>> args_batch,
+         std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
+             std::nullopt)
       : input_text_(std::move(input_text)),
         options_(std::move(options)),
-        args_batch_(std::move(args_batch)) {}
+        args_batch_(std::move(args_batch)),
+        proc_initial_values_(std::move(proc_initial_values)) {}
 
   const SampleOptions& options() const { return options_; }
   const std::string& input_text() const { return input_text_; }
   const std::vector<std::vector<dslx::InterpValue>>& args_batch() const {
     return args_batch_;
   }
+  const std::optional<std::vector<dslx::InterpValue>>& proc_initial_values()
+      const {
+    return proc_initial_values_;
+  }
 
   bool operator==(const Sample& other) const {
     return input_text_ == other.input_text_ && options_ == other.options_ &&
-           ArgsBatchEqual(other);
+           ArgsBatchEqual(other) && ProcInitValuesEqual(other);
   }
   bool operator!=(const Sample& other) const { return !((*this) == other); }
 
  private:
   // Returns whether the argument batch is the same as in "other".
   bool ArgsBatchEqual(const Sample& other) const;
+  // Returns whether the proc initial values is the same as in "other".
+  bool ProcInitValuesEqual(const Sample& other) const;
 
   std::string input_text_;  // Code sample as text.
   SampleOptions options_;   // How to run the sample.
 
   // Argument values to use for interpretation and simulation.
   std::vector<std::vector<dslx::InterpValue>> args_batch_;
+  // Initial values for proc.
+  std::optional<std::vector<dslx::InterpValue>> proc_initial_values_;
 };
 
 }  // namespace xls

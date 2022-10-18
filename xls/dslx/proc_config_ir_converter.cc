@@ -122,10 +122,10 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
 
   if (ChannelDecl* decl = dynamic_cast<ChannelDecl*>(node->rhs());
       decl != nullptr) {
-    Channel* channel = absl::get<Channel*>(node_to_ir_.at(decl));
+    Channel* channel = std::get<Channel*>(node_to_ir_.at(decl));
     std::vector<NameDefTree::Leaf> leaves = node->name_def_tree()->Flatten();
-    node_to_ir_[absl::get<NameDef*>(leaves[0])] = channel;
-    node_to_ir_[absl::get<NameDef*>(leaves[1])] = channel;
+    node_to_ir_[std::get<NameDef*>(leaves[0])] = channel;
+    node_to_ir_[std::get<NameDef*>(leaves[1])] = channel;
   } else {
     if (!node->name_def_tree()->is_leaf()) {
       return absl::UnimplementedError(
@@ -133,7 +133,7 @@ absl::Status ProcConfigIrConverter::HandleLet(const Let* node) {
     }
 
     // A leaf on the LHS of a Let will always be a NameDef.
-    NameDef* def = absl::get<NameDef*>(node->name_def_tree()->leaf());
+    NameDef* def = std::get<NameDef*>(node->name_def_tree()->leaf());
     if (!node_to_ir_.contains(node->rhs())) {
       return absl::InternalError(
           absl::StrCat("Let RHS not evaluated as constexpr: ", def->ToString(),

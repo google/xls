@@ -31,7 +31,7 @@ namespace xls::dslx {
 // returned, and the status should likely be propagated to the caller instead of
 // squashed in some way.
 bool TryPrintError(const absl::Status& status,
-                   std::function<absl::StatusOr<std::string>(absl::string_view)>
+                   std::function<absl::StatusOr<std::string>(std::string_view)>
                        get_file_contents = nullptr);
 
 // Converts a path to a DSLX module into its corresponding module name; e.g.
@@ -40,7 +40,7 @@ bool TryPrintError(const absl::Status& status,
 //
 // Returns an error status if a module name cannot be extracted from the given
 // path.
-absl::StatusOr<std::string> PathToName(absl::string_view path);
+absl::StatusOr<std::string> PathToName(std::string_view path);
 
 }  // namespace xls::dslx
 

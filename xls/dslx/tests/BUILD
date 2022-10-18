@@ -60,6 +60,11 @@ dslx_lang_test(
     dslx_deps = [":constexpr_dslx"],
 )
 
+dslx_lang_test(
+    name = "builtin_type_max",
+    dslx_deps = [":number_of_imported_type_import_dslx"],
+)
+
 dslx_lang_test(name = "fallible_constexpr")
 
 dslx_lang_test(name = "comments")
@@ -378,7 +383,10 @@ dslx_lang_test(name = "struct_splat_update")
 
 dslx_lang_test(name = "struct_splat_update_to_const")
 
-dslx_lang_test(name = "empty_struct_splat_update")
+dslx_lang_test(
+    name = "empty_struct_splat_update",
+    warnings_as_errors = False,
+)
 
 dslx_lang_test(name = "basic_struct_array")
 

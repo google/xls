@@ -26,7 +26,7 @@
 namespace xls {
 namespace tools {
 
-absl::Status RealMain(absl::Span<const absl::string_view> args) {
+absl::Status RealMain(absl::Span<const std::string_view> args) {
   if (args.empty()) {
     // If no arguments are given, read from stdin.
     return Parser::ParsePackage(
@@ -34,7 +34,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> args) {
                            std::istreambuf_iterator<char>()})
         .status();
   }
-  for (absl::string_view arg : args) {
+  for (std::string_view arg : args) {
     XLS_ASSIGN_OR_RETURN(std::string contents, GetFileContents(arg));
     XLS_RETURN_IF_ERROR(Parser::ParsePackage(contents).status());
   }
@@ -45,7 +45,7 @@ absl::Status RealMain(absl::Span<const absl::string_view> args) {
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(argv[0], argc, argv);
   XLS_QCHECK_OK(xls::tools::RealMain(positional_arguments));
 }

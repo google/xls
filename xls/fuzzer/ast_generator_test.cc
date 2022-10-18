@@ -31,14 +31,14 @@ using ::testing::MatchesRegex;
 // Parses and typechecks the given text to ensure it's valid -- prints errors to
 // the screen in a useful way for debugging if they fail parsing / typechecking.
 template <typename ModuleMember>
-absl::Status ParseAndTypecheck(absl::string_view text,
-                               absl::string_view module_name) {
+absl::Status ParseAndTypecheck(std::string_view text,
+                               std::string_view module_name) {
   XLS_LOG_LINES(INFO, text);
 
   std::string filename = absl::StrCat(module_name, ".x");
 
   auto get_file_contents =
-      [&](absl::string_view path) -> absl::StatusOr<std::string> {
+      [&](std::string_view path) -> absl::StatusOr<std::string> {
     XLS_CHECK_EQ(path, filename);
     return std::string(text);
   };
@@ -54,6 +54,27 @@ absl::Status ParseAndTypecheck(absl::string_view text,
 }
 
 }  // namespace
+
+TEST(AstGeneratorTest, BitsTypeGetMetadata) {
+  std::mt19937 rng(0);
+  AstGeneratorOptions options;
+  AstGenerator g(options, &rng);
+  g.module_ = std::make_unique<Module>("test_module");
+
+  TypeAnnotation* u7 = g.MakeTypeAnnotation(false, 7);
+  XLS_LOG(INFO) << "u7: " << u7->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(int64_t bit_count, g.BitsTypeGetBitCount(u7));
+  XLS_ASSERT_OK_AND_ASSIGN(bool is_signed, g.BitsTypeIsSigned(u7));
+  EXPECT_EQ(bit_count, 7);
+  EXPECT_EQ(is_signed, false);
+
+  TypeAnnotation* s129 = g.MakeTypeAnnotation(true, 129);
+  XLS_LOG(INFO) << "s129: " << s129->ToString();
+  XLS_ASSERT_OK_AND_ASSIGN(bit_count, g.BitsTypeGetBitCount(s129));
+  XLS_ASSERT_OK_AND_ASSIGN(is_signed, g.BitsTypeIsSigned(s129));
+  EXPECT_EQ(bit_count, 129);
+  EXPECT_EQ(is_signed, true);
+}
 
 // Simply tests that we generate a bunch of valid functions using seed 0 (that
 // parse and typecheck).

@@ -51,7 +51,7 @@ std::string GetTimeoutMessage() {
 
 ModuleTestbench::ModuleTestbench(Module* module,
                                  const VerilogSimulator* simulator,
-                                 std::optional<absl::string_view> clk_name,
+                                 std::optional<std::string_view> clk_name,
                                  std::optional<ResetProto> reset,
                                  absl::Span<const VerilogInclude> includes)
     // Emit the entire file because the module may instantiate other modules.
@@ -79,7 +79,7 @@ ModuleTestbench::ModuleTestbench(Module* module,
   }
 }
 
-ModuleTestbench::ModuleTestbench(absl::string_view verilog_text,
+ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
                                  FileType file_type,
                                  const ModuleSignature& signature,
                                  const VerilogSimulator* simulator,
@@ -146,48 +146,48 @@ ModuleTestbench& ModuleTestbench::AdvanceNCycles(int64_t n_cycles) {
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::WaitFor(absl::string_view output_port) {
+ModuleTestbench& ModuleTestbench::WaitFor(std::string_view output_port) {
   XLS_CHECK_EQ(GetPortWidth(output_port), 1);
   actions_.push_back(WaitForOutput{std::string(output_port), UBits(1, 1)});
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::WaitForNot(absl::string_view output_port) {
+ModuleTestbench& ModuleTestbench::WaitForNot(std::string_view output_port) {
   XLS_CHECK_EQ(GetPortWidth(output_port), 1);
   actions_.push_back(WaitForOutput{std::string(output_port), UBits(0, 1)});
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::WaitForX(absl::string_view output_port) {
+ModuleTestbench& ModuleTestbench::WaitForX(std::string_view output_port) {
   actions_.push_back(WaitForOutput{std::string(output_port), IsX{}});
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::WaitForNotX(absl::string_view output_port) {
+ModuleTestbench& ModuleTestbench::WaitForNotX(std::string_view output_port) {
   actions_.push_back(WaitForOutput{std::string(output_port), IsNotX{}});
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::Set(absl::string_view input_port,
+ModuleTestbench& ModuleTestbench::Set(std::string_view input_port,
                                       const Bits& value) {
   CheckIsInput(input_port);
   actions_.push_back(SetInput{std::string(input_port), value});
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::Set(absl::string_view input_port,
+ModuleTestbench& ModuleTestbench::Set(std::string_view input_port,
                                       uint64_t value) {
   CheckIsInput(input_port);
   return Set(input_port, UBits(value, GetPortWidth(input_port)));
 }
 
-ModuleTestbench& ModuleTestbench::SetX(absl::string_view input_port) {
+ModuleTestbench& ModuleTestbench::SetX(std::string_view input_port) {
   CheckIsInput(input_port);
   actions_.push_back(SetInputX{std::string(input_port)});
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
+ModuleTestbench& ModuleTestbench::ExpectEq(std::string_view output_port,
                                            const Bits& expected,
                                            xabsl::SourceLocation loc) {
   CheckIsOutput(output_port);
@@ -199,14 +199,14 @@ ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::ExpectEq(absl::string_view output_port,
+ModuleTestbench& ModuleTestbench::ExpectEq(std::string_view output_port,
                                            uint64_t expected,
                                            xabsl::SourceLocation loc) {
   CheckIsOutput(output_port);
   return ExpectEq(output_port, UBits(expected, GetPortWidth(output_port)), loc);
 }
 
-ModuleTestbench& ModuleTestbench::ExpectX(absl::string_view output_port,
+ModuleTestbench& ModuleTestbench::ExpectX(std::string_view output_port,
                                           xabsl::SourceLocation loc) {
   CheckIsOutput(output_port);
   int64_t instance = next_instance_++;
@@ -217,12 +217,12 @@ ModuleTestbench& ModuleTestbench::ExpectX(absl::string_view output_port,
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::ExpectTrace(absl::string_view trace_message) {
+ModuleTestbench& ModuleTestbench::ExpectTrace(std::string_view trace_message) {
   expected_traces_.push_back(std::string(trace_message));
   return *this;
 }
 
-ModuleTestbench& ModuleTestbench::Capture(absl::string_view output_port,
+ModuleTestbench& ModuleTestbench::Capture(std::string_view output_port,
                                           Bits* value) {
   CheckIsOutput(output_port);
   if (GetPortWidth(output_port) > 0) {
@@ -234,7 +234,7 @@ ModuleTestbench& ModuleTestbench::Capture(absl::string_view output_port,
   return *this;
 }
 
-absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
+absl::Status ModuleTestbench::CheckOutput(std::string_view stdout_str) const {
   // Check for timeout.
   if (absl::StrContains(stdout_str, GetTimeoutMessage())) {
     return absl::DeadlineExceededError(
@@ -244,7 +244,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
 
   // Scan the simulator output and pick out the OUTPUT lines holding the value
   // of module output ports.
-  absl::flat_hash_map<InstancePort, absl::variant<Bits, IsX>> parsed_values;
+  absl::flat_hash_map<InstancePort, std::variant<Bits, IsX>> parsed_values;
 
   // Example output lines for a bits value:
   //
@@ -259,7 +259,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
   std::string output_width;
   std::string output_value;
   std::string instance_str;
-  absl::string_view piece(stdout_str);
+  std::string_view piece(stdout_str);
   while (RE2::FindAndConsume(&piece, re, &output_name, &output_width,
                              &output_value, &instance_str)) {
     XLS_VLOG(1) << absl::StreamFormat(
@@ -292,12 +292,12 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
           "Output %s, instance #%d not found in Verilog simulator output.",
           cycle_port.second, cycle_port.first));
     }
-    if (absl::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
+    if (std::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
       return absl::NotFoundError(absl::StrFormat(
           "Output %s, instance #%d holds X value in Verilog simulator output.",
           cycle_port.second, cycle_port.first));
     }
-    *value_ptr = absl::get<Bits>(parsed_values.at(cycle_port));
+    *value_ptr = std::get<Bits>(parsed_values.at(cycle_port));
   }
 
   // Check the module output port value against any expectations.
@@ -315,15 +315,15 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
           get_source_location(), cycle_port.second, cycle_port.first,
           ToString(expectation.loc)));
     }
-    if (absl::holds_alternative<Bits>(expectation.expected)) {
-      const Bits& expected_bits = absl::get<Bits>(expectation.expected);
-      if (absl::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
+    if (std::holds_alternative<Bits>(expectation.expected)) {
+      const Bits& expected_bits = std::get<Bits>(expectation.expected);
+      if (std::holds_alternative<IsX>(parsed_values.at(cycle_port))) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have value: %s, has X",
             get_source_location(), cycle_port.second, cycle_port.first,
             expected_bits.ToString()));
       }
-      const Bits& actual_bits = absl::get<Bits>(parsed_values.at(cycle_port));
+      const Bits& actual_bits = std::get<Bits>(parsed_values.at(cycle_port));
       if (actual_bits != expected_bits) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have value: %s, actual: "
@@ -332,13 +332,13 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
             expected_bits.ToString(), actual_bits.ToString()));
       }
     } else {
-      XLS_CHECK(absl::holds_alternative<IsX>(expectation.expected));
-      if (absl::holds_alternative<Bits>(parsed_values.at(cycle_port))) {
+      XLS_CHECK(std::holds_alternative<IsX>(expectation.expected));
+      if (std::holds_alternative<Bits>(parsed_values.at(cycle_port))) {
         return absl::FailedPreconditionError(absl::StrFormat(
             "%s: expected output '%s', instance #%d to have X value, has non X "
             "value: %s",
             get_source_location(), cycle_port.second, cycle_port.first,
-            absl::get<Bits>(parsed_values.at(cycle_port)).ToString()));
+            std::get<Bits>(parsed_values.at(cycle_port)).ToString()));
       }
     }
   }
@@ -347,7 +347,7 @@ absl::Status ModuleTestbench::CheckOutput(absl::string_view stdout_str) const {
   size_t search_pos = 0;
   for (const std::string& message : expected_traces_) {
     size_t found_pos = stdout_str.find(message, search_pos);
-    if (found_pos == absl::string_view::npos) {
+    if (found_pos == std::string_view::npos) {
       return absl::NotFoundError(absl::StrFormat(
           "Expected trace \"%s\" not found in Verilog simulator output.",
           message));
@@ -499,15 +499,15 @@ absl::Status ModuleTestbench::Run() {
               // TODO(meheff): If we switch to SystemVerilog this is better
               // handled using a clocking block.
               Expression* cmp;
-              if (absl::holds_alternative<Bits>(w.value)) {
+              if (std::holds_alternative<Bits>(w.value)) {
                 cmp = file.NotEquals(
                     port_refs.at(w.port),
-                    file.Literal(absl::get<Bits>(w.value), SourceInfo()),
+                    file.Literal(std::get<Bits>(w.value), SourceInfo()),
                     SourceInfo());
-              } else if (absl::holds_alternative<IsX>(w.value)) {
+              } else if (std::holds_alternative<IsX>(w.value)) {
                 cmp = file.NotEqualsX(port_refs.at(w.port), SourceInfo());
               } else {
-                XLS_CHECK(absl::holds_alternative<IsNotX>(w.value));
+                XLS_CHECK(std::holds_alternative<IsNotX>(w.value));
                 cmp = file.EqualsX(port_refs.at(w.port), SourceInfo());
               }
               auto whle =
@@ -554,7 +554,7 @@ absl::Status ModuleTestbench::Run() {
   return CheckOutput(stdout_str);
 }
 
-int64_t ModuleTestbench::GetPortWidth(absl::string_view port) {
+int64_t ModuleTestbench::GetPortWidth(std::string_view port) {
   if (input_port_widths_.contains(port)) {
     return input_port_widths_.at(port);
   } else {
@@ -562,12 +562,12 @@ int64_t ModuleTestbench::GetPortWidth(absl::string_view port) {
   }
 }
 
-void ModuleTestbench::CheckIsInput(absl::string_view name) {
+void ModuleTestbench::CheckIsInput(std::string_view name) {
   XLS_CHECK(input_port_widths_.contains(name)) << absl::StrFormat(
       "'%s' is not an input port of module '%s'", name, module_name_);
 }
 
-void ModuleTestbench::CheckIsOutput(absl::string_view name) {
+void ModuleTestbench::CheckIsOutput(std::string_view name) {
   XLS_CHECK(output_port_widths_.contains(name)) << absl::StrFormat(
       "'%s' is not an output port of module '%s'", name, module_name_);
 }

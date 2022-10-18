@@ -21,6 +21,7 @@ nav:
       - Channels: 'tutorials/xlscc_channels.md'
       - State: 'tutorials/xlscc_state.md'
   - IR:
+    - Overview: 'ir_overview.md'
     - Semantics: 'ir_semantics.md'
     - Optimizations: 'optimizations.md'
     - Scheduling:

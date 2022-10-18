@@ -20,138 +20,110 @@
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/ir/format_preference.h"
 #include "xls/ir/proc.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
-#include "xls/ir/value_helpers.h"
 #include "xls/jit/jit_runtime.h"
 
 namespace xls {
 
-absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
-    Proc* proc, JitChannelQueueManager* queue_mgr, RecvFnT recv_fn,
-    SendFnT send_fn, int64_t opt_level) {
-  auto jit = absl::WrapUnique(new ProcJit(proc));
-  XLS_ASSIGN_OR_RETURN(jit->orc_jit_,
-                       OrcJit::Create(opt_level, /*emit_object_code=*/false));
-  jit->ir_runtime_ = std::make_unique<JitRuntime>(
-      jit->orc_jit_->GetDataLayout(), &jit->orc_jit_->GetTypeConverter());
-  XLS_ASSIGN_OR_RETURN(
-      jit->jitted_function_base_,
-      BuildProcFunction(proc, queue_mgr, recv_fn, send_fn, jit->GetOrcJit()));
-
+ProcJitContinuation::ProcJitContinuation(Proc* proc, int64_t temp_buffer_size,
+                                         JitRuntime* jit_runtime)
+    : proc_(proc), continuation_point_(0), jit_runtime_(jit_runtime) {
   // Pre-allocate input, output, and temporary buffers.
-  for (const Param* param : proc->params()) {
-    jit->input_buffers_.push_back(std::vector<uint8_t>(
-        jit->orc_jit_->GetTypeConverter().GetTypeByteSize(param->GetType())));
-    jit->output_buffers_.push_back(std::vector<uint8_t>(
-        jit->orc_jit_->GetTypeConverter().GetTypeByteSize(param->GetType())));
-
-    jit->input_ptrs_.push_back(jit->input_buffers_.back().data());
-    jit->output_ptrs_.push_back(jit->output_buffers_.back().data());
+  for (Param* param : proc->params()) {
+    int64_t param_size = jit_runtime_->GetTypeByteSize(param->GetType());
+    input_buffers_.push_back(std::vector<uint8_t>(param_size));
+    output_buffers_.push_back(std::vector<uint8_t>(param_size));
+    input_ptrs_.push_back(input_buffers_.back().data());
+    output_ptrs_.push_back(output_buffers_.back().data());
   }
-  jit->temp_buffer_.resize(jit->jitted_function_base_.temp_buffer_size);
 
+  // Write initial state value to the input_buffer.
+  for (Param* state_param : proc->StateParams()) {
+    int64_t param_index = proc->GetParamIndex(state_param).value();
+    int64_t state_index = proc->GetStateParamIndex(state_param).value();
+    jit_runtime->BlitValueToBuffer(proc->GetInitValueElement(state_index),
+                                   state_param->GetType(),
+                                   absl::MakeSpan(input_buffers_[param_index]));
+  }
+
+  temp_buffer_.resize(temp_buffer_size);
+}
+
+std::vector<Value> ProcJitContinuation::GetState() const {
+  std::vector<Value> state;
+  for (Param* state_param : proc()->StateParams()) {
+    int64_t param_index = proc()->GetParamIndex(state_param).value();
+    state.push_back(jit_runtime_->UnpackBuffer(input_ptrs_[param_index],
+                                               state_param->GetType(),
+                                               /*unpoison=*/true));
+  }
+  return state;
+}
+
+void ProcJitContinuation::NextTick() {
+  continuation_point_ = 0;
+  {
+    using std::swap;
+    swap(input_buffers_, output_buffers_);
+    swap(input_ptrs_, output_ptrs_);
+  }
+}
+
+absl::StatusOr<std::unique_ptr<ProcJit>> ProcJit::Create(
+    Proc* proc, JitRuntime* jit_runtime, JitChannelQueueManager* queue_mgr) {
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<OrcJit> orc_jit, OrcJit::Create());
+  auto jit =
+      absl::WrapUnique(new ProcJit(proc, jit_runtime, std::move(orc_jit)));
+  XLS_ASSIGN_OR_RETURN(jit->jitted_function_base_,
+                       BuildProcFunction(proc, queue_mgr, jit->GetOrcJit()));
   return jit;
 }
 
-absl::StatusOr<std::vector<std::vector<uint8_t>>> ProcJit::ConvertStateToView(
-    absl::Span<const Value> state_value, bool initialize_with_value) {
-  std::vector<std::vector<uint8_t>> state_buffers;
-
-  for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
-    Type* state_type = proc_->GetStateElementType(i);
-
-    if (!ValueConformsToType(state_value[i], state_type)) {
-      return absl::InvalidArgumentError(absl::StrFormat(
-          "Expected state argument %s (%d) to be of type %s, is: %s",
-          proc_->GetStateParam(i)->GetName(), i, state_type->ToString(),
-          state_value[i].ToString()));
-    }
-
-    state_buffers.push_back(std::vector<uint8_t>(
-        orc_jit_->GetTypeConverter().GetTypeByteSize(state_type)));
-
-    if (initialize_with_value) {
-      ir_runtime_->BlitValueToBuffer(state_value[i], state_type,
-                                     absl::MakeSpan(state_buffers.back()));
-    }
-  }
-
-  return state_buffers;
+std::unique_ptr<ProcContinuation> ProcJit::NewContinuation() const {
+  return std::make_unique<ProcJitContinuation>(
+      proc(), jitted_function_base_.temp_buffer_size, jit_runtime_);
 }
 
-std::vector<Value> ProcJit::ConvertStateViewToValue(
-    absl::Span<uint8_t const* const> state_buffers) {
-  std::vector<Value> state_values;
-  for (int64_t i = 0; i < proc()->GetStateElementCount(); ++i) {
-    Type* state_type = proc_->GetStateElementType(i);
-    state_values.push_back(
-        ir_runtime_->UnpackBuffer(state_buffers[i], state_type));
-  }
-
-  return state_values;
-}
-
-absl::Status ProcJit::RunWithViews(absl::Span<const uint8_t* const> state,
-                                   absl::Span<uint8_t* const> next_state,
-                                   void* user_data) {
+absl::StatusOr<TickResult> ProcJit::Tick(ProcContinuation& continuation) const {
+  ProcJitContinuation* cont = dynamic_cast<ProcJitContinuation*>(&continuation);
+  XLS_RET_CHECK_NE(cont, nullptr)
+      << "ProcJit requires a continuation of type ProcJitContinuation";
   InterpreterEvents events;
 
-  // The JITed function requires an input (and output)for each parameter,
-  // including the token. Only the state parameter values are passed in so
-  // create a new input (and output) buffer array with a dummy token value at
-  // the beginning.
-  std::vector<const uint8_t*> inputs;
-  inputs.push_back(nullptr);
-  inputs.insert(inputs.end(), state.begin(), state.end());
+  int64_t start_continuation_point = cont->GetContinuationPoint();
+  int64_t next_continuation_point = jitted_function_base_.function(
+      cont->GetInputBuffers().data(), cont->GetOutputBuffers().data(),
+      cont->GetTempBuffer().data(), &cont->GetEvents(),
+      /*user_data=*/nullptr, runtime(), cont->GetContinuationPoint());
 
-  std::vector<uint8_t*> outputs;
-  outputs.push_back(nullptr);
-  outputs.insert(outputs.end(), next_state.begin(), next_state.end());
-
-  jitted_function_base_.function(inputs.data(), outputs.data(),
-                                 temp_buffer_.data(), &events, user_data,
-                                 runtime());
-
-  return absl::OkStatus();
-}
-
-absl::StatusOr<InterpreterResult<std::vector<Value>>> ProcJit::Run(
-    absl::Span<const Value> state, void* user_data) {
-  int64_t state_element_count = proc()->GetStateElementCount();
-  if (state.size() != state_element_count) {
-    return absl::InvalidArgumentError(absl::StrFormat(
-        "Arg list to '%s' has the wrong size: %d vs expected %d.",
-        proc_->name(), state.size(), state_element_count));
+  std::optional<Channel*> blocked_channel;
+  if (next_continuation_point == 0) {
+    // The proc successfully completed its tick.
+    cont->NextTick();
+  } else {
+    // The proc is blocked. Determine which node (and associated channel) the
+    // node is blocked on.
+    cont->SetContinuationPoint(next_continuation_point);
+    XLS_RET_CHECK(jitted_function_base_.continuation_points.contains(
+        next_continuation_point));
+    Node* blocked_node =
+        jitted_function_base_.continuation_points.at(next_continuation_point);
+    XLS_RET_CHECK(blocked_node->Is<Receive>());
+    XLS_ASSIGN_OR_RETURN(blocked_channel,
+                         proc()->package()->GetChannel(
+                             blocked_node->As<Receive>()->channel_id()));
   }
-
-  std::vector<Type*> param_types;
-  for (const Param* param : proc_->params()) {
-    param_types.push_back(param->GetType());
-  }
-
-  std::vector<Value> args;
-  args.push_back(Value::Token());
-  args.insert(args.end(), state.begin(), state.end());
-  XLS_RETURN_IF_ERROR(
-      ir_runtime_->PackArgs(args, param_types, absl::MakeSpan(input_ptrs_)));
-
-  InterpreterEvents events;
-
-  jitted_function_base_.function(input_ptrs_.data(), output_ptrs_.data(),
-                                 temp_buffer_.data(), &events, user_data,
-                                 runtime());
-
-  std::vector<Value> next_state;
-  for (int64_t i = 0; i < proc_->GetStateElementCount(); ++i) {
-    Value result = ir_runtime_->UnpackBuffer(output_ptrs_[i + 1],
-                                             proc_->GetStateElementType(i));
-    next_state.push_back(result);
-  }
-  return InterpreterResult<std::vector<Value>>{std::move(next_state),
-                                               std::move(events)};
+  return TickResult{
+      .tick_complete = next_continuation_point == 0,
+      .progress_made = next_continuation_point == 0 ||
+                       next_continuation_point != start_continuation_point,
+      .blocked_channel = blocked_channel,
+      // TODO(meheff): 2022/09/23 Add the channels the proc sent on here, or
+      // alternatively devise a different mechanism for determining which procs
+      // to wake up.
+      .sent_channels = {}};
 }
 
 }  // namespace xls

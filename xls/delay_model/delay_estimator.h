@@ -28,7 +28,7 @@ namespace xls {
 // Abstraction describing a timing model for XLS operations.
 class DelayEstimator {
  public:
-  DelayEstimator(absl::string_view name) : name_(name) {}
+  DelayEstimator(std::string_view name) : name_(name) {}
   virtual ~DelayEstimator() = default;
 
   const std::string& name() const { return name_; }
@@ -46,6 +46,22 @@ class DelayEstimator {
   std::string name_;
 };
 
+// Decorates an underlying delay estimator with an overriding modifier function.
+class DecoratingDelayEstimator : public DelayEstimator {
+ public:
+  DecoratingDelayEstimator(std::string_view name,
+                           const DelayEstimator& decorated,
+                           std::function<int64_t(Node*, int64_t)> modifier);
+
+  ~DecoratingDelayEstimator() override = default;
+
+  absl::StatusOr<int64_t> GetOperationDelayInPs(Node* node) const;
+
+ private:
+  const DelayEstimator& decorated_;
+  std::function<int64_t(Node*, int64_t)> modifier_;
+};
+
 enum class DelayEstimatorPrecedence {
   kLow = 1,
   kMedium = 2,
@@ -58,7 +74,7 @@ class DelayEstimatorManager {
   // Returns the delay estimator with the given name, or returns an error if no
   // such estimator exists.
   absl::StatusOr<DelayEstimator*> GetDelayEstimator(
-      absl::string_view name) const;
+      std::string_view name) const;
 
   absl::StatusOr<DelayEstimator*> GetDefaultDelayEstimator() const;
 

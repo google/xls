@@ -20,7 +20,7 @@
 namespace xls::dslx {
 
 /* static */ absl::StatusOr<ImportTokens> ImportTokens::FromString(
-    absl::string_view module_name) {
+    std::string_view module_name) {
   return ImportTokens(absl::StrSplit(module_name, '.'));
 }
 

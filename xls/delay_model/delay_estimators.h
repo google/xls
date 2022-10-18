@@ -26,7 +26,7 @@
 namespace xls {
 
 // Returns the registered delay estimator with the given name.
-absl::StatusOr<DelayEstimator*> GetDelayEstimator(absl::string_view name);
+absl::StatusOr<DelayEstimator*> GetDelayEstimator(std::string_view name);
 
 // Returns a reference to a singleton object which uses the "standard" delay
 // estimation model.

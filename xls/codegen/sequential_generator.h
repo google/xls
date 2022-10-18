@@ -49,7 +49,7 @@ class SequentialOptions {
 
   // Name to use for the generated module. If not given, the name is derived
   // from the CountedFor node.
-  SequentialOptions& module_name(absl::string_view name) {
+  SequentialOptions& module_name(std::string_view name) {
     module_name_ = name;
     return *this;
   }
@@ -177,7 +177,7 @@ class SequentialModuleBuilder {
   absl::Status AddSequentialLogic();
 
   // Declares and assigns a wire, returning a logical reference to the wire.
-  LogicRef* DeclareVariableAndAssign(absl::string_view name, Expression* rhs,
+  LogicRef* DeclareVariableAndAssign(std::string_view name, Expression* rhs,
                                      int64_t bit_count) {
     LogicRef* wire = module_builder_->DeclareVariable(name, bit_count);
     AddContinuousAssignment(wire, rhs);

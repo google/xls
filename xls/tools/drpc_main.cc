@@ -37,7 +37,7 @@ namespace xls {
 namespace tools {
 namespace {
 
-void RealMain(absl::Span<const absl::string_view> args) {
+void RealMain(absl::Span<const std::string_view> args) {
   std::string target_device = absl::GetFlag(FLAGS_target_device);
   XLS_QCHECK(!target_device.empty()) << "Must provide -target_device";
 
@@ -52,7 +52,7 @@ void RealMain(absl::Span<const absl::string_view> args) {
 
   std::vector<Value> arguments;
   for (int64_t i = 0; i < args.size(); ++i) {
-    absl::string_view s = args[i];
+    std::string_view s = args[i];
     absl::StatusOr<Value> argument =
         Parser::ParseValue(s, function_type->parameter_type(i));
     XLS_QCHECK_OK(argument.status());
@@ -78,7 +78,7 @@ void RealMain(absl::Span<const absl::string_view> args) {
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(argv[0], argc, argv);
   xls::tools::RealMain(positional_arguments);
 }

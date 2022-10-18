@@ -45,7 +45,7 @@ class StandardPipelineTest : public IrTestBase {
 
   absl::StatusOr<bool> Run(Package* p) { return RunStandardPassPipeline(p); }
 
-  void TestAssociativeWithConstants(absl::string_view xls_op, Op op,
+  void TestAssociativeWithConstants(std::string_view xls_op, Op op,
                                     int64_t value) {
     auto p = CreatePackage();
     std::string xls_func = absl::StrFormat(R"(
@@ -65,8 +65,8 @@ class StandardPipelineTest : public IrTestBase {
               UBits(value, 8));
   }
 
-  void TestAddSubWithConstants(absl::string_view xls_op1, Op op1,
-                               absl::string_view xls_op2, int8_t value) {
+  void TestAddSubWithConstants(std::string_view xls_op1, Op op1,
+                               std::string_view xls_op2, int8_t value) {
     auto p = CreatePackage();
     std::string xls_func = absl::StrFormat(R"(
      fn addsub(x:bits[8]) -> bits[8] {

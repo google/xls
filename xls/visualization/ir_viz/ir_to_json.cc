@@ -227,7 +227,7 @@ absl::StatusOr<viz::FunctionBase> FunctionBaseToVisualizationProto(
 absl::StatusOr<std::string> IrToJson(
     Package* package, const DelayEstimator& delay_estimator,
     const PipelineSchedule* schedule,
-    std::optional<absl::string_view> entry_name) {
+    std::optional<std::string_view> entry_name) {
   viz::Package proto;
 
   absl::flat_hash_map<FunctionBase*, std::string> function_ids =
@@ -274,7 +274,7 @@ absl::StatusOr<std::string> IrToJson(
 // Wraps the given text in a span with the given id, classes, and data. The
 // string `str` is modified in place.
 static absl::Status WrapTextInSpan(
-    absl::string_view text, std::optional<std::string> dom_id,
+    std::string_view text, std::optional<std::string> dom_id,
     absl::Span<const std::string> classes,
     absl::Span<const std::pair<std::string, std::string>> data,
     std::string* str) {
@@ -360,8 +360,8 @@ static absl::Status WrapNextNodeInSpan(
 
 // Wraps the name of the given function in `str` with an appropriate function
 // identifier span.
-static absl::Status WrapFunctionNameInSpan(absl::string_view function_name,
-                                           absl::string_view function_id,
+static absl::Status WrapFunctionNameInSpan(std::string_view function_name,
+                                           std::string_view function_id,
                                            std::optional<std::string> dom_id,
                                            std::string* str) {
   return WrapTextInSpan(function_name,
@@ -377,7 +377,7 @@ absl::StatusOr<std::string> MarkUpIrText(Package* package) {
 
   std::vector<std::string> lines;
   FunctionBase* current_function = nullptr;
-  for (absl::string_view line_view : absl::StrSplit(package->DumpIr(), '\n')) {
+  for (std::string_view line_view : absl::StrSplit(package->DumpIr(), '\n')) {
     std::string line{line_view};
 
     // Match function/proc/block signature. Put spans around function name and

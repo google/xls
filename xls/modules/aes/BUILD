@@ -87,7 +87,6 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:ir_parser",
-        "//xls/ir:value",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:proc_jit",
         "@boringssl//:crypto",
@@ -269,4 +268,21 @@ xls_benchmark_ir(
 xls_benchmark_ir(
     name = "aes_ghash_benchmark_ir",
     src = ":aes_ghash.ir",
+)
+
+cc_binary(
+    name = "sample_generator",
+    srcs = ["sample_generator.cc"],
+    deps = [
+        ":aes_test_common",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/random",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common:init_xls",
+        "//xls/common/logging",
+        "//xls/common/status:status_macros",
+        "@boringssl//:crypto",
+    ],
 )

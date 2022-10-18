@@ -294,7 +294,7 @@ TEST_P(IrEvaluatorTestBase, InterpretNaryNand) {
 
 absl::Status RunZeroExtendTest(const IrEvaluatorTestParam& param,
                                int64_t input_size, int64_t output_size) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn zero_extend() -> bits[$0] {
@@ -322,7 +322,7 @@ TEST_P(IrEvaluatorTestBase, InterpretZeroExtend) {
 
 absl::Status RunSignExtendTest(const IrEvaluatorTestParam& param,
                                const Bits& input, int new_bit_count) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn concatenate() -> bits[$0] {
@@ -684,7 +684,7 @@ TEST_P(IrEvaluatorTestBase, MixedWidthMultiplicationExtraWideResult) {
 TEST_P(IrEvaluatorTestBase, MixedWidthMultiplicationExhaustive) {
   // Exhaustively check all bit width and value combinations of a mixed-width
   // unsigned multiply up to a small constant bit width.
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   fn mixed_mul(x: bits[$0], y: bits[$1]) -> bits[$2] {
     ret umul.1: bits[$2] = umul(x, y)
   }
@@ -749,7 +749,7 @@ TEST_P(IrEvaluatorTestBase, MixedWidthSignedMultiplication) {
 TEST_P(IrEvaluatorTestBase, MixedWidthSignedMultiplicationExhaustive) {
   // Exhaustively check all bit width and value combinations of a mixed-width
   // unsigned multiply up to a small constant bit width.
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   fn mixed_mul(x: bits[$0], y: bits[$1]) -> bits[$2] {
     ret smul.1: bits[$2] = smul(x, y)
   }
@@ -864,7 +864,7 @@ TEST_P(IrEvaluatorTestBase, SMulpMixedWidthExtraWideResult) {
 TEST_P(IrEvaluatorTestBase, SMulpMixedWidthExhaustive) {
   // Exhaustively check all bit width and value combinations of a mixed-width
   // signed partial multiply up to a small constant bit width.
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   fn simple_smulp(x: bits[$0], y: bits[$1]) -> bits[$2] {
     smulp.1: (bits[$2], bits[$2]) = smulp(x, y)
     tuple_index.2: bits[$2] = tuple_index(smulp.1, index=0)
@@ -971,7 +971,7 @@ TEST_P(IrEvaluatorTestBase, UMulpMixedWidthExtraWideResult) {
 TEST_P(IrEvaluatorTestBase, UMulpMixedWidthExhaustive) {
   // Exhaustively check all bit width and value combinations of a mixed-width
   // unsigned partial multiply up to a small constant bit width.
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   fn simple_umulp(x: bits[$0], y: bits[$1]) -> bits[$2] {
     umulp.1: (bits[$2], bits[$2]) = umulp(x, y)
     tuple_index.2: bits[$2] = tuple_index(umulp.1, index=0)
@@ -1366,7 +1366,7 @@ TEST_P(IrEvaluatorTestBase, InterpretFourSubOne) {
 
 absl::Status RunConcatTest(const IrEvaluatorTestParam& param,
                            const ArgMap& kwargs) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn concatenate(a: bits[$0], b: bits[$1]) -> bits[$2] {
@@ -1590,6 +1590,38 @@ TEST_P(IrEvaluatorTestBase, InterpretOneHotSelectArray) {
   EXPECT_THAT(RunWithKwargsNoEvents(function, args),
               IsOkAndHolds(
                   AsValue("[bits[4]:0b1101, bits[4]:0b0111, bits[4]:0b1110]")));
+}
+
+TEST_P(IrEvaluatorTestBase, InterpretOneHotSelect2DArray) {
+  Package package("my_package");
+  XLS_ASSERT_OK_AND_ASSIGN(Function * function,
+                           ParseAndGetFunction(&package, R"(
+  fn one_hot(p: bits[2], x: bits[4][2][2], y: bits[4][2][2]) -> bits[4][2][2] {
+    ret one_hot_sel.1: bits[4][2][2] = one_hot_sel(p, cases=[x, y])
+  }
+  )"));
+  absl::flat_hash_map<std::string, Value> args = {
+      {"x",
+       Value::UBits2DArray({{0b1100, 0b1010}, {0b0001, 0b0010}}, 4).value()},
+      {"y",
+       Value::UBits2DArray({{0b1000, 0b0100}, {0b1001, 0b0100}}, 4).value()}};
+
+  args["p"] = AsValue("bits[2]: 0b00");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[[bits[4]:0, bits[4]:0], [bits[4]:0, bits[4]:0]]")));
+  args["p"] = AsValue("bits[2]: 0b01");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue(
+                  "[[bits[4]:12, bits[4]:10], [bits[4]:1, bits[4]:2]]")));
+  args["p"] = AsValue("bits[2]: 0b10");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(
+                  AsValue("[[bits[4]:8, bits[4]:4], [bits[4]:9, bits[4]:4]]")));
+  args["p"] = AsValue("bits[2]: 0b11");
+  EXPECT_THAT(RunWithKwargsNoEvents(function, args),
+              IsOkAndHolds(AsValue(
+                  "[[bits[4]:12, bits[4]:14], [bits[4]:9, bits[4]:6]]")));
 }
 
 TEST_P(IrEvaluatorTestBase, InterpretPrioritySelect) {
@@ -1867,7 +1899,7 @@ TEST_P(IrEvaluatorTestBase, InterpretTwoLevelInvoke) {
 
 absl::Status RunReverseTest(const IrEvaluatorTestParam& param,
                             const Bits& bits) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn main(x: bits[$0]) -> bits[$0] {
@@ -2972,7 +3004,7 @@ TEST_P(IrEvaluatorTestBase, RunMismatchedType) {
 absl::Status RunBitSliceTest(const IrEvaluatorTestParam& param,
                              int64_t literal_width, int64_t slice_start,
                              int64_t slice_width) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn main() -> bits[$0] {
@@ -3014,7 +3046,7 @@ TEST_P(IrEvaluatorTestBase, BitSlice) {
 absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
                                     int64_t literal_width, int64_t slice_start,
                                     int64_t start_width, int64_t slice_width) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn main() -> bits[$0] {
@@ -3060,7 +3092,7 @@ absl::Status RunDynamicBitSliceTest(const IrEvaluatorTestParam& param,
 absl::Status RunDynamicBitSliceTestLargeStart(const IrEvaluatorTestParam& param,
                                               int64_t literal_width,
                                               int64_t slice_width) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn main() -> bits[$0] {
@@ -3134,7 +3166,7 @@ TEST_P(IrEvaluatorTestBase, FunnyShapedArrays) {
 absl::Status RunBitwiseReduceTest(
     const IrEvaluatorTestParam& param, const std::string& reduce_op,
     std::function<Value(const Bits&)> generate_expected, const Bits& bits) {
-  constexpr absl::string_view ir_text = R"(
+  constexpr std::string_view ir_text = R"(
   package test
 
   top fn main(x: bits[$1]) -> bits[1] {

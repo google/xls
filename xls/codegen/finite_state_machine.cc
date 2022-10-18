@@ -142,14 +142,14 @@ bool ConditionalFsmBlock::HasAssignmentToOutput(const FsmOutput& output) const {
           final_alternate_->HasAssignmentToOutput(output));
 }
 
-LogicRef* FsmBuilder::AddRegDef(absl::string_view name, DataType* data_type,
+LogicRef* FsmBuilder::AddRegDef(std::string_view name, DataType* data_type,
                                 Expression* init) {
   defs_.push_back(
       module_->file()->Make<RegDef>(SourceInfo(), name, data_type, init));
   return module_->file()->Make<LogicRef>(SourceInfo(), defs_.back());
 }
 
-FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64_t width) {
+FsmCounter* FsmBuilder::AddDownCounter(std::string_view name, int64_t width) {
   LogicRef* ref = AddRegDef(name, file_->BitVectorType(width, SourceInfo()));
   LogicRef* ref_next = AddRegDef(absl::StrCat(name, "_next"),
                                  file_->BitVectorType(width, SourceInfo()));
@@ -157,7 +157,7 @@ FsmCounter* FsmBuilder::AddDownCounter(absl::string_view name, int64_t width) {
   return &counters_.back();
 }
 
-FsmOutput* FsmBuilder::AddOutputAsExpression(absl::string_view name,
+FsmOutput* FsmBuilder::AddOutputAsExpression(std::string_view name,
                                              DataType* data_type,
                                              Expression* default_value) {
   LogicRef* logic_ref = AddRegDef(name, data_type, default_value);
@@ -171,7 +171,7 @@ FsmOutput* FsmBuilder::AddExistingOutput(LogicRef* logic_ref,
   return &outputs_.back();
 }
 
-FsmRegister* FsmBuilder::AddRegister(absl::string_view name,
+FsmRegister* FsmBuilder::AddRegister(std::string_view name,
                                      DataType* data_type,
                                      Expression* reset_value) {
   // A reset value can only be specified if the FSM has a reset signal.
@@ -182,7 +182,7 @@ FsmRegister* FsmBuilder::AddRegister(absl::string_view name,
   return &registers_.back();
 }
 
-FsmRegister* FsmBuilder::AddRegister(absl::string_view name, int64_t width,
+FsmRegister* FsmBuilder::AddRegister(std::string_view name, int64_t width,
                                      std::optional<int64_t> reset_value) {
   Expression* reset_expr =
       reset_value.has_value()
@@ -199,7 +199,7 @@ FsmRegister* FsmBuilder::AddExistingRegister(LogicRef* reg) {
   return &registers_.back();
 }
 
-FsmState* FsmBuilder::AddState(absl::string_view name) {
+FsmState* FsmBuilder::AddState(std::string_view name) {
   if (state_local_param_ == nullptr) {
     state_local_param_ = file_->Make<LocalParam>(SourceInfo());
   }

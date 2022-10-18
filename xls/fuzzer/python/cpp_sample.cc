@@ -29,6 +29,10 @@ namespace py = pybind11;
 namespace xls::dslx {
 
 PYBIND11_MODULE(cpp_sample, m) {
+  py::enum_<TopType>(m, "TopType")
+      .value("function", TopType::kFunction)
+      .value("proc", TopType::kProc);
+
   py::class_<SampleOptions>(m, "SampleOptions")
       .def(
           py::init([](std::optional<bool> input_is_dslx,
@@ -41,7 +45,9 @@ PYBIND11_MODULE(cpp_sample, m) {
                       std::optional<std::string> simulator,
                       std::optional<bool> use_system_verilog,
                       std::optional<int64_t> timeout_seconds,
-                      std::optional<int64_t> calls_per_sample) {
+                      std::optional<int64_t> calls_per_sample,
+                      std::optional<int64_t> proc_ticks,
+                      std::optional<TopType> top_type) {
             std::map<std::string, json11::Json> json;
             if (input_is_dslx) {
               json["input_is_dslx"] = *input_is_dslx;
@@ -79,6 +85,12 @@ PYBIND11_MODULE(cpp_sample, m) {
             if (calls_per_sample) {
               json["calls_per_sample"] = static_cast<int>(*calls_per_sample);
             }
+            if (proc_ticks) {
+              json["proc_ticks"] = static_cast<int>(*proc_ticks);
+            }
+            if (top_type) {
+              json["top_type"] = static_cast<int>(*top_type);
+            }
             return SampleOptions::FromJson(json11::Json(json).dump()).value();
           }),
           py::arg("input_is_dslx") = absl::nullopt,
@@ -92,7 +104,9 @@ PYBIND11_MODULE(cpp_sample, m) {
           py::arg("simulator") = absl::nullopt,
           py::arg("use_system_verilog") = absl::nullopt,
           py::arg("timeout_seconds") = absl::nullopt,
-          py::arg("calls_per_sample") = absl::nullopt)
+          py::arg("calls_per_sample") = absl::nullopt,
+          py::arg("proc_ticks") = absl::nullopt,
+          py::arg("top_type") = absl::nullopt)
       .def("__eq__", &SampleOptions::operator==)
       .def("__ne__", &SampleOptions::operator!=)
       .def_static("from_json", &SampleOptions::FromJson)
@@ -112,6 +126,8 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_property_readonly("timeout_seconds", &SampleOptions::timeout_seconds)
       .def_property_readonly("calls_per_sample",
                              &SampleOptions::calls_per_sample)
+      .def_property_readonly("proc_ticks", &SampleOptions::proc_ticks)
+      .def_property_readonly("top_type", &SampleOptions::top_type)
       .def(
           "replace",
           [](const SampleOptions& self, std::optional<bool> input_is_dslx,
@@ -138,19 +154,23 @@ PYBIND11_MODULE(cpp_sample, m) {
           }));
 
   py::class_<Sample>(m, "Sample")
-      .def(py::init(
-               [](std::string input_text, SampleOptions options,
-                  std::optional<std::vector<std::vector<dslx::InterpValue>>>
-                      args_batch) {
-                 std::vector<std::vector<dslx::InterpValue>> args_batch_vec;
-                 if (args_batch.has_value()) {
-                   args_batch_vec = std::move(*args_batch);
-                 }
-                 return Sample(std::move(input_text), std::move(options),
-                               std::move(args_batch_vec));
-               }),
-           py::arg("input_text"), py::arg("options"),
-           py::arg("args_batch") = absl::nullopt)
+      .def(
+          py::init([](std::string input_text, SampleOptions options,
+                      std::optional<std::vector<std::vector<dslx::InterpValue>>>
+                          args_batch,
+                      std::optional<std::vector<dslx::InterpValue>>
+                          proc_initial_values) {
+            std::vector<std::vector<dslx::InterpValue>> args_batch_vec;
+            if (args_batch.has_value()) {
+              args_batch_vec = std::move(*args_batch);
+            }
+            return Sample(std::move(input_text), std::move(options),
+                          std::move(args_batch_vec),
+                          std::move(proc_initial_values));
+          }),
+          py::arg("input_text"), py::arg("options"),
+          py::arg("args_batch") = absl::nullopt,
+          py::arg("proc_initial_values") = absl::nullopt)
       .def(py::pickle(
           [](const Sample& self) { return py::make_tuple(self.Serialize()); },
           [](const py::tuple& t) {
@@ -161,7 +181,7 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def("__ne__", &Sample::operator!=)
       .def(
           "to_crasher",
-          [](const Sample& self, absl::string_view error_message) {
+          [](const Sample& self, std::string_view error_message) {
             return self.ToCrasher(error_message);
           },
           py::arg("error_message") = absl::nullopt)
@@ -169,10 +189,11 @@ PYBIND11_MODULE(cpp_sample, m) {
       .def_static("deserialize", &Sample::Deserialize)
       .def_property_readonly("options", &Sample::options)
       .def_property_readonly("input_text", &Sample::input_text)
-      .def_property_readonly("args_batch", &Sample::args_batch);
+      .def_property_readonly("args_batch", &Sample::args_batch)
+      .def_property_readonly("proc_init_values", &Sample::proc_initial_values);
 
   m.def("parse_args",
-        [](absl::string_view args_text) -> absl::StatusOr<py::tuple> {
+        [](std::string_view args_text) -> absl::StatusOr<py::tuple> {
           XLS_ASSIGN_OR_RETURN(std::vector<dslx::InterpValue> args,
                                ParseArgs(args_text));
           py::tuple t(args.size());
@@ -183,6 +204,8 @@ PYBIND11_MODULE(cpp_sample, m) {
         });
   m.def("parse_args_batch", &ParseArgsBatch);
   m.def("args_batch_to_text", &ArgsBatchToText);
+  m.def("parse_proc_init_values", &ParseArgs);
+  m.def("proc_init_values_to_text", &ProcInitValuesToText);
 }
 
 }  // namespace xls::dslx

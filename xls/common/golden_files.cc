@@ -28,7 +28,7 @@ ABSL_FLAG(std::string, xls_source_dir, "",
 namespace xls {
 
 void ExpectEqualToGoldenFile(const std::filesystem::path& golden_file_path,
-                             absl::string_view text,
+                             std::string_view text,
                              xabsl::SourceLocation loc) {
   XLS_VLOG(1) << "Reading golden Verilog from: " << golden_file_path;
   if (absl::GetFlag(FLAGS_test_update_golden_files)) {

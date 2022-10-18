@@ -61,7 +61,7 @@ absl::Status RealMain(const std::filesystem::path& ir_path,
   XLS_ASSIGN_OR_RETURN(
       function, Booleanifier::Booleanify(function, boolean_function_name));
   std::cout << "package " << package->name() << "\n\n";
-  std::cout << function->DumpIr() << "\n";
+  std::cout << "top " << function->DumpIr() << "\n";
   return absl::OkStatus();
 }
 

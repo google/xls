@@ -23,13 +23,13 @@ namespace xls {
 // When building output based on a format string, there are two kinds of
 // steps involved: printing string fragments and printing arguments according
 // to their requested format.
-using FormatStep = absl::variant<std::string, FormatPreference>;
+using FormatStep = std::variant<std::string, FormatPreference>;
 
 // Parse a format string into the steps required to build output using it.
 // Example: "x is {} in the default format." would parse into the steps
 // {"x is ", FormatPreference::kDefault, " in the default format."}
 absl::StatusOr<std::vector<FormatStep>> ParseFormatString(
-    absl::string_view format_string);
+    std::string_view format_string);
 
 // Count the number of data operands expected by parsed format.
 // Example: As above, "x is {} in the default format." parses into

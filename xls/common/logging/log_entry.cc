@@ -32,7 +32,7 @@ pid_t GetCachedTID() {
   return thread_id;
 }
 
-absl::string_view Basename(absl::string_view filepath) {
+std::string_view Basename(std::string_view filepath) {
 #ifdef _WIN32
   size_t path = filepath.find_last_of("/\\");
 #else
@@ -75,7 +75,7 @@ char* AppendUint(char* out, uint32_t v, char fill, int width) {
 
 }  // namespace
 
-LogEntry::LogEntry(absl::string_view full_filename, int line,
+LogEntry::LogEntry(std::string_view full_filename, int line,
                    absl::LogSeverity severity, absl::Time timestamp)
     : full_filename_(full_filename),
       base_filename_(Basename(full_filename)),
@@ -93,7 +93,7 @@ std::string LogEntry::ToString() const {
   return absl::StrCat(FormatPrefix(), text_message_);
 }
 
-void LogEntry::set_source_filename(absl::string_view filename) {
+void LogEntry::set_source_filename(std::string_view filename) {
   full_filename_ = filename;
   base_filename_ = Basename(full_filename_);
 }

@@ -504,15 +504,15 @@ absl::Status IrInterpreter::HandleTrace(Trace* trace_op) {
     std::string trace_output;
 
     for (auto step : trace_op->format()) {
-      if (absl::holds_alternative<std::string>(step)) {
-        absl::StrAppend(&trace_output, absl::get<std::string>(step));
+      if (std::holds_alternative<std::string>(step)) {
+        absl::StrAppend(&trace_output, std::get<std::string>(step));
       }
 
-      if (absl::holds_alternative<FormatPreference>(step)) {
+      if (std::holds_alternative<FormatPreference>(step)) {
         if (arg_node == arg_nodes.end()) {
           return make_error("Not enough operands");
         }
-        auto arg_format = absl::get<FormatPreference>(step);
+        auto arg_format = std::get<FormatPreference>(step);
         absl::StrAppend(&trace_output,
                         ResolveAsValue(*arg_node).ToHumanString(arg_format));
         arg_node++;

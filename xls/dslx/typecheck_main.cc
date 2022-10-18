@@ -71,7 +71,7 @@ absl::Status RealMain(absl::Span<const std::filesystem::path> dslx_paths,
 }  // namespace xls::dslx
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> args =
+  std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.size() != 1) {
     XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "

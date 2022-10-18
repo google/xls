@@ -188,11 +188,11 @@ absl::StatusOr<ParametricExpressionProto> ToProto(
 
 absl::StatusOr<ConcreteTypeDimProto> ToProto(const ConcreteTypeDim& ctd) {
   ConcreteTypeDimProto proto;
-  if (absl::holds_alternative<InterpValue>(ctd.value())) {
+  if (std::holds_alternative<InterpValue>(ctd.value())) {
     XLS_ASSIGN_OR_RETURN(*proto.mutable_interp_value(),
-                         ToProto(absl::get<InterpValue>(ctd.value())));
+                         ToProto(std::get<InterpValue>(ctd.value())));
   } else {
-    auto& p = absl::get<ConcreteTypeDim::OwnedParametric>(ctd.value());
+    auto& p = std::get<ConcreteTypeDim::OwnedParametric>(ctd.value());
     XLS_ASSIGN_OR_RETURN(*proto.mutable_parametric(), ToProto(*p));
   }
   return proto;

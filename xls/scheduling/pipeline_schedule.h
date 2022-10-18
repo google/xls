@@ -66,6 +66,9 @@ class PipelineSchedule {
   // N and has users after cycle N.
   std::vector<Node*> GetLiveOutOfCycle(int64_t c) const;
 
+  // Returns true if the given node is live out of the given cycle.
+  bool IsLiveOutOfCycle(Node* node, int64_t c) const;
+
   // Returns the number of stages in the pipeline. Use 'length' instead of
   // 'size' as 'size' is ambiguous in this context (number of resources? number
   // of nodes? number of cycles?). Note that codegen may add flops to the input

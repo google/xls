@@ -119,6 +119,7 @@ cc_library(
         ":interp_value",
         ":interp_value_helpers",
         ":symbolic_bindings",
+        ":token_utils",
         ":type_info",
         "//xls/common:visitor",
         "//xls/common/status:ret_check",
@@ -207,6 +208,7 @@ cc_library(
         ":errors",
         ":interp_value",
         ":symbolic_bindings",
+        "//xls/common:visitor",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/strings",
@@ -565,6 +567,7 @@ cc_library(
     deps = [
         ":ast",
         ":import_data",
+        ":token_utils",
         ":type_info",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -583,6 +586,20 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "@com_google_googletest//:gtest",
+    ],
+)
+
+cc_library(
+    name = "token_utils",
+    srcs = [
+        "scanner_keywords.inc",
+        "token_utils.cc",
+    ],
+    hdrs = ["token_utils.h"],
+    deps = [
+        "//xls/common/logging",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -861,6 +878,7 @@ cc_library(
         ":import_routines",
         ":interp_bindings",
         ":type_and_bindings",
+        ":warning_collector",
         "//xls/common:string_to_int",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/strings",
@@ -875,19 +893,18 @@ cc_library(
     deps = [
         ":ast",
         ":ast_utils",
-        ":builtins_metadata",
         ":bytecode_emitter",
         ":bytecode_interpreter",
         ":concrete_type",
         ":constexpr_evaluator",
         ":deduce_ctx",
-        ":dslx_builtins",
         ":errors",
         ":import_routines",
         ":interp_bindings",
         ":parametric_instantiator",
-        ":scanner",
+        ":token_utils",
         ":type_and_bindings",
+        "//xls/common:visitor",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "@com_google_absl//absl/cleanup",
@@ -947,9 +964,10 @@ cc_test(
     srcs = ["typecheck_test.cc"],
     deps = [
         ":ast",
+        ":command_line_utils",
         ":create_import_data",
+        ":error_printer",
         ":parse_and_typecheck",
-        ":symbolic_bindings",
         ":type_info_to_proto",
         ":typecheck",
         "//xls/common:xls_gunit_main",
@@ -981,19 +999,18 @@ cc_library(
     hdrs = ["ir_converter.h"],
     deps = [
         ":ast",
+        ":ast_utils",
         ":builtins_metadata",
         ":constexpr_evaluator",
-        ":deduce_ctx",
         ":extract_conversion_order",
         ":import_routines",
         ":interp_value",
-        ":interp_value_helpers",
         ":ir_conversion_utils",
         ":mangle",
         ":proc_config_ir_converter",
         ":symbolic_bindings",
         ":type_info",
-        ":typecheck",
+        "//xls/common:visitor",
         "//xls/ir",
         "//xls/ir:bits",
         "//xls/ir:channel_ops",
@@ -1046,6 +1063,7 @@ cc_library(
     hdrs = ["error_printer.h"],
     deps = [
         ":pos",
+        ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/status:ret_check",
         "@com_google_absl//absl/status:statusor",
@@ -1119,6 +1137,7 @@ cc_library(
         ":scanner",
         ":type_info",
         ":typecheck",
+        ":warning_collector",
         "//xls/common/file:filesystem",
         "//xls/common/file:get_runfile_path",
         "//xls/common/status:ret_check",
@@ -1341,7 +1360,7 @@ py_test(
     name = "interpreter_test",
     srcs = ["interpreter_test.py"],
     data = [
-        "//xls/dslx:interpreter_main",
+        ":interpreter_main",
     ],
     python_version = "PY3",
     srcs_version = "PY3",
@@ -1349,5 +1368,13 @@ py_test(
         "//xls/common:runfiles",
         "//xls/common:test_base",
         "//xls/dslx/python:interpreter",
+    ],
+)
+
+cc_library(
+    name = "warning_collector",
+    hdrs = ["warning_collector.h"],
+    deps = [
+        ":pos",
     ],
 )

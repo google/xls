@@ -40,7 +40,8 @@ def dslx_lang_test(
         convert_to_ir = True,
         test_ir_equivalence = True,
         evaluate_ir = True,
-        benchmark_ir = True):
+        benchmark_ir = True,
+        warnings_as_errors = True):
     """This macro is convenient shorthand for our many DSLX test targets.
 
     The primary target that it generates that developers may want to depend upon is:
@@ -96,9 +97,11 @@ def dslx_lang_test(
         name = name + "_dslx",
         srcs = [name + ".x"],
         deps = dslx_deps,
+        warnings_as_errors = warnings_as_errors,
     )
 
     test_args = {} if convert_to_ir else {"compare": "none"}
+    test_args["warnings_as_errors"] = "true" if warnings_as_errors else "false"
     xls_dslx_test(
         name = name + "_dslx_test",
         library = name + "_dslx",
@@ -111,6 +114,9 @@ def dslx_lang_test(
             srcs = [name + ".x"],
             deps = dslx_deps,
             dslx_top = dslx_entry,
+            ir_conv_args = {
+                "warnings_as_errors": test_args["warnings_as_errors"],
+            },
         )
         if test_ir_equivalence:
             xls_ir_equivalence_test(

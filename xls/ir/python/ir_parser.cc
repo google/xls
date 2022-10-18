@@ -34,8 +34,8 @@ PYBIND11_MODULE(ir_parser, m) {
   py::class_<Parser>(m, "Parser")
       .def_static(
           "parse_package",
-          [](absl::string_view input_string,
-             std::optional<absl::string_view> filename)
+          [](std::string_view input_string,
+             std::optional<std::string_view> filename)
               -> absl::StatusOr<PackageHolder> {
             XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                                  Parser::ParsePackage(input_string, filename));

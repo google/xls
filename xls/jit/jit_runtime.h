@@ -20,9 +20,6 @@
 #include "absl/status/status.h"
 #include "absl/types/span.h"
 #include "llvm/include/llvm/IR/DataLayout.h"
-#include "llvm/include/llvm/IR/LLVMContext.h"
-#include "llvm/include/llvm/Support/raw_ostream.h"
-#include "xls/interpreter/channel_queue.h"
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/llvm_type_converter.h"
@@ -34,8 +31,8 @@ namespace xls {
 // data out of a flat character buffer, thus these routines are necessary.
 class JitRuntime {
  public:
-  JitRuntime(const llvm::DataLayout& data_layout,
-             LlvmTypeConverter* type_converter);
+  JitRuntime(llvm::DataLayout data_layout);
+  static absl::StatusOr<std::unique_ptr<JitRuntime>> Create();
 
   // Packs the specified values into a flat buffer with the data layout
   // expected by LLVM.
@@ -43,7 +40,7 @@ class JitRuntime {
   // "args", with a matching amount of space allocated.
   absl::Status PackArgs(absl::Span<const Value> args,
                         absl::Span<Type* const> arg_types,
-                        absl::Span<uint8_t*> arg_buffers);
+                        absl::Span<uint8_t* const> arg_buffers);
 
   // Returns a Value constructed from the data inside "buffer" whose
   // contents are laid out according to the LLVM interpretation of the passed-in
@@ -59,10 +56,26 @@ class JitRuntime {
 
   const llvm::DataLayout& data_layout() { return data_layout_; }
 
+  int64_t GetTypeByteSize(Type* xls_type) {
+    absl::MutexLock lock(&mutex_);
+    return type_converter_->GetTypeByteSize(xls_type);
+  }
+
  private:
-  llvm::DataLayout data_layout_;
-  LlvmTypeConverter* type_converter_;
+  Value UnpackBufferInternal(const uint8_t* buffer, const Type* result_type,
+                             bool unpoison) ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+  void BlitValueToBufferInternal(const Value& value, const Type* type,
+                                 absl::Span<uint8_t> buffer)
+      ABSL_SHARED_LOCKS_REQUIRED(mutex_);
+
+  mutable absl::Mutex mutex_;
+
+  const llvm::DataLayout data_layout_;
+  std::unique_ptr<llvm::LLVMContext> context_ ABSL_GUARDED_BY(mutex_);
+  std::unique_ptr<LlvmTypeConverter> type_converter_ ABSL_GUARDED_BY(mutex_);
 };
+
+}  // namespace xls
 
 extern "C" {
 
@@ -73,22 +86,21 @@ extern "C" {
 
 // Parses the set of args (as "int argc, char** argv" that contain textual
 // representations of XLS IR Values and determines how much storage is needed to
-// contain them as LLVM Values format.
-// On failure, a negative value will be returned.
-int64_t GetArgBufferSize(int arg_count, const char** input_args);
+// contain them as LLVM Values format.  On failure, a negative value will be
+// returned.
+int64_t XlsJitGetArgBufferSize(int arg_count, const char** input_args);
 
 // Packs the set of args (as above) into the specified buffer. This buffer must
-// be large enough to contain the LLVM Value representation of these values.
-// On failure, a negative value will be returned, otherwise this returns 0.
-int64_t PackArgs(int arg_count, const char** input_args, uint8_t** buffer);
+// be large enough to contain the LLVM Value representation of these values.  On
+// failure, a negative value will be returned, otherwise this returns 0.
+int64_t XlsJitPackArgs(int arg_count, const char** input_args,
+                       uint8_t** buffer);
 
 // Takes in a buffer containing LLVM-packed data and converts into an XLS Value,
 // which is then printed to stdout.
-int UnpackAndPrintBuffer(const char* output_type_string, int arg_count,
-                         const char** input_args, const uint8_t* buffer);
+int XlsJitUnpackAndPrintBuffer(const char* output_type_string, int arg_count,
+                               const char** input_args, const uint8_t* buffer);
 
 }  // extern "C"
-
-}  // namespace xls
 
 #endif  // XLS_JIT_LLVM_JIT_RUNTIME_H_

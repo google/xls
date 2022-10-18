@@ -104,6 +104,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "Float32ToInt32",
         "function": get_mangled_ir_symbol("float32", "to_int32"),
+        "namespace": "xls::dslx",
     },
 )
 
@@ -122,6 +123,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "Float32FromInt32",
         "function": get_mangled_ir_symbol("float32", "from_int32"),
+        "namespace": "xls::dslx",
     },
 )
 

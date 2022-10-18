@@ -454,7 +454,7 @@ class IsOkMatcher {
   }
 };
 
-void AddFatalFailure(absl::string_view expression,
+void AddFatalFailure(std::string_view expression,
                      const xabsl::StatusBuilder& builder);
 
 }  // namespace internal_status

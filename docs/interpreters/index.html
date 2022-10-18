@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/interpreters/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.4">
+      <meta name="generator" content="mkdocs-1.4.1, mkdocs-material-8.5.6">
     
     
       
@@ -19,13 +19,14 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6b80c2a2.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
       
       
+
     
     
     
@@ -42,6 +43,7 @@
     
       
 
+    
     
     
   </head>
@@ -118,7 +120,7 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
-        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
         </button>
       </nav>
@@ -472,6 +474,20 @@
   
   
     <li class="md-nav__item">
+      <a href="../ir_overview/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
@@ -503,18 +519,18 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_4" type="checkbox" id="__nav_3_4" >
       
       
       
       
-        <label class="md-nav__link" for="__nav_3_3">
+        <label class="md-nav__link" for="__nav_3_4">
           Scheduling
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_3">
+        <label class="md-nav__title" for="__nav_3_4">
           <span class="md-nav__icon md-icon"></span>
           Scheduling
         </label>
@@ -578,18 +594,18 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_6" type="checkbox" id="__nav_3_6" >
       
       
       
       
-        <label class="md-nav__link" for="__nav_3_5">
+        <label class="md-nav__link" for="__nav_3_6">
           Native JIT
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_5">
+        <label class="md-nav__title" for="__nav_3_6">
           <span class="md-nav__icon md-icon"></span>
           Native JIT
         </label>
@@ -1299,10 +1315,11 @@
               </div>
             
           
-          <div class="md-content" data-md-component="content">
-            <article class="md-content__inner md-typeset">
-              
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
                 
+                  
 
   <a href="https://github.com/google/xls/tree/main/docs_src/interpreters.md" title="Edit this page" class="md-content__button md-icon">
     
@@ -1329,7 +1346,7 @@ functional stack, from input DSLX down to the netlist level.</p>
 <h2 id="dslx">DSLX</h2>
 <p>The DSLX interpreter (<code>//xls/dslx:interpreter_main</code>) operates on
 DSLX <code>.x</code> files that contain both the design and unit tests to execute (present
-as <code>#![test]</code> annotated functions).</p>
+as <code>#[test]</code> annotated functions).</p>
 <p>The <a href="https://github.com/google/xls/tree/main/xls/examples/adler32.x">adler32</a> example
 demonstrates this: the design is encapsulated in the <code>main</code>, <code>adler32_seq</code>, and
 <code>mod</code> functions, and the samples are present in the test <code>adler32_one_char</code>
@@ -1370,12 +1387,12 @@ invoked in nearly the same way, via the
 <p><code>eval_ir_main</code> supports a wide number of use cases, but the most common end-user
 case will be to run a sample through a design. To evaluate a sample (1.0 + 2.5)
 on the
-<a href="https://github.com/google/xls/tree/main/xls/modules/fp32_add_2.x">floating-point adder</a>,
+<a href="https://github.com/google/xls/tree/main/xls/modules/fp/fp32_add_2.x">floating-point adder</a>,
 one would run the following:</p>
 <div class="highlight"><pre><span></span><code>bazel build -c opt //xls/tools:eval_ir_main
 ./bazel-bin/xls/tools/eval_ir_main \
   --input &#39;(bits[1]: 0x0, bits[8]:0x7F, bits[23]:0x0); (bits[1]: 0x0, bits[8]:0x80, bits[23]:0x200000)&#39; \
-  ./xls/modules/fp32_add_2.x
+  ./xls/modules/fp/fp32_add_2.x
 </code></pre></div>
 <p>By default, this runs via the JIT. To use the interpreter, add the
 <code>--use_llvm_jit=false</code> flag to the invocation.</p>
@@ -1414,10 +1431,11 @@ cell library descriptions.</p>
 
 
 
-              
-            </article>
-            
-          </div>
+                
+              </article>
+            </div>
+          
+          
         </div>
         
       </main>
@@ -1481,10 +1499,10 @@ cell library descriptions.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.ecf98df9.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.2ab50757.min.js"></script>
+      <script src="../assets/javascripts/bundle.078830c0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

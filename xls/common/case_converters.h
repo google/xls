@@ -21,7 +21,7 @@
 namespace xls {
 
 // Converts a snake_case string into CamelCase.
-std::string Camelize(absl::string_view input);
+std::string Camelize(std::string_view input);
 
 }  // namespace xls
 

@@ -32,7 +32,7 @@
 namespace xls {
 
 // Builds a proc to implement an FIR filter.
-absl::StatusOr<Proc*> CreateFirFilter(absl::string_view name,
+absl::StatusOr<Proc*> CreateFirFilter(std::string_view name,
                                       const Value& kernel_value,
                                       StreamingChannel* input_channel,
                                       StreamingChannel* output_channel,

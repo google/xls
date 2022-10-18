@@ -45,8 +45,8 @@ TEST(BytecodeInterpreterTest, TraceDataToString) {
 }
 
 absl::StatusOr<InterpValue> Interpret(ImportData* import_data,
-                                      absl::string_view program,
-                                      absl::string_view entry,
+                                      std::string_view program,
+                                      std::string_view entry,
                                       std::vector<InterpValue> args = {}) {
   XLS_ASSIGN_OR_RETURN(
       TypecheckedModule tm,
@@ -95,7 +95,7 @@ TEST(BytecodeInterpreterTest, DupEmptyStack) {
 // Interprets a nearly-minimal bytecode program; the same from
 // BytecodeEmitterTest.SimpleTranslation.
 TEST(BytecodeInterpreterTest, PositiveSmokeTest) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let a = u32:1;
   a + u32:2
@@ -111,7 +111,7 @@ fn main() -> u32 {
 // Tests that a failing assert_eq is interpreted correctly. Again, a
 // continuation of a test from BytecodeEmitterTest. Get used to it.
 TEST(BytecodeInterpreterTest, AssertEqFail) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32{
   let a = u32:3;
   let _ = assert_eq(a, u32:2);
@@ -126,7 +126,7 @@ fn main() -> u32{
 }
 
 TEST(BytecodeInterpreterTest, AssertLtFail) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32{
   let a = u32:3;
   let _ = assert_lt(a, u32:2);
@@ -142,7 +142,7 @@ fn main() -> u32{
 
 // This test won't work unless BytecodeEmitterTest.DestructuringLet works!
 TEST(BytecodeInterpreterTest, DestructuringLet) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn has_name_def_tree() -> (u32, u64, uN[128]) {
   let (a, b, (c, d)) = (u4:0, u8:1, (u16:2, (u32:3, u64:4, uN[128]:5)));
   let _ = assert_eq(a, u4:0);
@@ -174,7 +174,7 @@ fn has_name_def_tree() -> (u32, u64, uN[128]) {
 }
 
 TEST(BytecodeInterpreterTest, RunMatchArms) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
   match x {
     u32:42 => u32:64,
@@ -211,7 +211,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunMatchArmsTuplePattern) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(t: (u32, u32)) -> u32 {
   match t {
     (u32:42, u32:64) => u32:1,
@@ -259,7 +259,7 @@ fn main(t: (u32, u32)) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunMatchArmIrrefutablePattern) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
   match x {
     u32:42 => u32:64,
@@ -291,7 +291,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunMatchNoTrailingWildcard) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
   match x {
     y => y + u32:1,
@@ -315,7 +315,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunMatchNoMatch) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u32) -> u32 {
   match x {
     u32:1 => u32:2,
@@ -339,7 +339,7 @@ fn main(x: u32) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunMatchWithNameRefs) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u32, y: u32, z: u32) -> u32 {
   match x {
     y => x + y,
@@ -380,7 +380,7 @@ fn main(x: u32, y: u32, z: u32) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunTernaryConsequent) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   if true { u32:42 } else { u32:64 }
 }
@@ -393,7 +393,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, RunTernaryAlternate) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   if false { u32:42 } else { u32:64 }
 }
@@ -406,7 +406,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopAnd) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_and() -> u32 {
   let a = u32:0xa5a5a5a5;
   let b = u32:0xffffffff;
@@ -422,7 +422,7 @@ fn do_and() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopConcat) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_concat() -> u64 {
   let a = u32:0xa5a5a5a5;
   let b = u32:0xffffffff;
@@ -438,7 +438,7 @@ fn do_concat() -> u64 {
 }
 
 TEST(BytecodeInterpreterTest, BinopDiv) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_div() -> u32 {
   let a = u32:0x84208420;
   let b = u32:0x4;
@@ -454,7 +454,7 @@ fn do_div() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopMul) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_mul() -> u32 {
   let a = u32:0x21082108;
   let b = u32:0x4;
@@ -470,7 +470,7 @@ fn do_mul() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopOr) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_or() -> u32 {
   let a = u32:0xa5a5a5a5;
   let b = u32:0x5a5a5a5a;
@@ -486,7 +486,7 @@ fn do_or() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopShll) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_shll() -> u32 {
   let a = u32:0x21082108;
   let b = u32:0x2;
@@ -502,7 +502,7 @@ fn do_shll() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopShra) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_shrl() -> s32 {
   let a = s32:-128;
   let b = u32:2;
@@ -518,7 +518,7 @@ fn do_shrl() -> s32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopShrl) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_shrl() -> u32 {
   let a = u32:0x84208420;
   let b = u32:0x2;
@@ -534,7 +534,7 @@ fn do_shrl() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopSub) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_sub() -> u32 {
   let a = u32:0xa5a5a5a5;
   let b = u32:0x5a5a5a5a;
@@ -550,7 +550,7 @@ fn do_sub() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BinopXor) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn do_xor() -> u32 {
   let a = u32:0xa5a5ffff;
   let b = u32:0x5a5affff;
@@ -566,7 +566,7 @@ fn do_xor() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, Unops) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn unops() -> s32 {
   let a = s32:1;
   let b = !a;
@@ -582,7 +582,7 @@ fn unops() -> s32 {
 }
 
 TEST(BytecodeInterpreterTest, CreateArray) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn arrays() -> u32[3] {
   let a = u32:32;
   u32[3]:[u32:0, u32:1, a]
@@ -610,7 +610,7 @@ fn arrays() -> u32[3] {
 }
 
 TEST(BytecodeInterpreterTest, IndexArray) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn index_array() -> u32 {
   let a = u32[3]:[0, 1, 2];
   let b = bits[32][3]:[3, 4, 5];
@@ -627,7 +627,7 @@ fn index_array() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, IndexTuple) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn index_tuple() -> u32 {
   let a = (u32:0, (u32:1, u32:2));
   let b = ((u32:3, (u32:4,)), u32:5);
@@ -644,7 +644,7 @@ fn index_tuple() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, SimpleBitSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn simple_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[16:32]
@@ -661,7 +661,7 @@ fn simple_slice() -> u16 {
 
 // Tests a slice from the start: a[-x:].
 TEST(BytecodeInterpreterTest, NegativeStartSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn negative_start_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[-16:]
@@ -679,7 +679,7 @@ fn negative_start_slice() -> u16 {
 
 // Tests a slice from the end: a[:-x].
 TEST(BytecodeInterpreterTest, NegativeEndSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn negative_end_slice() -> u16 {
   let a = u32:0xdeadbeef;
   a[:-16]
@@ -695,7 +695,7 @@ fn negative_end_slice() -> u16 {
 }
 
 TEST(BytecodeInterpreterTest, WidthSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn width_slice() -> s16 {
   let a = u32:0xdeadbeef;
   a[u32:8 +: s16]
@@ -713,7 +713,7 @@ fn width_slice() -> s16 {
 // Makes sure we properly handle an OOB width slice and don't leave an extra
 // value on the stack.
 TEST(BytecodeInterpreterTest, OobWidthSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn oob_slicer(a: u32) -> (u32, u32) {
   let b = u32:0xfeedf00d;
   let c = uN[128]:0xffffffffffffffffffffffffffffffff;
@@ -744,7 +744,7 @@ fn oob_width_slice() -> (u32, u32)[4] {
 }
 
 TEST(BytecodeInterpreterTest, WidthSliceWithZext) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn width_slice() -> u32 {
   let a = u32:0xdeadbeef;
   a[u32:16 +: u32]
@@ -760,7 +760,7 @@ fn width_slice() -> u32 {
 
 // Tests a slice from both ends: a[-x:-y].
 TEST(BytecodeInterpreterTest, BothNegativeSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn both_negative_slice() -> u8 {
   let a = u32:0xdeadbeef;
   a[-16:-8]
@@ -776,7 +776,7 @@ fn both_negative_slice() -> u8 {
 }
 
 TEST(BytecodeInterpreterTest, CastBits_Extend) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn cast_extend() -> u32 {
   let a = u16:0xa5a5;
   let b = s16:0x8000;
@@ -793,7 +793,7 @@ fn cast_extend() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, CastBits_SignExtend) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn cast_sign_extend() -> s32 {
   let a = s16:0xffff;
   a as s32
@@ -809,7 +809,7 @@ fn cast_sign_extend() -> s32 {
 }
 
 TEST(BytecodeInterpreterTest, CastBits_Shrink) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn cast_shrink() -> u16 {
   let a = u32:0x0000a5a5;
   let b = s32:0x8fff5a5a;
@@ -824,7 +824,7 @@ fn cast_shrink() -> u16 {
 }
 
 TEST(BytecodeInterpreterTest, CastArrayToBits) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn cast_array_to_bits() -> u32 {
   let a = u8[4]:[0xc, 0xa, 0xf, 0xe];
   a as u32
@@ -839,7 +839,7 @@ fn cast_array_to_bits() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, CastBitsToArray) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn cast_bits_to_array() -> u8 {
   let a = u32:0x0c0a0f0e;
   let b = a as u8[4];
@@ -855,7 +855,7 @@ fn cast_bits_to_array() -> u8 {
 }
 
 TEST(BytecodeInterpreterTest, CastEnumToBits) {
-  constexpr absl::string_view kProgram = R"(enum MyEnum : u3 {
+  constexpr std::string_view kProgram = R"(enum MyEnum : u3 {
   VAL_0 = 0,
   VAL_1 = 1,
   VAL_2 = 2,
@@ -876,7 +876,7 @@ fn cast_enum_to_bits() -> u3 {
 }
 
 TEST(BytecodeInterpreterTest, CastBitsToEnum) {
-  constexpr absl::string_view kProgram = R"(enum MyEnum : u3 {
+  constexpr std::string_view kProgram = R"(enum MyEnum : u3 {
   VAL_0 = 0,
   VAL_1 = 1,
   VAL_2 = 2,
@@ -897,7 +897,7 @@ fn cast_bits_to_enum() -> MyEnum {
 }
 
 TEST(BytecodeInterpreterTest, CastWithMissingData) {
-  constexpr absl::string_view kProgram = R"(enum MyEnum : u3 {
+  constexpr std::string_view kProgram = R"(enum MyEnum : u3 {
   VAL_0 = 0,
   VAL_1 = 1,
   VAL_2 = 2,
@@ -936,7 +936,7 @@ fn cast_bits_to_enum() -> MyEnum {
 }
 
 TEST(BytecodeInterpreterTest, Params) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn has_params(x: u32, y: u64) -> u48 {
   let a = u48:100;
   let x = x as u48 + a;
@@ -968,7 +968,7 @@ fn has_params(x: u32, y: u64) -> u48 {
 }
 
 TEST(BytecodeInterpreterTest, SimpleFnCall) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn callee(x: u32, y: u32) -> u32 {
   x + y
 }
@@ -988,7 +988,7 @@ fn caller() -> u32{
 }
 
 TEST(BytecodeInterpreterTest, NestedFnCalls) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn callee_callee(x: u32) -> u32 {
   x + u32:100
 }
@@ -1024,7 +1024,7 @@ fn caller(a: u32) -> u32{
 }
 
 TEST(BytecodeInterpreterTest, SimpleParametric) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn foo<N: u32>(x: uN[N]) -> uN[N] {
   x * x
 }
@@ -1043,7 +1043,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, NestedParametric) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn second<N: u32, M: u32, O: u32>(x: uN[N], y: uN[M]) -> uN[O] {
   x as uN[O] + y as uN[O]
 }
@@ -1065,7 +1065,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, ParametricStruct) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 struct MyStruct<N: u32, M: u32 = N * u32:2> {
   x: uN[N],
   y: uN[M]
@@ -1088,7 +1088,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinAddWithCarry) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> (u1, u8) {
   let x = u8:0xff;
   let y = u8:0x2;
@@ -1104,7 +1104,7 @@ fn main() -> (u1, u8) {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinBitSlice) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u16 {
   bit_slice(u32:0xdeadbeef, u16:8, u16:16)
 }
@@ -1118,7 +1118,7 @@ fn main() -> u16 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinBitSliceUpdate) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   bit_slice_update(u32:0xbeefbeef, u32:16, u32:0xdead)
 })";
@@ -1131,7 +1131,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinClz) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   clz(u32:0xbeef)
 })";
@@ -1144,7 +1144,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinCtz) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   ctz(u32:0xbeef0000)
 })";
@@ -1157,7 +1157,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinOneHot) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u8 {
   let input = u3:0x5;
   let r0 = one_hot(input, false);
@@ -1174,7 +1174,7 @@ fn main() -> u8 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinOneHotSel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let cases = u32[8]:[u32:0x1, u32:0x20, u32:0x300, u32:0x4000,
                       u32:0x50000, u32:0x600000, u32:0x7000000, u32:0x80000000];
@@ -1191,7 +1191,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinPrioritySel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32 {
   let cases = u32[8]:[u32:0x1, u32:0x20, u32:0x300, u32:0x4000,
                       u32:0x50000, u32:0x600000, u32:0x7000000, u32:0x80000000];
@@ -1208,7 +1208,7 @@ fn main() -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinRange) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32[5] {
   range(u32:100, u32:105)
 }
@@ -1228,7 +1228,7 @@ fn main() -> u32[5] {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinGate) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(p: bool, x: u32) -> u32 {
   gate!(p, x)
 })";
@@ -1260,7 +1260,7 @@ fn main(p: bool, x: u32) -> u32 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinSMulp) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: s10, y: s10) -> s10 {
   let mulp = smulp(x, y);
   mulp.0 + mulp.1
@@ -1294,7 +1294,7 @@ fn main(x: s10, y: s10) -> s10 {
 }
 
 TEST(BytecodeInterpreterTest, BuiltinUMulp) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main(x: u10, y: u10) -> u10 {
   let mulp = umulp(x, y);
   mulp.0 + mulp.1
@@ -1328,7 +1328,7 @@ fn main(x: u10, y: u10) -> u10 {
 }
 
 TEST(BytecodeInterpreterTest, RangeExpr) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() -> u32[8] {
   u32:8..u32:16
 })";
@@ -1344,6 +1344,43 @@ fn main() -> u32[8] {
                              elements->at(i).GetBitValueUint64());
     EXPECT_EQ(int_value, i + 8);
   }
+}
+
+TEST(BytecodeInterpreterTest, TypeMaxExprU7) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> u7 {
+  u7::MAX
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x7f));
+}
+
+TEST(BytecodeInterpreterTest, TypeMaxExprS7) {
+  constexpr std::string_view kProgram = R"(
+fn main() -> s3 {
+  s3::MAX
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueInt64(), IsOkAndHolds(3));
+}
+
+TEST(BytecodeInterpreterTest, TypeMaxExprTypeAlias) {
+  constexpr std::string_view kProgram = R"(
+type MyU9 = uN[9];
+fn main() -> MyU9 {
+  MyU9::MAX
+})";
+
+  auto import_data = CreateImportDataForTest();
+  XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
+                           Interpret(&import_data, kProgram, "main"));
+  EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x1ff));
 }
 
 }  // namespace

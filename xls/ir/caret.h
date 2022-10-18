@@ -61,8 +61,8 @@ namespace xls {
 std::string PrintCaret(
     std::function<std::optional<std::string>(Fileno)> fileno_to_path,
     const SourceLocation& loc,
-    std::optional<absl::string_view> line_contents = std::nullopt,
-    std::optional<absl::string_view> comment = std::nullopt,
+    std::optional<std::string_view> line_contents = std::nullopt,
+    std::optional<std::string_view> comment = std::nullopt,
     int64_t terminal_width = 80);
 
 }  // namespace xls

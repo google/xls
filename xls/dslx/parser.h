@@ -23,9 +23,9 @@
 namespace xls::dslx {
 
 template <typename T, typename... Types>
-inline T TryGet(const absl::variant<Types...>& v) {
-  if (absl::holds_alternative<T>(v)) {
-    return absl::get<T>(v);
+inline T TryGet(const std::variant<Types...>& v) {
+  if (std::holds_alternative<T>(v)) {
+    return std::get<T>(v);
   }
   return nullptr;
 }
@@ -122,21 +122,21 @@ class Parser : public TokenParser {
   template <typename T>
   absl::StatusOr<std::vector<T>> ParseCommaSeq(
       const std::function<absl::StatusOr<T>()>& fparse,
-      absl::variant<TokenKind, Keyword> terminator,
+      std::variant<TokenKind, Keyword> terminator,
       Pos* terminator_limit = nullptr) {
     auto try_pop_terminator = [&]() -> absl::StatusOr<bool> {
-      if (absl::holds_alternative<TokenKind>(terminator)) {
-        return TryDropToken(absl::get<TokenKind>(terminator), terminator_limit);
+      if (std::holds_alternative<TokenKind>(terminator)) {
+        return TryDropToken(std::get<TokenKind>(terminator), terminator_limit);
       }
-      return TryDropKeyword(absl::get<Keyword>(terminator), terminator_limit);
+      return TryDropKeyword(std::get<Keyword>(terminator), terminator_limit);
     };
     auto drop_terminator_or_error = [&]() -> absl::Status {
-      if (absl::holds_alternative<TokenKind>(terminator)) {
-        return DropTokenOrError(absl::get<TokenKind>(terminator),
+      if (std::holds_alternative<TokenKind>(terminator)) {
+        return DropTokenOrError(std::get<TokenKind>(terminator),
                                 /*start=*/nullptr, /*context=*/"",
                                 /*limit_pos=*/terminator_limit);
       }
-      return DropKeywordOrError(absl::get<Keyword>(terminator),
+      return DropKeywordOrError(std::get<Keyword>(terminator),
                                 terminator_limit);
     };
 
@@ -191,12 +191,12 @@ class Parser : public TokenParser {
 
   absl::StatusOr<Expr*> ParseCastOrStructInstance(Bindings* bindings);
 
-  absl::StatusOr<absl::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
-      Bindings* bindings, absl::string_view context = "");
+  absl::StatusOr<std::variant<NameRef*, ColonRef*>> ParseNameOrColonRef(
+      Bindings* bindings, std::string_view context = "");
 
   absl::StatusOr<NameDef*> ParseNameDef(Bindings* bindings);
 
-  absl::StatusOr<absl::variant<NameDef*, WildcardPattern*>>
+  absl::StatusOr<std::variant<NameDef*, WildcardPattern*>>
   ParseNameDefOrWildcard(Bindings* bindings);
 
   // TryOrRollback wraps straighforward transactions: call a function, and
@@ -239,7 +239,7 @@ class Parser : public TokenParser {
   // Returns a parsed number (literal number) expression.
   absl::StatusOr<Number*> ParseNumber(Bindings* bindings);
 
-  absl::StatusOr<absl::variant<Number*, NameRef*>> ParseNumOrConstRef(
+  absl::StatusOr<std::variant<Number*, NameRef*>> ParseNumOrConstRef(
       Bindings* bindings);
 
   absl::StatusOr<Let*> ParseLet(Bindings* bindings);
@@ -298,7 +298,7 @@ class Parser : public TokenParser {
   // in).
   absl::StatusOr<Expr*> ParseBinopChain(
       const std::function<absl::StatusOr<Expr*>()>& sub_production,
-      absl::variant<absl::Span<TokenKind const>, absl::Span<Keyword const>>
+      std::variant<absl::Span<TokenKind const>, absl::Span<Keyword const>>
           target_tokens);
 
   absl::StatusOr<Expr*> ParseCastAsExpression(Bindings* bindings);
@@ -490,7 +490,7 @@ class Parser : public TokenParser {
 
   // Parses DSLX attributes, analogous to Rust's attributes.
   absl::StatusOr<
-      absl::variant<TestFunction*, TestProc*, QuickCheck*, std::nullptr_t>>
+      std::variant<TestFunction*, TestProc*, QuickCheck*, std::nullptr_t>>
   ParseAttribute(absl::flat_hash_map<std::string, Function*>* name_to_fn,
                  Bindings* bindings);
 
@@ -512,12 +512,12 @@ class Parser : public TokenParser {
   absl::StatusOr<Function*> ParseProcConfig(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      const std::vector<Param*>& proc_members, absl::string_view proc_name,
+      const std::vector<Param*>& proc_members, std::string_view proc_name,
       bool is_public);
   absl::StatusOr<Function*> ParseProcNext(
       Bindings* bindings,
       const std::vector<ParametricBinding*>& parametric_bindings,
-      absl::string_view proc_name, bool is_public);
+      std::string_view proc_name, bool is_public);
 
   std::unique_ptr<Module> module_;
 
@@ -529,7 +529,7 @@ class Parser : public TokenParser {
   absl::flat_hash_set<NameDefTree*> const_ndts_;
 };
 
-const Span& GetSpan(const absl::variant<NameDef*, WildcardPattern*>& v);
+const Span& GetSpan(const std::variant<NameDef*, WildcardPattern*>& v);
 
 }  // namespace xls::dslx
 

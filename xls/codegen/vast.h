@@ -145,7 +145,7 @@ class LineInfo {
 
 // Returns a sanitized identifier string based on the given name. Invalid
 // characters are replaced with '_'.
-std::string SanitizeIdentifier(absl::string_view name);
+std::string SanitizeIdentifier(std::string_view name);
 
 // Base type for a VAST node. All nodes are owned by a VerilogFile.
 class VastNode {
@@ -262,7 +262,7 @@ class DataType : public VastNode {
   // This method is required rather than simply Emit because an identifer string
   // is nested within the string describing the type.
   std::string EmitWithIdentifier(LineInfo* line_info,
-                                 absl::string_view identifier) const;
+                                 std::string_view identifier) const;
 
  private:
   Expression* width_;
@@ -281,7 +281,7 @@ class Def : public Statement {
   // Examples:
   //   wire foo;
   //   reg bar;
-  Def(absl::string_view name, DataKind data_kind, DataType* data_type,
+  Def(std::string_view name, DataKind data_kind, DataType* data_type,
       VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         name_(name),
@@ -307,7 +307,7 @@ class Def : public Statement {
 //   wire [41:0] foo;
 class WireDef : public Def {
  public:
-  WireDef(absl::string_view name, DataType* data_type, VerilogFile* file,
+  WireDef(std::string_view name, DataType* data_type, VerilogFile* file,
           const SourceInfo& loc)
       : Def(name, DataKind::kWire, data_type, file, loc) {}
 };
@@ -316,10 +316,10 @@ class WireDef : public Def {
 //   reg [41:0] foo;
 class RegDef : public Def {
  public:
-  RegDef(absl::string_view name, DataType* data_type, VerilogFile* file,
+  RegDef(std::string_view name, DataType* data_type, VerilogFile* file,
          const SourceInfo& loc)
       : Def(name, DataKind::kReg, data_type, file, loc), init_(nullptr) {}
-  RegDef(absl::string_view name, DataType* data_type, Expression* init,
+  RegDef(std::string_view name, DataType* data_type, Expression* init,
          VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kReg, std::move(data_type), file, loc),
         init_(init) {}
@@ -334,10 +334,10 @@ class RegDef : public Def {
 //   logic [41:0] foo;
 class LogicDef : public Def {
  public:
-  LogicDef(absl::string_view name, DataType* data_type, VerilogFile* file,
+  LogicDef(std::string_view name, DataType* data_type, VerilogFile* file,
            const SourceInfo& loc)
       : Def(name, DataKind::kLogic, data_type, file, loc), init_(nullptr) {}
-  LogicDef(absl::string_view name, DataType* data_type, Expression* init,
+  LogicDef(std::string_view name, DataType* data_type, Expression* init,
            VerilogFile* file, const SourceInfo& loc)
       : Def(name, DataKind::kLogic, data_type, file, loc), init_(init) {}
 
@@ -446,7 +446,7 @@ class StatementBlock : public VastNode {
 struct DefaultSentinel {};
 
 // Represents a label within a case statement.
-using CaseLabel = absl::variant<Expression*, DefaultSentinel>;
+using CaseLabel = std::variant<Expression*, DefaultSentinel>;
 
 // Represents an arm of a case statement.
 class CaseArm : public VastNode {
@@ -710,7 +710,7 @@ struct Connection {
 // Represents a module instantiation.
 class Instantiation : public VastNode {
  public:
-  Instantiation(absl::string_view module_name, absl::string_view instance_name,
+  Instantiation(std::string_view module_name, std::string_view instance_name,
                 absl::Span<const Connection> parameters,
                 absl::Span<const Connection> connections, VerilogFile* file,
                 const SourceInfo& loc)
@@ -744,7 +744,7 @@ class MacroRef : public Expression {
 // Defines a module parameter.
 class Parameter : public NamedTrait {
  public:
-  Parameter(absl::string_view name, Expression* rhs, VerilogFile* file,
+  Parameter(std::string_view name, Expression* rhs, VerilogFile* file,
             const SourceInfo& loc)
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
 
@@ -759,7 +759,7 @@ class Parameter : public NamedTrait {
 // Defines an item in a localparam.
 class LocalParamItem : public NamedTrait {
  public:
-  LocalParamItem(absl::string_view name, Expression* rhs, VerilogFile* file,
+  LocalParamItem(std::string_view name, Expression* rhs, VerilogFile* file,
                  const SourceInfo& loc)
       : NamedTrait(file, loc), name_(name), rhs_(rhs) {}
 
@@ -791,7 +791,7 @@ class LocalParamItemRef : public Expression {
 class LocalParam : public VastNode {
  public:
   using VastNode::VastNode;
-  LocalParamItemRef* AddItem(absl::string_view name, Expression* value,
+  LocalParamItemRef* AddItem(std::string_view name, Expression* value,
                              const SourceInfo& loc);
 
   std::string Emit(LineInfo* line_info) const override;
@@ -848,7 +848,7 @@ class LogicRef : public IndexableExpression {
 // Represents a Verilog unary expression.
 class Unary : public Operator {
  public:
-  Unary(absl::string_view op, Expression* arg, int64_t precedence,
+  Unary(std::string_view op, Expression* arg, int64_t precedence,
         VerilogFile* file, const SourceInfo& loc)
       : Operator(precedence, file, loc), op_(op), arg_(arg) {}
 
@@ -923,7 +923,7 @@ struct ImplicitEventExpression {};
 // Elements which can appear in a sensitivity list for an always or always_ff
 // block.
 using SensitivityListElement =
-    absl::variant<ImplicitEventExpression, PosEdge*, NegEdge*>;
+    std::variant<ImplicitEventExpression, PosEdge*, NegEdge*>;
 
 // Base class for 'always' style blocks with a sensitivity list.
 class AlwaysBase : public StructuredProcedure {
@@ -1016,7 +1016,7 @@ class ArrayAssignmentPattern : public IndexableExpression {
 
 class BinaryInfix : public Operator {
  public:
-  BinaryInfix(Expression* lhs, absl::string_view op, Expression* rhs,
+  BinaryInfix(Expression* lhs, std::string_view op, Expression* rhs,
               int64_t precedence, VerilogFile* file, const SourceInfo& loc)
       : Operator(precedence, file, loc),
         op_(op),
@@ -1069,7 +1069,7 @@ class Literal : public Expression {
 // Represents a quoted literal string.
 class QuotedString : public Expression {
  public:
-  QuotedString(absl::string_view str, VerilogFile* file, const SourceInfo& loc)
+  QuotedString(std::string_view str, VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc), str_(str) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1194,7 +1194,7 @@ class Assert : public Statement {
  public:
   Assert(Expression* condition, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), condition_(condition) {}
-  Assert(Expression* condition, absl::string_view error_message,
+  Assert(Expression* condition, std::string_view error_message,
          VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         condition_(condition),
@@ -1217,7 +1217,7 @@ class Assert : public Statement {
 // the given condition is true, and associate that value with <name>.
 class Cover : public Statement {
  public:
-  Cover(LogicRef* clk, Expression* condition, absl::string_view label,
+  Cover(LogicRef* clk, Expression* condition, std::string_view label,
         VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), clk_(clk), condition_(condition), label_(label) {}
 
@@ -1233,7 +1233,7 @@ class Cover : public Statement {
 // meaningless expression statements that do nothing).
 class Comment : public Statement {
  public:
-  Comment(absl::string_view text, VerilogFile* file, const SourceInfo& loc)
+  Comment(std::string_view text, VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc), text_(text) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1245,7 +1245,7 @@ class Comment : public Statement {
 // A string which is emitted verbatim in the position of a statement.
 class InlineVerilogStatement : public Statement {
  public:
-  InlineVerilogStatement(absl::string_view text, VerilogFile* file,
+  InlineVerilogStatement(std::string_view text, VerilogFile* file,
                          const SourceInfo& loc)
       : Statement(file, loc), text_(text) {}
 
@@ -1260,7 +1260,7 @@ class InlineVerilogStatement : public Statement {
 // defined in a InlineVerilogStatement.
 class InlineVerilogRef : public IndexableExpression {
  public:
-  InlineVerilogRef(absl::string_view name,
+  InlineVerilogRef(std::string_view name,
                    InlineVerilogStatement* raw_statement, VerilogFile* file,
                    const SourceInfo& loc)
       : IndexableExpression(file, loc),
@@ -1278,12 +1278,12 @@ class InlineVerilogRef : public IndexableExpression {
 class SystemTaskCall : public Statement {
  public:
   // An argumentless invocation of a system task such as: $finish;
-  SystemTaskCall(absl::string_view name, VerilogFile* file,
+  SystemTaskCall(std::string_view name, VerilogFile* file,
                  const SourceInfo& loc)
       : Statement(file, loc), name_(name) {}
 
   // An invocation of a system task with arguments.
-  SystemTaskCall(absl::string_view name, absl::Span<Expression* const> args,
+  SystemTaskCall(std::string_view name, absl::Span<Expression* const> args,
                  VerilogFile* file, const SourceInfo& loc)
       : Statement(file, loc),
         name_(name),
@@ -1300,12 +1300,12 @@ class SystemTaskCall : public Statement {
 class SystemFunctionCall : public Expression {
  public:
   // An argumentless invocation of a system function such as: $time;
-  SystemFunctionCall(absl::string_view name, VerilogFile* file,
+  SystemFunctionCall(std::string_view name, VerilogFile* file,
                      const SourceInfo& loc)
       : Expression(file, loc), name_(name) {}
 
   // An invocation of a system function with arguments.
-  SystemFunctionCall(absl::string_view name, absl::Span<Expression* const> args,
+  SystemFunctionCall(std::string_view name, absl::Span<Expression* const> args,
                      VerilogFile* file, const SourceInfo& loc)
       : Expression(file, loc),
         name_(name),
@@ -1366,12 +1366,12 @@ class UnsignedCast : public SystemFunctionCall {
 // Represents the definition of a Verilog function.
 class VerilogFunction : public VastNode {
  public:
-  VerilogFunction(absl::string_view name, DataType* result_type,
+  VerilogFunction(std::string_view name, DataType* result_type,
                   VerilogFile* file, const SourceInfo& loc);
 
   // Adds an argument to the function and returns a reference to its value which
   // can be used in the body of the function.
-  LogicRef* AddArgument(absl::string_view name, DataType* type,
+  LogicRef* AddArgument(std::string_view name, DataType* type,
                         const SourceInfo& loc);
 
   // Adds a RegDef to the function and returns a LogicRef to it. This should be
@@ -1431,20 +1431,20 @@ class ModuleSection;
 
 // Represents a member of a module.
 using ModuleMember =
-    absl::variant<Def*,                     // Logic definition.
-                  LocalParam*,              // Module-local parameter.
-                  Parameter*,               // Module parameter.
-                  Instantiation*,           // module instantiaion.
-                  ContinuousAssignment*,    // Continuous assignment.
-                  StructuredProcedure*,     // Initial or always comb block.
-                  AlwaysComb*,              // An always_comb block.
-                  AlwaysFf*,                // An always_ff block.
-                  AlwaysFlop*,              // "Flip-Flop" block.
-                  Comment*,                 // Comment text.
-                  BlankLine*,               // Blank line.
-                  InlineVerilogStatement*,  // InlineVerilog string statement.
-                  VerilogFunction*,         // Function definition
-                  Cover*, ModuleSection*>;
+    std::variant<Def*,                     // Logic definition.
+                 LocalParam*,              // Module-local parameter.
+                 Parameter*,               // Module parameter.
+                 Instantiation*,           // module instantiaion.
+                 ContinuousAssignment*,    // Continuous assignment.
+                 StructuredProcedure*,     // Initial or always comb block.
+                 AlwaysComb*,              // An always_comb block.
+                 AlwaysFf*,                // An always_ff block.
+                 AlwaysFlop*,              // "Flip-Flop" block.
+                 Comment*,                 // Comment text.
+                 BlankLine*,               // Blank line.
+                 InlineVerilogStatement*,  // InlineVerilog string statement.
+                 VerilogFunction*,         // Function definition
+                 Cover*, ModuleSection*>;
 
 // A ModuleSection is a container of ModuleMembers used to organize the contents
 // of a module. A Module contains a single top-level ModuleSection which may
@@ -1495,7 +1495,7 @@ struct Port {
 // Represents a module definition.
 class Module : public VastNode {
  public:
-  Module(absl::string_view name, VerilogFile* file, const SourceInfo& loc)
+  Module(std::string_view name, VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), name_(name), top_(file, loc) {}
 
   // Constructs and adds a node to the module. Ownership is maintained by the
@@ -1507,20 +1507,20 @@ class Module : public VastNode {
 
   // Adds a (wire) port to this module with the given name and type. Returns a
   // reference to that wire.
-  LogicRef* AddInput(absl::string_view name, DataType* type,
+  LogicRef* AddInput(std::string_view name, DataType* type,
                      const SourceInfo& loc);
-  LogicRef* AddOutput(absl::string_view name, DataType* type,
+  LogicRef* AddOutput(std::string_view name, DataType* type,
                       const SourceInfo& loc);
 
   // Adds a reg/wire definition to the module with the given type and, for regs,
   // initialized with the given value. Returns a reference to the definition.
-  LogicRef* AddReg(absl::string_view name, DataType* type,
+  LogicRef* AddReg(std::string_view name, DataType* type,
                    const SourceInfo& loc, Expression* init = nullptr,
                    ModuleSection* section = nullptr);
-  LogicRef* AddWire(absl::string_view name, DataType* type,
+  LogicRef* AddWire(std::string_view name, DataType* type,
                     const SourceInfo& loc, ModuleSection* section = nullptr);
 
-  ParameterRef* AddParameter(absl::string_view name, Expression* rhs,
+  ParameterRef* AddParameter(std::string_view name, Expression* rhs,
                              const SourceInfo& loc);
 
   // Adds a previously constructed VAST construct to the module.
@@ -1552,7 +1552,7 @@ class Module : public VastNode {
 // Represents a file-level inclusion directive.
 class Include : public VastNode {
  public:
-  Include(absl::string_view path, VerilogFile* file, const SourceInfo& loc)
+  Include(std::string_view path, VerilogFile* file, const SourceInfo& loc)
       : VastNode(file, loc), path_(path) {}
 
   std::string Emit(LineInfo* line_info) const override;
@@ -1561,17 +1561,17 @@ class Include : public VastNode {
   std::string path_;
 };
 
-using FileMember = absl::variant<Module*, Include*, BlankLine*, Comment*>;
+using FileMember = std::variant<Module*, Include*, BlankLine*, Comment*>;
 
 // Represents a file (as a Verilog translation-unit equivalent).
 class VerilogFile {
  public:
   explicit VerilogFile(FileType file_type) : file_type_(file_type) {}
 
-  Module* AddModule(absl::string_view name, const SourceInfo& loc) {
+  Module* AddModule(std::string_view name, const SourceInfo& loc) {
     return Add(Make<Module>(loc, name));
   }
-  void AddInclude(absl::string_view path, const SourceInfo& loc) {
+  void AddInclude(std::string_view path, const SourceInfo& loc) {
     Add(Make<Include>(loc, path));
   }
 
@@ -1814,7 +1814,7 @@ class VerilogFile {
                               const SourceInfo& loc, bool is_signed = false);
 
   verilog::Cover* Cover(LogicRef* clk, Expression* condition,
-                        absl::string_view label, const SourceInfo& loc) {
+                        std::string_view label, const SourceInfo& loc) {
     return Make<verilog::Cover>(loc, clk, condition, label);
   }
 

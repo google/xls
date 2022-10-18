@@ -32,7 +32,7 @@ using ::testing::Optional;
 
 // EXPECTS that the two given strings are similar modulo extra whitespace.
 void ExpectStringsSimilar(
-    absl::string_view a, absl::string_view b,
+    std::string_view a, std::string_view b,
     xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
   std::string a_string(a);
   std::string b_string(b);
@@ -50,7 +50,7 @@ void ExpectStringsSimilar(
 // Parses the given string as a function, dumps the IR and compares that the
 // dumped string and input string are the same modulo whitespace.
 void ParseFunctionAndCheckDump(
-    absl::string_view in,
+    std::string_view in,
     xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "ParseFunctionAndCheckDump failed");
@@ -62,7 +62,7 @@ void ParseFunctionAndCheckDump(
 // Parses the given string as a package, dumps the IR and compares that the
 // dumped string and input string are the same modulo whitespace.
 void ParsePackageAndCheckDump(
-    absl::string_view in,
+    std::string_view in,
     xabsl::SourceLocation loc = xabsl::SourceLocation::current()) {
   testing::ScopedTrace trace(loc.file_name(), loc.line(),
                              "ParsePackageAndCheckDump failed");

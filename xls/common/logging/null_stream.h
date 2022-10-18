@@ -31,8 +31,8 @@ namespace logging_internal {
 class NullStream {
  public:
   NullStream& stream() { return *this; }
-  NullStream& WithCheckFailureMessage(absl::string_view) { return *this; }
-  NullStream& AtLocation(absl::string_view, int) { return *this; }
+  NullStream& WithCheckFailureMessage(std::string_view) { return *this; }
+  NullStream& AtLocation(std::string_view, int) { return *this; }
   NullStream& AtLocation(xabsl::SourceLocation) { return *this; }
   NullStream& NoPrefix() { return *this; }
   NullStream& WithPerror() { return *this; }

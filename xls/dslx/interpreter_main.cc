@@ -40,6 +40,8 @@ ABSL_FLAG(
 // TODO(leary): 2021-01-19 allow filters with wildcards.
 ABSL_FLAG(std::string, test_filter, "",
           "Target (currently *single*) test name to run.");
+ABSL_FLAG(bool, warnings_as_errors, true,
+          "Whether to fail early, as an error, if warnings are detected");
 // LINT.ThenChange(//xls/build_rules/xls_dslx_rules.bzl)
 
 namespace xls::dslx {
@@ -55,12 +57,13 @@ const char* kUsage = R"(
 Parses, typechecks, and executes all tests inside of a DSLX module.
 )";
 
-absl::Status RealMain(absl::string_view entry_module_path,
+absl::Status RealMain(std::string_view entry_module_path,
                       absl::Span<const std::filesystem::path> dslx_paths,
                       std::optional<std::string> test_filter,
                       FormatPreference trace_format_preference,
                       CompareFlag compare_flag, bool execute,
-                      std::optional<int64_t> seed, bool* printed_error) {
+                      bool warnings_as_errors, std::optional<int64_t> seed,
+                      bool* printed_error) {
   XLS_ASSIGN_OR_RETURN(std::string program, GetFileContents(entry_module_path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, PathToName(entry_module_path));
   std::optional<RunComparator> run_comparator;
@@ -81,11 +84,12 @@ absl::Status RealMain(absl::string_view entry_module_path,
       .run_comparator = run_comparator ? &run_comparator.value() : nullptr,
       .execute = execute,
       .seed = seed,
+      .warnings_as_errors = warnings_as_errors,
   };
   XLS_ASSIGN_OR_RETURN(
       TestResult test_result,
       ParseAndTest(program, module_name, entry_module_path, options));
-  *printed_error = test_result == TestResult::kSomeFailed;
+  *printed_error = test_result != TestResult::kAllPassed;
   return absl::OkStatus();
 }
 
@@ -93,7 +97,7 @@ absl::Status RealMain(absl::string_view entry_module_path,
 }  // namespace xls::dslx
 
 int main(int argc, char* argv[]) {
-  std::vector<absl::string_view> args =
+  std::vector<std::string_view> args =
       xls::InitXls(xls::dslx::kUsage, argc, argv);
   if (args.empty()) {
     XLS_LOG(QFATAL) << "Wrong number of command-line arguments; got "
@@ -110,6 +114,7 @@ int main(int argc, char* argv[]) {
 
   std::string compare_flag_str = absl::GetFlag(FLAGS_compare);
   bool execute = absl::GetFlag(FLAGS_execute);
+  bool warnings_as_errors = absl::GetFlag(FLAGS_warnings_as_errors);
 
   xls::dslx::CompareFlag compare_flag;
   if (compare_flag_str == "none") {
@@ -144,8 +149,8 @@ int main(int argc, char* argv[]) {
 
   bool printed_error = false;
   absl::Status status = xls::dslx::RealMain(
-      args[0], dslx_paths, test_filter, preference.value(),
-      compare_flag, execute, seed, &printed_error);
+      args[0], dslx_paths, test_filter, preference.value(), compare_flag,
+      execute, warnings_as_errors, seed, &printed_error);
   if (printed_error) {
     return EXIT_FAILURE;
   }

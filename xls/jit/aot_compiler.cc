@@ -55,11 +55,7 @@ namespace xls {
 // target function (with the package name prefix removed).
 absl::StatusOr<std::string> GenerateHeader(
     Package* p, Function* f, const std::vector<std::string>& namespaces) {
-  // $0: Opening namespace(s)
-  // $1: Closing namespace(s)
-  // $2: Function name
-  // $3: Function parameters
-  constexpr absl::string_view kTemplate =
+  constexpr std::string_view kTemplate =
       R"(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "absl/status/statusor.h"
 #include "xls/ir/value.h"
@@ -105,7 +101,7 @@ absl::StatusOr<std::string> GenerateWrapperSource(
     Function* f, const JitObjectCode& object_code,
     const std::string& header_path,
     const std::vector<std::string>& namespaces) {
-  constexpr absl::string_view kTemplate =
+  constexpr std::string_view kTemplate =
       R"~(// AUTO-GENERATED FILE! DO NOT EDIT!
 #include "{{header_path}}"
 
@@ -126,10 +122,11 @@ void {{extern_fn}}(const uint8_t* const* inputs,
                    uint8_t* const* outputs,
                    uint8_t* temp_buffer,
                    ::xls::InterpreterEvents* events,
-                   ::xls::JitRuntime* runtime);
+                   ::xls::JitRuntime* runtime,
+                   int64_t continuation_point);
 }
 {{open_ns}}
-constexpr absl::string_view kFnTypeProto = R"({{type_textproto}})";
+constexpr std::string_view kFnTypeProto = R"({{type_textproto}})";
 
 // We have to put "once" flags in different namespaces so their definitions
 // don't collide.
@@ -145,26 +142,23 @@ void OnceInit() {
 absl::StatusOr<::xls::Value> {{wrapper_fn_name}}({{wrapper_params}}) {
   absl::call_once({{private_ns}}::once, {{private_ns}}::OnceInit);
 
-  ::xls::JitRuntime runtime(
-      {{private_ns}}::global_data->data_layout,
-      {{private_ns}}::global_data->type_converter.get());
-
 {{arg_buffer_decls}}
   uint8_t* arg_buffers[] = {{arg_buffer_collector}};
   uint8_t result_buffer[{{result_size}}] = { 0 };
   XLS_RETURN_IF_ERROR(
-      runtime.PackArgs(
+          {{private_ns}}::global_data->jit_runtime->PackArgs(
           {{{param_names}}},
-          {{private_ns}}::global_data->borrowed_param_types,
+          {{private_ns}}::global_data->param_types,
           absl::MakeSpan(arg_buffers)));
 
   uint8_t* output_buffers[1] = {result_buffer};
   std::vector<uint8_t> temp_buffers({{temp_buffer_size}});
   ::xls::InterpreterEvents events;
   {{extern_fn}}(arg_buffers, output_buffers, temp_buffers.data(),
-                &events, &runtime);
+                &events, {{private_ns}}::global_data->jit_runtime.get(),
+                /*continuation_point=*/0);
 
-  ::xls::Value result = runtime.UnpackBuffer(
+  ::xls::Value result = {{private_ns}}::global_data->jit_runtime->UnpackBuffer(
       result_buffer, {{private_ns}}::global_data->fn_type->return_type());
   return result;
 }

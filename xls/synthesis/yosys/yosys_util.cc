@@ -23,7 +23,7 @@
 namespace xls {
 namespace synthesis {
 
-absl::StatusOr<int64_t> ParseNextpnrOutput(absl::string_view nextpnr_output) {
+absl::StatusOr<int64_t> ParseNextpnrOutput(std::string_view nextpnr_output) {
   bool found = false;
   double max_mhz;
   // We're looking for lines of the form:
@@ -36,7 +36,7 @@ absl::StatusOr<int64_t> ParseNextpnrOutput(absl::string_view nextpnr_output) {
   for (auto line : absl::StrSplit(nextpnr_output, '\n')) {
     if (absl::StartsWith(line, "Info: Max frequency for clock") &&
         absl::StrContains(line, " MHz ")) {
-      std::vector<absl::string_view> tokens = absl::StrSplit(line, ' ');
+      std::vector<std::string_view> tokens = absl::StrSplit(line, ' ');
       for (int64_t i = 1; i < tokens.size(); ++i) {
         if (tokens[i] == "MHz") {
           if (absl::SimpleAtod(tokens[i - 1], &max_mhz)) {
@@ -56,14 +56,14 @@ absl::StatusOr<int64_t> ParseNextpnrOutput(absl::string_view nextpnr_output) {
 }
 
 absl::StatusOr<YosysSynthesisStatistics> ParseYosysOutput(
-    absl::string_view yosys_output) {
+    std::string_view yosys_output) {
   YosysSynthesisStatistics stats;
   std::vector<std::string> lines = absl::StrSplit(yosys_output, '\n');
   std::vector<std::string>::iterator parse_line_itr = lines.begin();
 
   // Advance parse_line_index until a line containing 'key' is found.
   // Return false if 'key' is not found, otherwise true.
-  auto parse_until_found = [&](absl::string_view key) {
+  auto parse_until_found = [&](std::string_view key) {
     for (; parse_line_itr != lines.end(); ++parse_line_itr) {
       if (absl::StrContains(*parse_line_itr, key)) {
         return true;

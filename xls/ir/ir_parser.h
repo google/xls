@@ -50,61 +50,61 @@ class Parser {
  public:
   // Parses the given input string as a package.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
-      absl::string_view input_string,
-      std::optional<absl::string_view> filename = absl::nullopt);
+      std::string_view input_string,
+      std::optional<std::string_view> filename = absl::nullopt);
 
   // As above, but sets the entry function to be the given name in the returned
   // package.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageWithEntry(
-      absl::string_view input_string, absl::string_view entry,
-      std::optional<absl::string_view> filename = absl::nullopt);
+      std::string_view input_string, std::string_view entry,
+      std::optional<std::string_view> filename = absl::nullopt);
 
   // Parse the input_string as a function into the given package.
   // If verify_function_only is true, then only this new function is verified,
   // otherwise the whole package is verified by default.
   // TODO(meheff): 2022/2/9 Remove `verify_function_only` argument.
   static absl::StatusOr<Function*> ParseFunction(
-      absl::string_view input_string, Package* package,
+      std::string_view input_string, Package* package,
       bool verify_function_only = false);
 
   // Parse the input_string as a proc into the given package.
-  static absl::StatusOr<Proc*> ParseProc(absl::string_view input_string,
+  static absl::StatusOr<Proc*> ParseProc(std::string_view input_string,
                                          Package* package);
 
   // Parse the input_string as a block into the given package.
-  static absl::StatusOr<Block*> ParseBlock(absl::string_view input_string,
+  static absl::StatusOr<Block*> ParseBlock(std::string_view input_string,
                                            Package* package);
 
   // Parse the input_string as a channel in the given package.
-  static absl::StatusOr<Channel*> ParseChannel(absl::string_view input_string,
+  static absl::StatusOr<Channel*> ParseChannel(std::string_view input_string,
                                                Package* package);
 
   // Parse the input_string as a function type into the given package.
   static absl::StatusOr<FunctionType*> ParseFunctionType(
-      absl::string_view input_string, Package* package);
+      std::string_view input_string, Package* package);
 
   // Parse the input_string as a type into the given package.
-  static absl::StatusOr<Type*> ParseType(absl::string_view input_string,
+  static absl::StatusOr<Type*> ParseType(std::string_view input_string,
                                          Package* package);
 
   // Parses the given input string as a package skipping verification. This
   // should only be used in tests when malformed IR is desired.
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
-      absl::string_view input_string,
-      std::optional<absl::string_view> filename = absl::nullopt,
-      std::optional<absl::string_view> entry = absl::nullopt);
+      std::string_view input_string,
+      std::optional<std::string_view> filename = absl::nullopt,
+      std::optional<std::string_view> entry = absl::nullopt);
 
   // As above but creates a package of type PackageT where PackageT must be
   // type derived from Package.
   template <typename PackageT>
   static absl::StatusOr<std::unique_ptr<PackageT>> ParseDerivedPackageNoVerify(
-      absl::string_view input_string,
-      std::optional<absl::string_view> filename = absl::nullopt,
-      std::optional<absl::string_view> entry = absl::nullopt);
+      std::string_view input_string,
+      std::optional<std::string_view> filename = absl::nullopt,
+      std::optional<std::string_view> entry = absl::nullopt);
 
   // Parses a literal value that should be of type "expected_type" and returns
   // it.
-  static absl::StatusOr<Value> ParseValue(absl::string_view input_string,
+  static absl::StatusOr<Value> ParseValue(std::string_view input_string,
                                           Type* expected_type);
 
   // Parses a value with embedded type information, specifically 'bits[xx]:'
@@ -113,7 +113,7 @@ class Parser {
   //   bits[32]:0x42
   //   (bits[7]:0, bits[8]:1)
   //   [bits[2]:1, bits[2]:2, bits[2]:3]
-  static absl::StatusOr<Value> ParseTypedValue(absl::string_view input_string);
+  static absl::StatusOr<Value> ParseTypedValue(std::string_view input_string);
 
  private:
   friend class ArgParser;
@@ -220,7 +220,7 @@ class Parser {
   // FunctionBuilder and arg parser.
   absl::StatusOr<BValue> BuildBinaryOrUnaryOp(Op op, BuilderBase* fb,
                                               SourceInfo* loc,
-                                              absl::string_view node_name,
+                                              std::string_view node_name,
                                               ArgParser* arg_parser);
 
   // Parses a node in a function/proc body. Example: "foo: bits[32] = add(x, y)"
@@ -237,7 +237,7 @@ class Parser {
     BValue next_token;
     std::vector<BValue> next_state;
   };
-  using BodyResult = absl::variant<BValue, ProcNext>;
+  using BodyResult = std::variant<BValue, ProcNext>;
   // Parses the line-statements in the body of a function/proc. Returns the
   // return value if the body is a function, or the next token/state pair if the
   // body is a proc.
@@ -296,8 +296,8 @@ class Parser {
 /* static */
 template <typename PackageT>
 absl::StatusOr<std::unique_ptr<PackageT>> Parser::ParseDerivedPackageNoVerify(
-    absl::string_view input_string, std::optional<absl::string_view> filename,
-    std::optional<absl::string_view> entry) {
+    std::string_view input_string, std::optional<std::string_view> filename,
+    std::optional<std::string_view> entry) {
   std::optional<Token> previous_top_token;
   XLS_ASSIGN_OR_RETURN(auto scanner, Scanner::Create(input_string));
   Parser parser(std::move(scanner));

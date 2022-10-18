@@ -370,7 +370,7 @@ absl::Status SimLink::InitializeImpl(NocSimulator& simulator) {
   XLS_ASSIGN_OR_RETURN(
       NetworkComponentParam nc_param,
       simulator.GetNocParameters()->GetNetworkComponentParam(id_));
-  LinkParam& param = absl::get<LinkParam>(nc_param);
+  LinkParam& param = std::get<LinkParam>(nc_param);
 
   forward_pipeline_stages_ = param.GetSourceToSinkPipelineStages();
   reverse_pipeline_stages_ = param.GetSinkToSourcePipelineStages();
@@ -415,7 +415,7 @@ absl::Status SimNetworkInterfaceSrc::InitializeImpl(NocSimulator& simulator) {
       NetworkComponentParam nc_param,
       simulator.GetNocParameters()->GetNetworkComponentParam(id_));
   NetworkInterfaceSrcParam& param =
-      absl::get<NetworkInterfaceSrcParam>(nc_param);
+      std::get<NetworkInterfaceSrcParam>(nc_param);
 
   int64_t virtual_channel_count = param.GetPortParam().VirtualChannelCount();
   data_to_send_.resize(virtual_channel_count);
@@ -452,7 +452,7 @@ absl::Status SimNetworkInterfaceSink::InitializeImpl(NocSimulator& simulator) {
       NetworkComponentParam nc_param,
       simulator.GetNocParameters()->GetNetworkComponentParam(id_));
   NetworkInterfaceSinkParam& param =
-      absl::get<NetworkInterfaceSinkParam>(nc_param);
+      std::get<NetworkInterfaceSinkParam>(nc_param);
 
   PortParam port_param = param.GetPortParam();
   std::vector<VirtualChannelParam> vc_params = port_param.GetVirtualChannels();

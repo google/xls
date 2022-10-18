@@ -52,8 +52,8 @@ enum class IODirection { kReceive, kSend };
 // the given `target_direction`.
 class IOConstraint {
  public:
-  IOConstraint(absl::string_view source_channel, IODirection source_direction,
-               absl::string_view target_channel, IODirection target_direction,
+  IOConstraint(std::string_view source_channel, IODirection source_direction,
+               std::string_view target_channel, IODirection target_direction,
                int64_t minimum_latency, int64_t maximum_latency)
       : source_channel_(source_channel),
         source_direction_(source_direction),

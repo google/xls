@@ -31,6 +31,10 @@ namespace xls {
 // the constraint matrix is totally unimodular, this ILP problem can be solved
 // by LP.
 //
+// With `check_feasibility = true`, the objective function will be constant, and
+// the LP solver will merely attempt to show that the generated set of
+// constraints is feasible, rather than find an register-optimal schedule.
+//
 // References:
 //   - Cong, Jason, and Zhiru Zhang. "An efficient and versatile scheduling
 //   algorithm based on SDC formulation." 2006 43rd ACM/IEEE Design Automation
@@ -41,7 +45,8 @@ namespace xls {
 absl::StatusOr<ScheduleCycleMap> SDCScheduler(
     FunctionBase* f, int64_t pipeline_stages, int64_t clock_period_ps,
     const DelayEstimator& delay_estimator, sched::ScheduleBounds* bounds,
-    absl::Span<const SchedulingConstraint> constraints);
+    absl::Span<const SchedulingConstraint> constraints,
+    bool check_feasibility = false);
 
 }  // namespace xls
 

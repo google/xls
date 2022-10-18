@@ -31,7 +31,7 @@ namespace xls {
 // sanitized to match regexp "[a-zA-Z_][a-zA-Z0-9_]*".
 class NameUniquer {
  public:
-  explicit NameUniquer(absl::string_view separator,
+  explicit NameUniquer(std::string_view separator,
                        absl::Span<const std::string> reserved_names = {})
       : separator_(separator),
         reserved_names_(reserved_names.begin(), reserved_names.end()) {}
@@ -44,10 +44,10 @@ class NameUniquer {
   // from the given prefix by "separator_". For example,
   // GetSanitizedUniqueName("foo") might return "foo__1" if "foo" is not
   // available.
-  std::string GetSanitizedUniqueName(absl::string_view prefix);
+  std::string GetSanitizedUniqueName(std::string_view prefix);
 
   // Returns true if the given str is a valid Verilog, and thus XLS, identifier.
-  static bool IsValidIdentifier(absl::string_view str);
+  static bool IsValidIdentifier(std::string_view str);
 
  private:
   // Used to track and generate new identifiers for the same instruction name

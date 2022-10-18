@@ -25,7 +25,6 @@
 #include "xls/ir/value_view.h"
 #include "xls/jit/function_base_jit.h"
 #include "xls/jit/jit_runtime.h"
-#include "xls/jit/llvm_type_converter.h"
 #include "xls/jit/orc_jit.h"
 
 namespace xls {
@@ -76,13 +75,12 @@ class FunctionJit {
   // (and applying views) can eliminate this overhead and still give access tor
   // result data. Users needing less performance can still use the
   // Value-returning methods above for code simplicity.
-  // Drops any events collected during evaluation (except assertion failures
-  // which turn into errors).
   // TODO(https://github.com/google/xls/issues/506): 2021-10-13 Figure out
   // if we want a way to return events in the view and packed view interfaces
   // (or if their performance-focused execution means events are unimportant).
   absl::Status RunWithViews(absl::Span<uint8_t* const> args,
-                            absl::Span<uint8_t> result_buffer);
+                            absl::Span<uint8_t> result_buffer,
+                            InterpreterEvents* events);
 
   // Similar to RunWithViews(), except the arguments here are _packed_views_ -
   // views whose data elements are tightly packed, with no padding bits or bytes
@@ -105,6 +103,7 @@ class FunctionJit {
   // TODO(rspringer): Add user data support here.
   template <typename... ArgsT>
   absl::Status RunWithPackedViews(ArgsT... args) {
+    XLS_RET_CHECK(jitted_function_base_.packed_function.has_value());
     uint8_t* arg_buffers[sizeof...(ArgsT)];
     uint8_t* result_buffer;
     // Walk the type tree to get each arg's data buffer into our view/arg list.
@@ -112,9 +111,9 @@ class FunctionJit {
 
     InterpreterEvents events;
     uint8_t* output_buffers[1] = {result_buffer};
-    jitted_function_base_.packed_function(arg_buffers, output_buffers,
-                                          temp_buffer_.data(), &events,
-                                          /*user_data=*/nullptr, runtime());
+    jitted_function_base_.packed_function.value()(
+        arg_buffers, output_buffers, temp_buffer_.data(), &events,
+        /*user_data=*/nullptr, runtime(), /*continuation_point=*/0);
 
     return InterpreterEventsToStatus(events);
   }
@@ -125,9 +124,18 @@ class FunctionJit {
   // Gets the size of the compiled function's arguments (or return value) in the
   // native LLVM data layout (not the packed layout).
   int64_t GetArgTypeSize(int arg_index) const {
-    return jitted_function_base_.input_buffer_sizes[arg_index];
+    return jitted_function_base_.input_buffer_sizes.at(arg_index);
   }
   int64_t GetReturnTypeSize() const {
+    return jitted_function_base_.output_buffer_sizes[0];
+  }
+
+  // Gets the size of the compiled function's arguments (or return value) in the
+  // packed layout.
+  int64_t GetPackedArgTypeSize(int arg_index) const {
+    return jitted_function_base_.packed_input_buffer_sizes.at(arg_index);
+  }
+  int64_t GetPackedReturnTypeSize() const {
     return jitted_function_base_.output_buffer_sizes[0];
   }
 
@@ -139,17 +147,11 @@ class FunctionJit {
   }
 
   // Returns the name of the jitted function.
-  absl::string_view GetJittedFunctionName() const {
+  std::string_view GetJittedFunctionName() const {
     return jitted_function_base_.function_name;
   }
 
   JitRuntime* runtime() const { return jit_runtime_.get(); }
-
-  LlvmTypeConverter* type_converter() const {
-    return &orc_jit_->GetTypeConverter();
-  }
-
-  OrcJit& GetOrcJit() const { return *orc_jit_; }
 
  private:
   explicit FunctionJit(Function* xls_function) : xls_function_(xls_function) {}

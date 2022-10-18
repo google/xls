@@ -17,6 +17,8 @@
 import os
 from typing import Optional
 
+from absl import flags
+
 from absl.testing import parameterized
 from xls.common import test_base
 from xls.fuzzer import run_fuzz
@@ -25,6 +27,9 @@ from xls.fuzzer.python import cpp_sample as sample
 
 _CALLS_PER_SAMPLE = 8
 _SAMPLE_COUNT = 20
+
+_WIDE = flags.DEFINE_boolean(
+    'wide', default=False, help='Run with wide bits types.')
 
 
 def _get_crasher_dir() -> Optional[str]:
@@ -48,7 +53,8 @@ class RunFuzzTest(parameterized.TestCase):
     self._crasher_dir = _get_crasher_dir()
 
   def _get_ast_options(self) -> ast_generator.AstGeneratorOptions:
-    return ast_generator.AstGeneratorOptions(emit_gate=False)
+    return ast_generator.AstGeneratorOptions(
+        emit_gate=False, max_width_bits_types=128 if _WIDE.value else 64)
 
   def _get_sample_options(self) -> sample.SampleOptions:
     return sample.SampleOptions(

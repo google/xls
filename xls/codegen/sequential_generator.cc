@@ -98,7 +98,7 @@ absl::Status SequentialModuleBuilder::AddFsm(
   absl::flat_hash_map<LogicRef*, LogicRef*> wire_reg_assignments;
   auto add_output_and_drive_wire =
       [&fsm, &wire_reg_assignments](
-          absl::string_view name, int64_t default_value,
+          std::string_view name, int64_t default_value,
           LogicRef* driven_wire) -> absl::StatusOr<FsmOutput*> {
     FsmOutput* fsm_out = fsm.AddOutput1(name, default_value);
     if (wire_reg_assignments.contains(driven_wire)) {
@@ -428,10 +428,10 @@ absl::Status SequentialModuleBuilder::InitializeModuleBuilder(
           ? std::optional<ResetProto>(signature.proto().reset())
           : absl::nullopt);
 
-  auto add_input_port = [&](absl::string_view name, int64_t num_bits) {
+  auto add_input_port = [&](std::string_view name, int64_t num_bits) {
     return module_builder_->AddInputPort(SanitizeIdentifier(name), num_bits);
   };
-  auto add_output_port = [&](absl::string_view name, int64_t num_bits) {
+  auto add_output_port = [&](std::string_view name, int64_t num_bits) {
     return module_builder_->module()->AddOutput(
         SanitizeIdentifier(name), file_.BitVectorType(num_bits, SourceInfo()),
         SourceInfo());

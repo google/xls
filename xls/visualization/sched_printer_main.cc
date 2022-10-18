@@ -304,22 +304,6 @@ std::string DumpScheduleResultToDot(
   return absl::StrFormat("digraph {\n%s}\n", contents);
 }
 
-absl::StatusOr<FunctionBase*> FindEntry(Package* p) {
-  std::string top_str = absl::GetFlag(FLAGS_top);
-
-  if (!top_str.empty()) {
-    XLS_RETURN_IF_ERROR(p->SetTopByName(top_str));
-  }
-
-  // Default to the top entity if nothing is specified.
-  std::optional<FunctionBase*> top = p->GetTop();
-  if (!top.has_value()) {
-    return absl::InternalError(
-        absl::StrFormat("Top entity not set for package: %s.", p->name()));
-  }
-  return top.value();
-}
-
 absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
     FunctionBase* main, const SchedulingOptions& scheduling_options,
     const DelayEstimator* delay_estimator) {
@@ -343,7 +327,7 @@ absl::StatusOr<PipelineSchedule> RunSchedulingPipeline(
   return schedule_status;
 }
 
-absl::Status RealMain(absl::string_view ir_path,
+absl::Status RealMain(std::string_view ir_path,
                       std::optional<int64_t> clock_period_ps,
                       std::optional<int64_t> pipeline_stages) {
   if (ir_path == "-") {
@@ -356,16 +340,19 @@ absl::Status RealMain(absl::string_view ir_path,
 
   XLS_RETURN_IF_ERROR(VerifyPackage(p.get()));
 
-  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindEntry(p.get()));
+  std::string top_str = absl::GetFlag(FLAGS_top);
+  std::optional<std::string_view> maybe_top_str =
+      top_str.empty() ? std::nullopt : std::make_optional(top_str);
+  XLS_ASSIGN_OR_RETURN(FunctionBase * main, FindTop(p.get(), maybe_top_str));
 
   XLS_QCHECK(absl::GetFlag(FLAGS_pipeline_stages) != 0 ||
              absl::GetFlag(FLAGS_clock_period_ps) != 0)
       << "Must specify --pipeline_stages or --clock_period_ps (or both).";
 
   XLS_ASSIGN_OR_RETURN(SchedulingOptions scheduling_options,
-                       SetupSchedulingOptions(p.get()));
+                       SetUpSchedulingOptions(p.get()));
   XLS_ASSIGN_OR_RETURN(const DelayEstimator* delay_estimator,
-                       SetupDelayEstimator());
+                       SetUpDelayEstimator());
   XLS_ASSIGN_OR_RETURN(
       PipelineSchedule schedule,
       RunSchedulingPipeline(main, scheduling_options, delay_estimator));
@@ -392,7 +379,7 @@ absl::Status RealMain(absl::string_view ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {

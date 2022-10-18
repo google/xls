@@ -32,9 +32,9 @@ namespace {
 constexpr char kTestName[] = "wrap_io_test";
 constexpr char kTestdataPath[] = "xls/tools/testdata";
 
-class WrapIoTest : public VerilogTestBase {};
+class WrapIOTest : public VerilogTestBase {};
 
-TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
+TEST_P(WrapIOTest, Ice40WrapIOIdentity32b) {
   VerilogFile file = NewVerilogFile();
 
   const std::string kWrappedModuleName = "device_to_wrap";
@@ -52,7 +52,7 @@ TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   Ice40IoStrategy io_strategy(&file);
-  XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIo(kWrappedModuleName, "dtw",
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIO(kWrappedModuleName, "dtw",
                                               signature, &io_strategy, &file));
   EXPECT_NE(m, nullptr);
   XLS_ASSERT_OK_AND_ASSIGN(std::vector<VerilogInclude> includes,
@@ -63,7 +63,7 @@ TEST_P(WrapIoTest, Ice40WrapIoIdentity32b) {
                                  file.Emit(), includes);
 }
 
-TEST_P(WrapIoTest, WrapIoIncrement8b) {
+TEST_P(WrapIOTest, WrapIOIncrement8b) {
   VerilogFile file = NewVerilogFile();
 
   const std::string kWrappedModuleName = TestBaseName();
@@ -82,8 +82,8 @@ TEST_P(WrapIoTest, WrapIoIncrement8b) {
   b.WithFixedLatencyInterface(1);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
-  NullIoStrategy io_strategy;
-  XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIo(kWrappedModuleName, "dtw",
+  NullIOStrategy io_strategy;
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIO(kWrappedModuleName, "dtw",
                                               signature, &io_strategy, &file));
   EXPECT_NE(m, nullptr);
   XLS_VLOG(1) << file.Emit();
@@ -99,7 +99,7 @@ TEST_P(WrapIoTest, WrapIoIncrement8b) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, WrapIoNot16b) {
+TEST_P(WrapIOTest, WrapIONot16b) {
   VerilogFile file = NewVerilogFile();
 
   const std::string kWrappedModuleName = TestBaseName();
@@ -117,8 +117,8 @@ TEST_P(WrapIoTest, WrapIoNot16b) {
   b.WithFixedLatencyInterface(1);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
-  NullIoStrategy io_strategy;
-  XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIo(kWrappedModuleName, "dtw",
+  NullIOStrategy io_strategy;
+  XLS_ASSERT_OK_AND_ASSIGN(Module * m, WrapIO(kWrappedModuleName, "dtw",
                                               signature, &io_strategy, &file));
   EXPECT_NE(m, nullptr);
   XLS_VLOG(1) << file.Emit();
@@ -139,7 +139,7 @@ TEST_P(WrapIoTest, WrapIoNot16b) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, InputShiftRegisterTest) {
+TEST_P(WrapIOTest, InputShiftRegisterTest) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
                            InputShiftRegisterModule(/*bit_count=*/16, &file));
@@ -173,7 +173,7 @@ TEST_P(WrapIoTest, InputShiftRegisterTest) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, OneByteShiftRegisterTest) {
+TEST_P(WrapIOTest, OneByteShiftRegisterTest) {
   // Verify the input shift register works when it is only a byte wide.
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
@@ -208,7 +208,7 @@ TEST_P(WrapIoTest, OneByteShiftRegisterTest) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, ThreeBitShiftRegisterTest) {
+TEST_P(WrapIOTest, ThreeBitShiftRegisterTest) {
   // Verify the input shift register can handle small inputs (3 bits).
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m,
@@ -235,7 +235,7 @@ TEST_P(WrapIoTest, ThreeBitShiftRegisterTest) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, OddBitWidthShiftRegisterTest) {
+TEST_P(WrapIOTest, OddBitWidthShiftRegisterTest) {
   VerilogFile file = NewVerilogFile();
   // 57 bits is 7 bytes with a bit left over. The left over bit (MSb) is written
   // in first.
@@ -263,7 +263,7 @@ TEST_P(WrapIoTest, OddBitWidthShiftRegisterTest) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, InputResetModuleTest) {
+TEST_P(WrapIOTest, InputResetModuleTest) {
   VerilogFile file = NewVerilogFile();
   XLS_ASSERT_OK_AND_ASSIGN(Module * m, InputResetModule(&file));
 
@@ -282,7 +282,7 @@ TEST_P(WrapIoTest, InputResetModuleTest) {
       .ExpectEq("rst_n_out", 1)
       .ExpectEq("byte_in_ready", 0)
       // Set input to reset character.
-      .Set("byte_in", IoControlCode::kReset)
+      .Set("byte_in", IOControlCode::kReset)
       .Set("byte_in_valid", 0);
 
   // Though the reset character was passed in, byte_in_valid was not asserted so
@@ -308,7 +308,7 @@ TEST_P(WrapIoTest, InputResetModuleTest) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, InputControllerForSimpleComputation) {
+TEST_P(WrapIOTest, InputControllerForSimpleComputation) {
   ModuleSignatureBuilder mb("x_plus_y");
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
@@ -334,8 +334,8 @@ TEST_P(WrapIoTest, InputControllerForSimpleComputation) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, InputControllerResetControlCode) {
-  // Verify that passing in IoControlCode::kReset asserts rst_n and resets the
+TEST_P(WrapIOTest, InputControllerResetControlCode) {
+  // Verify that passing in IOControlCode::kReset asserts rst_n and resets the
   // input shift register.
   ModuleSignatureBuilder mb("x_plus_y");
   mb.WithClock("clk");
@@ -353,7 +353,7 @@ TEST_P(WrapIoTest, InputControllerResetControlCode) {
   tb.AdvanceNCycles(5);
   tb.Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
   tb.Set("byte_in", 0x42).WaitFor("byte_in_ready").NextCycle();
-  tb.Set("byte_in", IoControlCode::kReset).NextCycle();
+  tb.Set("byte_in", IOControlCode::kReset).NextCycle();
   tb.ExpectEq("rst_n_out", 0).ExpectEq("byte_in_ready", 1);
 
   tb.Set("byte_in_valid", 0);
@@ -370,7 +370,7 @@ TEST_P(WrapIoTest, InputControllerResetControlCode) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, InputControllerEscapedCharacters) {
+TEST_P(WrapIOTest, InputControllerEscapedCharacters) {
   // Verify that the two escape codes work as expected for passing in the reset
   // and escape control code values as data bytes.
   ModuleSignatureBuilder mb("x_plus_y");
@@ -387,29 +387,29 @@ TEST_P(WrapIoTest, InputControllerEscapedCharacters) {
   tb.Set("rst_n_in", 0);
   tb.AdvanceNCycles(5);
   tb.Set("rst_n_in", 1).Set("data_out_ready", 0).Set("byte_in_valid", 1);
-  tb.Set("byte_in", IoControlCode::kEscape)
+  tb.Set("byte_in", IOControlCode::kEscape)
       .WaitFor("byte_in_ready")
       .NextCycle();
-  tb.Set("byte_in", IoEscapeCode::kEscapeByte)
+  tb.Set("byte_in", IOEscapeCode::kEscapeByte)
       .WaitFor("byte_in_ready")
       .NextCycle();
-  tb.Set("byte_in", IoControlCode::kEscape)
+  tb.Set("byte_in", IOControlCode::kEscape)
       .WaitFor("byte_in_ready")
       .NextCycle();
-  tb.Set("byte_in", IoEscapeCode::kResetByte)
+  tb.Set("byte_in", IOEscapeCode::kResetByte)
       .WaitFor("byte_in_ready")
       .NextCycle();
   tb.Set("byte_in_valid", 0).Set("data_out_ready", 1);
   tb.WaitFor("data_out_valid")
       .ExpectEq("data_out",
-                (static_cast<uint16_t>(IoControlCode::kEscape) << 8) |
-                    IoControlCode::kReset)
+                (static_cast<uint16_t>(IOControlCode::kEscape) << 8) |
+                    IOControlCode::kReset)
       .NextCycle();
 
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, InputControllerWideInput) {
+TEST_P(WrapIOTest, InputControllerWideInput) {
   ModuleSignatureBuilder mb("wide_x");
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
@@ -450,7 +450,7 @@ TEST_P(WrapIoTest, InputControllerWideInput) {
   XLS_EXPECT_OK(tb.Run());
 }
 
-TEST_P(WrapIoTest, OutputControllerForSimpleComputation) {
+TEST_P(WrapIOTest, OutputControllerForSimpleComputation) {
   ModuleSignatureBuilder mb(TestBaseName());
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
@@ -488,9 +488,9 @@ TEST_P(WrapIoTest, OutputControllerForSimpleComputation) {
 
 // Iverilog hangs when simulating some of these tests.
 // TODO(meheff): Add iverilog to the simulator list.
-INSTANTIATE_TEST_SUITE_P(WrapIoTestInstantiation, WrapIoTest,
+INSTANTIATE_TEST_SUITE_P(WrapIOTestInstantiation, WrapIOTest,
                          testing::ValuesIn(kVerilogOnlySimulationTargets),
-                         ParameterizedTestName<WrapIoTest>);
+                         ParameterizedTestName<WrapIOTest>);
 
 }  // namespace
 }  // namespace verilog

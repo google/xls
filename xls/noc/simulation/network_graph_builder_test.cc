@@ -67,7 +67,7 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
     NetworkComponentId link_id;
     switch (network_component.kind()) {
       case NetworkComponentKind::kNISrc:
-        EXPECT_EQ(absl::get<NetworkInterfaceSrcParam>(nc_param).GetName(),
+        EXPECT_EQ(std::get<NetworkInterfaceSrcParam>(nc_param).GetName(),
                   "SendPort");
         EXPECT_EQ(
             params.GetPortParam(network_component.GetPortIds()[0])->GetName(),
@@ -77,10 +77,9 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
         connection_id = network_component.GetPortByIndex(0).connection();
         link_id =
             graph.GetConnection(connection_id).sink().GetNetworkComponentId();
-        EXPECT_EQ(
-            absl::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
-                .GetName(),
-            "Link0");
+        EXPECT_EQ(std::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
+                      .GetName(),
+                  "Link0");
 
         // Link ports are assoicated with the protos for the network components.
         EXPECT_EQ(
@@ -97,7 +96,7 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
             "in0");
         break;
       case NetworkComponentKind::kNISink:
-        EXPECT_EQ(absl::get<NetworkInterfaceSinkParam>(nc_param).GetName(),
+        EXPECT_EQ(std::get<NetworkInterfaceSinkParam>(nc_param).GetName(),
                   "RecvPort");
         EXPECT_EQ(
             params.GetPortParam(network_component.GetPortIds()[0])->GetName(),
@@ -107,10 +106,9 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
         connection_id = network_component.GetPortByIndex(0).connection();
         link_id =
             graph.GetConnection(connection_id).src().GetNetworkComponentId();
-        EXPECT_EQ(
-            absl::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
-                .GetName(),
-            "Link1");
+        EXPECT_EQ(std::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
+                      .GetName(),
+                  "Link1");
 
         // Link ports are assoicated with the protos for the network components.
         EXPECT_EQ(
@@ -127,7 +125,7 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
             "RecvPort");
         break;
       case NetworkComponentKind::kRouter:
-        EXPECT_EQ(absl::get<RouterParam>(nc_param).GetName(), "Router0");
+        EXPECT_EQ(std::get<RouterParam>(nc_param).GetName(), "Router0");
         EXPECT_EQ(params.GetPortParam(network_component.GetInputPortIds()[0])
                       ->GetName(),
                   "in0");
@@ -151,20 +149,18 @@ TEST(SimNetworkGraphBuilderTest, UnitTest) {
             graph.GetPort(network_component.GetInputPortIds()[0]).connection();
         link_id =
             graph.GetConnection(connection_id).src().GetNetworkComponentId();
-        EXPECT_EQ(
-            absl::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
-                .GetName(),
-            "Link0");
+        EXPECT_EQ(std::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
+                      .GetName(),
+                  "Link0");
 
         // Retreive and check link attached to output port
         connection_id =
             graph.GetPort(network_component.GetOutputPortIds()[0]).connection();
         link_id =
             graph.GetConnection(connection_id).sink().GetNetworkComponentId();
-        EXPECT_EQ(
-            absl::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
-                .GetName(),
-            "Link1");
+        EXPECT_EQ(std::get<LinkParam>(*params.GetNetworkComponentParam(link_id))
+                      .GetName(),
+                  "Link1");
         break;
       default:
         break;

@@ -31,7 +31,7 @@ PYBIND11_MODULE(package, m) {
   py::module::import("xls.ir.python.function");
 
   py::class_<PackageHolder>(m, "Package")
-      .def(py::init([](absl::string_view name) {
+      .def(py::init([](std::string_view name) {
              auto package = std::make_shared<Package>(name);
              return PackageHolder(package.get(), package);
            }),

@@ -47,7 +47,7 @@ VerifiedPackage::~VerifiedPackage() {
 }
 
 absl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
-    absl::string_view text) {
+    std::string_view text) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<VerifiedPackage> package,
                        Parser::ParseDerivedPackageNoVerify<VerifiedPackage>(
                            text, absl::nullopt));
@@ -56,23 +56,23 @@ absl::StatusOr<std::unique_ptr<VerifiedPackage>> IrTestBase::ParsePackage(
 }
 
 absl::StatusOr<std::unique_ptr<Package>> IrTestBase::ParsePackageNoVerify(
-    absl::string_view text) {
+    std::string_view text) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
                        Parser::ParsePackageNoVerify(text));
   return std::move(package);
 }
 
-absl::StatusOr<Function*> IrTestBase::ParseFunction(absl::string_view text,
+absl::StatusOr<Function*> IrTestBase::ParseFunction(std::string_view text,
                                                     Package* package) {
   return Parser::ParseFunction(text, package);
 }
 
-absl::StatusOr<Proc*> IrTestBase::ParseProc(absl::string_view text,
+absl::StatusOr<Proc*> IrTestBase::ParseProc(std::string_view text,
                                             Package* package) {
   return Parser::ParseProc(text, package);
 }
 
-Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
+Node* IrTestBase::FindNode(std::string_view name, Package* package) {
   for (FunctionBase* function : package->GetFunctionBases()) {
     for (Node* node : function->nodes()) {
       if (node->GetName() == name) {
@@ -83,7 +83,7 @@ Node* IrTestBase::FindNode(absl::string_view name, Package* package) {
   XLS_LOG(FATAL) << "No node named " << name << " in package:\n" << *package;
 }
 
-Node* IrTestBase::FindNode(absl::string_view name, FunctionBase* function) {
+Node* IrTestBase::FindNode(std::string_view name, FunctionBase* function) {
   for (Node* node : function->nodes()) {
     if (node->GetName() == name) {
       return node;
@@ -92,7 +92,7 @@ Node* IrTestBase::FindNode(absl::string_view name, FunctionBase* function) {
   XLS_LOG(FATAL) << "No node named " << name << " in function:\n" << *function;
 }
 
-bool IrTestBase::HasNode(absl::string_view name, Package* package) {
+bool IrTestBase::HasNode(std::string_view name, Package* package) {
   for (FunctionBase* function : package->GetFunctionBases()) {
     for (Node* node : function->nodes()) {
       if (node->GetName() == name) {
@@ -103,7 +103,7 @@ bool IrTestBase::HasNode(absl::string_view name, Package* package) {
   return false;
 }
 
-bool IrTestBase::HasNode(absl::string_view name, FunctionBase* function) {
+bool IrTestBase::HasNode(std::string_view name, FunctionBase* function) {
   for (Node* node : function->nodes()) {
     if (node->GetName() == name) {
       return true;
@@ -112,7 +112,7 @@ bool IrTestBase::HasNode(absl::string_view name, FunctionBase* function) {
   return false;
 }
 
-Function* IrTestBase::FindFunction(absl::string_view name, Package* package) {
+Function* IrTestBase::FindFunction(std::string_view name, Package* package) {
   for (auto& function : package->functions()) {
     if (function->name() == name) {
       return function.get();
@@ -122,7 +122,7 @@ Function* IrTestBase::FindFunction(absl::string_view name, Package* package) {
                  << *package;
 }
 
-Proc* IrTestBase::FindProc(absl::string_view name, Package* package) {
+Proc* IrTestBase::FindProc(std::string_view name, Package* package) {
   for (auto& proc : package->procs()) {
     if (proc->name() == name) {
       return proc.get();
@@ -131,7 +131,7 @@ Proc* IrTestBase::FindProc(absl::string_view name, Package* package) {
   XLS_LOG(FATAL) << "No proc named " << name << " in package:\n" << *package;
 }
 
-Block* IrTestBase::FindBlock(absl::string_view name, Package* package) {
+Block* IrTestBase::FindBlock(std::string_view name, Package* package) {
   for (auto& block : package->blocks()) {
     if (block->name() == name) {
       return block.get();
@@ -142,7 +142,7 @@ Block* IrTestBase::FindBlock(absl::string_view name, Package* package) {
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
-    absl::string_view package_text, bool run_optimized, bool simulate,
+    std::string_view package_text, bool run_optimized, bool simulate,
     xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
   // location is captured as a default argument to RunAndExpectEq.
@@ -162,7 +162,7 @@ void IrTestBase::RunAndExpectEq(
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, Bits>& args, Bits expected,
-    absl::string_view package_text, bool run_optimized, bool simulate,
+    std::string_view package_text, bool run_optimized, bool simulate,
     xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
   // location is captured as a default argument to RunAndExpectEq.
@@ -180,7 +180,7 @@ void IrTestBase::RunAndExpectEq(
 
 void IrTestBase::RunAndExpectEq(
     const absl::flat_hash_map<std::string, Value>& args, Value expected,
-    absl::string_view package_text, bool run_optimized, bool simulate,
+    std::string_view package_text, bool run_optimized, bool simulate,
     xabsl::SourceLocation loc) {
   // Emit the filename/line of the test code in any failure message. The
   // location is captured as a default argument to RunAndExpectEq.

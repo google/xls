@@ -84,15 +84,17 @@ class RunComparator {
 struct ParseAndTestOptions {
   std::string stdlib_path = xls::kDefaultDslxStdlibPath;
   absl::Span<const std::filesystem::path> dslx_paths = {};
-  std::optional<absl::string_view> test_filter = absl::nullopt;
+  std::optional<std::string_view> test_filter = absl::nullopt;
   FormatPreference trace_format_preference = FormatPreference::kDefault;
   RunComparator* run_comparator = nullptr;
   bool execute = true;
   std::optional<int64_t> seed = absl::nullopt;
   ConvertOptions convert_options;
+  bool warnings_as_errors = true;
 };
 
 enum class TestResult {
+  kFailedWarnings,
   kSomeFailed,
   kAllPassed,
 };
@@ -108,9 +110,9 @@ enum class TestResult {
 //
 // Returns:
 //   Whether any test failed (as a boolean).
-absl::StatusOr<TestResult> ParseAndTest(absl::string_view program,
-                                        absl::string_view module_name,
-                                        absl::string_view filename,
+absl::StatusOr<TestResult> ParseAndTest(std::string_view program,
+                                        std::string_view module_name,
+                                        std::string_view filename,
                                         const ParseAndTestOptions& options);
 
 struct QuickCheckResults {

@@ -297,10 +297,8 @@ absl::StatusOr<PipelineSchedule> ScheduleAndPrintStats(
   return std::move(schedule);
 }
 
-absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
-                              const BddQueryEngine& bdd_query_engine,
-                              const DelayEstimator& delay_estimator,
-                              std::optional<int64_t> clock_period_ps) {
+absl::Status PrintCodegenInfo(FunctionBase* f,
+                              const PipelineSchedule& schedule) {
   absl::Time start = absl::Now();
   XLS_ASSIGN_OR_RETURN(verilog::ModuleGeneratorResult codegen_result,
                        verilog::ToPipelineModuleText(
@@ -309,6 +307,21 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
   std::cout << absl::StreamFormat("Codegen time: %dms\n",
                                   total_time / absl::Milliseconds(1));
 
+  // TODO(meheff): Add an estimate of total number of gates.
+  std::cout << absl::StreamFormat(
+      "Lines of Verilog: %d\n",
+      std::vector<std::string>(
+          absl::StrSplit(codegen_result.verilog_text, '\n'))
+          .size());
+
+  return absl::OkStatus();
+}
+
+absl::Status PrintScheduleInfo(FunctionBase* f,
+                               const PipelineSchedule& schedule,
+                               const BddQueryEngine& bdd_query_engine,
+                               const DelayEstimator& delay_estimator,
+                               std::optional<int64_t> clock_period_ps) {
   int64_t total_flops = 0;
   int64_t total_duplicates = 0;
   int64_t total_constants = 0;
@@ -378,23 +391,28 @@ absl::Status PrintCodegenInfo(FunctionBase* f, const PipelineSchedule& schedule,
     std::cout << absl::StreamFormat("Min stage slack: %d\n", min_slack);
   }
 
-  // TODO(meheff): Add an estimate of total number of gates.
-  std::cout << absl::StreamFormat(
-      "Lines of Verilog: %d\n",
-      std::vector<std::string>(
-          absl::StrSplit(codegen_result.verilog_text, '\n'))
-          .size());
   return absl::OkStatus();
 }
 
-bool DummyRecvFn(JitChannelQueue* queue, Receive* recv, uint8_t* data,
-                 int64_t data_bytes, void* user_data) {
-  return true;
-}
-void DummySendFn(JitChannelQueue* queue, Send* send, uint8_t* data,
-                 int64_t data_bytes, void* user_data) {}
+absl::Status PrintProcInfo(Proc* p) {
+  XLS_RET_CHECK(p != nullptr);
 
-absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
+  int64_t total_flops = 0;
+  for (Param* param : p->StateParams()) {
+    total_flops += param->GetType()->GetFlatBitCount();
+  }
+
+  std::cout << absl::StreamFormat("Total state flops: %d\n", total_flops);
+
+  return absl::OkStatus();
+}
+
+absl::Status RunInterpeterAndJit(FunctionBase* function_base,
+                                 std::string_view description) {
+  // TODO(meheff): 2022/10/10 Run interpreter / jit for a fixed amount of time
+  // (1s?) and report the rate (iterations per second). Currently, many of the
+  // benchmarks do not run long enough to produce statistically significant
+  // results.
   std::minstd_rand rng_engine;
   if (function_base->IsFunction()) {
     Function* function = function_base->AsFunctionOrDie();
@@ -402,7 +420,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
     XLS_ASSIGN_OR_RETURN(std::unique_ptr<FunctionJit> jit,
                          FunctionJit::Create(function));
     std::cout << absl::StreamFormat(
-        "JIT compile time: %dms\n",
+        "JIT compile time (%s): %dms\n", description,
         DurationToMs(absl::Now() - start_jit_compile));
 
     const int64_t kInputCount = 100;
@@ -413,15 +431,35 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
       }
     }
 
+    // To avoid being dominated by xls::Value conversion to native
+    // format, preconvert the arguments.
+    std::vector<std::vector<std::vector<uint8_t>>> jit_arg_buffers;
+    std::vector<std::vector<uint8_t*>> jit_arg_pointers;
+    for (const std::vector<Value>& args : arg_set) {
+      std::vector<std::vector<uint8_t>> buffers;
+      std::vector<uint8_t*> pointers;
+      for (int64_t i = 0; i < args.size(); ++i) {
+        buffers.push_back(std::vector<uint8_t>(jit->GetArgTypeSize(i), 0));
+        pointers.push_back(buffers.back().data());
+      }
+      jit_arg_buffers.push_back(std::move(buffers));
+      jit_arg_pointers.push_back(pointers);
+      XLS_RETURN_IF_ERROR(jit->runtime()->PackArgs(
+          args, function->GetType()->parameters(), jit_arg_pointers.back()));
+    }
+
     // The JIT is much faster so run many times.
     const int64_t kJitRunMultiplier = 1000;
+    InterpreterEvents events;
+    std::vector<uint8_t> result_buffer(jit->GetReturnTypeSize());
     absl::Time start_jit_run = absl::Now();
     for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
-      for (const std::vector<Value>& args : arg_set) {
-        XLS_RETURN_IF_ERROR(jit->Run(args).status());
+      for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
+        XLS_RETURN_IF_ERROR(jit->RunWithViews(
+            pointers, absl::MakeSpan(result_buffer), &events));
       }
     }
-    std::cout << absl::StreamFormat("JIT run time: %dms\n",
+    std::cout << absl::StreamFormat("JIT run time (%s): %dms\n", description,
                                     DurationToMs(absl::Now() - start_jit_run));
 
     absl::Time start_interpreter = absl::Now();
@@ -429,7 +467,7 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
       XLS_RETURN_IF_ERROR(InterpretFunction(function, args).status());
     }
     std::cout << absl::StreamFormat(
-        "Interpreter time: %dms\n",
+        "Interpreter run time (%s): %dms\n", description,
         DurationToMs(absl::Now() - start_interpreter));
     return absl::OkStatus();
   }
@@ -438,20 +476,23 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base) {
   Proc* proc = function_base->AsProcOrDie();
 
   absl::Time start_jit_compile = absl::Now();
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> jit_runtime,
+                       JitRuntime::Create());
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_manager,
-                       JitChannelQueueManager::Create(proc->package()));
+                       JitChannelQueueManager::CreateThreadSafe(
+                           proc->package(), jit_runtime.get()));
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_manager.get(), &DummyRecvFn, &DummySendFn));
+      ProcJit::Create(proc, jit_runtime.get(), queue_manager.get()));
   std::cout << absl::StreamFormat(
-      "JIT compile time: %dms\n",
+      "JIT compile time (%s): %dms\n", description,
       DurationToMs(absl::Now() - start_jit_compile));
   // TODO(meheff): 2022/5/16 Run the proc as well.
 
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::string_view path,
+absl::Status RealMain(std::string_view path,
                       std::optional<int64_t> clock_period_ps,
                       std::optional<int64_t> pipeline_stages,
                       std::optional<int64_t> clock_margin_percent) {
@@ -463,13 +504,16 @@ absl::Status RealMain(absl::string_view path,
     XLS_RETURN_IF_ERROR(package->SetTopByName(absl::GetFlag(FLAGS_top)));
   }
 
-  XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
-  std::optional<FunctionBase*> top = package->GetTop();
-  if (!top.has_value()) {
+  if (!package->GetTop().has_value()) {
     return absl::InternalError(absl::StrFormat(
         "Top entity not set for package: %s.", package->name()));
   }
-  FunctionBase* f = top.value();
+  XLS_RETURN_IF_ERROR(
+      RunInterpeterAndJit(package->GetTop().value(), "unoptimized"));
+
+  XLS_RETURN_IF_ERROR(RunOptimizationAndPrintStats(package.get()));
+
+  FunctionBase* f = package->GetTop().value();
   BddQueryEngine query_engine(BddFunction::kDefaultPathLimit);
   XLS_RETURN_IF_ERROR(query_engine.Populate(f).status());
   PrintNodeBreakdown(f);
@@ -500,11 +544,25 @@ absl::Status RealMain(absl::string_view path,
         PipelineSchedule schedule,
         ScheduleAndPrintStats(package.get(), delay_estimator, clock_period_ps,
                               pipeline_stages, clock_margin_percent));
-    XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule, query_engine,
-                                         delay_estimator, clock_period_ps));
+
+    // Only print codegen info for functions.
+    //
+    // TODO(tedhong): 2022-09-28 - Support passing additional codegen options
+    // to benchmark_main to be able to codegen procs.
+    if (f->IsFunction()) {
+      XLS_RETURN_IF_ERROR(PrintCodegenInfo(f, schedule));
+    }
+
+    XLS_RETURN_IF_ERROR(PrintScheduleInfo(f, schedule, query_engine,
+                                          delay_estimator, clock_period_ps));
+
+    // Print out state information for procs.
+    if (f->IsProc()) {
+      XLS_RETURN_IF_ERROR(PrintProcInfo(f->AsProcOrDie()));
+    }
   }
 
-  XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f));
+  XLS_RETURN_IF_ERROR(RunInterpeterAndJit(f, "optimized"));
   return absl::OkStatus();
 }
 
@@ -512,7 +570,7 @@ absl::Status RealMain(absl::string_view path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() || positional_arguments[0].empty()) {

@@ -217,11 +217,11 @@ class Bytecode {
     MatchArmItem(Kind kind);
     MatchArmItem(
         Kind kind,
-        absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);
+        std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>> data);
 
     Kind kind_;
     std::optional<
-        absl::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>>>
+        std::variant<InterpValue, SlotIndex, std::vector<MatchArmItem>>>
         data_;
   };
 
@@ -250,9 +250,9 @@ class Bytecode {
   };
 
   using TraceData = std::vector<FormatStep>;
-  using Data = absl::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
-                             std::unique_ptr<ConcreteType>, InvocationData,
-                             MatchArmItem, SpawnData, TraceData>;
+  using Data = std::variant<InterpValue, JumpTarget, NumElements, SlotIndex,
+                            std::unique_ptr<ConcreteType>, InvocationData,
+                            MatchArmItem, SpawnData, TraceData>;
 
   static Bytecode MakeCreateTuple(Span span, NumElements elements);
   static Bytecode MakeDup(Span span);
@@ -375,7 +375,7 @@ std::string BytecodesToString(absl::Span<const Bytecode> bytecodes,
 // Converts a string as given by BytecodesToString(..., /*source_locs=*/false)
 // into a bytecode sequence; e.g. for testing.
 absl::StatusOr<std::vector<Bytecode>> BytecodesFromString(
-    absl::string_view text);
+    std::string_view text);
 
 }  // namespace xls::dslx
 

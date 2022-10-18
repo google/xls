@@ -208,9 +208,9 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
        routing_table.GetSinkIndices().GetNetworkComponents()) {
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam nc_param,
                          params.GetNetworkComponentParam(sink_id));
-    XLS_CHECK(absl::holds_alternative<NetworkInterfaceSinkParam>(nc_param));
+    XLS_CHECK(std::holds_alternative<NetworkInterfaceSinkParam>(nc_param));
     std::string nc_name =
-        std::string(absl::get<NetworkInterfaceSinkParam>(nc_param).GetName());
+        std::string(std::get<NetworkInterfaceSinkParam>(nc_param).GetName());
 
     std::string entry_name =
         absl::StrFormat("Sink:%s:TrafficRateInMiBps", nc_name);
@@ -270,7 +270,7 @@ absl::StatusOr<ExperimentData> ExperimentRunner::RunExperiment(
   for (const SimInputBufferedVCRouter& router : simulator.GetRouters()) {
     XLS_ASSIGN_OR_RETURN(NetworkComponentParam param,
                          params.GetNetworkComponentParam(router.GetId()));
-    RouterParam router_param = absl::get<RouterParam>(param);
+    RouterParam router_param = std::get<RouterParam>(param);
     router_param.GetName();
     std::string metric_name =
         absl::StrFormat("Router:%s:Utilization", router_param.GetName());

@@ -28,7 +28,7 @@ namespace logging {
 
 // Splits up text into multiple lines and logs it with the given severity.
 // The file name and line number provided are used in the logging message.
-void LogLines(absl::LogSeverity severity, absl::string_view text,
+void LogLines(absl::LogSeverity severity, std::string_view text,
               const char* file_name, int line_number);
 
 }  // namespace logging

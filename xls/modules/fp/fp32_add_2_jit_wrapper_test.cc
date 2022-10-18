@@ -26,7 +26,7 @@ namespace xls {
 namespace {
 
 TEST(Fp32Add2JitWrapperTest, CanAdd) {
-  XLS_ASSERT_OK_AND_ASSIGN(auto adder, Fp32Add2::Create());
+  XLS_ASSERT_OK_AND_ASSIGN(auto adder, fp::Fp32Add2::Create());
   Value one = F32ToTuple(1.0f);
   Value two = F32ToTuple(2.0f);
 

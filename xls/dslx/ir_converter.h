@@ -92,18 +92,18 @@ absl::StatusOr<std::string> ConvertModule(Module* module,
 //
 // Implementation note: creates a temporary IR package based on module's name.
 absl::StatusOr<std::string> ConvertOneFunction(
-    Module* module, absl::string_view entry_function_name,
+    Module* module, std::string_view entry_function_name,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options,
-    std::optional<absl::string_view> top_proc_initial_state);
+    std::optional<std::string_view> top_proc_initial_state);
 
 // As above, but the package is provided explicitly.
 //
 // Package must outlive this function call -- functions from "module" are placed
 // inside of it, it may not be nullptr.
 absl::Status ConvertOneFunctionIntoPackage(
-    Module* module, absl::string_view entry_function_name,
-    std::optional<absl::string_view> top_proc_initial_state,
+    Module* module, std::string_view entry_function_name,
+    std::optional<std::string_view> top_proc_initial_state,
     ImportData* import_data, const SymbolicBindings* symbolic_bindings,
     const ConvertOptions& options, Package* package);
 

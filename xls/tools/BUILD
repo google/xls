@@ -13,6 +13,7 @@
 # limitations under the License.
 
 # pytype binary and test
+# cc_proto_library is used in this file
 
 package(
     default_visibility = ["//xls:xls_internal"],
@@ -588,7 +589,9 @@ cc_binary(
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/types:span",
         "//xls/codegen:module_signature_cc_proto",
+        "//xls/common:indent",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -601,6 +604,7 @@ cc_binary(
         "//xls/ir:value_helpers",
         "//xls/jit:jit_channel_queue",
         "//xls/jit:serial_proc_runtime",
+        "@com_github_google_re2//:re2",
     ],
 )
 
@@ -768,7 +772,6 @@ cc_binary(
     deps = [
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",
-        "@com_google_absl//absl/strings",
         "//xls/common:init_xls",
         "//xls/common/file:filesystem",
         "//xls/common/logging",
@@ -776,7 +779,6 @@ cc_binary(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/ir:type",
-        "//xls/jit:jit_runtime",
         "//xls/jit:orc_jit",
         "@llvm-project//llvm:Core",
         "@llvm-project//llvm:IRReader",
@@ -870,11 +872,35 @@ cc_library(
     ],
 )
 
+proto_library(
+    name = "codegen_flags_proto",
+    srcs = ["codegen_flags.proto"],
+)
+
+cc_proto_library(
+    name = "codegen_flags_cc_proto",
+    deps = [":codegen_flags_proto"],
+)
+
+cc_library(
+    name = "codegen_flags",
+    srcs = ["codegen_flags.cc"],
+    hdrs = ["codegen_flags.h"],
+    deps = [
+        ":codegen_flags_cc_proto",
+        "@com_google_absl//absl/flags:flag",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/strings:str_format",
+        "//xls/common/status:status_macros",
+    ],
+)
+
 cc_binary(
     name = "codegen_main",
     srcs = ["codegen_main.cc"],
     visibility = ["//xls:xls_users"],
     deps = [
+        ":codegen_flags",
         ":scheduling_options_flags",
         "@com_google_absl//absl/flags:flag",
         "@com_google_absl//absl/status",

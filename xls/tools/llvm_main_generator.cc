@@ -21,7 +21,7 @@
 // The main() function operates as follows (and is generated to do such):
 //  - The size of the input alloca is determined by examining the args passed
 //    to the program; argv[0] is the path to the sample, and the remaining
-//    are arguments in XLS Value textual form (via GetArgBufferSize()).
+//    are arguments in XLS Value textual form (via XlsJitGetArgBufferSize().
 //  - The alloca is created and packed with the command-line args (via
 //    PackArgs()).
 //  - An alloca is created with the size of the output type (taken from the
@@ -102,7 +102,7 @@ absl::Status RealMain(const std::string& input_path,
       llvm::FunctionType::get(int64_type, main_param_types, /*isVarArg=*/false);
   llvm::Function* get_size_function = llvm::Function::Create(
       get_size_type, llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-      "GetArgBufferSize", module.get());
+      "XlsJitGetArgBufferSize", module.get());
   std::vector<llvm::Value*> get_size_args({
       main_function->getArg(0),
       main_function->getArg(1),
@@ -125,7 +125,7 @@ absl::Status RealMain(const std::string& input_path,
       int64_type, pack_args_param_types, /*isVarArg=*/false);
   llvm::Function* pack_args_function = llvm::Function::Create(
       pack_args_type, llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-      "PackArgs", module.get());
+      "XlsJitPackArgs", module.get());
   std::vector<llvm::Value*> pack_args_args({main_function->getArg(0),
                                             main_function->getArg(1),
                                             input_alloca, get_size_result});
@@ -136,9 +136,10 @@ absl::Status RealMain(const std::string& input_path,
   Package package("the_package");
   XLS_ASSIGN_OR_RETURN(Type * xls_output_type,
                        Parser::ParseType(xls_output_type_string, &package));
-  XLS_ASSIGN_OR_RETURN(
-      auto jit, OrcJit::Create(/*opt_level=*/0, /*emit_object_code=*/false));
-  LlvmTypeConverter type_converter(&context, jit->GetDataLayout());
+  XLS_ASSIGN_OR_RETURN(llvm::DataLayout data_layout,
+                       OrcJit::CreateDataLayout());
+
+  LlvmTypeConverter type_converter(&context, data_layout);
   llvm::Type* base_output_type =
       type_converter.ConvertToLlvmType(xls_output_type);
   llvm::Type* output_type =
@@ -175,7 +176,7 @@ absl::Status RealMain(const std::string& input_path,
       int32_type, unpack_param_types, /*isVarArg=*/false);
   llvm::Function* unpack_function = llvm::Function::Create(
       unpack_function_type, llvm::GlobalValue::LinkageTypes::ExternalLinkage,
-      "UnpackAndPrintBuffer", module.get());
+      "XlsJitUnpackAndPrintBuffer", module.get());
   llvm::Value* cast_alloca =
       builder.CreateBitCast(output_alloca, input_alloca->getType());
   std::vector<llvm::Value*> unpack_args({

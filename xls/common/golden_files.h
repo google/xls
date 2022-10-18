@@ -31,7 +31,7 @@ namespace xls {
 // invocation. `golden_file_path` should be a runfiles path (e.g.,
 // `xls/foo/bar`).
 void ExpectEqualToGoldenFile(
-    const std::filesystem::path& golden_file_path, absl::string_view text,
+    const std::filesystem::path& golden_file_path, std::string_view text,
     xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
 }  // namespace xls

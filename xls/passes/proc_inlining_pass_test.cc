@@ -63,9 +63,9 @@ class ProcInliningPassTest : public IrTestBase {
   absl::StatusOr<std::unique_ptr<ProcNetworkInterpreter>> CreateInterpreter(
       Package* p,
       const absl::flat_hash_map<std::string, std::vector<int64_t>>& inputs) {
-    // Create an fixed input queue for each set of inputs. It will feed in the
-    // specified inputs.
-    std::vector<std::unique_ptr<ChannelQueue>> queues;
+    XLS_ASSIGN_OR_RETURN(std::unique_ptr<ProcNetworkInterpreter> interpreter,
+                         CreateProcNetworkInterpreter(p));
+
     for (auto [ch_name, ch_inputs] : inputs) {
       XLS_ASSIGN_OR_RETURN(Channel * ch, p->GetChannel(ch_name));
       XLS_RET_CHECK(ch->type()->IsBits());
@@ -75,19 +75,18 @@ class ProcInliningPassTest : public IrTestBase {
         input_values.push_back(Value(UBits(in, ch->type()->GetFlatBitCount())));
       }
 
+      ChannelQueue& queue = interpreter->queue_manager().GetQueue(ch);
       if (ch->kind() == ChannelKind::kStreaming) {
-        queues.push_back(
-            std::make_unique<FixedChannelQueue>(ch, p, input_values));
+        XLS_RETURN_IF_ERROR(
+            queue.AttachGenerator(FixedValueGenerator(input_values)));
       } else {
         XLS_RET_CHECK(ch->kind() == ChannelKind::kSingleValue);
         XLS_RET_CHECK_EQ(input_values.size(), 1)
             << "Single value channels may only have a single input";
-        auto queue = std::make_unique<SingleValueChannelQueue>(ch);
-        XLS_RETURN_IF_ERROR(queue->Enqueue(input_values.front()));
-        queues.push_back(std::move(queue));
+        XLS_RETURN_IF_ERROR(queue.Write(input_values.front()));
       }
     }
-    return CreateProcNetworkInterpreter(p, std::move(queues));
+    return std::move(interpreter);
   }
 
   // Evaluate the proc with the given inputs and expect the given
@@ -134,7 +133,7 @@ class ProcInliningPassTest : public IrTestBase {
       std::vector<int64_t> outputs;
       ChannelQueue& queue = interpreter->queue_manager().GetQueue(ch);
       while (outputs.size() < expected_outputs.at(ch->name()).size()) {
-        XLS_ASSERT_OK_AND_ASSIGN(Value output, queue.Dequeue());
+        Value output = queue.Read().value();
         outputs.push_back(output.bits().ToUint64().value());
       }
       EXPECT_THAT(outputs, ElementsAreArray(expected_outputs.at(ch->name())))
@@ -144,7 +143,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data on channel `in` and immediate sends back
   // the data on channel `out`.
-  absl::StatusOr<Proc*> MakeLoopbackProc(absl::string_view name, Channel* in,
+  absl::StatusOr<Proc*> MakeLoopbackProc(std::string_view name, Channel* in,
                                          Channel* out, Package* p) {
     XLS_RET_CHECK(in->type() == out->type());
     ProcBuilder b(name, "tkn", p);
@@ -155,7 +154,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data on channel `in` and sends back the data on
   // channel `out` after `delay` ticks.
-  absl::StatusOr<Proc*> MakeDelayedLoopbackProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakeDelayedLoopbackProc(std::string_view name,
                                                 int64_t delay, Channel* in,
                                                 Channel* out, Package* p) {
     XLS_RET_CHECK(in->type() == out->type());
@@ -179,7 +178,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data on channel `in` and sends back twice the
   // value of data on channel `out`.
-  absl::StatusOr<Proc*> MakeDoublerProc(absl::string_view name, Channel* in,
+  absl::StatusOr<Proc*> MakeDoublerProc(std::string_view name, Channel* in,
                                         Channel* out, Package* p) {
     XLS_RET_CHECK(in->type() == out->type());
     ProcBuilder b(name, "tkn", p);
@@ -192,7 +191,7 @@ class ProcInliningPassTest : public IrTestBase {
   // Make a proc which receives data on channel `a_in` and sends the data on
   // `a_out`, then receives data on channel `b_in` and sends that data on
   // `b_out`.
-  absl::StatusOr<Proc*> MakePassThroughProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakePassThroughProc(std::string_view name,
                                             Channel* a_in, Channel* a_out,
                                             Channel* b_in, Channel* b_out,
                                             Package* p) {
@@ -227,7 +226,7 @@ class ProcInliningPassTest : public IrTestBase {
   //    else:
   //      i = i + 1
   //      accum = x
-  absl::StatusOr<Proc*> MakeLoopingAccumulatorProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakeLoopingAccumulatorProc(std::string_view name,
                                                    Channel* input_ch,
                                                    Channel* output_ch,
                                                    int64_t iterations,
@@ -269,7 +268,7 @@ class ProcInliningPassTest : public IrTestBase {
 
   // Make a proc which receives data values `x` and `y` and sends the sum and
   // difference.
-  absl::StatusOr<Proc*> MakeSumAndDifferenceProc(absl::string_view name,
+  absl::StatusOr<Proc*> MakeSumAndDifferenceProc(std::string_view name,
                                                  Channel* x_in, Channel* y_in,
                                                  Channel* x_plus_y_out,
                                                  Channel* x_minus_y_out,
@@ -292,7 +291,7 @@ class ProcInliningPassTest : public IrTestBase {
   }
 
   // Make a proc which receives data values `x` and `y` and sends out the sum.
-  absl::StatusOr<Proc*> MakeSumProc(absl::string_view name, Channel* x_in,
+  absl::StatusOr<Proc*> MakeSumProc(std::string_view name, Channel* x_in,
                                     Channel* y_in, Channel* out, Package* p) {
     XLS_RET_CHECK(x_in->type() == y_in->type());
     XLS_RET_CHECK(x_in->type() == out->type());
@@ -319,7 +318,7 @@ class ProcInliningPassTest : public IrTestBase {
   //   y_accum += y
   //   send_if(out, cnt, (x_accum, y_accum))
   //   cnt = !cnt
-  absl::StatusOr<Proc*> MakeTupleAccumulator(absl::string_view name,
+  absl::StatusOr<Proc*> MakeTupleAccumulator(std::string_view name,
                                              Channel* in, Channel* out,
                                              Package* p) {
     XLS_RET_CHECK(in->type()->IsTuple());
@@ -2596,12 +2595,12 @@ TEST_F(ProcInliningPassTest, RandomProcNetworks) {
         std::unique_ptr<ProcNetworkInterpreter> interpreter,
         CreateInterpreter(p.get(), inputs));
     ChannelQueue& output_queue = interpreter->queue_manager().GetQueue(ch_out);
-    while (output_queue.size() < inputs.at("in").size()) {
+    while (output_queue.GetSize() < inputs.at("in").size()) {
       XLS_ASSERT_OK(interpreter->Tick());
     }
     absl::flat_hash_map<std::string, std::vector<int64_t>> expected_outputs;
-    while (!output_queue.empty()) {
-      XLS_ASSERT_OK_AND_ASSIGN(Value output, output_queue.Dequeue());
+    while (!output_queue.IsEmpty()) {
+      Value output = output_queue.Read().value();
       expected_outputs[ch_out->name()].push_back(
           output.bits().ToUint64().value());
     }

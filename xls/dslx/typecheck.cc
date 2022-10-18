@@ -241,8 +241,8 @@ absl::StatusOr<std::unique_ptr<DeduceCtx>> GetImportedDeduceCtx(
     const SymbolicBindings& caller_bindings) {
   ColonRef* colon_ref = dynamic_cast<ColonRef*>(invocation->callee());
   ColonRef::Subject subject = colon_ref->subject();
-  XLS_RET_CHECK(absl::holds_alternative<NameRef*>(subject));
-  NameRef* subject_nameref = absl::get<NameRef*>(subject);
+  XLS_RET_CHECK(std::holds_alternative<NameRef*>(subject));
+  NameRef* subject_nameref = std::get<NameRef*>(subject);
   AstNode* definer =
       std::get<const NameDef*>(subject_nameref->name_def())->definer();
   Import* import = dynamic_cast<Import*>(definer);
@@ -378,19 +378,19 @@ bool CanTypecheckProc(Proc* p) {
 
 absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
                                ImportData* import_data, DeduceCtx* ctx) {
-  if (absl::holds_alternative<Import*>(member)) {
-    Import* import = absl::get<Import*>(member);
+  if (std::holds_alternative<Import*>(member)) {
+    Import* import = std::get<Import*>(member);
     XLS_ASSIGN_OR_RETURN(
         ModuleInfo * imported,
         DoImport(ctx->typecheck_module(), ImportTokens(import->subject()),
                  import_data, import->span()));
     ctx->type_info()->AddImport(import, &imported->module(),
                                 imported->type_info());
-  } else if (absl::holds_alternative<ConstantDef*>(member) ||
-             absl::holds_alternative<EnumDef*>(member)) {
+  } else if (std::holds_alternative<ConstantDef*>(member) ||
+             std::holds_alternative<EnumDef*>(member)) {
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
-  } else if (absl::holds_alternative<Function*>(member)) {
-    Function* f = absl::get<Function*>(member);
+  } else if (std::holds_alternative<Function*>(member)) {
+    Function* f = std::get<Function*>(member);
     if (f->IsParametric()) {
       // Typechecking of parametric functions is driven by invocation sites.
       return absl::OkStatus();
@@ -409,12 +409,12 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
     XLS_RETURN_IF_ERROR(CheckFunction(f, ctx));
     scoped_entry.Finish();
     XLS_VLOG(2) << "Finished typechecking function: " << f->ToString();
-  } else if (absl::holds_alternative<Proc*>(member)) {
+  } else if (std::holds_alternative<Proc*>(member)) {
     // Just skip procs, as we typecheck their config & next functions (see the
     // previous else/if arm).
     return absl::OkStatus();
-  } else if (absl::holds_alternative<QuickCheck*>(member)) {
-    QuickCheck* qc = absl::get<QuickCheck*>(member);
+  } else if (std::holds_alternative<QuickCheck*>(member)) {
+    QuickCheck* qc = std::get<QuickCheck*>(member);
     Function* f = qc->f();
     if (f->IsParametric()) {
       // TODO(leary): 2020-08-09 Add support for quickchecking parametric
@@ -441,23 +441,23 @@ absl::Status CheckModuleMember(const ModuleMember& member, Module* module,
 
     XLS_VLOG(2) << "Finished typechecking quickcheck function: "
                 << f->ToString();
-  } else if (absl::holds_alternative<StructDef*>(member)) {
-    StructDef* struct_def = absl::get<StructDef*>(member);
+  } else if (std::holds_alternative<StructDef*>(member)) {
+    StructDef* struct_def = std::get<StructDef*>(member);
     XLS_VLOG(2) << "Typechecking struct: " << struct_def->ToString();
     ScopedFnStackEntry scoped(ctx, module);
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
     scoped.Finish();
     XLS_VLOG(2) << "Finished typechecking struct: " << struct_def->ToString();
-  } else if (absl::holds_alternative<TestFunction*>(member)) {
-    TestFunction* tf = absl::get<TestFunction*>(member);
+  } else if (std::holds_alternative<TestFunction*>(member)) {
+    TestFunction* tf = std::get<TestFunction*>(member);
     ScopedFnStackEntry scoped_entry(tf->fn(), ctx, /*expect_popped=*/false);
     XLS_RETURN_IF_ERROR(CheckFunction(tf->fn(), ctx));
     scoped_entry.Finish();
-  } else if (absl::holds_alternative<TestProc*>(member)) {
+  } else if (std::holds_alternative<TestProc*>(member)) {
     XLS_RETURN_IF_ERROR(
-        CheckTestProc(absl::get<TestProc*>(member), module, ctx));
-  } else if (absl::holds_alternative<TypeDef*>(member)) {
-    TypeDef* type_def = absl::get<TypeDef*>(member);
+        CheckTestProc(std::get<TestProc*>(member), module, ctx));
+  } else if (std::holds_alternative<TypeDef*>(member)) {
+    TypeDef* type_def = std::get<TypeDef*>(member);
     XLS_VLOG(2) << "Typechecking typedef: " << type_def->ToString();
     ScopedFnStackEntry scoped(ctx, module);
     XLS_RETURN_IF_ERROR(ctx->Deduce(ToAstNode(member)).status());
@@ -801,20 +801,22 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
   return tab;
 }
 
-absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data) {
+absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
+                                      WarningCollector* warnings) {
   XLS_ASSIGN_OR_RETURN(TypeInfo * type_info,
                        import_data->type_info_owner().New(module));
 
   auto typecheck_module =
-      [import_data](Module* module) -> absl::StatusOr<TypeInfo*> {
-    return CheckModule(module, import_data);
+      [import_data, warnings](Module* module) -> absl::StatusOr<TypeInfo*> {
+    return CheckModule(module, import_data, warnings);
   };
 
   DeduceCtx ctx(type_info, module,
                 /*deduce_function=*/&Deduce,
                 /*typecheck_function=*/&CheckFunction,
                 /*typecheck_module=*/typecheck_module,
-                /*typecheck_invocation=*/&CheckInvocation, import_data);
+                /*typecheck_invocation=*/&CheckInvocation, import_data,
+                warnings);
   ctx.AddFnStackEntry(FnStackEntry::MakeTop(module));
 
   for (const ModuleMember& member : module->top()) {

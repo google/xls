@@ -55,7 +55,7 @@ arc: W1_H02W0401 V06S0203
 
 // Extracts a flag value argument from the given args. Only handles
 // space-separated flags like "--flag VALUE".
-absl::StatusOr<std::string> GetFlagValue(absl::string_view flag,
+absl::StatusOr<std::string> GetFlagValue(std::string_view flag,
                                          absl::Span<const std::string> args) {
   // The string could conceivably span arguments so just join all the arguments
   // then split them.

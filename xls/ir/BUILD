@@ -298,6 +298,7 @@ cc_library(
         "//xls/common:iterator_range",
         "//xls/common:math_util",
         "//xls/common:strong_int",
+        "//xls/common:visitor",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/logging:vlog_is_on",

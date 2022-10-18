@@ -42,7 +42,7 @@ class AreaEstimator {
 
 // Returns an AreaEstimator for the estimator with the given 'name'.
 absl::StatusOr<std::unique_ptr<AreaEstimator>> GetAreaEstimatorByName(
-    absl::string_view name);
+    std::string_view name);
 
 }  // namespace xls
 

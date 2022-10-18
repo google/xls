@@ -41,10 +41,12 @@ absl::StatusOr<Function*> ResolveFunction(Expr* callee,
 absl::StatusOr<Proc*> ResolveProc(Expr* callee, const TypeInfo* type_info);
 
 // Returns the basis of the given ColonRef; either a Module for a constant
-// reference or the EnumDef whose attribute is specified.
-absl::StatusOr<absl::variant<Module*, EnumDef*>> ResolveColonRefSubject(
-    ImportData* import_data, const TypeInfo* type_info,
-    const ColonRef* colon_ref);
+// reference or the EnumDef whose attribute is specified, or a builtin type
+// (with a constant on it, a la `u7::MAX`).
+absl::StatusOr<
+    std::variant<Module*, EnumDef*, BuiltinNameDef*, ArrayTypeAnnotation*>>
+ResolveColonRefSubject(ImportData* import_data, const TypeInfo* type_info,
+                       const ColonRef* colon_ref);
 
 // Verifies that every node's child thinks that that node is its parent.
 absl::Status VerifyParentage(const Module* module);
@@ -53,6 +55,48 @@ absl::Status VerifyParentage(const AstNode* root);
 // Returns the set consisting of all transitive children of the given node (as
 // well as that node itself).
 absl::flat_hash_set<const AstNode*> FlattenToSet(const AstNode* node);
+
+// Returns the result of accessing a colon-ref member of a builtin type; e.g.
+// `s7::MAX`.
+absl::StatusOr<InterpValue> GetBuiltinNameDefColonAttr(
+    const BuiltinNameDef* builtin_name_def, std::string_view attr);
+
+absl::StatusOr<InterpValue> GetArrayTypeColonAttr(
+    const ArrayTypeAnnotation* type, uint64_t constexpr_dim,
+    std::string_view attr);
+
+// TMP helper that gets the Nth type from a parameter pack.
+template <int N, typename... Ts>
+struct GetNth {
+  using type = typename std::tuple_element<N, std::tuple<Ts...>>::type;
+};
+
+// Recursive helper for WidenVariant below -- attempts to get the Nth type from
+// the narrower parameter pack and place it into a variant for ToTypes.
+template <int N, typename... ToTypes, typename... FromTypes>
+inline std::variant<ToTypes...> TryWidenVariant(
+    const std::variant<FromTypes...>& v) {
+  using TryT = typename GetNth<N, FromTypes...>::type;
+  if (std::holds_alternative<TryT>(v)) {
+    return std::get<TryT>(v);
+  }
+  if constexpr (N == 0) {
+    XLS_LOG(FATAL) << "Could not find variant in FromTypes.";
+  } else {
+    return TryWidenVariant<N - 1, ToTypes...>(v);
+  }
+}
+
+// "Widens" a variant from a smaller set of types to a larger set of types; e.g.
+//
+// `variant<int, double>` can be widened to `variant<int, double, std::string>`
+// where `int, double` would be FromTypes and `int, double, std::string` would
+// be ToTypes.
+template <typename... ToTypes, typename... FromTypes>
+inline std::variant<ToTypes...> WidenVariant(
+    const std::variant<FromTypes...>& v) {
+  return TryWidenVariant<sizeof...(FromTypes) - 1, ToTypes...>(v);
+}
 
 }  // namespace xls::dslx
 

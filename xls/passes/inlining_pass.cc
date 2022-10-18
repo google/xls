@@ -66,7 +66,7 @@ std::optional<std::string> GetInlinedNodeName(Node* node, Invoke* invoke) {
 // a Verilog cover property must have a unique name. To handle this, we prepend
 // the original node ID to an inlined coverpoint. Post-processing will be needed
 // to re-aggregate coverpoints disaggregated in this method.
-std::string GetPrefixedLabel(Invoke* invoke, absl::string_view label,
+std::string GetPrefixedLabel(Invoke* invoke, std::string_view label,
                              int inline_count) {
   FunctionBase* caller = invoke->function_base();
   return absl::StrCat(caller->name(), "_", inline_count, "_",

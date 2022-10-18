@@ -72,7 +72,7 @@ class ConditionalFsmBlock;
 // (i.e., a basic block).
 class FsmBlockBase {
  public:
-  explicit FsmBlockBase(absl::string_view debug_name, VerilogFile* file)
+  explicit FsmBlockBase(std::string_view debug_name, VerilogFile* file)
       : debug_name_(debug_name), file_(file) {}
   virtual ~FsmBlockBase() = default;
 
@@ -166,7 +166,7 @@ class FsmBlockBase {
 template <typename T>
 class FsmBlock : public FsmBlockBase {
  public:
-  explicit FsmBlock(absl::string_view debug_name, VerilogFile* file)
+  explicit FsmBlock(std::string_view debug_name, VerilogFile* file)
       : FsmBlockBase(debug_name, file) {}
   virtual ~FsmBlock() = default;
 
@@ -233,7 +233,7 @@ class FsmBlock : public FsmBlockBase {
 // An unconditional block of logic within an FSM state.
 class UnconditionalFsmBlock : public FsmBlock<UnconditionalFsmBlock> {
  public:
-  explicit UnconditionalFsmBlock(absl::string_view debug_name,
+  explicit UnconditionalFsmBlock(std::string_view debug_name,
                                  VerilogFile* file)
       : FsmBlock<UnconditionalFsmBlock>(debug_name, file) {}
 };
@@ -241,7 +241,7 @@ class UnconditionalFsmBlock : public FsmBlock<UnconditionalFsmBlock> {
 // A conditional block of logic within an FSM state.
 class ConditionalFsmBlock : public FsmBlock<ConditionalFsmBlock> {
  public:
-  explicit ConditionalFsmBlock(absl::string_view debug_name, VerilogFile* file,
+  explicit ConditionalFsmBlock(std::string_view debug_name, VerilogFile* file,
                                Expression* condition)
       : FsmBlock<ConditionalFsmBlock>(debug_name, file),
         condition_(condition) {}
@@ -294,7 +294,7 @@ class ConditionalFsmBlock : public FsmBlock<ConditionalFsmBlock> {
 
   // The next alternate (else if) of the conditional ladder. Only one of
   // next_alternate_ or final_alternate_ may be non-null. Might be representable
-  // as an absl::variant but an absl::variant of std::unique_ptrs is awkward to
+  // as a std::variant but a std::variant of std::unique_ptrs is awkward to
   // manipulate.
   std::unique_ptr<ConditionalFsmBlock> next_alternate_;
 
@@ -310,7 +310,7 @@ class ConditionalFsmBlock : public FsmBlock<ConditionalFsmBlock> {
 //  st->SetOutput(x, value).NextState(next_st);
 class FsmState : public UnconditionalFsmBlock {
  public:
-  explicit FsmState(absl::string_view name, VerilogFile* file,
+  explicit FsmState(std::string_view name, VerilogFile* file,
                     Expression* state_value)
       : UnconditionalFsmBlock(name, file),
         name_(name),
@@ -330,7 +330,7 @@ class FsmState : public UnconditionalFsmBlock {
 // Abstraction for building finite state machines in Verilog using VAST.
 class FsmBuilder {
  public:
-  FsmBuilder(absl::string_view name, Module* module, LogicRef* clk,
+  FsmBuilder(std::string_view name, Module* module, LogicRef* clk,
              bool use_system_verilog,
              std::optional<Reset> reset = absl::nullopt)
       : name_(name),
@@ -342,16 +342,16 @@ class FsmBuilder {
 
   // Adds an FSM-controled signal to the FSM with the given name. A RegDef named
   // 'name' is added to the module.
-  FsmOutput* AddOutput(absl::string_view name, int64_t width,
+  FsmOutput* AddOutput(std::string_view name, int64_t width,
                        int64_t default_value) {
     return AddOutputAsExpression(
         name, file_->BitVectorType(width, SourceInfo()),
         file_->PlainLiteral(default_value, SourceInfo()));
   }
-  FsmOutput* AddOutputAsExpression(absl::string_view name, DataType* data_type,
+  FsmOutput* AddOutputAsExpression(std::string_view name, DataType* data_type,
                                    Expression* default_value);
 
-  FsmOutput* AddOutput1(absl::string_view name, int64_t default_value) {
+  FsmOutput* AddOutput1(std::string_view name, int64_t default_value) {
     return AddOutputAsExpression(
         name, /*data_type=*/file_->ScalarType(SourceInfo()),
         file_->PlainLiteral(default_value, SourceInfo()));
@@ -363,9 +363,9 @@ class FsmBuilder {
   // Adds a FSM-driven register with the given name. RegDefs named 'name' and
   // 'name_next' are added to the module.  The state of the register is affected
   // by calling SetRegisterNext.
-  FsmRegister* AddRegister(absl::string_view name, int64_t width,
+  FsmRegister* AddRegister(std::string_view name, int64_t width,
                            std::optional<int64_t> reset_value = absl::nullopt);
-  FsmRegister* AddRegister(absl::string_view name, DataType* data_type,
+  FsmRegister* AddRegister(std::string_view name, DataType* data_type,
                            Expression* reset_value = nullptr);
 
   // Overload which adds a previously defined reg as an FSM-controlled signal. A
@@ -374,10 +374,10 @@ class FsmBuilder {
   FsmRegister* AddExistingRegister(LogicRef* reg);
 
   // Add a cycle down-counter with the given name and width.
-  FsmCounter* AddDownCounter(absl::string_view name, int64_t width);
+  FsmCounter* AddDownCounter(std::string_view name, int64_t width);
 
   // Add a new state to the FSM.
-  FsmState* AddState(absl::string_view name);
+  FsmState* AddState(std::string_view name);
 
   // Builds the FSM in the module.
   absl::Status Build();
@@ -389,7 +389,7 @@ class FsmBuilder {
   // Creates a RegDef of the given type and optional initial
   // value. Returns a LogicRef referring to it. The RegDef is added to the
   // module inline with the FSM logic when Build is called.
-  LogicRef* AddRegDef(absl::string_view name, DataType* data_type,
+  LogicRef* AddRegDef(std::string_view name, DataType* data_type,
                       Expression* init = nullptr);
 
   // Build the always block containing the logic for state transitions.

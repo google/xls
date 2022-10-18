@@ -40,7 +40,7 @@ ABSL_FLAG(double, critical_path_ps, 1000,
 enum class ErrorMode { kNone, kNotJson, kNoSlackPs, kNotDouble };
 
 // Parse a string to an ErrorMode flag
-bool AbslParseFlag(absl::string_view text, ErrorMode* mode,
+bool AbslParseFlag(std::string_view text, ErrorMode* mode,
                    std::string* error) {
   if (text == "none") {
     *mode = ErrorMode::kNone;

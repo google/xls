@@ -40,7 +40,7 @@ StatusBuilder::Rep::Rep(const Rep& r)
       sink(r.sink) {}
 
 absl::Status StatusBuilder::JoinMessageToStatus(absl::Status s,
-                                                absl::string_view msg,
+                                                std::string_view msg,
                                                 MessageJoinStyle style) {
   if (msg.empty()) return s;
   if (style == MessageJoinStyle::kAnnotate) {
@@ -150,23 +150,23 @@ void StatusBuilder::SetStatusCode(absl::StatusCode canonical_code,
 }
 
 void StatusBuilder::CopyPayloads(const absl::Status& src, absl::Status* dst) {
-  src.ForEachPayload([&](absl::string_view type_url, absl::Cord payload) {
+  src.ForEachPayload([&](std::string_view type_url, absl::Cord payload) {
     dst->SetPayload(type_url, payload);
   });
 }
 
 absl::Status StatusBuilder::WithMessage(const absl::Status& status,
-                                        absl::string_view msg) {
+                                        std::string_view msg) {
   auto ret = absl::Status(status.code(), msg);
   CopyPayloads(status, &ret);
   return ret;
 }
 
 absl::Status StatusBuilder::AnnotateStatus(const absl::Status& s,
-                                           absl::string_view msg) {
+                                           std::string_view msg) {
   if (s.ok() || msg.empty()) return s;
 
-  absl::string_view new_msg = msg;
+  std::string_view new_msg = msg;
   std::string annotated;
   if (!s.message().empty()) {
     absl::StrAppend(&annotated, s.message(), "; ", msg);

@@ -23,6 +23,55 @@ from xls.fuzzer import sample_runner
 from xls.fuzzer.python import cpp_sample as sample
 
 
+# An adder implementation using a proc in DSLX.
+PROC_ADDER_DSLX = """
+proc main {
+  operand_0: chan<u32> in;
+  operand_1: chan<u32> in;
+  result: chan<u32> out;
+
+  config(operand_0: chan<u32> in,
+         operand_1: chan<u32> in,
+         result: chan<u32> out
+         ) {
+    (operand_0, operand_1, result)
+  }
+
+  next(tok: token) {
+    let (tok_operand_0_val, operand_0_val) = recv(tok, operand_0);
+    let (tok_operand_1_val, operand_1_val) = recv(tok, operand_1);
+    let tok_recv = join(tok_operand_0_val, tok_operand_1_val);
+
+    let result_val = operand_0_val + operand_1_val;
+    let tok_send = send(tok_recv, result, result_val);
+    ()
+  }
+}
+"""
+
+# A simple counter implementation using a proc in DSLX.
+PROC_COUNTER_DSLX = """
+proc main {
+  enable_counter: chan<bool> in;
+  result: chan<u32> out;
+
+  config(enable_counter: chan<bool> in,
+         result: chan<u32> out
+         ) {
+    (enable_counter, result)
+  }
+
+  next(tok: token, counter_value: u32) {
+    let (tok_enable_counter, enable_counter_val) = recv(tok, enable_counter);
+
+    let result_val = if enable_counter_val == true {counter_value + u32:1}
+      else {counter_value};
+    let tok_send = send(tok_enable_counter, result, result_val);
+    result_val
+  }
+}
+"""
+
 # An IR function with a loop which runs for many iterations.
 LONG_LOOP_IR = """package long_loop
 
@@ -453,6 +502,50 @@ class SampleRunnerTest(test_base.TestCase):
                   ]]))
     self.assertIn('timed out after 3 seconds', str(e.exception))
 
+  def test_interpret_dslx_proc_with_no_state(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    runner.run(
+        sample.Sample(
+            PROC_ADDER_DSLX,
+            sample.SampleOptions(
+                convert_to_ir=False,
+                ir_converter_args=['--top=main'],
+                top_type=sample.TopType.proc,
+            ),
+            [  # args_batch
+                [
+                    interp_value_from_ir_string('bits[32]:42'),
+                    interp_value_from_ir_string('bits[32]:100'),
+                ]
+            ],
+            [  # proc_initial_values
+            ]))
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.x.results').strip(),
+        '((), (bits[32]:0x8e))')
+
+  def test_interpret_dslx_proc_with_state(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    runner.run(
+        sample.Sample(
+            PROC_COUNTER_DSLX,
+            sample.SampleOptions(
+                convert_to_ir=False,
+                ir_converter_args=['--top=main'],
+                top_type=sample.TopType.proc,
+            ),
+            [  # args_batch
+                [interp_value_from_ir_string('bits[1]:1')],
+                [interp_value_from_ir_string('bits[1]:0')]
+            ],
+            [  # proc_initial_values
+                interp_value_from_ir_string('bits[32]:42'),
+            ]))
+    self.assertEqual(
+        _read_file(sample_dir, 'sample.x.results').strip(),
+        '((), (bits[32]:0x2b))\n((), (bits[32]:0x2b))')
 
 if __name__ == '__main__':
   test_base.main()

@@ -37,9 +37,9 @@ TEST(ParametricExpressionTest, SampleEvaluation) {
           std::make_unique<ParametricSymbol>("N", kFakeSpan)));
   EXPECT_EQ(*e, *e);
   EXPECT_EQ(e->ToString(), "(u32:3*(M+N))");
-  EXPECT_EQ(param_6, absl::get<InterpValue>(
+  EXPECT_EQ(param_6, std::get<InterpValue>(
                          e->Evaluate({{"N", param_2}, {"M", param_0}})));
-  EXPECT_EQ(param_12, absl::get<InterpValue>(
+  EXPECT_EQ(param_12, std::get<InterpValue>(
                           e->Evaluate({{"N", param_1}, {"M", param_3}})));
   const absl::flat_hash_set<std::string> want_freevars = {"N", "M"};
   EXPECT_EQ(e->GetFreeVariables(), want_freevars);

@@ -1,0 +1,66 @@
+// Copyright 2022 The XLS Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto2";
+
+package xls;
+
+enum GeneratorKind {
+  GENERATOR_KIND_INVALID = 0;
+  GENERATOR_KIND_PIPELINE = 1;
+  GENERATOR_KIND_COMBINATIONAL = 2;
+}
+
+enum IOKindProto {
+  IO_KIND_INVALID = 0;
+  IO_KIND_FLOP = 1;
+  IO_KIND_SKID_BUFFER = 2;
+  IO_KIND_ZERO_LATENCY_BUFFER = 3;
+}
+
+// Flags passed to the codegen_main binary.
+//
+// See codegen_flags.cc ABSL_FLAG() definitions for the meaning of these fields.
+message CodegenFlagsProto {
+  optional string output_verilog_path = 1;
+  optional string output_schedule_path = 2;
+  optional string output_block_ir_path = 3;
+  optional string output_signature_path = 4;
+  optional string output_verilog_line_map_path = 5;
+  optional string top = 6;
+  optional GeneratorKind generator = 7;
+  optional string input_valid_signal = 8;
+  optional string output_valid_signal = 9;
+  optional string manual_load_enable_signal = 10;
+  optional bool flop_inputs = 11;
+  optional bool flop_outputs = 12;
+  optional IOKindProto flop_inputs_kind = 13;
+  optional IOKindProto flop_outputs_kind = 14;
+  optional bool flop_single_value_channels = 15;
+  optional bool add_idle_output = 16;
+  optional string module_name = 17;
+  optional string reset = 18;
+  optional bool reset_active_low = 19;
+  optional bool reset_asynchronous = 20;
+  optional bool reset_data_path = 21;
+  optional bool use_system_verilog = 22;
+  optional bool separate_lines = 23;
+  optional string gate_format = 24;
+  optional string assert_format = 25;
+  optional string smulp_format = 26;
+  optional string umulp_format = 27;
+  optional string streaming_channel_data_suffix = 28;
+  optional string streaming_channel_valid_suffix = 29;
+  optional string streaming_channel_ready_suffix = 30;
+}

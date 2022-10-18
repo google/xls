@@ -207,7 +207,7 @@ struct MyStruct {
 #endif  // FAKE_PATH_H_
 )";
 
-  constexpr absl::string_view kExpectedBody =
+  constexpr std::string_view kExpectedBody =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #include <vector>
 
@@ -268,14 +268,14 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
 }
 
 TEST(CppTranspilerTest, BasicArray) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 struct MyStruct {
   x: u32[32],
   y: s7[8],
   z: u8[7],
 })";
 
-  constexpr absl::string_view kExpectedHeader =
+  constexpr std::string_view kExpectedHeader =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
@@ -300,7 +300,7 @@ struct MyStruct {
 #endif  // FAKE_PATH_H_
 )";
 
-  constexpr absl::string_view kExpectedBody =
+  constexpr std::string_view kExpectedBody =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #include <vector>
 
@@ -378,7 +378,7 @@ std::ostream& operator<<(std::ostream& os, const MyStruct& data) {
 }
 
 TEST(CppTranspilerTest, StructWithStruct) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 struct InnerStruct {
   x: u32,
   y: u16
@@ -390,7 +390,7 @@ struct OuterStruct {
   b: InnerStruct
 })";
 
-  constexpr absl::string_view kExpectedHeader =
+  constexpr std::string_view kExpectedHeader =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
@@ -430,7 +430,7 @@ struct OuterStruct {
 
 #endif  // FAKE_PATH_H_
 )";
-  constexpr absl::string_view kExpectedBody =
+  constexpr std::string_view kExpectedBody =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #include <vector>
 
@@ -527,7 +527,7 @@ std::ostream& operator<<(std::ostream& os, const OuterStruct& data) {
 }
 
 TEST(CppTranspilerTest, StructWithStructWithStruct) {
-  constexpr absl::string_view kModule = R"(
+  constexpr std::string_view kModule = R"(
 struct InnerStruct {
   x: u32,
   y: u16
@@ -550,7 +550,7 @@ struct OuterStruct {
   v: u8,
 })";
 
-  constexpr absl::string_view kExpectedHeader =
+  constexpr std::string_view kExpectedHeader =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #ifndef FAKE_PATH_H_
 #define FAKE_PATH_H_
@@ -618,7 +618,7 @@ struct OuterStruct {
 #endif  // FAKE_PATH_H_
 )";
 
-  constexpr absl::string_view kExpectedBody =
+  constexpr std::string_view kExpectedBody =
       R"(// AUTOMATICALLY GENERATED FILE. DO NOT EDIT!
 #include <vector>
 

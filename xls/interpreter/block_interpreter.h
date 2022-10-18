@@ -21,6 +21,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/types/span.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/interpreter/ir_interpreter.h"
 #include "xls/ir/block.h"
 #include "xls/ir/value.h"
@@ -79,8 +80,8 @@ class ChannelSource {
   // asserted (if the channel is not otherwise occupied by a in-progress
   // transaction).  Once valid is asserted, it will remain asserted until
   // the transaction completes via ready being asserted.
-  ChannelSource(absl::string_view data_name, absl::string_view valid_name,
-                absl::string_view ready_name, double lambda, Block* block)
+  ChannelSource(std::string_view data_name, std::string_view valid_name,
+                std::string_view ready_name, double lambda, Block* block)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),
@@ -99,7 +100,8 @@ class ChannelSource {
   // inputs[valid_name] to the Value they should be driven for this_cycle.
   absl::Status SetBlockInputs(int64_t this_cycle,
                               absl::flat_hash_map<std::string, Value>& inputs,
-                              std::minstd_rand& random_engine);
+                              std::minstd_rand& random_engine,
+                              std::optional<verilog::ResetProto> reset);
 
   // For each cycle, GetBlockOutputs() is called to provide this channel
   // the block's outputs for the cycle.
@@ -144,8 +146,8 @@ class ChannelSink {
   //
   // lambda is the probability that for a given cycle, the sink will assert
   // ready.
-  ChannelSink(absl::string_view data_name, absl::string_view valid_name,
-              absl::string_view ready_name, double lambda, Block* block)
+  ChannelSink(std::string_view data_name, std::string_view valid_name,
+              std::string_view ready_name, double lambda, Block* block)
       : data_name_(data_name),
         valid_name_(valid_name),
         ready_name_(ready_name),
@@ -186,12 +188,12 @@ class ChannelSink {
   std::vector<Value> data_sequence_;  // Data sequence received.
 };
 
-struct BlockIoResults {
+struct BlockIOResults {
   std::vector<absl::flat_hash_map<std::string, Value>> inputs;
   std::vector<absl::flat_hash_map<std::string, Value>> outputs;
 };
 
-struct BlockIoResultsAsUint64 {
+struct BlockIOResultsAsUint64 {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>> outputs;
 };
@@ -208,19 +210,19 @@ struct BlockIoResultsAsUint64 {
 //
 // Registers are clocked between each set of inputs fed to the block.
 // Initial register state is zero for all registers.
-absl::StatusOr<BlockIoResults> InterpretChannelizedSequentialBlock(
+absl::StatusOr<BlockIOResults> InterpretChannelizedSequentialBlock(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, Value>> inputs,
-    int64_t seed = 0);
+    std::optional<verilog::ResetProto> reset = std::nullopt, int64_t seed = 0);
 
 // Variant which accepts and returns uint64_t values instead of xls::Values.
-absl::StatusOr<BlockIoResultsAsUint64>
+absl::StatusOr<BlockIOResultsAsUint64>
 InterpretChannelizedSequentialBlockWithUint64(
     Block* block, absl::Span<ChannelSource> channel_sources,
     absl::Span<ChannelSink> channel_sinks,
     absl::Span<const absl::flat_hash_map<std::string, uint64_t>> inputs,
-    int64_t seed = 0);
+    std::optional<verilog::ResetProto> reset = std::nullopt, int64_t seed = 0);
 
 }  // namespace xls
 

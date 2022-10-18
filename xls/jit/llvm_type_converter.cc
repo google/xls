@@ -17,6 +17,7 @@
 #include "absl/status/statusor.h"
 #include "llvm/include/llvm/IR/DerivedTypes.h"
 #include "xls/common/logging/logging.h"
+#include "xls/common/status/status_macros.h"
 
 namespace xls {
 
@@ -38,10 +39,6 @@ int64_t LlvmTypeConverter::GetLlvmBitCount(int64_t xls_bit_count) const {
 }
 
 llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
-  auto it = type_cache_.find(xls_type);
-  if (it != type_cache_.end()) {
-    return it->second;
-  }
   llvm::Type* llvm_type;
   if (xls_type->IsBits()) {
     llvm_type = llvm::IntegerType::get(
@@ -69,15 +66,20 @@ llvm::Type* LlvmTypeConverter::ConvertToLlvmType(const Type* xls_type) const {
     XLS_LOG(FATAL) << absl::StrCat("Type not supported for LLVM conversion: %s",
                                    xls_type->ToString());
   }
-  type_cache_.insert({xls_type, llvm_type});
   return llvm_type;
 }
 
+int64_t LlvmTypeConverter::PackedLlvmTypeWidth(const Type* type) const {
+  return std::max(int64_t{1},
+                  RoundUpToNearest(type->GetFlatBitCount(), int64_t{8}));
+}
+
 llvm::Type* LlvmTypeConverter::ConvertToPackedLlvmType(const Type* type) const {
-  // LLVM doesn't support zero-width integer types so use i1 for XLS zero-bit
-  // types.
-  int64_t width = std::max(type->GetFlatBitCount(), int64_t{1});
-  return llvm::IntegerType::get(context_, width);
+  return llvm::IntegerType::get(context_, PackedLlvmTypeWidth(type));
+}
+
+int64_t LlvmTypeConverter::GetPackedTypeByteSize(const Type* type) const {
+  return RoundUpToNearest(PackedLlvmTypeWidth(type), int64_t{8});
 }
 
 absl::StatusOr<llvm::Constant*> LlvmTypeConverter::ToLlvmConstant(

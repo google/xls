@@ -11,7 +11,7 @@
         <link rel="canonical" href="https://google.github.io/xls/dslx_reference/">
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.3.1, mkdocs-material-8.4.4">
+      <meta name="generator" content="mkdocs-1.4.1, mkdocs-material-8.5.6">
     
     
       
@@ -19,13 +19,14 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.6b80c2a2.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.20d9efc8.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.cbb835fc.min.css">
         
       
       
+
     
     
     
@@ -42,6 +43,7 @@
     
       
 
+    
     
     
   </head>
@@ -118,7 +120,7 @@
       </label>
       <nav class="md-search__options" aria-label="Search">
         
-        <button type="reset" class="md-search__icon md-icon" aria-label="Clear" tabindex="-1">
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
         </button>
       </nav>
@@ -472,6 +474,20 @@
   
   
     <li class="md-nav__item">
+      <a href="../ir_overview/" class="md-nav__link">
+        Overview
+      </a>
+    </li>
+  
+
+            
+          
+            
+              
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../ir_semantics/" class="md-nav__link">
         Semantics
       </a>
@@ -503,18 +519,18 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_3" type="checkbox" id="__nav_3_3" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_4" type="checkbox" id="__nav_3_4" >
       
       
       
       
-        <label class="md-nav__link" for="__nav_3_3">
+        <label class="md-nav__link" for="__nav_3_4">
           Scheduling
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Scheduling" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_3">
+        <label class="md-nav__title" for="__nav_3_4">
           <span class="md-nav__icon md-icon"></span>
           Scheduling
         </label>
@@ -578,18 +594,18 @@
     <li class="md-nav__item md-nav__item--nested">
       
       
-        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_5" type="checkbox" id="__nav_3_5" >
+        <input class="md-nav__toggle md-toggle" data-md-toggle="__nav_3_6" type="checkbox" id="__nav_3_6" >
       
       
       
       
-        <label class="md-nav__link" for="__nav_3_5">
+        <label class="md-nav__link" for="__nav_3_6">
           Native JIT
           <span class="md-nav__icon md-icon"></span>
         </label>
       
       <nav class="md-nav" aria-label="Native JIT" data-md-level="2">
-        <label class="md-nav__title" for="__nav_3_5">
+        <label class="md-nav__title" for="__nav_3_6">
           <span class="md-nav__icon md-icon"></span>
           Native JIT
         </label>
@@ -2461,10 +2477,11 @@
               </div>
             
           
-          <div class="md-content" data-md-component="content">
-            <article class="md-content__inner md-typeset">
-              
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
                 
+                  
 
   <a href="https://github.com/google/xls/tree/main/docs_src/dslx_reference.md" title="Edit this page" class="md-content__button md-icon">
     
@@ -2739,7 +2756,7 @@ extension/truncation behavior.)</p>
 <span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="kt">u32</span><span class="w">  </span><span class="c1">// Sign-extends because the source type is signed.</span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_extend_to_32b</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">extend_to_32b</span><span class="p">(</span><span class="n">MySignedEnum</span>::<span class="n">LOW</span><span class="p">),</span><span class="w"> </span><span class="kt">u32</span>:<span class="mh">0xffffffff</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -2771,7 +2788,7 @@ types.</p>
 </code></pre></div>
 <p>To access individual tuple elements use simple indices, starting at 0. For
 example, to access the second element of a tuple (index 1):</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_tuple_access</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">3</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="n">t</span><span class="p">.</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
@@ -2781,7 +2798,7 @@ example, to access the second element of a tuple (index 1):</p>
 <p>Tuples can be "destructured", similarly to how pattern matching works in <code>match</code>
 expressions, which provides a convenient syntax to name elements of a tuple for
 subsequent use. See <code>a</code> and <code>b</code> in the following:</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_tuple_destructure</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">3</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span><span class="w"></span>
@@ -2791,7 +2808,7 @@ subsequent use. See <code>a</code> and <code>b</code> in the following:</p>
 </code></pre></div>
 <p>Just as values can be discarded in a <code>let</code> by using the "black hole identifier"
 <code>_</code>, don't-care values can also be discarded when destructuring a tuple:</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_black_hole</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">t</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">t</span><span class="p">;</span><span class="w"></span>
@@ -2815,7 +2832,7 @@ order:</p>
 <span class="w">  </span><span class="n">y</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_struct_equality</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">p0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Point</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span>:<span class="mi">64</span><span class="w"> </span><span class="p">};</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">p1</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Point</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span>:<span class="mi">64</span><span class="p">,</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span>:<span class="mi">42</span><span class="w"> </span><span class="p">};</span><span class="w"></span>
@@ -2826,7 +2843,7 @@ order:</p>
 names of in-scope values:</p>
 <div class="highlight"><pre><span></span><code><span class="k">struct</span> <span class="nc">Point</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span><span class="p">,</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_struct_equality</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">64</span><span class="p">;</span><span class="w"></span>
@@ -2849,7 +2866,7 @@ names of in-scope values:</p>
 <span class="w">  </span><span class="n">f</span><span class="p">(</span><span class="n">Point</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span>:<span class="mi">64</span><span class="w"> </span><span class="p">})</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">106</span><span class="p">,</span><span class="w"> </span><span class="n">main</span><span class="p">())</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -2872,7 +2889,7 @@ field values, as in the following:</p>
 <span class="w">  </span><span class="n">update_y</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">128</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">want</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Point3</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span>:<span class="mi">128</span><span class="p">,</span><span class="w"> </span><span class="n">z</span>: <span class="kt">u32</span>:<span class="mi">256</span><span class="w"> </span><span class="p">};</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">want</span><span class="p">,</span><span class="w"> </span><span class="n">main</span><span class="p">())</span><span class="w"></span>
@@ -2910,7 +2927,7 @@ section.</p>
 <span class="w">  </span><span class="n">Point</span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_struct_construction</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">make_point</span><span class="p">(</span><span class="kt">u16</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u16</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">x</span><span class="p">)</span><span class="w"></span>
@@ -2937,12 +2954,12 @@ different type when they have a different name).</p>
 <span class="w">  </span><span class="n">p</span><span class="p">.</span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">.</span><span class="n">y</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_ok</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">Point</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span>:<span class="mi">64</span><span class="w"> </span><span class="p">}),</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">106</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 </code></pre></div>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_type_checker_error</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">f</span><span class="p">(</span><span class="n">Coordinate</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span>: <span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">y</span>: <span class="kt">u32</span>:<span class="mi">64</span><span class="w"> </span><span class="p">}),</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">106</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -2955,7 +2972,7 @@ array must have the same type. Arrays can be indexed with indexing notation
 <span class="w">  </span><span class="n">a</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">64</span><span class="p">;</span><span class="w"></span>
@@ -2975,7 +2992,7 @@ shown.</p>
 <span class="w">  </span><span class="kt">u32</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="o">..</span><span class="p">.]</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_make_array</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">],</span><span class="w"> </span><span class="n">make_array</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">));</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">64</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">64</span><span class="p">],</span><span class="w"> </span><span class="n">make_array</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">64</span><span class="p">));</span><span class="w"></span>
@@ -2993,7 +3010,7 @@ arrays of u8 elements. String constants can be used just as traditional arrays:<
 <span class="w">  </span><span class="p">}(</span><span class="n">input</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="s">&quot;bcdef&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">add_one</span><span class="p">(</span><span class="s">&quot;abcde&quot;</span><span class="p">))</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -3019,7 +3036,7 @@ type. The new name is on the left, the existing name on the right:</p>
 <span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">MyEnum</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">),</span><span class="w"> </span><span class="n">MyEnum</span>::<span class="n">FOO</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">main</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">64</span><span class="p">),</span><span class="w"> </span><span class="n">MyEnum</span>::<span class="n">BAR</span><span class="p">);</span><span class="w"></span>
@@ -3043,37 +3060,37 @@ can be widened (increasing bit-width), narrowed (decreasing bit-width) and/or
 changed between signed and unsigned. Some examples are found below. See
 <a href="#numerical-conversions">Numerical Conversions</a> for a description of the
 semantics.</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_narrow_cast</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">twelve</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u4</span>:<span class="mb">0b1100</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">twelve</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u2</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">0</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_widen_cast</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">three</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u2</span>:<span class="mb">0b11</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">three</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u4</span><span class="p">,</span><span class="w"> </span><span class="n">u4</span>:<span class="mi">3</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_narrow_signed_cast</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">negative_seven</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s4</span>:<span class="mb">0b1001</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">negative_seven</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u2</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span>:<span class="mi">1</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_widen_signed_cast</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">negative_one</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span>:<span class="mb">0b11</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">negative_one</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">s4</span><span class="p">,</span><span class="w"> </span><span class="n">s4</span>:<span class="o">-</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_widen_to_unsigned</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">negative_one</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s2</span>:<span class="mb">0b11</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">negative_one</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mb">0b111</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_widen_to_signed</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">three</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u2</span>:<span class="mb">0b11</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">three</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mb">0b011</span><span class="p">)</span><span class="w"></span>
@@ -3223,7 +3240,7 @@ same module:</p>
 <span class="w">  </span><span class="n">mod_imported</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">mi</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">u1</span>:<span class="mb">0b1</span><span class="p">,</span><span class="w"> </span><span class="n">main</span><span class="p">(</span><span class="n">u3</span>:<span class="mb">0b001</span><span class="p">))</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -3244,7 +3261,7 @@ type aliases, etc.</p>
 <span class="w">  </span><span class="n">mod_imported</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="n">mi</span>::<span class="n">my_lsb</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">u1</span>:<span class="mb">0b1</span><span class="p">,</span><span class="w"> </span><span class="n">main</span><span class="p">(</span><span class="n">u3</span>:<span class="mb">0b001</span><span class="p">))</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -3261,7 +3278,7 @@ constants should be usable anywhere a literal value can be used:</p>
 <span class="w">  </span><span class="p">}</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_match_const_not_binding</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">match_const</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">0</span><span class="p">));</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="n">match_const</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">1</span><span class="p">));</span><span class="w"></span>
@@ -3277,7 +3294,7 @@ constants should be usable anywhere a literal value can be used:</p>
 <span class="w">  </span><span class="p">}</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_match_nested</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="n">h</span><span class="p">((</span><span class="kt">u8</span>:<span class="mi">42</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">u16</span>:<span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">))));</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">h</span><span class="p">((</span><span class="kt">u8</span>:<span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="p">(</span><span class="kt">u16</span>:<span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">42</span><span class="p">))));</span><span class="w"></span>
@@ -3292,7 +3309,7 @@ example <code>u16:1</code> is a 16-wide bit array with its least significant bit
 one. Similarly <code>s8:12</code> is an 8-wide bit array with its least significant four
 bits set to <code>1100</code>.</p>
 <p>DSLX supports initializing using binary, hex or decimal syntax. So</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_literal_initialization</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span>:<span class="mb">0b00001100</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mi">12</span><span class="p">,</span><span class="w"> </span><span class="kt">u8</span>:<span class="mh">0x0c</span><span class="p">);</span><span class="w"></span>
@@ -3306,7 +3323,7 @@ the literal <code>u8:256</code> will trigger an error of the form:</p>
 (8)</code></p>
 <p>But what about <code>s8:128</code> ? This is a valid literal, even though a signed 8-bit
 integer cannot represent it. The following code offers a clue.</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_signed_literal_initialization</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span>:<span class="mi">128</span><span class="p">,</span><span class="w"> </span><span class="n">s8</span>:<span class="o">-</span><span class="mi">128</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s8</span>:<span class="mi">128</span><span class="p">,</span><span class="w"> </span><span class="n">s8</span>:<span class="mb">0b10000000</span><span class="p">);</span><span class="w"></span>
@@ -3374,7 +3391,7 @@ operations return a result of type <code>bits[1]</code>, aka <code>bool</code>.<
 hand side becomes the most significant bits, the value on the right hand side
 becomes the least significant bits. These may be chained together as shown
 below:</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_bits_concat</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mb">0b11000000</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span>:<span class="mb">0b11</span><span class="w"> </span><span class="o">++</span><span class="w"> </span><span class="n">u6</span>:<span class="mb">0b000000</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u8</span>:<span class="mb">0b00000111</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span>:<span class="mb">0b00</span><span class="w"> </span><span class="o">++</span><span class="w"> </span><span class="n">u6</span>:<span class="mb">0b000111</span><span class="p">);</span><span class="w"></span>
@@ -3591,7 +3608,7 @@ for semantics of numeric casts:</p>
 <li>Casting from a bit-width to its own bit-width, between signed/unsigned, is a
     no-op.</li>
 </ul>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_numerical_conversions</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">s8_m2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s8</span>:<span class="o">-</span><span class="mi">2</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">u8_m2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u8</span>:<span class="mh">0xfe</span><span class="p">;</span><span class="w"></span>
@@ -3630,7 +3647,7 @@ the MSbs of the resulting value.</p>
 <span class="w">  </span><span class="n">a</span><span class="w"> </span><span class="o">++</span><span class="w"> </span><span class="n">b</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_cast_to_array</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">a_value</span>: <span class="nc">u6</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u6</span>:<span class="mb">0b011011</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">a</span>: <span class="nc">u2</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">cast_to_array</span><span class="p">(</span><span class="n">a_value</span><span class="p">);</span><span class="w"></span>
@@ -3702,7 +3719,7 @@ top element minus 1):</p>
 <p>This results in the nice property that a the original complete value can be
 sliced into complementary slices such as <code>:-2</code> (all but the two most significant
 bits) and <code>-2:</code> (the two most significant bits):</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">slice_into_two_pieces</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u5</span>:<span class="mb">0b11000</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="p">(</span><span class="n">lo</span><span class="p">,</span><span class="w"> </span><span class="n">hi</span><span class="p">)</span>: <span class="p">(</span><span class="n">u3</span><span class="p">,</span><span class="w"> </span><span class="n">u2</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">[</span>:<span class="o">-</span><span class="mi">2</span><span class="p">],</span><span class="w"> </span><span class="n">x</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span>:<span class="p">]);</span><span class="w"></span>
@@ -3723,7 +3740,7 @@ whereas <code>[start +: u4]</code> will produce a 4-bit unsigned number starting
 <div class="highlight"><pre><span></span><code><span class="c1">// Identity function helper.</span>
 <span class="k">fn</span> <span class="nf">id</span><span class="o">&lt;</span><span class="n">N</span>: <span class="kt">u32</span><span class="o">&gt;</span><span class="p">(</span><span class="n">x</span>: <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">])</span><span class="w"> </span>-&gt; <span class="nc">bits</span><span class="p">[</span><span class="n">N</span><span class="p">]</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_bit_slice_syntax</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">u6</span>:<span class="mb">0b100111</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="c1">// Slice out two bits.</span>
@@ -3901,7 +3918,7 @@ taking the absolute value of each element in an input array:</p>
 <span class="w">  </span><span class="n">y</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">main_test</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">got</span>: <span class="nc">s3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">main</span><span class="p">(</span><span class="n">s3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]);</span><span class="w"></span>
 <span class="w">  </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">s3</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>:<span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="n">got</span><span class="p">)</span><span class="w"></span>
@@ -3944,7 +3961,7 @@ is the <code>signex</code> builtin.</p>
 (lhs), as well as the target type to extend to: these operands may be either
 signed or unsigned. Note that the <em>value</em> of the right hand side is ignored,
 only its type is used to determine the result type of the sign extension.</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_signex</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kt">u8</span>:<span class="mh">0xff</span><span class="p">;</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">s</span>: <span class="nc">s32</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">signex</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">s32</span>:<span class="mi">0</span><span class="p">);</span><span class="w"></span>
@@ -3975,7 +3992,7 @@ result, and so on.</p>
 <span class="p">}</span><span class="w"></span>
 
 <span class="c1">// Reverse examples.</span>
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_reverse</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">u3</span>:<span class="mb">0b100</span><span class="p">,</span><span class="w"> </span><span class="n">main</span><span class="p">(</span><span class="n">u3</span>:<span class="mb">0b001</span><span class="p">));</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">u3</span>:<span class="mb">0b001</span><span class="p">,</span><span class="w"> </span><span class="n">main</span><span class="p">(</span><span class="n">u3</span>:<span class="mb">0b100</span><span class="p">));</span><span class="w"></span>
@@ -4006,7 +4023,7 @@ ignored. Example usage:
 </ul>
 <p>These functions return the identity element of the respective operation for
 trivial (0 bit wide) inputs:</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_trivial_reduce</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">and_reduce</span><span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>:<span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="kc">true</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">or_reduce</span><span class="p">(</span><span class="n">bits</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>:<span class="mi">0</span><span class="p">),</span><span class="w"> </span><span class="kc">false</span><span class="p">);</span><span class="w"></span>
@@ -4030,7 +4047,7 @@ tests:</p>
 <span class="w">  </span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="kt">u32</span>:<span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">1</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_divceil</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">3</span><span class="p">,</span><span class="w"> </span><span class="n">divceil</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">5</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">));</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="n">divceil</span><span class="p">(</span><span class="kt">u32</span>:<span class="mi">4</span><span class="p">,</span><span class="w"> </span><span class="kt">u32</span>:<span class="mi">2</span><span class="p">));</span><span class="w"></span>
@@ -4058,7 +4075,7 @@ dumping of current values to stdout. For example:</p>
 <span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="o">&lt;&lt;</span><span class="w"> </span><span class="n">y</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
 
-<span class="cp">#![test]</span><span class="w"></span>
+<span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_shifty</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">shifty</span><span class="p">(</span><span class="kt">u8</span>:<span class="mh">0x42</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">4</span><span class="p">),</span><span class="w"> </span><span class="kt">u8</span>:<span class="mh">0x20</span><span class="p">);</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">shifty</span><span class="p">(</span><span class="kt">u8</span>:<span class="mh">0x42</span><span class="p">,</span><span class="w"> </span><span class="n">u3</span>:<span class="mi">7</span><span class="p">),</span><span class="w"> </span><span class="kt">u8</span>:<span class="mi">0</span><span class="p">);</span><span class="w"></span>
@@ -4160,7 +4177,7 @@ ensure the code behaves as expected. Additionally it serves as 'executable'
 documentation, similar in spirit to Python doc strings.</p>
 <h3 id="unit-tests">Unit Tests</h3>
 <p>Unit tests are specified by the <code>test</code> directive, as seen below:</p>
-<div class="highlight"><pre><span></span><code><span class="cp">#![test]</span><span class="w"></span>
+<div class="highlight"><pre><span></span><code><span class="cp">#[test]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">test_reverse</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">u1</span>:<span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">rev</span><span class="p">(</span><span class="n">u1</span>:<span class="mi">1</span><span class="p">));</span><span class="w"></span>
 <span class="w">  </span><span class="kd">let</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">assert_eq</span><span class="p">(</span><span class="n">u2</span>:<span class="mb">0b10</span><span class="p">,</span><span class="w"> </span><span class="n">rev</span><span class="p">(</span><span class="n">u2</span>:<span class="mb">0b01</span><span class="p">));</span><span class="w"></span>
@@ -4186,7 +4203,7 @@ framework. Here is an example that complements the unit testing of DSLX's <code>
 implementation from above:</p>
 <div class="highlight"><pre><span></span><code><span class="c1">// Reversing a value twice gets you the original value.</span>
 
-<span class="cp">#![quickcheck]</span><span class="w"></span>
+<span class="cp">#[quickcheck]</span><span class="w"></span>
 <span class="k">fn</span> <span class="nf">prop_double_reverse</span><span class="p">(</span><span class="n">x</span>: <span class="kt">u32</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="kt">bool</span> <span class="p">{</span><span class="w"></span>
 <span class="w">  </span><span class="n">x</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">rev</span><span class="p">(</span><span class="n">rev</span><span class="p">(</span><span class="n">x</span><span class="p">))</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -4199,7 +4216,7 @@ arguments to the function (e.g. above, the framework will provided randomized
 <p>By default, the framework will run the function against 1000 sets of randomized
 inputs. This default may be changed by specifying the <code>test_count</code> key in the
 <code>quickcheck</code> directive before a particular test:</p>
-<div class="highlight"><pre><span></span><code>#![quickcheck(test_count=50000)]
+<div class="highlight"><pre><span></span><code>#[quickcheck(test_count=50000)]
 </code></pre></div>
 <p>The framework also allows programmers to specify a seed to use in generating the
 random inputs, as opposed to letting the framework pick one. The seed chosen for
@@ -4219,10 +4236,11 @@ production can be found in the execution log.</p>
 
 
 
-              
-            </article>
-            
-          </div>
+                
+              </article>
+            </div>
+          
+          
         </div>
         
       </main>
@@ -4286,10 +4304,10 @@ production can be found in the execution log.</p>
       <div class="md-dialog__inner md-typeset"></div>
     </div>
     
-    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.ecf98df9.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.5bf1dace.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.config.lang": "en", "search.config.pipeline": "trimmer, stopWordFilter", "search.config.separator": "[\\s\\-]+", "search.placeholder": "Search", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version.title": "Select version"}}</script>
     
     
-      <script src="../assets/javascripts/bundle.2ab50757.min.js"></script>
+      <script src="../assets/javascripts/bundle.078830c0.min.js"></script>
       
         <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
       

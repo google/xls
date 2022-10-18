@@ -38,7 +38,7 @@ enum class CallingConvention {
 
 // Returns the mangled name of function with the given parametric bindings.
 absl::StatusOr<std::string> MangleDslxName(
-    absl::string_view module_name, absl::string_view function_name,
+    std::string_view module_name, std::string_view function_name,
     CallingConvention convention,
     const absl::btree_set<std::string>& free_keys = {},
     const SymbolicBindings* symbolic_bindings = nullptr);

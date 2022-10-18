@@ -27,8 +27,8 @@ namespace xls {
 namespace {
 
 std::string PrintWordWrappedWithLinePrefix(int64_t width,
-                                           absl::string_view prefix,
-                                           absl::string_view to_justify) {
+                                           std::string_view prefix,
+                                           std::string_view to_justify) {
   std::vector<std::string> words = absl::StrSplit(to_justify, ' ');
   int64_t i = 0;
   std::string result;
@@ -46,7 +46,7 @@ std::string PrintWordWrappedWithLinePrefix(int64_t width,
   return result;
 }
 
-absl::StatusOr<std::string> GetLineFromFile(absl::string_view path,
+absl::StatusOr<std::string> GetLineFromFile(std::string_view path,
                                             int64_t line_number) {
   // It may be good to optimize this further when this gets used more widely.
   XLS_ASSIGN_OR_RETURN(std::string file_contents, GetFileContents(path));
@@ -59,8 +59,8 @@ absl::StatusOr<std::string> GetLineFromFile(absl::string_view path,
 
 std::string PrintCaret(
     std::function<std::optional<std::string>(Fileno)> fileno_to_path,
-    const SourceLocation& loc, std::optional<absl::string_view> line_contents,
-    std::optional<absl::string_view> comment, int64_t terminal_width) {
+    const SourceLocation& loc, std::optional<std::string_view> line_contents,
+    std::optional<std::string_view> comment, int64_t terminal_width) {
   int32_t line = static_cast<int32_t>(loc.lineno());
   int32_t col = static_cast<int32_t>(loc.colno());
 

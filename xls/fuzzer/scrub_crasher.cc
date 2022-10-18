@@ -16,6 +16,6 @@
 
 namespace xls {
 
-std::string ScrubCrasher(absl::string_view s) { return std::string{s}; }
+std::string ScrubCrasher(std::string_view s) { return std::string{s}; }
 
 }  // namespace xls

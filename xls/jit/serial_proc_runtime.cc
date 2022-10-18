@@ -21,115 +21,6 @@
 
 namespace xls {
 
-void SerialProcRuntime::AwaitState(
-    ThreadData* thread_data,
-    const absl::flat_hash_set<ThreadData::State>& states) {
-  struct AwaitData {
-    ThreadData* thread_data;
-    const absl::flat_hash_set<ThreadData::State>* states;
-  };
-  AwaitData await_data = {thread_data, &states};
-  thread_data->mutex.AssertHeld();
-  thread_data->mutex.Await(absl::Condition(
-      +[](AwaitData* await_data) {
-        await_data->thread_data->mutex.AssertReaderHeld();
-        return await_data->states->contains(
-            await_data->thread_data->thread_state);
-      },
-      &await_data));
-}
-
-void SerialProcRuntime::ThreadFn(ThreadData* thread_data) {
-  absl::flat_hash_set<ThreadData::State> await_states(
-      {ThreadData::State::kRunning, ThreadData::State::kCancelled});
-  {
-    absl::MutexLock lock(&thread_data->mutex);
-    AwaitState(thread_data, await_states);
-  }
-
-  while (true) {
-    // RunWithViews takes an array of arg view pointers - even if they're unused
-    // during execution, tokens still occupy one of those spots.
-    absl::StatusOr<InterpreterResult<std::vector<Value>>> next_state_or =
-        thread_data->jit->Run(thread_data->proc_state, thread_data);
-    XLS_CHECK_OK(next_state_or.status());
-
-    absl::MutexLock lock(&thread_data->mutex);
-    thread_data->proc_state = next_state_or.value().value;
-    if (thread_data->thread_state == ThreadData::State::kCancelled) {
-      break;
-    }
-
-    if (!next_state_or.value().events.trace_msgs.empty()) {
-      XLS_LOG(INFO) << "Proc " << thread_data->jit->proc()->name()
-                    << " trace messages:";
-      for (const std::string& msg : next_state_or.value().events.trace_msgs) {
-        XLS_LOG(INFO) << " - " << msg;
-      }
-    }
-
-    thread_data->thread_state = ThreadData::State::kDone;
-    AwaitState(thread_data, await_states);
-    if (thread_data->thread_state == ThreadData::State::kCancelled) {
-      break;
-    }
-  }
-}
-
-// To implement Proc blocking receive semantics, RecvFn blocks if its associated
-// queue is empty. The main thread unblocks it periodically (by changing its
-// ThreadData::State) to try to receive again.
-bool SerialProcRuntime::RecvFn(JitChannelQueue* queue, Receive* recv,
-                               uint8_t* data, int64_t data_bytes,
-                               void* user_data) {
-  if (!recv->is_blocking()) {
-    return queue->Recv(data, data_bytes);
-  }
-
-  ThreadData* thread_data = absl::bit_cast<ThreadData*>(user_data);
-  absl::flat_hash_set<ThreadData::State> await_states(
-      {ThreadData::State::kRunning, ThreadData::State::kCancelled});
-
-  absl::MutexLock lock(&thread_data->mutex);
-  while (queue->Empty()) {
-    if (thread_data->thread_state == ThreadData::State::kCancelled) {
-      return false;
-    }
-    thread_data->thread_state = ThreadData::State::kBlocked;
-    AwaitState(thread_data, await_states);
-  }
-
-  bool received_data = queue->Recv(data, data_bytes);
-  if (XLS_VLOG_IS_ON(3)) {
-    std::string data;
-    for (int i = 0; i < data_bytes; i++) {
-      absl::StrAppend(&data,
-                      absl::StrFormat("0x%2x", static_cast<uint32_t>(data[i])));
-    }
-    XLS_LOG(INFO) << thread_data->jit->proc()->name()
-                  << ": recv data: " << data;
-  }
-
-  return received_data;
-}
-
-void SerialProcRuntime::SendFn(JitChannelQueue* queue, Send* send,
-                               uint8_t* data, int64_t data_bytes,
-                               void* user_data) {
-  ThreadData* thread_data = absl::bit_cast<ThreadData*>(user_data);
-  absl::MutexLock lock(&thread_data->mutex);
-  if (XLS_VLOG_IS_ON(3)) {
-    std::string data;
-    for (int i = 0; i < data_bytes; i++) {
-      absl::StrAppend(&data,
-                      absl::StrFormat("0x%2x", static_cast<uint32_t>(data[i])));
-    }
-    XLS_LOG(INFO) << thread_data->jit->proc()->name()
-                  << ": send data: " << data;
-  }
-  queue->Send(data, data_bytes);
-}
-
 absl::StatusOr<std::unique_ptr<SerialProcRuntime>> SerialProcRuntime::Create(
     Package* package) {
   auto runtime = absl::WrapUnique(new SerialProcRuntime(std::move(package)));
@@ -139,159 +30,81 @@ absl::StatusOr<std::unique_ptr<SerialProcRuntime>> SerialProcRuntime::Create(
 
 SerialProcRuntime::SerialProcRuntime(Package* package) : package_(package) {}
 
-SerialProcRuntime::~SerialProcRuntime() {
-  for (auto& thread_data : threads_) {
-    {
-      absl::MutexLock lock(&thread_data->mutex);
-      thread_data->thread_state = ThreadData::State::kCancelled;
-    }
-    thread_data->thread->Join();
-  }
-}
-
 absl::Status SerialProcRuntime::Init() {
-  XLS_ASSIGN_OR_RETURN(queue_mgr_, JitChannelQueueManager::Create(package_));
-
-  threads_.reserve(package_->procs().size());
-  for (int i = 0; i < package_->procs().size(); i++) {
-    auto thread = std::make_unique<ThreadData>();
-    Proc* proc = package_->procs()[i].get();
-    XLS_ASSIGN_OR_RETURN(thread->jit, ProcJit::Create(proc, queue_mgr_.get(),
-                                                      &RecvFn, &SendFn, 0));
-
-    absl::MutexLock lock(&thread->mutex);
-    thread->thread_state = ThreadData::State::kPending;
-    thread->print_traces = false;
-    threads_.push_back(std::move(thread));
-
-    // Start the thread - the first thing it does is wait until the state is
-    // either running or cancelled, so it'll be waiting for us when we actually
-    // call Tick().
-    auto thread_ptr = threads_.back().get();
-    thread_ptr->thread =
-        std::make_unique<Thread>([thread_ptr]() { ThreadFn(thread_ptr); });
+  // Create a ProcJit and continuation for each proc.
+  XLS_ASSIGN_OR_RETURN(jit_runtime_, JitRuntime::Create());
+  XLS_ASSIGN_OR_RETURN(queue_mgr_, JitChannelQueueManager::CreateThreadSafe(
+                                       package_, jit_runtime_.get()));
+  for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+    XLS_ASSIGN_OR_RETURN(
+        proc_jits_[proc.get()],
+        ProcJit::Create(proc.get(), jit_runtime_.get(), queue_mgr_.get()));
+    continuations_[proc.get()] = proc_jits_.at(proc.get())->NewContinuation();
   }
 
-  ResetState();
-
-  // Enqueue initial values into channels.
+  // Write initial values into channels.
   for (Channel* channel : package_->channels()) {
     for (const Value& value : channel->initial_values()) {
-      XLS_RETURN_IF_ERROR(EnqueueValueToChannel(channel, value));
+      XLS_RETURN_IF_ERROR(WriteValueToChannel(channel, value));
     }
   }
-
   return absl::OkStatus();
 }
 
 absl::Status SerialProcRuntime::Tick(bool print_traces) {
-  absl::flat_hash_set<ThreadData::State> await_states(
-      {ThreadData::State::kBlocked, ThreadData::State::kDone});
-  for (auto& thread : threads_) {
-    absl::MutexLock lock(&thread->mutex);
-    // Each blocked thread is stuck on a Condition waiting to be set to
-    // kRunning before starting/resuming (so we can ensure serial operation).
-    thread->thread_state = ThreadData::State::kRunning;
-    thread->print_traces = print_traces;
-    AwaitState(thread.get(), await_states);
+  bool progress_made = true;
+  absl::flat_hash_set<Proc*> completed_procs;
+  // In round-robin fashion, run each proc until every proc has either completed
+  // their tick or are blocked on receives.
+  while (progress_made) {
+    progress_made = false;
+    for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+      if (completed_procs.contains(proc.get())) {
+        continue;
+      }
+      XLS_ASSIGN_OR_RETURN(
+          TickResult result,
+          proc_jits_.at(proc.get())->Tick(*continuations_.at(proc.get())));
+      progress_made = progress_made || result.progress_made;
+      if (result.tick_complete) {
+        completed_procs.insert(proc.get());
+      }
+    }
   }
-
   return absl::OkStatus();
 }
 
-absl::Status SerialProcRuntime::EnqueueValueToChannel(Channel* channel,
-                                                      const Value& value) {
-  XLS_RET_CHECK_EQ(package_->GetTypeForValue(value), channel->type());
-  Type* type = package_->GetTypeForValue(value);
-
-  XLS_RET_CHECK(!threads_.empty());
-  ProcJit* jit = threads_.front()->jit.get();
-  int64_t size = jit->type_converter()->GetTypeByteSize(type);
-  auto buffer = std::make_unique<uint8_t[]>(size);
-  jit->runtime()->BlitValueToBuffer(value, type,
-                                    absl::MakeSpan(buffer.get(), size));
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  queue->Send(buffer.get(), size);
-  return absl::OkStatus();
+absl::Status SerialProcRuntime::WriteValueToChannel(Channel* channel,
+                                                    const Value& value) {
+  return queue_mgr()->GetQueue(channel).Write(value);
 }
 
-absl::Status SerialProcRuntime::EnqueueBufferToChannel(
+absl::Status SerialProcRuntime::WriteBufferToChannel(
     Channel* channel, absl::Span<uint8_t const> buffer) {
-  ProcJit* jit = threads_.front()->jit.get();
-  int64_t size = jit->type_converter()->GetTypeByteSize(channel->type());
-  XLS_RET_CHECK_GE(buffer.size(), size);
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  queue->Send(buffer.data(), size);
+  JitChannelQueue& queue = queue_mgr()->GetJitQueue(channel);
+  queue.WriteRaw(buffer.data());
   return absl::OkStatus();
 }
 
-absl::StatusOr<std::optional<Value>> SerialProcRuntime::DequeueValueFromChannel(
+absl::StatusOr<std::optional<Value>> SerialProcRuntime::ReadValueFromChannel(
     Channel* channel) {
-  Type* type = channel->type();
-
-  XLS_RET_CHECK(!threads_.empty());
-  ProcJit* jit = threads_.front()->jit.get();
-  int64_t size = jit->type_converter()->GetTypeByteSize(type);
-  auto buffer = std::make_unique<uint8_t[]>(size);
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  bool had_data = queue->Recv(buffer.get(), size);
-  if (!had_data) {
-    return absl::nullopt;
-  }
-
-  return jit->runtime()->UnpackBuffer(buffer.get(), type);
+  return queue_mgr()->GetQueue(channel).Read();
 }
 
-absl::StatusOr<bool> SerialProcRuntime::DequeueBufferFromChannel(
+absl::StatusOr<bool> SerialProcRuntime::ReadBufferFromChannel(
     Channel* channel, absl::Span<uint8_t> buffer) {
-  Type* type = channel->type();
-
-  XLS_RET_CHECK(!threads_.empty());
-  ProcJit* jit = threads_.front()->jit.get();
-  int64_t size = jit->type_converter()->GetTypeByteSize(type);
-  XLS_RET_CHECK_GE(buffer.size(), size);
-
-  XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue,
-                       queue_mgr()->GetQueueById(channel->id()));
-  bool had_data = queue->Recv(buffer.data(), size);
-  if (!had_data) {
-    return false;
-  }
-  return true;
-}
-
-int64_t SerialProcRuntime::NumProcs() const { return threads_.size(); }
-
-absl::StatusOr<Proc*> SerialProcRuntime::proc(int64_t index) const {
-  if (index > threads_.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
-  }
-  return dynamic_cast<Proc*>(threads_[index]->jit->proc());
+  return queue_mgr()->GetJitQueue(channel).ReadRaw(buffer.data());
 }
 
 absl::StatusOr<std::vector<Value>>
-SerialProcRuntime::SerialProcRuntime::ProcState(int64_t index) const {
-  if (index > threads_.size()) {
-    return absl::InvalidArgumentError(
-        absl::StrCat("Valid indices are 0 - ", threads_.size(), "."));
-  }
-
-  return threads_[index]->proc_state;
+SerialProcRuntime::SerialProcRuntime::ProcState(Proc* proc) const {
+  return continuations_.at(proc)->GetState();
 }
 
 void SerialProcRuntime::ResetState() {
-  for (int i = 0; i < package_->procs().size(); i++) {
-    Proc* proc = package_->procs()[i].get();
-    auto thread = threads_[i].get();
-    absl::MutexLock lock(&thread->mutex);
-    thread->proc_state = std::vector<Value>(proc->InitValues().begin(),
-                                            proc->InitValues().end());
+  for (const std::unique_ptr<Proc>& proc : package_->procs()) {
+    continuations_.at(proc.get()) =
+        proc_jits_.at(proc.get())->NewContinuation();
   }
 }
 

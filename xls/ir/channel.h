@@ -39,7 +39,7 @@ enum class ChannelKind {
 };
 
 std::string ChannelKindToString(ChannelKind kind);
-absl::StatusOr<ChannelKind> StringToChannelKind(absl::string_view str);
+absl::StatusOr<ChannelKind> StringToChannelKind(std::string_view str);
 std::ostream& operator<<(std::ostream& os, ChannelKind kind);
 
 // Abstraction describing a channel in XLS IR. Channels are a mechanism for
@@ -49,7 +49,7 @@ std::ostream& operator<<(std::ostream& os, ChannelKind kind);
 // communication occurs over the channel.
 class Channel {
  public:
-  Channel(absl::string_view name, int64_t id, ChannelOps supported_ops,
+  Channel(std::string_view name, int64_t id, ChannelOps supported_ops,
           ChannelKind kind, Type* type, absl::Span<const Value> initial_values,
           const ChannelMetadataProto& metadata)
       : name_(name),
@@ -93,7 +93,7 @@ class Channel {
   virtual bool HasCompletedBlockPortNames() const = 0;
 
   // Returns / sets name of block this channel is associated with.
-  void SetBlockName(absl::string_view name) {
+  void SetBlockName(std::string_view name) {
     metadata_.mutable_block_ports()->set_block_name(std::string(name));
   }
   std::optional<std::string> GetBlockName() const {
@@ -104,7 +104,7 @@ class Channel {
   }
 
   // Returns / sets name of data port this channel is associated with.
-  void SetDataPortName(absl::string_view name) {
+  void SetDataPortName(std::string_view name) {
     metadata_.mutable_block_ports()->set_data_port_name(std::string(name));
   }
   std::optional<std::string> GetDataPortName() const {
@@ -115,7 +115,7 @@ class Channel {
   }
 
   // Returns / sets name of valid port this channel is associated with.
-  void SetValidPortName(absl::string_view name) {
+  void SetValidPortName(std::string_view name) {
     metadata_.mutable_block_ports()->set_valid_port_name(std::string(name));
   }
   std::optional<std::string> GetValidPortName() const {
@@ -126,7 +126,7 @@ class Channel {
   }
 
   // Returns / sets name of ready port this channel is associated with.
-  void SetReadyPortName(absl::string_view name) {
+  void SetReadyPortName(std::string_view name) {
     metadata_.mutable_block_ports()->set_ready_port_name(std::string(name));
   }
   std::optional<std::string> GetReadyPortName() const {
@@ -165,14 +165,14 @@ enum class FlowControl {
 };
 
 std::string FlowControlToString(FlowControl fc);
-absl::StatusOr<FlowControl> StringToFlowControl(absl::string_view str);
+absl::StatusOr<FlowControl> StringToFlowControl(std::string_view str);
 std::ostream& operator<<(std::ostream& os, FlowControl fc);
 
 // A channel with FIFO semantics. Send operations add an data entry to the
 // channel; receives remove an element from the channel with FIFO ordering.
 class StreamingChannel : public Channel {
  public:
-  StreamingChannel(absl::string_view name, int64_t id, ChannelOps supported_ops,
+  StreamingChannel(std::string_view name, int64_t id, ChannelOps supported_ops,
                    Type* type, absl::Span<const Value> initial_values,
                    std::optional<int64_t> fifo_depth, FlowControl flow_control,
                    const ChannelMetadataProto& metadata)
@@ -206,7 +206,7 @@ class StreamingChannel : public Channel {
 // value. SingleValueChannels are stateless and do not support initial values.
 class SingleValueChannel : public Channel {
  public:
-  SingleValueChannel(absl::string_view name, int64_t id,
+  SingleValueChannel(std::string_view name, int64_t id,
                      ChannelOps supported_ops, Type* type,
                      const ChannelMetadataProto& metadata)
       : Channel(name, id, supported_ops, ChannelKind::kSingleValue, type,

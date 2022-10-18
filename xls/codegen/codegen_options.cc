@@ -18,6 +18,18 @@
 
 namespace xls::verilog {
 
+/* static */ std::string_view CodegenOptions::IOKindToString(IOKind kind) {
+  switch (kind) {
+    case IOKind::kFlop:
+      return "kFlop";
+    case IOKind::kSkidBuffer:
+      return "kSkidBuffer";
+    case IOKind::kZeroLatencyBuffer:
+      return "kZeroLatencyBuffer";
+  }
+  XLS_LOG(FATAL) << "Invalid IOKind: " << static_cast<int64_t>(kind);
+}
+
 CodegenOptions::CodegenOptions(const CodegenOptions& options)
     : entry_(options.entry_),
       module_name_(options.module_name_),
@@ -69,17 +81,17 @@ CodegenOptions& CodegenOptions::operator=(const CodegenOptions& options) {
   return *this;
 }
 
-CodegenOptions& CodegenOptions::entry(absl::string_view name) {
+CodegenOptions& CodegenOptions::entry(std::string_view name) {
   entry_ = name;
   return *this;
 }
 
-CodegenOptions& CodegenOptions::module_name(absl::string_view name) {
+CodegenOptions& CodegenOptions::module_name(std::string_view name) {
   module_name_ = name;
   return *this;
 }
 
-CodegenOptions& CodegenOptions::reset(absl::string_view name, bool asynchronous,
+CodegenOptions& CodegenOptions::reset(std::string_view name, bool asynchronous,
                                       bool active_low, bool reset_data_path) {
   reset_proto_ = ResetProto();
   reset_proto_->set_name(ToProtoString(name));
@@ -89,7 +101,7 @@ CodegenOptions& CodegenOptions::reset(absl::string_view name, bool asynchronous,
   return *this;
 }
 
-CodegenOptions& CodegenOptions::manual_control(absl::string_view input_name) {
+CodegenOptions& CodegenOptions::manual_control(std::string_view input_name) {
   if (!pipeline_control_.has_value()) {
     pipeline_control_ = PipelineControl();
   }
@@ -106,8 +118,8 @@ std::optional<ManualPipelineControl> CodegenOptions::manual_control() const {
 }
 
 CodegenOptions& CodegenOptions::valid_control(
-    absl::string_view input_name,
-    std::optional<absl::string_view> output_name) {
+    std::string_view input_name,
+    std::optional<std::string_view> output_name) {
   if (!pipeline_control_.has_value()) {
     pipeline_control_ = PipelineControl();
   }
@@ -126,7 +138,7 @@ std::optional<ValidProto> CodegenOptions::valid_control() const {
   return pipeline_control_->valid();
 }
 
-CodegenOptions& CodegenOptions::clock_name(absl::string_view clock_name) {
+CodegenOptions& CodegenOptions::clock_name(std::string_view clock_name) {
   clock_name_ = std::move(clock_name);
   return *this;
 }
@@ -188,19 +200,19 @@ CodegenOptions& CodegenOptions::emit_as_pipeline(bool value) {
 }
 
 CodegenOptions& CodegenOptions::streaming_channel_data_suffix(
-    absl::string_view value) {
+    std::string_view value) {
   streaming_channel_data_suffix_ = value;
   return *this;
 }
 
 CodegenOptions& CodegenOptions::streaming_channel_valid_suffix(
-    absl::string_view value) {
+    std::string_view value) {
   streaming_channel_valid_suffix_ = value;
   return *this;
 }
 
 CodegenOptions& CodegenOptions::streaming_channel_ready_suffix(
-    absl::string_view value) {
+    std::string_view value) {
   streaming_channel_ready_suffix_ = value;
   return *this;
 }

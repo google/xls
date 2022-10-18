@@ -87,7 +87,7 @@ std::pair<std::unique_ptr<Package>, Function*> BuildSimpleMap(
 // directory. 'name' should be the name of the dslx_test target (e.g.,
 // "sha256"). The optional 'optimize' indicates whether to return the IR after
 // optimizations.
-absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(absl::string_view name,
+absl::StatusOr<std::unique_ptr<Package>> GetBenchmark(std::string_view name,
                                                       bool optimized);
 
 // Returns the names of all benchmarks.

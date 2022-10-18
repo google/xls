@@ -67,7 +67,7 @@ GetBenchmarks(absl::Span<const std::string> benchmark_names) {
   return packages;
 }
 
-absl::Status RealMain(absl::string_view input_path) {
+absl::Status RealMain(std::string_view input_path) {
   std::vector<std::pair<std::string, std::unique_ptr<Package>>> packages;
   if (absl::GetFlag(FLAGS_benchmarks).empty()) {
     XLS_QCHECK(!input_path.empty());
@@ -140,7 +140,7 @@ absl::Status RealMain(absl::string_view input_path) {
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.empty() && absl::GetFlag(FLAGS_benchmarks).empty()) {

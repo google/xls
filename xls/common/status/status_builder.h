@@ -308,7 +308,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
 
   // Creates a new status based on an old one by joining the message from the
   // original to an additional message.
-  static absl::Status JoinMessageToStatus(absl::Status s, absl::string_view msg,
+  static absl::Status JoinMessageToStatus(absl::Status s, std::string_view msg,
                                           MessageJoinStyle style);
 
   // Creates a Status from this builder and logs it if the builder has been
@@ -330,7 +330,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   // Returns a Status that is the same as the provided `status` but with the
   // message set to `msg`.
   static absl::Status WithMessage(const absl::Status& status,
-                                  absl::string_view msg);
+                                  std::string_view msg);
   // Returns a Status that is identical to `s` except that the error_message()
   // has been augmented by adding `msg` to the end of the original error
   // message.
@@ -349,7 +349,7 @@ class ABSL_MUST_USE_RESULT StatusBuilder {
   // OK status values have no error message and therefore if `s` is OK, the
   // result is unchanged.
   static absl::Status AnnotateStatus(const absl::Status& s,
-                                     absl::string_view msg);
+                                     std::string_view msg);
 
   // Infrequently set builder options, instantiated lazily. This reduces
   // average construction/destruction time (e.g. the `stream` is fairly

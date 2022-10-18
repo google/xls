@@ -426,6 +426,9 @@ xls_benchmark_ir(
 cc_xls_ir_jit_wrapper(
     name = "chaining_example_opt_ir_jit_wrapper_main_cc",
     src = ":chaining_example_opt_ir.opt.ir",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
 )
 
 xls_ir_opt_ir(
@@ -441,6 +444,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "chaining_example",
         "function": get_mangled_ir_symbol("chaining_example", "double"),
+        "namespace": "not_xls::test",
     },
 )
 
@@ -527,6 +531,9 @@ xls_ir_jit_wrapper_macro(
     name = "simple_example_5_one_stage_jit_wrapper",
     src = ":simple_example_5_one_stage.opt.ir",
     header_file = "simple_example_5_one_stage_jit_wrapper.h",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
     source_file = "simple_example_5_one_stage_jit_wrapper.cc",
 )
 
@@ -547,6 +554,9 @@ xls_ir_jit_wrapper_macro(
 cc_xls_ir_jit_wrapper(
     name = "simple_example_5_one_stage_jit_wrapper_cc",
     src = ":simple_example_5_one_stage.opt.ir",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
 )
 
 # The rule performs tests using the DSLX, IR and Optimized IR files from the
@@ -630,6 +640,9 @@ xls_ir_jit_wrapper_native_rule(
     name = "simple_example_5_one_stage_jit_wrapper_native_rule",
     src = ":simple_example_5_one_stage.opt.ir",
     header_file = "simple_example_5_one_stage_jit_wrapper_native_rule.h",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
     source_file = "simple_example_5_one_stage_jit_wrapper_native_rule.cc",
 )
 
@@ -710,6 +723,9 @@ xls_ir_jit_wrapper_macro(
     name = "user_defined_output_filename_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
     header_file = "xls_ir_jit_wrapper.h",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
     source_file = "xls_ir_jit_wrapper.cc",
 )
 
@@ -717,6 +733,9 @@ xls_ir_jit_wrapper_native_rule(
     name = "user_defined_output_filename_native_rule_jit_wrapper",
     src = ":xls_ir_opt_ir.opt.ir",
     header_file = "xls_ir_jit_wrapper_native_rule.h",
+    jit_wrapper_args = {
+        "namespace": "not_xls::test",
+    },
     source_file = "xls_ir_jit_wrapper_native_rule.cc",
 )
 

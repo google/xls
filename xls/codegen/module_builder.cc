@@ -186,9 +186,9 @@ absl::Status ModuleBuilder::AddAssignmentFromValue(
   return absl::OkStatus();
 }
 
-ModuleBuilder::ModuleBuilder(absl::string_view name, VerilogFile* file,
+ModuleBuilder::ModuleBuilder(std::string_view name, VerilogFile* file,
                              CodegenOptions options,
-                             std::optional<absl::string_view> clk_name,
+                             std::optional<std::string_view> clk_name,
                              std::optional<ResetProto> rst_proto)
     : module_name_(SanitizeIdentifier(name)),
       file_(file),
@@ -249,7 +249,7 @@ absl::Status ModuleBuilder::AssignFromSlice(
   return absl::OkStatus();
 }
 
-absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
+absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(std::string_view name,
                                                       Type* type) {
   LogicRef* port =
       AddInputPort(SanitizeIdentifier(name), type->GetFlatBitCount());
@@ -271,14 +271,14 @@ absl::StatusOr<LogicRef*> ModuleBuilder::AddInputPort(absl::string_view name,
   return ar;
 }
 
-LogicRef* ModuleBuilder::AddInputPort(absl::string_view name,
+LogicRef* ModuleBuilder::AddInputPort(std::string_view name,
                                       int64_t bit_count) {
   return module_->AddInput(SanitizeIdentifier(name),
                            file_->BitVectorType(bit_count, SourceInfo()),
                            SourceInfo());
 }
 
-absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
+absl::Status ModuleBuilder::AddOutputPort(std::string_view name, Type* type,
                                           Expression* value) {
   LogicRef* output_port = module_->AddOutput(
       SanitizeIdentifier(name),
@@ -299,7 +299,7 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name, Type* type,
   return absl::OkStatus();
 }
 
-absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
+absl::Status ModuleBuilder::AddOutputPort(std::string_view name,
                                           int64_t bit_count,
                                           Expression* value) {
   LogicRef* output_port = module_->AddOutput(
@@ -310,7 +310,7 @@ absl::Status ModuleBuilder::AddOutputPort(absl::string_view name,
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
-    absl::string_view name, const Value& value) {
+    std::string_view name, const Value& value) {
   Type* type = package_.GetTypeForValue(value);
   LogicRef* ref;
   if (type->IsArray()) {
@@ -333,7 +333,7 @@ absl::StatusOr<LogicRef*> ModuleBuilder::DeclareModuleConstant(
   return ref;
 }
 
-LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
+LogicRef* ModuleBuilder::DeclareVariable(std::string_view name, Type* type) {
   DataType* data_type;
   if (type->IsArray()) {
     ArrayType* array_type = type->AsArrayOrDie();
@@ -347,7 +347,7 @@ LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name, Type* type) {
                           declaration_section());
 }
 
-LogicRef* ModuleBuilder::DeclareVariable(absl::string_view name,
+LogicRef* ModuleBuilder::DeclareVariable(std::string_view name,
                                          int64_t bit_count) {
   return module_->AddWire(SanitizeIdentifier(name),
                           file_->BitVectorType(bit_count, SourceInfo()),
@@ -458,10 +458,10 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
     absl::Span<const ModuleBuilder::IndexType> indices, IndexMatch index_match,
     Type* xls_type) {
   auto is_statically_true = [](const IndexMatch& im) {
-    return absl::holds_alternative<bool>(im) && absl::get<bool>(im);
+    return std::holds_alternative<bool>(im) && std::get<bool>(im);
   };
   auto is_statically_false = [](const IndexMatch& im) {
-    return absl::holds_alternative<bool>(im) && !absl::get<bool>(im);
+    return std::holds_alternative<bool>(im) && !std::get<bool>(im);
   };
   auto combine_index_matches = [&](const IndexMatch& a,
                                    const IndexMatch& b) -> IndexMatch {
@@ -474,8 +474,8 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
     if (is_statically_true(b)) {
       return a;
     }
-    return file_->LogicalAnd(absl::get<Expression*>(a),
-                             absl::get<Expression*>(b), SourceInfo());
+    return file_->LogicalAnd(std::get<Expression*>(a), std::get<Expression*>(b),
+                             SourceInfo());
   };
 
   if (indices.empty()) {
@@ -511,7 +511,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
       // value. E.g:
       //   assign lhs[i][j] = (i == idx) ? update_value[j] : rhs[j]
       auto gen_ternary = [&](absl::Span<Expression* const> inputs) {
-        return file_->Ternary(absl::get<Expression*>(index_match), inputs[0],
+        return file_->Ternary(std::get<Expression*>(index_match), inputs[0],
                               inputs[1], SourceInfo());
       };
 
@@ -561,7 +561,7 @@ absl::Status ModuleBuilder::EmitArrayCopyAndUpdate(
 }
 
 absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
-    absl::string_view name, Node* node, absl::Span<Expression* const> inputs) {
+    std::string_view name, Node* node, absl::Span<Expression* const> inputs) {
   LogicRef* ref = DeclareVariable(name, node->GetType());
 
   // TODO(meheff): Arrays should not be special cased here. Instead each op
@@ -838,65 +838,6 @@ absl::StatusOr<LogicRef*> ModuleBuilder::EmitAsAssignment(
   return ref;
 }
 
-// Returns a string generated from instantiating the given format string with
-// placeholder substrings (e.g., "{condition}") replaced with the given
-// placeholder values. Arguments:
-//
-//   fmt_string: The format template string with optional "{foo}" style
-//       placeholder substrings to substitute.
-//   supported_placeholders: A map from placeholder string (e.g., "condition")
-//       to the value to replace it.
-//   unsupported_placeholders: A map holding placeholder strings which are valid
-//       generally, but may not be valid for this particular instance and a more
-//       specific error message may be desired. For example, "{clk}" maybe a
-//       valid placeholder but may be unsupported if the block does not have a
-//       clock. In this case, an error like "{clk} in format string, but block
-//       has no clock" is much better than "{clk} is not a valid placeholder".
-//       `unsupported_placeholder` is a map from placeholder string to error
-//       message to emit if the placeholder is found in `fmt_string`.
-static absl::StatusOr<std::string> GenerateFormatString(
-    absl::string_view fmt_string,
-    const absl::flat_hash_map<std::string, std::string>& supported_placeholders,
-    const absl::flat_hash_map<std::string, std::string>&
-        unsupported_placeholders) {
-  RE2 re(R"({(\w+)})");
-  std::string placeholder;
-  absl::string_view piece(fmt_string);
-
-  // Verify that all placeholder substrings are supported.
-  while (RE2::FindAndConsume(&piece, re, &placeholder)) {
-    if (unsupported_placeholders.contains(placeholder)) {
-      // Placeholder is one of the explicitly unsupported ones. Return the
-      // error specific to that placeholder.
-      return absl::InvalidArgumentError(
-          unsupported_placeholders.at(placeholder));
-    }
-
-    if (!supported_placeholders.contains(placeholder)) {
-      // Placeholder is not a supported string. Emit an error message with a
-      // sorted list of all valid placeholders.
-      std::vector<std::string> all_placeholders;
-      for (auto [name, value] : supported_placeholders) {
-        all_placeholders.push_back(absl::StrCat("{", name, "}"));
-      }
-      for (auto [name, value] : unsupported_placeholders) {
-        all_placeholders.push_back(absl::StrCat("{", name, "}"));
-      }
-      std::sort(all_placeholders.begin(), all_placeholders.end());
-      return absl::InvalidArgumentError(
-          absl::StrFormat("Invalid placeholder {%s} in format string. "
-                          "Valid placeholders: %s",
-                          placeholder, absl::StrJoin(all_placeholders, ", ")));
-    }
-  }
-
-  std::string str(fmt_string);
-  for (auto [name, value] : supported_placeholders) {
-    absl::StrReplaceAll({{absl::StrCat("{", name, "}"), value}}, &str);
-  }
-  return str;
-}
-
 AlwaysComb* ModuleBuilder::AssertAlwaysComb(const SourceInfo& loc) {
   if (assert_always_comb_ == nullptr) {
     assert_always_comb_ = assert_section_->Add<AlwaysComb>(loc);
@@ -1029,7 +970,7 @@ absl::Status ModuleBuilder::Assign(LogicRef* lhs, Expression* rhs, Type* type) {
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, Type* type, Expression* next,
+    std::string_view name, Type* type, Expression* next,
     Expression* reset_value) {
   if (clk_ == nullptr) {
     return absl::InvalidArgumentError("Clock signal required for register.");
@@ -1064,7 +1005,7 @@ absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
 }
 
 absl::StatusOr<ModuleBuilder::Register> ModuleBuilder::DeclareRegister(
-    absl::string_view name, int64_t bit_count, Expression* next,
+    std::string_view name, int64_t bit_count, Expression* next,
     Expression* reset_value) {
   if (clk_ == nullptr) {
     return absl::InvalidArgumentError("Clock signal required for register.");
@@ -1241,7 +1182,7 @@ namespace {
 // Defines and returns a function which implements the given DynamicBitSlice
 // node.
 VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
-                                               absl::string_view function_name,
+                                               std::string_view function_name,
                                                ModuleSection* section) {
   VerilogFile* file = section->file();
   VerilogFunction* func = section->Add<VerilogFunction>(
@@ -1287,7 +1228,7 @@ VerilogFunction* DefineDynamicBitSliceFunction(DynamicBitSlice* slice,
 // Defines and returns a function which implements the given BitSliceUpdate
 // node.
 VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
-                                              absl::string_view function_name,
+                                              std::string_view function_name,
                                               ModuleSection* section) {
   VerilogFile* file = section->file();
   int64_t to_update_width = update->to_update()->BitCountOrDie();
@@ -1373,7 +1314,7 @@ VerilogFunction* DefineBitSliceUpdateFunction(BitSliceUpdate* update,
 }
 
 // Defines and returns a function which implements the given SMul node.
-VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
+VerilogFunction* DefineSmulFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
   XLS_CHECK_EQ(node->op(), Op::kSMul);
   VerilogFile* file = section->file();
@@ -1426,7 +1367,7 @@ VerilogFunction* DefineSmulFunction(Node* node, absl::string_view function_name,
 }
 
 // Defines and returns a function which implements the given UMul node.
-VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
+VerilogFunction* DefineUmulFunction(Node* node, std::string_view function_name,
                                     ModuleSection* section) {
   XLS_CHECK_EQ(node->op(), Op::kUMul);
   VerilogFile* file = section->file();
@@ -1453,7 +1394,7 @@ VerilogFunction* DefineUmulFunction(Node* node, absl::string_view function_name,
 
 // Defines and returns a function which implements the given SMulp node.
 absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
-    Node* node, absl::string_view function_name, ModuleSection* section) {
+    Node* node, std::string_view function_name, ModuleSection* section) {
   XLS_CHECK_EQ(node->op(), Op::kSMulp);
   XLS_CHECK_EQ(node->operand_count(), 2);
   int64_t width = node->As<PartialProductOp>()->width();
@@ -1512,7 +1453,7 @@ absl::StatusOr<VerilogFunction*> DefineSmulpFunction(
 
 // Defines and returns a function which implements the given UMulp node.
 absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
-    Node* node, absl::string_view function_name, ModuleSection* section) {
+    Node* node, std::string_view function_name, ModuleSection* section) {
   XLS_CHECK_EQ(node->op(), Op::kUMulp);
   XLS_CHECK_EQ(node->operand_count(), 2);
   int64_t width = node->As<PartialProductOp>()->width();
@@ -1548,7 +1489,7 @@ absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
 
 // Defines and returns a function which implements the given UMul node.
 VerilogFunction* DefinePrioritySelectFunction(
-    PrioritySelect* sel, absl::string_view function_name,
+    PrioritySelect* sel, std::string_view function_name,
     ModuleSection* section, const std::optional<BddQueryEngine>& query_engine,
     bool use_system_verilog) {
   VerilogFile* file = section->file();

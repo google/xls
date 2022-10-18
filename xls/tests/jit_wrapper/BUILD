@@ -43,6 +43,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "F32Identity",
         "function": "identity",
+        "namespace": "xls::test",
     },
 )
 
@@ -58,6 +59,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "F32IsInf",
         "function": "is_inf",
+        "namespace": "xls::test",
     },
 )
 
@@ -73,6 +75,7 @@ cc_xls_ir_jit_wrapper(
     jit_wrapper_args = {
         "class_name": "FailOn42",
         "function": "fail_on_42",
+        "namespace": "xls::test",
     },
 )
 

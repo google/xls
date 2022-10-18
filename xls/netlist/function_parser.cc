@@ -49,7 +49,7 @@ Token Token::Identifier(const std::string& s, int64_t pos) {
 }
 
 Scanner::Scanner(std::string function) : function_(function), current_pos_(0) {
-  absl::string_view stripped = absl::StripAsciiWhitespace(function_);
+  std::string_view stripped = absl::StripAsciiWhitespace(function_);
   if (stripped != function_) {
     XLS_LOG(WARNING)
         << "Function '" << function_ << "' has leading or trailing spaces. "

@@ -47,18 +47,18 @@ namespace {
 // expression exceed some limit. Any logical operation performed with a
 // TooManyPaths value produces a TooManyPaths value.
 struct TooManyPaths {};
-using SaturatingBddNodeIndex = absl::variant<BddNodeIndex, TooManyPaths>;
+using SaturatingBddNodeIndex = std::variant<BddNodeIndex, TooManyPaths>;
 using SaturatingBddNodeVector = std::vector<SaturatingBddNodeIndex>;
 
 // The AbstractEvaluator requires equals to and not equals to operations on the
 // primitive element.
 bool operator==(const SaturatingBddNodeIndex& a,
                 const SaturatingBddNodeIndex& b) {
-  if (absl::holds_alternative<TooManyPaths>(a) ||
-      absl::holds_alternative<TooManyPaths>(b)) {
+  if (std::holds_alternative<TooManyPaths>(a) ||
+      std::holds_alternative<TooManyPaths>(b)) {
     return false;
   }
-  return absl::get<BddNodeIndex>(a) == absl::get<BddNodeIndex>(b);
+  return std::get<BddNodeIndex>(a) == std::get<BddNodeIndex>(b);
 }
 
 bool operator!=(const SaturatingBddNodeIndex& a,
@@ -71,8 +71,8 @@ bool operator!=(const SaturatingBddNodeIndex& a,
 BddNodeVector ToBddNodeVector(const SaturatingBddNodeVector& input) {
   BddNodeVector result(input.size());
   for (int64_t i = 0; i < input.size(); ++i) {
-    XLS_CHECK(absl::holds_alternative<BddNodeIndex>(input[i]));
-    result[i] = absl::get<BddNodeIndex>(input[i]);
+    XLS_CHECK(std::holds_alternative<BddNodeIndex>(input[i]));
+    result[i] = std::get<BddNodeIndex>(input[i]);
   }
   return result;
 }
@@ -89,10 +89,10 @@ class SaturatingBddEvaluator
   SaturatingBddNodeIndex Zero() const { return bdd_->zero(); }
 
   SaturatingBddNodeIndex Not(const SaturatingBddNodeIndex& input) const {
-    if (absl::holds_alternative<TooManyPaths>(input)) {
+    if (std::holds_alternative<TooManyPaths>(input)) {
       return TooManyPaths();
     }
-    BddNodeIndex result = bdd_->Not(absl::get<BddNodeIndex>(input));
+    BddNodeIndex result = bdd_->Not(std::get<BddNodeIndex>(input));
     if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
       return TooManyPaths();
     }
@@ -101,12 +101,12 @@ class SaturatingBddEvaluator
 
   SaturatingBddNodeIndex And(const SaturatingBddNodeIndex& a,
                              const SaturatingBddNodeIndex& b) const {
-    if (absl::holds_alternative<TooManyPaths>(a) ||
-        absl::holds_alternative<TooManyPaths>(b)) {
+    if (std::holds_alternative<TooManyPaths>(a) ||
+        std::holds_alternative<TooManyPaths>(b)) {
       return TooManyPaths();
     }
     BddNodeIndex result =
-        bdd_->And(absl::get<BddNodeIndex>(a), absl::get<BddNodeIndex>(b));
+        bdd_->And(std::get<BddNodeIndex>(a), std::get<BddNodeIndex>(b));
     if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
       return TooManyPaths();
     }
@@ -115,12 +115,12 @@ class SaturatingBddEvaluator
 
   SaturatingBddNodeIndex Or(const SaturatingBddNodeIndex& a,
                             const SaturatingBddNodeIndex& b) const {
-    if (absl::holds_alternative<TooManyPaths>(a) ||
-        absl::holds_alternative<TooManyPaths>(b)) {
+    if (std::holds_alternative<TooManyPaths>(a) ||
+        std::holds_alternative<TooManyPaths>(b)) {
       return TooManyPaths();
     }
     BddNodeIndex result =
-        bdd_->Or(absl::get<BddNodeIndex>(a), absl::get<BddNodeIndex>(b));
+        bdd_->Or(std::get<BddNodeIndex>(a), std::get<BddNodeIndex>(b));
     if (path_limit_ > 0 && bdd_->path_count(result) > path_limit_) {
       return TooManyPaths();
     }
@@ -315,7 +315,7 @@ bool ShouldEvaluate(Node* node) {
       // Associate a new BDD variable with each bit that exceeded the path
       // limit.
       for (SaturatingBddNodeIndex& value : values.at(node)) {
-        if (absl::holds_alternative<TooManyPaths>(value)) {
+        if (std::holds_alternative<TooManyPaths>(value)) {
           bdd_function->saturated_expressions_.insert(node);
           value = bdd_function->bdd().NewVariable();
         }
@@ -326,7 +326,7 @@ bool ShouldEvaluate(Node* node) {
       XLS_VLOG(5) << absl::StreamFormat(
           "    bit %d : %s", i,
           bdd_function->bdd().ToStringDnf(
-              absl::get<BddNodeIndex>(values.at(node)[i]),
+              std::get<BddNodeIndex>(values.at(node)[i]),
               /*minterm_limit=*/15));
     }
   }

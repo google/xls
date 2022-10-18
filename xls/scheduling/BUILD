@@ -112,6 +112,7 @@ cc_library(
     deps = [
         ":schedule_bounds",
         ":scheduling_options",
+        "@com_google_absl//absl/container:btree",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -120,6 +121,8 @@ cc_library(
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
+        "//xls/data_structures:strongly_connected_components",
+        "//xls/data_structures:union_find",
         "//xls/delay_model:delay_estimator",
         "//xls/ir",
         "//xls/ir:node_util",

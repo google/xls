@@ -25,7 +25,7 @@
 namespace xls::dslx {
 
 using TopNode =
-    absl::variant<Function*, Proc*, TestFunction*, StructDef*, TypeDef*>;
+    std::variant<Function*, Proc*, TestFunction*, StructDef*, TypeDef*>;
 
 // Assigns concrete types and validates such on all elements of `f`, which must
 // be a non-parametric user-defined function.
@@ -44,10 +44,13 @@ absl::StatusOr<TypeAndBindings> CheckInvocation(
 //   module: The module to type check functions for.
 //   import_cache: Import cache to use if an import is encountered in the
 //      module, and that owns the type information determined for this module.
+//   warnings: Object that collects warnings flagged during the typechecking
+//      process.
 //
 // Returns type information mapping from AST nodes in the module to their
 // deduced/checked type. The owner for the type info is within the import_cache.
-absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data);
+absl::StatusOr<TypeInfo*> CheckModule(Module* module, ImportData* import_data,
+                                      WarningCollector* warnings);
 
 // Determines if the given type is best represented as a DSLX BuiltinType with
 // fixed width, e.g., u7 or s64 vs bits, uN, or sN. If so, then this function

@@ -137,7 +137,7 @@ namespace xls {
 namespace {
 
 absl::StatusOr<std::unique_ptr<Package>> ParsePackage(
-    absl::string_view ir_text) {
+    std::string_view ir_text) {
   if (absl::GetFlag(FLAGS_top).empty()) {
     return Parser::ParsePackage(ir_text);
   }
@@ -152,7 +152,7 @@ float Random0To1(std::mt19937* rng) {
 // Checks whether we still fail when attempting to run function "f". Optional
 // 'inputs' is required if --test_llvm_jit is used.
 absl::StatusOr<bool> StillFailsHelper(
-    absl::string_view ir_text, std::optional<std::vector<Value>> inputs) {
+    std::string_view ir_text, std::optional<std::vector<Value>> inputs) {
   if (!absl::GetFlag(FLAGS_test_executable).empty()) {
     // Verify script exists and is executable.
     absl::Status exists_status =
@@ -220,7 +220,7 @@ absl::StatusOr<bool> StillFailsHelper(
 // Wrapper around StillFails which memoizes the result. Optional test_cache is
 // used to memoize the results of testing the given IR.
 absl::StatusOr<bool> StillFails(
-    absl::string_view ir_text, std::optional<std::vector<Value>> inputs,
+    std::string_view ir_text, std::optional<std::vector<Value>> inputs,
     absl::flat_hash_map<std::string, bool>* test_cache) {
   XLS_VLOG(1) << "=== Verifying contents still fails";
   XLS_VLOG_LINES(2, ir_text);
@@ -245,8 +245,8 @@ absl::StatusOr<bool> StillFails(
 // returns 'true' if the test (still) fails on that IR text.  Optional test
 // cache is used to memoize the results of testing the given IR.
 absl::Status VerifyStillFails(
-    absl::string_view ir_text, std::optional<std::vector<Value>> inputs,
-    absl::string_view description,
+    std::string_view ir_text, std::optional<std::vector<Value>> inputs,
+    std::string_view description,
     absl::flat_hash_map<std::string, bool>* test_cache) {
   XLS_ASSIGN_OR_RETURN(bool still_fails,
                        StillFails(ir_text, inputs, test_cache));
@@ -687,7 +687,7 @@ absl::Status CleanUp(FunctionBase* f, bool can_remove_params) {
   return absl::OkStatus();
 }
 
-absl::Status RealMain(absl::string_view path,
+absl::Status RealMain(std::string_view path,
                       const int64_t failed_attempt_limit,
                       const int64_t total_attempt_limit) {
   XLS_ASSIGN_OR_RETURN(std::string knownf_ir_text, GetFileContents(path));
@@ -701,7 +701,7 @@ absl::Status RealMain(absl::string_view path,
     inputs = std::vector<xls::Value>();
     XLS_QCHECK(absl::GetFlag(FLAGS_test_llvm_jit))
         << "Can only specify --input with --test_llvm_jit";
-    for (const absl::string_view& value_string :
+    for (const std::string_view& value_string :
          absl::StrSplit(absl::GetFlag(FLAGS_input), ';')) {
       XLS_ASSIGN_OR_RETURN(Value input, Parser::ParseTypedValue(value_string));
       inputs->push_back(input);
@@ -833,7 +833,7 @@ absl::Status RealMain(absl::string_view path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
 
   if (positional_arguments.size() != 1 || positional_arguments[0].empty()) {

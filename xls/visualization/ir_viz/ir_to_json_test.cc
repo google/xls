@@ -39,7 +39,7 @@ constexpr char kTestdataPath[] = "xls/visualization/ir_viz/testdata";
 
 class IrToJsonTest : public IrTestBase {
  protected:
-  std::filesystem::path GoldenFilePath(absl::string_view file_ext) {
+  std::filesystem::path GoldenFilePath(std::string_view file_ext) {
     return absl::StrFormat("%s/ir_to_json_test_%s.%s", kTestdataPath,
                            TestName(), file_ext);
   }

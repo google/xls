@@ -30,7 +30,7 @@ DelayEstimatorManager& GetDelayEstimatorManagerSingleton() {
 }
 
 absl::StatusOr<DelayEstimator*> DelayEstimatorManager::GetDelayEstimator(
-    absl::string_view name) const {
+    std::string_view name) const {
   if (!estimators_.contains(name)) {
     if (estimator_names_.empty()) {
       return absl::NotFoundError(
@@ -154,6 +154,20 @@ namespace {
 }
 
 }  // namespace
+
+DecoratingDelayEstimator::DecoratingDelayEstimator(
+    std::string_view name, const DelayEstimator& decorated,
+    std::function<int64_t(Node*, int64_t)> modifier)
+    : DelayEstimator(name),
+      decorated_(decorated),
+      modifier_(XLS_DIE_IF_NULL(std::move(modifier))) {}
+
+absl::StatusOr<int64_t> DecoratingDelayEstimator::GetOperationDelayInPs(
+    Node* node) const {
+  XLS_ASSIGN_OR_RETURN(int64_t original,
+                       decorated_.GetOperationDelayInPs(node));
+  return modifier_(node, original);
+}
 
 /* static */ absl::StatusOr<int64_t> DelayEstimator::GetLogicalEffortDelayInPs(
     Node* node, int64_t tau_in_ps) {

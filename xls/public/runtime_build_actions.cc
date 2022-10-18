@@ -31,8 +31,8 @@ namespace xls {
 std::string_view GetDefaultDslxStdlibPath() { return kDefaultDslxStdlibPath; }
 
 absl::StatusOr<std::string> ConvertDslxToIr(
-    absl::string_view dslx, absl::string_view path,
-    absl::string_view module_name, absl::string_view dslx_stdlib_path,
+    std::string_view dslx, std::string_view path,
+    std::string_view module_name, std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_VLOG(5) << "path: " << path << " module name: " << module_name
               << " stdlib_path: " << dslx_stdlib_path;
@@ -55,7 +55,7 @@ static absl::StatusOr<std::string> ExtractModuleName(
 }
 
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    std::filesystem::path path, absl::string_view dslx_stdlib_path,
+    std::filesystem::path path, std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths) {
   XLS_ASSIGN_OR_RETURN(std::string dslx, GetFileContents(path));
   XLS_ASSIGN_OR_RETURN(std::string module_name, ExtractModuleName(path));
@@ -63,8 +63,8 @@ absl::StatusOr<std::string> ConvertDslxPathToIr(
                          additional_search_paths);
 }
 
-absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
-                                       absl::string_view top) {
+absl::StatusOr<std::string> OptimizeIr(std::string_view ir,
+                                       std::string_view top) {
   const tools::OptOptions options = {
       .opt_level = xls::kMaxOptLevel,
       .top = top,
@@ -72,18 +72,18 @@ absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
   return tools::OptimizeIrForTop(ir, options);
 }
 
-absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
-                                           absl::string_view function_name) {
+absl::StatusOr<std::string> MangleDslxName(std::string_view module_name,
+                                           std::string_view function_name) {
   return dslx::MangleDslxName(module_name, function_name,
                               dslx::CallingConvention::kTypical,
                               /*free_keys=*/{},
                               /*symbolic_bindings=*/nullptr);
 }
 
-absl::StatusOr<std::string> ProtoToDslx(absl::string_view proto_def,
-                                        absl::string_view message_name,
-                                        absl::string_view text_proto,
-                                        absl::string_view binding_name) {
+absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
+                                        std::string_view message_name,
+                                        std::string_view text_proto,
+                                        std::string_view binding_name) {
   XLS_ASSIGN_OR_RETURN(
       std::unique_ptr<dslx::Module> module,
       ProtoToDslxViaText(proto_def, message_name, text_proto, binding_name));

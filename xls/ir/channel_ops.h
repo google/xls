@@ -31,7 +31,7 @@ namespace xls {
 enum class ChannelOps { kSendOnly, kReceiveOnly, kSendReceive };
 
 std::string ChannelOpsToString(ChannelOps ops);
-absl::StatusOr<ChannelOps> StringToChannelOps(absl::string_view str);
+absl::StatusOr<ChannelOps> StringToChannelOps(std::string_view str);
 std::ostream& operator<<(std::ostream& os, ChannelOps ops);
 
 }  // namespace xls

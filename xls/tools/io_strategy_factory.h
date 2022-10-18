@@ -26,24 +26,24 @@
 namespace xls {
 namespace verilog {
 
-class IoStrategyFactory {
+class IOStrategyFactory {
  public:
-  static IoStrategyFactory* GetSingleton() {
-    static IoStrategyFactory* singleton = new IoStrategyFactory;
+  static IOStrategyFactory* GetSingleton() {
+    static IOStrategyFactory* singleton = new IOStrategyFactory;
     return singleton;
   }
 
-  static absl::StatusOr<std::unique_ptr<IoStrategy>> CreateForDevice(
-      absl::string_view target_device, VerilogFile* f);
+  static absl::StatusOr<std::unique_ptr<IOStrategy>> CreateForDevice(
+      std::string_view target_device, VerilogFile* f);
 
-  void Add(absl::string_view target_device,
-           std::function<std::unique_ptr<IoStrategy>(VerilogFile*)> f) {
+  void Add(std::string_view target_device,
+           std::function<std::unique_ptr<IOStrategy>(VerilogFile*)> f) {
     strategies_.insert({std::string(target_device), std::move(f)});
   }
 
  private:
   absl::flat_hash_map<std::string,
-                      std::function<std::unique_ptr<IoStrategy>(VerilogFile*)>>
+                      std::function<std::unique_ptr<IOStrategy>(VerilogFile*)>>
       strategies_;
 };
 

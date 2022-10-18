@@ -41,7 +41,7 @@ class TernaryQueryEngineTest : public IrTestBase {
  protected:
   // Create a BValue with known bits equal to the given ternary vector. Created
   // using a param and AND/OR masks.
-  BValue MakeValueWithKnownBits(absl::string_view name,
+  BValue MakeValueWithKnownBits(std::string_view name,
                                 TernaryVector known_bits, FunctionBuilder* fb) {
     absl::InlinedVector<bool, 1> known_zeros;
     absl::InlinedVector<bool, 1> known_ones;
@@ -60,7 +60,7 @@ class TernaryQueryEngineTest : public IrTestBase {
   // inputs to the op is crafted to have known bits equal to the given
   // TernaryVectors.
   absl::StatusOr<std::string> RunOnBinaryOp(
-      absl::string_view lhs_known_bits, absl::string_view rhs_known_bits,
+      std::string_view lhs_known_bits, std::string_view rhs_known_bits,
       std::function<void(BValue, BValue, FunctionBuilder*)> make_op) {
     Package p("test_package");
     FunctionBuilder fb("f", &p);

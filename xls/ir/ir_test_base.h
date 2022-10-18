@@ -35,7 +35,7 @@ namespace xls {
 // explicitly call the verifier.
 class VerifiedPackage : public Package {
  public:
-  explicit VerifiedPackage(absl::string_view name) : Package(name) {}
+  explicit VerifiedPackage(std::string_view name) : Package(name) {}
   ~VerifiedPackage() override;
 };
 
@@ -56,34 +56,34 @@ class IrTestBase : public ::testing::Test {
   // Parses the given text as a package and replaces the owned packaged with the
   // result. Package can be accessed by calling "package()".
   static absl::StatusOr<std::unique_ptr<VerifiedPackage>> ParsePackage(
-      absl::string_view text);
+      std::string_view text);
 
   // As above but skips IR verification and returns an ordinary Package..
   static absl::StatusOr<std::unique_ptr<Package>> ParsePackageNoVerify(
-      absl::string_view text);
+      std::string_view text);
 
   // Parse the input_string as a function into the given package.
-  absl::StatusOr<Function*> ParseFunction(absl::string_view text,
+  absl::StatusOr<Function*> ParseFunction(std::string_view text,
                                           Package* package);
 
   // Parse the input_string as a proc into the given package.
-  absl::StatusOr<Proc*> ParseProc(absl::string_view text, Package* package);
+  absl::StatusOr<Proc*> ParseProc(std::string_view text, Package* package);
 
   // Finds and returns the node in the given package (function) with the given
   // name. Dies if no such node exists.
-  static Node* FindNode(absl::string_view name, Package* package);
-  static Node* FindNode(absl::string_view name, FunctionBase* function);
+  static Node* FindNode(std::string_view name, Package* package);
+  static Node* FindNode(std::string_view name, FunctionBase* function);
 
   // Finds returns True if the node in the given package (function)
   // with the given name.
-  static bool HasNode(absl::string_view name, Package* package);
-  static bool HasNode(absl::string_view name, FunctionBase* function);
+  static bool HasNode(std::string_view name, Package* package);
+  static bool HasNode(std::string_view name, FunctionBase* function);
 
   // Finds and returns the function, proc, or block in the given package with
   // the given name. Dies if no such function or proc exists.
-  static Function* FindFunction(absl::string_view name, Package* package);
-  static Proc* FindProc(absl::string_view name, Package* package);
-  static Block* FindBlock(absl::string_view name, Package* package);
+  static Function* FindFunction(std::string_view name, Package* package);
+  static Proc* FindProc(std::string_view name, Package* package);
+  static Block* FindBlock(std::string_view name, Package* package);
 
   // Runs the given package (passed as IR text) and EXPECTs the result to equal
   // 'expected'. Runs the package in several ways:
@@ -93,21 +93,21 @@ class IrTestBase : public ::testing::Test {
   //          (enabled with simulate)
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, uint64_t>& args, uint64_t expected,
-      absl::string_view package_text, bool run_optimized = true,
+      std::string_view package_text, bool run_optimized = true,
       bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Overload which takes Bits as arguments and the expected result.
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, Bits>& args, Bits expected,
-      absl::string_view package_text, bool run_optimized = true,
+      std::string_view package_text, bool run_optimized = true,
       bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 
   // Overload which takes Values as arguments and the expected result.
   static void RunAndExpectEq(
       const absl::flat_hash_map<std::string, Value>& args, Value expected,
-      absl::string_view package_text, bool run_optimized = true,
+      std::string_view package_text, bool run_optimized = true,
       bool simulate = true,
       xabsl::SourceLocation loc = xabsl::SourceLocation::current());
 

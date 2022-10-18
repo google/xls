@@ -35,7 +35,7 @@ TEST(NetworkConfigBuilderTest, FieldValuesEmptyNetwork) {
 
 // Test the field values of a network.
 TEST(NetworkConfigBuilderTest, FieldValues) {
-  constexpr absl::string_view kName = "Test";
+  constexpr std::string_view kName = "Test";
   NetworkConfigProtoBuilder builder(kName);
   builder.WithDescription(kName);
   builder.WithPort(kName);
@@ -189,7 +189,7 @@ TEST(NetworkConfigBuilderTest, SimpleNetwork) {
 
 // Test the default virtual channels for an input port.
 TEST(NetworkConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
-  constexpr absl::string_view kDefault = "Default";
+  constexpr std::string_view kDefault = "Default";
   const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
   NetworkConfigProtoBuilder builder("Test");
   RouterConfigProtoBuilder router_builder = builder.WithRouter("Test");
@@ -210,7 +210,7 @@ TEST(NetworkConfigBuilderTest, VirtualChannelsInputPortDefaultFields) {
 
 // Test the default virtual channels for an output port.
 TEST(NetworkConfigBuilderTest, VirtualChannelsOutputPortDefaultFields) {
-  constexpr absl::string_view kDefault = "Default";
+  constexpr std::string_view kDefault = "Default";
   const std::vector<std::string> kVirtualChannels = {std::string(kDefault)};
   NetworkConfigProtoBuilder builder("Test");
   RouterConfigProtoBuilder router_builder = builder.WithRouter("Test");

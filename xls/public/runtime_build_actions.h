@@ -58,25 +58,25 @@ std::string_view GetDefaultDslxStdlibPath();
 //  additional_search_paths: Additional filesystem paths to search for imported
 //    modules.
 absl::StatusOr<std::string> ConvertDslxToIr(
-    absl::string_view dslx, absl::string_view path,
-    absl::string_view module_name, absl::string_view dslx_stdlib_path,
+    std::string_view dslx, std::string_view path,
+    std::string_view module_name, std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
 // As above, but uses a filesystem path to retrieve the DSLX module contents.
 // "path" should end with ".x" suffix, the path will determine the module name.
 absl::StatusOr<std::string> ConvertDslxPathToIr(
-    std::filesystem::path path, absl::string_view dslx_stdlib_path,
+    std::filesystem::path path, std::string_view dslx_stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths);
 
 // Optimizes the generated XLS IR with the given top-level entity (e.g.,
 // function, proc, etc).
-absl::StatusOr<std::string> OptimizeIr(absl::string_view ir,
-                                       absl::string_view top);
+absl::StatusOr<std::string> OptimizeIr(std::string_view ir,
+                                       std::string_view top);
 
 // Mangles the given DSL module/function name combination so it can be resolved
 // as a corresponding symbol in converted IR.
-absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
-                                           absl::string_view function_name);
+absl::StatusOr<std::string> MangleDslxName(std::string_view module_name,
+                                           std::string_view function_name);
 
 // Converts protocol buffer data into its equivalent DSLX text, as a
 // module-level constant.
@@ -91,10 +91,10 @@ absl::StatusOr<std::string> MangleDslxName(absl::string_view module_name,
 //  text_proto: Protobuf text to translate to DSLX.
 //  binding_name: Name of the (const) DSLX binding (i.e. const variable name) to
 //    make in the output text.
-absl::StatusOr<std::string> ProtoToDslx(absl::string_view proto_def,
-                                        absl::string_view message_name,
-                                        absl::string_view text_proto,
-                                        absl::string_view binding_name);
+absl::StatusOr<std::string> ProtoToDslx(std::string_view proto_def,
+                                        std::string_view message_name,
+                                        std::string_view text_proto,
+                                        std::string_view binding_name);
 
 }  // namespace xls
 

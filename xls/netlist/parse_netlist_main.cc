@@ -27,8 +27,8 @@ ABSL_FLAG(bool, show_clusters, false, "Show the logic clusters found.");
 namespace xls {
 namespace {
 
-absl::Status RealMain(absl::string_view netlist_path,
-                      std::optional<absl::string_view> cell_library_path) {
+absl::Status RealMain(std::string_view netlist_path,
+                      std::optional<std::string_view> cell_library_path) {
   netlist::CellLibrary cell_library;
   if (cell_library_path) {
     XLS_ASSIGN_OR_RETURN(
@@ -74,7 +74,7 @@ absl::Status RealMain(absl::string_view netlist_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(argv[0], argc, argv);
 
   if (positional_arguments.empty()) {

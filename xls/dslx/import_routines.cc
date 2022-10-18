@@ -26,7 +26,7 @@
 namespace xls::dslx {
 
 static absl::StatusOr<std::filesystem::path> FindExistingPath(
-    const ImportTokens& subject, absl::string_view stdlib_path,
+    const ImportTokens& subject, std::string_view stdlib_path,
     absl::Span<const std::filesystem::path> additional_search_paths,
     const Span& import_span) {
   absl::Span<std::string const> pieces = subject.pieces();
@@ -49,7 +49,7 @@ static absl::StatusOr<std::filesystem::path> FindExistingPath(
   auto try_path =
       [&attempted](
           const std::filesystem::path& base,
-          absl::string_view path) -> std::optional<std::filesystem::path> {
+          std::string_view path) -> std::optional<std::filesystem::path> {
     auto full_path = std::filesystem::path(base) / path;
     XLS_VLOG(3) << "Trying path: " << full_path;
     attempted.push_back(std::string(full_path));

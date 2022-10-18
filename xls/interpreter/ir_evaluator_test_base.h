@@ -66,12 +66,12 @@ class IrEvaluatorTestBase
     : public IrTestBase,
       public testing::WithParamInterface<IrEvaluatorTestParam> {
  protected:
-  Value AsValue(absl::string_view input_string) {
+  Value AsValue(std::string_view input_string) {
     return Parser::ParseTypedValue(input_string).value();
   }
 
   absl::StatusOr<Function*> ParseAndGetFunction(Package* package,
-                                                absl::string_view program) {
+                                                std::string_view program) {
     XLS_ASSIGN_OR_RETURN(Function * function,
                          Parser::ParseFunction(program, package));
     XLS_VLOG(1) << "Dumped:\n" << function->DumpIr();

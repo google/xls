@@ -30,7 +30,7 @@
 namespace xls {
 
 absl::StatusOr<Param*> FunctionBase::GetParamByName(
-    absl::string_view param_name) const {
+    std::string_view param_name) const {
   for (Param* param : params()) {
     if (param->name() == param_name) {
       return param;
@@ -64,7 +64,7 @@ absl::Status FunctionBase::MoveParamToIndex(Param* param, int64_t index) {
 }
 
 absl::StatusOr<Node*> FunctionBase::GetNode(
-    absl::string_view standard_node_name) {
+    std::string_view standard_node_name) {
   for (Node* node : nodes()) {
     if (node->GetName() == standard_node_name) {
       return node;

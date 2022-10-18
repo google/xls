@@ -29,36 +29,41 @@
 #include "xls/ir/type.h"
 #include "xls/ir/value.h"
 #include "xls/jit/jit_channel_queue.h"
+#include "xls/jit/jit_runtime.h"
 
 namespace xls {
 namespace {
 
+using status_testing::IsOkAndHolds;
 using ::testing::ElementsAre;
 
-void EnqueueData(JitChannelQueue* queue, uint32_t data) {
-  queue->Send(absl::bit_cast<uint8_t*>(&data), sizeof(uint32_t));
+void WriteU32(ChannelQueue* queue, uint32_t data) {
+  XLS_CHECK_OK(queue->Write(Value(UBits(data, 32))));
 }
 
-uint32_t DequeueData(JitChannelQueue* queue) {
-  uint32_t data;
-  queue->Recv(absl::bit_cast<uint8_t*>(&data), sizeof(uint32_t));
-  return data;
+uint32_t ReadU32(ChannelQueue* queue) {
+  std::optional<Value> value_opt = queue->Read();
+  XLS_CHECK(value_opt.has_value());
+  return value_opt->bits().ToUint64().value();
 }
 
-class ProcJitTest : public IrTestBase {};
+class ProcJitTest : public IrTestBase {
+ protected:
+  ProcJitTest() : jit_runtime_(JitRuntime::Create().value()) {}
 
-// Recv/Send functions for the "CanCompileProcs" test.
-bool CanCompileProcs_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
-                          uint8_t* data_ptr, int64_t data_sz, void* user_data) {
-  JitChannelQueue* queue = absl::bit_cast<JitChannelQueue*>(queue_ptr);
-  return queue->Recv(data_ptr, data_sz);
-}
+  // Creates a queue manager and ProcJit for the given proc.
+  std::pair<std::unique_ptr<JitChannelQueueManager>, std::unique_ptr<ProcJit>>
+  CreateQueueManagerAndJit(Proc* proc) {
+    auto queue_mgr = JitChannelQueueManager::CreateThreadSafe(
+                         proc->package(), jit_runtime_.get())
+                         .value();
+    std::unique_ptr<ProcJit> jit =
+        ProcJit::Create(proc, jit_runtime_.get(), queue_mgr.get()).value();
+    return {std::move(queue_mgr), std::move(jit)};
+  }
 
-void CanCompileProcs_send(JitChannelQueue* queue_ptr, Send* send_ptr,
-                          uint8_t* data_ptr, int64_t data_sz, void* user_data) {
-  JitChannelQueue* queue = absl::bit_cast<JitChannelQueue*>(queue_ptr);
-  queue->Send(data_ptr, data_sz);
-}
+  std::unique_ptr<JitRuntime> jit_runtime_;
+};
 
 TEST_F(ProcJitTest, SendOnly) {
   auto package = CreatePackage();
@@ -67,38 +72,31 @@ TEST_F(ProcJitTest, SendOnly) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-
   TokenlessProcBuilder pb(TestName(), /*token_name=*/"tok", package.get());
   pb.Send(channel_out, pb.Literal(UBits(42, 32)));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
-                      CanCompileProcs_send));
+  auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
 
   auto* out_queue = queue_mgr->GetQueueById(0).value();
-  EXPECT_TRUE(out_queue->Empty());
+  EXPECT_TRUE(out_queue->IsEmpty());
 
-  std::vector<Value> state;
-  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                           jit->Run(state));
-  EXPECT_FALSE(out_queue->Empty());
-  EXPECT_EQ(DequeueData(out_queue), 42);
-  EXPECT_TRUE(out_queue->Empty());
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_FALSE(out_queue->IsEmpty());
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_TRUE(out_queue->IsEmpty());
 
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  EXPECT_FALSE(out_queue->Empty());
-  EXPECT_EQ(DequeueData(out_queue), 42);
-  EXPECT_EQ(DequeueData(out_queue), 42);
-  EXPECT_EQ(DequeueData(out_queue), 42);
-  EXPECT_EQ(DequeueData(out_queue), 42);
-  EXPECT_TRUE(out_queue->Empty());
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_FALSE(out_queue->IsEmpty());
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_EQ(ReadU32(out_queue), 42);
+  EXPECT_TRUE(out_queue->IsEmpty());
 }
 
 TEST_F(ProcJitTest, CanCompileProcs) {
@@ -120,26 +118,22 @@ proc the_proc(my_token: token, state: (), init={()}) {
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            ParsePackage(kIrText));
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(FindProc("the_proc", package.get()), queue_mgr.get(),
-                      CanCompileProcs_recv, CanCompileProcs_send));
 
+  auto [queue_mgr, jit] =
+      CreateQueueManagerAndJit(FindProc("the_proc", package.get()));
+
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   {
-    EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                             jit->Run({Value::Tuple({})}));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
+    WriteU32(queue_mgr->GetQueueById(0).value(), 7);
+    XLS_ASSERT_OK(jit->Tick(*continuation));
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 21);
   }
 
   // Let's make sure we can call it 2x!
   {
-    EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                             jit->Run({Value::Tuple({})}));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
+    WriteU32(queue_mgr->GetQueueById(0).value(), 7);
+    XLS_ASSERT_OK(jit->Tick(*continuation));
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 21);
   }
 }
 
@@ -152,38 +146,37 @@ metadata="") chan c_o(bits[32], id=1, kind=streaming, ops=send_only,
 flow_control=none, metadata="")
 
 proc the_proc(my_token: token, state: bits[1], init={0}) {
-  receive.2: (token, bits[32]) = receive(my_token, predicate=state,
-  channel_id=0) tuple_index.3: token = tuple_index(receive.2, index=0)
+  receive.2: (token, bits[32]) = receive(my_token, predicate=state,channel_id=0)
+  tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   send.5: token = send(tuple_index.3, tuple_index.4, channel_id=1)
-  next (send.5, state)
+  next_state: bits[1] = not(state)
+  next (send.5, next_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            ParsePackage(kIrText));
 
   constexpr uint32_t kQueueData = 0xbeef;
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(FindProc("the_proc", package.get()), queue_mgr.get(),
-                      CanCompileProcs_recv, CanCompileProcs_send));
 
-  EnqueueData(queue_mgr->GetQueueById(0).value(), kQueueData);
+  auto [queue_mgr, jit] =
+      CreateQueueManagerAndJit(FindProc("the_proc", package.get()));
 
+  WriteU32(queue_mgr->GetQueueById(0).value(), kQueueData);
+
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   {
-    // First: set state to 0; see that recv_if returns 0.
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                             jit->Run({Value(UBits(0, 1))}));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 0);
+    // First: initial state is zero; receive predicate is false. Should produce
+    // zero.
+    XLS_ASSERT_OK(jit->Tick(*continuation));
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 0);
   }
 
   {
-    // First: set state to 0; see that recv_if returns 0.
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                             jit->Run({Value(UBits(1, 1))}));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData);
+    // Next: state is now 1; receive predice is true, should produce non-zero
+    // data.
+    XLS_ASSERT_OK(jit->Tick(*continuation));
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), kQueueData);
   }
 }
 
@@ -200,108 +193,32 @@ proc the_proc(my_token: token, state: bits[1], init={0}) {
   tuple_index.3: token = tuple_index(receive.2, index=0)
   tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
   send.5: token = send(tuple_index.3, tuple_index.4, predicate=state, channel_id=1)
-  next (send.5, state)
+  next_state: bits[1] = not(state)
+  next (send.5, next_state)
 }
 )";
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            ParsePackage(kIrText));
 
   constexpr uint32_t kQueueData = 0xbeef;
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(FindProc("the_proc", package.get()), queue_mgr.get(),
-                      CanCompileProcs_recv, CanCompileProcs_send));
+  auto [queue_mgr, jit] =
+      CreateQueueManagerAndJit(FindProc("the_proc", package.get()));
 
-  EnqueueData(queue_mgr->GetQueueById(0).value(), kQueueData);
-  EnqueueData(queue_mgr->GetQueueById(0).value(), kQueueData + 1);
+  WriteU32(queue_mgr->GetQueueById(0).value(), kQueueData);
+  WriteU32(queue_mgr->GetQueueById(0).value(), kQueueData + 1);
 
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
   {
     // First: with state 0, make sure no send occurred (i.e., our output queue
     // is empty).
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                             jit->Run({Value(UBits(0, 1))}));
-    EXPECT_THAT(result.value, ElementsAre(Value(UBits(0, 1))));
-    EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->Empty());
+    XLS_ASSERT_OK(jit->Tick(*continuation));
+    EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->IsEmpty());
   }
 
   {
     // Second: with state 1, make sure we've now got output data.
-    XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                             jit->Run({Value(UBits(1, 1))}));
-    EXPECT_THAT(result.value, ElementsAre(Value(UBits(1, 1))));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
-  }
-}
-
-// Recv/Send functions for the "GetsUserData" test.
-bool GetsUserData_recv(JitChannelQueue* queue_ptr, Receive* recv_ptr,
-                       uint8_t* data_ptr, int64_t data_sz, void* user_data) {
-  JitChannelQueue* queue = absl::bit_cast<JitChannelQueue*>(queue_ptr);
-  uint64_t* int_data = absl::bit_cast<uint64_t*>(user_data);
-  *int_data = *int_data * 2;
-  return queue->Recv(data_ptr, data_sz);
-}
-
-void GetsUserData_send(JitChannelQueue* queue_ptr, Send* send_ptr,
-                       uint8_t* data_ptr, int64_t data_sz, void* user_data) {
-  JitChannelQueue* queue = absl::bit_cast<JitChannelQueue*>(queue_ptr);
-  uint64_t* int_data = absl::bit_cast<uint64_t*>(user_data);
-  *int_data = *int_data * 3;
-  queue->Send(data_ptr, data_sz);
-}
-
-// Verifies that the "user data" pointer is properly passed into proc callbacks.
-TEST_F(ProcJitTest, GetsUserData) {
-  const std::string kIrText = R"(
-package p
-
-chan c_i(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=none,
-metadata="") chan c_o(bits[32], id=1, kind=streaming, ops=send_only,
-flow_control=none, metadata="")
-
-proc the_proc(my_token: token, state: (), init={()}) {
-  literal.1: bits[32] = literal(value=3)
-  receive.2: (token, bits[32]) = receive(my_token, channel_id=0)
-  tuple_index.3: token = tuple_index(receive.2, index=0)
-  tuple_index.4: bits[32] = tuple_index(receive.2, index=1)
-  umul.5: bits[32] = umul(literal.1, tuple_index.4)
-  send.6: token = send(tuple_index.3, umul.5, channel_id=1)
-  next (send.6, state)
-}
-)";
-
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
-                           ParsePackage(kIrText));
-
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(FindProc("the_proc", package.get()), queue_mgr.get(),
-                      GetsUserData_recv, GetsUserData_send));
-
-  EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-
-  {
-    uint64_t user_data = 7;
-    XLS_ASSERT_OK_AND_ASSIGN(
-        InterpreterResult<std::vector<Value>> result,
-        jit->Run({Value::Tuple({})}, absl::bit_cast<void*>(&user_data)));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
-    EXPECT_EQ(user_data, 7 * 2 * 3);
-  }
-
-  {
-    // Let's make sure we can call it 2x!
-    uint64_t user_data = 7;
-    EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-    XLS_ASSERT_OK_AND_ASSIGN(
-        InterpreterResult<std::vector<Value>> result,
-        jit->Run({Value::Tuple({})}, absl::bit_cast<void*>(&user_data)));
-    EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 21);
-    EXPECT_EQ(user_data, 7 * 2 * 3);
+    XLS_ASSERT_OK(jit->Tick(*continuation));
+    EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), kQueueData + 1);
   }
 }
 
@@ -331,39 +248,35 @@ proc the_proc(my_token: token, state: (), init={()}) {
   XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
                            ParsePackage(kIrText));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(FindProc("the_proc", package.get()), queue_mgr.get(),
-                      CanCompileProcs_recv, CanCompileProcs_send));
+  auto [queue_mgr, jit] =
+      CreateQueueManagerAndJit(FindProc("the_proc", package.get()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * single_value_input,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * single_value_input,
                            queue_mgr->GetQueueById(0));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * streaming_input,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * streaming_input,
                            queue_mgr->GetQueueById(1));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * streaming_output,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * streaming_output,
                            queue_mgr->GetQueueById(2));
 
-  EnqueueData(single_value_input, 7);
-  EnqueueData(streaming_input, 42);
-  EnqueueData(streaming_input, 123);
+  WriteU32(single_value_input, 7);
+  WriteU32(streaming_input, 42);
+  WriteU32(streaming_input, 123);
 
-  auto tick = [&]() { XLS_EXPECT_OK(jit->Run({Value::Tuple({})}).status()); };
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
 
-  tick();
-  tick();
-  EXPECT_EQ(DequeueData(streaming_output), 49);
-  EXPECT_EQ(DequeueData(streaming_output), 130);
+  XLS_EXPECT_OK(jit->Tick(*continuation));
+  XLS_EXPECT_OK(jit->Tick(*continuation));
+  EXPECT_EQ(ReadU32(streaming_output), 49);
+  EXPECT_EQ(ReadU32(streaming_output), 130);
 
-  EnqueueData(single_value_input, 10);
-  EnqueueData(streaming_input, 42);
-  EnqueueData(streaming_input, 123);
+  WriteU32(single_value_input, 10);
+  WriteU32(streaming_input, 42);
+  WriteU32(streaming_input, 123);
 
-  tick();
-  tick();
-  EXPECT_EQ(DequeueData(streaming_output), 52);
-  EXPECT_EQ(DequeueData(streaming_output), 133);
+  XLS_EXPECT_OK(jit->Tick(*continuation));
+  XLS_EXPECT_OK(jit->Tick(*continuation));
+  EXPECT_EQ(ReadU32(streaming_output), 52);
+  EXPECT_EQ(ReadU32(streaming_output), 133);
 }
 
 TEST_F(ProcJitTest, StatelessProc) {
@@ -377,9 +290,6 @@ TEST_F(ProcJitTest, StatelessProc) {
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
-
   ProcBuilder pb("stateless", /*token_name=*/"tok", package.get());
   BValue receive = pb.Receive(channel_in, pb.GetTokenParam());
   BValue send =
@@ -387,16 +297,12 @@ TEST_F(ProcJitTest, StatelessProc) {
               pb.Add(pb.TupleIndex(receive, 1), pb.Literal(UBits(42, 32))));
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(send, std::vector<BValue>()));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
-                      CanCompileProcs_send));
+  auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
 
-  EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-  XLS_ASSERT_OK_AND_ASSIGN(InterpreterResult<std::vector<Value>> result,
-                           jit->Run({}));
-  EXPECT_TRUE(result.value.empty());
-  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 49);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 7);
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 49);
 }
 
 TEST_F(ProcJitTest, MultistateProc) {
@@ -409,9 +315,6 @@ TEST_F(ProcJitTest, MultistateProc) {
       Channel * channel_out,
       package->CreateStreamingChannel("out", ChannelOps::kSendOnly,
                                       package->GetBitsType(32)));
-
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
 
   // Proc pseudocode:
   //
@@ -431,41 +334,37 @@ TEST_F(ProcJitTest, MultistateProc) {
                            pb.Build({pb.Add(x, pb.Literal(UBits(1, 32))),
                                      pb.Add(y, pb.Literal(UBits(10, 32)))}));
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
-                      CanCompileProcs_send));
+  auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
 
-  EnqueueData(queue_mgr->GetQueueById(0).value(), 7);
-  EnqueueData(queue_mgr->GetQueueById(0).value(), 10);
-  EnqueueData(queue_mgr->GetQueueById(0).value(), 14);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 7);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 10);
+  WriteU32(queue_mgr->GetQueueById(0).value(), 14);
 
-  std::vector<Value> state = {Value(UBits(1, 32)), Value(UBits(42, 32))};
-  InterpreterResult<std::vector<Value>> result;
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  EXPECT_THAT(result.value,
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
+  XLS_ASSERT_OK_AND_ASSIGN(TickResult result, jit->Tick(*continuation));
+  EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(2, 32)), Value(UBits(52, 32))));
-  state = result.value;
 
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  EXPECT_THAT(result.value,
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_TRUE(continuation->AtStartOfTick());
+  EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(3, 32)), Value(UBits(62, 32))));
-  state = result.value;
 
-  XLS_ASSERT_OK_AND_ASSIGN(result, jit->Run(state));
-  EXPECT_THAT(result.value,
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_TRUE(continuation->AtStartOfTick());
+  EXPECT_THAT(continuation->GetState(),
               ElementsAre(Value(UBits(4, 32)), Value(UBits(72, 32))));
 
   // 7 * 1 + 42
-  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 49);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 49);
 
   // 10 * 2 + 52
-  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 72);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 72);
 
   // 14 * 3 + 62
-  EXPECT_EQ(DequeueData(queue_mgr->GetQueueById(1).value()), 104);
+  EXPECT_EQ(ReadU32(queue_mgr->GetQueueById(1).value()), 104);
 
-  EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->Empty());
+  EXPECT_TRUE(queue_mgr->GetQueueById(1).value()->IsEmpty());
 }
 
 TEST_F(ProcJitTest, NonBlockingReceivesProc) {
@@ -515,84 +414,174 @@ TEST_F(ProcJitTest, NonBlockingReceivesProc) {
   XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build(tok_fin, {}));
   XLS_VLOG_LINES(3, proc->DumpIr());
 
-  XLS_ASSERT_OK_AND_ASSIGN(auto queue_mgr,
-                           JitChannelQueueManager::Create(package.get()));
+  auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
 
-  XLS_ASSERT_OK_AND_ASSIGN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, queue_mgr.get(), CanCompileProcs_recv,
-                      CanCompileProcs_send));
-
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * in0_queue,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in0_queue,
                            queue_mgr->GetQueueById(in0->id()));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * in1_queue,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in1_queue,
                            queue_mgr->GetQueueById(in1->id()));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * in2_queue,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in2_queue,
                            queue_mgr->GetQueueById(in2->id()));
-  XLS_ASSERT_OK_AND_ASSIGN(JitChannelQueue * out0_queue,
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * out0_queue,
                            queue_mgr->GetQueueById(out0->id()));
 
   // Initialize the single value queue.
-  EnqueueData(in2_queue, 10);
+  WriteU32(in2_queue, 10);
+
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
 
   // All other channels are non-blocking, so run even if the queues are empty.
-  EXPECT_TRUE(in0_queue->Empty());
-  EXPECT_TRUE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_TRUE(out0_queue->Empty());
-  XLS_ASSERT_OK(jit->Run({}));
-  EXPECT_TRUE(in0_queue->Empty());
-  EXPECT_TRUE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_FALSE(out0_queue->Empty());
+  EXPECT_TRUE(in0_queue->IsEmpty());
+  EXPECT_TRUE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_TRUE(out0_queue->IsEmpty());
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_TRUE(in0_queue->IsEmpty());
+  EXPECT_TRUE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueData(out0_queue), 10);
+  EXPECT_EQ(ReadU32(out0_queue), 10);
 
   // Run with only in1 (and in2) having data.
-  EnqueueData(in1_queue, 5);
+  WriteU32(in1_queue, 5);
 
-  EXPECT_TRUE(in0_queue->Empty());
-  EXPECT_FALSE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_TRUE(out0_queue->Empty());
-  XLS_ASSERT_OK(jit->Run({}));
-  EXPECT_TRUE(in0_queue->Empty());
-  EXPECT_TRUE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_FALSE(out0_queue->Empty());
+  EXPECT_TRUE(in0_queue->IsEmpty());
+  EXPECT_FALSE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_TRUE(out0_queue->IsEmpty());
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_TRUE(in0_queue->IsEmpty());
+  EXPECT_TRUE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueData(out0_queue), 15);
+  EXPECT_EQ(ReadU32(out0_queue), 15);
 
   // Run with only in0 (and in2) having data.
-  EnqueueData(in0_queue, 7);
+  WriteU32(in0_queue, 7);
 
-  EXPECT_FALSE(in0_queue->Empty());
-  EXPECT_TRUE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_TRUE(out0_queue->Empty());
-  XLS_ASSERT_OK(jit->Run({}));
-  EXPECT_TRUE(in0_queue->Empty());
-  EXPECT_TRUE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_FALSE(out0_queue->Empty());
+  EXPECT_FALSE(in0_queue->IsEmpty());
+  EXPECT_TRUE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_TRUE(out0_queue->IsEmpty());
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_TRUE(in0_queue->IsEmpty());
+  EXPECT_TRUE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueData(out0_queue), 17);
+  EXPECT_EQ(ReadU32(out0_queue), 17);
 
   // Run with all channels having data.
-  EnqueueData(in0_queue, 11);
-  EnqueueData(in1_queue, 22);
+  WriteU32(in0_queue, 11);
+  WriteU32(in1_queue, 22);
 
-  EXPECT_FALSE(in0_queue->Empty());
-  EXPECT_FALSE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_TRUE(out0_queue->Empty());
-  XLS_ASSERT_OK(jit->Run({}));
-  EXPECT_TRUE(in0_queue->Empty());
-  EXPECT_TRUE(in1_queue->Empty());
-  EXPECT_FALSE(in2_queue->Empty());
-  EXPECT_FALSE(out0_queue->Empty());
+  EXPECT_FALSE(in0_queue->IsEmpty());
+  EXPECT_FALSE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_TRUE(out0_queue->IsEmpty());
+  XLS_ASSERT_OK(jit->Tick(*continuation));
+  EXPECT_TRUE(in0_queue->IsEmpty());
+  EXPECT_TRUE(in1_queue->IsEmpty());
+  EXPECT_FALSE(in2_queue->IsEmpty());
+  EXPECT_FALSE(out0_queue->IsEmpty());
 
-  EXPECT_EQ(DequeueData(out0_queue), 43);
+  EXPECT_EQ(ReadU32(out0_queue), 43);
+}
+
+TEST_F(ProcJitTest, MultipleReceives) {
+  auto package = CreatePackage();
+  TokenlessProcBuilder pb("prev", /*token_name=*/"tok", package.get());
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in0,
+      package->CreateStreamingChannel("in0", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in1,
+      package->CreateStreamingChannel("in1", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Channel * ch_in2,
+      package->CreateStreamingChannel("in2", ChannelOps::kReceiveOnly,
+                                      package->GetBitsType(32)));
+  XLS_ASSERT_OK_AND_ASSIGN(Channel * ch_out, package->CreateStreamingChannel(
+                                                 "out", ChannelOps::kSendOnly,
+                                                 package->GetBitsType(32)));
+
+  // Build the following proc which returns the sum of ch0 and ch2 inputs. ch2
+  // is only read if the input from ch1 is true.
+  BValue in0 = pb.Receive(ch_in0);
+  BValue in1 = pb.Receive(ch_in1);
+  BValue in2 =
+      pb.ReceiveIf(ch_in2, /*pred=*/pb.Ne(in1, pb.Literal(UBits(0, 32))));
+  pb.Send(ch_out, pb.Add(in0, in2));
+  XLS_ASSERT_OK_AND_ASSIGN(Proc * proc, pb.Build({}));
+
+  auto [queue_mgr, jit] = CreateQueueManagerAndJit(proc);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in0_queue,
+                           queue_mgr->GetQueueById(ch_in0->id()));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in1_queue,
+                           queue_mgr->GetQueueById(ch_in1->id()));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * in2_queue,
+                           queue_mgr->GetQueueById(ch_in2->id()));
+  XLS_ASSERT_OK_AND_ASSIGN(ChannelQueue * output_queue,
+                           queue_mgr->GetQueueById(ch_out->id()));
+
+  // Initially should be blocked on in0.
+  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
+  EXPECT_THAT(jit->Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in0,
+                                      .sent_channels = {}}));
+  EXPECT_FALSE(continuation->AtStartOfTick());
+
+  WriteU32(in0_queue, 10);
+
+  // Then should be blocked on in1.
+  EXPECT_THAT(jit->Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in1,
+                                      .sent_channels = {}}));
+  EXPECT_FALSE(continuation->AtStartOfTick());
+
+  WriteU32(in1_queue, 1);
+
+  // Then should be blocked on in2.
+  EXPECT_THAT(jit->Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = false,
+                                      .progress_made = true,
+                                      .blocked_channel = ch_in2,
+                                      .sent_channels = {}}));
+  EXPECT_FALSE(continuation->AtStartOfTick());
+
+  WriteU32(in2_queue, 42);
+
+  // Finally, should run to completion.
+  EXPECT_THAT(jit->Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
+  EXPECT_TRUE(continuation->AtStartOfTick());
+
+  EXPECT_THAT(ReadU32(output_queue), 52);
+
+  // Next, only write data on ch0 and ch1. ch2 should not be read because it's
+  // predicate is false.
+  WriteU32(in0_queue, 123);
+  WriteU32(in1_queue, 0);
+  EXPECT_THAT(jit->Tick(*continuation),
+              IsOkAndHolds(TickResult{.tick_complete = true,
+                                      .progress_made = true,
+                                      .blocked_channel = std::nullopt,
+                                      .sent_channels = {}}));
+  EXPECT_TRUE(continuation->AtStartOfTick());
+
+  EXPECT_THAT(ReadU32(output_queue), 123);
 }
 
 }  // namespace

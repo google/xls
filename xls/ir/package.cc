@@ -33,7 +33,7 @@
 
 namespace xls {
 
-Package::Package(absl::string_view name) : name_(name) {
+Package::Package(std::string_view name) : name_(name) {
   owned_types_.insert(&token_type_);
 }
 
@@ -52,7 +52,7 @@ absl::Status Package::SetTop(std::optional<FunctionBase*> top) {
   return absl::OkStatus();
 }
 
-absl::Status Package::SetTopByName(absl::string_view top_name) {
+absl::Status Package::SetTopByName(std::string_view top_name) {
   XLS_ASSIGN_OR_RETURN(FunctionBase * top, GetFunctionBaseByName(top_name));
   return SetTop(top);
 }
@@ -97,7 +97,7 @@ absl::StatusOr<Block*> Package::GetTopAsBlock() const {
 }
 
 absl::StatusOr<FunctionBase*> Package::GetFunctionBaseByName(
-    absl::string_view name) {
+    std::string_view name) {
   std::vector<FunctionBase*> fbs = GetFunctionBases();
   int64_t count = std::count_if(
       fbs.begin(), fbs.end(),
@@ -139,7 +139,7 @@ Block* Package::AddBlock(std::unique_ptr<Block> block) {
 }
 
 absl::StatusOr<Function*> Package::GetFunction(
-    absl::string_view func_name) const {
+    std::string_view func_name) const {
   for (auto& f : functions_) {
     if (f->name() == func_name) {
       return f.get();
@@ -154,7 +154,7 @@ absl::StatusOr<Function*> Package::GetFunction(
                     })));
 }
 
-absl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
+absl::StatusOr<Proc*> Package::GetProc(std::string_view proc_name) const {
   for (auto& p : procs_) {
     if (p->name() == proc_name) {
       return p.get();
@@ -169,7 +169,7 @@ absl::StatusOr<Proc*> Package::GetProc(absl::string_view proc_name) const {
                     })));
 }
 
-absl::StatusOr<Block*> Package::GetBlock(absl::string_view block_name) const {
+absl::StatusOr<Block*> Package::GetBlock(std::string_view block_name) const {
   for (auto& block : blocks_) {
     if (block->name() == block_name) {
       return block.get();
@@ -258,7 +258,7 @@ absl::Status Package::RemoveBlock(Block* block) {
   return absl::OkStatus();
 }
 
-SourceLocation Package::AddSourceLocation(absl::string_view filename,
+SourceLocation Package::AddSourceLocation(std::string_view filename,
                                           Lineno lineno, Colno colno) {
   Fileno this_fileno = GetOrCreateFileno(filename);
   return SourceLocation(this_fileno, lineno, colno);
@@ -266,7 +266,7 @@ SourceLocation Package::AddSourceLocation(absl::string_view filename,
 
 std::string Package::SourceLocationToString(const SourceLocation loc) {
   const std::string unknown = "UNKNOWN";
-  absl::string_view filename =
+  std::string_view filename =
       fileno_to_filename_.find(loc.fileno()) != fileno_to_filename_.end()
           ? fileno_to_filename_.at(loc.fileno())
           : unknown;
@@ -446,7 +446,7 @@ Type* Package::GetTypeForValue(const Value& value) {
   XLS_LOG(FATAL) << "Invalid value for type extraction.";
 }
 
-Fileno Package::GetOrCreateFileno(absl::string_view filename) {
+Fileno Package::GetOrCreateFileno(std::string_view filename) {
   // Attempt to add a new fileno/filename pair to the map.
   if (auto it = filename_to_fileno_.find(std::string(filename));
       it != filename_to_fileno_.end()) {
@@ -463,7 +463,7 @@ Fileno Package::GetOrCreateFileno(absl::string_view filename) {
   return this_fileno;
 }
 
-void Package::SetFileno(Fileno file_number, absl::string_view filename) {
+void Package::SetFileno(Fileno file_number, std::string_view filename) {
   maximum_fileno_ =
       maximum_fileno_.has_value()
           ? Fileno(std::max(static_cast<int32_t>(file_number),
@@ -576,7 +576,7 @@ std::vector<std::string> Package::GetFunctionNames() const {
   return names;
 }
 
-bool Package::HasFunctionWithName(absl::string_view target) const {
+bool Package::HasFunctionWithName(std::string_view target) const {
   for (const std::unique_ptr<Function>& function : functions_) {
     if (function->name() == target) {
       return true;
@@ -601,7 +601,7 @@ absl::Status VerifyValuesAreType(absl::Span<const Value> values, Type* type) {
 }  // namespace
 
 absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
-    absl::string_view name, ChannelOps supported_ops, Type* type,
+    std::string_view name, ChannelOps supported_ops, Type* type,
     absl::Span<const Value> initial_values, std::optional<int64_t> fifo_depth,
     FlowControl flow_control, const ChannelMetadataProto& metadata,
     std::optional<int64_t> id) {
@@ -616,7 +616,7 @@ absl::StatusOr<StreamingChannel*> Package::CreateStreamingChannel(
 }
 
 absl::StatusOr<SingleValueChannel*> Package::CreateSingleValueChannel(
-    absl::string_view name, ChannelOps supported_ops, Type* type,
+    std::string_view name, ChannelOps supported_ops, Type* type,
     const ChannelMetadataProto& metadata, std::optional<int64_t> id) {
   int64_t actual_id = id.has_value() ? id.value() : next_channel_id_;
   auto channel = std::make_unique<SingleValueChannel>(
@@ -699,7 +699,7 @@ absl::StatusOr<Channel*> Package::GetChannel(int64_t id) const {
   return channels_.at(id).get();
 }
 
-absl::StatusOr<Channel*> Package::GetChannel(absl::string_view name) const {
+absl::StatusOr<Channel*> Package::GetChannel(std::string_view name) const {
   for (Channel* ch : channels()) {
     if (ch->name() == name) {
       return ch;
@@ -708,6 +708,21 @@ absl::StatusOr<Channel*> Package::GetChannel(absl::string_view name) const {
   return absl::NotFoundError(
       absl::StrFormat("No channel with name '%s' (package has %d channels).",
                       name, channels().size()));
+}
+
+absl::StatusOr<FunctionBase*> FindTop(Package* p,
+                                      std::optional<std::string_view> top_str) {
+  if (top_str.has_value() && !top_str->empty()) {
+    XLS_RETURN_IF_ERROR(p->SetTopByName(top_str.value()));
+  }
+
+  // Default to the top entity if nothing is specified.
+  std::optional<FunctionBase*> top = p->GetTop();
+  if (!top.has_value()) {
+    return absl::InternalError(
+        absl::StrFormat("Top entity not set for package: %s.", p->name()));
+  }
+  return top.value();
 }
 
 }  // namespace xls

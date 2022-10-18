@@ -486,7 +486,7 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
   // Define a miter circuit: the implementation performs an `and_reduce` and the
   // specification checks for inequality with a bitvector of all ones. The
   // outputs should be equal across the full space of inputs.
-  constexpr absl::string_view program_template = R"(
+  constexpr std::string_view program_template = R"(
 fn f(p: bits[$0]) -> bits[1] {
   zero: bits[$0] = literal(value=0)
   all_ones: bits[$0] = not(zero)
@@ -511,7 +511,7 @@ TEST_P(Z3ParameterizedWidthBitVectorIrTranslatorTest,
   // Define a miter circuit: the implementation performs an `or_reduce` and the
   // specification checks for inequality with the zero bitvector. The outputs
   // should be equal across the full space of inputs.
-  constexpr absl::string_view program_template = R"(
+  constexpr std::string_view program_template = R"(
 fn f(p: bits[$0]) -> bits[1] {
   zero: bits[$0] = literal(value=0)
   impl: bits[1] = or_reduce(p)
@@ -535,7 +535,7 @@ TEST_F(Z3IrTranslatorTest,
   // Define a miter circuit: the implementation performs an `xor_reduce` and the
   // specification checks for inequality with a bitvector of all ones. The
   // outputs should be equal across the full space of inputs.
-  constexpr absl::string_view program = R"(
+  constexpr std::string_view program = R"(
 fn f(p: bits[3]) -> bits[1] {
   impl: bits[1] = xor_reduce(p)
   b0: bits[1] = bit_slice(p, start=0, width=1)

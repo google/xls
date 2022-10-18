@@ -18,12 +18,12 @@
 
 namespace xls::noc {
 
-NetworkConfigProtoBuilder::NetworkConfigProtoBuilder(absl::string_view name) {
+NetworkConfigProtoBuilder::NetworkConfigProtoBuilder(std::string_view name) {
   proto_.set_name(xls::ToProtoString(name));
 }
 
 NetworkConfigProtoBuilder& NetworkConfigProtoBuilder::WithDescription(
-    absl::string_view description) {
+    std::string_view description) {
   proto_.set_description(xls::ToProtoString(description));
   return *this;
 }
@@ -64,7 +64,7 @@ NetworkConfigProtoBuilder::SetDefaultVirtualChannelDepth(
 }
 
 PortConfigProtoBuilder NetworkConfigProtoBuilder::WithPort(
-    absl::string_view name) {
+    std::string_view name) {
   PortConfigProto* port = proto_.add_ports();
   port->set_name(xls::ToProtoString(name));
   return PortConfigProtoBuilder(port);
@@ -85,7 +85,7 @@ NetworkConfigProtoBuilder::SetDefaultVirtualChannelsForRouterOutputPort(
 }
 
 RouterConfigProtoBuilder NetworkConfigProtoBuilder::WithRouter(
-    absl::string_view name) {
+    std::string_view name) {
   RouterConfigProto* router = proto_.add_routers();
   router->set_name(xls::ToProtoString(name));
   RouterConfigProtoBuilder router_builder(router);
@@ -96,7 +96,7 @@ RouterConfigProtoBuilder NetworkConfigProtoBuilder::WithRouter(
 }
 
 LinkConfigProtoBuilder NetworkConfigProtoBuilder::WithLink(
-    absl::string_view name) {
+    std::string_view name) {
   LinkConfigProto* link = proto_.add_links();
   link->set_name(xls::ToProtoString(name));
   LinkConfigProtoBuilder link_builder(link);
@@ -115,7 +115,7 @@ LinkConfigProtoBuilder NetworkConfigProtoBuilder::WithLink(
 }
 
 VirtualChannelConfigProtoBuilder NetworkConfigProtoBuilder::WithVirtualChannel(
-    absl::string_view name) {
+    std::string_view name) {
   VirtualChannelConfigProto* virtual_channel = proto_.add_virtual_channels();
   virtual_channel->set_name(xls::ToProtoString(name));
   VirtualChannelConfigProtoBuilder virtual_channel_builder(virtual_channel);

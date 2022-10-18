@@ -14,6 +14,8 @@
 
 #include "xls/dslx/command_line_utils.h"
 
+#include <unistd.h>
+
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -25,7 +27,7 @@
 namespace xls::dslx {
 
 bool TryPrintError(const absl::Status& status,
-                   std::function<absl::StatusOr<std::string>(absl::string_view)>
+                   std::function<absl::StatusOr<std::string>(std::string_view)>
                        get_file_contents) {
   if (status.ok()) {
     return false;
@@ -38,23 +40,26 @@ bool TryPrintError(const absl::Status& status,
     return false;
   }
   auto& data = data_or.value();
+  bool is_tty = isatty(fileno(stderr)) != 0;
   absl::Status print_status = PrintPositionalError(
       data.span, absl::StrFormat("%s: %s", data.error_type, data.message),
-      std::cerr, get_file_contents);
+      std::cerr, get_file_contents,
+      is_tty ? PositionalErrorColor::kErrorColor
+             : PositionalErrorColor::kNoColor);
   if (!print_status.ok()) {
     XLS_LOG(ERROR) << "Could not print positional error: " << print_status;
   }
   return print_status.ok();
 }
 
-absl::StatusOr<std::string> PathToName(absl::string_view path) {
-  std::vector<absl::string_view> pieces = absl::StrSplit(path, '/');
+absl::StatusOr<std::string> PathToName(std::string_view path) {
+  std::vector<std::string_view> pieces = absl::StrSplit(path, '/');
   if (pieces.empty()) {
     return absl::InvalidArgumentError(
         absl::StrFormat("Could not determine module name from path: %s", path));
   }
-  absl::string_view last = pieces.back();
-  std::vector<absl::string_view> dot_pieces = absl::StrSplit(last, '.');
+  std::string_view last = pieces.back();
+  std::vector<std::string_view> dot_pieces = absl::StrSplit(last, '.');
   XLS_RET_CHECK(!dot_pieces.empty());
   return std::string(dot_pieces[0]);
 }

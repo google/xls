@@ -24,7 +24,7 @@
 
 namespace xls::dslx {
 
-using ProcConfigValue = absl::variant<Value, Channel*>;
+using ProcConfigValue = std::variant<Value, Channel*>;
 using MemberNameToValue = absl::flat_hash_map<std::string, ProcConfigValue>;
 
 // ProcConversionData holds various information about individual proc instances

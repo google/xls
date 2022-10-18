@@ -34,7 +34,7 @@ namespace {
 class ModuleSimulatorWrapper : public ModuleSimulator {
  public:
   ModuleSimulatorWrapper(const ModuleSignature& signature,
-                         absl::string_view verilog_text, bool is_system_verilog)
+                         std::string_view verilog_text, bool is_system_verilog)
       : ModuleSimulator(
             signature, verilog_text,
             is_system_verilog ? FileType::kSystemVerilog : FileType::kVerilog,
@@ -56,7 +56,7 @@ PYBIND11_MODULE(module_simulator, m) {
       const = &ModuleSimulator::Run;
 
   py::class_<ModuleSimulatorWrapper>(m, "ModuleSimulator")
-      .def(py::init<const ModuleSignature&, absl::string_view, bool>(),
+      .def(py::init<const ModuleSignature&, std::string_view, bool>(),
            py::arg("signature"), py::arg("verilog_text"),
            py::arg("is_system_verilog"))
       .def("run_kwargs", run_kwargs, py::arg("args"))

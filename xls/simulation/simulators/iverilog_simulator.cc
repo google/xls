@@ -32,7 +32,7 @@ namespace xls {
 namespace verilog {
 namespace {
 
-static absl::Status SetupIncludes(const std::filesystem::path& temp_dir,
+static absl::Status SetUpIncludes(const std::filesystem::path& temp_dir,
                                   absl::Span<const VerilogInclude> includes) {
   for (const VerilogInclude& include : includes) {
     std::filesystem::path path = temp_dir / include.relative_path;
@@ -71,7 +71,7 @@ absl::StatusOr<std::pair<std::string, std::string>> InvokeVvp(
 class IcarusVerilogSimulator : public VerilogSimulator {
  public:
   absl::StatusOr<std::pair<std::string, std::string>> Run(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const override {
     if (file_type == FileType::kSystemVerilog) {
       return absl::UnimplementedError(
@@ -86,7 +86,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
 
-    XLS_CHECK_OK(SetupIncludes(temp_dir, includes));
+    XLS_CHECK_OK(SetUpIncludes(temp_dir, includes));
     XLS_RETURN_IF_ERROR(
         InvokeIverilog({top_v_path, "-o", temp_out.path().string(), "-I",
                         temp_dir.string()})
@@ -96,7 +96,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
   }
 
   absl::Status RunSyntaxChecking(
-      absl::string_view text, FileType file_type,
+      std::string_view text, FileType file_type,
       absl::Span<const VerilogInclude> includes) const override {
     if (file_type == FileType::kSystemVerilog) {
       return absl::UnimplementedError(
@@ -111,7 +111,7 @@ class IcarusVerilogSimulator : public VerilogSimulator {
 
     XLS_ASSIGN_OR_RETURN(TempFile temp_out, TempFile::Create(".out"));
 
-    XLS_CHECK_OK(SetupIncludes(temp_dir, includes));
+    XLS_CHECK_OK(SetUpIncludes(temp_dir, includes));
     XLS_RETURN_IF_ERROR(
         InvokeIverilog({top_v_path, "-o", temp_out.path().string(), "-I",
                         temp_dir.string()})

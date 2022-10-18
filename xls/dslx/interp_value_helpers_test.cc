@@ -48,8 +48,9 @@ TEST(InterpValueHelpersTest, CastBitsToEnumAndCreatZeroValue) {
 
   std::vector<EnumMember> members;
   std::vector<InterpValue> member_values;
-  TypeAnnotation* element_type =
-      module.Make<BuiltinTypeAnnotation>(Span::Fake(), BuiltinType::kU13);
+  BuiltinNameDef* builtin_name_def = module.GetOrCreateBuiltinNameDef("u13");
+  TypeAnnotation* element_type = module.Make<BuiltinTypeAnnotation>(
+      Span::Fake(), BuiltinType::kU13, builtin_name_def);
   for (int i = 0; i < kNumMembers; i++) {
     NameDef* name_def =
         module.Make<NameDef>(Span::Fake(), absl::StrCat("member_", i), nullptr);
@@ -125,10 +126,12 @@ TEST(InterpValueHelpersTest, CreateZeroStructValue) {
   std::vector<std::pair<NameDef*, TypeAnnotation*>> ast_members;
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "x", nullptr),
-      module.Make<BuiltinTypeAnnotation>(kFakeSpan, BuiltinType::kU8));
+      module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU8, module.GetOrCreateBuiltinNameDef("u8")));
   ast_members.emplace_back(
       module.Make<NameDef>(kFakeSpan, "y", nullptr),
-      module.Make<BuiltinTypeAnnotation>(kFakeSpan, BuiltinType::kU1));
+      module.Make<BuiltinTypeAnnotation>(
+          kFakeSpan, BuiltinType::kU1, module.GetOrCreateBuiltinNameDef("u1")));
   auto* struct_def = module.Make<StructDef>(
       kFakeSpan, module.Make<NameDef>(kFakeSpan, "S", nullptr),
       std::vector<ParametricBinding*>{}, ast_members, /*is_public=*/false);

@@ -51,8 +51,8 @@ ABSL_FLAG(
 namespace xls {
 namespace {
 
-absl::Status RealMain(absl::string_view ir_path,
-                      absl::string_view inputs_path) {
+absl::Status RealMain(std::string_view ir_path,
+                      std::string_view inputs_path) {
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_path));
   XLS_ASSIGN_OR_RETURN(std::string inputs_text, GetFileContents(inputs_path));
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
@@ -63,7 +63,7 @@ absl::Status RealMain(absl::string_view ir_path,
   for (const auto& args_line :
        absl::StrSplit(inputs_text, '\n', absl::SkipWhitespace())) {
     std::vector<Value> args;
-    for (const absl::string_view& value_string :
+    for (const std::string_view& value_string :
          absl::StrSplit(args_line, ';')) {
       XLS_ASSIGN_OR_RETURN(Value arg, Parser::ParseTypedValue(value_string));
       args.push_back(arg);
@@ -101,7 +101,7 @@ absl::Status RealMain(absl::string_view ir_path,
 }  // namespace xls
 
 int main(int argc, char** argv) {
-  std::vector<absl::string_view> positional_arguments =
+  std::vector<std::string_view> positional_arguments =
       xls::InitXls(kUsage, argc, argv);
   if (positional_arguments.empty()) {
     XLS_LOG(QFATAL) << absl::StreamFormat("Expected invocation: %s <ir-path>",

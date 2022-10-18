@@ -167,6 +167,32 @@ pub fn convert_to_bits<N: u32>(x: bool[N]) -> uN[N]
 
 Converts an array of `N` bools to a `bits[N]` value.
 
+**Note well:** the boolean value at **index 0** of the array becomes the **most
+significant bit** in the resulting bit value. Similarly, the last index of the
+array becomes the **least significant bit** in the resulting bit value.
+
+```dslx
+import std
+
+#[test]
+fn convert_to_bits_test() {
+  let _ = assert_eq(u3:0b001, convert_to_bits(bool[3]:[false, false, true]));
+  let _ = assert_eq(u3:0b100, convert_to_bits(bool[3]:[true, false, false]));
+  ()
+}
+```
+
+There's always a source of confusion in these orderings:
+
+* Mathematically we often indicate the least significant digit as "digit 0"
+* *But*, in a number as we write the digits from left-to-right on a piece of
+  paper, if you made an array from the written characters, the digit at "array
+  index 0" would be the most significant bit.
+
+So, it's somewhat ambiguous whether "index 0" in the array would become the
+least significant bit or the most significant bit. This routine uses the "as it
+looks on paper" conversion; e.g. `[true, false, false]` becomes `0b100`.
+
 ## `std::mask_bits`
 
 ```dslx-snippet

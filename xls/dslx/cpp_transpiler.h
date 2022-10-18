@@ -50,7 +50,7 @@ struct Sources {
 };
 
 absl::StatusOr<Sources> TranspileToCpp(Module* module, ImportData* import_data,
-                                       absl::string_view output_header_path,
+                                       std::string_view output_header_path,
                                        std::string namespaces = "");
 
 }  // namespace xls::dslx

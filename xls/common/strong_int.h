@@ -247,7 +247,7 @@ class StrongInt {
     }
   };
 
-  static constexpr absl::string_view TypeName() { return TagType::TypeName(); }
+  static constexpr std::string_view TypeName() { return TagType::TypeName(); }
 
   // Default value initialization.
   constexpr StrongInt()
@@ -576,7 +576,7 @@ struct IsStrongInt<StrongInt<Ts...>> : public std::true_type {};
 // type is created per type_name.
 #define DEFINE_STRONG_INT_TYPE(type_name, value_type)                       \
   struct type_name##_strong_int_tag_ {                                      \
-    static constexpr absl::string_view TypeName() { return #type_name; }    \
+    static constexpr std::string_view TypeName() { return #type_name; }    \
   };                                                                        \
   typedef ::xls::StrongInt<type_name##_strong_int_tag_, value_type,         \
                            ::xls::NullStrongIntValidator>                   \

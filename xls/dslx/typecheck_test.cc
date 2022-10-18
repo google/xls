@@ -18,7 +18,9 @@
 #include "gtest/gtest.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/ast.h"
+#include "xls/dslx/command_line_utils.h"
 #include "xls/dslx/create_import_data.h"
+#include "xls/dslx/error_printer.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/dslx/type_info_to_proto.h"
 
@@ -29,10 +31,21 @@ using status_testing::StatusIs;
 using testing::HasSubstr;
 
 // Helper for parsing/typechecking a snippet of DSLX text.
-absl::Status Typecheck(absl::string_view text) {
+absl::Status Typecheck(std::string_view text,
+                       TypecheckedModule* tm_out = nullptr) {
   auto import_data = CreateImportDataForTest();
-  XLS_ASSIGN_OR_RETURN(TypecheckedModule tm,
-                       ParseAndTypecheck(text, "fake.x", "fake", &import_data));
+  auto tm_or = ParseAndTypecheck(text, "fake.x", "fake", &import_data);
+  if (!tm_or.ok()) {
+    TryPrintError(tm_or.status(),
+                  [&](std::string_view path) -> absl::StatusOr<std::string> {
+                    return std::string(text);
+                  });
+    return tm_or.status();
+  }
+  TypecheckedModule& tm = tm_or.value();
+  if (tm_out != nullptr) {
+    *tm_out = tm;
+  }
   // Ensure that we can convert all the type information in the unit tests into
   // its protobuf form.
   XLS_RETURN_IF_ERROR(TypeInfoToProto(*tm.type_info).status());
@@ -40,7 +53,7 @@ absl::Status Typecheck(absl::string_view text) {
 }
 
 TEST(TypecheckTest, ParametricWrongArgCount) {
-  absl::string_view text = R"(
+  std::string_view text = R"(
 fn id<N: u32>(x: bits[N]) -> bits[N] { x }
 fn f() -> u32 { id(u8:3, u8:4) }
 )";
@@ -51,7 +64,7 @@ fn f() -> u32 { id(u8:3, u8:4) }
 }
 
 TEST(TypecheckTest, ParametricTooManyExplicitSupplied) {
-  absl::string_view text = R"(
+  std::string_view text = R"(
 fn id<X: u32>(x: bits[X]) -> bits[X] { x }
 fn main() -> u32 { id<u32:32, u32:64>(u32:5) }
 )";
@@ -1016,7 +1029,7 @@ fn f<N: u32>() -> bool { true }
 }
 
 TEST(TypecheckTest, GetAsBuiltinType) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 struct Foo {
   a: u64,
   b: u1,
@@ -1120,7 +1133,7 @@ TEST(TypecheckTest, NumbersAreConstexpr) {
     TypeInfo* type_info_;
   };
 
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 fn main() {
   let foo = u32:0;
   let foo = u64:0x666;
@@ -1140,7 +1153,7 @@ fn main() {
 }
 
 TEST(TypecheckTest, CantSendOnNonMember) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   config() {
     ()
@@ -1161,7 +1174,7 @@ proc foo {
 }
 
 TEST(TypecheckTest, CantSendOnNonChannel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   bar: u32;
   config() {
@@ -1182,7 +1195,7 @@ proc foo {
 }
 
 TEST(TypecheckTest, CantRecvOnOutputChannel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc foo {
   c : chan<u32> out;
   config(c: chan<u32> out) {
@@ -1211,7 +1224,7 @@ proc entry {
 }
 
 TEST(TypecheckTest, CantSendOnOutputChannel) {
-  constexpr absl::string_view kProgram = R"(
+  constexpr std::string_view kProgram = R"(
 proc entry {
   p: chan<u32> out;
   c: chan<u32> in;
@@ -1239,7 +1252,7 @@ fn main() -> u18 {
 }
 
 TEST(TypecheckTest, BasicRange) {
-  constexpr absl::string_view kProgram = R"(#[test]
+  constexpr std::string_view kProgram = R"(#[test]
 fn main() {
   let a = u32:0..u32:4;
   let b = u32[4]:[0, 1, 2, 3];
@@ -1429,6 +1442,48 @@ fn main() {
 )"),
               StatusIs(absl::StatusCode::kInvalidArgument,
                        HasSubstr("uN[20] vs uN[10]")));
+}
+
+TEST(TypecheckTest, MaxViaColonRef) {
+  XLS_EXPECT_OK(Typecheck("fn f() -> u8 { u8::MAX }"));
+}
+
+TEST(TypecheckTest, MaxViaColonRefTypeAlias) {
+  XLS_EXPECT_OK(Typecheck(R"(
+type MyU8 = u8;
+fn f() -> u8 { MyU8::MAX }
+)"));
+}
+
+TEST(TypecheckTest, MaxAttrUsedToDefineAType) {
+  XLS_EXPECT_OK(Typecheck(R"(
+type MyU255 = uN[u8::MAX as u32];
+fn f() -> MyU255 { uN[255]:42 }
+)"));
+}
+
+TEST(TypecheckTest, SplatWithAllStructMembersSpecifiedGivesWarning) {
+  const std::string program = R"(
+struct S {
+  x: u32,
+  y: u32,
+}
+fn f(s: S) -> S { S{x: u32:4, y: u32:8, ..s} }
+)";
+  TypecheckedModule tm;
+  XLS_EXPECT_OK(Typecheck(program, &tm));
+  ASSERT_THAT(tm.warnings.warnings().size(), 1);
+  std::string filename = "fake.x";
+  EXPECT_EQ(tm.warnings.warnings().at(0).span,
+            Span(Pos(filename, 5, 42), Pos(filename, 5, 43)));
+  EXPECT_EQ(tm.warnings.warnings().at(0).message,
+            "'Splatted' struct instance has all members of struct defined, "
+            "consider removing the `..s`");
+  XLS_ASSERT_OK(PrintPositionalError(
+      tm.warnings.warnings().at(0).span, tm.warnings.warnings().at(0).message,
+      std::cerr,
+      [&](std::string_view) -> absl::StatusOr<std::string> { return program; },
+      PositionalErrorColor::kWarningColor));
 }
 
 }  // namespace

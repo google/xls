@@ -23,13 +23,13 @@
 namespace xls::dslx {
 
 absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
-    const absl::Status& status, std::optional<absl::string_view> target_type) {
+    const absl::Status& status, std::optional<std::string_view> target_type) {
   auto error = [&] {
     return absl::InvalidArgumentError(
         "Provided status is not in recognized error form: " +
         status.ToString());
   };
-  absl::string_view s = status.message();
+  std::string_view s = status.message();
   std::string type_indicator;
   if (!RE2::Consume(&s, "(\\w+): ", &type_indicator)) {
     return error();
@@ -37,7 +37,7 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
   if (target_type.has_value() && type_indicator != *target_type) {
     return error();
   }
-  std::vector<absl::string_view> pieces =
+  std::vector<std::string_view> pieces =
       absl::StrSplit(s, absl::MaxSplits(' ', 1));
   if (pieces.size() < 2) {
     return absl::InvalidArgumentError(
@@ -48,26 +48,26 @@ absl::StatusOr<PositionalErrorData> GetPositionalErrorData(
 }
 
 AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
-  if (absl::holds_alternative<EnumDef*>(bn)) {
-    return absl::get<EnumDef*>(bn)->name_def();
+  if (std::holds_alternative<EnumDef*>(bn)) {
+    return std::get<EnumDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<TypeDef*>(bn)) {
-    return absl::get<TypeDef*>(bn)->name_def();
+  if (std::holds_alternative<TypeDef*>(bn)) {
+    return std::get<TypeDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<ConstantDef*>(bn)) {
-    return absl::get<ConstantDef*>(bn)->name_def();
+  if (std::holds_alternative<ConstantDef*>(bn)) {
+    return std::get<ConstantDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<const NameDef*>(bn)) {
-    return absl::get<const NameDef*>(bn);
+  if (std::holds_alternative<const NameDef*>(bn)) {
+    return std::get<const NameDef*>(bn);
   }
-  if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
-    return absl::get<BuiltinNameDef*>(bn);
+  if (std::holds_alternative<BuiltinNameDef*>(bn)) {
+    return std::get<BuiltinNameDef*>(bn);
   }
-  if (absl::holds_alternative<StructDef*>(bn)) {
-    return absl::get<StructDef*>(bn)->name_def();
+  if (std::holds_alternative<StructDef*>(bn)) {
+    return std::get<StructDef*>(bn)->name_def();
   }
-  if (absl::holds_alternative<Import*>(bn)) {
-    return absl::get<Import*>(bn)->name_def();
+  if (std::holds_alternative<Import*>(bn)) {
+    return std::get<Import*>(bn)->name_def();
   }
   XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
                  << ToAstNode(bn)->ToString() << " "
@@ -75,22 +75,22 @@ AnyNameDef BoundNodeToAnyNameDef(BoundNode bn) {
 }
 
 Span BoundNodeGetSpan(BoundNode bn) {
-  if (absl::holds_alternative<ConstantDef*>(bn)) {
-    return absl::get<ConstantDef*>(bn)->span();
+  if (std::holds_alternative<ConstantDef*>(bn)) {
+    return std::get<ConstantDef*>(bn)->span();
   }
-  if (absl::holds_alternative<TypeDef*>(bn)) {
-    return absl::get<TypeDef*>(bn)->span();
+  if (std::holds_alternative<TypeDef*>(bn)) {
+    return std::get<TypeDef*>(bn)->span();
   }
-  if (absl::holds_alternative<StructDef*>(bn)) {
-    return absl::get<StructDef*>(bn)->span();
+  if (std::holds_alternative<StructDef*>(bn)) {
+    return std::get<StructDef*>(bn)->span();
   }
-  if (absl::holds_alternative<EnumDef*>(bn)) {
-    return absl::get<EnumDef*>(bn)->span();
+  if (std::holds_alternative<EnumDef*>(bn)) {
+    return std::get<EnumDef*>(bn)->span();
   }
-  if (absl::holds_alternative<const NameDef*>(bn)) {
-    return absl::get<const NameDef*>(bn)->span();
+  if (std::holds_alternative<const NameDef*>(bn)) {
+    return std::get<const NameDef*>(bn)->span();
   }
-  if (absl::holds_alternative<BuiltinNameDef*>(bn)) {
+  if (std::holds_alternative<BuiltinNameDef*>(bn)) {
     Pos p("<builtin>", 0, 0);
     return Span(p, p);
   }
@@ -100,26 +100,26 @@ Span BoundNodeGetSpan(BoundNode bn) {
 
 std::string BoundNodeGetTypeString(const BoundNode& bn) {
   // clang-format off
-  if (absl::holds_alternative<EnumDef*>(bn)) { return "EnumDef"; }
-  if (absl::holds_alternative<TypeDef*>(bn)) { return "TypeDef"; }
-  if (absl::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
-  if (absl::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
-  if (absl::holds_alternative<const NameDef*>(bn)) { return "NameDef"; }
-  if (absl::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
-  if (absl::holds_alternative<Import*>(bn)) { return "Import"; }
+  if (std::holds_alternative<EnumDef*>(bn)) { return "EnumDef"; }
+  if (std::holds_alternative<TypeDef*>(bn)) { return "TypeDef"; }
+  if (std::holds_alternative<ConstantDef*>(bn)) { return "ConstantDef"; }
+  if (std::holds_alternative<StructDef*>(bn)) { return "StructDef"; }
+  if (std::holds_alternative<const NameDef*>(bn)) { return "NameDef"; }
+  if (std::holds_alternative<BuiltinNameDef*>(bn)) { return "BuiltinNameDef"; }
+  if (std::holds_alternative<Import*>(bn)) { return "Import"; }
   // clang-format on
   XLS_LOG(FATAL) << "Unsupported BoundNode variant: "
                  << ToAstNode(bn)->ToString();
 }
 
 absl::StatusOr<AnyNameDef> Bindings::ResolveNameOrError(
-    absl::string_view name, const Span& span) const {
+    std::string_view name, const Span& span) const {
   XLS_ASSIGN_OR_RETURN(BoundNode bn, ResolveNodeOrError(name, span));
   return BoundNodeToAnyNameDef(bn);
 }
 
 std::optional<AnyNameDef> Bindings::ResolveNameOrNullopt(
-    absl::string_view name) const {
+    std::string_view name) const {
   std::optional<BoundNode> bn = ResolveNode(name);
   if (!bn) {
     return absl::nullopt;

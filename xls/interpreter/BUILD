@@ -34,6 +34,7 @@ cc_library(
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/types:span",
+        "//xls/codegen:module_signature_cc_proto",
         "//xls/common/logging",
         "//xls/common/logging:log_lines",
         "//xls/common/status:ret_check",
@@ -107,13 +108,11 @@ cc_test(
     srcs = ["channel_queue_test.cc"],
     deps = [
         ":channel_queue",
-        ":ir_interpreter",
-        "@com_google_absl//absl/status:statusor",
+        ":channel_queue_test_base",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
+        "//xls/ir",
         "//xls/ir:channel",
-        "//xls/ir:channel_cc_proto",
-        "//xls/ir:ir_test_base",
         "@com_google_googletest//:gtest",
     ],
 )
@@ -179,8 +178,6 @@ cc_library(
     deps = [
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
-        "@com_google_absl//absl/strings",
-        "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
         "//xls/ir",
         "//xls/ir:channel",
@@ -213,5 +210,22 @@ cc_library(
         "//xls/ir",
         "//xls/ir:type",
         "//xls/ir:value",
+    ],
+)
+
+cc_library(
+    name = "channel_queue_test_base",
+    testonly = True,
+    srcs = ["channel_queue_test_base.cc"],
+    hdrs = ["channel_queue_test_base.h"],
+    deps = [
+        ":channel_queue",
+        ":ir_interpreter",
+        "@com_google_absl//absl/status:statusor",
+        "//xls/common/status:matchers",
+        "//xls/ir:channel",
+        "//xls/ir:channel_cc_proto",
+        "//xls/ir:ir_test_base",
+        "@com_google_googletest//:gtest",
     ],
 )

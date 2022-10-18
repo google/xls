@@ -64,45 +64,45 @@ PYBIND11_MODULE(function_builder, m) {
   // -- Explicitly select overload when pybind11 can't infer it.
   // or
   BValue (FunctionBuilder::*add_or)(BValue, BValue, const SourceInfo&,
-                                    absl::string_view) = &FunctionBuilder::Or;
+                                    std::string_view) = &FunctionBuilder::Or;
   BValue (FunctionBuilder::*add_nary_or)(absl::Span<const BValue>,
-                                         const SourceInfo&, absl::string_view) =
+                                         const SourceInfo&, std::string_view) =
       &FunctionBuilder::Or;
   // xor
   BValue (FunctionBuilder::*add_xor)(BValue, BValue, const SourceInfo&,
-                                     absl::string_view) = &FunctionBuilder::Xor;
+                                     std::string_view) = &FunctionBuilder::Xor;
   BValue (FunctionBuilder::*add_nary_xor)(
-      absl::Span<const BValue>, const SourceInfo&, absl::string_view) =
+      absl::Span<const BValue>, const SourceInfo&, std::string_view) =
       &FunctionBuilder::Xor;
   // and
   BValue (FunctionBuilder::*add_and)(BValue, BValue, const SourceInfo&,
-                                     absl::string_view) = &FunctionBuilder::And;
+                                     std::string_view) = &FunctionBuilder::And;
   BValue (FunctionBuilder::*add_nary_and)(
-      absl::Span<const BValue>, const SourceInfo&, absl::string_view) =
+      absl::Span<const BValue>, const SourceInfo&, std::string_view) =
       &FunctionBuilder::And;
 
   BValue (FunctionBuilder::*add_literal_bits)(
-      Bits, const SourceInfo&, absl::string_view) = &FunctionBuilder::Literal;
+      Bits, const SourceInfo&, std::string_view) = &FunctionBuilder::Literal;
   BValue (FunctionBuilder::*add_literal_value)(
-      Value, const SourceInfo&, absl::string_view) = &FunctionBuilder::Literal;
+      Value, const SourceInfo&, std::string_view) = &FunctionBuilder::Literal;
   BValue (FunctionBuilder::*add_sel)(BValue, BValue, BValue, const SourceInfo&,
-                                     absl::string_view) =
+                                     std::string_view) =
       &FunctionBuilder::Select;
   BValue (FunctionBuilder::*add_sel_multi)(
       BValue, absl::Span<const BValue>, std::optional<BValue>,
-      const SourceInfo&, absl::string_view) = &FunctionBuilder::Select;
+      const SourceInfo&, std::string_view) = &FunctionBuilder::Select;
   BValue (FunctionBuilder::*add_smul)(BValue, BValue, const SourceInfo&,
-                                      absl::string_view) =
+                                      std::string_view) =
       &FunctionBuilder::SMul;
   BValue (FunctionBuilder::*add_umul)(BValue, BValue, const SourceInfo&,
-                                      absl::string_view) =
+                                      std::string_view) =
       &FunctionBuilder::UMul;
   BValue (FunctionBuilder::*match_true)(
       absl::Span<const BValue>, absl::Span<const BValue>, BValue,
-      const SourceInfo&, absl::string_view) = &FunctionBuilder::MatchTrue;
+      const SourceInfo&, std::string_view) = &FunctionBuilder::MatchTrue;
 
   py::class_<FunctionBuilderHolder>(m, "FunctionBuilder")
-      .def(py::init<absl::string_view, PackageHolder>(), py::arg("name"),
+      .def(py::init<std::string_view, PackageHolder>(), py::arg("name"),
            py::arg("package"))
 
       .def_property_readonly("name", FbPyWrap(&FunctionBuilder::name))

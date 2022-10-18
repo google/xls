@@ -14,6 +14,7 @@
 
 #include "xls/codegen/block_conversion.h"
 
+#include <cstdint>
 #include <memory>
 #include <random>
 
@@ -30,6 +31,7 @@
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/verifier.h"
 #include "xls/scheduling/pipeline_schedule.h"
+#include "xls/scheduling/scheduling_options.h"
 
 namespace m = xls::op_matchers;
 
@@ -87,6 +89,41 @@ class TestDelayEstimator : public DelayEstimator {
   }
 };
 
+template <typename T>
+class IsPrefixOf : public ::testing::MatcherInterface<std::vector<T>> {
+ public:
+  using is_gtest_matcher = void;
+  explicit IsPrefixOf(const std::vector<T>& needed) : needed_(needed) {}
+
+  bool MatchAndExplain(
+      std::vector<T> array,
+      ::testing::MatchResultListener* listener) const override {
+    if (array.size() > needed_.size()) {
+      return false;
+    }
+    for (int64_t i = 0; i < array.size(); ++i) {
+      if (array.at(i) != needed_.at(i)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void DescribeTo(::std::ostream* os) const override {
+    *os << "is a prefix of ";
+    std::vector<std::string> strings;
+    for (const T& element : needed_) {
+      std::stringstream ss;
+      ss << element;
+      strings.push_back(ss.str());
+    }
+    *os << "[" << absl::StrJoin(strings, ", ") << "]";
+  }
+
+ private:
+  std::vector<T> needed_;
+};
+
 // Convenience functions for sensitizing and analyzing procs used to
 // test pipelined proc to block conversion
 class ProcConversionTestFixture : public BlockConversionTest {
@@ -142,7 +179,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   //
   // One after the last signal value used is returned.
   absl::StatusOr<uint64_t> SetIncrementingSignalOverCycles(
-      int64_t first_cycle, int64_t last_cycle, absl::string_view signal_name,
+      int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
       uint64_t signal_val,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
     XLS_CHECK_GE(first_cycle, 0);
@@ -164,7 +201,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   // For cycles in range [first_cycle, last_cycle] inclusive,  set given
   // input signal to uniformly random input in range [min_value, max_value].
   absl::Status SetRandomSignalOverCycles(
-      int64_t first_cycle, int64_t last_cycle, absl::string_view signal_name,
+      int64_t first_cycle, int64_t last_cycle, std::string_view signal_name,
       uint64_t min_value, uint64_t max_value, std::minstd_rand& rnd_engine,
       std::vector<absl::flat_hash_map<std::string, uint64_t>>& io) const {
     XLS_CHECK_GE(first_cycle, 0);
@@ -255,7 +292,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       std::string row;
 
       for (const SignalSpec& col : table_spec) {
-        absl::string_view signal_name = col.signal_name;
+        std::string_view signal_name = col.signal_name;
         SignalType signal_type = col.signal_type;
 
         XLS_CHECK(signal_type == SignalType::kInput ||
@@ -289,7 +326,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
       const absl::flat_hash_map<std::string, uint64_t>& inputs,
       const absl::flat_hash_map<std::string, uint64_t>& outputs) const {
     SignalType signal_type = signal.signal_type;
-    absl::string_view signal_name = signal.signal_name;
+    std::string_view signal_name = signal.signal_name;
 
     if (signal_type == SignalType::kInput) {
       if (!inputs.contains(signal_name)) {
@@ -311,7 +348,7 @@ class ProcConversionTestFixture : public BlockConversionTest {
   }
 
   // Name of the block created by BuildBlockInPackage().
-  const absl::string_view kBlockName = "the_proc";
+  const std::string_view kBlockName = "the_proc";
 };
 
 TEST_F(BlockConversionTest, SimpleFunction) {
@@ -583,7 +620,7 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
 
   CodegenOptions options;
   options.flop_inputs(false).flop_outputs(false).clock_name("clk");
-  options.reset("rst", false, false, true);
+  options.reset("rst", false, false, false);
   options.streaming_channel_data_suffix("_data");
   options.streaming_channel_valid_suffix("_valid");
   options.streaming_channel_ready_suffix("_ready");
@@ -605,7 +642,7 @@ TEST_F(BlockConversionTest, ProcWithVariousNextStateNodes) {
   std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs(10,
                                                                  {{"rst", 0}});
   XLS_ASSERT_OK_AND_ASSIGN(
-      BlockIoResultsAsUint64 results,
+      BlockIOResultsAsUint64 results,
       InterpretChannelizedSequentialBlockWithUint64(
           block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs));
 
@@ -2629,7 +2666,7 @@ TEST_P(MultiIOWithStatePipelinedProcTestSweepFixture, RandomStalling) {
       ChannelSink("out1", "out1_vld", "out1_rdy", 0.5, block),
   };
 
-  BlockIoResultsAsUint64 io_results;
+  BlockIOResultsAsUint64 io_results;
   std::vector<absl::flat_hash_map<std::string, uint64_t>>& inputs =
       io_results.inputs;
   std::vector<absl::flat_hash_map<std::string, uint64_t>>& outputs =
@@ -2937,7 +2974,7 @@ TEST_F(ProcConversionTestFixture, SimpleProcRandomScheduler) {
         ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
     };
 
-    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 io_results,
                              InterpretChannelizedSequentialBlockWithUint64(
                                  block, absl::MakeSpan(sources),
                                  absl::MakeSpan(sinks), non_streaming_inputs));
@@ -3033,7 +3070,7 @@ TEST_F(ProcConversionTestFixture, AddRandomScheduler) {
         ChannelSink("out_data", "out_valid", "out_ready", 0.5, block),
     };
 
-    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 io_results,
                              InterpretChannelizedSequentialBlockWithUint64(
                                  block, absl::MakeSpan(sources),
                                  absl::MakeSpan(sinks), non_streaming_inputs));
@@ -3136,7 +3173,7 @@ TEST_F(ProcConversionTestFixture, TwoReceivesTwoSendsRandomScheduler) {
         ChannelSink("out_b_data", "out_b_valid", "out_b_ready", 0.5, block),
     };
 
-    XLS_ASSERT_OK_AND_ASSIGN(BlockIoResultsAsUint64 io_results,
+    XLS_ASSERT_OK_AND_ASSIGN(BlockIOResultsAsUint64 io_results,
                              InterpretChannelizedSequentialBlockWithUint64(
                                  block, absl::MakeSpan(sources),
                                  absl::MakeSpan(sinks), non_streaming_inputs));
@@ -3439,6 +3476,150 @@ TEST_P(NonblockingReceivesProcTestSweepFixture, RandomInput) {
       ++output_index;
     }
   }
+}
+
+class ProcWithStateTest : public BlockConversionTest {
+ public:
+  void TestBlockWithSchedule(const xls::SchedulingOptions& scheduling_options) {
+    const std::string ir_text = R"(package my_package
+
+  chan a_in(bits[32], id=0, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+  chan a_out(bits[32], id=1, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+  chan b_in(bits[32], id=2, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+  chan b_out(bits[32], id=3, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+  chan c_in(bits[32], id=4, kind=streaming, ops=receive_only, flow_control=ready_valid, metadata="""""")
+  chan c_out(bits[32], id=5, kind=streaming, ops=send_only, flow_control=ready_valid, metadata="""""")
+
+  top proc test_proc(tkn: token, st_0: bits[32], st_1: bits[32], st_2: bits[32], init={3, 5, 9}) {
+    receive.107: (token, bits[32]) = receive(tkn, channel_id=0, id=107)
+    receive.108: (token, bits[32]) = receive(tkn, channel_id=2, id=108)
+    receive.109: (token, bits[32]) = receive(tkn, channel_id=4, id=109)
+    tuple_index.34: token = tuple_index(receive.107, index=0, id=34)
+    send.110: token = send(tkn, st_0, channel_id=1, id=110)
+    tuple_index.43: token = tuple_index(receive.108, index=0, id=43)
+    send.111: token = send(tkn, st_1, channel_id=3, id=111)
+    tuple_index.52: token = tuple_index(receive.109, index=0, id=52)
+    send.112: token = send(tkn, st_2, channel_id=5, id=112)
+    tuple_index.35: bits[32] = tuple_index(receive.107, index=1, id=35)
+    tuple_index.44: bits[32] = tuple_index(receive.108, index=1, id=44)
+    tuple_index.53: bits[32] = tuple_index(receive.109, index=1, id=53)
+    after_all.59: token = after_all(tuple_index.34, send.110, tuple_index.43, send.111, tuple_index.52, send.112, id=59)
+    add.100: bits[32] = add(st_0, tuple_index.35, id=100)
+    add.101: bits[32] = add(st_1, tuple_index.44, id=101)
+    add.102: bits[32] = add(st_2, tuple_index.53, id=102)
+    next (after_all.59, add.100, add.101, add.102)
+  }
+  )";
+    XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Package> package,
+                             Parser::ParsePackage(ir_text));
+
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Proc * proc, package->GetProc("test_proc"));
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        PipelineSchedule schedule,
+        PipelineSchedule::Run(proc, TestDelayEstimator(), scheduling_options));
+
+    CodegenOptions options;
+    options.module_name(TestName());
+    options.flop_inputs(true).flop_outputs(true).clock_name("clk");
+    options.valid_control("input_valid", "output_valid");
+    options.reset("rst", false, false, false);
+
+    XLS_ASSERT_OK_AND_ASSIGN(xls::Block * block,
+                             ProcToPipelinedBlock(schedule, options, proc));
+
+    const double io_probability = 0.5;
+    const uint64_t run_cycles = 128;
+
+    std::vector<absl::flat_hash_map<std::string, uint64_t>> inputs = {
+        {{"rst", 1}}};
+    for (uint64_t c = 0; c < run_cycles; ++c) {
+      inputs.push_back({{"rst", 0}});
+    }
+
+    std::vector<ChannelSource> sources{
+        ChannelSource("a_in", "a_in_vld", "a_in_rdy", io_probability, block),
+        ChannelSource("b_in", "b_in_vld", "b_in_rdy", io_probability, block),
+        ChannelSource("c_in", "c_in_vld", "c_in_rdy", io_probability, block),
+    };
+
+    XLS_ASSERT_OK(sources.at(0).SetDataSequence(
+        {10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120}));
+    XLS_ASSERT_OK(sources.at(1).SetDataSequence(
+        {11, 21, 31, 41, 51, 61, 71, 81, 91, 101, 111, 121}));
+    XLS_ASSERT_OK(sources.at(2).SetDataSequence(
+        {50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325}));
+
+    std::vector<ChannelSink> sinks{
+        ChannelSink("a_out", "a_out_vld", "a_out_rdy", io_probability, block),
+        ChannelSink("b_out", "b_out_vld", "b_out_rdy", io_probability, block),
+        ChannelSink("c_out", "c_out_vld", "c_out_rdy", io_probability, block),
+    };
+
+    XLS_ASSERT_OK_AND_ASSIGN(
+        BlockIOResultsAsUint64 results,
+        InterpretChannelizedSequentialBlockWithUint64(
+            block, absl::MakeSpan(sources), absl::MakeSpan(sinks), inputs,
+            options.reset()));
+    EXPECT_THAT(
+        sinks.at(0).GetOutputSequenceAsUint64(),
+        IsOkAndHolds(IsPrefixOf<uint64_t>(std::vector<uint64_t>{
+            3, 13, 33, 63, 103, 153, 213, 283, 363, 453, 553, 663, 783})));
+    EXPECT_THAT(
+        sinks.at(1).GetOutputSequenceAsUint64(),
+        IsOkAndHolds(IsPrefixOf<uint64_t>(std::vector<uint64_t>{
+            5, 16, 37, 68, 109, 160, 221, 292, 373, 464, 565, 676, 797})));
+    EXPECT_THAT(sinks.at(2).GetOutputSequenceAsUint64(),
+                IsOkAndHolds(IsPrefixOf<uint64_t>(
+                    std::vector<uint64_t>{9, 59, 134, 234, 359, 509, 684, 884,
+                                          1109, 1359, 1634, 1934, 2259})));
+  }
+};
+
+TEST_F(ProcWithStateTest, ProcWithStateSingleCycle) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(1);
+
+  TestBlockWithSchedule(scheduling_options);
+}
+
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn2Stages) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(2);
+
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+
+  TestBlockWithSchedule(scheduling_options);
+}
+
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3Stages) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(3);
+
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "b_in", xls::IODirection::kReceive, "c_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+
+  TestBlockWithSchedule(scheduling_options);
+}
+
+TEST_F(ProcWithStateTest, ProcWithStateBackedgesIn3StagesWithExtra) {
+  xls::SchedulingOptions scheduling_options;
+  scheduling_options.pipeline_stages(4);
+
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "a_in", xls::IODirection::kReceive, "b_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+  scheduling_options.add_constraint(xls::IOConstraint(
+      "b_in", xls::IODirection::kReceive, "c_in", xls::IODirection::kReceive,
+      /*min_latency=*/1, /* max_latency=*/1));
+
+  TestBlockWithSchedule(scheduling_options);
 }
 
 INSTANTIATE_TEST_SUITE_P(

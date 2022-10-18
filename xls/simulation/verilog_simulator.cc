@@ -34,14 +34,14 @@ namespace verilog {
 namespace {
 
 absl::StatusOr<std::vector<Observation>> StdoutToObservations(
-    absl::string_view output, const NameToBitCount& to_observe) {
+    std::string_view output, const NameToBitCount& to_observe) {
   std::vector<Observation> result;
-  auto error = [](absl::string_view line, absl::string_view message) {
+  auto error = [](std::string_view line, std::string_view message) {
     return absl::InternalError(
         absl::StrCat("Simulation produced invalid monitoring line: \"", line,
                      "\" :: ", message));
   };
-  for (absl::string_view line : absl::StrSplit(output, '\n')) {
+  for (std::string_view line : absl::StrSplit(output, '\n')) {
     line = absl::StripAsciiWhitespace(line);
     if (line.empty()) {
       continue;
@@ -53,7 +53,7 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
       continue;
     }
 
-    std::vector<absl::string_view> pieces = absl::StrSplit(line, ':');
+    std::vector<std::string_view> pieces = absl::StrSplit(line, ':');
     if (pieces.size() != 2) {
       return error(line, "missing time-delimiting ':'");
     }
@@ -64,8 +64,8 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
     }
 
     // Turn all of the print-outs at this time into "observations".
-    std::vector<absl::string_view> observed = absl::StrSplit(pieces[1], ';');
-    for (absl::string_view observation : observed) {
+    std::vector<std::string_view> observed = absl::StrSplit(pieces[1], ';');
+    for (std::string_view observation : observed) {
       std::string name;
       uint64_t value;
       if (!RE2::FullMatch(observation, "\\s*(\\w+) = ([0-9A-Fa-f]+)\\s*", &name,
@@ -86,18 +86,18 @@ absl::StatusOr<std::vector<Observation>> StdoutToObservations(
 }  // namespace
 
 absl::StatusOr<std::pair<std::string, std::string>> VerilogSimulator::Run(
-    absl::string_view text, FileType file_type) const {
+    std::string_view text, FileType file_type) const {
   return Run(text, file_type, /*includes=*/{});
 }
 
-absl::Status VerilogSimulator::RunSyntaxChecking(absl::string_view text,
+absl::Status VerilogSimulator::RunSyntaxChecking(std::string_view text,
                                                  FileType file_type) const {
   return RunSyntaxChecking(text, file_type, /*includes=*/{});
 }
 
 absl::StatusOr<std::vector<Observation>>
 VerilogSimulator::SimulateCombinational(
-    absl::string_view text, FileType file_type,
+    std::string_view text, FileType file_type,
     const NameToBitCount& to_observe) const {
   std::pair<std::string, std::string> stdout_stderr;
   XLS_ASSIGN_OR_RETURN(stdout_stderr, Run(text, file_type));
@@ -110,7 +110,7 @@ VerilogSimulatorManager& GetVerilogSimulatorManagerSingleton() {
 }
 
 absl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
-    absl::string_view name) const {
+    std::string_view name) const {
   if (!simulators_.contains(name)) {
     if (simulator_names_.empty()) {
       return absl::NotFoundError(
@@ -126,7 +126,7 @@ absl::StatusOr<VerilogSimulator*> VerilogSimulatorManager::GetVerilogSimulator(
 }
 
 absl::Status VerilogSimulatorManager::RegisterVerilogSimulator(
-    absl::string_view name, std::unique_ptr<VerilogSimulator> simulator) {
+    std::string_view name, std::unique_ptr<VerilogSimulator> simulator) {
   if (simulators_.contains(name)) {
     return absl::InternalError(
         absl::StrFormat("Simulator named %s already exists", name));
