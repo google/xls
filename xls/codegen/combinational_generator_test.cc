@@ -1635,6 +1635,90 @@ TEST_P(CombinationalGeneratorTest, TwoDArraySlice) {
                                  result.verilog_text);
 }
 
+TEST_P(CombinationalGeneratorTest, UDiv) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  BValue y = fb.Param("y", package.GetBitsType(32));
+  fb.UDiv(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(42, 32)}, {"y", UBits(7, 32)}}),
+              IsOkAndHolds(UBits(6, 32)));
+  // Should round toward zero.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(10, 32)}, {"y", UBits(7, 32)}}),
+              IsOkAndHolds(UBits(1, 32)));
+  // Div by zero should return max value.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(0, 32)}, {"y", UBits(0, 32)}}),
+              IsOkAndHolds(Bits::AllOnes(32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", UBits(12345, 32)}, {"y", UBits(0, 32)}}),
+              IsOkAndHolds(Bits::AllOnes(32)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
+TEST_P(CombinationalGeneratorTest, SDiv) {
+  Package package(TestBaseName());
+  FunctionBuilder fb(TestBaseName(), &package);
+  BValue x = fb.Param("x", package.GetBitsType(32));
+  BValue y = fb.Param("y", package.GetBitsType(32));
+  fb.SDiv(x, y);
+  XLS_ASSERT_OK_AND_ASSIGN(Function * f, fb.Build());
+  XLS_ASSERT_OK_AND_ASSIGN(auto result,
+                           GenerateCombinationalModule(f, codegen_options()));
+
+  ModuleSimulator simulator =
+      NewModuleSimulator(result.verilog_text, result.signature);
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(42, 32)}, {"y", SBits(7, 32)}}),
+              IsOkAndHolds(SBits(6, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-42, 32)}, {"y", SBits(7, 32)}}),
+              IsOkAndHolds(SBits(-6, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(42, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(-6, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-42, 32)}, {"y", SBits(-7, 32)}}),
+              IsOkAndHolds(SBits(6, 32)));
+
+  // Should round toward zero.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(10, 32)}, {"y", SBits(7, 32)}}),
+              IsOkAndHolds(SBits(1, 32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-10, 32)}, {"y", SBits(7, 32)}}),
+              IsOkAndHolds(SBits(-1, 32)));
+
+  // Test overflow condition.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", Bits::MinSigned(32)}, {"y", SBits(-1, 32)}}),
+              IsOkAndHolds(Bits::MinSigned(32)));
+
+  // Div by zero should return max/min signed value.
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(0, 32)}, {"y", SBits(0, 32)}}),
+              IsOkAndHolds(Bits::MaxSigned(32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(12345, 32)}, {"y", SBits(0, 32)}}),
+              IsOkAndHolds(Bits::MaxSigned(32)));
+  EXPECT_THAT(simulator.RunAndReturnSingleOutput(
+                  {{"x", SBits(-12345, 32)}, {"y", SBits(0, 32)}}),
+              IsOkAndHolds(Bits::MinSigned(32)));
+
+  ExpectVerilogEqualToGoldenFile(GoldenFilePath(kTestName, kTestdataPath),
+                                 result.verilog_text);
+}
+
 TEST_P(CombinationalGeneratorTest, OneBitTupleIndex) {
   Package package(TestBaseName());
   FunctionBuilder fb(TestBaseName(), &package);

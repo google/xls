@@ -1,0 +1,14 @@
+module SDiv(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  function automatic [31:0] sdiv_32b (input reg [31:0] lhs, input reg [31:0] rhs);
+    begin
+      sdiv_32b = rhs == 32'h0000_0000 ? (lhs[31] ? 32'h8000_0000 : 32'h7fff_ffff) : (lhs == 32'h8000_0000 && rhs == 32'hffff_ffff ? 32'h8000_0000 : $unsigned($signed(lhs) / $signed(rhs)));
+    end
+  endfunction
+  wire [31:0] sdiv_6;
+  assign sdiv_6 = sdiv_32b(x, y);
+  assign out = sdiv_6;
+endmodule

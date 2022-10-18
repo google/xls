@@ -1139,6 +1139,8 @@ bool ModuleBuilder::MustEmitAsFunction(Node* node) {
     case Op::kDynamicBitSlice:
     case Op::kBitSliceUpdate:
     case Op::kPrioritySel:
+    case Op::kSDiv:
+    case Op::kUDiv:
       return true;
     default:
       return false;
@@ -1172,6 +1174,12 @@ std::string ModuleBuilder::VerilogFunctionName(Node* node) {
       return absl::StrFormat("%s_%db_%dway", OpToString(node->op()),
                              node->BitCountOrDie(),
                              node->operand(0)->BitCountOrDie());
+    case Op::kSDiv:
+    case Op::kUDiv:
+      XLS_CHECK_EQ(node->BitCountOrDie(), node->operand(0)->BitCountOrDie());
+      XLS_CHECK_EQ(node->BitCountOrDie(), node->operand(1)->BitCountOrDie());
+      return absl::StrFormat("%s_%db", OpToString(node->op()),
+                             node->BitCountOrDie());
     default:
       XLS_LOG(FATAL) << "Cannot emit node as function: " << node->ToString();
   }
@@ -1487,6 +1495,99 @@ absl::StatusOr<VerilogFunction*> DefineUmulpFunction(
   return func;
 }
 
+// Defines and returns a function which implements the given Udiv node.
+VerilogFunction* DefineUDivFunction(Node* node, std::string_view function_name,
+                                    ModuleSection* section) {
+  XLS_CHECK_EQ(node->op(), Op::kUDiv);
+  VerilogFile* file = section->file();
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
+  XLS_CHECK_EQ(node->operand_count(), 2);
+  Expression* lhs = func->AddArgument(
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs = func->AddArgument(
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs_is_zero = file->Equals(
+      rhs,
+      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      node->loc());
+  Expression* all_ones =
+      file->Literal(Bits::AllOnes(node->BitCountOrDie()), node->loc());
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Ternary(rhs_is_zero, all_ones, file->Div(lhs, rhs, node->loc()),
+                    node->loc()));
+  return func;
+}
+
+// Defines and returns a function which implements the given SDiv node.
+VerilogFunction* DefineSDivFunction(Node* node, std::string_view function_name,
+                                    ModuleSection* section) {
+  XLS_CHECK_EQ(node->op(), Op::kSDiv);
+  VerilogFile* file = section->file();
+
+  VerilogFunction* func = section->Add<VerilogFunction>(
+      node->loc(), function_name,
+      file->BitVectorType(node->BitCountOrDie(), node->loc()));
+  XLS_CHECK_EQ(node->operand_count(), 2);
+  IndexableExpression* lhs = func->AddArgument(
+      "lhs",
+      file->BitVectorType(node->operand(0)->BitCountOrDie(), node->loc()),
+      node->loc());
+  IndexableExpression* rhs = func->AddArgument(
+      "rhs",
+      file->BitVectorType(node->operand(1)->BitCountOrDie(), node->loc()),
+      node->loc());
+  Expression* rhs_is_zero = file->Equals(
+      rhs,
+      file->Literal(UBits(0, node->operand(1)->BitCountOrDie()), node->loc()),
+      node->loc());
+  Expression* max_positive =
+      file->Literal(Bits::MaxSigned(node->BitCountOrDie()), node->loc());
+  Expression* min_negative =
+      file->Literal(Bits::MinSigned(node->BitCountOrDie()), node->loc());
+  Expression* lhs_is_negative =
+      file->Index(lhs, node->operand(0)->BitCountOrDie() - 1, node->loc());
+  Expression* div_by_zero_result =
+      file->Ternary(lhs_is_negative, min_negative, max_positive, node->loc());
+
+  // Wrap the expression in $unsigned to prevent the signed property from
+  // leaking out into the rest of the expression.
+  Expression* quotient = file->Make<UnsignedCast>(
+      node->loc(),
+      file->Div(file->Make<SignedCast>(node->loc(), lhs),
+                file->Make<SignedCast>(node->loc(), rhs), node->loc()));
+  // The divide overflows in the case of `min / -1`. Should return min value in
+  // this case.
+  Expression* overflow_condition = file->LogicalAnd(
+      file->Equals(
+          lhs,
+          file->Literal(Bits::MinSigned(node->operand(0)->BitCountOrDie()),
+                        node->loc()),
+          node->loc()),
+      file->Equals(rhs,
+                   file->Literal(SBits(-1, node->operand(1)->BitCountOrDie()),
+                                 node->loc()),
+                   node->loc()),
+      node->loc());
+  Expression* overflow_protected_quotient = file->Ternary(
+      overflow_condition,
+      file->Literal(Bits::MinSigned(node->BitCountOrDie()), node->loc()),
+      quotient, node->loc());
+
+  func->AddStatement<BlockingAssignment>(
+      node->loc(), func->return_value_ref(),
+      file->Ternary(rhs_is_zero, div_by_zero_result,
+                    overflow_protected_quotient, node->loc()));
+  return func;
+}
+
 // Defines and returns a function which implements the given UMul node.
 VerilogFunction* DefinePrioritySelectFunction(
     PrioritySelect* sel, std::string_view function_name,
@@ -1607,6 +1708,12 @@ absl::StatusOr<VerilogFunction*> ModuleBuilder::DefineFunction(Node* node) {
       func = DefinePrioritySelectFunction(
           node->As<PrioritySelect>(), function_name, functions_section_,
           query_engine_, options_.use_system_verilog());
+      break;
+    case Op::kUDiv:
+      func = DefineUDivFunction(node, function_name, functions_section_);
+      break;
+    case Op::kSDiv:
+      func = DefineSDivFunction(node, function_name, functions_section_);
       break;
     default:
       XLS_LOG(FATAL) << "Cannot define node as function: " << node->ToString();

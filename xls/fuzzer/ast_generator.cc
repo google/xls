@@ -422,15 +422,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
-  // Divide by a power of two that fits in the type of the LHS.
-  // e.g. if we selected a u2 we can divide by 1
-  // e.g. if we selected a u3 we can divide by 1 2
-  // e.g. if we selected a u4 we can divide by 1 2 4 or 8
+  // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
-  XLS_ASSIGN_OR_RETURN(bool is_signed, BitsTypeIsSigned(lhs.type));
-  int64_t available_bits = bit_count - static_cast<int64_t>(is_signed);
-  int64_t exponent = available_bits == 0 ? 0 : RandRange(available_bits);
-  Bits divisor = Bits::PowerOfTwo(exponent, bit_count);
+  Bits divisor = ChooseBitPattern(bit_count);
   Number* divisor_node = MakeNumberFromBits(divisor, lhs.type);
   return TypedExpr{
       module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),

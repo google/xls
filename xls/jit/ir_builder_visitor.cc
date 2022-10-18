@@ -258,46 +258,45 @@ llvm::Value* EmitShiftOp(Node* shift, llvm::Value* lhs, llvm::Value* rhs,
              : builder->CreateTrunc(result, lhs->getType());
 }
 
-llvm::Value* EmitDiv(llvm::Value* lhs, llvm::Value* rhs, bool is_signed,
-                     LlvmTypeConverter* type_converter,
+llvm::Value* EmitDiv(llvm::Value* lhs, llvm::Value* rhs, int64_t bit_count,
+                     bool is_signed, LlvmTypeConverter* type_converter,
                      llvm::IRBuilder<>* builder) {
   // XLS div semantics differ from LLVM's (and most software's) here: in XLS,
   // division by zero returns the greatest value of that type, so 255 for an
   // unsigned byte, and either -128 or 127 for a signed one.
   // Thus, a little more work is necessary to emit LLVM IR matching the XLS
   // div op than just IRBuilder::Create[SU]Div().
-  int type_width = rhs->getType()->getIntegerBitWidth();
   llvm::Value* zero = llvm::ConstantInt::get(rhs->getType(), 0);
   llvm::Value* rhs_eq_zero = builder->CreateICmpEQ(rhs, zero);
-  llvm::Value* lhs_gt_zero = builder->CreateICmpSGT(lhs, zero);
 
-  // If rhs is zero, make LHS = the max/min value and the RHS 1,
-  // rather than introducing a proper conditional.
-  rhs = builder->CreateSelect(rhs_eq_zero,
-                              llvm::ConstantInt::get(rhs->getType(), 1), rhs);
+  // To avoid div by zero make a never-zero rhs. This works because in the case
+  // of a zero rhs this value is not used.
+  llvm::Value* safe_rhs = builder->CreateSelect(
+      rhs_eq_zero, llvm::ConstantInt::get(rhs->getType(), 1), rhs);
   if (is_signed) {
+    llvm::Value* lhs_ge_zero = builder->CreateICmpSGE(lhs, zero);
     llvm::Value* max_value =
         type_converter
-            ->ToLlvmConstant(rhs->getType(), Value(Bits::MaxSigned(type_width)))
+            ->ToLlvmConstant(rhs->getType(), Value(Bits::MaxSigned(bit_count)))
             .value();
     llvm::Value* min_value =
         type_converter
-            ->ToLlvmConstant(rhs->getType(), Value(Bits::MinSigned(type_width)))
+            ->ToLlvmConstant(rhs->getType(), Value(Bits::MinSigned(bit_count)))
             .value();
 
-    lhs = builder->CreateSelect(
-        rhs_eq_zero, builder->CreateSelect(lhs_gt_zero, max_value, min_value),
-        lhs);
-    return builder->CreateSDiv(lhs, rhs);
+    llvm::Value* rhs_is_zero_result =
+        builder->CreateSelect(lhs_ge_zero, max_value, min_value);
+
+    return builder->CreateSelect(rhs_eq_zero, rhs_is_zero_result,
+                                 builder->CreateSDiv(lhs, safe_rhs));
   }
 
-  lhs = builder->CreateSelect(
+  return builder->CreateSelect(
       rhs_eq_zero,
       type_converter
-          ->ToLlvmConstant(rhs->getType(), Value(Bits::AllOnes(type_width)))
+          ->ToLlvmConstant(rhs->getType(), Value(Bits::AllOnes(bit_count)))
           .value(),
-      lhs);
-  return builder->CreateUDiv(lhs, rhs);
+      builder->CreateUDiv(lhs, safe_rhs));
 }
 
 llvm::Value* EmitMod(llvm::Value* lhs, llvm::Value* rhs, bool is_signed,
@@ -2352,7 +2351,8 @@ absl::Status IrBuilderVisitor::HandleSDiv(BinOp* binop) {
   return HandleBinaryOp(
       binop,
       [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
-        return EmitDiv(lhs, rhs, /*is_signed=*/true, type_converter(), &b);
+        return EmitDiv(lhs, rhs, binop->BitCountOrDie(), /*is_signed=*/true,
+                       type_converter(), &b);
       },
       /*is_signed=*/true);
 }
@@ -2522,7 +2522,8 @@ absl::Status IrBuilderVisitor::HandleTupleIndex(TupleIndex* index) {
 absl::Status IrBuilderVisitor::HandleUDiv(BinOp* binop) {
   return HandleBinaryOp(
       binop, [&](llvm::Value* lhs, llvm::Value* rhs, llvm::IRBuilder<>& b) {
-        return EmitDiv(lhs, rhs, /*is_signed=*/false, type_converter(), &b);
+        return EmitDiv(lhs, rhs, binop->BitCountOrDie(), /*is_signed=*/false,
+                       type_converter(), &b);
       });
 }
 

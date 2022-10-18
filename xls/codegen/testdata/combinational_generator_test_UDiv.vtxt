@@ -1,0 +1,14 @@
+module UDiv(
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  function automatic [31:0] udiv_32b (input reg [31:0] lhs, input reg [31:0] rhs);
+    begin
+      udiv_32b = rhs == 32'h0000_0000 ? 32'hffff_ffff : lhs / rhs;
+    end
+  endfunction
+  wire [31:0] udiv_6;
+  assign udiv_6 = udiv_32b(x, y);
+  assign out = udiv_6;
+endmodule

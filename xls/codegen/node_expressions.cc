@@ -521,7 +521,7 @@ absl::StatusOr<Expression*> NodeToExpression(
     case Op::kConcat:
       return file->Concat(inputs, node->loc());
     case Op::kUDiv:
-      return file->Div(inputs[0], inputs[1], node->loc());
+      return unimplemented();
     case Op::kUMod:
       return file->Mod(inputs[0], inputs[1], node->loc());
     case Op::kEq:
@@ -619,12 +619,7 @@ absl::StatusOr<Expression*> NodeToExpression(
       }
     }
     case Op::kSDiv:
-      // Wrap the expression in $unsigned to prevent the signed property from
-      // leaking out into the rest of the expression.
-      return file->Make<UnsignedCast>(
-          node->loc(), file->Div(file->Make<SignedCast>(node->loc(), inputs[0]),
-                                 file->Make<SignedCast>(node->loc(), inputs[1]),
-                                 node->loc()));
+      return unimplemented();
     case Op::kSMod:
       // Wrap the expression in $unsigned to prevent the signed property from
       // leaking out into the rest of the expression.
