@@ -16,6 +16,7 @@
 #define XLS_FUZZER_SAMPLE_H_
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "absl/status/statusor.h"
@@ -29,9 +30,15 @@ namespace xls {
 // Returns a string representation of the args_batch.
 std::string ArgsBatchToText(
     const std::vector<std::vector<dslx::InterpValue>>& args_batch);
+// Returns a string representation of the ir_channel_names.
+std::string IrChannelNamesToText(
+    const std::vector<std::string>& ir_channel_names);
 // Returns a string representation of the proc_init_values.
 std::string ProcInitValuesToText(
     const std::vector<dslx::InterpValue>& proc_init_values);
+// Returns a list of ir channel names.
+std::vector<std::string> ParseIrChannelNames(
+    std::string_view ir_channel_names_text);
 
 enum class TopType : int {
   kFunction = 0,
@@ -172,19 +179,25 @@ class Sample {
 
   // TODO(https://github.com/google/xls/issues/681): Remove
   // 'proc_initial_values'.
-  Sample(std::string input_text, SampleOptions options,
-         std::vector<std::vector<dslx::InterpValue>> args_batch,
-         std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
-             std::nullopt)
+  Sample(
+      std::string input_text, SampleOptions options,
+      std::vector<std::vector<dslx::InterpValue>> args_batch,
+      std::optional<std::vector<std::string>> ir_channel_names = std::nullopt,
+      std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
+          std::nullopt)
       : input_text_(std::move(input_text)),
         options_(std::move(options)),
         args_batch_(std::move(args_batch)),
+        ir_channel_names_(std::move(ir_channel_names)),
         proc_initial_values_(std::move(proc_initial_values)) {}
 
   const SampleOptions& options() const { return options_; }
   const std::string& input_text() const { return input_text_; }
   const std::vector<std::vector<dslx::InterpValue>>& args_batch() const {
     return args_batch_;
+  }
+  const std::optional<std::vector<std::string>>& ir_channel_names() const {
+    return ir_channel_names_;
   }
   const std::optional<std::vector<dslx::InterpValue>>& proc_initial_values()
       const {
@@ -193,7 +206,9 @@ class Sample {
 
   bool operator==(const Sample& other) const {
     return input_text_ == other.input_text_ && options_ == other.options_ &&
-           ArgsBatchEqual(other) && ProcInitValuesEqual(other);
+           ArgsBatchEqual(other) &&
+           ir_channel_names_ == other.ir_channel_names_ &&
+           ProcInitValuesEqual(other);
   }
   bool operator!=(const Sample& other) const { return !((*this) == other); }
 
@@ -208,6 +223,8 @@ class Sample {
 
   // Argument values to use for interpretation and simulation.
   std::vector<std::vector<dslx::InterpValue>> args_batch_;
+  // Channel names as they appear in the IR.
+  std::optional<std::vector<std::string>> ir_channel_names_;
   // Initial values for proc.
   std::optional<std::vector<dslx::InterpValue>> proc_initial_values_;
 };

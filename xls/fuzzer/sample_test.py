@@ -102,7 +102,7 @@ class SampleTest(absltest.TestCase):
         '"use_jit": true, "use_system_verilog": true}')
     self.assertEqual(got.to_json(), want_text)
 
-  def test_to_crasher(self):
+  def test_function_sample_to_crasher(self):
     s = sample.Sample(
         'fn main(x: u8, y: u8) -> u8 {\nx + y\n}',
         sample.SampleOptions(
@@ -230,6 +230,81 @@ class SampleTest(absltest.TestCase):
             'bits[8]:0x2a; bits[8]:0xb\nbits[8]:0x2c; bits[8]:0x63'))
     self.assertEqual(got, want)
 
+  def test_serialize_deserialize_proc(self):
+    crasher = textwrap.dedent("""\
+    // options: {"calls_per_sample" : 0, "convert_to_ir": true, "input_is_dslx": true, "ir_converter_args": ["--top=main"], "optimize_ir": false, "proc_ticks": 42, "top_type": 1}
+    // args: bits[32]:0x10; bits[1]:1
+    // ir_channel_names: sample__input, sample__enable
+    // proc_initial_values: bits[32]:42
+    proc main {
+      input: chan<u32> in;
+      enable: chan<bool> in;
+      result: chan<u32> out;
+
+      config(input: chan<u32> in,
+            enable: chan<bool> in,
+            result: chan<u32> out
+            ) {
+        (input, enable, result)
+      }
+
+      next(tok: token, state: u32) {
+        let (tok_input, input_val) = recv(tok, input);
+        let (tok_enable, enable_val) = recv(tok, enable);
+        let tok_recv = join(tok_input, tok_enable);
+
+        let result_val = if enable_val {
+          input_val + u32:1
+        } else {
+          input_val
+        }
+        let tok_send = send(tok_recv, result, result_val);
+        (result_val)
+      }
+    }
+    """)
+    got = sample.Sample.deserialize(crasher)
+    want = sample.Sample(
+        textwrap.dedent("""\
+            proc main {
+              input: chan<u32> in;
+              enable: chan<bool> in;
+              result: chan<u32> out;
+
+              config(input: chan<u32> in,
+                    enable: chan<bool> in,
+                    result: chan<u32> out
+                    ) {
+                (input, enable, result)
+              }
+
+              next(tok: token, state: u32) {
+                let (tok_input, input_val) = recv(tok, input);
+                let (tok_enable, enable_val) = recv(tok, enable);
+                let tok_recv = join(tok_input, tok_enable);
+
+                let result_val = if enable_val {
+                  input_val + u32:1
+                } else {
+                  input_val
+                }
+                let tok_send = send(tok_recv, result, result_val);
+                (result_val)
+              }
+            }"""),
+        sample.SampleOptions(
+            input_is_dslx=True,
+            convert_to_ir=True,
+            ir_converter_args=['--top=main'],
+            optimize_ir=False,
+            top_type=sample.TopType.proc,
+            calls_per_sample=0,
+            proc_ticks=42),
+        sample.parse_args_batch('bits[32]:0x10; bits[1]:1'),
+        ['sample__input', 'sample__enable'],
+        sample.parse_proc_init_values('bits[32]:42'))
+    self.assertMultiLineEqual(want.serialize(), got.serialize())
+    self.assertEqual(got, want)
 
 if __name__ == '__main__':
   absltest.main()

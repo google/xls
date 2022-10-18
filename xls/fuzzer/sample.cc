@@ -15,7 +15,10 @@
 #include "xls/fuzzer/sample.h"
 
 #include <optional>
+#include <string>
+#include <vector>
 
+#include "absl/strings/ascii.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "xls/dslx/interp_value_helpers.h"
@@ -35,7 +38,7 @@ static std::string ToArgString(const InterpValue& v) {
 // Converts a list of interpreter values to a string.
 static std::string InterpValueListToString(
     const std::vector<InterpValue>& interpv_list) {
-  return absl::StrJoin(interpv_list, ";",
+  return absl::StrJoin(interpv_list, "; ",
                        [](std::string* out, const InterpValue& v) {
                          absl::StrAppend(out, ToArgString(v));
                        });
@@ -50,9 +53,25 @@ std::string ArgsBatchToText(
       });
 }
 
+std::string IrChannelNamesToText(
+    const std::vector<std::string>& ir_channel_names) {
+  return absl::StrJoin(ir_channel_names, ", ");
+}
+
 std::string ProcInitValuesToText(
     const std::vector<InterpValue>& proc_init_values) {
   return InterpValueListToString(proc_init_values);
+}
+
+std::vector<std::string> ParseIrChannelNames(
+    std::string_view ir_channel_names_text) {
+  std::vector<std::string> ir_channel_names;
+  ir_channel_names =
+      absl::StrSplit(ir_channel_names_text, ',', absl::SkipWhitespace());
+  for (std::string& ir_channel_name : ir_channel_names) {
+    absl::StripAsciiWhitespace(&ir_channel_name);
+  }
+  return ir_channel_names;
 }
 
 /* static */ absl::StatusOr<SampleOptions> SampleOptions::FromJson(
@@ -206,6 +225,7 @@ bool Sample::ProcInitValuesEqual(const Sample& other) const {
 /* static */ absl::StatusOr<Sample> Sample::Deserialize(std::string_view s) {
   s = absl::StripAsciiWhitespace(s);
   std::optional<SampleOptions> options;
+  std::optional<std::vector<std::string>> ir_channel_names = std::nullopt;
   std::optional<std::vector<dslx::InterpValue>> proc_initial_values =
       std::nullopt;
   std::vector<std::vector<InterpValue>> args_batch;
@@ -213,6 +233,8 @@ bool Sample::ProcInitValuesEqual(const Sample& other) const {
   for (std::string_view line : absl::StrSplit(s, '\n')) {
     if (RE2::FullMatch(line, "\\s*//\\s*options:(.*)", &line)) {
       XLS_ASSIGN_OR_RETURN(options, SampleOptions::FromJson(line));
+    } else if (RE2::FullMatch(line, "\\s*//\\s*ir_channel_names:(.*)", &line)) {
+      ir_channel_names = ParseIrChannelNames(line);
     } else if (RE2::FullMatch(line, "\\s*//\\s*proc_initial_values:(.*)",
                               &line)) {
       XLS_ASSIGN_OR_RETURN(proc_initial_values, dslx::ParseArgs(line));
@@ -231,26 +253,27 @@ bool Sample::ProcInitValuesEqual(const Sample& other) const {
 
   std::string input_text = absl::StrJoin(input_lines, "\n");
   return Sample(std::move(input_text), *std::move(options),
-                std::move(args_batch), std::move(proc_initial_values));
+                std::move(args_batch), std::move(ir_channel_names),
+                std::move(proc_initial_values));
 }
 
 std::string Sample::Serialize() const {
   std::vector<std::string> lines;
   lines.push_back(absl::StrCat("// options: ", options_.ToJsonText()));
+  if (ir_channel_names_.has_value()) {
+    std::string ir_channel_names_str =
+        IrChannelNamesToText(ir_channel_names_.value());
+    lines.push_back(
+        absl::StrCat("// ir_channel_names: ", ir_channel_names_str));
+  }
   if (proc_initial_values_.has_value()) {
     std::string proc_initial_values_str =
-        absl::StrJoin(proc_initial_values_.value(), "; ",
-                      [](std::string* out, const InterpValue& v) {
-                        absl::StrAppend(out, ToArgString(v));
-                      });
+        ProcInitValuesToText(proc_initial_values_.value());
     lines.push_back(
         absl::StrCat("// proc_initial_values: ", proc_initial_values_str));
   }
   for (const std::vector<InterpValue>& args : args_batch_) {
-    std::string args_str =
-        absl::StrJoin(args, "; ", [](std::string* out, const InterpValue& v) {
-          absl::StrAppend(out, ToArgString(v));
-        });
+    std::string args_str = InterpValueListToString(args);
     lines.push_back(absl::StrCat("// args: ", args_str));
   }
   std::string header = absl::StrJoin(lines, "\n");

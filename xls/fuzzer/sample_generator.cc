@@ -15,10 +15,11 @@
 #include "xls/fuzzer/sample_generator.h"
 
 #include <memory>
+#include <string>
 #include <variant>
 
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/types/span.h"
 #include "xls/common/logging/logging.h"
@@ -247,6 +248,16 @@ GetMemberTypesOfProc(dslx::Proc* proc, const TypecheckedModule& tm) {
   return params;
 }
 
+// Returns the IR names of the proc channels.
+static std::vector<std::string> GetProcIRChannelNames(dslx::Proc* proc) {
+  std::vector<std::string> channel_names;
+  for (dslx::Param* member : proc->members()) {
+    channel_names.push_back(
+        absl::StrCat(proc->owner()->name(), "__", member->identifier()));
+  }
+  return channel_names;
+}
+
 // Returns the types of the parameters for a Proc's Next function.
 static absl::StatusOr<std::vector<std::unique_ptr<ConcreteType>>>
 GetProcInitValueTypes(dslx::Proc* proc, const TypecheckedModule& tm) {
@@ -302,6 +313,8 @@ absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
     channel_values_batch.push_back(std::move(channel_values));
   }
 
+  std::vector<std::string> ir_channel_names = GetProcIRChannelNames(proc);
+
   XLS_ASSIGN_OR_RETURN(
       std::vector<std::unique_ptr<ConcreteType>> proc_init_value_types,
       GetProcInitValueTypes(proc, tm));
@@ -312,7 +325,8 @@ absl::StatusOr<Sample> GenerateProcSample(dslx::Proc* proc,
                        GenerateArguments(proc_init_value, rng));
 
   return Sample(std::move(dslx_text), std::move(sample_options),
-                std::move(channel_values_batch), std::move(proc_init_values));
+                std::move(channel_values_batch), std::move(ir_channel_names),
+                std::move(proc_init_values));
 }
 
 absl::StatusOr<Sample> GenerateSample(

@@ -513,14 +513,12 @@ class SampleRunnerTest(test_base.TestCase):
                 ir_converter_args=['--top=main'],
                 top_type=sample.TopType.proc,
             ),
-            [  # args_batch
-                [
-                    interp_value_from_ir_string('bits[32]:42'),
-                    interp_value_from_ir_string('bits[32]:100'),
-                ]
-            ],
-            [  # proc_initial_values
-            ]))
+            args_batch=[[
+                interp_value_from_ir_string('bits[32]:42'),
+                interp_value_from_ir_string('bits[32]:100'),
+            ]],
+            ir_channel_names=['sample__operand_0', 'sample__operand_1'],
+            proc_initial_values=[]))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(),
         '((), (bits[32]:0x8e))')
@@ -536,11 +534,10 @@ class SampleRunnerTest(test_base.TestCase):
                 ir_converter_args=['--top=main'],
                 top_type=sample.TopType.proc,
             ),
-            [  # args_batch
-                [interp_value_from_ir_string('bits[1]:1')],
-                [interp_value_from_ir_string('bits[1]:0')]
-            ],
-            [  # proc_initial_values
+            args_batch=[[interp_value_from_ir_string('bits[1]:1')],
+                        [interp_value_from_ir_string('bits[1]:0')]],
+            ir_channel_names=['sample__enable_counter'],
+            proc_initial_values=[
                 interp_value_from_ir_string('bits[32]:42'),
             ]))
     self.assertEqual(
