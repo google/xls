@@ -1008,6 +1008,10 @@ static absl::StatusOr<RegisterRead*> AddRegisterAfterNode(
 
   Type* node_type = node->GetType();
 
+  if (!reset_info.behavior.has_value()) {
+    return absl::InvalidArgumentError(
+        "Reset signal required but not specified.");
+  }
   xls::Reset reset_behavior = reset_info.behavior.value();
   reset_behavior.reset_value = ZeroOfType(node_type);
   Node* reset_node = reset_info.input_port.value();
