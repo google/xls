@@ -1,0 +1,9 @@
+module invert_with_assert(
+  input wire x,
+  output wire out
+);
+  always_comb begin
+    '`MY_ASSERT(x, "assert message")';
+  end
+  assign out = ~x;
+endmodule

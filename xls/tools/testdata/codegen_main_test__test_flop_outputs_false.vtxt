@@ -1,0 +1,21 @@
+module not_add(
+  input wire clk,
+  input wire [31:0] x,
+  input wire [31:0] y,
+  output wire [31:0] out
+);
+  // ===== Pipe stage 0:
+
+  // Registers for pipe stage 0:
+  reg [31:0] p0_x;
+  reg [31:0] p0_y;
+  always_ff @ (posedge clk) begin
+    p0_x <= x;
+    p0_y <= y;
+  end
+
+  // ===== Pipe stage 1:
+  wire [31:0] p1_add_11_comb;
+  assign p1_add_11_comb = p0_x + p0_y;
+  assign out = ~p1_add_11_comb;
+endmodule

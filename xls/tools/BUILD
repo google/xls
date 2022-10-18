@@ -973,7 +973,7 @@ py_test(
     data = [
         ":codegen_main",
         "//xls/examples:sha256.opt.ir",
-    ],
+    ] + glob(["testdata/*.vtxt"]),
     python_version = "PY3",
     shard_count = 50,
     srcs_version = "PY3",
@@ -981,6 +981,7 @@ py_test(
     deps = [
         "@com_google_absl_py//absl/testing:absltest",
         "@com_google_absl_py//absl/testing:parameterized",
+        "@com_google_absl_py//absl/flags",
         "//xls/codegen:module_signature_py_pb2",
         "//xls/common:runfiles",
         "//xls/common:test_base",

@@ -1,0 +1,73 @@
+module neg_proc(
+  input wire clk,
+  input wire rst,
+  input wire [31:0] in,
+  input wire in_vld,
+  input wire out_rdy,
+  output wire [31:0] out,
+  output wire out_vld,
+  output wire in_rdy
+);
+  reg [31:0] __in_reg;
+  reg __in_valid_reg;
+  reg [31:0] __out_reg;
+  reg [31:0] __out_skid_reg;
+  reg __out_valid_reg;
+  reg __out_valid_skid_reg;
+  wire out_from_skid_rdy;
+  wire literal_23;
+  wire and_20;
+  wire __out_vld_buf;
+  wire pipeline_enable;
+  wire in_valid_inv;
+  wire out_data_valid_load_en;
+  wire out_to_is_not_rdy;
+  wire in_valid_load_en;
+  wire out_data_is_sent_to;
+  wire out_skid_data_load_en;
+  wire out_skid_valid_set_zero;
+  wire [31:0] out_select;
+  wire out_valid_or;
+  wire in_load_en;
+  wire [31:0] negate;
+  wire out_data_valid_load_en__1;
+  wire out_skid_valid_load_en;
+  assign out_from_skid_rdy = ~__out_valid_skid_reg;
+  assign literal_23 = 1'h1;
+  assign and_20 = __in_valid_reg;
+  assign __out_vld_buf = and_20 & literal_23 & 1'h1;
+  assign pipeline_enable = literal_23 & and_20 & out_from_skid_rdy & (literal_23 & and_20 & out_from_skid_rdy);
+  assign in_valid_inv = ~__in_valid_reg;
+  assign out_data_valid_load_en = __out_vld_buf & out_from_skid_rdy;
+  assign out_to_is_not_rdy = ~out_rdy;
+  assign in_valid_load_en = pipeline_enable | in_valid_inv;
+  assign out_data_is_sent_to = __out_valid_reg & out_rdy & out_from_skid_rdy;
+  assign out_skid_data_load_en = __out_valid_reg & out_data_valid_load_en & out_to_is_not_rdy;
+  assign out_skid_valid_set_zero = __out_valid_skid_reg & out_rdy;
+  assign out_select = __out_valid_skid_reg ? __out_skid_reg : __out_reg;
+  assign out_valid_or = __out_valid_reg | __out_valid_skid_reg;
+  assign in_load_en = in_vld & in_valid_load_en;
+  assign negate = -__in_reg;
+  assign out_data_valid_load_en__1 = out_data_is_sent_to | out_data_valid_load_en;
+  assign out_skid_valid_load_en = out_skid_data_load_en | out_skid_valid_set_zero;
+  always_ff @ (posedge clk) begin
+    if (rst) begin
+      __in_reg <= 32'h0000_0000;
+      __in_valid_reg <= 1'h0;
+      __out_reg <= 32'h0000_0000;
+      __out_skid_reg <= 32'h0000_0000;
+      __out_valid_reg <= 1'h0;
+      __out_valid_skid_reg <= 1'h0;
+    end else begin
+      __in_reg <= in_load_en ? in : __in_reg;
+      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
+      __out_reg <= out_data_valid_load_en ? negate : __out_reg;
+      __out_skid_reg <= out_skid_data_load_en ? __out_reg : __out_skid_reg;
+      __out_valid_reg <= out_data_valid_load_en__1 ? __out_vld_buf : __out_valid_reg;
+      __out_valid_skid_reg <= out_skid_valid_load_en ? out_from_skid_rdy : __out_valid_skid_reg;
+    end
+  end
+  assign out = out_select;
+  assign out_vld = out_valid_or;
+  assign in_rdy = in_load_en;
+endmodule

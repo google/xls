@@ -15,8 +15,11 @@
 
 """Tests for xls.tools.codegen_main."""
 
+import inspect
+import os
 import subprocess
 
+from absl import flags
 from google.protobuf import text_format
 from absl.testing import absltest
 from absl.testing import parameterized
@@ -24,6 +27,13 @@ from xls.codegen import module_signature_pb2
 from xls.common import runfiles
 from xls.common import test_base
 
+_UPDATE_GOLDEN = flags.DEFINE_bool(
+    'test_update_golden_files', False,
+    'whether to update golden reference files')
+_XLS_SOURCE_DIR = flags.DEFINE_string(
+    'xls_source_dir', '',
+    'base path to use to update golden files, note this will cause writes '
+    'within the given directory')
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SHA256_IR_PATH = runfiles.get_path('xls/examples/sha256.opt.ir')
 
@@ -71,6 +81,26 @@ fn gate_example(x: bits[32], y: bits[1]) -> bits[32] {
 
 class CodeGenMainTest(parameterized.TestCase):
 
+  def _compare_to_golden(self, got: str) -> None:
+    """Compares the obtained verilog to a golden reference file.
+
+    Writes to file if the --update_golden flag was given.
+
+    Args:
+      got: Verilog obtained from XLS to compare against the golden reference.
+    """
+    caller: str = inspect.stack()[1].function
+    path: str = f'xls/tools/testdata/codegen_main_test__{caller}.vtxt'
+    if _UPDATE_GOLDEN.value:
+      dirpath, xls = os.path.split(_XLS_SOURCE_DIR.value)
+      assert xls == 'xls', (_XLS_SOURCE_DIR.value, 'should end with /xls')
+      path_to_write: str = os.path.join(dirpath, path)
+      with open(path_to_write, 'w') as f:
+        f.write(got)
+    else:
+      want: str = runfiles.get_contents_as_text(path)
+      self.assertMultiLineEqual(got, want)
+
   def test_combinational(self):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
 
@@ -99,7 +129,7 @@ class CodeGenMainTest(parameterized.TestCase):
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
         '--top=not_add', ir_file.full_path
     ]).decode('utf-8')
-    self.assertIn('module not_add(', verilog)
+    self._compare_to_golden(verilog)
 
   @parameterized.parameters(range(1, 6))
   def test_fixed_pipeline_length(self, pipeline_stages):
@@ -189,18 +219,7 @@ class CodeGenMainTest(parameterized.TestCase):
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
         '--top=not_add', '--separate_lines', ir_file.full_path
     ]).decode('utf-8')
-    self.assertEqual("""module not_add(
-  input wire [31:0] x,
-  input wire [31:0] y,
-  output wire [31:0] out
-);
-  wire [31:0] add_7;
-  wire [31:0] not_8;
-  assign add_7 = x + y;
-  assign not_8 = ~add_7;
-  assign out = not_8;
-endmodule
-""", verilog)
+    self._compare_to_golden(verilog)
 
   def test_proc_verilog_port_default_suffix(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
@@ -208,15 +227,7 @@ endmodule
         CODEGEN_MAIN_PATH, '--generator=combinational', '--alsologtostderr',
         '--top=neg_proc', ir_file.full_path
     ]).decode('utf-8')
-
-    self.assertIn('module neg_proc(', verilog)
-    self.assertIn('wire [31:0] in', verilog)
-    self.assertIn('wire in_vld', verilog)
-    self.assertIn('wire in_rdy', verilog)
-
-    self.assertIn('wire [31:0] out', verilog)
-    self.assertIn('wire out_vld', verilog)
-    self.assertIn('wire out_rdy', verilog)
+    self._compare_to_golden(verilog)
 
   def test_proc_verilog_port_nondefault_suffix(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
@@ -226,15 +237,7 @@ endmodule
         '--streaming_channel_ready_suffix=_r',
         '--streaming_channel_valid_suffix=_v', ir_file.full_path
     ]).decode('utf-8')
-
-    self.assertIn('module neg_proc(', verilog)
-    self.assertIn('wire [31:0] in_d', verilog)
-    self.assertIn('wire in_v', verilog)
-    self.assertIn('wire in_r', verilog)
-
-    self.assertIn('wire [31:0] out_d', verilog)
-    self.assertIn('wire out_v', verilog)
-    self.assertIn('wire out_r', verilog)
+    self._compare_to_golden(verilog)
 
   def test_assert_format(self):
     ir_file = self.create_tempfile(content=ASSERT_IR)
@@ -244,9 +247,7 @@ endmodule
         "--assert_format='`MY_ASSERT({condition}, \"{message}\")'",
         ir_file.full_path
     ]).decode('utf-8')
-
-    self.assertIn('module invert_with_assert', verilog)
-    self.assertIn('MY_ASSERT', verilog)
+    self._compare_to_golden(verilog)
 
   def test_gate_format(self):
     ir_file = self.create_tempfile(content=GATE_IR)
@@ -256,9 +257,7 @@ endmodule
         "--gate_format='assign {output} = `MY_GATE({input}, {condition})'",
         ir_file.full_path
     ]).decode('utf-8')
-
-    self.assertIn('module gate_example', verilog)
-    self.assertIn('MY_GATE', verilog)
+    self._compare_to_golden(verilog)
 
   def test_flop_inputs(self):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
@@ -267,37 +266,7 @@ endmodule
         '--delay_model=unit', '--alsologtostderr', '--top=not_add',
         '--flop_inputs', ir_file.full_path
     ]).decode('utf-8')
-    self.assertEqual(
-        """module not_add(
-  input wire clk,
-  input wire [31:0] x,
-  input wire [31:0] y,
-  output wire [31:0] out
-);
-  // ===== Pipe stage 0:
-
-  // Registers for pipe stage 0:
-  reg [31:0] p0_x;
-  reg [31:0] p0_y;
-  always_ff @ (posedge clk) begin
-    p0_x <= x;
-    p0_y <= y;
-  end
-
-  // ===== Pipe stage 1:
-  wire [31:0] p1_add_11_comb;
-  wire [31:0] p1_not_12_comb;
-  assign p1_add_11_comb = p0_x + p0_y;
-  assign p1_not_12_comb = ~p1_add_11_comb;
-
-  // Registers for pipe stage 1:
-  reg [31:0] p1_not_12;
-  always_ff @ (posedge clk) begin
-    p1_not_12 <= p1_not_12_comb;
-  end
-  assign out = p1_not_12;
-endmodule
-""", verilog)
+    self._compare_to_golden(verilog)
 
   def test_flop_outputs_false(self):
     ir_file = self.create_tempfile(content=NOT_ADD_IR)
@@ -306,29 +275,7 @@ endmodule
         '--delay_model=unit', '--alsologtostderr', '--top=not_add',
         '--flop_outputs=false', ir_file.full_path
     ]).decode('utf-8')
-    self.assertEqual(
-        """module not_add(
-  input wire clk,
-  input wire [31:0] x,
-  input wire [31:0] y,
-  output wire [31:0] out
-);
-  // ===== Pipe stage 0:
-
-  // Registers for pipe stage 0:
-  reg [31:0] p0_x;
-  reg [31:0] p0_y;
-  always_ff @ (posedge clk) begin
-    p0_x <= x;
-    p0_y <= y;
-  end
-
-  // ===== Pipe stage 1:
-  wire [31:0] p1_add_11_comb;
-  assign p1_add_11_comb = p0_x + p0_y;
-  assign out = ~p1_add_11_comb;
-endmodule
-""", verilog)
+    self._compare_to_golden(verilog)
 
   def test_add_idle_output_proc(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
@@ -337,64 +284,7 @@ endmodule
         '--reset=rst', '--delay_model=unit', '--alsologtostderr',
         '--top=neg_proc', '--add_idle_output', ir_file.full_path
     ]).decode('utf-8')
-    self.assertEqual(
-        """\
-module neg_proc(
-  input wire clk,
-  input wire rst,
-  input wire [31:0] in,
-  input wire in_vld,
-  input wire out_rdy,
-  output wire [31:0] out,
-  output wire out_vld,
-  output wire in_rdy,
-  output wire idle
-);
-  reg [31:0] __in_reg;
-  reg __in_valid_reg;
-  reg [31:0] __out_reg;
-  reg __out_valid_reg;
-  wire and_20;
-  wire literal_23;
-  wire out_valid_inv;
-  wire __out_vld_buf;
-  wire out_valid_load_en;
-  wire out_load_en;
-  wire pipeline_enable;
-  wire in_valid_inv;
-  wire in_valid_load_en;
-  wire in_load_en;
-  wire [31:0] negate;
-  assign and_20 = __in_valid_reg;
-  assign literal_23 = 1'h1;
-  assign out_valid_inv = ~__out_valid_reg;
-  assign __out_vld_buf = and_20 & literal_23 & 1'h1;
-  assign out_valid_load_en = out_rdy | out_valid_inv;
-  assign out_load_en = __out_vld_buf & out_valid_load_en;
-  assign pipeline_enable = literal_23 & and_20 & out_load_en & (literal_23 & and_20 & out_load_en);
-  assign in_valid_inv = ~__in_valid_reg;
-  assign in_valid_load_en = pipeline_enable | in_valid_inv;
-  assign in_load_en = in_vld & in_valid_load_en;
-  assign negate = -__in_reg;
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      __in_reg <= 32'h0000_0000;
-      __in_valid_reg <= 1'h0;
-      __out_reg <= 32'h0000_0000;
-      __out_valid_reg <= 1'h0;
-    end else begin
-      __in_reg <= in_load_en ? in : __in_reg;
-      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
-      __out_reg <= out_load_en ? negate : __out_reg;
-      __out_valid_reg <= out_valid_load_en ? __out_vld_buf : __out_valid_reg;
-    end
-  end
-  assign out = __out_reg;
-  assign out_vld = __out_valid_reg;
-  assign in_rdy = in_load_en;
-  assign idle = ~(__in_valid_reg | __out_valid_reg | in_vld | __out_valid_reg);
-endmodule
-""", verilog)
+    self._compare_to_golden(verilog)
 
   def test_flop_output_kind_skid(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
@@ -403,82 +293,7 @@ endmodule
         '--reset=rst', '--delay_model=unit', '--alsologtostderr',
         '--top=neg_proc', '--flop_outputs_kind=skid', ir_file.full_path
     ]).decode('utf-8')
-    self.assertEqual(
-        """\
-module neg_proc(
-  input wire clk,
-  input wire rst,
-  input wire [31:0] in,
-  input wire in_vld,
-  input wire out_rdy,
-  output wire [31:0] out,
-  output wire out_vld,
-  output wire in_rdy
-);
-  reg [31:0] __in_reg;
-  reg __in_valid_reg;
-  reg [31:0] __out_reg;
-  reg [31:0] __out_skid_reg;
-  reg __out_valid_reg;
-  reg __out_valid_skid_reg;
-  wire out_from_skid_rdy;
-  wire literal_23;
-  wire and_20;
-  wire __out_vld_buf;
-  wire pipeline_enable;
-  wire in_valid_inv;
-  wire out_data_valid_load_en;
-  wire out_to_is_not_rdy;
-  wire in_valid_load_en;
-  wire out_data_is_sent_to;
-  wire out_skid_data_load_en;
-  wire out_skid_valid_set_zero;
-  wire [31:0] out_select;
-  wire out_valid_or;
-  wire in_load_en;
-  wire [31:0] negate;
-  wire out_data_valid_load_en__1;
-  wire out_skid_valid_load_en;
-  assign out_from_skid_rdy = ~__out_valid_skid_reg;
-  assign literal_23 = 1'h1;
-  assign and_20 = __in_valid_reg;
-  assign __out_vld_buf = and_20 & literal_23 & 1'h1;
-  assign pipeline_enable = literal_23 & and_20 & out_from_skid_rdy & (literal_23 & and_20 & out_from_skid_rdy);
-  assign in_valid_inv = ~__in_valid_reg;
-  assign out_data_valid_load_en = __out_vld_buf & out_from_skid_rdy;
-  assign out_to_is_not_rdy = ~out_rdy;
-  assign in_valid_load_en = pipeline_enable | in_valid_inv;
-  assign out_data_is_sent_to = __out_valid_reg & out_rdy & out_from_skid_rdy;
-  assign out_skid_data_load_en = __out_valid_reg & out_data_valid_load_en & out_to_is_not_rdy;
-  assign out_skid_valid_set_zero = __out_valid_skid_reg & out_rdy;
-  assign out_select = __out_valid_skid_reg ? __out_skid_reg : __out_reg;
-  assign out_valid_or = __out_valid_reg | __out_valid_skid_reg;
-  assign in_load_en = in_vld & in_valid_load_en;
-  assign negate = -__in_reg;
-  assign out_data_valid_load_en__1 = out_data_is_sent_to | out_data_valid_load_en;
-  assign out_skid_valid_load_en = out_skid_data_load_en | out_skid_valid_set_zero;
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      __in_reg <= 32'h0000_0000;
-      __in_valid_reg <= 1'h0;
-      __out_reg <= 32'h0000_0000;
-      __out_skid_reg <= 32'h0000_0000;
-      __out_valid_reg <= 1'h0;
-      __out_valid_skid_reg <= 1'h0;
-    end else begin
-      __in_reg <= in_load_en ? in : __in_reg;
-      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
-      __out_reg <= out_data_valid_load_en ? negate : __out_reg;
-      __out_skid_reg <= out_skid_data_load_en ? __out_reg : __out_skid_reg;
-      __out_valid_reg <= out_data_valid_load_en__1 ? __out_vld_buf : __out_valid_reg;
-      __out_valid_skid_reg <= out_skid_valid_load_en ? out_from_skid_rdy : __out_valid_skid_reg;
-    end
-  end
-  assign out = out_select;
-  assign out_vld = out_valid_or;
-  assign in_rdy = in_load_en;
-endmodule
-""", verilog)
+    self._compare_to_golden(verilog)
 
   def test_flop_output_kind_zerolatency(self):
     ir_file = self.create_tempfile(content=NEG_PROC_IR)
@@ -487,70 +302,7 @@ endmodule
         '--reset=rst', '--delay_model=unit', '--alsologtostderr',
         '--top=neg_proc', '--flop_outputs_kind=zerolatency', ir_file.full_path
     ]).decode('utf-8')
-    self.assertEqual(
-        """\
-module neg_proc(
-  input wire clk,
-  input wire rst,
-  input wire [31:0] in,
-  input wire in_vld,
-  input wire out_rdy,
-  output wire [31:0] out,
-  output wire out_vld,
-  output wire in_rdy
-);
-  reg [31:0] __in_reg;
-  reg __in_valid_reg;
-  reg [31:0] __out_skid_reg;
-  reg __out_valid_skid_reg;
-  wire out_from_skid_rdy;
-  wire literal_23;
-  wire and_20;
-  wire pipeline_enable;
-  wire in_valid_inv;
-  wire __out_vld_buf;
-  wire out_to_is_not_rdy;
-  wire [31:0] negate;
-  wire in_valid_load_en;
-  wire out_skid_data_load_en;
-  wire out_skid_valid_set_zero;
-  wire [31:0] out_select;
-  wire out_valid_or;
-  wire in_load_en;
-  wire out_skid_valid_load_en;
-  assign out_from_skid_rdy = ~__out_valid_skid_reg;
-  assign literal_23 = 1'h1;
-  assign and_20 = __in_valid_reg;
-  assign pipeline_enable = literal_23 & and_20 & out_from_skid_rdy & (literal_23 & and_20 & out_from_skid_rdy);
-  assign in_valid_inv = ~__in_valid_reg;
-  assign __out_vld_buf = and_20 & literal_23 & 1'h1;
-  assign out_to_is_not_rdy = ~out_rdy;
-  assign negate = -__in_reg;
-  assign in_valid_load_en = pipeline_enable | in_valid_inv;
-  assign out_skid_data_load_en = __out_vld_buf & out_from_skid_rdy & out_to_is_not_rdy;
-  assign out_skid_valid_set_zero = __out_valid_skid_reg & out_rdy;
-  assign out_select = __out_valid_skid_reg ? __out_skid_reg : negate;
-  assign out_valid_or = __out_vld_buf | __out_valid_skid_reg;
-  assign in_load_en = in_vld & in_valid_load_en;
-  assign out_skid_valid_load_en = out_skid_data_load_en | out_skid_valid_set_zero;
-  always_ff @ (posedge clk) begin
-    if (rst) begin
-      __in_reg <= 32'h0000_0000;
-      __in_valid_reg <= 1'h0;
-      __out_skid_reg <= 32'h0000_0000;
-      __out_valid_skid_reg <= 1'h0;
-    end else begin
-      __in_reg <= in_load_en ? in : __in_reg;
-      __in_valid_reg <= in_valid_load_en ? in_vld : __in_valid_reg;
-      __out_skid_reg <= out_skid_data_load_en ? negate : __out_skid_reg;
-      __out_valid_skid_reg <= out_skid_valid_load_en ? out_from_skid_rdy : __out_valid_skid_reg;
-    end
-  end
-  assign out = out_select;
-  assign out_vld = out_valid_or;
-  assign in_rdy = in_load_en;
-endmodule
-""", verilog)
+    self._compare_to_golden(verilog)
 
 
 if __name__ == '__main__':
