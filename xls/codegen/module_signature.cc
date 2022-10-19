@@ -14,6 +14,8 @@
 
 #include "xls/codegen/module_signature.h"
 
+#include <memory>
+
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
@@ -95,29 +97,36 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithPipelineInterface(
   return *this;
 }
 
-ModuleSignatureBuilder& ModuleSignatureBuilder::WithFunctionType(
-    FunctionType* function_type) {
-  XLS_CHECK(!proto_.has_function_type());
-  *proto_.mutable_function_type() = function_type->ToProto();
-  return *this;
-}
-
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInput(
-    std::string_view name, int64_t width) {
+    std::string_view name, Type* type) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(DIRECTION_INPUT);
   port->set_name(ToProtoString(name));
-  port->set_width(width);
+  port->set_width(type->GetFlatBitCount());
+  *port->mutable_type() = type->ToProto();
   return *this;
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutput(
-    std::string_view name, int64_t width) {
+    std::string_view name, Type* type) {
   PortProto* port = proto_.add_data_ports();
   port->set_direction(DIRECTION_OUTPUT);
   port->set_name(ToProtoString(name));
-  port->set_width(width);
+  port->set_width(type->GetFlatBitCount());
+  *port->mutable_type() = type->ToProto();
   return *this;
+}
+
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataInputAsBits(
+    std::string_view name, int64_t width) {
+  BitsType bits_type(width);
+  return AddDataInput(name, &bits_type);
+}
+
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddDataOutputAsBits(
+    std::string_view name, int64_t width) {
+  BitsType bits_type(width);
+  return AddDataOutput(name, &bits_type);
 }
 
 ModuleSignatureBuilder& ModuleSignatureBuilder::AddSingleValueChannel(
@@ -305,20 +314,12 @@ static absl::StatusOr<bool> TypeProtosEqual(const TypeProto& a,
 
 absl::Status ModuleSignature::ValidateInputs(
     const absl::flat_hash_map<std::string, Value>& input_values) const {
-  if (!proto().has_function_type()) {
-    return absl::InvalidArgumentError(
-        "Cannot validate Value inputs because signature has no function_type "
-        "field");
-  }
   XLS_ASSIGN_OR_RETURN(
       std::vector<const Value*> ordered_inputs,
       CheckAndReturnOrderedInputs(data_inputs(), input_values));
-  XLS_RET_CHECK_EQ(data_inputs().size(),
-                   proto().function_type().parameters_size());
   for (int64_t i = 0; i < ordered_inputs.size(); ++i) {
     const Value* input = ordered_inputs[i];
-    const TypeProto& expected_type_proto =
-        proto().function_type().parameters(i);
+    const TypeProto& expected_type_proto = data_inputs()[i].type();
     XLS_ASSIGN_OR_RETURN(TypeProto value_type_proto, input->TypeAsProto());
     XLS_ASSIGN_OR_RETURN(bool types_equal, TypeProtosEqual(expected_type_proto,
                                                            value_type_proto));

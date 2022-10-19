@@ -169,16 +169,11 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
   // Generate expected signature.
   // Set function type.
   ModuleSignatureBuilder oracle_builder("counted_for_10_sequential_module");
-  oracle_builder.AddDataInput("literal_1_in", 32);
-  oracle_builder.AddDataOutput("counted_for_10_out", 32);
+  oracle_builder.AddDataInputAsBits("literal_1_in", 32);
+  oracle_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
-  auto bit_type = [&package](int64_t num_bits) {
-    return package->GetBitsType(num_bits);
-  };
-  FunctionType func({bit_type(32)}, bit_type(32));
-  oracle_builder.WithFunctionType(&func);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
   EXPECT_EQ(signature->proto().DebugString(), expected.proto().DebugString());
@@ -224,16 +219,11 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 
   // Generate expected signature.
   ModuleSignatureBuilder oracle_builder("foobar");
-  oracle_builder.AddDataInput("literal_1_in", 32);
-  oracle_builder.AddDataOutput("counted_for_10_out", 32);
+  oracle_builder.AddDataInputAsBits("literal_1_in", 32);
+  oracle_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
-  auto bit_type = [&package](int64_t num_bits) {
-    return package->GetBitsType(num_bits);
-  };
-  FunctionType func({bit_type(32)}, bit_type(32));
-  oracle_builder.WithFunctionType(&func);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
   EXPECT_EQ(signature->proto().DebugString(), expected.proto().DebugString());
@@ -280,18 +270,13 @@ top fn __ModuleSignatureTestInvariants__main() -> bits[32] {
 
   // Generate expected signature.
   ModuleSignatureBuilder oracle_builder("counted_for_13_sequential_module");
-  oracle_builder.AddDataInput("literal_4_in", 32);
-  oracle_builder.AddDataInput("literal_1_in", 32);
-  oracle_builder.AddDataInput("literal_2_in", 32);
-  oracle_builder.AddDataOutput("counted_for_13_out", 32);
+  oracle_builder.AddDataInputAsBits("literal_4_in", 32);
+  oracle_builder.AddDataInputAsBits("literal_1_in", 32);
+  oracle_builder.AddDataInputAsBits("literal_2_in", 32);
+  oracle_builder.AddDataOutputAsBits("counted_for_13_out", 32);
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
-  auto bit_type = [&package](int64_t num_bits) {
-    return package->GetBitsType(num_bits);
-  };
-  FunctionType func({bit_type(32), bit_type(32), bit_type(32)}, bit_type(32));
-  oracle_builder.WithFunctionType(&func);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
   EXPECT_EQ(signature->proto().DebugString(), expected.proto().DebugString());
@@ -341,18 +326,13 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 
   // Generate expected signature.
   ModuleSignatureBuilder oracle_builder("counted_for_10_sequential_module");
-  oracle_builder.AddDataInput("literal_1_in", 32);
-  oracle_builder.AddDataOutput("counted_for_10_out", 32);
+  oracle_builder.AddDataInputAsBits("literal_1_in", 32);
+  oracle_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
   oracle_builder.WithReset(reset.name(), reset.asynchronous(),
                            reset.active_low());
-  auto bit_type = [&package](int64_t num_bits) {
-    return package->GetBitsType(num_bits);
-  };
-  FunctionType func({bit_type(32)}, bit_type(32));
-  oracle_builder.WithFunctionType(&func);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
   EXPECT_EQ(signature->proto().DebugString(), expected.proto().DebugString());
@@ -402,18 +382,13 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 
   // Generate expected signature.
   ModuleSignatureBuilder oracle_builder("counted_for_10_sequential_module");
-  oracle_builder.AddDataInput("literal_1_in", 32);
-  oracle_builder.AddDataOutput("counted_for_10_out", 32);
+  oracle_builder.AddDataInputAsBits("literal_1_in", 32);
+  oracle_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   oracle_builder.WithClock("clk");
   oracle_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                          "valid_out");
   oracle_builder.WithReset(reset.name(), reset.asynchronous(),
                            reset.active_low());
-  auto bit_type = [&package](int64_t num_bits) {
-    return package->GetBitsType(num_bits);
-  };
-  FunctionType func({bit_type(32)}, bit_type(32));
-  oracle_builder.WithFunctionType(&func);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature expected, oracle_builder.Build());
 
   EXPECT_EQ(signature->proto().DebugString(), expected.proto().DebugString());
@@ -422,8 +397,8 @@ top fn __LoopBodyPipelineTest__main() -> bits[32] {
 TEST_P(SequentialGeneratorTest, ModuleHeaderTestSimple) {
   // Generate signature.
   ModuleSignatureBuilder signature_builder("counted_for_10_sequential_module");
-  signature_builder.AddDataInput("literal_1_in", 32);
-  signature_builder.AddDataOutput("counted_for_10_out", 32);
+  signature_builder.AddDataInputAsBits("literal_1_in", 32);
+  signature_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -490,8 +465,8 @@ TEST_P(SequentialGeneratorTest, ModuleHeaderTestSimple) {
 TEST_P(SequentialGeneratorTest, ModuleHeaderTestCustomModuleName) {
   // Generate signature.
   ModuleSignatureBuilder signature_builder("foobar");
-  signature_builder.AddDataInput("literal_1_in", 32);
-  signature_builder.AddDataOutput("counted_for_10_out", 32);
+  signature_builder.AddDataInputAsBits("literal_1_in", 32);
+  signature_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -558,8 +533,8 @@ TEST_P(SequentialGeneratorTest, ModuleHeaderTestCustomModuleName) {
 TEST_P(SequentialGeneratorTest, ModuleHeaderTestReset) {
   // Generate signature.
   ModuleSignatureBuilder signature_builder("counted_for_10_sequential_module");
-  signature_builder.AddDataInput("literal_1_in", 32);
-  signature_builder.AddDataOutput("counted_for_10_out", 32);
+  signature_builder.AddDataInputAsBits("literal_1_in", 32);
+  signature_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -631,10 +606,10 @@ TEST_P(SequentialGeneratorTest, ModuleHeaderTestReset) {
 TEST_P(SequentialGeneratorTest, ModuleHeaderTestInvariants) {
   // Generate signature.
   ModuleSignatureBuilder signature_builder("counted_for_10_sequential_module");
-  signature_builder.AddDataInput("literal_4_in", 32);
-  signature_builder.AddDataInput("literal_1_in", 16);
-  signature_builder.AddDataInput("literal_2_in", 8);
-  signature_builder.AddDataOutput("counted_for_10_out", 32);
+  signature_builder.AddDataInputAsBits("literal_4_in", 32);
+  signature_builder.AddDataInputAsBits("literal_1_in", 16);
+  signature_builder.AddDataInputAsBits("literal_2_in", 8);
+  signature_builder.AddDataOutputAsBits("counted_for_10_out", 32);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -767,10 +742,10 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterSimple) {
   // Make counter signature.
   constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
-  signature_builder.AddDataInput("set_zero", 1);
-  signature_builder.AddDataInput("increment", 1);
-  signature_builder.AddDataOutput("value", num_counter_bits);
-  signature_builder.AddDataOutput("holds_max_inclusive_value", 1);
+  signature_builder.AddDataInputAsBits("set_zero", 1);
+  signature_builder.AddDataInputAsBits("increment", 1);
+  signature_builder.AddDataOutputAsBits("value", num_counter_bits);
+  signature_builder.AddDataOutputAsBits("holds_max_inclusive_value", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -807,10 +782,10 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterIntermittentIncrement) {
   // Make counter signature.
   constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
-  signature_builder.AddDataInput("set_zero", 1);
-  signature_builder.AddDataInput("increment", 1);
-  signature_builder.AddDataOutput("value", num_counter_bits);
-  signature_builder.AddDataOutput("holds_max_inclusive_value", 1);
+  signature_builder.AddDataInputAsBits("set_zero", 1);
+  signature_builder.AddDataInputAsBits("increment", 1);
+  signature_builder.AddDataOutputAsBits("value", num_counter_bits);
+  signature_builder.AddDataOutputAsBits("holds_max_inclusive_value", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -850,10 +825,10 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterNonOneStride) {
   // Make counter signature.
   constexpr int64_t num_counter_bits = 3;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
-  signature_builder.AddDataInput("set_zero", 1);
-  signature_builder.AddDataInput("increment", 1);
-  signature_builder.AddDataOutput("value", num_counter_bits);
-  signature_builder.AddDataOutput("holds_max_inclusive_value", 1);
+  signature_builder.AddDataInputAsBits("set_zero", 1);
+  signature_builder.AddDataInputAsBits("increment", 1);
+  signature_builder.AddDataOutputAsBits("value", num_counter_bits);
+  signature_builder.AddDataOutputAsBits("holds_max_inclusive_value", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -890,10 +865,10 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterStrideMultipleLimit) {
   // Make counter signature.
   constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
-  signature_builder.AddDataInput("set_zero", 1);
-  signature_builder.AddDataInput("increment", 1);
-  signature_builder.AddDataOutput("value", num_counter_bits);
-  signature_builder.AddDataOutput("holds_max_inclusive_value", 1);
+  signature_builder.AddDataInputAsBits("set_zero", 1);
+  signature_builder.AddDataInputAsBits("increment", 1);
+  signature_builder.AddDataOutputAsBits("value", num_counter_bits);
+  signature_builder.AddDataOutputAsBits("holds_max_inclusive_value", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -930,10 +905,10 @@ TEST_P(SequentialGeneratorTest,
   // Make counter signature.
   constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
-  signature_builder.AddDataInput("set_zero", 1);
-  signature_builder.AddDataInput("increment", 1);
-  signature_builder.AddDataOutput("value", num_counter_bits);
-  signature_builder.AddDataOutput("holds_max_inclusive_value", 1);
+  signature_builder.AddDataInputAsBits("set_zero", 1);
+  signature_builder.AddDataInputAsBits("increment", 1);
+  signature_builder.AddDataOutputAsBits("value", num_counter_bits);
+  signature_builder.AddDataOutputAsBits("holds_max_inclusive_value", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -969,10 +944,10 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterClearValue) {
   // Make counter signature.
   constexpr int64_t num_counter_bits = 2;
   ModuleSignatureBuilder signature_builder("static_strided_counter_signature");
-  signature_builder.AddDataInput("set_zero", 1);
-  signature_builder.AddDataInput("increment", 1);
-  signature_builder.AddDataOutput("value", num_counter_bits);
-  signature_builder.AddDataOutput("holds_max_inclusive_value", 1);
+  signature_builder.AddDataInputAsBits("set_zero", 1);
+  signature_builder.AddDataInputAsBits("increment", 1);
+  signature_builder.AddDataOutputAsBits("value", num_counter_bits);
+  signature_builder.AddDataOutputAsBits("holds_max_inclusive_value", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -1009,8 +984,9 @@ TEST_P(SequentialGeneratorTest, StaticStridedCounterClearValue) {
 TEST_P(SequentialGeneratorTest, FsmSimple) {
   // Make counter signature.
   ModuleSignatureBuilder signature_builder("fsm_signature");
-  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
-  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.AddDataInputAsBits("index_holds_max_inclusive_value_port",
+                                       1);
+  signature_builder.AddDataOutputAsBits("last_pipeline_cycle_port", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -1153,8 +1129,9 @@ TEST_P(SequentialGeneratorTest, FsmSimple) {
 TEST_P(SequentialGeneratorTest, FsmActiveLowReset) {
   // Make counter signature.
   ModuleSignatureBuilder signature_builder("fsm_signature");
-  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
-  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.AddDataInputAsBits("index_holds_max_inclusive_value_port",
+                                       1);
+  signature_builder.AddDataOutputAsBits("last_pipeline_cycle_port", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -1297,8 +1274,9 @@ TEST_P(SequentialGeneratorTest, FsmActiveLowReset) {
 TEST_P(SequentialGeneratorTest, FsmIgnoreMaxValueUnlessRunning) {
   // Make counter signature.
   ModuleSignatureBuilder signature_builder("fsm_signature");
-  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
-  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.AddDataInputAsBits("index_holds_max_inclusive_value_port",
+                                       1);
+  signature_builder.AddDataOutputAsBits("last_pipeline_cycle_port", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -1419,8 +1397,9 @@ TEST_P(SequentialGeneratorTest, FsmIgnoreMaxValueUnlessRunning) {
 TEST_P(SequentialGeneratorTest, FsmIgnoreValidInUnlessReady) {
   // Make counter signature.
   ModuleSignatureBuilder signature_builder("fsm_signature");
-  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
-  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.AddDataInputAsBits("index_holds_max_inclusive_value_port",
+                                       1);
+  signature_builder.AddDataOutputAsBits("last_pipeline_cycle_port", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");
@@ -1559,8 +1538,9 @@ TEST_P(SequentialGeneratorTest, FsmIgnoreValidInUnlessReady) {
 TEST_P(SequentialGeneratorTest, FsmNoReset) {
   // Make counter signature.
   ModuleSignatureBuilder signature_builder("fsm_signature");
-  signature_builder.AddDataInput("index_holds_max_inclusive_value_port", 1);
-  signature_builder.AddDataOutput("last_pipeline_cycle_port", 1);
+  signature_builder.AddDataInputAsBits("index_holds_max_inclusive_value_port",
+                                       1);
+  signature_builder.AddDataOutputAsBits("last_pipeline_cycle_port", 1);
   signature_builder.WithClock("clk");
   signature_builder.WithReadyValidInterface("ready_in", "valid_in", "ready_out",
                                             "valid_out");

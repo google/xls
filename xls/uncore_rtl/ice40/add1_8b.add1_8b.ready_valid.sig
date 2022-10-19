@@ -3,11 +3,19 @@ data_ports {
   direction: DIRECTION_INPUT
   name: "x"
   width: 8
+  type {
+    type_enum: BITS
+    bit_count: 8
+  }
 }
 data_ports {
   direction: DIRECTION_OUTPUT
   name: "out"
   width: 8
+  type {
+    type_enum: BITS
+    bit_count: 8
+  }
 }
 clock_name: "clk"
 ready_valid {
@@ -15,14 +23,4 @@ ready_valid {
   input_valid: "input_valid"
   output_ready: "out_ready"
   output_valid: "out_valid"
-}
-function_type {
-  parameters {
-    type_enum: BITS
-    bit_count: 8
-  }
-  return_type {
-    type_enum: BITS
-    bit_count: 8
-  }
 }

@@ -64,8 +64,8 @@ endmodule
 
     ModuleSignatureBuilder b("fixed_latency_3");
     b.WithClock("clk").WithFixedLatencyInterface(3);
-    b.AddDataInput("x", 8);
-    b.AddDataOutput("out", 8);
+    b.AddDataInputAsBits("x", 8);
+    b.AddDataOutputAsBits("out", 8);
     XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
     return std::make_pair(text, signature);
   }
@@ -90,9 +90,9 @@ endmodule
 
     ModuleSignatureBuilder b("comb_diff");
     b.WithCombinationalInterface();
-    b.AddDataInput("x", 8);
-    b.AddDataInput("y", 8);
-    b.AddDataOutput("out", 8);
+    b.AddDataInputAsBits("x", 8);
+    b.AddDataInputAsBits("y", 8);
+    b.AddDataOutputAsBits("out", 8);
     XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
     return std::make_pair(text, signature);
   }
@@ -117,9 +117,9 @@ endmodule
 
     ModuleSignatureBuilder b("comb_diff");
     b.WithCombinationalInterface();
-    b.AddDataInput("x", 8);
-    b.AddDataInput("y", 8);
-    b.AddDataOutput("out", 8);
+    b.AddDataInputAsBits("x", 8);
+    b.AddDataInputAsBits("y", 8);
+    b.AddDataOutputAsBits("out", 8);
     XLS_ASSIGN_OR_RETURN(ModuleSignature signature, b.Build());
     return std::make_pair(text, signature);
   }
@@ -191,9 +191,9 @@ endmodule
 
   ModuleSignatureBuilder b("delay_3");
   b.WithClock("the_clk").WithFixedLatencyInterface(3);
-  b.AddDataInput("x", 8);
-  b.AddDataOutput("out1", 8);
-  b.AddDataOutput("out2", 8);
+  b.AddDataInputAsBits("x", 8);
+  b.AddDataOutputAsBits("out1", 8);
+  b.AddDataOutputAsBits("out2", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   ModuleSimulator simulator = NewModuleSimulator(text, signature);
@@ -225,9 +225,9 @@ endmodule
 
   ModuleSignatureBuilder b("delay_3");
   b.WithClock("the_clk").WithFixedLatencyInterface(3);
-  b.AddDataInput("x", 8);
-  b.AddDataInput("y", 8);
-  b.AddDataOutput("out", 8);
+  b.AddDataInputAsBits("x", 8);
+  b.AddDataInputAsBits("y", 8);
+  b.AddDataOutputAsBits("out", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
   ModuleSimulator simulator = NewModuleSimulator(text, signature);

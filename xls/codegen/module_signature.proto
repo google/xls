@@ -53,6 +53,7 @@ message PortProto {
   // correspondence between ports in the signature and parameters in the XLS
   // function.
   optional int64 width = 3;
+  optional TypeProto type = 4;
 }
 
 message ChannelProto {
@@ -166,11 +167,6 @@ message ModuleSignatureProto {
     CombinationalInterface combinational = 8;
     UnknownInterface unknown = 10;
   }
-
-  // The XLS function type that it generated a module for.
-  // TODO(meheff): 2021/04/23 Consider removing this field and adding types to
-  // the inputs/outputs.
-  optional FunctionTypeProto function_type = 9;
 
   // Metrics collected during codegen
   // TODO(tedhong): 2022/01/28 Consider factoring out this into a separate

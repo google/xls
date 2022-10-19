@@ -46,8 +46,8 @@ TEST_P(WrapIOTest, Ice40WrapIOIdentity32b) {
   wrapped_m->Add<ContinuousAssignment>(SourceInfo(), m_output, m_input);
 
   ModuleSignatureBuilder b(kWrappedModuleName);
-  b.AddDataInput(m_input->GetName(), 32);
-  b.AddDataOutput(m_output->GetName(), 32);
+  b.AddDataInputAsBits(m_input->GetName(), 32);
+  b.AddDataOutputAsBits(m_output->GetName(), 32);
   b.WithFixedLatencyInterface(1);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -77,8 +77,8 @@ TEST_P(WrapIOTest, WrapIOIncrement8b) {
       file.Add(m_input, file.PlainLiteral(1, SourceInfo()), SourceInfo()));
 
   ModuleSignatureBuilder b(kWrappedModuleName);
-  b.AddDataInput(m_input->GetName(), 8);
-  b.AddDataOutput(m_output->GetName(), 8);
+  b.AddDataInputAsBits(m_input->GetName(), 8);
+  b.AddDataOutputAsBits(m_output->GetName(), 8);
   b.WithFixedLatencyInterface(1);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -112,8 +112,8 @@ TEST_P(WrapIOTest, WrapIONot16b) {
                                        file.BitwiseNot(m_input, SourceInfo()));
 
   ModuleSignatureBuilder b(kWrappedModuleName);
-  b.AddDataInput(m_input->GetName(), 16);
-  b.AddDataOutput(m_output->GetName(), 16);
+  b.AddDataInputAsBits(m_input->GetName(), 16);
+  b.AddDataOutputAsBits(m_output->GetName(), 16);
   b.WithFixedLatencyInterface(1);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -312,9 +312,9 @@ TEST_P(WrapIOTest, InputControllerForSimpleComputation) {
   ModuleSignatureBuilder mb("x_plus_y");
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
-  mb.AddDataInput("x", 8);
-  mb.AddDataInput("y", 8);
-  mb.AddDataOutput("sum", 8);
+  mb.AddDataInputAsBits("x", 8);
+  mb.AddDataInputAsBits("y", 8);
+  mb.AddDataOutputAsBits("sum", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
   VerilogFile file = NewVerilogFile();
@@ -340,9 +340,9 @@ TEST_P(WrapIOTest, InputControllerResetControlCode) {
   ModuleSignatureBuilder mb("x_plus_y");
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
-  mb.AddDataInput("x", 8);
-  mb.AddDataInput("y", 8);
-  mb.AddDataOutput("sum", 8);
+  mb.AddDataInputAsBits("x", 8);
+  mb.AddDataInputAsBits("y", 8);
+  mb.AddDataOutputAsBits("sum", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
   VerilogFile file = NewVerilogFile();
@@ -376,8 +376,8 @@ TEST_P(WrapIOTest, InputControllerEscapedCharacters) {
   ModuleSignatureBuilder mb("x_plus_y");
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
-  mb.AddDataInput("x", 16);
-  mb.AddDataOutput("sum", 8);
+  mb.AddDataInputAsBits("x", 16);
+  mb.AddDataOutputAsBits("sum", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
   VerilogFile file = NewVerilogFile();
@@ -413,8 +413,8 @@ TEST_P(WrapIOTest, InputControllerWideInput) {
   ModuleSignatureBuilder mb("wide_x");
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
-  mb.AddDataInput("x", 64);
-  mb.AddDataOutput("out", 8);
+  mb.AddDataInputAsBits("x", 64);
+  mb.AddDataOutputAsBits("out", 8);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
   VerilogFile file = NewVerilogFile();
@@ -454,8 +454,8 @@ TEST_P(WrapIOTest, OutputControllerForSimpleComputation) {
   ModuleSignatureBuilder mb(TestBaseName());
   mb.WithClock("clk");
   mb.WithFixedLatencyInterface(42);
-  mb.AddDataInput("in", 8);
-  mb.AddDataOutput("out", 32);
+  mb.AddDataInputAsBits("in", 8);
+  mb.AddDataOutputAsBits("out", 32);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, mb.Build());
 
   VerilogFile file = NewVerilogFile();

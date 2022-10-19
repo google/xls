@@ -34,7 +34,9 @@ std::string TestName() {
 TEST(ModuleSignatureTest, SimpledFixedLatencyInterface) {
   ModuleSignatureBuilder b(TestName());
 
-  b.AddDataInput("x", 42).AddDataOutput("y", 2).WithFixedLatencyInterface(123);
+  b.AddDataInputAsBits("x", 42)
+      .AddDataOutputAsBits("y", 2)
+      .WithFixedLatencyInterface(123);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
   ASSERT_EQ(signature.data_inputs().size(), 1);
@@ -58,11 +60,11 @@ TEST(ModuleSignatureTest, ReadyValidInterface) {
                             "output_vld")
       .WithClock("the_clk")
       .WithReset("reset_me", /*asynchronous=*/true, /*active_low=*/false)
-      .AddDataInput("x", 42)
-      .AddDataInput("y", 2)
-      .AddDataInput("z", 44444)
-      .AddDataOutput("o1", 1)
-      .AddDataOutput("o2", 3);
+      .AddDataInputAsBits("x", 42)
+      .AddDataInputAsBits("y", 2)
+      .AddDataInputAsBits("z", 44444)
+      .AddDataOutputAsBits("o1", 1)
+      .AddDataOutputAsBits("o2", 3);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
   ASSERT_TRUE(signature.proto().has_ready_valid());
@@ -89,8 +91,8 @@ TEST(ModuleSignatureTest, PipelineInterface) {
 
   b.WithPipelineInterface(/*latency=*/2, /*initiation_interval=*/3)
       .WithClock("clk")
-      .AddDataInput("in", 4)
-      .AddDataOutput("out", 5);
+      .AddDataInputAsBits("in", 4)
+      .AddDataOutputAsBits("out", 5);
 
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
   ASSERT_TRUE(signature.proto().has_pipeline());
@@ -102,8 +104,8 @@ TEST(ModuleSignatureTest, PipelineInterfaceMissingClock) {
   ModuleSignatureBuilder b(TestName());
 
   b.WithPipelineInterface(/*latency=*/2, /*initiation_interval=*/3)
-      .AddDataInput("in", 4)
-      .AddDataOutput("out", 5);
+      .AddDataInputAsBits("in", 4)
+      .AddDataOutputAsBits("out", 5);
 
   EXPECT_THAT(b.Build(), StatusIs(absl::StatusCode::kInvalidArgument,
                                   HasSubstr("Missing clock")));
@@ -111,9 +113,9 @@ TEST(ModuleSignatureTest, PipelineInterfaceMissingClock) {
 
 TEST(ModuleSignatureTest, ToKwargs) {
   ModuleSignatureBuilder b(TestName());
-  b.AddDataInput("x", 42)
-      .AddDataInput("y", 2)
-      .AddDataOutput("z", 32)
+  b.AddDataInputAsBits("x", 42)
+      .AddDataInputAsBits("y", 2)
+      .AddDataOutputAsBits("z", 32)
       .WithFixedLatencyInterface(123);
   XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
 
@@ -128,8 +130,8 @@ TEST(ModuleSignatureTest, ToKwargs) {
 TEST(ModuleSignatureTest, SingleValueChannelsInterface) {
   ModuleSignatureBuilder b(TestName());
 
-  b.AddDataInput("single_val_in_port", 32);
-  b.AddDataOutput("single_val_out_port", 64);
+  b.AddDataInputAsBits("single_val_in_port", 32);
+  b.AddDataOutputAsBits("single_val_out_port", 64);
 
   b.AddSingleValueChannel("single_val_in", ChannelOps::kReceiveOnly,
                           "single_val_in_port");
@@ -166,11 +168,11 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   ModuleSignatureBuilder b(TestName());
 
   // Add ports for streaming channels.
-  b.AddDataInput("streaming_in_data", 24);
-  b.AddDataInput("streaming_in_valid", 1);
-  b.AddDataOutput("streaming_in_ready", 1);
+  b.AddDataInputAsBits("streaming_in_data", 24);
+  b.AddDataInputAsBits("streaming_in_valid", 1);
+  b.AddDataOutputAsBits("streaming_in_ready", 1);
 
-  b.AddDataOutput("streaming_out_data", 16);
+  b.AddDataOutputAsBits("streaming_out_data", 16);
 
   b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
                         FlowControl::kReadyValid, /*fifo_depth=*/42,

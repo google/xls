@@ -420,11 +420,17 @@ TEST_P(PipelineGeneratorTest, TreeOfAdds) {
 
   EXPECT_EQ(result.signature.proto().pipeline().initiation_interval(), 1);
   EXPECT_EQ(result.signature.proto().pipeline().latency(), 3);
-  XLS_ASSERT_OK_AND_ASSIGN(FunctionType * type_from_proto,
-                           package.GetFunctionTypeFromProto(
-                               result.signature.proto().function_type()));
-  EXPECT_EQ(type_from_proto->ToString(),
-            "(bits[32], bits[32], bits[32], bits[32], bits[32]) -> bits[32]");
+  EXPECT_EQ(result.signature.data_inputs().size(), 5);
+  EXPECT_EQ(result.signature.data_outputs().size(), 1);
+  for (const PortProto& input_port : result.signature.data_inputs()) {
+    XLS_ASSERT_OK_AND_ASSIGN(Type * input_type,
+                             package.GetTypeFromProto(input_port.type()));
+    EXPECT_EQ(input_type->ToString(), "bits[32]");
+  }
+  XLS_ASSERT_OK_AND_ASSIGN(
+      Type * output_type,
+      package.GetTypeFromProto(result.signature.data_inputs()[0].type()));
+  EXPECT_EQ(output_type->ToString(), "bits[32]");
 }
 
 TEST_P(PipelineGeneratorTest, BigExpressionInOneStage) {

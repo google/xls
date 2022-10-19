@@ -15,6 +15,7 @@
 #ifndef XLS_CODEGEN_MODULE_SIGNATURE_H_
 #define XLS_CODEGEN_MODULE_SIGNATURE_H_
 
+#include <memory>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
@@ -75,14 +76,14 @@ class ModuleSignatureBuilder {
   // catch-all for such nonconforming cases.
   ModuleSignatureBuilder& WithUnknownInterface();
 
-  // Sets the type of the function to the given string. The expected form is
-  // defined by xls::FunctionType::ToString.
-  ModuleSignatureBuilder& WithFunctionType(FunctionType* function_type);
-
   // Add data input/outputs to the interface. Control signals such as the clock,
   // reset, ready/valid signals, etc should not be added using these methods.
-  ModuleSignatureBuilder& AddDataInput(std::string_view name, int64_t width);
-  ModuleSignatureBuilder& AddDataOutput(std::string_view name, int64_t width);
+  ModuleSignatureBuilder& AddDataInput(std::string_view name, Type* type);
+  ModuleSignatureBuilder& AddDataOutput(std::string_view name, Type* type);
+  ModuleSignatureBuilder& AddDataInputAsBits(std::string_view name,
+                                             int64_t width);
+  ModuleSignatureBuilder& AddDataOutputAsBits(std::string_view name,
+                                              int64_t width);
 
   // Add a single value channel to the interface.
   ModuleSignatureBuilder& AddSingleValueChannel(std::string_view name,

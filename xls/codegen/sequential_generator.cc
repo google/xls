@@ -349,12 +349,12 @@ SequentialModuleBuilder::GenerateModuleSignature() {
   sig_builder.WithClock(SanitizeIdentifier("clk"));
   for (const Node* op_in : loop_->operands()) {
     sig_builder.AddDataInput(SanitizeIdentifier(op_in->GetName() + "_in"),
-                             op_in->GetType()->GetFlatBitCount());
+                             op_in->GetType());
   }
 
   // Default Outputs.
   sig_builder.AddDataOutput(SanitizeIdentifier(loop_->GetName() + "_out"),
-                            loop_->GetType()->GetFlatBitCount());
+                            loop_->GetType());
 
   // Reset.
   if (sequential_options_.reset().has_value()) {
@@ -363,12 +363,6 @@ SequentialModuleBuilder::GenerateModuleSignature() {
         sequential_options_.reset()->asynchronous(),
         sequential_options_.reset()->active_low());
   }
-
-  // Function type.
-  FunctionType* body_type = loop_->body()->GetType();
-  FunctionType module_function_type(body_type->parameters().subspan(1),
-                                    body_type->return_type());
-  sig_builder.WithFunctionType(&module_function_type);
 
   // TODO(jbaileyhandle): Add options for other interfaces.
   std::string ready_in_name = SanitizeIdentifier("ready_in");

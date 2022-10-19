@@ -298,13 +298,14 @@ absl::StatusOr<std::vector<Value>> ModuleSimulator::RunBatched(
   }
   XLS_ASSIGN_OR_RETURN(std::vector<BitsMap> bits_outputs,
                        RunBatched(bits_inputs));
+  XLS_CHECK_EQ(signature_.data_outputs().size(), 1);
   std::vector<Value> outputs;
   for (const BitsMap& bits_output : bits_outputs) {
     XLS_RET_CHECK_EQ(bits_output.size(), 1);
     XLS_ASSIGN_OR_RETURN(
         Value output,
         UnflattenBitsToValue(bits_output.begin()->second,
-                             signature_.proto().function_type().return_type()));
+                             signature_.data_outputs().begin()->type()));
     outputs.push_back(std::move(output));
   }
   return outputs;

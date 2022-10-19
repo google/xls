@@ -44,10 +44,9 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
     // Function given, use function params and output type to generate
     // type signature.
     for (Param* param : func->params()) {
-      b.AddDataInput(param->name(), param->GetType()->GetFlatBitCount());
+      b.AddDataInput(param->name(), param->GetType());
     }
-    b.AddDataOutput("out", func->return_value()->GetType()->GetFlatBitCount());
-    b.WithFunctionType(func->GetType());
+    b.AddDataOutput("out", func->return_value()->GetType());
   } else {
     XLS_RET_CHECK(func_base->IsBlock());
     Block* block = down_cast<Block*>(func_base);
@@ -76,8 +75,7 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
           continue;
         }
         input_types.push_back(input_port->GetType());
-        b.AddDataInput(input_port->GetName(),
-                       input_port->GetType()->GetFlatBitCount());
+        b.AddDataInput(input_port->GetName(), input_port->GetType());
       } else if (std::holds_alternative<OutputPort*>(port)) {
         OutputPort* output_port = std::get<OutputPort*>(port);
         if (!is_data_port(output_port)) {
@@ -85,15 +83,11 @@ absl::StatusOr<ModuleSignature> GenerateSignature(
         }
         Type* type = output_port->operand(0)->GetType();
         output_types.push_back(type);
-        b.AddDataOutput(output_port->GetName(), type->GetFlatBitCount());
+        b.AddDataOutput(output_port->GetName(), type);
       } else {
         // No need to do anything for the clock port.
         XLS_RET_CHECK(std::holds_alternative<Block::ClockPort*>(port));
       }
-    }
-    if (output_types.size() == 1) {
-      b.WithFunctionType(
-          block->package()->GetFunctionType(input_types, output_types.front()));
     }
 
     // Adds information on channels.
