@@ -200,6 +200,8 @@ generate_crasher_regression_tests(
     failing = [
         "crashers/crasher_2021-02-28_ce06.x",
         "crashers/crasher_2022-05-31_3ad6.x",
+        "crashers/crasher_2022-10-19_a3a3.x",
+        "crashers/crasher_2022-10-19_5531.x",
     ],
     prefix = package_name(),
     tags = {
@@ -207,6 +209,12 @@ generate_crasher_regression_tests(
             "optonly",
         ],
         "crashers/crasher_2022-09-03_4d43.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2022-10-19_a3a3.x": [
+            "optonly",
+        ],
+        "crashers/crasher_2022-10-19_5531.x": [
             "optonly",
         ],
     },
