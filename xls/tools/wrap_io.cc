@@ -34,42 +34,6 @@ struct ReadyValid {
   LogicRef* data;
 };
 
-// Instantiates the given device function module which has a ready/valid
-// interface.
-absl::Status InstantiateReadyValidDeviceFunction(
-    const ModuleSignature& signature, LogicRef* clk, LogicRef* rst_n,
-    ReadyValid input, ReadyValid output, Module* m) {
-  XLS_RET_CHECK_EQ(signature.data_inputs().size(), 1);
-  XLS_RET_CHECK_EQ(signature.data_outputs().size(), 1);
-  const PortProto& input_port = signature.data_inputs().front();
-  const PortProto& output_port = signature.data_outputs().front();
-  const ReadyValidInterface& ready_valid = signature.proto().ready_valid();
-
-  std::vector<Connection> connections;
-
-  XLS_RET_CHECK(signature.proto().has_clock_name());
-  connections.push_back({signature.proto().clock_name(), clk});
-
-  if (signature.proto().has_reset()) {
-    XLS_RET_CHECK(signature.proto().reset().active_low());
-    connections.push_back({signature.proto().reset().name(), rst_n});
-  }
-
-  connections.push_back({ready_valid.input_ready(), input.ready});
-  connections.push_back({ready_valid.input_valid(), input.valid});
-  connections.push_back({input_port.name(), input.data});
-
-  connections.push_back({ready_valid.output_ready(), output.ready});
-  connections.push_back({ready_valid.output_valid(), output.valid});
-  connections.push_back({output_port.name(), output.data});
-
-  m->Add<Instantiation>(SourceInfo(), signature.module_name(),
-                        "device_function",
-                        /*parameters=*/std::vector<Connection>{},
-                        /*connections=*/connections);
-  return absl::OkStatus();
-}
-
 // Instantiates the given device function module which has fixed latency
 // interface.
 absl::Status InstantiateFixedLatencyDeviceFunction(
@@ -236,10 +200,7 @@ absl::StatusOr<Module*> WrapIO(std::string_view module_name,
   ReadyValid input{flat_input_ready, flat_input_valid, flat_input};
   ReadyValid output{flat_output_ready, flat_output_valid, flat_output};
 
-  if (signature.proto().has_ready_valid()) {
-    XLS_RETURN_IF_ERROR(InstantiateReadyValidDeviceFunction(
-        signature, clk, rst_n, input, output, io_wrapper));
-  } else if (signature.proto().has_pipeline()) {
+  if (signature.proto().has_pipeline()) {
     XLS_RETURN_IF_ERROR(InstantiateFixedLatencyDeviceFunction(
         signature, clk, rst_n, input, output,
         signature.proto().pipeline().latency(), io_wrapper));

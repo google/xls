@@ -108,14 +108,6 @@ ModuleTestbench::ModuleTestbench(std::string_view verilog_text,
   if (signature.proto().has_reset()) {
     input_port_widths_[signature.proto().reset().name()] = 1;
   }
-  if (signature.proto().has_ready_valid()) {
-    const ReadyValidInterface& interface = signature.proto().ready_valid();
-    output_port_widths_[interface.input_ready()] = 1;
-    input_port_widths_[interface.input_valid()] = 1;
-
-    input_port_widths_[interface.output_ready()] = 1;
-    output_port_widths_[interface.output_valid()] = 1;
-  }
   if (signature.proto().has_pipeline() &&
       signature.proto().pipeline().has_pipeline_control()) {
     // Module has pipeline register control.

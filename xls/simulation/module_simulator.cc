@@ -44,12 +44,6 @@ ModuleSimulator::BitsMap ValueMapToBitsMap(
 
 absl::Status ModuleSimulator::DeassertControlSignals(
     ModuleTestbench* tb) const {
-  if (signature_.proto().has_ready_valid()) {
-    const ReadyValidInterface& interface = signature_.proto().ready_valid();
-    tb->Set(interface.input_valid(), 0);
-    tb->Set(interface.output_ready(), 0);
-  }
-
   if (signature_.proto().has_pipeline() &&
       signature_.proto().pipeline().has_pipeline_control()) {
     const PipelineControl& pipeline_control =
@@ -158,26 +152,6 @@ ModuleSimulator::RunBatched(absl::Span<const BitsMap> inputs) const {
       // The input data cannot be changed in the same cycle that the output is
       // being read so hold for one more cycle while output is read.
       tb.NextCycle();
-    }
-  } else if (signature_.proto().has_ready_valid()) {
-    for (int64_t i = 0; i < inputs.size(); ++i) {
-      drive_data(i);
-      // Ready/valid interface: drive input and output flow control.
-      const ReadyValidInterface& interface = signature_.proto().ready_valid();
-      tb.Set(interface.input_valid(), 1);
-      tb.WaitFor(interface.input_ready());
-      tb.NextCycle();
-
-      tb.Set(interface.input_valid(), 0);
-      for (const PortProto& input : signature_.data_inputs()) {
-        tb.SetX(input.name());
-      }
-
-      tb.Set(interface.output_ready(), 1);
-      tb.WaitFor(interface.output_valid());
-      capture_outputs(i);
-      tb.NextCycle();
-      tb.Set(interface.output_ready(), 0);
     }
   } else if (signature_.proto().has_pipeline()) {
     const int64_t latency = signature_.proto().pipeline().latency();

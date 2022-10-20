@@ -163,41 +163,6 @@ iverilog_test(
     top = "tb",
 )
 
-# wrap_io: add1_8b_ready_valid
-
-genrule(
-    name = "wrap_io_ice40_add1_8b_ready_valid",
-    srcs = [
-        "add1_8b_ready_valid.v",
-        "add1_8b.add1_8b.ready_valid.sig",
-    ],
-    outs = ["wrap_io_ice40_add1_8b_ready_valid.v"],
-    cmd = """$(location //xls/tools:wrap_io_main) \\
-        -include $(location //xls/uncore_rtl/ice40:add1_8b_ready_valid.v) \\
-        -signature_proto_path $(location add1_8b.add1_8b.ready_valid.sig) \\
-        -wrapped_module_name add1_8b \\
-        -target_device ice40 > $(OUTS)
-        """,
-    exec_tools = ["//xls/tools:wrap_io_main"],
-)
-
-iverilog_test(
-    name = "wrap_io_ice40_add1_8b_ready_valid_test",
-    srcs = [
-        "add1_8b_ready_valid.v",
-        "uart_receiver.v",
-        "uart_transmitter.v",
-        "wrap_io_ice40_add1_8b_ready_valid_testbench.v",
-        "xls_assertions.inc",
-        "//xls/uncore_rtl/ice40:wrap_io_ice40_add1_8b_ready_valid",
-    ],
-    main = "wrap_io_ice40_add1_8b_ready_valid_testbench.v",
-    tick_defines = {
-        "INCLUDE": r"\`include \"xls/uncore_rtl/ice40/wrap_io_ice40_add1_8b_ready_valid.v\"",
-    },
-    top = "tb",
-)
-
 # wrap_io: repeat_byte_4
 
 genrule(

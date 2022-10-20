@@ -162,7 +162,6 @@ message ModuleSignatureProto {
 
   oneof interface_oneof {
     FixedLatencyInterface fixed_latency = 5;
-    ReadyValidInterface ready_valid = 6;
     PipelineInterface pipeline = 7;
     CombinationalInterface combinational = 8;
     UnknownInterface unknown = 10;

@@ -47,19 +47,6 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::WithReset(
   return *this;
 }
 
-ModuleSignatureBuilder& ModuleSignatureBuilder::WithReadyValidInterface(
-    std::string_view input_ready, std::string_view input_valid,
-    std::string_view output_ready, std::string_view output_valid) {
-  XLS_CHECK_EQ(proto_.interface_oneof_case(),
-               ModuleSignatureProto::INTERFACE_ONEOF_NOT_SET);
-  ReadyValidInterface* interface = proto_.mutable_ready_valid();
-  interface->set_input_ready(ToProtoString(input_ready));
-  interface->set_input_valid(ToProtoString(input_valid));
-  interface->set_output_ready(ToProtoString(output_ready));
-  interface->set_output_valid(ToProtoString(output_valid));
-  return *this;
-}
-
 ModuleSignatureBuilder& ModuleSignatureBuilder::WithFixedLatencyInterface(
     int64_t latency) {
   XLS_CHECK_EQ(proto_.interface_oneof_case(),
@@ -198,8 +185,7 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
     const ModuleSignatureProto& proto) {
   // TODO(meheff): do more validation here.
   // Validate widths/number of function type.
-  if ((proto.has_pipeline() || proto.has_ready_valid()) &&
-      !proto.has_clock_name()) {
+  if (proto.has_pipeline() && !proto.has_clock_name()) {
     return absl::InvalidArgumentError("Missing clock signal");
   }
 

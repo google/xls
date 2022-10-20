@@ -53,39 +53,6 @@ TEST(ModuleSignatureTest, SimpledFixedLatencyInterface) {
   EXPECT_EQ(signature.proto().fixed_latency().latency(), 123);
 }
 
-TEST(ModuleSignatureTest, ReadyValidInterface) {
-  ModuleSignatureBuilder b(TestName());
-
-  b.WithReadyValidInterface("input_rdy", "input_vld", "output_rdy",
-                            "output_vld")
-      .WithClock("the_clk")
-      .WithReset("reset_me", /*asynchronous=*/true, /*active_low=*/false)
-      .AddDataInputAsBits("x", 42)
-      .AddDataInputAsBits("y", 2)
-      .AddDataInputAsBits("z", 44444)
-      .AddDataOutputAsBits("o1", 1)
-      .AddDataOutputAsBits("o2", 3);
-
-  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
-  ASSERT_TRUE(signature.proto().has_ready_valid());
-  EXPECT_EQ(signature.proto().ready_valid().input_ready(), "input_rdy");
-  EXPECT_EQ(signature.proto().ready_valid().input_valid(), "input_vld");
-  EXPECT_EQ(signature.proto().ready_valid().output_ready(), "output_rdy");
-  EXPECT_EQ(signature.proto().ready_valid().output_valid(), "output_vld");
-
-  EXPECT_EQ(signature.TotalDataInputBits(), 44488);
-  EXPECT_EQ(signature.TotalDataOutputBits(), 4);
-
-  EXPECT_EQ(signature.proto().clock_name(), "the_clk");
-  EXPECT_TRUE(signature.proto().has_reset());
-  EXPECT_EQ(signature.proto().reset().name(), "reset_me");
-  EXPECT_TRUE(signature.proto().reset().asynchronous());
-  EXPECT_FALSE(signature.proto().reset().active_low());
-
-  EXPECT_EQ(signature.data_inputs().size(), 3);
-  EXPECT_EQ(signature.data_outputs().size(), 2);
-}
-
 TEST(ModuleSignatureTest, PipelineInterface) {
   ModuleSignatureBuilder b(TestName());
 

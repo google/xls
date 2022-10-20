@@ -51,12 +51,6 @@ class ModuleSignatureBuilder {
   ModuleSignatureBuilder& WithReset(std::string_view name, bool asynchronous,
                                     bool active_low);
 
-  // Defines the module interface as using ready/valid flow control with signals
-  // of the given names.
-  ModuleSignatureBuilder& WithReadyValidInterface(
-      std::string_view input_ready, std::string_view input_valid,
-      std::string_view output_ready, std::string_view output_valid);
-
   // Defines the module interface as fixed latency.
   ModuleSignatureBuilder& WithFixedLatencyInterface(int64_t latency);
 
