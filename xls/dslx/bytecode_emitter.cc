@@ -150,8 +150,9 @@ class NameDefCollector : public AstNodeVisitor {
   DEFAULT_HANDLER(QuickCheck);
   DEFAULT_HANDLER(Range);
   DEFAULT_HANDLER(Recv);
-  DEFAULT_HANDLER(RecvNonBlocking);
   DEFAULT_HANDLER(RecvIf);
+  DEFAULT_HANDLER(RecvIfNonBlocking);
+  DEFAULT_HANDLER(RecvNonBlocking);
   DEFAULT_HANDLER(Send);
   DEFAULT_HANDLER(SendIf);
   DEFAULT_HANDLER(Slice);
@@ -1037,6 +1038,19 @@ absl::Status BytecodeEmitter::HandleRecvIf(const RecvIf* node) {
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
                        GetChannelPayloadType(type_info_, node->channel()));
   Add(Bytecode::MakeRecv(node->span(), std::move(channel_payload_type)));
+  return absl::OkStatus();
+}
+
+absl::Status BytecodeEmitter::HandleRecvIfNonBlocking(
+    const RecvIfNonBlocking* node) {
+  XLS_RETURN_IF_ERROR(node->token()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->channel()->AcceptExpr(this));
+  XLS_RETURN_IF_ERROR(node->condition()->AcceptExpr(this));
+
+  XLS_ASSIGN_OR_RETURN(std::unique_ptr<ConcreteType> channel_payload_type,
+                       GetChannelPayloadType(type_info_, node->channel()));
+  Add(Bytecode::MakeRecvNonBlocking(node->span(),
+                                    std::move(channel_payload_type)));
   return absl::OkStatus();
 }
 

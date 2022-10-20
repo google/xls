@@ -205,7 +205,7 @@ TEST_F(ParserTest, ParseSimpleProc) {
 
 // Parses the "iota" example.
 TEST_F(ParserTest, ParseProcNetwork) {
-  const char* text = R"(proc producer {
+  std::string_view kModule = R"(proc producer {
   c_: chan<u32> out;
   limit_: u32;
   config(limit: u32, c: chan<u32> out) {
@@ -238,11 +238,7 @@ proc main {
   }
 })";
 
-  Scanner s{"test.x", std::string{text}};
-  Parser parser{"test", &s};
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), text);
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ChannelsNotAsNextArgs) {
@@ -291,11 +287,7 @@ proc producer {
   }
 })";
 
-  Scanner s("test.x", std::string(kModule));
-  Parser parser("test", &s);
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), kModule);
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ChannelArraysThreeD) {
@@ -322,11 +314,7 @@ proc producer {
   }
 })";
 
-  Scanner s("test.x", std::string(kModule));
-  Parser parser("test", &s);
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), kModule);
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ParseSendIfAndRecvIf) {
@@ -352,11 +340,7 @@ proc consumer {
   }
 })";
 
-  Scanner s{"test.x", std::string{kModule}};
-  Parser parser{"test", &s};
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), kModule);
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ParseSendIfAndRecvNb) {
@@ -376,17 +360,28 @@ proc consumer {
     (c,)
   }
   next(tok: token) {
-    let (_, foo, valid) = recv_nonblocking(tok, c);
+    let (_, foo, valid) = recv_non_blocking(tok, c);
     let _ = assert_eq(!((foo) ^ (valid)), true);
     ()
   }
 })";
 
-  Scanner s{"test.x", std::string{kModule}};
-  Parser parser{"test", &s};
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), kModule);
+  RoundTrip(std::string(kModule));
+}
+
+TEST_F(ParserTest, ParseRecvIfNb) {
+  constexpr std::string_view kModule = R"(proc foo {
+  c: chan<u32> in;
+  config(c: chan<u32> in) {
+    (c,)
+  }
+  next(tok: token) {
+    let tok = recv_if_non_blocking(tok, c, true);
+    ()
+  }
+})";
+
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ParseJoin) {
@@ -409,11 +404,7 @@ TEST_F(ParserTest, ParseJoin) {
   }
 })";
 
-  Scanner s{"test.x", std::string{kModule}};
-  Parser parser{"test", &s};
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), kModule);
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ParseTestProc) {
@@ -458,11 +449,7 @@ proc tester {
   }
 })";
 
-  Scanner s("test.x", std::string(kModule));
-  Parser parser("test", &s);
-  Bindings bindings;
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Module> m, parser.ParseModule());
-  EXPECT_EQ(m->ToString(), kModule);
+  RoundTrip(std::string(kModule));
 }
 
 TEST_F(ParserTest, ParseStructSplat) {

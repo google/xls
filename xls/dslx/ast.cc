@@ -77,9 +77,11 @@ std::string_view AstNodeKindToString(AstNodeKind kind) {
     case AstNodeKind::kRecv:
       return "receive";
     case AstNodeKind::kRecvNonBlocking:
-      return "receive-nonblocking";
+      return "receive-non-blocking";
     case AstNodeKind::kRecvIf:
       return "receive-if";
+    case AstNodeKind::kRecvIfNonBlocking:
+      return "receive-if-non-blocking";
     case AstNodeKind::kSend:
       return "send";
     case AstNodeKind::kSendIf:
@@ -1617,7 +1619,7 @@ RecvNonBlocking::RecvNonBlocking(Module* owner, Span span, NameRef* token,
     : Expr(owner, std::move(span)), token_(token), channel_(channel) {}
 
 std::string RecvNonBlocking::ToString() const {
-  return absl::StrFormat("recv_nonblocking(%s, %s)", token_->identifier(),
+  return absl::StrFormat("recv_non_blocking(%s, %s)", token_->identifier(),
                          channel_->ToString());
 }
 
@@ -1633,6 +1635,21 @@ RecvIf::RecvIf(Module* owner, Span span, NameRef* token, Expr* channel,
 std::string RecvIf::ToString() const {
   return absl::StrFormat("recv_if(%s, %s, %s)", token_->identifier(),
                          channel_->ToString(), condition_->ToString());
+}
+
+// -- class RecvIfNonBlocking
+
+RecvIfNonBlocking::RecvIfNonBlocking(Module* owner, Span span, NameRef* token,
+                                     Expr* channel, Expr* condition)
+    : Expr(owner, std::move(span)),
+      token_(token),
+      channel_(channel),
+      condition_(condition) {}
+
+std::string RecvIfNonBlocking::ToString() const {
+  return absl::StrFormat("recv_if_non_blocking(%s, %s, %s)",
+                         token_->identifier(), channel_->ToString(),
+                         condition_->ToString());
 }
 
 // -- class Send

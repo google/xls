@@ -979,12 +979,20 @@ absl::StatusOr<BValue> Parser::ParseNode(
                             type->ToString(), expected_type->ToString()));
       }
       if (predicate->has_value()) {
-        bvalue = pb->ReceiveIf(channel, operands[0], predicate->value(), *loc,
-                               node_name);
-      } else if (*is_blocking) {
-        bvalue = pb->Receive(channel, operands[0], *loc, node_name);
+        if (*is_blocking) {
+          bvalue = pb->ReceiveIf(channel, operands[0], predicate->value(), *loc,
+                                 node_name);
+        } else {
+          bvalue = pb->ReceiveIfNonBlocking(
+              channel, operands[0], predicate->value(), *loc, node_name);
+        }
       } else {
-        bvalue = pb->ReceiveNonBlocking(channel, operands[0], *loc, node_name);
+        if (*is_blocking) {
+          bvalue = pb->Receive(channel, operands[0], *loc, node_name);
+        } else {
+          bvalue =
+              pb->ReceiveNonBlocking(channel, operands[0], *loc, node_name);
+        }
       }
       break;
     }

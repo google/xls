@@ -559,6 +559,15 @@ class AstCloner : public AstNodeVisitor {
     return absl::OkStatus();
   }
 
+  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* n) override {
+    XLS_RETURN_IF_ERROR(VisitChildren(n));
+    old_to_new_[n] = module_->Make<RecvIfNonBlocking>(
+        n->span(), down_cast<NameRef*>(old_to_new_.at(n->token())),
+        down_cast<Expr*>(old_to_new_.at(n->channel())),
+        down_cast<Expr*>(old_to_new_.at(n->condition())));
+    return absl::OkStatus();
+  }
+
   absl::Status HandleSend(const Send* n) override {
     XLS_RETURN_IF_ERROR(VisitChildren(n));
     old_to_new_[n] = module_->Make<Send>(

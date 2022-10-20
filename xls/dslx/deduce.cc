@@ -2279,11 +2279,6 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRange(const Range* node,
   InterpValue array_size = InterpValue::MakeUnit();
   XLS_ASSIGN_OR_RETURN(InterpValue start_ge_end, start_value.Ge(end_value));
   if (start_ge_end.IsTrue()) {
-#if 0
-    return absl::InvalidArgumentError(
-        absl::StrCat(node->span().ToString(),
-                     ": Range start must be less than the end."));
-#endif
     array_size = InterpValue::MakeU32(0);
   } else {
     XLS_ASSIGN_OR_RETURN(array_size, end_value.Sub(start_value));
@@ -2326,9 +2321,7 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvNonBlocking(
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());
   elements.emplace_back(ct->payload_type().CloneToUnique());
-
-  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
-  elements.emplace_back(bool_type->CloneToUnique());
+  elements.emplace_back(BitsType::MakeU1());
 
   return std::make_unique<TupleType>(std::move(elements));
 }
@@ -2356,6 +2349,33 @@ absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIf(const RecvIf* node,
   std::vector<std::unique_ptr<ConcreteType>> elements;
   elements.emplace_back(std::make_unique<TokenType>());
   elements.emplace_back(ct->payload_type().CloneToUnique());
+  return std::make_unique<TupleType>(std::move(elements));
+}
+
+absl::StatusOr<std::unique_ptr<ConcreteType>> DeduceRecvIfNonBlocking(
+    const RecvIfNonBlocking* node, DeduceCtx* ctx) {
+  XLS_ASSIGN_OR_RETURN(ChannelTypeAnnotation * channel_annot,
+                       ResolveChannelType(node->span(), node->channel()));
+  if (channel_annot->direction() == ChannelTypeAnnotation::Direction::kOut) {
+    return TypeInferenceErrorStatus(node->span(), nullptr,
+                                    "Cannot recv_if on an output channel.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(auto condition_type, Deduce(node->condition(), ctx));
+  std::unique_ptr<BitsType> bool_type = BitsType::MakeU1();
+  if (*condition_type != *bool_type) {
+    return XlsTypeErrorStatus(node->span(), *condition_type, *bool_type,
+                              "RecvIf condition was not of bool type.");
+  }
+
+  XLS_ASSIGN_OR_RETURN(auto channel_type, Deduce(node->channel(), ctx));
+  ChannelType* ct = dynamic_cast<ChannelType*>(channel_type.get());
+  XLS_RET_CHECK_NE(ct, nullptr);
+
+  std::vector<std::unique_ptr<ConcreteType>> elements;
+  elements.emplace_back(std::make_unique<TokenType>());
+  elements.emplace_back(ct->payload_type().CloneToUnique());
+  elements.emplace_back(std::move(bool_type));
   return std::make_unique<TupleType>(std::move(elements));
 }
 
@@ -2737,8 +2757,9 @@ class DeduceVisitor : public AstNodeVisitor {
   DEDUCE_DISPATCH(Match)
   DEDUCE_DISPATCH(Range)
   DEDUCE_DISPATCH(Recv)
-  DEDUCE_DISPATCH(RecvNonBlocking)
   DEDUCE_DISPATCH(RecvIf)
+  DEDUCE_DISPATCH(RecvIfNonBlocking)
+  DEDUCE_DISPATCH(RecvNonBlocking)
   DEDUCE_DISPATCH(Send)
   DEDUCE_DISPATCH(SendIf)
   DEDUCE_DISPATCH(Spawn)

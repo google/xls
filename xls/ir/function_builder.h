@@ -677,18 +677,24 @@ class ProcBuilder : public BuilderBase {
                  const SourceInfo& loc = SourceInfo(),
                  std::string_view name = "");
 
-  // Add a non-blocking receive operation. The type of the data value received
-  // is determined by the channel.
-  BValue ReceiveNonBlocking(Channel* channel, BValue token,
-                            const SourceInfo& loc = SourceInfo(),
-                            std::string_view name = "");
-
   // Add a conditional receive operation. The receive executes conditionally on
   // the value of the predicate "pred". The type of the data value received is
   // determined by the channel.
   BValue ReceiveIf(Channel* channel, BValue token, BValue pred,
                    const SourceInfo& loc = SourceInfo(),
                    std::string_view name = "");
+
+  // Add a non-blocking receive operation. The type of the data value received
+  // is determined by the channel.
+  BValue ReceiveIfNonBlocking(Channel* channel, BValue token, BValue pred,
+                              const SourceInfo& loc = SourceInfo(),
+                              std::string_view name = "");
+
+  // Add a non-blocking receive operation. The type of the data value received
+  // is determined by the channel.
+  BValue ReceiveNonBlocking(Channel* channel, BValue token,
+                            const SourceInfo& loc = SourceInfo(),
+                            std::string_view name = "");
 
   // Add a send operation.
   BValue Send(Channel* channel, BValue token, BValue data,

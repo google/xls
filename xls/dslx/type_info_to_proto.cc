@@ -74,10 +74,12 @@ AstNodeKindProto ToProto(AstNodeKind kind) {
       return AST_NODE_KIND_RANGE;
     case AstNodeKind::kRecv:
       return AST_NODE_KIND_RECV;
-    case AstNodeKind::kRecvNonBlocking:
-      return AST_NODE_KIND_RECV_NONBLOCKING;
     case AstNodeKind::kRecvIf:
       return AST_NODE_KIND_RECV_IF;
+    case AstNodeKind::kRecvIfNonBlocking:
+      return AST_NODE_KIND_RECV_IF_NON_BLOCKING;
+    case AstNodeKind::kRecvNonBlocking:
+      return AST_NODE_KIND_RECV_NON_BLOCKING;
     case AstNodeKind::kSend:
       return AST_NODE_KIND_SEND;
     case AstNodeKind::kSendIf:
@@ -545,10 +547,12 @@ absl::StatusOr<AstNodeKind> FromProto(AstNodeKindProto p) {
       return AstNodeKind::kRange;
     case AST_NODE_KIND_RECV:
       return AstNodeKind::kRecv;
-    case AST_NODE_KIND_RECV_NONBLOCKING:
+    case AST_NODE_KIND_RECV_NON_BLOCKING:
       return AstNodeKind::kRecvNonBlocking;
     case AST_NODE_KIND_RECV_IF:
       return AstNodeKind::kRecvIf;
+    case AST_NODE_KIND_RECV_IF_NON_BLOCKING:
+      return AstNodeKind::kRecvIfNonBlocking;
     case AST_NODE_KIND_SEND:
       return AstNodeKind::kSend;
     case AST_NODE_KIND_SEND_IF:

@@ -76,10 +76,13 @@ class ConstexprEvaluator : public xls::dslx::ExprVisitor {
   absl::Status HandleRecv(const Recv* expr) override {
     return absl::OkStatus();
   }
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
+  absl::Status HandleRecvIf(const RecvIf* expr) override {
     return absl::OkStatus();
   }
-  absl::Status HandleRecvIf(const RecvIf* expr) override {
+  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* expr) override {
+    return absl::OkStatus();
+  }
+  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* expr) override {
     return absl::OkStatus();
   }
   absl::Status HandleSend(const Send* expr) override {

@@ -436,6 +436,10 @@ class InvocationVisitor : public ExprVisitor {
     return expr->condition()->AcceptExpr(this);
   }
 
+  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* expr) override {
+    return expr->condition()->AcceptExpr(this);
+  }
+
   absl::Status HandleSend(const Send* expr) override {
     return expr->payload()->AcceptExpr(this);
   }

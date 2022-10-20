@@ -847,7 +847,26 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
   XLS_ASSIGN_OR_RETURN(auto channel, channel_value.GetChannel());
   XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
 
-  if (channel->empty()) {
+  if (condition.IsTrue()) {
+    if (channel->empty()) {
+      XLS_RET_CHECK(bytecode.has_data());
+      const Bytecode::Data& data = bytecode.data().value();
+
+      XLS_RET_CHECK(
+          std::holds_alternative<std::unique_ptr<ConcreteType>>(data));
+      const std::unique_ptr<ConcreteType>& payload_type =
+          std::get<std::unique_ptr<ConcreteType>>(data);
+
+      XLS_ASSIGN_OR_RETURN(InterpValue zero,
+                           CreateZeroValueFromType(*payload_type));
+      stack_.push_back(
+          InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
+    } else {
+      stack_.push_back(InterpValue::MakeTuple(
+          {token, channel->front(), InterpValue::MakeBool(true)}));
+      channel->pop_front();
+    }
+  } else {
     XLS_RET_CHECK(bytecode.has_data());
     const Bytecode::Data& data = bytecode.data().value();
 
@@ -857,12 +876,10 @@ absl::Status BytecodeInterpreter::EvalRecvNonBlocking(
 
     XLS_ASSIGN_OR_RETURN(InterpValue zero,
                          CreateZeroValueFromType(*payload_type));
+
+    XLS_ASSIGN_OR_RETURN(InterpValue token, Pop());
     stack_.push_back(
         InterpValue::MakeTuple({token, zero, InterpValue::MakeBool(false)}));
-  } else {
-    stack_.push_back(InterpValue::MakeTuple(
-        {token, channel->front(), InterpValue::MakeBool(true)}));
-    channel->pop_front();
   }
 
   return absl::OkStatus();

@@ -1363,6 +1363,31 @@ BValue ProcBuilder::ReceiveIf(Channel* channel, BValue token, BValue pred,
                                /*is_blocking=*/true, name);
 }
 
+BValue ProcBuilder::ReceiveIfNonBlocking(Channel* channel, BValue token,
+                                         BValue pred, const SourceInfo& loc,
+                                         std::string_view name) {
+  if (ErrorPending()) {
+    return BValue();
+  }
+  if (!token.GetType()->IsToken()) {
+    return SetError(
+        absl::StrFormat(
+            "Token operand of receive must be of token type; is: %s",
+            token.GetType()->ToString()),
+        loc);
+  }
+  if (!pred.GetType()->IsBits() ||
+      pred.GetType()->AsBitsOrDie()->bit_count() != 1) {
+    return SetError(
+        absl::StrFormat("Predicate operand of receive_if must be of bits "
+                        "type of width 1; is: %s",
+                        pred.GetType()->ToString()),
+        loc);
+  }
+  return AddNode<xls::Receive>(loc, token.node(), pred.node(), channel->id(),
+                               /*is_blocking=*/false, name);
+}
+
 BValue ProcBuilder::Send(Channel* channel, BValue token, BValue data,
                          const SourceInfo& loc, std::string_view name) {
   if (ErrorPending()) {

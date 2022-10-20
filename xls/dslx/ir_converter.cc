@@ -309,8 +309,9 @@ class FunctionConverter {
   absl::Status HandleMatch(const Match* node);
   absl::Status HandleRange(const Range* node);
   absl::Status HandleRecv(const Recv* node);
-  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* node);
   absl::Status HandleRecvIf(const RecvIf* node);
+  absl::Status HandleRecvIfNonBlocking(const RecvIfNonBlocking* node);
+  absl::Status HandleRecvNonBlocking(const RecvNonBlocking* node);
   absl::Status HandleSend(const Send* node);
   absl::Status HandleSendIf(const SendIf* node);
   absl::Status HandleSplatStructInstance(const SplatStructInstance* node);
@@ -683,8 +684,9 @@ class FunctionConverterVisitor : public AstNodeVisitor {
   NO_TRAVERSE_DISPATCH_VISIT(Match)
   NO_TRAVERSE_DISPATCH_VISIT(Range)
   NO_TRAVERSE_DISPATCH_VISIT(Recv)
-  NO_TRAVERSE_DISPATCH_VISIT(RecvNonBlocking)
   NO_TRAVERSE_DISPATCH_VISIT(RecvIf)
+  NO_TRAVERSE_DISPATCH_VISIT(RecvIfNonBlocking)
+  NO_TRAVERSE_DISPATCH_VISIT(RecvNonBlocking)
   NO_TRAVERSE_DISPATCH_VISIT(Send)
   NO_TRAVERSE_DISPATCH_VISIT(SendIf)
   NO_TRAVERSE_DISPATCH_VISIT(SplatStructInstance)
@@ -2173,6 +2175,36 @@ absl::Status FunctionConverter::HandleRecvIf(const RecvIf* node) {
   return absl::OkStatus();
 }
 
+absl::Status FunctionConverter::HandleRecvIfNonBlocking(
+    const RecvIfNonBlocking* node) {
+  ProcBuilder* builder_ptr =
+      dynamic_cast<ProcBuilder*>(function_builder_.get());
+  if (builder_ptr == nullptr) {
+    return absl::InternalError(
+        "Recv nodes should only be encountered during Proc conversion; "
+        "we seem to be in function conversion.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->token()));
+  XLS_RETURN_IF_ERROR(Visit(node->channel()));
+  if (!node_to_ir_.contains(node->channel())) {
+    return absl::InternalError("Recv channel not found!");
+  }
+  IrValue ir_value = node_to_ir_[node->channel()];
+  if (!std::holds_alternative<Channel*>(ir_value)) {
+    return absl::InvalidArgumentError(
+        "Expected channel, got BValue or CValue.");
+  }
+
+  XLS_RETURN_IF_ERROR(Visit(node->condition()));
+  XLS_ASSIGN_OR_RETURN(BValue token, Use(node->token()));
+  XLS_ASSIGN_OR_RETURN(BValue predicate, Use(node->condition()));
+  BValue value = builder_ptr->ReceiveIfNonBlocking(std::get<Channel*>(ir_value),
+                                                   token, predicate);
+  node_to_ir_[node] = value;
+  return absl::OkStatus();
+}
+
 absl::Status FunctionConverter::HandleJoin(const Join* node) {
   ProcBuilder* builder_ptr =
       dynamic_cast<ProcBuilder*>(function_builder_.get());
@@ -2527,18 +2559,18 @@ absl::Status FunctionConverter::HandleProcNextFunction(
   return absl::OkStatus();
 }
 
-absl::Status FunctionConverter::HandleColonRef(const ColonRef* colon_ref) {
+absl::Status FunctionConverter::HandleColonRef(const ColonRef* node) {
   // Implementation note: ColonRef "invocations" are handled in Invocation (by
   // resolving the mangled callee name, which should have been IR converted in
   // dependency order).
-  if (std::optional<Import*> import = colon_ref->ResolveImportSubject()) {
+  if (std::optional<Import*> import = node->ResolveImportSubject()) {
     std::optional<const ImportedInfo*> imported =
         current_type_info_->GetImported(*import);
     XLS_RET_CHECK(imported.has_value());
     Module* imported_mod = (*imported)->module;
     ScopedTypeInfoSwap stis(this, (*imported)->type_info);
     XLS_ASSIGN_OR_RETURN(ConstantDef * constant_def,
-                         imported_mod->GetConstantDef(colon_ref->attr()));
+                         imported_mod->GetConstantDef(node->attr()));
     // A constant may be defined in terms of other constants
     // (pub const MY_CONST = std::foo(ANOTHER_CONST);), so we need to collect
     // constants transitively so we can visit all dependees.
@@ -2548,12 +2580,12 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* colon_ref) {
       XLS_RETURN_IF_ERROR(Visit(dep));
     }
     XLS_RETURN_IF_ERROR(HandleConstantDef(constant_def));
-    return DefAlias(constant_def->name_def(), /*to=*/colon_ref);
+    return DefAlias(constant_def->name_def(), /*to=*/node);
   }
 
   XLS_ASSIGN_OR_RETURN(
       auto subject,
-      ResolveColonRefSubject(import_data_, current_type_info_, colon_ref));
+      ResolveColonRefSubject(import_data_, current_type_info_, node));
   return absl::visit(
       Visitor{
           [&](Module* module) -> absl::Status {
@@ -2565,24 +2597,24 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* colon_ref) {
                 import_data_->GetRootTypeInfo(enum_def->owner()));
             ScopedTypeInfoSwap stis(this, type_info);
             XLS_ASSIGN_OR_RETURN(Expr * attr_value,
-                                 enum_def->GetValue(colon_ref->attr()));
+                                 enum_def->GetValue(node->attr()));
 
             // We've already computed enum member values during constexpr
             // evaluation.
             XLS_ASSIGN_OR_RETURN(InterpValue iv,
                                  current_type_info_->GetConstExpr(attr_value));
             XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(iv));
-            Def(colon_ref, [this, &value](const SourceInfo& loc) {
+            Def(node, [this, &value](const SourceInfo& loc) {
               return function_builder_->Literal(value, loc);
             });
             return absl::OkStatus();
           },
           [&](BuiltinNameDef* builtin_name_def) -> absl::Status {
-            XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
-                                 GetBuiltinNameDefColonAttr(builtin_name_def,
-                                                            colon_ref->attr()));
+            XLS_ASSIGN_OR_RETURN(
+                InterpValue interp_value,
+                GetBuiltinNameDefColonAttr(builtin_name_def, node->attr()));
             XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
-            DefConst(colon_ref, value);
+            DefConst(node, value);
             return absl::OkStatus();
           },
           [&](ArrayTypeAnnotation* array_type) -> absl::Status {
@@ -2592,11 +2624,11 @@ absl::Status FunctionConverter::HandleColonRef(const ColonRef* colon_ref) {
                                  ResolveTypeToIr(array_type));
             xls::BitsType* bits_type = input_type->AsBitsOrDie();
             const int64_t bit_count = bits_type->bit_count();
-            XLS_ASSIGN_OR_RETURN(InterpValue interp_value,
-                                 GetArrayTypeColonAttr(array_type, bit_count,
-                                                       colon_ref->attr()));
+            XLS_ASSIGN_OR_RETURN(
+                InterpValue interp_value,
+                GetArrayTypeColonAttr(array_type, bit_count, node->attr()));
             XLS_ASSIGN_OR_RETURN(Value value, InterpValueToValue(interp_value));
-            DefConst(colon_ref, value);
+            DefConst(node, value);
             return absl::OkStatus();
           }},
       subject);

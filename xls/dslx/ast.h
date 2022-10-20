@@ -71,8 +71,9 @@ bool IsOneOf(ObjT* obj) {
   X(Number)                        \
   X(Range)                         \
   X(Recv)                          \
-  X(RecvNonBlocking)               \
   X(RecvIf)                        \
+  X(RecvIfNonBlocking)             \
+  X(RecvNonBlocking)               \
   X(Send)                          \
   X(SendIf)                        \
   X(Spawn)                         \
@@ -229,8 +230,9 @@ enum class AstNodeKind {
   kIndex,
   kRange,
   kRecv,
-  kRecvNonBlocking,
   kRecvIf,
+  kRecvIfNonBlocking,
+  kRecvNonBlocking,
   kSend,
   kSendIf,
   kJoin,
@@ -2133,6 +2135,45 @@ class RecvIf : public Expr {
   }
 
   std::string_view GetNodeTypeName() const override { return "RecvIf"; }
+  std::string ToString() const override;
+
+  std::vector<AstNode*> GetChildren(bool want_types) const override {
+    return {token_, channel_, condition_};
+  }
+
+  NameRef* token() const { return token_; }
+  Expr* channel() const { return channel_; }
+  Expr* condition() const { return condition_; }
+
+ private:
+  NameRef* token_;
+  Expr* channel_;
+  Expr* condition_;
+};
+
+// Represents a non-blocking recv node: the mechanism by which a proc gets info
+// from another proc. Returns a three-tuple: (token, value, value_valid).
+// If the condition is false or if no value is available,
+// then a zero-valued result is produced. In both cases, value_valid will be
+// false.
+class RecvIfNonBlocking : public Expr {
+ public:
+  RecvIfNonBlocking(Module* owner, Span span, NameRef* token, Expr* channel,
+                    Expr* condition);
+
+  AstNodeKind kind() const override { return AstNodeKind::kRecvIfNonBlocking; }
+
+  absl::Status Accept(AstNodeVisitor* v) const override {
+    return v->HandleRecvIfNonBlocking(this);
+  }
+  absl::Status AcceptExpr(ExprVisitor* v) const override {
+    return v->HandleRecvIfNonBlocking(this);
+  }
+
+  std::string_view GetNodeTypeName() const override {
+    return "RecvIfNonBlocking";
+  }
+
   std::string ToString() const override;
 
   std::vector<AstNode*> GetChildren(bool want_types) const override {

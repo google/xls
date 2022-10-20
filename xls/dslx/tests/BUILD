@@ -841,6 +841,24 @@ xls_ir_opt_ir(
     top = "__non_blocking_receives__proc_main_0_next",
 )
 
+dslx_lang_test(
+    name = "non_blocking_receive_if",
+    convert_to_ir = False,
+    dslx_entry = "Tester",
+)
+
+xls_dslx_ir(
+    name = "non_blocking_receive_if_ir",
+    dslx_top = "Main",
+    library = "non_blocking_receive_if_dslx",
+)
+
+xls_ir_opt_ir(
+    name = "non_blocking_receive_if_opt_ir",
+    src = ":non_blocking_receive_if_ir.ir",
+    top = "__non_blocking_receive_if__Main_0_next",
+)
+
 exports_files([
     "mod_const_enum_importer.x",
     "mod_simple_const_enum.x",
