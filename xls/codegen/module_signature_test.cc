@@ -184,6 +184,70 @@ TEST(ModuleSignatureTest, StreamingChannelsInterface) {
   EXPECT_FALSE(signature.streaming_channels().at(1).has_ready_port_name());
 }
 
+TEST(ModuleSignatureTest, RemoveStreamingChannel) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports for streaming channels.
+  b.AddDataInputAsBits("streaming_in_data", 24);
+  b.AddDataInputAsBits("streaming_in_valid", 1);
+  b.AddDataOutputAsBits("streaming_in_ready", 1);
+
+  b.AddDataOutputAsBits("streaming_out_data", 16);
+
+  b.AddStreamingChannel("streaming_in", ChannelOps::kReceiveOnly,
+                        FlowControl::kReadyValid, /*fifo_depth=*/42,
+                        "streaming_in_data", "streaming_in_valid",
+                        "streaming_in_ready");
+
+  b.AddStreamingChannel("streaming_out", ChannelOps::kSendOnly,
+                        FlowControl::kNone, /*fifo_depth=*/std::nullopt,
+                        "streaming_out_data");
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+
+  EXPECT_EQ(signature.streaming_channels().size(), 2);
+
+  XLS_EXPECT_OK(b.RemoveStreamingChannel("streaming_in"));
+  XLS_ASSERT_OK_AND_ASSIGN(signature, b.Build());
+  EXPECT_EQ(signature.streaming_channels().size(), 1);
+  EXPECT_EQ(signature.streaming_channels()[0].name(), "streaming_out");
+
+  XLS_EXPECT_OK(b.RemoveStreamingChannel("streaming_out"));
+  XLS_ASSERT_OK_AND_ASSIGN(signature, b.Build());
+  EXPECT_EQ(signature.streaming_channels().size(), 0);
+}
+
+TEST(ModuleSignatureTest, FromProtoAndAddOutputPort) {
+  ModuleSignatureBuilder b(TestName());
+
+  // Add ports
+  b.AddDataInputAsBits("a", 24);
+  b.AddDataInputAsBits("b", 1);
+  b.AddDataOutputAsBits("c", 1);
+  b.AddDataOutputAsBits("d", 16);
+
+  XLS_ASSERT_OK_AND_ASSIGN(ModuleSignature signature, b.Build());
+  ModuleSignatureBuilder from_proto_b =
+      ModuleSignatureBuilder::FromProto(signature.proto());
+
+  from_proto_b.AddDataOutputAsBits("e", 10);
+  XLS_ASSERT_OK_AND_ASSIGN(signature, from_proto_b.Build());
+
+  EXPECT_EQ(signature.data_inputs().size(), 2);
+  EXPECT_EQ(signature.data_inputs()[0].name(), "a");
+  EXPECT_EQ(signature.data_inputs()[0].width(), 24);
+  EXPECT_EQ(signature.data_inputs()[1].name(), "b");
+  EXPECT_EQ(signature.data_inputs()[1].width(), 1);
+
+  EXPECT_EQ(signature.data_outputs().size(), 3);
+  EXPECT_EQ(signature.data_outputs()[0].name(), "c");
+  EXPECT_EQ(signature.data_outputs()[0].width(), 1);
+  EXPECT_EQ(signature.data_outputs()[1].name(), "d");
+  EXPECT_EQ(signature.data_outputs()[1].width(), 16);
+  EXPECT_EQ(signature.data_outputs()[2].name(), "e");
+  EXPECT_EQ(signature.data_outputs()[2].width(), 10);
+}
+
 }  // namespace
 }  // namespace verilog
 }  // namespace xls

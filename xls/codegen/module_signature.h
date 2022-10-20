@@ -44,6 +44,10 @@ class ModuleSignatureBuilder {
     proto_.set_module_name(ToProtoString(module_name));
   }
 
+  static ModuleSignatureBuilder FromProto(ModuleSignatureProto proto) {
+    return ModuleSignatureBuilder(std::move(proto));
+  }
+
   // Sets the clock as having the given name.
   ModuleSignatureBuilder& WithClock(std::string_view name);
 
@@ -94,9 +98,14 @@ class ModuleSignatureBuilder {
       std::optional<std::string_view> ready_port_name =
           std::optional<std::string_view>());
 
+  absl::Status RemoveStreamingChannel(std::string_view name);
+
   absl::StatusOr<ModuleSignature> Build();
 
  private:
+  explicit ModuleSignatureBuilder(ModuleSignatureProto&& proto)
+      : proto_(std::move(proto)) {}
+
   ModuleSignatureProto proto_;
 };
 

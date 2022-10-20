@@ -19,9 +19,7 @@
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
-#include "absl/strings/str_join.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -175,6 +173,22 @@ ModuleSignatureBuilder& ModuleSignatureBuilder::AddStreamingChannel(
   }
 
   return *this;
+}
+
+absl::Status ModuleSignatureBuilder::RemoveStreamingChannel(
+    std::string_view name) {
+  auto channel_itr =
+      std::find_if(proto_.data_channels().begin(), proto_.data_channels().end(),
+                   [name](const ChannelProto& channel) -> bool {
+                     return channel.name() == ToProtoString(name);
+                   });
+  if (channel_itr == proto_.mutable_data_channels()->end()) {
+    return absl::InvalidArgumentError(absl::StrFormat(
+        "Channel with name %s could not be found in the ModuleSignature.",
+        name));
+  }
+  proto_.mutable_data_channels()->erase(channel_itr);
+  return absl::OkStatus();
 }
 
 absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
