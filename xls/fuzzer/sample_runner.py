@@ -38,6 +38,7 @@ from xls.tools.python import eval_helpers
 
 IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
+EVAL_PROC_MAIN_PATH = runfiles.get_path('xls/tools/eval_proc_main')
 IR_OPT_MAIN_PATH = runfiles.get_path('xls/tools/opt_main')
 CODEGEN_MAIN_PATH = runfiles.get_path('xls/tools/codegen_main')
 SIMULATE_MODULE_MAIN_PATH = runfiles.get_path('xls/tools/simulate_module_main')
@@ -113,20 +114,26 @@ class SampleRunner:
     json_options_filename = self._write_file('options.json',
                                              smp.options.to_json())
     args_filename = None
+    ir_channel_names_filename = None
     proc_init_values_filename = None
     if smp.args_batch:
       args_filename = self._write_file(
           'args.txt', sample.args_batch_to_text(smp.args_batch))
+    if smp.ir_channel_names is not None:
+      ir_channel_names_filename = self._write_file(
+          'ir_channel_names.txt',
+          sample.ir_channel_names_to_text(smp.ir_channel_names))
     if smp.proc_init_values is not None:
       proc_init_values_filename = self._write_file(
           'proc_init_values.txt',
           sample.proc_init_values_to_text(smp.proc_init_values))
 
     self.run_from_files(input_filename, json_options_filename, args_filename,
-                        proc_init_values_filename)
+                        ir_channel_names_filename, proc_init_values_filename)
 
   def run_from_files(self, input_filename: Text, json_options_filename: Text,
-                     args_filename: Text, proc_init_values_filename: Text):
+                     args_filename: Text, ir_channel_names_filename: Text,
+                     proc_init_values_filename: Text):
     """Runs a sample which is read from files.
 
     Each filename must be the name of a file (not a full path) which is
@@ -136,6 +143,8 @@ class SampleRunner:
       input_filename: The filename of the sample code.
       json_options_filename: The filename of the JSON-serialized SampleOptions.
       args_filename: The optional filename of the serialized ArgsBatch.
+      ir_channel_names_filename: The optional filename of the serialized
+        IR channel names.
       proc_init_values_filename: The optional filename of the serialized
         ProcInitValues.
 
@@ -143,102 +152,20 @@ class SampleRunner:
       SampleError: If an error was encountered.
     """
     logging.vlog(1, 'Reading sample files.')
-    input_text = self._read_file(input_filename)
     options = sample.SampleOptions.from_json(
         self._read_file(json_options_filename))
-    args_batch: Optional[ArgsBatch] = None
-    proc_init_values: Optional[ProcInitValues] = None
-    if args_filename:
-      args_batch = sample.parse_args_batch(self._read_file(args_filename))
-    if proc_init_values_filename:
-      proc_init_values = sample.parse_proc_init_values(
-          self._read_file(proc_init_values_filename))
 
     self._write_file('revision.txt', revision.get_revision())
 
-    # Gather results in an OrderedDict because the first entered result is used
-    # as a reference.
-    results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
-
     try:
-      if options.input_is_dslx:
-        if args_batch:
-          logging.vlog(1, 'Interpreting DSLX file.')
-          with Timer() as t:
-            if options.top_type == sample.TopType.function:
-              results['interpreted DSLX'] = self._interpret_dslx_function(
-                  input_text, 'main', args_batch)
-            elif options.top_type == sample.TopType.proc:
-              results['interpreted DSLX'] = self._interpret_dslx_proc(
-                  input_text, 'main', args_batch, proc_init_values)
-            else:
-              raise SampleError(
-                  f'Unsupported type for interpretation: {options.top_type}.')
-          logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
-                       t.elapsed_ns / 1e9)
-          self.timing.interpret_dslx_ns = t.elapsed_ns
-
-        if not options.convert_to_ir:
-          return
-
-        with Timer() as t:
-          if options.top_type == sample.TopType.function:
-            ir_filename = self._dslx_to_ir_function(input_filename, options)
-          elif options.top_type == sample.TopType.proc:
-            ir_filename = self._dslx_to_ir_proc(input_filename,
-                                                proc_init_values, options)
-          else:
-            raise SampleError(
-                f'Unsupported type for IR conversion: {options.top_type}.')
-        self.timing.convert_ir_ns = t.elapsed_ns
+      if options.top_type == sample.TopType.function:
+        self._run_function(input_filename, options, args_filename)
+      elif options.top_type == sample.TopType.proc:
+        self._run_proc(input_filename, options, args_filename,
+                       ir_channel_names_filename, proc_init_values_filename)
       else:
-        ir_filename = self._write_file('sample.ir', input_text)
+        raise SampleError(f'Unsupported sample type : {options.top_type}.')
 
-      if args_filename is not None:
-        # Unconditionally evaluate with the interpreter even if using the
-        # JIT. This exercises the interpreter and serves as a reference.
-        with Timer() as t:
-          results['evaluated unopt IR (interpreter)'] = self._evaluate_ir(
-              ir_filename, args_filename, False, options)
-        self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
-
-        if options.use_jit:
-          with Timer() as t:
-            results['evaluated unopt IR (JIT)'] = self._evaluate_ir(
-                ir_filename, args_filename, True, options)
-          self.timing.unoptimized_jit_ns = t.elapsed_ns
-
-      if options.optimize_ir:
-        with Timer() as t:
-          opt_ir_filename = self._optimize_ir(ir_filename, options)
-        self.timing.optimize_ns = t.elapsed_ns
-
-        if args_filename is not None:
-          if options.use_jit:
-            with Timer() as t:
-              results['evaluated opt IR (JIT)'] = self._evaluate_ir(
-                  opt_ir_filename, args_filename, True, options)
-            self.timing.optimized_jit_ns = t.elapsed_ns
-          with Timer() as t:
-            results['evaluated opt IR (interpreter)'] = self._evaluate_ir(
-                opt_ir_filename, args_filename, False, options)
-          self.timing.optimized_interpret_ir_ns = t.elapsed_ns
-
-        if options.codegen:
-          with Timer() as t:
-            verilog_filename = self._codegen(opt_ir_filename,
-                                             options.codegen_args, options)
-          self.timing.codegen_ns = t.elapsed_ns
-
-          if options.simulate:
-            assert args_filename is not None
-            with Timer() as t:
-              results['simulated'] = self._simulate(verilog_filename,
-                                                    'module_sig.textproto',
-                                                    args_filename, options)
-            self.timing.simulate_ns = t.elapsed_ns
-
-      self._compare_results(results, args_batch)
     except Exception as e:  # pylint: disable=broad-except
       # Note: this is a bit of a hack because pybind11 doesn't make it very
       # possible to define custom __str__ on exception types. Our C++ exception
@@ -247,7 +174,202 @@ class SampleRunner:
       logging.exception('Exception when running sample: %s', msg)
       self._write_file('exception.txt', msg)
       raise SampleError(
-          msg, is_timeout=isinstance(e, subprocess.TimeoutExpired))
+          msg, is_timeout=isinstance(e, subprocess.TimeoutExpired)) from e
+
+  def _run_function(self, input_filename: Text, options: sample.SampleOptions,
+                    args_filename: Text):
+    """Runs a sample with a function as the top which is read from files.
+
+    Each filename must be the name of a file (not a full path) which is
+    contained in the SampleRunner's run directory.
+
+    Args:
+      input_filename: The filename of the sample code.
+      options: The SampleOptions for the sample.
+      args_filename: The optional filename of the serialized ArgsBatch.
+
+    Raises:
+      SampleError: If an error was encountered.
+    """
+    input_text = self._read_file(input_filename)
+    args_batch: Optional[ArgsBatch] = None
+    if args_filename:
+      args_batch = sample.parse_args_batch(self._read_file(args_filename))
+
+    # Gather results in an OrderedDict because the first entered result is used
+    # as a reference.
+    results = collections.OrderedDict()  # type: Dict[Text, Sequence[Value]]
+    if options.input_is_dslx:
+      if args_batch:
+        logging.vlog(1, 'Interpreting DSLX file.')
+        with Timer() as t:
+          results['interpreted DSLX'] = self._interpret_dslx_function(
+              input_text, 'main', args_batch)
+        logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
+                     t.elapsed_ns / 1e9)
+        self.timing.interpret_dslx_ns = t.elapsed_ns
+
+      if not options.convert_to_ir:
+        return
+
+      with Timer() as t:
+        ir_filename = self._dslx_to_ir_function(input_filename, options)
+      self.timing.convert_ir_ns = t.elapsed_ns
+    else:
+      ir_filename = self._write_file('sample.ir', input_text)
+
+    if args_filename is not None:
+      # Unconditionally evaluate with the interpreter even if using the
+      # JIT. This exercises the interpreter and serves as a reference.
+      with Timer() as t:
+        results[
+            'evaluated unopt IR (interpreter)'] = self._evaluate_ir_function(
+                ir_filename, args_filename, False, options)
+      self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
+
+      if options.use_jit:
+        with Timer() as t:
+          results['evaluated unopt IR (JIT)'] = self._evaluate_ir_function(
+              ir_filename, args_filename, True, options)
+        self.timing.unoptimized_jit_ns = t.elapsed_ns
+
+    if options.optimize_ir:
+      with Timer() as t:
+        opt_ir_filename = self._optimize_ir(ir_filename, options)
+      self.timing.optimize_ns = t.elapsed_ns
+
+      if args_filename is not None:
+        if options.use_jit:
+          with Timer() as t:
+            results['evaluated opt IR (JIT)'] = self._evaluate_ir_function(
+                opt_ir_filename, args_filename, True, options)
+          self.timing.optimized_jit_ns = t.elapsed_ns
+        with Timer() as t:
+          results[
+              'evaluated opt IR (interpreter)'] = self._evaluate_ir_function(
+                  opt_ir_filename, args_filename, False, options)
+        self.timing.optimized_interpret_ir_ns = t.elapsed_ns
+
+      if options.codegen:
+        with Timer() as t:
+          verilog_filename = self._codegen(opt_ir_filename,
+                                           options.codegen_args, options)
+        self.timing.codegen_ns = t.elapsed_ns
+
+        if options.simulate:
+          assert args_filename is not None
+          with Timer() as t:
+            results['simulated'] = self._simulate_function(
+                verilog_filename, 'module_sig.textproto', args_filename,
+                options)
+          self.timing.simulate_ns = t.elapsed_ns
+
+    self._compare_results_function(results, args_batch)
+
+  def _run_proc(self, input_filename: Text, options: sample.SampleOptions,
+                args_filename: Text, ir_channel_names_filename: Text,
+                proc_init_values_filename: Text):
+    """Runs a sample with a proc as the top which is read from files.
+
+    Each filename must be the name of a file (not a full path) which is
+    contained in the SampleRunner's run directory.
+
+    Args:
+      input_filename: The filename of the sample code.
+      options: The SampleOptions for the sample.
+      args_filename: The optional filename of the serialized ArgsBatch.
+      ir_channel_names_filename: The optional filename of the serialized IR
+        channel names.
+      proc_init_values_filename: The optional filename of the serialized
+        ProcInitValues.
+
+    Raises:
+      SampleError: If an error was encountered.
+    """
+    input_text = self._read_file(input_filename)
+    args_batch: Optional[ArgsBatch] = None
+    ir_channel_names: Optional[List[Text]] = None
+    proc_init_values: Optional[ProcInitValues] = None
+    if args_filename:
+      args_batch = sample.parse_args_batch(self._read_file(args_filename))
+    if ir_channel_names_filename:
+      ir_channel_names = sample.parse_ir_channel_names(
+          self._read_file(ir_channel_names_filename))
+    if proc_init_values_filename:
+      proc_init_values = sample.parse_proc_init_values(
+          self._read_file(proc_init_values_filename))
+
+    # Gather results in an OrderedDict because the first entered result is used
+    # as a reference. Note the data is structure with a nested dictionary. The
+    # key of the dictionary is the name of the XLS stage being evaluated. The
+    # value of the dictionary is another dictionary where the key is the IR
+    # channel name. The value of the nested dictionary is a sequence of values
+    # corresponding to the channel.
+    results = collections.OrderedDict(
+    )  # type : Dict[Text, Dict[Text, Sequence[Value]]]
+
+    if options.input_is_dslx:
+      if args_batch:
+        logging.vlog(1, 'Interpreting DSLX file.')
+        with Timer() as t:
+          results['interpreted DSLX'] = self._interpret_dslx_proc(
+              input_text, 'main', args_batch, proc_init_values)
+        logging.vlog(1, 'Interpreting DSLX complete, elapsed %0.2fs',
+                     t.elapsed_ns / 1e9)
+        self.timing.interpret_dslx_ns = t.elapsed_ns
+
+      if not options.convert_to_ir:
+        return
+
+      with Timer() as t:
+        ir_filename = self._dslx_to_ir_proc(input_filename, proc_init_values,
+                                            options)
+      self.timing.convert_ir_ns = t.elapsed_ns
+    else:
+      ir_filename = self._write_file('sample.ir', input_text)
+
+    if args_filename is not None:
+      # Unconditionally evaluate with the interpreter even if using the
+      # JIT. This exercises the interpreter and serves as a reference.
+      with Timer() as t:
+        results['evaluated unopt IR (interpreter)'] = self._evaluate_ir_proc(
+            ir_filename, args_batch, ir_channel_names, False, options)
+      self.timing.unoptimized_interpret_ir_ns = t.elapsed_ns
+
+      if options.use_jit:
+        with Timer() as t:
+          results['evaluated unopt IR (JIT)'] = self._evaluate_ir_proc(
+              ir_filename, args_batch, ir_channel_names, True, options)
+        self.timing.unoptimized_jit_ns = t.elapsed_ns
+
+    if options.optimize_ir:
+      with Timer() as t:
+        opt_ir_filename = self._optimize_ir(ir_filename, options)
+      self.timing.optimize_ns = t.elapsed_ns
+
+      if args_filename is not None:
+        if options.use_jit:
+          with Timer() as t:
+            results['evaluated opt IR (JIT)'] = self._evaluate_ir_proc(
+                opt_ir_filename, args_batch, ir_channel_names, True, options)
+          self.timing.optimized_jit_ns = t.elapsed_ns
+        with Timer() as t:
+          results['evaluated opt IR (interpreter)'] = self._evaluate_ir_proc(
+              opt_ir_filename, args_batch, ir_channel_names, False, options)
+        self.timing.optimized_interpret_ir_ns = t.elapsed_ns
+
+      if options.codegen:
+        with Timer() as t:
+          self._codegen(opt_ir_filename, options.codegen_args, options)
+        self.timing.codegen_ns = t.elapsed_ns
+
+        if options.simulate:
+          assert args_filename is not None
+          with Timer() as t:
+            results['simulated'] = self._simulate_proc()
+          self.timing.simulate_ns = t.elapsed_ns
+
+    self._compare_results_proc(results)
 
   def _run_command(self, desc: Text, args: Sequence[Text],
                    options: sample.SampleOptions) -> str:
@@ -311,8 +433,8 @@ class SampleRunner:
     with open(os.path.join(self._run_dir, filename), 'r') as f:
       return f.read()
 
-  def _compare_results(self, results: Dict[Text, Sequence[Value]],
-                       args_batch: Optional[ArgsBatch]):
+  def _compare_results_function(self, results: Dict[Text, Sequence[Value]],
+                                args_batch: Optional[ArgsBatch]):
     """Compares a set of results as for equality.
 
     Each entry in the map is sequence of Values generated from some source
@@ -371,6 +493,64 @@ class SampleRunner:
                               f'\n{", ".join(values_matches)} ='
                               f'\n   {values[i].to_ir_str()}')
 
+  def _compare_results_proc(self, results: Dict[Text, Dict[Text,
+                                                           Sequence[Value]]]):
+    """Compares a set of results as for equality.
+
+    Each entry in the map is sequence of Values generated from some source
+    (e.g., interpreting the optimized IR). Each sequence of Values is compared
+    for equality.
+
+    Args:
+      results: Map of result Values.
+
+    Raises:
+      SampleError: A miscompare is found.
+    """
+    if not results:
+      return
+
+    # Returns whether the two given values are equal. The IR tools and the
+    # verilog simulator produce unsigned values while the DSLX interpreter can
+    # produce signed values so compare the results ignoring signedness.
+    def values_equal(a: Value, b: Value) -> bool:
+      return a.eq(b).is_true()
+
+    stages = sorted(results.keys())
+    reference = stages.pop(0)
+    all_channel_values_ref = results[reference]
+    for name in stages:
+      all_channel_values = results[name]
+      if len(all_channel_values_ref) != len(all_channel_values):
+        raise SampleError(
+            f'Results for {reference} has {len(all_channel_values_ref)} '
+            f' channels, {name} has {len(all_channel_values)} channels. '
+            f'The IR channel names in {reference} are: '
+            f'{list(all_channel_values_ref.keys())}.'
+            f'The IR channel names in {name} are: '
+            f'{list(all_channel_values.keys())}.')
+      for channel_name_ref, channel_values_ref in all_channel_values_ref.items(
+      ):
+        channel_values = all_channel_values.get(channel_name_ref)
+        if channel_values is None:
+          raise SampleError(
+              f'A channel named {channel_name_ref} is present in {reference}, '
+              f'but it is not present in {name}.')
+        if len(channel_values_ref) != len(channel_values):
+          raise SampleError(
+              f'In {reference}, channel \'{channel_name_ref}\' has '
+              f'{len(channel_values_ref)} entries. However, in {name}, '
+              f'channel \'{channel_name_ref}\' has {len(channel_values)} '
+              'entries.')
+        for i in range(len(channel_values)):
+          value_ref = channel_values_ref[i]
+          value = channel_values[i]
+          if not values_equal(value_ref, value):
+            raise SampleError(
+                f'In {reference}, at position {i} channel \'{channel_name_ref}\' '
+                f'has value {value_ref}. However, in {name}, the value is '
+                f'{value}.')
+
   def _interpret_dslx_function(self, text: str, top_name: str,
                                args_batch: ArgsBatch) -> Tuple[Value, ...]:
     """Interprets a DSLX module with a function as the top returns the result Values.
@@ -384,7 +564,8 @@ class SampleRunner:
 
   def _interpret_dslx_proc(
       self, text: str, top_name: str, args_batch: ArgsBatch,
-      proc_init_values: Optional[ProcInitValues]) -> Tuple[Value, ...]:
+      proc_init_values: Optional[ProcInitValues]
+  ) -> Dict[Text, Sequence[Value]]:
     """Interprets a DSLX module with proc as the top returns the result Values.
     """
     dslx_results = interpreter.run_proc(
@@ -418,9 +599,11 @@ class SampleRunner:
         for line in s.split('\n')
         if line.strip())
 
-  def _evaluate_ir(self, ir_filename: Text, args_filename: Text, use_jit: bool,
-                   options: sample.SampleOptions) -> Tuple[Value, ...]:
-    """Evaluate the IR file and returns the result Values."""
+  def _evaluate_ir_function(self, ir_filename: Text, args_filename: Text,
+                            use_jit: bool,
+                            options: sample.SampleOptions) -> Tuple[Value, ...]:
+    """Evaluate the IR file with a function as the top and returns the result Values.
+    """
     results_text = self._run_command(
         'Evaluating IR file ({}): {}'.format(
             'JIT' if use_jit else 'interpreter', ir_filename),
@@ -430,9 +613,52 @@ class SampleRunner:
     self._write_file(ir_filename + '.results', results_text)
     return self._parse_values(results_text)
 
+  def _evaluate_ir_proc(
+      self, ir_filename: Text, args_batch: Optional[ArgsBatch],
+      ir_channel_names: Optional[List[Text]], use_jit: bool,
+      options: sample.SampleOptions) -> Dict[Text, Sequence[Value]]:
+    """Evaluate the IR file with a proc as the top and returns the result Values.
+    """
+    all_channel_values = {k: [] for k in ir_channel_names
+                         }  # type: Dict[Text, List[Value]]
+    for channel_values in args_batch:
+      assert len(channel_values) == len(ir_channel_names)
+      for i in range(len(channel_values)):
+        all_channel_values[ir_channel_names[i]].append(channel_values[i])
+
+    ir_channel_values = collections.OrderedDict(
+    )  # type: Dict[Text, Sequence[IRValue]]
+    for key, values in all_channel_values.items():
+      ir_channel_values[key] = Value.convert_values_to_ir(values)
+
+    channel_values_filename_content = (
+        eval_helpers.channel_values_to_string(ir_channel_values))
+    channel_values_filename = self._write_file('channel_inputs.txt',
+                                               channel_values_filename_content)
+
+    results_text = self._run_command(
+        'Evaluating IR file ({}): {}'.format(
+            'JIT' if use_jit else 'interpreter', ir_filename),
+        (EVAL_PROC_MAIN_PATH,
+         '--inputs_for_all_channels=' + channel_values_filename,
+         '--ticks=' + str(len(args_batch)), '--backend=' +
+         ('serial_jit' if use_jit else 'ir_interpreter'), ir_filename), options)
+    self._write_file(ir_filename + '.results', results_text)
+
+    ir_channel_values_result = (
+        eval_helpers.parse_channel_values(results_text, len(args_batch)))
+    channel_values_result = {k: [] for k in ir_channel_values_result.keys()
+                            }  # type: Dict[Text, List[Value]]
+    for key, values in ir_channel_values_result.items():
+      for value in values:
+        channel_values_result[key].append(
+            interp_value_from_ir_string(value.to_str()))
+    return channel_values_result
+
   def _dslx_to_ir_function(self, dslx_filename: Text,
                            options: sample.SampleOptions) -> Text:
-    """Converts the DSLX file to an IR file whose filename is returned."""
+    """Converts the DSLX file to an IR file with a function as the top whose filename is returned.
+    """
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
@@ -443,7 +669,8 @@ class SampleRunner:
   def _dslx_to_ir_proc(self, dslx_filename: Text,
                        proc_init_values: ProcInitValues,
                        options: sample.SampleOptions) -> Text:
-    """Converts the DSLX file to an IR file whose filename is returned."""
+    """Converts the DSLX file to an IR file with a proc as the top whose filename is returned.
+    """
     args = [IR_CONVERTER_MAIN_PATH]
     if options.ir_converter_args:
       args.extend(options.ir_converter_args)
@@ -476,9 +703,9 @@ class SampleRunner:
     return self._write_file(
         'sample.sv' if options.use_system_verilog else 'sample.v', verilog_text)
 
-  def _simulate(self, verilog_filename: Text, module_sig_filename: Text,
-                args_filename: Text,
-                options: sample.SampleOptions) -> Tuple[Value, ...]:
+  def _simulate_function(self, verilog_filename: Text,
+                         module_sig_filename: Text, args_filename: Text,
+                         options: sample.SampleOptions) -> Tuple[Value, ...]:
     """Simulates the Verilog file and returns the results Values."""
     simulator_args = [
         SIMULATE_MODULE_MAIN_PATH,
@@ -495,3 +722,8 @@ class SampleRunner:
                                      simulator_args, options)
     self._write_file(verilog_filename + '.results', results_text)
     return self._parse_values(results_text)
+
+  # TODO(vmirian): 10-18-2022 Implement simulation for proc.
+  def _simulate_proc(self) -> Dict[Text, Sequence[Value]]:
+    """Simulates the Verilog file and returns the results Values."""
+    raise SampleError('Simulation for procs are not supported.')

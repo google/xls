@@ -162,6 +162,7 @@ py_library(
         "//xls/dslx:ir_converter_main",
         "//xls/tools:codegen_main",
         "//xls/tools:eval_ir_main",
+        "//xls/tools:eval_proc_main",
         "//xls/tools:opt_main",
         "//xls/tools:simulate_module_main",
     ],

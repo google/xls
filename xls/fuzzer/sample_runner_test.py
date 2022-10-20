@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import collections
 import os
 from typing import Tuple, Text
 
@@ -255,8 +256,9 @@ class SampleRunnerTest(test_base.TestCase):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
-    runner._evaluate_ir = lambda *args: (interp_value_from_ir_string('bits[8]:1'
-                                                                    ),)
+    # The function is needed to preserve the lambda in the line limit.
+    erroneous_func = lambda *args: (interp_value_from_ir_string('bits[8]:1'),)
+    runner._evaluate_ir_function = erroneous_func
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
           sample.Sample(
@@ -284,7 +286,7 @@ class SampleRunnerTest(test_base.TestCase):
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     results = (interp_value_from_ir_string('bits[8]:100'),
                interp_value_from_ir_string('bits[8]:1'))
-    runner._evaluate_ir = lambda *args: results
+    runner._evaluate_ir_function = lambda *args: results
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
           sample.Sample(
@@ -314,7 +316,7 @@ class SampleRunnerTest(test_base.TestCase):
       return (interp_value_from_ir_string('bits[8]:100'),
               interp_value_from_ir_string('bits[8]:100'))
 
-    runner._evaluate_ir = fake_evaluate_ir
+    runner._evaluate_ir_function = fake_evaluate_ir
     args_batch = [(interp_value_from_ir_string('bits[8]:42'),
                    interp_value_from_ir_string('bits[8]:64'))]
     with self.assertRaises(sample_runner.SampleError) as e:
@@ -365,7 +367,7 @@ class SampleRunnerTest(test_base.TestCase):
     def result_gen(*_):
       return results.pop(0)
 
-    runner._evaluate_ir = result_gen
+    runner._evaluate_ir_function = result_gen
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
           sample.Sample(
@@ -407,7 +409,9 @@ class SampleRunnerTest(test_base.TestCase):
   def test_codegen_combinational_wrong_results(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
-    runner._simulate = lambda *args: (interp_value_from_ir_string('bits[8]:1'),)
+    # The function is needed to preserve the lambda in the line limit.
+    erroneous_func = lambda *args: (interp_value_from_ir_string('bits[8]:1'),)
+    runner._simulate_function = erroneous_func
     dslx_text = 'fn main(x: u8, y: u8) -> u8 { x + y }'
     with self.assertRaises(sample_runner.SampleError) as e:
       runner.run(
@@ -502,14 +506,13 @@ class SampleRunnerTest(test_base.TestCase):
                   ]]))
     self.assertIn('timed out after 3 seconds', str(e.exception))
 
-  def test_interpret_dslx_proc_with_no_state(self):
+  def test_interpret_dslx_ir_proc_with_no_state(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     runner.run(
         sample.Sample(
             PROC_ADDER_DSLX,
             sample.SampleOptions(
-                convert_to_ir=False,
                 ir_converter_args=['--top=main'],
                 top_type=sample.TopType.proc,
             ),
@@ -523,14 +526,13 @@ class SampleRunnerTest(test_base.TestCase):
         _read_file(sample_dir, 'sample.x.results').strip(),
         'sample__result : {\n  bits[32]:0x8e\n}')
 
-  def test_interpret_dslx_proc_with_state(self):
+  def test_interpret_dslx_ir_proc_with_state(self):
     sample_dir = self._make_sample_dir()
     runner = sample_runner.SampleRunner(sample_dir)
     runner.run(
         sample.Sample(
             PROC_COUNTER_DSLX,
             sample.SampleOptions(
-                convert_to_ir=False,
                 ir_converter_args=['--top=main'],
                 top_type=sample.TopType.proc,
             ),
@@ -543,6 +545,112 @@ class SampleRunnerTest(test_base.TestCase):
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(),
         'sample__result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}')
+
+  def test_miscompare_number_of_channels(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    results = collections.OrderedDict().fromkeys(
+        ['sample__enable_counter', 'extra_channel_name'])
+    runner._evaluate_ir_proc = lambda *args: results
+    with self.assertRaises(sample_runner.SampleError) as e:
+      runner.run(
+          sample.Sample(
+              PROC_COUNTER_DSLX,
+              sample.SampleOptions(
+                  ir_converter_args=['--top=main'],
+                  top_type=sample.TopType.proc,
+                  optimize_ir=False,
+              ),
+              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
+                          [interp_value_from_ir_string('bits[1]:0')]],
+              ir_channel_names=['sample__enable_counter'],
+              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+    error_str = ('A channel named sample__enable_counter is present in '
+                 'evaluated unopt IR (JIT), but it is not present in evaluated '
+                 'unopt IR (interpreter).')
+    self.assertIn(error_str, str(e.exception))
+    self.assertIn(error_str, _read_file(sample_dir, 'exception.txt'))
+
+  def test_miscompare_missing_channel(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    results = collections.OrderedDict()
+    runner._evaluate_ir_proc = lambda *args: results
+    with self.assertRaises(sample_runner.SampleError) as e:
+      runner.run(
+          sample.Sample(
+              PROC_COUNTER_DSLX,
+              sample.SampleOptions(
+                  ir_converter_args=['--top=main'],
+                  top_type=sample.TopType.proc,
+                  optimize_ir=False,
+              ),
+              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
+                          [interp_value_from_ir_string('bits[1]:0')]],
+              ir_channel_names=['sample__enable_counter'],
+              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+    error_str = (
+        'Results for evaluated unopt IR (JIT) has 0  channels, interpreted '
+        'DSLX has 1 channels. The IR channel names in evaluated unopt IR (JIT)'
+        ' are: [].The IR channel names in interpreted DSLX are: '
+        '[\'sample__result\'].')
+    self.assertIn(error_str, str(e.exception))
+    self.assertIn(error_str, _read_file(sample_dir, 'exception.txt'))
+
+  def test_miscompare_number_of_channel_values(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    results = {'sample__result': [interp_value_from_ir_string('bits[32]:42')]}
+    runner._evaluate_ir_proc = lambda *args: results
+    with self.assertRaises(sample_runner.SampleError) as e:
+      runner.run(
+          sample.Sample(
+              PROC_COUNTER_DSLX,
+              sample.SampleOptions(
+                  ir_converter_args=['--top=main'],
+                  top_type=sample.TopType.proc,
+                  optimize_ir=False,
+              ),
+              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
+                          [interp_value_from_ir_string('bits[1]:0')]],
+              ir_channel_names=['sample__enable_counter'],
+              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+    error_str = (
+        'In evaluated unopt IR (JIT), channel \'sample__result\' has 1 '
+        'entries. However, in interpreted DSLX, channel \'sample__result\' has'
+        ' 2 entries.')
+    self.assertIn(error_str, str(e.exception))
+    self.assertIn(error_str, _read_file(sample_dir, 'exception.txt'))
+
+  def test_miscompare_channel_values(self):
+    sample_dir = self._make_sample_dir()
+    runner = sample_runner.SampleRunner(sample_dir)
+    results = {
+        'sample__result': [
+            interp_value_from_ir_string('bits[32]:43'),
+            interp_value_from_ir_string('bits[32]:42')
+        ]
+    }
+    runner._evaluate_ir_proc = lambda *args: results
+    with self.assertRaises(sample_runner.SampleError) as e:
+      runner.run(
+          sample.Sample(
+              PROC_COUNTER_DSLX,
+              sample.SampleOptions(
+                  ir_converter_args=['--top=main'],
+                  top_type=sample.TopType.proc,
+                  optimize_ir=False,
+              ),
+              args_batch=[[interp_value_from_ir_string('bits[1]:1')],
+                          [interp_value_from_ir_string('bits[1]:0')]],
+              ir_channel_names=['sample__enable_counter'],
+              proc_initial_values=[interp_value_from_ir_string('bits[32]:42')]))
+    error_str = (
+        'In evaluated unopt IR (JIT), at position 1 channel \'sample__result\' '
+        'has value u32:42. However, in interpreted DSLX, the value is u32:43.')
+    self.assertIn(error_str, str(e.exception))
+    self.assertIn(error_str, _read_file(sample_dir, 'exception.txt'))
+
 
 if __name__ == '__main__':
   test_base.main()

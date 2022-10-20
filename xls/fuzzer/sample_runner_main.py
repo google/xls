@@ -43,6 +43,9 @@ _INPUT_FILE = flags.DEFINE_string('input_file', None, 'Code input file.')
 _ARGS_FILE = flags.DEFINE_string(
     'args_file', None,
     'Optional arguments to use for interpretation and simulation.')
+_IR_CHANNEL_NAMES_FILE = flags.DEFINE_string(
+    'ir_channel_names_file', None,
+    'Optional ir names of input channels for a proc.')
 _PROC_INIT_VALUES_FILE = flags.DEFINE_string(
     'proc_init_values_file', None, 'Optional initial values for proc.')
 
@@ -68,14 +71,18 @@ def run(run_dir: Text):
   input_filename = maybe_copy_file(_INPUT_FILE.value, run_dir)
   options_filename = maybe_copy_file(_OPTIONS_FILE.value, run_dir)
   args_filename = None
+  proc_init_values_filename = None
+  ir_channel_names_filename = None
   if _ARGS_FILE.value:
     args_filename = maybe_copy_file(_ARGS_FILE.value, run_dir)
-  proc_init_values_filename = None
+  if _IR_CHANNEL_NAMES_FILE.value:
+    ir_channel_names_filename = maybe_copy_file(_IR_CHANNEL_NAMES_FILE.value,
+                                                run_dir)
   if _PROC_INIT_VALUES_FILE.value:
     proc_init_values_filename = maybe_copy_file(_PROC_INIT_VALUES_FILE.value,
                                                 run_dir)
   runner.run_from_files(input_filename, options_filename, args_filename,
-                        proc_init_values_filename)
+                        ir_channel_names_filename, proc_init_values_filename)
 
 
 def main(argv):
