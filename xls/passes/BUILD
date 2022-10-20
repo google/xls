@@ -1453,6 +1453,7 @@ cc_test(
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:create_import_data",
+        "//xls/dslx:import_data",
         "//xls/dslx:ir_converter",
         "//xls/dslx:parse_and_typecheck",
         "//xls/examples:sample_packages",
