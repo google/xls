@@ -61,11 +61,13 @@ xls_pybind_extension(
     deps = [
         "@com_google_absl//absl/base",
         "@com_google_absl//absl/strings",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:interp_value",
         "//xls/dslx:interp_value_helpers",
         "//xls/ir:ir_parser",
+        "//xls/ir:value",
     ],
 )
 
@@ -78,10 +80,12 @@ xls_pybind_extension(
     deps = [
         ":errors",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "//xls/common/logging",
+        "//xls/common/python:absl_casters",
         "//xls/common/status:status_macros",
         "//xls/common/status:statusor_pybind_caster",
         "//xls/dslx:ast",

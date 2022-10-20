@@ -27,14 +27,12 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/match.h"
 #include "absl/strings/numbers.h"
-#include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
 #include "absl/strings/str_join.h"
 #include "absl/strings/str_split.h"
 #include "absl/types/span.h"
 #include "xls/codegen/module_signature.pb.h"
 #include "xls/common/file/filesystem.h"
-#include "xls/common/indent.h"
 #include "xls/common/init_xls.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
@@ -46,7 +44,7 @@
 #include "xls/ir/value_helpers.h"
 #include "xls/jit/jit_channel_queue.h"
 #include "xls/jit/serial_proc_runtime.h"
-#include "re2/re2.h"
+#include "xls/tools/eval_helpers.h"
 
 constexpr const char* kUsage = R"(
 Evaluates an IR file containing Procs, or a Block generated from them.
@@ -124,28 +122,6 @@ ABSL_FLAG(double, prob_input_valid_assert, 1.0,
 ABSL_FLAG(bool, show_trace, false, "Whether or not to print trace messages.");
 
 namespace xls {
-
-std::string AllChannelValuesToString(
-    absl::flat_hash_map<std::string, std::vector<Value>> channel_to_values) {
-  std::string all_channels_values_str;
-  for (const auto& [channel_name, values] : channel_to_values) {
-    std::string channel_values_str;
-    if (!values.empty()) {
-      std::string values_str = absl::StrJoin(values, ", ", xls::ValueFormatter);
-      values_str = Indent(values_str);
-      channel_values_str = absl::StrJoin(
-          std::vector<std::string>{absl::StrCat(channel_name, " : {"),
-                                   values_str, "}"},
-          "\n");
-    } else {
-      channel_values_str = absl::StrJoin(
-          std::vector<std::string>{absl::StrCat(channel_name, " : {"), "}"},
-          "\n");
-    }
-    absl::StrAppend(&all_channels_values_str, channel_values_str, "\n");
-  }
-  return all_channels_values_str;
-}
 
 absl::Status RunIrInterpreter(
     Package* package, const std::vector<int64_t>& ticks,
@@ -239,7 +215,7 @@ absl::Status RunIrInterpreter(
       }
       expected_outputs_for_channels.insert({channel->name(), channel_values});
     }
-    std::cout << AllChannelValuesToString(expected_outputs_for_channels);
+    std::cout << ChannelValuesToString(expected_outputs_for_channels);
   }
 
   return absl::OkStatus();
@@ -324,7 +300,7 @@ absl::Status RunSerialJit(
       }
       expected_outputs_for_channels.insert({channel->name(), channel_values});
     }
-    std::cout << AllChannelValuesToString(expected_outputs_for_channels);
+    std::cout << ChannelValuesToString(expected_outputs_for_channels);
   }
 
   return absl::OkStatus();
@@ -686,70 +662,6 @@ GetValuesForEachChannels(
   return values_for_channels;
 }
 
-absl::StatusOr<absl::flat_hash_map<std::string, std::vector<Value>>>
-GetValuesForAllChannels(std::string_view filename_with_all_channel,
-                        const int64_t max_lines) {
-  enum ParseState {
-    kExpectStartOfChannel = 0,
-    kParsingChannel,
-  };
-  absl::flat_hash_map<std::string, std::vector<Value>> channel_to_values;
-  XLS_ASSIGN_OR_RETURN(std::string contents,
-                       GetFileContents(filename_with_all_channel));
-  ParseState state = kExpectStartOfChannel;
-  std::string channel_name;
-  std::vector<Value> channel_values;
-  int64_t line_number = 0, values_per_channel = 0;
-  for (const auto& line : absl::StrSplit(contents, '\n')) {
-    if (0 == (line_number % 500)) {
-      XLS_VLOG(1) << "Parsing at line " << line_number;
-    }
-    line_number++;
-    if (line.empty() || (line.find_first_not_of(' ') == std::string::npos)) {
-      continue;
-    }
-    switch (state) {
-      case kExpectStartOfChannel: {
-        if (!RE2::FullMatch(line, "([[:word:]]+)\\s*:\\s*{", &channel_name)) {
-          return absl::FailedPreconditionError(
-              absl::StrFormat("Expected start of channel declaration with "
-                              "format: (\"CHANNEL_NAME : {\", got (\"%s\").",
-                              line));
-        }
-        std::vector<std::string> strings =
-            absl::StrSplit(line, ' ', absl::SkipWhitespace());
-        channel_name = strings[0];
-        if (channel_to_values.contains(channel_name)) {
-          return absl::FailedPreconditionError(absl::StrFormat(
-              "Channel name '%s' declare twice in filename '%s'.", channel_name,
-              filename_with_all_channel));
-        }
-        XLS_VLOG(1) << "Parsing start of channel " << channel_name;
-        state = kParsingChannel;
-        break;
-      }
-      case kParsingChannel: {
-        if (line == "}") {
-          channel_to_values[channel_name] = channel_values;
-          XLS_VLOG(1) << "Adding channel: " << channel_name;
-          values_per_channel = 0;
-          channel_values.clear();
-          state = kExpectStartOfChannel;
-          break;
-        }
-        if ((values_per_channel - 2) == max_lines) {
-          break;
-        }
-        XLS_ASSIGN_OR_RETURN(Value value, Parser::ParseTypedValue(line));
-        channel_values.push_back(value);
-        values_per_channel++;
-        break;
-      }
-    }
-  }
-  return channel_to_values;
-}
-
 absl::Status RealMain(
     std::string_view ir_file, std::string_view backend,
     std::string_view block_signature_proto, std::vector<int64_t> ticks,
@@ -776,7 +688,7 @@ absl::Status RealMain(
   } else if (!inputs_for_all_channels_text.empty()) {
     XLS_ASSIGN_OR_RETURN(
         inputs_for_channels,
-        GetValuesForAllChannels(inputs_for_all_channels_text, total_ticks));
+        ParseChannelValuesFromFile(inputs_for_all_channels_text, total_ticks));
   }
 
   absl::flat_hash_map<std::string, std::vector<Value>>
@@ -788,8 +700,8 @@ absl::Status RealMain(
   } else if (!expected_outputs_for_all_channels_text.empty()) {
     XLS_ASSIGN_OR_RETURN(
         expected_outputs_for_channels,
-        GetValuesForAllChannels(expected_outputs_for_all_channels_text,
-                                total_ticks));
+        ParseChannelValuesFromFile(expected_outputs_for_all_channels_text,
+                                   total_ticks));
   }
 
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(ir_file));

@@ -13,11 +13,14 @@
 // limitations under the License.
 
 #include "absl/base/casts.h"
+#include "absl/container/flat_hash_map.h"
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
+#include "absl/strings/str_cat.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "xls/common/python/absl_casters.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
@@ -67,10 +70,10 @@ absl::StatusOr<std::vector<InterpValue>> RunFunctionBatched(
   return results;
 }
 
-absl::StatusOr<std::vector<InterpValue>> RunProc(
-    dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
-    const std::vector<std::vector<InterpValue>>& channel_values,
-    const std::vector<InterpValue>& proc_initial_values) {
+absl::StatusOr<absl::flat_hash_map<std::string, std::vector<InterpValue>>>
+RunProc(dslx::Proc* proc, ImportData& import_data, const TypecheckedModule& tm,
+        const std::vector<std::vector<InterpValue>>& channel_values,
+        const std::vector<InterpValue>& proc_initial_values) {
   XLS_ASSIGN_OR_RETURN(dslx::TypeInfo * proc_type_info,
                        tm.type_info->GetTopLevelProcTypeInfo(proc));
   std::vector<ProcInstance> proc_instances;
@@ -78,7 +81,12 @@ absl::StatusOr<std::vector<InterpValue>> RunProc(
   // Positional indexes of the input/output channels in the config
   // function.
   std::vector<int64_t> in_chan_indexes, out_chan_indexes;
+  // The mapping of the channels in the output_channel_names follow the mapping
+  // of out_chan_indexes. For example, out_channel_names[i] refers to same
+  // channel at out_chan_indexes[i].
+  std::vector<std::string> out_ir_channel_names;
 
+  std::string module_name = proc->owner()->name();
   for (int64_t index = 0; index < proc->config()->params().size(); ++index) {
     // Currently, only channels are supported as parameters to the config
     // function of a proc.
@@ -90,8 +98,11 @@ absl::StatusOr<std::vector<InterpValue>> RunProc(
       in_chan_indexes.push_back(index);
     } else if (channel_type->direction() == ChannelTypeAnnotation::kOut) {
       out_chan_indexes.push_back(index);
+      out_ir_channel_names.push_back(absl::StrCat(
+          module_name, "__", proc->config()->params().at(index)->identifier()));
     }
   }
+
   for (const std::vector<InterpValue>& values : channel_values) {
     XLS_CHECK_EQ(in_chan_indexes.size(), values.size())
         << "The input channel count should match the args count.";
@@ -100,35 +111,28 @@ absl::StatusOr<std::vector<InterpValue>> RunProc(
           values[index]);
     }
   }
+
   XLS_RETURN_IF_ERROR(ProcConfigBytecodeInterpreter::EvalSpawn(
       &import_data, proc_type_info, absl::nullopt, absl::nullopt, proc,
       config_args, proc_initial_values, &proc_instances));
   // Currently a single proc is supported.
   XLS_CHECK_EQ(proc_instances.size(), 1);
-
-  std::vector<InterpValue> results;
   for (const std::vector<InterpValue>& values : channel_values) {
     XLS_RETURN_IF_ERROR(proc_instances[0].Run());
-    std::vector<InterpValue> channel_results;
-    for (int64_t index = 0; index < out_chan_indexes.size(); ++index) {
-      std::shared_ptr<InterpValue::Channel> channel =
-          config_args[out_chan_indexes[index]].GetChannelOrDie();
-      // TODO(vmirian): Consider adding a 'None' InterpValue.
-      if (channel->empty()) {
-        continue;
-      }
-      channel_results.push_back(channel->front());
-      channel->pop_front();
-    }
-    // Ideally, the result should be a tuple containing two tuples. The first
-    // entry is the result of the next function, the second is the results of
-    // the output channels.
-    // TODO(vmirian): Collect the result from the next function.
-    InterpValue next_state_result = InterpValue::MakeTuple({});
-    results.push_back(InterpValue::MakeTuple(
-        {next_state_result, InterpValue::MakeTuple(channel_results)}));
   }
-  return results;
+
+  // TODO(vmirian): Ideally, the result should be a tuple containing two
+  // tuples. The first entry is the result of the next function, the second is
+  // the results of the output channels. Collect the result from the next
+  // function.
+  absl::flat_hash_map<std::string, std::vector<InterpValue>> all_channel_values;
+  for (int64_t index = 0; index < out_chan_indexes.size(); ++index) {
+    std::shared_ptr<InterpValue::Channel> channel =
+        config_args[out_chan_indexes[index]].GetChannelOrDie();
+    all_channel_values[out_ir_channel_names[index]] =
+        std::vector<InterpValue>(channel->begin(), channel->end());
+  }
+  return all_channel_values;
 }
 
 }  // namespace
@@ -147,7 +151,7 @@ PYBIND11_MODULE(interpreter, m) {
                              /*additional_search_paths=*/{}));
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
-            ParseAndTypecheck(text, "batched.x", "batched", &import_data));
+            ParseAndTypecheck(text, "sample.x", "sample", &import_data));
 
         std::optional<ModuleMember*> module_member =
             tm.module->FindMemberWithName(top_name);
@@ -166,13 +170,14 @@ PYBIND11_MODULE(interpreter, m) {
          const std::vector<std::vector<InterpValue>> args_batch,
          const std::vector<InterpValue> proc_initial_values,
          std::string_view dslx_stdlib_path)
-          -> absl::StatusOr<std::vector<InterpValue>> {
+          -> absl::StatusOr<
+              absl::flat_hash_map<std::string, std::vector<InterpValue>>> {
         ImportData import_data(
             CreateImportData(std::string(dslx_stdlib_path),
                              /*additional_search_paths=*/{}));
         XLS_ASSIGN_OR_RETURN(
             TypecheckedModule tm,
-            ParseAndTypecheck(text, "batched.x", "batched", &import_data));
+            ParseAndTypecheck(text, "sample.x", "sample", &import_data));
 
         std::optional<ModuleMember*> module_member =
             tm.module->FindMemberWithName(top_name);

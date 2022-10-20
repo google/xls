@@ -18,10 +18,12 @@
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
+#include "xls/common/python/absl_casters.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/interp_value_helpers.h"
 #include "xls/ir/ir_parser.h"
+#include "xls/ir/value.h"
 
 namespace py = pybind11;
 
@@ -86,6 +88,7 @@ PYBIND11_MODULE(interp_value, m) {
              XLS_ASSIGN_OR_RETURN(xls::Value value, self.ConvertToIr());
              return value.ToString(FormatPreference::kHex);
            })
+      .def("convert_values_to_ir", &InterpValue::ConvertValuesToIr)
       .def("is_true", &InterpValue::IsTrue)
       .def("is_false", &InterpValue::IsFalse)
       .def("to_signed",

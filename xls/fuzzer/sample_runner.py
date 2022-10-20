@@ -32,7 +32,9 @@ from xls.dslx.python.interp_value import interp_value_from_ir_string
 from xls.dslx.python.interp_value import Value
 from xls.fuzzer import sample_summary_pb2
 from xls.fuzzer.python import cpp_sample as sample
+from xls.ir.python.value import Value as IRValue
 from xls.public.python import runtime_build_actions
+from xls.tools.python import eval_helpers
 
 IR_CONVERTER_MAIN_PATH = runfiles.get_path('xls/dslx/ir_converter_main')
 EVAL_IR_MAIN_PATH = runfiles.get_path('xls/tools/eval_ir_main')
@@ -388,9 +390,14 @@ class SampleRunner:
     dslx_results = interpreter.run_proc(
         text, top_name, args_batch, proc_init_values,
         runtime_build_actions.get_default_dslx_stdlib_path())
+
+    ir_channel_values = collections.OrderedDict(
+    )  # type: Dict[Text, Sequence[IRValue]]
+    for key, values in dslx_results.items():
+      ir_channel_values[key] = Value.convert_values_to_ir(values)
     self._write_file('sample.x.results',
-                     '\n'.join(r.to_ir_str() for r in dslx_results))
-    return tuple(dslx_results)
+                     eval_helpers.channel_values_to_string(ir_channel_values))
+    return dslx_results
 
   def _parse_values(self, s: Text) -> Tuple[Value, ...]:
     """Parses a line-deliminated sequence of text-formatted Values.

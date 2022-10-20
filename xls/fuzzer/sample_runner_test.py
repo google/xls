@@ -521,7 +521,7 @@ class SampleRunnerTest(test_base.TestCase):
             proc_initial_values=[]))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(),
-        '((), (bits[32]:0x8e))')
+        'sample__result : {\n  bits[32]:0x8e\n}')
 
   def test_interpret_dslx_proc_with_state(self):
     sample_dir = self._make_sample_dir()
@@ -542,7 +542,7 @@ class SampleRunnerTest(test_base.TestCase):
             ]))
     self.assertEqual(
         _read_file(sample_dir, 'sample.x.results').strip(),
-        '((), (bits[32]:0x2b))\n((), (bits[32]:0x2b))')
+        'sample__result : {\n  bits[32]:0x2b\n  bits[32]:0x2b\n}')
 
 if __name__ == '__main__':
   test_base.main()
