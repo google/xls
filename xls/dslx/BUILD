@@ -178,7 +178,6 @@ cc_test(
     name = "bytecode_interpreter_test",
     srcs = ["bytecode_interpreter_test.cc"],
     deps = [
-        ":bytecode",
         ":bytecode_cache",
         ":bytecode_emitter",
         ":bytecode_interpreter",
@@ -186,8 +185,9 @@ cc_test(
         ":import_data",
         ":interp_value",
         ":parse_and_typecheck",
-        ":symbolic_bindings",
+        ":run_routines",
         "//xls/common:xls_gunit_main",
+        "//xls/common/file:temp_file",
         "//xls/common/status:matchers",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_googletest//:gtest",

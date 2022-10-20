@@ -1709,7 +1709,7 @@ absl::Status ProcConfigBytecodeInterpreter::EvalSpawn(
 
   XLS_ASSIGN_OR_RETURN(std::unique_ptr<BytecodeFunction> config_bf,
                        BytecodeEmitter::Emit(import_data, type_info,
-                                             proc->config(), absl::nullopt));
+                                             proc->config(), caller_bindings));
 
   ProcConfigBytecodeInterpreter cbi(import_data, config_bf.get(),
                                     proc_instances);

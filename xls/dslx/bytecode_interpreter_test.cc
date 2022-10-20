@@ -16,6 +16,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/container/flat_hash_map.h"
+#include "xls/common/file/temp_file.h"
 #include "xls/common/status/matchers.h"
 #include "xls/dslx/bytecode_cache.h"
 #include "xls/dslx/bytecode_emitter.h"
@@ -23,6 +24,7 @@
 #include "xls/dslx/import_data.h"
 #include "xls/dslx/interp_value.h"
 #include "xls/dslx/parse_and_typecheck.h"
+#include "xls/dslx/run_routines.h"
 
 namespace xls::dslx {
 namespace {
@@ -1381,6 +1383,69 @@ fn main() -> MyU9 {
   XLS_ASSERT_OK_AND_ASSIGN(InterpValue value,
                            Interpret(&import_data, kProgram, "main"));
   EXPECT_THAT(value.GetBitValueUint64(), IsOkAndHolds(0x1ff));
+}
+
+TEST(BytecodeInterpreterTest, DistinctNestedParametricProcs) {
+  // Tests that B, which has one set of parameters, can instantiate A, which has
+  // a different set of parameters.
+  constexpr std::string_view kProgram = R"(
+proc A<N: u32> {
+    data_in: chan<u32> in;
+    data_out: chan<u32> out;
+
+    config(data_in: chan<u32> in, data_out: chan<u32> out) {
+        (data_in, data_out)
+    }
+    next(tok: token, state: u32) {
+        let (tok, x) = recv(tok, data_in);
+        let tok = send(tok, data_out, x + N + state);
+        (state + u32:1)
+    }
+}
+
+proc B<M: u32, N: u32> {
+    data_in: chan<u32> in;
+    data_out: chan<u32> out;
+
+    config(data_in: chan<u32> in, data_out: chan<u32> out) {
+        spawn A<N>(data_in, data_out)(u32:0);
+        (data_in, data_out)
+    }
+    next(tok: token) {
+        ()
+    }
+}
+
+
+#[test_proc()]
+proc BTester {
+    data_in: chan<u32> out;
+    data_out: chan<u32> in;
+    terminator: chan<bool> out;
+
+    config(terminator: chan<bool> out) {
+        let (data_in_p, data_in_c) = chan<u32>;
+        let (data_out_p, data_out_c) = chan<u32>;
+        spawn B<u32:5, u32:3>(data_in_c, data_out_p)();
+        (data_in_p, data_out_c, terminator)
+    }
+
+    next(tok: token) {
+        let tok = send(tok, data_in, u32:3);
+        let (tok, result) = recv(tok, data_out);
+        let _ = assert_eq(result, u32:6);
+        let tok = send(tok, terminator, true);
+        ()
+    }
+})";
+
+  XLS_ASSERT_OK_AND_ASSIGN(auto temp_file,
+                           TempFile::CreateWithContent(kProgram, "_test.x"));
+  constexpr std::string_view kModuleName = "test";
+  ParseAndTestOptions options;
+  absl::StatusOr<TestResult> result = ParseAndTest(
+      kProgram, kModuleName, std::string{temp_file.path()}, options);
+  EXPECT_THAT(result, status_testing::IsOkAndHolds(TestResult::kAllPassed));
 }
 
 }  // namespace
