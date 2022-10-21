@@ -216,7 +216,19 @@ class AstGenerator {
       Env* env, std::optional<int64_t> bit_count = absl::nullopt) {
     auto is_bits = [&](const TypedExpr& e) -> bool {
       return IsBits(e.type) &&
-             !(bit_count.has_value() || GetTypeBitCount(e.type) == bit_count);
+             (bit_count.has_value() ? GetTypeBitCount(e.type) == bit_count
+                                    : true);
+    };
+    return ChooseEnvValue(env, is_bits);
+  }
+
+  // Returns a random bits-types value from the environment within a certain
+  // range [from, to] inclusive.
+  absl::StatusOr<TypedExpr> ChooseEnvValueBitsInRange(Env* env, int64_t from,
+                                                      int64_t to) {
+    auto is_bits = [&](const TypedExpr& e) -> bool {
+      return IsBits(e.type) && GetTypeBitCount(e.type) >= from &&
+             GetTypeBitCount(e.type) <= to;
     };
     return ChooseEnvValue(env, is_bits);
   }

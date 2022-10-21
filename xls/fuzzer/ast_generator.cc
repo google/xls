@@ -421,7 +421,9 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateCompareTuple(Env* env) {
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
-  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBits(env));
+  // TODO(tedhong): 2022-10-21 When https://github.com/google/xls/issues/746
+  // is resolved, remove bitcount constraint.
+  XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBitsInRange(env, 1, 64));
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
   Bits divisor = ChooseBitPattern(bit_count);
