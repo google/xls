@@ -427,6 +427,19 @@ synthesize_rtl(
     ],
 )
 
+xls_dslx_opt_ir(
+    name = "large_array",
+    srcs = ["large_array.x"],
+    dslx_top = "large_array",
+    ir_file = "large_array.ir",
+    opt_ir_file = "large_array.opt.ir",
+)
+
+xls_benchmark_ir(
+    name = "large_array_benchmark_ir",
+    src = ":large_array.ir",
+)
+
 # TODO(cdleary): 2022-05-09 Get this target working as well, requires
 # addressing the dependence on openmp runtime.
 # place_and_route(
