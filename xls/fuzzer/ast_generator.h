@@ -24,6 +24,7 @@
 #include "absl/strings/match.h"
 #include "xls/dslx/ast.h"
 #include "xls/dslx/scanner.h"
+#include "xls/fuzzer/value_generator.h"
 
 namespace xls::dslx {
 
@@ -85,37 +86,23 @@ class AstGenerator {
   // optimization for storing special types like tokens.
   using Env = absl::btree_map<std::string, TypedExpr>;
 
-  AstGenerator(AstGeneratorOptions options, std::mt19937* rng);
+  AstGenerator(AstGeneratorOptions options, ValueGenerator* value_gen);
 
   // Generates the entity with name "name" in a module named "module_name".
   absl::StatusOr<std::unique_ptr<Module>> Generate(std::string top_entity_name,
                                                    std::string module_name);
 
-  // Chooses a random "interesting" bit pattern with the given bit count.
-  Bits ChooseBitPattern(int64_t bit_count);
-
-  bool RandomBool() {
-    std::bernoulli_distribution d(0.5);
-    return d(rng_);
-  }
+  bool RandomBool() { return value_gen_.RandomBool(); }
 
   // Returns a random float uniformly distributed over [0, 1).
-  float RandomFloat() {
-    std::uniform_real_distribution<float> g(0.0f, 1.0f);
-    return g(rng_);
-  }
+  float RandomFloat() { return value_gen_.RandomFloat(); }
 
   // Returns a random integer over the range [0, limit).
-  int64_t RandRange(int64_t limit) { return RandRange(0, limit); }
+  int64_t RandRange(int64_t limit) { return value_gen_.RandRange(0, limit); }
 
   // Returns a random integer over the range [start, limit).
   int64_t RandRange(int64_t start, int64_t limit) {
-    XLS_CHECK_GT(limit, start);
-    std::uniform_int_distribution<int64_t> g(start, limit - 1);
-    int64_t value = g(rng_);
-    XLS_CHECK_LT(value, limit);
-    XLS_CHECK_GE(value, start);
-    return value;
+    return value_gen_.RandRange(start, limit);
   }
 
   // Returns a random integer with the given expected value from a distribution
@@ -126,10 +113,7 @@ class AstGenerator {
   // https://en.wikipedia.org/wiki/Poisson_distribution
   int64_t RandomIntWithExpectedValue(float expected_value,
                                      int64_t lower_limit = 0) {
-    XLS_CHECK_GE(expected_value, lower_limit);
-    std::poisson_distribution<int64_t> distribution(expected_value -
-                                                    lower_limit);
-    return distribution(rng_) + lower_limit;
+    return value_gen_.RandomIntWithExpectedValue(expected_value, lower_limit);
   }
 
  private:
@@ -494,7 +478,7 @@ class AstGenerator {
     // Make non-top level functions smaller.
     double alpha = (call_depth > 0) ? 1.0 : 7.0;
     std::gamma_distribution<float> g(alpha, 5.0);
-    return g(rng_) >= expr_size;
+    return g(value_gen_.rng()) >= expr_size;
   }
 
   // Returns the (flattened) bit count of the given type.
@@ -555,7 +539,7 @@ class AstGenerator {
     return absl::OkStatus();
   }
 
-  std::mt19937& rng_;
+  ValueGenerator value_gen_;
 
   const AstGeneratorOptions options_;
 

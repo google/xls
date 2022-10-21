@@ -38,6 +38,7 @@ xls_pybind_extension(
         "//xls/dslx:ast",
         "//xls/fuzzer:ast_generator",
         "//xls/fuzzer:cpp_sample_generator",
+        "//xls/fuzzer:value_generator",
     ],
 )
 

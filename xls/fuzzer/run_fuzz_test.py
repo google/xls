@@ -76,7 +76,7 @@ class RunFuzzTest(parameterized.TestCase):
 
   def _run_fuzz(self, seed: int) -> sample.Sample:
     return run_fuzz.generate_sample_and_run(
-        ast_generator.RngState(seed),
+        ast_generator.ValueGenerator(seed),
         self._get_ast_options(),
         self._get_sample_options(),
         run_dir=self.create_tempdir().full_path,
@@ -93,7 +93,7 @@ class RunFuzzTest(parameterized.TestCase):
     self.assertNotEqual(sample0, sample1)
 
   def test_sequential_samples_are_different(self):
-    rng = ast_generator.RngState(42)
+    rng = ast_generator.ValueGenerator(42)
     sample0 = run_fuzz.generate_sample_and_run(
         rng,
         self._get_ast_options(),

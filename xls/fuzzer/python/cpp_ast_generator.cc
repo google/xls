@@ -17,17 +17,16 @@
 
 #include <memory>
 
-#include "absl/base/casts.h"
 #include "absl/status/statusor.h"
 #include "pybind11/functional.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
-#include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/common/status/statusor_pybind_caster.h"
 #include "xls/dslx/ast.h"
 #include "xls/fuzzer/ast_generator.h"
 #include "xls/fuzzer/sample_generator.h"
+#include "xls/fuzzer/value_generator.h"
 
 namespace py = pybind11;
 
@@ -37,12 +36,13 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
   ImportStatusModule();
   py::module::import("xls.dslx.python.interp_value");
 
-  py::class_<RngState>(m, "RngState")
-      .def(py::init([](int64_t seed) { return RngState{std::mt19937(seed)}; }))
-      .def("random", &RngState::RandomDouble)
-      .def("randrange", &RngState::RandRange)
+  py::class_<ValueGenerator>(m, "ValueGenerator")
+      .def(py::init(
+          [](int64_t seed) { return ValueGenerator{std::mt19937(seed)}; }))
+      .def("random", &ValueGenerator::RandomDouble)
+      .def("randrange", py::overload_cast<int64_t>(&ValueGenerator::RandRange))
       .def("randrange_biased_towards_zero",
-           &RngState::RandRangeBiasedTowardsZero);
+           &ValueGenerator::RandRangeBiasedTowardsZero);
 
   py::class_<AstGeneratorOptions>(m, "AstGeneratorOptions")
       .def(py::init([](std::optional<bool> emit_loops,
@@ -91,23 +91,27 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
 
   m.def("generate",
         [](const AstGeneratorOptions& options,
-           RngState& state) -> absl::StatusOr<std::string> {
-          AstGenerator g(options, &state.rng());
+           ValueGenerator& value_gen) -> absl::StatusOr<std::string> {
+          AstGenerator g(options, &value_gen);
           XLS_ASSIGN_OR_RETURN(std::unique_ptr<Module> module,
                                g.Generate("main", "test"));
           return module->ToString();
         });
 
-  m.def("choose_bit_pattern", [](int64_t bit_count, RngState& state) -> Bits {
-    AstGenerator g(AstGeneratorOptions(), &state.rng());
-    return g.ChooseBitPattern(bit_count);
-  });
+  m.def(
+      "choose_bit_pattern",
+      [](int64_t bit_count, ValueGenerator& value_gen) -> absl::StatusOr<Bits> {
+        XLS_ASSIGN_OR_RETURN(
+            InterpValue interp_value,
+            value_gen.GenerateBitValue(bit_count, /*is_signed=*/false));
+        return interp_value.GetBits();
+      });
 
-  m.def("generate_arguments",
+  m.def("generate_interp_values",
         [](const std::vector<const ConcreteType*>& arg_types,
-           RngState* rng) -> absl::StatusOr<py::tuple> {
+           ValueGenerator* value_gen) -> absl::StatusOr<py::tuple> {
           XLS_ASSIGN_OR_RETURN(auto arguments,
-                               GenerateArguments(arg_types, rng));
+                               value_gen->GenerateInterpValues(arg_types));
           py::tuple result(arguments.size());
           for (int64_t i = 0; i < arguments.size(); ++i) {
             result[i] = arguments[i];
@@ -115,7 +119,7 @@ PYBIND11_MODULE(cpp_ast_generator, m) {
           return result;
         });
   m.def("generate_sample", GenerateSample, py::arg("options"),
-        py::arg("default_options"), py::arg("rng"));
+        py::arg("default_options"), py::arg("value_gen"));
 }
 
 }  // namespace xls::dslx

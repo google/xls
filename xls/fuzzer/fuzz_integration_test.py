@@ -94,7 +94,7 @@ class FuzzIntegrationTest(absltest.TestCase):
       seed = _SEED.value
       logging.info('Random seed specified via flag: %s', seed)
 
-    rng = ast_generator.RngState(seed)
+    rng = ast_generator.ValueGenerator(seed)
     generator_options = ast_generator.AstGeneratorOptions(
         max_width_bits_types=_MAX_WIDTH_BITS_TYPES.value,
         max_width_aggregate_types=_MAX_WIDTH_AGGREGATE_TYPES.value,

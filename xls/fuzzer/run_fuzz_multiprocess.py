@@ -71,10 +71,10 @@ def _do_worker_task(config: WorkerConfig):
   if config.seed:
     # Set seed deterministically based on the worker number so different workers
     # generate different samples.
-    rng = ast_generator.RngState(config.seed + config.worker_number)
+    rng = ast_generator.ValueGenerator(config.seed + config.worker_number)
   else:
     # Chose a nondeterministic seed.
-    rng = ast_generator.RngState(random.randrange(0, 1 << 31))
+    rng = ast_generator.ValueGenerator(random.randrange(0, 1 << 31))
 
   i = 0  # Silence pylint warning.
   for i in itertools.count():

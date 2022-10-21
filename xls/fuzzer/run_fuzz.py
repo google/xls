@@ -281,7 +281,7 @@ def _save_crasher(run_dir: str, smp: sample.Sample,
 
 
 def generate_sample_and_run(
-    rng: ast_generator.RngState,
+    rng: ast_generator.ValueGenerator,
     ast_generator_options: ast_generator.AstGeneratorOptions,
     sample_options: sample.SampleOptions,
     run_dir: str,

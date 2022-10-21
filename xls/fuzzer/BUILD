@@ -418,6 +418,7 @@ cc_library(
     srcs = ["ast_generator.cc"],
     hdrs = ["ast_generator.h"],
     deps = [
+        ":value_generator",
         "//xls/common:casts",
         "//xls/common/status:ret_check",
         "//xls/common/status:status_macros",
@@ -456,6 +457,7 @@ cc_library(
     deps = [
         ":ast_generator",
         ":cpp_sample",
+        ":value_generator",
         "//xls/common/logging",
         "//xls/common/status:ret_check",
         "//xls/dslx:ast",
@@ -487,6 +489,7 @@ cc_test(
     srcs = ["sample_generator_test.cc"],
     deps = [
         ":cpp_sample_generator",
+        ":value_generator",
         "//xls/common:xls_gunit_main",
         "//xls/common/status:matchers",
         "//xls/dslx:concrete_type",
@@ -510,5 +513,33 @@ py_test(
         "@com_google_absl_py//absl/flags",
         "@com_google_absl_py//absl/logging",
         "@com_google_absl_py//absl/testing:absltest",
+    ],
+)
+
+cc_library(
+    name = "value_generator",
+    srcs = ["value_generator.cc"],
+    hdrs = ["value_generator.h"],
+    deps = [
+        "//xls/common/status:ret_check",
+        "//xls/dslx:concrete_type",
+        "//xls/dslx:interp_value",
+        "//xls/ir:bits",
+        "//xls/ir:bits_ops",
+        "@com_google_absl//absl/status:statusor",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "value_generator_test",
+    srcs = ["value_generator_test.cc"],
+    deps = [
+        ":value_generator",
+        "//xls/common:xls_gunit_main",
+        "//xls/common/status:matchers",
+        "//xls/common/status:status_macros",
+        "//xls/dslx:concrete_type",
+        "@com_google_googletest//:gtest",
     ],
 )

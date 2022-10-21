@@ -72,7 +72,7 @@ class RunFuzzTest(parameterized.TestCase):
   def test_first_n_seeds(self, seed):
     for _ in range(_SAMPLE_COUNT):
       run_fuzz.generate_sample_and_run(
-          ast_generator.RngState(seed),
+          ast_generator.ValueGenerator(seed),
           self._get_ast_options(),
           self._get_sample_options(),
           run_dir=self.create_tempdir().full_path,

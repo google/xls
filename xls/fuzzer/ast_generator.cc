@@ -20,12 +20,10 @@
 #include <vector>
 
 #include "absl/status/status.h"
-#include "absl/strings/match.h"
 #include "xls/common/casts.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/ast.h"
-#include "xls/ir/bits_ops.h"
 
 namespace xls::dslx {
 
@@ -426,7 +424,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateSynthesizableDiv(Env* env) {
   XLS_ASSIGN_OR_RETURN(TypedExpr lhs, ChooseEnvValueBitsInRange(env, 1, 64));
   // Divide by an arbitrary literal.
   XLS_ASSIGN_OR_RETURN(int64_t bit_count, BitsTypeGetBitCount(lhs.type));
-  Bits divisor = ChooseBitPattern(bit_count);
+  Bits divisor = value_gen_.GenerateBits(bit_count);
   Number* divisor_node = MakeNumberFromBits(divisor, lhs.type);
   return TypedExpr{
       module_->Make<Binop>(fake_span_, BinopKind::kDiv, lhs.expr, divisor_node),
@@ -635,61 +633,6 @@ ArrayTypeAnnotation* AstGenerator::MakeArrayType(TypeAnnotation* element_type,
 
 Range* AstGenerator::MakeRange(Expr* zero, Expr* arg) {
   return module_->Make<Range>(fake_span_, zero, arg);
-}
-
-Bits AstGenerator::ChooseBitPattern(int64_t bit_count) {
-  if (bit_count == 0) {
-    return Bits(0);
-  }
-  enum PatternKind {
-    kZero,
-    kAllOnes,
-    // Just the high bit is unset, otherwise all ones.
-    kAllButHighOnes,
-    // Alternating 01 bit pattern.
-    kOffOn,
-    // Alternating 10 bit pattern.
-    kOnOff,
-    kOneHot,
-    kRandom,
-  };
-  PatternKind choice = static_cast<PatternKind>(RandRange(kRandom + 1));
-  switch (choice) {
-    case kZero:
-      return Bits(bit_count);
-    case kAllOnes:
-      return Bits::AllOnes(bit_count);
-    case kAllButHighOnes:
-      return bits_ops::ShiftRightLogical(Bits::AllOnes(bit_count), 1);
-    case kOffOn: {
-      InlineBitmap bitmap(bit_count);
-      for (int64_t i = 1; i < bit_count; i += 2) {
-        bitmap.Set(i, 1);
-      }
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    case kOnOff: {
-      InlineBitmap bitmap(bit_count);
-      for (int64_t i = 0; i < bit_count; i += 2) {
-        bitmap.Set(i, 1);
-      }
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    case kOneHot: {
-      InlineBitmap bitmap(bit_count);
-      int64_t index = RandRange(bit_count);
-      bitmap.Set(index, 1);
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-    case kRandom: {
-      InlineBitmap bitmap(bit_count);
-      for (int64_t i = 0; i < bit_count; ++i) {
-        bitmap.Set(i, RandomBool());
-      }
-      return Bits::FromBitmap(std::move(bitmap));
-    }
-  }
-  XLS_LOG(FATAL) << "Impossible choice: " << choice;
 }
 
 absl::StatusOr<TypedExpr> AstGenerator::GenerateOneHotSelectBuiltin(Env* env) {
@@ -926,13 +869,18 @@ BuiltinTypeAnnotation* AstGenerator::GeneratePrimitiveType() {
 
 TypedExpr AstGenerator::GenerateNumber(std::optional<BitsAndSignedness> bas) {
   TypeAnnotation* type;
+  bool is_signed;
   if (bas.has_value()) {
     type = MakeTypeAnnotation(bas->signedness, bas->bits);
+    is_signed = bas->signedness;
   } else {
-    type = GeneratePrimitiveType();
+    BuiltinTypeAnnotation* builtin_type = GeneratePrimitiveType();
+    is_signed = builtin_type->GetSignedness();
+    type = builtin_type;
   }
   int64_t bit_count = GetTypeBitCount(type);
-  Bits value = ChooseBitPattern(bit_count);
+
+  Bits value = value_gen_.GenerateBits(bit_count);
   return TypedExpr{MakeNumberFromBits(value, type), type};
 }
 
@@ -1510,7 +1458,7 @@ absl::StatusOr<TypedExpr> AstGenerator::GenerateExpr(int64_t expr_size,
   while (true) {
     absl::StatusOr<TypedExpr> generated;
 
-    int choice = GetOpDistribution(options_.generate_proc)(rng_);
+    int choice = GetOpDistribution(options_.generate_proc)(value_gen_.rng());
     switch (static_cast<OpChoice>(choice)) {
       case kArray:
         generated = GenerateArray(env);
@@ -1936,8 +1884,9 @@ absl::StatusOr<std::unique_ptr<Module>> AstGenerator::Generate(
   return std::move(module_);
 }
 
-AstGenerator::AstGenerator(AstGeneratorOptions options, std::mt19937* rng)
-    : rng_(*XLS_DIE_IF_NULL(rng)),
+AstGenerator::AstGenerator(AstGeneratorOptions options,
+                           ValueGenerator* value_gen)
+    : value_gen_(*XLS_DIE_IF_NULL(value_gen)),
       options_(options),
       fake_pos_("<fake>", 0, 0),
       fake_span_(fake_pos_, fake_pos_) {}
