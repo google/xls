@@ -20,6 +20,7 @@
 #include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/str_format.h"
+#include "xls/codegen/module_signature.pb.h"
 #include "xls/common/logging/logging.h"
 #include "xls/common/status/ret_check.h"
 #include "xls/common/status/status_macros.h"
@@ -191,6 +192,52 @@ absl::Status ModuleSignatureBuilder::RemoveStreamingChannel(
   return absl::OkStatus();
 }
 
+ModuleSignatureBuilder& ModuleSignatureBuilder::AddSramRWPort(
+    std::string_view sram_name, std::string_view req_name,
+    std::string_view resp_name, int64_t address_width, int64_t data_width,
+    std::string_view address_name, std::string_view read_enable_name,
+    std::string_view write_enable_name, std::string_view read_data_name,
+    std::string_view write_data_name) {
+  SramProto* sram = proto_.add_srams();
+  sram->set_name(ToProtoString(sram_name));
+
+  Sram1RWProto* sram_1rw = sram->mutable_sram_1rw();
+  SramRWPortProto* rw_port = sram_1rw->mutable_rw_port();
+
+  SramRWRequestProto* req = rw_port->mutable_request();
+  SramRWResponseProto* resp = rw_port->mutable_response();
+
+  req->set_name(ToProtoString(req_name));
+  resp->set_name(ToProtoString(resp_name));
+
+  auto* address_proto = req->mutable_address();
+  address_proto->set_name(ToProtoString(address_name));
+  address_proto->set_direction(DIRECTION_OUTPUT);
+  address_proto->set_width(address_width);
+
+  auto* read_enable_proto = req->mutable_read_enable();
+  read_enable_proto->set_name(ToProtoString(read_enable_name));
+  read_enable_proto->set_direction(DIRECTION_OUTPUT);
+  read_enable_proto->set_width(1);
+
+  auto* write_enable_proto = req->mutable_write_enable();
+  write_enable_proto->set_name(ToProtoString(write_enable_name));
+  write_enable_proto->set_direction(DIRECTION_OUTPUT);
+  write_enable_proto->set_width(1);
+
+  auto* write_data_proto = req->mutable_write_data();
+  write_data_proto->set_name(ToProtoString(write_data_name));
+  write_data_proto->set_direction(DIRECTION_OUTPUT);
+  write_data_proto->set_width(data_width);
+
+  auto* read_data_proto = resp->mutable_read_data();
+  read_data_proto->set_name(ToProtoString(read_data_name));
+  read_data_proto->set_direction(DIRECTION_INPUT);
+  read_data_proto->set_width(data_width);
+
+  return *this;
+}
+
 absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
   return ModuleSignature::FromProto(proto_);
 }
@@ -223,6 +270,10 @@ absl::StatusOr<ModuleSignature> ModuleSignatureBuilder::Build() {
     } else {
       return absl::InvalidArgumentError("Invalid channel kind.");
     }
+  }
+
+  for (const SramProto& sram_ports : proto.srams()) {
+    signature.srams_.push_back(sram_ports);
   }
 
   return signature;

@@ -16,6 +16,7 @@
 #define XLS_CODEGEN_MODULE_SIGNATURE_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "absl/container/flat_hash_map.h"
@@ -100,6 +101,13 @@ class ModuleSignatureBuilder {
 
   absl::Status RemoveStreamingChannel(std::string_view name);
 
+  ModuleSignatureBuilder& AddSramRWPort(
+      std::string_view sram_name, std::string_view req_name,
+      std::string_view resp_name, int64_t address_width, int64_t data_width,
+      std::string_view address_name, std::string_view read_enable_name,
+      std::string_view write_enable_name, std::string_view read_data_name,
+      std::string_view write_data_name);
+
   absl::StatusOr<ModuleSignature> Build();
 
  private:
@@ -142,6 +150,8 @@ class ModuleSignature {
     return streaming_channels_;
   }
 
+  absl::Span<const SramProto> srams() { return srams_; }
+
   // Returns the total number of bits of the data input/outputs.
   int64_t TotalDataInputBits() const;
   int64_t TotalDataOutputBits() const;
@@ -176,6 +186,9 @@ class ModuleSignature {
   // the convenience methods single_value_channels() and streaming_channels()
   std::vector<ChannelProto> single_value_channels_;
   std::vector<ChannelProto> streaming_channels_;
+
+  // Like the channels above, duplicate srams to enable a convenience method.
+  std::vector<SramProto> srams_;
 };
 
 // Abstraction gathering the Verilog text and module signature produced by the
