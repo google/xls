@@ -159,7 +159,7 @@ class FuzzIntegrationTest(absltest.TestCase):
       if crasher_count == MAX_FAILURES:
         msg = f'Fuzzing stopped after finding {crasher_count} failures'
       else:
-        msg = f'Fuzzing found {crasher_count} failures.'
+        msg = f'Fuzzing found {crasher_count} failures'
       self.fail(
           f'{msg}. Generated {sample_count} total samples [seed = {seed}]')
 
