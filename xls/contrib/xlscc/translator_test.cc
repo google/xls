@@ -3928,3 +3928,4 @@ TEST_F(TranslatorTest, ChannelTemplateType) {
 }  // namespace
 
 }  // namespace xlscc
+

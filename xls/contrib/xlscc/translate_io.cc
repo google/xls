@@ -52,9 +52,22 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
 
   // Channel must be inserted first by AddOpToChannel
   if (op.op == OpType::kRecv) {
-    XLS_ASSIGN_OR_RETURN(xls::Type * xls_item_type,
-                         TranslateTypeToXLS(channel->item_type, loc));
+    xls::Type* xls_item_type;
+    std::shared_ptr<CType> channel_item_type;
+    if (op.is_blocking) {
+      XLS_ASSIGN_OR_RETURN(xls_item_type,
+                           TranslateTypeToXLS(channel->item_type, loc));
+      channel_item_type = channel->item_type;
+    } else {
+      XLS_ASSIGN_OR_RETURN(xls::Type * primary_item_type,
+                           TranslateTypeToXLS(channel->item_type, loc));
+      xls_item_type =
+          package_->GetTupleType({primary_item_type, package_->GetBitsType(1)});
 
+      channel_item_type =
+          std::make_shared<CInternalTuple>(std::vector<std::shared_ptr<CType>>(
+              {channel->item_type, std::make_shared<CBoolType>()}));
+    }
     const int64_t channel_op_index = op.channel_op_index;
 
     std::string safe_param_name =
@@ -71,7 +84,7 @@ absl::StatusOr<IOOp*> Translator::AddOpToChannel(IOOp& op, IOChannel* channel,
           safe_param_name.c_str()));
     }
 
-    op.input_value = CValue(pbval, channel->item_type);
+    op.input_value = CValue(pbval, channel_item_type);
   }
 
   context().sf->io_ops.push_back(op);
@@ -180,6 +193,16 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
         }
         op.op = OpType::kRecv;
         op.ret_value = op_condition;
+        op.is_blocking = true;
+      } else if (op_name == "nb_read") {
+        if (call->getNumArgs() != 1) {
+          return absl::UnimplementedError(
+              ErrorMessage(loc, "IO nb_read() should have one argument"));
+        }
+        assign_ret_value_to = call->getArg(0);
+        op.op = OpType::kRecv;
+        op.ret_value = op_condition;
+        op.is_blocking = false;
       } else if (op_name == "write") {
         if (call->getNumArgs() != 1) {
           return absl::UnimplementedError(
@@ -188,10 +211,11 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
         XLS_ASSIGN_OR_RETURN(CValue out_val,
                              GenerateIR_Expr(call->getArg(0), loc));
+
         std::vector<xls::BValue> sp = {out_val.rvalue(), op_condition};
         op.ret_value = context().fb->Tuple(sp, loc);
         op.op = OpType::kSend;
-
+        op.is_blocking = true;
       } else {
         return absl::UnimplementedError(
             ErrorMessage(loc, "Unsupported IO op: %s", op_name));
@@ -203,9 +227,33 @@ absl::StatusOr<Translator::IOOpReturn> Translator::InterceptIOOp(
 
       ret.value = op.input_value;
       if (assign_ret_value_to != nullptr) {
-        XLS_RETURN_IF_ERROR(Assign(assign_ret_value_to, ret.value, loc));
-      }
+        if (op.is_blocking) {
+          XLS_RETURN_IF_ERROR(Assign(assign_ret_value_to, ret.value, loc));
+        } else {
+          xls::BValue read_ready =
+              context().fb->TupleIndex(ret.value.rvalue(), 1);
+          xls::BValue read_value =
+              context().fb->TupleIndex(ret.value.rvalue(), 0);
 
+          if (!ret.value.type()->Is<CInternalTuple>()) {
+            return absl::UnimplementedError(
+                ErrorMessage(loc, "Unsupported IO op: %s", op_name));
+          }
+
+          CValue ret_object_value;
+          ret_object_value = CValue(
+              read_value, ret.value.type()->As<CInternalTuple>()->fields()[0]);
+
+          {
+            PushContextGuard condition_guard(*this, loc);
+            XLS_RETURN_IF_ERROR(and_condition(read_ready, loc));
+            XLS_RETURN_IF_ERROR(Assign(
+              assign_ret_value_to, ret_object_value, loc));
+          }
+          CValue ret_struct = CValue(read_ready, std::make_shared<CBoolType>());
+          ret.value = ret_struct;
+        }
+      }
       return ret;
     }
   }

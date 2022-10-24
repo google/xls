@@ -167,7 +167,6 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
 
     xls::BValue before_token = prepared.token;
     xls::BValue new_token;
-
     if (!op.after_ops.empty()) {
       std::vector<xls::BValue> after_tokens;
       for (const IOOp* op : op.after_ops) {
@@ -183,14 +182,23 @@ absl::StatusOr<xls::BValue> Translator::GenerateIOInvokes(
       xls::BValue condition = GetFlexTupleField(
           last_ret_val, return_index, prepared.xls_func->return_value_count,
           op_loc, absl::StrFormat("%s_pred", xls_channel->name()));
-
       XLS_CHECK_EQ(condition.GetType()->GetFlatBitCount(), 1);
-      xls::BValue receive =
-          pb.ReceiveIf(xls_channel, before_token, condition, op_loc);
+      xls::BValue receive;
+      if (op.is_blocking) {
+        receive = pb.ReceiveIf(xls_channel, before_token, condition, op_loc);
+      } else {
+        receive = pb.ReceiveIfNonBlocking(xls_channel, before_token, condition,
+                                          op_loc);
+      }
       new_token = pb.TupleIndex(receive, 0);
 
-      xls::BValue in_val = pb.TupleIndex(receive, 1);
-
+      xls::BValue in_val;
+      if (op.is_blocking) {
+        in_val = pb.TupleIndex(receive, 1);
+      } else {
+        in_val =
+            pb.Tuple({pb.TupleIndex(receive, 1), pb.TupleIndex(receive, 2)});
+      }
       prepared.args[arg_index] = in_val;
 
       // The function is invoked again with the value received from the channel
@@ -353,10 +361,11 @@ absl::Status Translator::GenerateIRBlockPrepare(
       case xlscc::SideEffectingParameterType::kIOOp: {
         const IOOp& op = *param.io_op;
         if (op.channel->channel_op_type == OpType::kRecv) {
-          XLS_ASSIGN_OR_RETURN(
-              xls::BValue val,
-              CreateDefaultValue(op.channel->item_type, body_loc));
-
+          XLS_ASSIGN_OR_RETURN(xls::BValue val,
+                CreateDefaultValue(op.channel->item_type, body_loc));
+          if (!op.is_blocking) {
+            val = pb.Tuple({val, pb.Literal(xls::UBits(1, 1))});
+          }
           prepared.arg_index_for_op[&op] = prepared.args.size();
           prepared.args.push_back(val);
         }

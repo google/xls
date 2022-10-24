@@ -445,6 +445,76 @@ std::shared_ptr<CField> CStructType::get_field(
   return found->second;
 }
 
+CInternalTuple::CInternalTuple(std::vector<std::shared_ptr<CType>> fields)
+    : fields_(fields) {}
+
+absl::Status CInternalTuple::GetMetadata(
+    Translator& translator, xlscc_metadata::Type* output,
+    absl::flat_hash_set<const clang::NamedDecl*>& aliases_used) const {
+  for (int i = 0; i < fields_.size(); ++i) {
+    std::shared_ptr<CType> field = fields_[i];
+    XLS_RETURN_IF_ERROR(field->GetMetadata(
+        translator, output->mutable_as_tuple()->add_fields(), aliases_used));
+  }
+  return absl::OkStatus();
+}
+
+absl::Status CInternalTuple::GetMetadataValue(
+    Translator& translator, const ConstValue const_value,
+    xlscc_metadata::Value* output) const {
+  for (int i = 0; i < fields_.size(); ++i) {
+    auto field = fields_[i];
+    auto struct_field_value = output->mutable_as_tuple()->add_fields();
+    XLS_ASSIGN_OR_RETURN(std::vector<xls::Value> values,
+                         const_value.rvalue().GetElements());
+    xls::Value elem_value = values.at(this->fields().size() - 1 - i);
+    XLS_RETURN_IF_ERROR(
+        field->GetMetadataValue(translator, ConstValue(elem_value, field),
+                                struct_field_value->mutable_value()));
+  }
+  return absl::OkStatus();
+}
+
+int CInternalTuple::GetBitWidth() const {
+  int ret = 0;
+  for (const std::shared_ptr<CType>& field : fields_) {
+    ret += field->GetBitWidth();
+  }
+  return ret;
+}
+
+CInternalTuple::operator std::string() const {
+  std::ostringstream ostr;
+  ostr << "InternalTuple{";
+  for (int i = 0; i < fields_.size(); ++i) {
+    const std::shared_ptr<CType>& field = fields_[i];
+    if (i > 0) {
+      ostr << ", ";
+    }
+    ostr << "[" << i << "] "
+         << ": " << string(*field);
+  }
+  ostr << "}";
+  return ostr.str();
+}
+
+bool CInternalTuple::operator==(const CType& o) const {
+  if (!o.Is<CInternalTuple>()) {
+    return false;
+  }
+  auto obj = o.As<CInternalTuple>();
+  for (int i = 0; i < fields_.size(); ++i) {
+    if (obj->fields_[i] != fields_[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const std::vector<std::shared_ptr<CType>>& CInternalTuple::fields() const {
+  return fields_;
+}
+
 CField::CField(const clang::NamedDecl* name, int index,
                std::shared_ptr<CType> type)
     : name_(name), index_(index), type_(type) {}

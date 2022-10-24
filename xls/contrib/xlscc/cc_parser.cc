@@ -451,6 +451,10 @@ class __xls_channel {
   void read(T& out) {
     (void)out;
   }
+  bool nb_read(T& out) {
+    (void)out;
+    return true;
+  }
 };
 
 // Bypass no outputs error

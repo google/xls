@@ -183,6 +183,110 @@ TEST_F(TranslatorIOTest, IOReadToParam) {
          /*outputs=*/{IOOpTest("out", 15, true)});
 }
 
+TEST_F(TranslatorIOTest, IONonblockingRead) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+    #pragma hls_top
+    void Run(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+	    int val = 1;
+	    bool r = in.nb_read(val);
+	    out.write(r ? val*3 : val);
+    })";
+
+  xls::Value value_in = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 32)), xls::Value::Bool(true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", value_in, true)},
+         /*outputs=*/{IOOpTest("out", 15, true)});
+
+  xls::Value value_not_ready = xls::Value::Tuple(
+      {xls::Value(xls::SBits(5, 32)), xls::Value::Bool(false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", value_not_ready, true)},
+         /*outputs=*/{IOOpTest("out", 1, true)});
+}
+
+TEST_F(TranslatorIOTest, IOProcNonblockingRead) {
+  const std::string content = R"(
+    #include "/xls_builtin.h"
+
+    #pragma hls_top
+    void foo(__xls_channel<int>& in,
+             __xls_channel<int>& out) {
+      int val = 1;
+	    bool r = in.nb_read(val);
+	    out.write(r ? val*3 : val);
+    })";
+
+  HLSBlock block_spec;
+  {
+    block_spec.set_name("foo");
+
+    HLSChannel* ch_in = block_spec.add_channels();
+    ch_in->set_name("in");
+    ch_in->set_is_input(true);
+    ch_in->set_type(FIFO);
+
+    HLSChannel* ch_out = block_spec.add_channels();
+    ch_out->set_name("out");
+    ch_out->set_is_input(false);
+    ch_out->set_type(FIFO);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {xls::Value(xls::SBits(5, 32))};
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(15, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+
+  {
+    absl::flat_hash_map<std::string, std::list<xls::Value>> inputs;
+    inputs["in"] = {};
+    absl::flat_hash_map<std::string, std::list<xls::Value>> outputs;
+    outputs["out"] = {xls::Value(xls::SBits(1, 32))};
+
+    ProcTest(content, block_spec, inputs, outputs);
+  }
+}
+
+TEST_F(TranslatorIOTest, IONonblockingReadStruct) {
+  const std::string content = R"(
+       #include "/xls_builtin.h"
+       struct Test {
+         int x;
+         int foo() const {
+           return x;
+         }
+       };
+       #pragma hls_top
+       void my_package(__xls_channel<Test>& in,
+                       __xls_channel<int>& out) {
+         Test v;
+         const bool read = in.nb_read(v);
+         if(read) {
+           v.x = v.x * 5;
+           out.write(v.foo());
+         }
+       })";
+  xls::Value value_in =
+      xls::Value::Tuple({xls::Value::Tuple({xls::Value(xls::SBits(5, 32))}),
+                         xls::Value::Bool(true)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", value_in, true)},
+         /*outputs=*/{IOOpTest("out", 25, true)});
+
+  xls::Value value_not_ready =
+      xls::Value::Tuple({xls::Value::Tuple({xls::Value(xls::SBits(5, 32))}),
+                         xls::Value::Bool(false)});
+  IOTest(content,
+         /*inputs=*/{IOOpTest("in", value_not_ready, true)},
+         /*outputs=*/{IOOpTest("out", 0, false)});
+}
+
 TEST_F(TranslatorIOTest, IOUnsequencedCheck) {
   const std::string content = R"(
        #include "/xls_builtin.h"

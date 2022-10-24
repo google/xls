@@ -234,6 +234,27 @@ class CStructType : public CType {
       fields_by_name_;
 };
 
+class CInternalTuple : public CType {
+ public:
+  CInternalTuple(std::vector<std::shared_ptr<CType>> fields);
+
+  int GetBitWidth() const override;
+  explicit operator std::string() const override;
+  absl::Status GetMetadata(Translator& translator, xlscc_metadata::Type* output,
+                           absl::flat_hash_set<const clang::NamedDecl*>&
+                               aliases_used) const override;
+  absl::Status GetMetadataValue(Translator& translator,
+                                const ConstValue const_value,
+                                xlscc_metadata::Value* output) const override;
+  bool operator==(const CType& o) const override;
+
+  const std::vector<std::shared_ptr<CType>>& fields() const;
+
+ private:
+  std::vector<std::shared_ptr<CType>> fields_;
+};
+
+
 // An alias for a type that can be instantiated. Typically this is reduced to
 //  another CType via Translator::ResolveTypeInstance()
 //
@@ -509,6 +530,8 @@ struct IOOp {
 
   // For reads: input value from function parameter for Recv op
   CValue input_value;
+
+  bool is_blocking = true;
 
   // Source location for messages
   xls::SourceInfo op_location;
@@ -795,6 +818,7 @@ class Translator {
  private:
   friend class CInstantiableTypeAlias;
   friend class CStructType;
+  friend class CInternalTuple;
 
   std::function<std::optional<std::string>(xls::Fileno)> LookUpInPackage();
   template <typename... Args>

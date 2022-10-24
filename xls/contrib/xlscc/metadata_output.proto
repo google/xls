@@ -143,6 +143,7 @@ message Type {
   optional ArrayType as_array = 6;
   optional StructType as_struct = 7;
   optional SourceLocationRange declaration_location = 8;
+  optional InternalTupleType as_tuple = 9;
 }
 
 // A field in a structure
@@ -160,6 +161,11 @@ message StructType {
   optional bool no_tuple = 3;
 }
 
+message InternalTupleType {
+  optional Type name = 1;
+  repeated Type fields = 2;
+}
+
 // Generic type's associated values
 message Value {
   optional bytes as_bits = 1;
@@ -168,6 +174,7 @@ message Value {
   optional ArrayTypeValue as_array = 4;
   optional StructTypeValue as_struct = 5;
   optional InstanceTypeValue as_inst = 6;
+  optional InternalTupleValue as_tuple = 7;
 }
 
 // Any integral type: char, short, int, long with the given
@@ -191,6 +198,15 @@ message StructFieldValue {
   optional CPPName name = 1;
   optional Type type = 2;
   optional Value value = 3;
+}
+
+message InternalTupleValue {
+  repeated InternalTupleFieldValue fields = 1;
+}
+
+message InternalTupleFieldValue {
+  optional Type type = 1;
+  optional Value value = 2;
 }
 
 // Fixed-length array type with the given values

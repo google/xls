@@ -2312,7 +2312,12 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
           IOOp* caller_op = caller_it->second;
           XLS_CHECK(caller_op->op == OpType::kRecv);
           XLS_CHECK(caller_op->input_value.rvalue().valid());
-          args.push_back(caller_op->input_value.rvalue());
+          auto args_val = caller_op->input_value.rvalue();
+          if (!callee_op->is_blocking) {
+            args_val = context().fb->Tuple(
+                {args_val, context().fb->Literal(xls::UBits(1, 1))});
+          }
+          args.push_back(args_val);
           // Expected return already expected in above loop
         }
         break;
@@ -2343,7 +2348,6 @@ absl::StatusOr<CValue> Translator::GenerateIR_Call(
   }
 
   xls::BValue raw_return = context().fb->Invoke(args, func->xls_func, loc);
-
   XLS_CHECK(expected_returns == 0 || raw_return.valid());
 
   list<xls::BValue> unpacked_returns;
