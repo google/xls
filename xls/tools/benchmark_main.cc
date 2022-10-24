@@ -407,12 +407,36 @@ absl::Status PrintProcInfo(Proc* p) {
   return absl::OkStatus();
 }
 
+// Invokes `f` until (approximately) at least`duration_ms` milliseconds have
+// passed and returns the number of calls per second.
+absl::StatusOr<float> CountRate(std::function<void()> f, int64_t duration_ms) {
+  // To avoid including absl::Now() calls in the time measurement, first
+  // estimate how many calls it will take for `duration_ms` milliseconds to
+  // elapse. This is done my running until `duration_ms / 10` milliseconds have
+  // elapsed with absl::Now() in the loop.
+  int64_t call_count = 0;
+  absl::Time start_estimate = absl::Now();
+  while (DurationToMs(absl::Now() - start_estimate) < duration_ms / 10) {
+    f();
+    ++call_count;
+  }
+
+  // Then run 10x the estimated call count to get close to `duration_ms` total
+  // run time.
+  absl::Time start_actual = absl::Now();
+  for (int64_t i = 0; i < call_count * 10; ++i) {
+    f();
+  }
+  int64_t elapsed_ms = DurationToMs(absl::Now() - start_actual);
+  return elapsed_ms == 0 ? 0.0f : (1000.0 * call_count) / elapsed_ms;
+}
+
 absl::Status RunInterpeterAndJit(FunctionBase* function_base,
                                  std::string_view description) {
-  // TODO(meheff): 2022/10/10 Run interpreter / jit for a fixed amount of time
-  // (1s?) and report the rate (iterations per second). Currently, many of the
-  // benchmarks do not run long enough to produce statistically significant
-  // results.
+  // Run the interpreter/JIT for a fixed amount of time and measure the rate of
+  // calls per second.
+  int64_t kRunDurationMs = 500;
+
   std::minstd_rand rng_engine;
   if (function_base->IsFunction()) {
     Function* function = function_base->AsFunctionOrDie();
@@ -452,23 +476,36 @@ absl::Status RunInterpeterAndJit(FunctionBase* function_base,
     const int64_t kJitRunMultiplier = 1000;
     InterpreterEvents events;
     std::vector<uint8_t> result_buffer(jit->GetReturnTypeSize());
-    absl::Time start_jit_run = absl::Now();
-    for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
-      for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
-        XLS_RETURN_IF_ERROR(jit->RunWithViews(
-            pointers, absl::MakeSpan(result_buffer), &events));
-      }
-    }
-    std::cout << absl::StreamFormat("JIT run time (%s): %dms\n", description,
-                                    DurationToMs(absl::Now() - start_jit_run));
-
-    absl::Time start_interpreter = absl::Now();
-    for (const std::vector<Value>& args : arg_set) {
-      XLS_RETURN_IF_ERROR(InterpretFunction(function, args).status());
-    }
+    XLS_ASSIGN_OR_RETURN(
+        float jit_run_rate,
+        CountRate(
+            [&]() -> absl::Status {
+              for (int64_t i = 0; i < kJitRunMultiplier; ++i) {
+                for (const std::vector<uint8_t*>& pointers : jit_arg_pointers) {
+                  XLS_CHECK_OK(jit->RunWithViews(
+                      pointers, absl::MakeSpan(result_buffer), &events));
+                }
+              }
+              return absl::OkStatus();
+            },
+            kRunDurationMs));
     std::cout << absl::StreamFormat(
-        "Interpreter run time (%s): %dms\n", description,
-        DurationToMs(absl::Now() - start_interpreter));
+        "JIT run time (%s): %d Kcalls/s\n", description,
+        static_cast<int64_t>(kInputCount * jit_run_rate));
+
+    XLS_ASSIGN_OR_RETURN(
+        float interpreter_run_rate,
+        CountRate(
+            [&]() -> absl::Status {
+              for (const std::vector<Value>& args : arg_set) {
+                XLS_CHECK_OK(InterpretFunction(function, args).status());
+              }
+              return absl::OkStatus();
+            },
+            kRunDurationMs));
+    std::cout << absl::StreamFormat(
+        "Interpreter run time (%s): %d calls/s\n", description,
+        static_cast<int64_t>(kInputCount * interpreter_run_rate));
     return absl::OkStatus();
   }
 
