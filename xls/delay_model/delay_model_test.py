@@ -171,7 +171,13 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(static_cast<float>(node->GetType()->GetFlatBitCount())));
+              0.0 *
+              std::log2(
+                 static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0
+                 ? 1.0
+                 : static_cast<float>(node->GetType()->GetFlatBitCount())
+              )
+            );
         """)
 
   def test_one_regression_estimator_operand_count(self):
@@ -202,7 +208,10 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->operand_count()) +
-              0.0 * std::log2(static_cast<float>(node->operand_count())));
+              0.0 * std::log2(
+                static_cast<float>(node->operand_count()) < 1.0 ? 1.0 : 
+                static_cast<float>(node->operand_count())
+              ));
         """)
 
   def test_two_factor_regression_estimator(self):
@@ -243,9 +252,16 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(static_cast<float>(node->GetType()->GetFlatBitCount())) +
+              0.0 * std::log2(
+                static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0 ?
+                 1.0 : static_cast<float>(node->GetType()->GetFlatBitCount())
+              ) +
               0.0 * static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) +
-              0.0 * std::log2(static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())));
+              0.0 * std::log2(
+                static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ? 
+                  1.0 : 
+                  static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
+              ));
         """)
 
   def test_fixed_op_model(self):
@@ -339,7 +355,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_binop_delay_expression_sub(self):
@@ -394,7 +410,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_binop_delay_expression_divide(self):
@@ -443,12 +459,16 @@ class DelayModelTest(absltest.TestCase):
         delta=1)
 
     expression_str = r"""(static_cast<float>(node->GetType()->GetFlatBitCount())
-        / static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()))"""
+        / ( 
+          static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount()) < 1.0 ?
+            1.0 :  
+            static_cast<float>(node->operand(1)->GetType()->GetFlatBitCount())
+        ))"""
     self.assertEqualIgnoringWhitespaceAndFloats(
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_binop_delay_expression_max(self):
@@ -503,7 +523,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_binop_delay_expression_min(self):
@@ -558,7 +578,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_binop_delay_expression_multiply(self):
@@ -611,7 +631,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_binop_delay_expression_power(self):
@@ -660,7 +680,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_constant_delay_expression(self):
@@ -704,7 +724,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_estimator_nested_delay_expression(self):
@@ -760,7 +780,7 @@ class DelayModelTest(absltest.TestCase):
         foo.cpp_delay_code('node'), r"""
           return std::round(
               0.0 + 0.0 * {expr} +
-              0.0 * std::log2({expr}));
+              0.0 * std::log2({expr} < 1.0 ? 1.0 : {expr}));
         """.format(expr=expression_str))
 
   def test_regression_op_model_with_bounding_box_specialization(self):
@@ -794,7 +814,11 @@ class DelayModelTest(absltest.TestCase):
             }
             return std::round(
                 0.0 + 0.0 * static_cast<float>(node->GetType()->GetFlatBitCount()) +
-                0.0 * std::log2(static_cast<float>(node->GetType()->GetFlatBitCount())));
+                0.0 * std::log2(
+                  static_cast<float>(node->GetType()->GetFlatBitCount()) < 1.0 ? 
+                   1.0 : 
+                  static_cast<float>(node->GetType()->GetFlatBitCount())
+                ));
           }
         """)
 

@@ -133,7 +133,7 @@ def delay_expression_description(exp: delay_model_pb2.DelayExpression) -> Text:
     if exp.bin_op == e.ADD:
       return '({} + {})'.format(lhs, rhs)
     elif exp.bin_op == e.DIVIDE:
-      return '({} / {})'.format(lhs, rhs)
+      return '({lhs} / ({rhs} < 1.0 ? 1.0 : {rhs})'.format(lhs=lhs, rhs=rhs)
     elif exp.bin_op == e.MAX:
       return 'max({}, {})'.format(lhs, rhs)
     elif exp.bin_op == e.MIN:
@@ -186,7 +186,7 @@ def _operation_delay_expression(expression: delay_model_pb2.DelayExpression,
     e = delay_model_pb2.DelayExpression.BinaryOperation
     return {
         e.ADD: lambda: lhs_value + rhs_value,
-        e.DIVIDE: lambda: lhs_value / rhs_value,
+        e.DIVIDE: lambda: lhs_value / (1.0 if rhs_value < 1.0 else rhs_value),
         e.MAX: lambda: max(lhs_value, rhs_value),
         e.MIN: lambda: min(lhs_value, rhs_value),
         e.MULTIPLY: lambda: lhs_value * rhs_value,
@@ -255,13 +255,21 @@ def _delay_expression_cpp_expression(
                                                  node_identifier)
     e = delay_model_pb2.DelayExpression.BinaryOperation
     return {
-        e.ADD: lambda: '({} + {})'.format(lhs_value, rhs_value),
-        e.DIVIDE: lambda: '({} / {})'.format(lhs_value, rhs_value),
-        e.MAX: lambda: 'std::max({}, {})'.format(lhs_value, rhs_value),
-        e.MIN: lambda: 'std::min({}, {})'.format(lhs_value, rhs_value),
-        e.MULTIPLY: lambda: '({} * {})'.format(lhs_value, rhs_value),
-        e.POWER: lambda: 'pow({}, {})'.format(lhs_value, rhs_value),
-        e.SUB: lambda: '({} - {})'.format(lhs_value, rhs_value),
+        e.ADD:
+            lambda: '({} + {})'.format(lhs_value, rhs_value),
+        e.DIVIDE:
+            lambda: '({lhs} / ({rhs} < 1.0 ? 1.0 : {rhs}))'.format(
+                lhs=lhs_value, rhs=rhs_value),
+        e.MAX:
+            lambda: 'std::max({}, {})'.format(lhs_value, rhs_value),
+        e.MIN:
+            lambda: 'std::min({}, {})'.format(lhs_value, rhs_value),
+        e.MULTIPLY:
+            lambda: '({} * {})'.format(lhs_value, rhs_value),
+        e.POWER:
+            lambda: 'pow({}, {})'.format(lhs_value, rhs_value),
+        e.SUB:
+            lambda: '({} - {})'.format(lhs_value, rhs_value),
     }[expression.bin_op]()
 
   if expression.HasField('factor'):
@@ -446,7 +454,8 @@ class RegressionEstimator(Estimator):
     def delay_f(x, *params) -> float:
       s = params[0]
       for i in range(len(x)):
-        s += params[2 * i + 1] * x[i] + params[2 * i + 2] * np.log2(x[i])
+        x_clamped = np.maximum(1.0, x[i])
+        s += params[2 * i + 1] * x[i] + params[2 * i + 2] * np.log2(x_clamped)
       return s
 
     with warnings.catch_warnings():
@@ -472,7 +481,8 @@ class RegressionEstimator(Estimator):
     for i, expression in enumerate(self.delay_expressions):
       e_str = _delay_expression_cpp_expression(expression, node_identifier)
       terms.append('{} * {}'.format(self.params[2 * i + 1], e_str))
-      terms.append('{} * std::log2({})'.format(self.params[2 * i + 2], e_str))
+      terms.append('{w} * std::log2({e} < 1.0 ? 1.0 : {e})'.format(
+          w=self.params[2 * i + 2], e=e_str))
     return 'return std::round({});'.format(' + '.join(terms))
 
 
