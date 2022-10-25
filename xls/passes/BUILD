@@ -1749,7 +1749,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/examples:proc_fir_filter",
         "//xls/interpreter:channel_queue",
-        "//xls/interpreter:proc_interpreter",
+        "//xls/interpreter:proc_network_interpreter",
         "//xls/ir",
         "//xls/ir:function_builder",
         "//xls/ir:ir_matcher",

@@ -36,7 +36,7 @@
 #include "xls/ir/events.h"
 #include "xls/ir/ir_parser.h"
 #include "xls/jit/jit_channel_queue.h"
-#include "xls/jit/proc_jit.h"
+#include "xls/jit/serial_proc_runtime.h"
 #include "xls/modules/aes/aes_test_common.h"
 
 constexpr std::string_view kEncrypterIrPath = "xls/modules/aes/aes_ctr.ir";
@@ -59,10 +59,8 @@ struct SampleData {
 // Holds together all the data needed for ProcJit management.
 struct JitData {
   std::unique_ptr<Package> package;
-  std::unique_ptr<JitRuntime> jit_runtime;
-  std::unique_ptr<ProcJit> jit;
-  std::unique_ptr<ProcContinuation> continuation;
-  std::unique_ptr<JitChannelQueueManager> queue_mgr;
+  Proc* proc;
+  std::unique_ptr<SerialProcRuntime> proc_runtime;
 };
 
 // In the DSLX, the IV is treated as a uN[96], so we potentially need to swap
@@ -115,30 +113,31 @@ absl::StatusOr<std::vector<Block>> XlsEncrypt(const SampleData& sample_data,
 
   XLS_ASSIGN_OR_RETURN(Channel * cmd_channel,
                        jit_data->package->GetChannel(kCmdChannel));
-  JitChannelQueue* cmd_queue = &jit_data->queue_mgr->GetJitQueue(cmd_channel);
+  JitChannelQueue* cmd_queue =
+      &jit_data->proc_runtime->queue_mgr()->GetJitQueue(cmd_channel);
   cmd_queue->WriteRaw(reinterpret_cast<uint8_t*>(&command));
 
   XLS_ASSIGN_OR_RETURN(Channel * input_data_channel,
                        jit_data->package->GetChannel(kInputDataChannel));
   JitChannelQueue* input_data_queue =
-      &jit_data->queue_mgr->GetJitQueue(input_data_channel);
+      &jit_data->proc_runtime->queue_mgr()->GetJitQueue(input_data_channel);
   input_data_queue->WriteRaw(sample_data.input_blocks[0].data());
 
-  XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
-  PrintTraceMessages(jit_data->continuation->GetEvents());
+  XLS_RETURN_IF_ERROR(jit_data->proc_runtime->Tick());
+  PrintTraceMessages(jit_data->proc_runtime->GetEvents(jit_data->proc));
 
   // TODO(rspringer): Set this up to handle partial blocks.
   for (int i = 1; i < num_blocks; i++) {
     input_data_queue->WriteRaw(sample_data.input_blocks[i].data());
-    XLS_RETURN_IF_ERROR(jit_data->jit->Tick(*jit_data->continuation).status());
-    PrintTraceMessages(jit_data->continuation->GetEvents());
+    XLS_RETURN_IF_ERROR(jit_data->proc_runtime->Tick());
+    PrintTraceMessages(jit_data->proc_runtime->GetEvents(jit_data->proc));
   }
 
   // Finally, read out the ciphertext.
   XLS_ASSIGN_OR_RETURN(Channel * output_data_channel,
                        jit_data->package->GetChannel(kOutputDataChannel));
   JitChannelQueue* output_data_queue =
-      &jit_data->queue_mgr->GetJitQueue(output_data_channel);
+      &jit_data->proc_runtime->queue_mgr()->GetJitQueue(output_data_channel);
   std::vector<Block> blocks;
   blocks.resize(num_blocks);
   for (int i = 0; i < num_blocks; i++) {
@@ -262,33 +261,21 @@ absl::StatusOr<bool> RunSample(JitData* jit_data, const SampleData& sample_data,
 }
 
 absl::StatusOr<JitData> CreateProcJit(std::string_view ir_path) {
+  JitData jit_data;
+
   XLS_ASSIGN_OR_RETURN(std::filesystem::path full_ir_path,
                        GetXlsRunfilePath(ir_path));
   XLS_ASSIGN_OR_RETURN(std::string ir_text, GetFileContents(full_ir_path));
   XLS_VLOG(1) << "Parsing IR.";
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<Package> package,
-                       Parser::ParsePackage(ir_text));
-  XLS_ASSIGN_OR_RETURN(Proc * proc,
-                       package->GetProc("__aes_ctr__aes_ctr_0_next"));
-
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitRuntime> jit_runtime,
-                       JitRuntime::Create());
-  XLS_ASSIGN_OR_RETURN(std::unique_ptr<JitChannelQueueManager> queue_mgr,
-                       JitChannelQueueManager::CreateThreadSafe(
-                           package.get(), jit_runtime.get()));
+  XLS_ASSIGN_OR_RETURN(jit_data.package, Parser::ParsePackage(ir_text));
+  XLS_ASSIGN_OR_RETURN(jit_data.proc,
+                       jit_data.package->GetProc("__aes_ctr__aes_ctr_0_next"));
 
   XLS_VLOG(1) << "JIT compiling.";
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(proc, jit_runtime.get(), queue_mgr.get()));
+  XLS_ASSIGN_OR_RETURN(jit_data.proc_runtime,
+                       SerialProcRuntime::Create(jit_data.package.get()));
   XLS_VLOG(1) << "Created JIT!";
 
-  JitData jit_data;
-  jit_data.jit = std::move(jit);
-  jit_data.jit_runtime = std::move(jit_runtime);
-  jit_data.continuation = jit_data.jit->NewContinuation();
-  jit_data.package = std::move(package);
-  jit_data.queue_mgr = std::move(queue_mgr);
   return jit_data;
 }
 

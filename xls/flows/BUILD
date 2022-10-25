@@ -40,7 +40,7 @@ cc_library(
         "//xls/ir",
         "//xls/jit:function_jit",
         "//xls/jit:jit_runtime",
-        "//xls/jit:proc_jit",
+        "//xls/jit:serial_proc_runtime",
         "//xls/passes:standard_pipeline",
     ],
 )
@@ -58,6 +58,7 @@ cc_test(
         "//xls/common/status:status_macros",
         "//xls/dslx:parse_and_typecheck",
         "//xls/ir:value_view",
+        "//xls/jit:serial_proc_runtime",
         "@com_google_googletest//:gtest",
     ],
 )

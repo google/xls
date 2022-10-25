@@ -35,15 +35,14 @@ using dslx::Module;
 using dslx::TypecheckedModule;
 
 absl::StatusOr<JitChannelQueueWrapper> JitChannelQueueWrapper::Create(
-    JitChannelQueue* queue, ProcJit* jit) {
+    JitChannelQueue* queue, JitRuntime* jit_runtime) {
   JitChannelQueueWrapper wrapper;
 
-  wrapper.jit_ = jit;
   wrapper.queue_ = queue;
 
   wrapper.type_ = queue->channel()->type();
 
-  int64_t buffer_size = jit->runtime()->GetTypeByteSize(wrapper.type_);
+  int64_t buffer_size = jit_runtime->GetTypeByteSize(wrapper.type_);
   wrapper.buffer_.resize(buffer_size);
 
   return wrapper;
@@ -275,51 +274,25 @@ absl::StatusOr<FunctionJit*> IrWrapper::GetAndMaybeCreateFunctionJit(
   return pre_compiled_function_jit_[f].get();
 }
 
-absl::StatusOr<ProcJit*> IrWrapper::GetAndMaybeCreateProcJit(
-    std::string_view name) {
-  if (jit_runtime_ == nullptr) {
-    XLS_ASSIGN_OR_RETURN(jit_runtime_, JitRuntime::Create());
+absl::StatusOr<SerialProcRuntime*> IrWrapper::GetAndMaybeCreateProcRuntime() {
+  if (proc_runtime_ == nullptr) {
+    XLS_ASSIGN_OR_RETURN(proc_runtime_,
+                         SerialProcRuntime::Create(package_.get()));
   }
-
-  XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
-
-  if (pre_compiled_proc_jit_.contains(p)) {
-    return pre_compiled_proc_jit_.at(p).get();
-  }
-
-  if (jit_channel_manager_ == nullptr) {
-    XLS_ASSIGN_OR_RETURN(jit_channel_manager_,
-                         JitChannelQueueManager::CreateThreadUnsafe(
-                             package_.get(), jit_runtime_.get()));
-  }
-
-  XLS_ASSIGN_OR_RETURN(
-      std::unique_ptr<ProcJit> jit,
-      ProcJit::Create(p, jit_runtime_.get(), jit_channel_manager_.get()));
-  pre_compiled_proc_jit_[p] = std::move(jit);
-  jit_continuations_[p] = pre_compiled_proc_jit_[p]->NewContinuation();
-
-  return pre_compiled_proc_jit_[p].get();
-}
-
-absl::StatusOr<ProcContinuation*> IrWrapper::GetJitContinuation(
-    std::string_view name) {
-  XLS_ASSIGN_OR_RETURN(Proc * p, GetIrProc(name));
-  XLS_RET_CHECK(jit_continuations_.contains(p));
-  return jit_continuations_.at(p).get();
+  return proc_runtime_.get();
 }
 
 absl::StatusOr<JitChannelQueue*> IrWrapper::GetJitChannelQueue(
     std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(Channel * channel, package_->GetChannel(name));
-  return &jit_channel_manager_->GetJitQueue(channel);
+  return &proc_runtime_->queue_mgr()->GetJitQueue(channel);
 }
 
 absl::StatusOr<JitChannelQueueWrapper> IrWrapper::CreateJitChannelQueueWrapper(
-    std::string_view name, ProcJit* jit) const {
+    std::string_view name) const {
   XLS_ASSIGN_OR_RETURN(JitChannelQueue * queue, GetJitChannelQueue(name));
 
-  return JitChannelQueueWrapper::Create(queue, jit);
+  return JitChannelQueueWrapper::Create(queue, &proc_runtime_->jit_runtime());
 }
 
 }  // namespace xls

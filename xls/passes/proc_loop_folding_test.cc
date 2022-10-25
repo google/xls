@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include "xls/passes/proc_loop_folding.h"
+
 #include <cstdint>
 
 #include "gmock/gmock.h"
@@ -21,16 +22,14 @@
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
 #include "xls/examples/proc_fir_filter.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/proc_network_interpreter.h"
 #include "xls/ir/function.h"
 #include "xls/ir/function_builder.h"
-#include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_scanner.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
 #include "xls/ir/value_helpers.h"
 #include "xls/passes/dce_pass.h"
-#include "xls/interpreter/proc_interpreter.h"
-#include "xls/interpreter/channel_queue.h"
 
 namespace xls {
 
@@ -227,9 +226,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -238,8 +236,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -249,24 +247,22 @@ TEST_F(RollIntoProcPassTest, SimpleLoop) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
   EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(2, 32))));
 
   // Run again
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
   EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(2, 32))));
 }
@@ -317,10 +313,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -328,8 +322,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -339,24 +333,22 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolled) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
   EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(4, 32))));
 
   // Run again
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
   EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(4, 32))));
 }
@@ -407,10 +399,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
 
   // The transformed proc should just output 2 every time. It's a CountedFor
   // which adds an invariant literal 1 to the accumulator that runs four times.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -418,8 +408,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -429,24 +419,22 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUnrolledFive) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue on the first iteration, since the CountedFor
   // runs twice.
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // Check if output is equal to 2
   EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(10, 32))));
 
   // Run again
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
   EXPECT_THAT(send_queue.Read(), Optional(Value(UBits(10, 32))));
 }
@@ -499,10 +487,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should just output 0 + 1 + ... + 9 each time (=45)
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -510,8 +496,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -521,13 +507,11 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVar) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 2; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -581,10 +565,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // The transformed proc should output 0 + 3 + 6 + ... + 27 each time (=135)
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -592,8 +574,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -603,13 +585,11 @@ TEST_F(RollIntoProcPassTest, SimpleLoopUseInductionVarStride) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(1, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 2; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -667,10 +647,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
 
   // We will add the receive value + 1 to the accumulator 10 times. So it should
   // be equal to 10*(Receive + 1).
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -678,8 +656,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -692,13 +670,11 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInvariantDependentOnRecv) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -755,10 +731,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
 
   // We will add 1 to the accumulator 10 times, so the output should be the
   // initial value of the accumulator + 10.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -766,8 +740,8 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -780,14 +754,12 @@ TEST_F(RollIntoProcPassTest, SimpleLoopInitialCarryValDependentOnRecv) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   std::vector<int> results = {10, 11, 12, 13, 14};
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -845,10 +817,8 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
 
   // We will add 1 to the accumulator 10 times, so the output should be 10 plus
   // one, from the use of the invariant after the loop.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
-
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
                                absl::StrFormat("%s_out", name)));
@@ -856,8 +826,8 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -870,14 +840,12 @@ TEST_F(RollIntoProcPassTest, InvariantUsedAfterLoop) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   std::vector<int> results = {11, 11, 11, 11, 11};
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -940,9 +908,8 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   EXPECT_THAT(Run(proc), status_testing::IsOkAndHolds(true));
 
   // We will add 1 to the accumulator 10 times, so the output should be 10.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(proc, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -951,8 +918,8 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -965,14 +932,12 @@ TEST_F(RollIntoProcPassTest, ReceiveUsedAfterLoop) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(11, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(10, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   std::vector<int> results = {1, 0, 1, 0, 1};
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until the tenth iteration.
   for (int64_t i = 0; i < 5; i++) {
     for (int64_t j = 0; j < 10; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 9) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -1016,9 +981,8 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   EXPECT_THAT(Run(f), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(f, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -1027,8 +991,8 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -1039,23 +1003,21 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until four iterations (the length of the
   // kernel) have completed.
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
   // At the end of this iteration, the result of the FIR filtering should be
   // available on the send queue.
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
   // It should be equal to 1. Confirm.
   std::vector<int> expected_output = {1, 4, 10, 20};
@@ -1065,7 +1027,7 @@ TEST_F(RollIntoProcPassTest, ImportFIR) {
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 4; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 3) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -1108,9 +1070,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   EXPECT_THAT(Run(f, 2), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(f, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -1119,8 +1080,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -1131,15 +1092,13 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // The inner FIR loop has been rolled up into the proc state. So there should
   // be nothing on the send queue until two iterations (the length of the
   // kernel divided by number of unrolls) have completed.
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_TRUE(send_queue.IsEmpty());
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // It should be equal to 1. Confirm.
@@ -1150,7 +1109,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnroll) {
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 2; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 1) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {
@@ -1193,9 +1152,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   EXPECT_THAT(Run(f, 4), status_testing::IsOkAndHolds(true));
 
   // Check if the transformed proc still works as an FIR filter.
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(f, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -1204,8 +1162,8 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
@@ -1216,11 +1174,9 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(3, 32))}));
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(4, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   // This got fully unrolled so it should have something to send out on every
   // iteration
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
   EXPECT_FALSE(send_queue.IsEmpty());
 
   // It should be equal to 1. Confirm.
@@ -1231,7 +1187,7 @@ TEST_F(RollIntoProcPassTest, ImportFIRUnrollAll) {
   // Now do this three more times and confirm if the output is correct.
   for (int i = 1; i < 4; i++) {
     for (int j = 0; j < 1; j++) {
-      ASSERT_THAT(pi.Tick(*continuation), IsOk());
+      ASSERT_THAT(pi->Tick(), IsOk());
       if (j < 0) {
         EXPECT_TRUE(send_queue.IsEmpty());
       } else {

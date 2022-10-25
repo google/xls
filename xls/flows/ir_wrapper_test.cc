@@ -26,6 +26,7 @@
 #include "xls/common/status/status_macros.h"
 #include "xls/dslx/parse_and_typecheck.h"
 #include "xls/ir/value_view.h"
+#include "xls/jit/serial_proc_runtime.h"
 
 namespace xls {
 namespace {
@@ -152,17 +153,17 @@ proc __top__foo_0_next(__token: token, init={}) {
 )");
 
   // Test that that the jit for the proc can be retrieved and run.
-  XLS_ASSERT_OK_AND_ASSIGN(ProcJit * jit,
-                           ir_wrapper.GetAndMaybeCreateProcJit("foo_0_next"));
+  XLS_ASSERT_OK_AND_ASSIGN(SerialProcRuntime * proc_runtime,
+                           ir_wrapper.GetAndMaybeCreateProcRuntime());
   XLS_ASSERT_OK_AND_ASSIGN(
       JitChannelQueueWrapper in_0,
-      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_0", jit));
+      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_0"));
   XLS_ASSERT_OK_AND_ASSIGN(
       JitChannelQueueWrapper in_1,
-      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_1", jit));
+      ir_wrapper.CreateJitChannelQueueWrapper("test_package__in_1"));
   XLS_ASSERT_OK_AND_ASSIGN(
       JitChannelQueueWrapper out,
-      ir_wrapper.CreateJitChannelQueueWrapper("test_package__output", jit));
+      ir_wrapper.CreateJitChannelQueueWrapper("test_package__output"));
 
   // Send data.
   EXPECT_TRUE(in_0.Empty());
@@ -177,8 +178,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_TRUE(out.Empty());
 
   // Run one tick
-  std::unique_ptr<ProcContinuation> continuation = jit->NewContinuation();
-  XLS_ASSERT_OK(jit->Tick(*continuation));
+  XLS_ASSERT_OK(proc_runtime->Tick());
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());
@@ -208,7 +208,7 @@ proc __top__foo_0_next(__token: token, init={}) {
   EXPECT_FALSE(in_1.Empty());
 
   // Run one tick
-  XLS_ASSERT_OK(jit->Tick(*continuation));
+  XLS_ASSERT_OK(proc_runtime->Tick());
 
   EXPECT_TRUE(in_0.Empty());
   EXPECT_TRUE(in_1.Empty());

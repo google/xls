@@ -62,6 +62,12 @@ class SerialProcRuntime {
 
   void ResetState();
 
+  const InterpreterEvents& GetEvents(Proc* proc) const {
+    return continuations_.at(proc)->GetEvents();
+  }
+
+  JitRuntime& jit_runtime() { return *jit_runtime_; }
+
  private:
   SerialProcRuntime(Package* package);
   absl::Status Init();

@@ -88,7 +88,7 @@ cc_test(
         "//xls/ir",
         "//xls/ir:ir_parser",
         "//xls/jit:jit_channel_queue",
-        "//xls/jit:proc_jit",
+        "//xls/jit:serial_proc_runtime",
         "@boringssl//:crypto",
     ],
 )

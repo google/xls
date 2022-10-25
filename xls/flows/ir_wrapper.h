@@ -29,7 +29,7 @@
 #include "xls/ir/function.h"
 #include "xls/ir/proc.h"
 #include "xls/jit/function_jit.h"
-#include "xls/jit/proc_jit.h"
+#include "xls/jit/serial_proc_runtime.h"
 
 namespace xls {
 
@@ -38,7 +38,7 @@ namespace xls {
 class JitChannelQueueWrapper {
  public:
   static absl::StatusOr<JitChannelQueueWrapper> Create(JitChannelQueue* queue,
-                                                       ProcJit* jit);
+                                                       JitRuntime* jit_runtime);
 
   // Get XLS type the queue stores.
   Type* GetType() const { return type_; }
@@ -68,9 +68,6 @@ class JitChannelQueueWrapper {
   absl::Status Read(absl::Span<uint8_t> buffer);
 
  private:
-  // Pointer to the jit.
-  ProcJit* jit_ = nullptr;
-
   // Pointer to the jit channel queue this object wraps.
   JitChannelQueue* queue_ = nullptr;
 
@@ -150,11 +147,8 @@ class IrWrapper {
   absl::StatusOr<FunctionJit*> GetAndMaybeCreateFunctionJit(
       std::string_view name);
 
-  // Retrieve and create (if needed) the JIT for the given proc.
-  absl::StatusOr<ProcJit*> GetAndMaybeCreateProcJit(std::string_view name);
-
-  // Retrieve the execution state of the JIT for this proc.
-  absl::StatusOr<ProcContinuation*> GetJitContinuation(std::string_view name);
+  // Retrieve and create (if needed) the Proc runtime.
+  absl::StatusOr<SerialProcRuntime*> GetAndMaybeCreateProcRuntime();
 
   // Retrieve JIT channel queue for the given channel name.
   absl::StatusOr<JitChannelQueue*> GetJitChannelQueue(
@@ -162,7 +156,7 @@ class IrWrapper {
 
   // Retrieve JIT channel queue wrapper for the given channel name and jit
   absl::StatusOr<JitChannelQueueWrapper> CreateJitChannelQueueWrapper(
-      std::string_view name, ProcJit* jit) const;
+      std::string_view name) const;
 
   // Takes ownership of a set of DSLX modules, converts to IR and creates
   // an IrWrapper object.
@@ -205,22 +199,12 @@ class IrWrapper {
   // IR Package.
   std::unique_ptr<Package> package_;
 
-  // JIT runtime.
-  std::unique_ptr<JitRuntime> jit_runtime_;
-
   // Holds pre-compiled IR Function Jit.
   absl::flat_hash_map<Function*, std::unique_ptr<FunctionJit>>
       pre_compiled_function_jit_;
 
-  // Holds pre-compiled IR Proc Jit.
-  absl::flat_hash_map<Proc*, std::unique_ptr<ProcJit>> pre_compiled_proc_jit_;
-
-  // Holds the execution state of the Proc Jit.
-  absl::flat_hash_map<Proc*, std::unique_ptr<ProcContinuation>>
-      jit_continuations_;
-
-  // Holds set of queues for each channel in the top-level package.
-  std::unique_ptr<JitChannelQueueManager> jit_channel_manager_;
+  // Proc runtime.
+  std::unique_ptr<SerialProcRuntime> proc_runtime_;
 };
 
 }  // namespace xls

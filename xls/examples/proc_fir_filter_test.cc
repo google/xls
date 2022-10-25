@@ -19,15 +19,11 @@
 #include "absl/strings/string_view.h"
 #include "xls/common/status/matchers.h"
 #include "xls/common/status/status_macros.h"
-#include "xls/common/logging/logging.h"
+#include "xls/interpreter/channel_queue.h"
+#include "xls/interpreter/proc_network_interpreter.h"
 #include "xls/ir/bits.h"
-#include "xls/ir/function_builder.h"
-#include "xls/ir/ir_matcher.h"
-#include "xls/ir/ir_scanner.h"
 #include "xls/ir/ir_test_base.h"
 #include "xls/ir/package.h"
-#include "xls/interpreter/proc_interpreter.h"
-#include "xls/interpreter/channel_queue.h"
 
 namespace xls {
 
@@ -59,15 +55,11 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
                            absl::StrFormat("%s_out", name),
                            ChannelOps::kSendOnly, kernel_type));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc* fir_proc, CreateFirFilter(name,
-                                                               kernel_value,
-                                                               x_in,
-                                                               filter_out,
-                                                               p.get()));
+  XLS_ASSERT_OK(
+      CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(fir_proc, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -76,17 +68,15 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(0, 32))}));
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
 
   EXPECT_EQ(send_queue.GetSize(), 1);
   EXPECT_FALSE(send_queue.IsEmpty());
@@ -96,15 +86,15 @@ TEST_F(ProcFirFilterTest, FIRSimpleTest) {
 
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(64, 32))}));
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
 
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(128, 32))}));
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
 
   XLS_ASSERT_OK(recv_queue.Write({Value(UBits(256, 32))}));
 
-  ASSERT_THAT(pi.Tick(*continuation), IsOk());
+  ASSERT_THAT(pi->Tick(), IsOk());
 
   EXPECT_EQ(send_queue.GetSize(), 3);
 
@@ -133,15 +123,11 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
                            absl::StrFormat("%s_out", name),
                            ChannelOps::kSendOnly, kernel_type));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc* fir_proc, CreateFirFilter(name,
-                                                               kernel_value,
-                                                               x_in,
-                                                               filter_out,
-                                                               p.get()));
+  XLS_ASSERT_OK(
+      CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(fir_proc, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -150,17 +136,15 @@ TEST_F(ProcFirFilterTest, FIRAccumulator) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   for (int idx = 1; idx < 8; idx++) {
     XLS_ASSERT_OK(recv_queue.Write({Value(UBits(idx, 32))}));
-    ASSERT_THAT(pi.Tick(*continuation), IsOk());
+    ASSERT_THAT(pi->Tick(), IsOk());
   }
 
   EXPECT_EQ(send_queue.GetSize(), 7);
@@ -195,15 +179,11 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
                            absl::StrFormat("%s_out", name),
                            ChannelOps::kSendOnly, kernel_type));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc* fir_proc, CreateFirFilter(name,
-                                                               kernel_value,
-                                                               x_in,
-                                                               filter_out,
-                                                               p.get()));
+  XLS_ASSERT_OK(
+      CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(fir_proc, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -212,17 +192,15 @@ TEST_F(ProcFirFilterTest, DISABLED_FIRScaleFactor) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   for (int idx = 0; idx < 6; idx++) {
     XLS_ASSERT_OK(recv_queue.Write({Value(UBits(idx, 32))}));
-    ASSERT_THAT(pi.Tick(*continuation), IsOk());
+    ASSERT_THAT(pi->Tick(), IsOk());
   }
 
   EXPECT_EQ(send_queue.GetSize(), 6);
@@ -255,15 +233,11 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
                            absl::StrFormat("%s_out", name),
                            ChannelOps::kSendOnly, kernel_type));
 
-  XLS_ASSERT_OK_AND_ASSIGN(Proc* fir_proc, CreateFirFilter(name,
-                                                               kernel_value,
-                                                               x_in,
-                                                               filter_out,
-                                                               p.get()));
+  XLS_ASSERT_OK(
+      CreateFirFilter(name, kernel_value, x_in, filter_out, p.get()).status());
 
-  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ChannelQueueManager> queue_manager,
-                           ChannelQueueManager::Create(p.get()));
-  ProcInterpreter pi(fir_proc, queue_manager.get());
+  XLS_ASSERT_OK_AND_ASSIGN(std::unique_ptr<ProcNetworkInterpreter> pi,
+                           CreateProcNetworkInterpreter(p.get()));
 
   XLS_ASSERT_OK_AND_ASSIGN(Channel* send,
                            p.get()->GetChannel(
@@ -272,19 +246,17 @@ TEST_F(ProcFirFilterTest, FIRTriangularBlur) {
                            p.get()->GetChannel(
                                absl::StrFormat("%s_x_in", name)));
 
-  ChannelQueue& send_queue = queue_manager->GetQueue(send);
-  ChannelQueue& recv_queue = queue_manager->GetQueue(recv);
+  ChannelQueue& send_queue = pi->queue_manager().GetQueue(send);
+  ChannelQueue& recv_queue = pi->queue_manager().GetQueue(recv);
 
   ASSERT_TRUE(send_queue.IsEmpty());
   ASSERT_TRUE(recv_queue.IsEmpty());
 
   std::vector<int> values = {2, 10, 4, 3, 8, 20, 9, 3};
 
-  std::unique_ptr<ProcContinuation> continuation = pi.NewContinuation();
-
   for (int idx = 0; idx < 8; idx++) {
     XLS_ASSERT_OK(recv_queue.Write({Value(UBits(values[idx], 32))}));
-    ASSERT_THAT(pi.Tick(*continuation), IsOk());
+    ASSERT_THAT(pi->Tick(), IsOk());
   }
 
   EXPECT_EQ(send_queue.GetSize(), 8);

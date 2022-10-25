@@ -53,6 +53,8 @@ absl::Status SerialProcRuntime::Init() {
 
 absl::Status SerialProcRuntime::Tick(bool print_traces) {
   bool progress_made = true;
+  // TODO(meheff): 2022/10/25 Use a statically allocated bitmap rather than a
+  // flat hash set for improved performance.
   absl::flat_hash_set<Proc*> completed_procs;
   // In round-robin fashion, run each proc until every proc has either completed
   // their tick or are blocked on receives.
